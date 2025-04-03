@@ -1,0 +1,257 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f compose.yml -c -o deploy/aperag
+    kompose.version: 1.26.0 (40646f47)
+  labels:
+    {{- include "aperag.labels" . | nindent 4 }}
+  name: django
+spec:
+  replicas: {{ .Values.django.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "aperag.selectorLabels" . | nindent 6 }}
+      {{- include "django.labels" . | nindent 6 }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "aperag.selectorLabels" . | nindent 8 }}
+        {{- include "django.labels" . | nindent 8 }}
+    spec:
+      initContainers:
+        {{- if eq .Values.django.embeddingBackend "local" }}
+        - name: prepare-embedding-models
+          image: {{ .Values.image.registry | default "docker.io" }}/apecloud/aperag-embedding-models:bge-large-zh
+          securityContext:
+            runAsUser: 0
+            privileged: true
+          command:
+            - /bin/sh
+            - -c
+            - |
+              # fail fast
+              set -e
+              if [ ! -d /data/.cache/torch/sentence_transformers ]; then
+                echo "initializing embedding model"
+                tar -xvf /models/BAAI_bge-large-zh.tar
+                mkdir -p /data/.cache/torch/sentence_transformers
+                mv BAAI_bge-large-zh/ /data/.cache/torch/sentence_transformers/
+                echo "successfully initialized embedding model"
+              else
+                echo "embedding model exists, skip initialize"
+              fi
+          env:
+            - name: EMBEDDING_BACKEND
+              value: {{ .Values.django.embeddingBackend | quote }}
+          volumeMounts:
+            - mountPath: /data
+              name: data
+        {{- end }}
+        {{- if eq .Values.django.rerankBackend "local" }}
+        - name: prepare-rerank-models
+          image: {{ .Values.image.registry | default "docker.io" }}/apecloud/aperag-rerank-models:bge-rerank-large
+          securityContext:
+            runAsUser: 0
+            privileged: true
+          command:
+            - /bin/sh
+            - -c
+            - |
+              # fail fast
+              set -e
+              if [ ! -d /data/models/bge-reranker-large ]; then
+                echo "initializing rerank model"
+                tar -xvf /models/bge-reranker-large.tar
+                mkdir -p /data/models
+                mv bge-reranker-large /data/models/
+                echo "successfully initialized rerank model"
+              else
+                echo "rerank model exists, skip initialize"
+              fi
+          env:
+            - name: RERANK_BACKEND
+              value: {{ .Values.django.rerankBackend | quote }}
+          volumeMounts:
+            - mountPath: /data
+              name: data
+        {{- end }}
+      containers:
+        - command:
+            - /bin/sh
+            - -c
+            - |
+              mkdir -p /data/.cache
+              mkdir -p /root/.cache
+              ln -s /data/.cache/huggingface /root/.cache/
+              ln -s /data/.cache/torch /root/.cache/
+              /app/scripts/entrypoint.sh /app/scripts/start-django.sh
+          env:
+            - name: AUTH_TYPE
+              value: {{ .Values.django.authType | quote}}
+            {{ if eq .Values.django.authType "auth0" }}
+            - name: AUTH0_CLIENT_ID
+              value: {{ .Values.django.auth0ClientId | quote }}
+            - name: AUTH0_DOMAIN
+              value: {{ .Values.django.auth0Domain | quote }}
+            {{ else if eq .Values.django.authType "authing" }}
+            - name: AUTHING_APP_ID
+              value: {{ .Values.django.authingAppId | quote }}
+            - name: AUTHING_DOMAIN
+              value: {{ .Values.django.authingDomain | quote }}
+            {{ else if eq .Values.django.authType "logto" }}
+            - name: LOGTO_APP_ID
+              value: {{ .Values.django.logtoAppId | quote }}
+            - name: LOGTO_DOMAIN
+              value: {{ .Values.django.logtoDomain | quote }}
+            {{- end }}
+            - name: REDIS_HOST
+              value: {{ .Values.django.redisHost | quote }}
+            - name: REDIS_PORT
+              value: {{ .Values.django.redisPort | quote }}
+            - name: REDIS_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.django.redisSecret }}
+                  key: username
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.django.redisSecret }}
+                  key: password
+            - name: CELERY_FLOWER_PASSWORD
+              value: {{ .Values.flower.password | quote }}
+            - name: CELERY_FLOWER_USER
+              value: {{ .Values.flower.user | quote }}
+            - name: DJANGO_LOG_LEVEL
+              value: {{ .Values.django.logLevel | quote }}
+            - name: MODEL_FAMILIES
+              value: {{ .Values.django.modelFamilies | toJson | quote }}
+            - name: POSTGRES_DB
+              value: "{{ .Values.django.metaDBDatabase }}"
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.django.metaDBSecret }}
+                  key: host
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.django.metaDBSecret }}
+                  key: port
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.django.metaDBSecret }}
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.django.metaDBSecret }}
+                  key: password
+            - name: VECTOR_DB_CONTEXT
+              value: {{ .Values.django.vectorDBContext | quote }}
+            - name: VECTOR_DB_TYPE
+              value: {{ .Values.django.vectorDBType | quote }}
+            {{- if .Values.django.openaiAPIKey }}
+            - name: OPENAI_API_KEY
+              value: {{ .Values.django.openaiAPIKey | quote }}
+            {{- end }}
+            {{- if .Values.django.openaiProxy }}
+            - name: OPENAI_API_PROXY
+              value: {{ .Values.django.openaiProxy | quote }}
+            {{- end }}
+            {{- if .Values.django.openaiAPIBase }}
+            - name: OPENAI_API_BASE
+              value: {{ .Values.django.openaiAPIBase | quote }}
+            {{- end }}
+            {{- if .Values.django.azureOpenAIAPIVersion }}
+            - name: AZURE_OPENAI_API_VERSION
+              value: {{ .Values.django.azureOpenAIAPIVersion | quote }}
+            {{- end }}
+            {{- if .Values.django.azureOpenAIDeploymentName }}
+            - name: AZURE_OPENAI_DEPLOYMENT_NAME
+              value: {{ .Values.django.azureOpenAIDeploymentName | quote }}
+            {{- end }}
+            {{- if .Values.django.azureOpenAIAPIKey }}
+            - name: AZURE_OPENAI_API_KEY
+              value: {{ .Values.django.azureOpenAIAPIKey | quote }}
+            {{- end }}
+            {{- if .Values.django.azureOpenAIAPIBase }}
+            - name: AZURE_OPENAI_API_BASE
+              value: {{ .Values.django.azureOpenAIAPIBase | quote }}
+            {{- end }}
+            - name: MEDIA_ROOT
+              value: /data/media
+            - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
+              value: python
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: FEISHU_APP_ID
+              value: {{ .Values.django.feishu.appID | quote }}
+            - name: FEISHU_APP_SECRET
+              value: {{ .Values.django.feishu.appSecret | quote }}
+            - name: FEISHU_ENCRIPT_KEY
+              value: {{ .Values.django.feishu.encryptKey | quote }}
+            - name: MAX_BOT_COUNT
+              value: {{ .Values.django.quota.maxBotCount | quote }}
+            - name: MAX_COLLECTION_COUNT
+              value: {{ .Values.django.quota.maxCollectionCount | quote }}
+            - name: MAX_DOCUMENT_COUNT
+              value: {{ .Values.django.quota.maxDocumentCount | quote }}
+            - name: MAX_CONVERSATION_COUNT
+              value: {{ .Values.django.quota.maxConversationCount | quote }}
+            - name: EMBEDDING_MODEL
+              value: {{ .Values.django.embeddingModel | quote }}
+            - name: EMBEDDING_DEVICE
+              value: {{ .Values.django.embeddingDevice | quote }}
+            - name: EMBEDDING_BACKEND
+              value: {{ .Values.django.embeddingBackend | quote }}
+            - name: EMBEDDING_SERVICE_URL
+              value: {{ .Values.django.embeddingServiceUrl | quote }}
+            - name: EMBEDDING_SERVICE_MODEL
+              value: {{ .Values.django.embeddingServiceModel | quote }}
+            - name: EMBEDDING_SERVICE_MODEL_UID
+              value: {{ .Values.django.embeddingServiceModelUid | quote }}
+            - name: RERANK_BACKEND
+              value: {{ .Values.django.rerankBackend | quote }}
+            - name: RERANK_SERVICE_URL
+              value: {{ .Values.django.rerankServiceUrl | quote }}
+            - name: RERANK_SERVICE_MODEL_UID
+              value: {{ .Values.django.rerankServiceModelUid | quote }}
+            - name: ES_HOST
+              value: {{ .Values.django.esHost | quote }}
+            - name: ADMIN_USER
+              value: {{ .Values.django.adminUser | quote }}
+            - name: ADMIN_TOKEN
+              value: {{ .Values.django.adminToken | quote }}
+          image: {{ .Values.image.registry | default "docker.io" }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}
+          name: aperag-django
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8000
+          {{- with .Values.django.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - mountPath: /data
+              name: data
+      restartPolicy: Always
+      {{- with .Values.django.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        # shared uploaded files between django and celery
+        - name: data
+          hostPath:
+            path: {{ .Values.django.dataPath }}

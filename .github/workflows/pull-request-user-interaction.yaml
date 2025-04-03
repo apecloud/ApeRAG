@@ -7,7 +7,7 @@ on:
 env:
   GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
   REVIEWERS: 'iziang'
-  REPO: 'DeepRAG'
+  REPO: 'ApeRAG'
   ISINTERACTION: ''
 
 jobs:

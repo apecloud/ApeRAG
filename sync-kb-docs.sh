@@ -11,7 +11,7 @@ if [ -z "${KB_DOC_SRC_BRANCH}" ]; then
 fi
 
 if [ -z "${KB_DOC_DST_BRANCH}" ]; then
-    KB_DOC_DST_BRANCH=deeprag-kubeblocks-docs-${KB_DOC_SRC_BRANCH}
+    KB_DOC_DST_BRANCH=aperag-kubeblocks-docs-${KB_DOC_SRC_BRANCH}
 fi
 
 if [ -z "${KC_API_KEY}"]; then

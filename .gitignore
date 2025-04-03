@@ -144,7 +144,7 @@ dmypy.json
 
 
 *.bin
-deploy/deeprag/production.yaml
+deploy/aperag/production.yaml
 documents
 
 # ssl file

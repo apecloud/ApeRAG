@@ -14,8 +14,8 @@ on:
         type: choice
         options:
           - ""
-          - deeprag
-          - deeprag-llmserver
+          - aperag
+          - aperag-llmserver
   release:
     types:
       - published
@@ -31,8 +31,8 @@ jobs:
     uses: apecloud/apecloud-cd/.github/workflows/enable-self-runner.yml@v0.1.76
     with:
       CLOUD_PROVIDER: "eks"
-      GITHUB_REPO: "apecloud/DeepRAG"
-      RUNNER_LABEL: "deeprag-image-runner"
+      GITHUB_REPO: "apecloud/ApeRAG"
+      RUNNER_LABEL: "aperag-image-runner"
     secrets: inherit
 
   image-tag:
@@ -52,14 +52,14 @@ jobs:
           ARTIFACT_KEY="${{ env.RELEASE_VERSION }}-image"
           echo 'artifact_key='${ARTIFACT_KEY} >> $GITHUB_OUTPUT
 
-  release-deeprag-image:
-    if: ${{ github.event.action == 'published' || inputs.image_name == '' || inputs.image_name == 'deeprag' }}
-    name: release-deeprag
+  release-aperag-image:
+    if: ${{ github.event.action == 'published' || inputs.image_name == '' || inputs.image_name == 'aperag' }}
+    name: release-aperag
     needs: [ image-tag, enable-gke-runner ]
     uses: apecloud/apecloud-cd/.github/workflows/release-image-cache-amd-sync.yml@v0.1.36
     with:
       MAKE_OPS_PRE: "poetry-lock-no-update build-requirements version"
-      IMG: "apecloud/deeprag"
+      IMG: "apecloud/aperag"
       VERSION: "${{ needs.image-tag.outputs.tag-name }}"
       DOCKERFILE_PATH: "./Dockerfile"
       REMOVE_PREFIX: false
@@ -67,26 +67,26 @@ jobs:
       ENABLE_SUBMODULE: true
     secrets: inherit
 
-  release-deeprag-frontend-image:
-    if: ${{ github.event.action == 'published' || inputs.image_name == '' || inputs.image_name == 'deeprag' }}
-    name: release-deeprag-frontend
+  release-aperag-frontend-image:
+    if: ${{ github.event.action == 'published' || inputs.image_name == '' || inputs.image_name == 'aperag' }}
+    name: release-aperag-frontend
     needs: [ image-tag ]
     uses: apecloud/apecloud-cd/.github/workflows/trigger-workflow.yml@v0.1.42
     with:
-      GITHUB_REPO: "apecloud/DeepRAG-FrontEnd"
+      GITHUB_REPO: "apecloud/ApeRAG-FrontEnd"
       BRANCH_NAME: "main"
       WORKFLOW_ID: "release-image.yml"
       APECD_REF: "v0.1.42"
       VERSION: "${{ needs.image-tag.outputs.tag-name }}"
     secrets: inherit
 
-#  release-deeprag-llmserver-image:
-#    if: ${{ github.event.action == 'published' || inputs.image_name == '' || inputs.image_name == 'deeprag-llmserver' }}
+#  release-aperag-llmserver-image:
+#    if: ${{ github.event.action == 'published' || inputs.image_name == '' || inputs.image_name == 'aperag-llmserver' }}
 #    needs: [ image-tag, enable-gke-runner ]
 #    uses: apecloud/apecloud-cd/.github/workflows/release-image-cache-amd-sync.yml@v0.1.36
 #    with:
 #      MAKE_OPS_PRE: "poetry-lock-no-update build-requirements version"
-#      IMG: "apecloud/deeprag-llmserver"
+#      IMG: "apecloud/aperag-llmserver"
 #      VERSION: "${{ needs.image-tag.outputs.tag-name }}"
 #      DOCKERFILE_PATH: "./Dockerfile-llmserver"
 #      REMOVE_PREFIX: false
@@ -96,18 +96,18 @@ jobs:
 
   disable-gke-runner:
     if: ${{ always() }}
-    needs: [ release-deeprag-image ]
+    needs: [ release-aperag-image ]
     uses: apecloud/apecloud-cd/.github/workflows/enable-self-runner.yml@v0.1.76
     with:
       CLOUD_PROVIDER: "eks"
-      GITHUB_REPO: "apecloud/DeepRAG"
-      RUNNER_LABEL: "deeprag-image-runner"
+      GITHUB_REPO: "apecloud/ApeRAG"
+      RUNNER_LABEL: "aperag-image-runner"
       ENABLE: "disable"
     secrets: inherit
 
   release-result:
     runs-on: ubuntu-latest
-    needs: [ release-deeprag-image ]
+    needs: [ release-aperag-image ]
     if: ${{ always() && github.event.action == 'published' }}
     outputs:
       release-result: ${{ steps.get_release_result.outputs.release_result }}
@@ -120,7 +120,7 @@ jobs:
           echo 'artifact_key='${ARTIFACT_KEY} >> $GITHUB_OUTPUT
           
           RELEASE_RESULT="error"
-          if [[ "${{ needs.release-deeprag-image.result }}" == "success" ]]; then
+          if [[ "${{ needs.release-aperag-image.result }}" == "success" ]]; then
               RELEASE_RESULT="success"
               echo "success" > ${ARTIFACT_KEY}
           else
@@ -182,13 +182,13 @@ jobs:
               exit 1
           fi
 
-  e2e-deeprag:
+  e2e-aperag:
     needs: [ image-tag, release-result, check-result ]
     uses: apecloud/apecloud-cd/.github/workflows/trigger-workflow.yml@v0.1.41
     with:
-      GITHUB_REPO: "apecloud/DeepRAG"
+      GITHUB_REPO: "apecloud/ApeRAG"
       BRANCH_NAME: "main"
-      WORKFLOW_ID: "e2e-deeprag.yml"
+      WORKFLOW_ID: "e2e-aperag.yml"
       VERSION: "${{ needs.image-tag.outputs.tag-name }}"
       APECD_REF: "v0.1.41"
     secrets: inherit

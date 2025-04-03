@@ -14,7 +14,7 @@ on:
         type: choice
         options:
           - ""
-          - deeprag
+          - aperag
   release:
     types:
       - published
@@ -44,21 +44,21 @@ jobs:
           ARTIFACT_KEY="${{ env.RELEASE_VERSION }}-chart"
           echo 'artifact_key='${ARTIFACT_KEY} >> $GITHUB_OUTPUT
 
-  release-deeprag-chart:
-    if: ${{ github.event.action == 'published' || inputs.chart_name == '' || inputs.chart_name == 'deeprag' }}
+  release-aperag-chart:
+    if: ${{ github.event.action == 'published' || inputs.chart_name == '' || inputs.chart_name == 'aperag' }}
     needs: [ chart-version ]
     uses: apecloud/apecloud-cd/.github/workflows/release-charts.yml@v0.1.34
     with:
       VERSION: "${{ needs.chart-version.outputs.chart-version }}"
       CHART_DIR: "deploy"
-      SPECIFY_CHART: "deeprag"
+      SPECIFY_CHART: "aperag"
       APECD_REF: "v0.1.34"
       CHECK_ENABLE: false
     secrets: inherit
 
   release-result:
     runs-on: ubuntu-latest
-    needs: [ release-deeprag-chart ]
+    needs: [ release-aperag-chart ]
     if: ${{ always() && github.event.action == 'published' }}
     outputs:
       release-result: ${{ steps.get_release_result.outputs.release_result }}
@@ -71,7 +71,7 @@ jobs:
           echo 'artifact_key='${ARTIFACT_KEY} >> $GITHUB_OUTPUT
           
           RELEASE_RESULT="error"
-          if [[ "${{ needs.release-deeprag-chart.result }}" == "success" ]]; then
+          if [[ "${{ needs.release-aperag-chart.result }}" == "success" ]]; then
               RELEASE_RESULT="success"
               echo "success" > ${ARTIFACT_KEY}
           else

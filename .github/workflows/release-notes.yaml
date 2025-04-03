@@ -24,7 +24,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           COMMIT_MSG: |
-            Generating DeepRAG release notes.
+            Generating ApeRAG release notes.
             skip-checks: true
         run: |
           git config user.name "$GITHUB_ACTOR"

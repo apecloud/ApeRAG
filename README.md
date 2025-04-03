@@ -1,7 +1,7 @@
-# DeepRAG
+# ApeRAG
 
-DeepRAG is a chat tool for KubeBlocks, it is used for Text2SQL, Text2CD, Text2CV, Text2Cluster, Chatbot and
-troubleshooting. DeepRAG adopts the open-source LLM for local serving, so it can promise 100% privacy.
+ApeRAG is a chat tool for KubeBlocks, it is used for Text2SQL, Text2CD, Text2CV, Text2Cluster, Chatbot and
+troubleshooting. ApeRAG adopts the open-source LLM for local serving, so it can promise 100% privacy.
 
 # Development Guide
 
@@ -62,9 +62,9 @@ Option 1:
 
 ```bash
 
-git clone https://github.com/apecloud/DeepRAG-FrontEnd.git
+git clone https://github.com/apecloud/ApeRAG-FrontEnd.git
 
-cd DeepRAG-FrontEnd
+cd ApeRAG-FrontEnd
 
 echo '\nAPI_ENDPOINT=http://127.0.0.1:8000' >> .env
 
@@ -75,8 +75,8 @@ yarn dev
 Option 2 [Not Ready]:
 
 ```bash
-docker run --rm -p 8001:8001 -e "API_ENDPOINT=http://127.0.0.1:8000" apecloud/deeprag-console:latest
+docker run --rm -p 8001:8001 -e "API_ENDPOINT=http://127.0.0.1:8000" apecloud/aperag-console:latest
 ```
 
 
-then open the deeprag frontend console: http://localhost:8001
+then open the aperag frontend console: http://localhost:8001

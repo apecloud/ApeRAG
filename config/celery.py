@@ -5,7 +5,7 @@ from celery import Celery
 # set the default Django settings module for the 'celery' program.
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
-app = Celery("deeprag")
+app = Celery("aperag")
 
 # Using a string here means the worker doesn't have to serialize
 # the configuration object to child processes.
@@ -20,7 +20,7 @@ from config.settings import LOCAL_QUEUE_NAME  # noqa: E402
 
 if LOCAL_QUEUE_NAME != "":
     app.conf.task_routes = {
-        "deeprag.tasks.index.add_index_for_local_document": {"queue": f"{LOCAL_QUEUE_NAME}"},
+        "aperag.tasks.index.add_index_for_local_document": {"queue": f"{LOCAL_QUEUE_NAME}"},
     }
 
 if __name__ == "__main__":

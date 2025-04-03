@@ -36,7 +36,7 @@ ALLOWED_HOSTS = ["*"]
 # Application definition
 
 INSTALLED_APPS = [
-    "deeprag",
+    "aperag",
     "corsheaders",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -150,15 +150,15 @@ CSRF_TRUSTED_ORIGINS = ["https://*.kubeblocks.io", "https://*.apecloud.com"]
 AUTH_TYPE = env.str("AUTH_TYPE", default="none")
 
 # Load Auth0 application settings into memory
-AUTH0_DOMAIN = env.str("AUTH0_DOMAIN", default="deeprag-dev.auting.cn")
+AUTH0_DOMAIN = env.str("AUTH0_DOMAIN", default="aperag-dev.auting.cn")
 AUTH0_CLIENT_ID = env.str("AUTH0_CLIENT_ID", default="")
 
 # Load Authing application settings into memory
-AUTHING_DOMAIN = env.str("AUTHING_DOMAIN", default="deeprag.authing.cn")
+AUTHING_DOMAIN = env.str("AUTHING_DOMAIN", default="aperag.authing.cn")
 AUTHING_APP_ID = env.str("AUTHING_APP_ID", default="")
 
 # Load Logto application settings into memory
-LOGTO_DOMAIN = env.str("LOGTO_DOMAIN", default="deeprag.authing.cn")
+LOGTO_DOMAIN = env.str("LOGTO_DOMAIN", default="aperag.authing.cn")
 LOGTO_APP_ID = env.str("LOGTO_APP_ID", default="")
 
 # Celery
@@ -298,6 +298,6 @@ OPENAI_API_PROXY = env.str("OPENAI_API_PROXY", default="{}")
 WHISPER_HOST = env.str("WHISPER_HOST", default="http://openai-whisper-asr-service:9000")
 PADDLEOCR_HOST = env.str("PADDLEOCR_HOST", default="http://paddleocr-hubserving-service:8866")
 
-ADMIN_USER = env.str("ADMIN_USER", default="deeprag")
+ADMIN_USER = env.str("ADMIN_USER", default="aperag")
 ADMIN_TOKEN = env.str("ADMIN_TOKEN", default="")
 

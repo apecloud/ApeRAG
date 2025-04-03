@@ -1,0 +1,424 @@
+# Default values for aperag.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+
+image:
+  registry: registry.cn-hangzhou.aliyuncs.com
+  repository: apecloud/aperag
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "v0.1.2"
+  console:
+    registry: docker.io
+    repository: apecloud/aperag-console
+    tag: "latest"
+  website:
+    registry: docker.io
+    repository: apecloud/aperag-website
+    tag: "latest"
+
+  paddleocr:
+    registry: docker.io
+    repository: gswyhq/paddleocr
+    tag: "hubserving"
+  whisper:
+    registry: docker.io
+    repository: onerahmet/openai-whisper-asr-webservice
+    tag: "latest-gpu"
+  embedding:
+    registry: docker.io
+    repository: michaelf34/infinity
+    tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+service:
+  type: ClusterIP
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+
+ingress:
+  className: ""
+  annotations: {}
+
+django:
+  logLevel: INFO
+  dataPath: /data/aperag
+  replicaCount: 1
+  feishu:
+    appID: ""
+    appSecret: ""
+    encryptKey: ""
+  quota:
+    maxBotCount: 10
+    maxCollectionCount: 50
+    maxDocumentCount: 1000
+    maxConversationCount: 100
+  resources:
+    # We usually recommend not to specify default resources and to leave this as a conscious
+    # choice for the user. This also increases chances charts run on environments with little
+    # resources, such as Minikube. If you do want to specify resources, uncomment the following
+    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+    #   cpu: 100m
+    #   memory: 128Mi
+  authType: none
+  esHost: http://elasticsearch-mdit-http:9200
+  redisSecret: redis-redis-account-default
+  redisHost: redis-redis-redis
+  redisPort: 6379
+  metaDBSecret: postgresql-conn-credential
+  metaDBDatabase: aperag
+  adminUser: ""
+  adminToken: ""
+  vectorDBType: qdrant
+  vectorDBContext: '{"url":"http://qdrant-qdrant", "port":6333, "distance":"Cosine", "timeout": 1000}'
+  openaiAPIKey: ""
+  openaiProxy: ""
+  openaiAPIBase: ""
+  azureOpenAIDeploymentName: ""
+  azureOpenAIAPIKey: ""
+  azureOpenAIAPIBase: ""
+  azureOpenAIAPIVersion: ""
+  embeddingModel: "bge"
+  embeddingDevice: "cpu"
+  whisperHost: http://openai-whisper-asr-service:9000
+  paddleocrHost: http://paddleocr-hubserving-service:8866
+  embeddingBackend: "local"
+  embeddingServiceUrl: http://xinference-xinference:9997
+  embeddingServiceModel: "bge-large-zh-v1.5"
+  embeddingServiceModelUid: ""
+  rerankBackend: "local"
+  rerankServiceUrl: http://xinference-xinference:9997
+  rerankServiceModelUid: ""
+  # django must be co-located with celery-worker in order to handle uploaded documents
+  affinity:
+    podAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.aperag.io/component: celery-worker
+          topologyKey: kubernetes.io/hostname
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.aperag.io/component: django
+            topologyKey: kubernetes.io/hostname
+  modelFamilies:
+    - name: "qianwen"
+      label: "QianWen"
+      enabled: "true"
+      temperature: 0.01
+      models:
+        - name: "qwen-turbo"
+          label: "QianWen Turbo"
+          enabled: "true"
+          memory: "enabled"
+          # https://help.aliyun.com/zh/dashscope/developer-reference/api-details?spm=a2c4g.11186623.0.i54
+          context_window: 8096
+        - name: "qwen-plus"
+          label: "QianWen Plus"
+          enabled: "true"
+          memory: "enabled"
+          # https://help.aliyun.com/zh/dashscope/developer-reference/api-details?spm=a2c4g.11186623.0.i54
+          context_window: 8096
+        - name: "qwen-max"
+          label: "QianWen Max"
+          enabled: "true"
+          memory: "enabled"
+          # https://help.aliyun.com/zh/dashscope/developer-reference/api-details?spm=a2c4g.11186623.0.i54
+          context_window: 8096
+    - name: "chatglm"
+      label: "ChatGLM"
+      enabled: "true"
+      temperature: 0.01
+      models:
+        - name: "chatglm-turbo"
+          label: "ChatGLM Turbo"
+          enabled: "true"
+          memory: "enabled"
+          # context_window not found online
+        - name: "chatglm-std"
+          label: "ChatGLM Std"
+          enabled: "true"
+          memory: "enabled"
+          # context_window not found online
+        - name: "chatglm-lite"
+          label: "ChatGLM Lite"
+          enabled: "true"
+          memory: "enabled"
+          # context_window not found online
+        - name: "chatglm-pro"
+          label: "ChatGLM Pro"
+          enabled: "true"
+          memory: "enabled"
+          # context_window not found online
+        - name: "chatglm2-6b"
+          label: "ChatGLM2 6b"
+          endpoint: "http://llmserver-chatglm2-6b:8000"
+          enabled: "false"
+          memory: "disabled"
+          # https://github.com/THUDM/ChatGLM-6B
+          context_window: 32384
+    - name: "baichuan"
+      label: "BaiChuan"
+      enabled: "true"
+      temperature: 0.01
+      models:
+        - name: "baichuan-13b"
+          label: "BaiChuan 13b"
+          enabled: "false"
+          memory: "disabled"
+          # https://www.baichuan-ai.com/home
+          context_window: 4096
+          endpoint: "http://llmserver-baichuan-13b:8000"
+        - name: "baichuan-53b"
+          label: "BaiChuan 53b"
+          enabled: "true"
+          memory: "disabled"
+          # context_window not found online
+    - name: "azure-openai"
+      label: "Azure OpenAI"
+      enabled: "true"
+      temperature: 0
+      models:
+        - name: "azure-openai"
+          label: "Azure OpenAI"
+          enabled: "true"
+          memory: "enabled"
+          # https://learn.microsoft.com/zh-cn/azure/ai-services/openai/reference
+          context_window: 4096
+          free_tier: true
+    - name: "chatgpt"
+      label: "ChatGPT"
+      enabled: "true"
+      temperature: 0
+      models:
+        - name: "gpt-4-1106-preview"
+          label: "ChatGPT-4 Turbo"
+          enabled: "true"
+          memory: "enabled"
+          # https://platform.openai.com/docs/models/gpt-4-and-gpt-4-turbo
+          context_window: 128000
+          similarity_topk: 10
+        - name: "gpt-4"
+          label: "ChatGPT-4"
+          enabled: "true"
+          memory: "enabled"
+          # https://platform.openai.com/docs/models/gpt-4-and-gpt-4-turbo
+          context_window: 8192
+        - name: "gpt-4-0613"
+          label: "ChatGPT-4-0613"
+          enabled: "true"
+          memory: "enabled"
+          # https://platform.openai.com/docs/models/gpt-4-and-gpt-4-turbo
+          context_window: 8192
+        - name: "gpt-3.5-turbo-1106"
+          label: "ChatGPT 3.5 Turbo 1106"
+          enabled: "true"
+          memory: "enabled"
+          # https://platform.openai.com/docs/models/gpt-3-5
+          context_window: 16385
+          similarity_topk: 5
+        - name: "gpt-3.5-turbo"
+          label: "ChatGPT-3.5 Turbo"
+          enabled: "true"
+          memory: "enabled"
+          # https://platform.openai.com/docs/models/gpt-3-5
+          context_window: 4096
+        - name: "gpt-3.5-turbo-16k"
+          label: "ChatGPT-3.5 Turbo 16k"
+          enabled: "true"
+          memory: "enabled"
+          # https://platform.openai.com/docs/models/gpt-3-5
+          context_window: 16384
+          similarity_topk: 5
+    - name: "wenxinyiyan"
+      label: "Wen Xin Yi Yan"
+      enabled: "true"
+      models:
+      - name: "ernie-bot-turbo"
+        label: "Wen Xin Yi Yan"
+        enabled: "true"
+        memory: "disabled"
+        # context_window not found online
+    - name: "vicuna"
+      label: "Vicuna"
+      enabled: "false"
+      models:
+        - name: "vicuna-13b"
+          label: "Vicuna 13b"
+          enabled: "false"
+          memory: "disabled"
+          # https://lmsys.org/blog/2023-03-30-vicuna/
+          context_window: 2048
+          endpoint: "http://llmserver-vicuna-13b:8000"
+    - name: "guanaco"
+      label: "Guanaco"
+      enabled: "false"
+      models:
+        - name: "guanaco-33b"
+          label: "Guanaco 33b"
+          enabled: "false"
+          memory: "disabled"
+          # https://llm.extractum.io/model/guanaco-33b-merged,5iVNwg40vN6tl3fT0UJAT1
+          context_window: 2048
+          endpoint: "http://llmserver-guanaco-33b:8000"
+    - name: "falcon"
+      label: "Falcon"
+      enabled: "false"
+      models:
+        - name: "falcon-40b"
+          label: "Falcon 40b"
+          enabled: "false"
+          memory: "disabled"
+          # https://codingscape.com/blog/most-powerful-llms-large-language-models-in-2023
+          context_window: 2048
+          endpoint: "http://llmserver-falcon-40b:8000"
+    - name: "gorilla"
+      label: "Gorilla"
+      enabled: "false"
+      models:
+        - name: "gorilla-7b"
+          label: "Gorilla 7b"
+          enabled: "false"
+          memory: "disabled"
+          # https://llm.extractum.io/model/gorilla-llm/gorilla-7b-hf-delta-v0,628M0wYI5qNZeBLak6s82K
+          context_window: 2048
+          endpoint: "http://llmserver-gurilla-7b:8000"
+
+celery-worker:
+  replicaCount: 1
+  embeddingDevice: "cpu"
+  resources: { }
+    # We usually recommend not to specify default resources and to leave this as a conscious
+    # choice for the user. This also increases chances charts run on environments with little
+    # resources, such as Minikube. If you do want to specify resources, uncomment the following
+    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+    #   cpu: 100m
+    #   memory: 128Mi
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.aperag.io/component: celery-worker
+          topologyKey: kubernetes.io/hostname
+
+celery-beat:
+  replicaCount: 1
+  resources: { }
+    # We usually recommend not to specify default resources and to leave this as a conscious
+    # choice for the user. This also increases chances charts run on environments with little
+    # resources, such as Minikube. If you do want to specify resources, uncomment the following
+    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+    #   cpu: 100m
+    #   memory: 128Mi
+
+flower:
+  replicaCount: 1
+  user: admin
+  password: admin
+  resources: { }
+    # We usually recommend not to specify default resources and to leave this as a conscious
+    # choice for the user. This also increases chances charts run on environments with little
+    # resources, such as Minikube. If you do want to specify resources, uncomment the following
+    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+    #   cpu: 100m
+    #   memory: 128Mi
+
+whisper:
+  enabled: false
+  replicaCount: 1
+  resources:
+    limits:
+      nvidia.com/gpu: "1"
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+paddleocr:
+  enabled: false
+  replicaCount: 1
+  resources:
+    limits:
+      nvidia.com/gpu: "1"
+    # We usually recommend not to specify default resources and to leave this as a conscious
+    # choice for the user. This also increases chances charts run on environments with little
+    # resources, such as Minikube. If you do want to specify resources, uncomment the following
+    # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+    # limits:
+    #   cpu: 100m
+    #   memory: 128Mi
+    # requests:
+    #   cpu: 100m
+    #   memory: 128Mi

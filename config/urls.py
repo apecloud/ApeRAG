@@ -19,12 +19,12 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-import deeprag.views.main
+import aperag.views.main
 
-handler404 = deeprag.views.main.default_page
+handler404 = aperag.views.main.default_page
 
 urlpatterns = [
-    path("api/", include("deeprag.urls")),
+    path("api/", include("aperag.urls")),
     path("admin/", admin.site.urls),
     path('', include('django_prometheus.urls')),
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

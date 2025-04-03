@@ -8,7 +8,7 @@ set -o nounset
 python manage.py migrate
 
 if [ -f "static/web/index.html" ]; then
-  cp static/web/index.html deeprag/templates/404.html
+  cp static/web/index.html aperag/templates/404.html
 fi
 
 # uvicorn supports multiple workers

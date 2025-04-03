@@ -27,8 +27,8 @@ function upload() {
   echo ""
 }
 
-helm package --version "${VERSION}" ./deploy/deeprag
-upload deeprag
+helm package --version "${VERSION}" ./deploy/aperag
+upload aperag
 
 helm package --version "${VERSION}" ./deploy/llmserver
 upload llmserver

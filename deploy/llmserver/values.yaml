@@ -4,7 +4,7 @@
 
 image:
   registry: registry.cn-hangzhou.aliyuncs.com
-  repository: apecloud/deeprag-llmserver
+  repository: apecloud/aperag-llmserver
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: "v0.1.1"

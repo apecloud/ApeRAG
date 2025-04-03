@@ -77,7 +77,7 @@ spec:
       volumes:
         - name: data
           hostPath:
-            path: /data/deeprag
+            path: /data/aperag
 
 {{- end }}
 {{- end }}

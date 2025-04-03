@@ -106,7 +106,7 @@ jobs:
     if: ${{ contains(needs.trigger-mode.outputs.trigger-mode, '[docker]') }}
     uses: apecloud/apecloud-cd/.github/workflows/release-image-check.yml@v0.1.49
     with:
-      IMG: "apecloud/deeprag"
+      IMG: "apecloud/aperag"
       BUILDX_PLATFORMS: "linux/amd64"
       DOCKERFILE_PATH: "./Dockerfile"
       PYTHON_VERSION: "3.11"
@@ -119,7 +119,7 @@ jobs:
     uses: apecloud/apecloud-cd/.github/workflows/release-charts-check.yml@v0.1.48
     with:
       VERSION: "v0.4.0-check"
-      CHART_NAME: "deeprag"
+      CHART_NAME: "aperag"
       CHART_DIR: "deploy"
       APECD_REF: "v0.1.48"
     secrets: inherit

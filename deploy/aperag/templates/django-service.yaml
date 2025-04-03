@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f compose.yml -c -o deploy/aperag
+    kompose.version: 1.26.0 (40646f47)
+  labels:
+    {{- include "aperag.labels" . | nindent 4 }}
+    {{- include "django.labels" . | nindent 4 }}
+  name: aperag
+spec:
+  ports:
+    - name: "api"
+      port: 8000
+      targetPort: 8000
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "aperag.selectorLabels" . | nindent 4 }}
+    {{- include "django.labels" . | nindent 4 }}

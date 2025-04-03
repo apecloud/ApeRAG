@@ -6,7 +6,7 @@ on:
 
 env:
   GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-  REPO: DeepRAG
+  REPO: ApeRAG
   milestone: 1
   ORGANIZATION: apecloud
   PROJECT_NUMBER: 18

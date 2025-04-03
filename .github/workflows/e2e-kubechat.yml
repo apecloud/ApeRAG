@@ -1,10 +1,10 @@
-name: E2E Test deeprag
+name: E2E Test aperag
 
 on:
   workflow_dispatch:
     inputs:
       VERSION:
-        description: 'deeprag release version'
+        description: 'aperag release version'
         required: true
         default: ''
       KUBEBLOCKS_VERSION:
@@ -45,7 +45,7 @@ on:
         default: '1'
 
 
-run-name: deeprag:${{ inputs.VERSION }} ${{ inputs.CLOUD_PROVIDER }}:${{ inputs.CLUSTER_VERSION }}:${{ inputs.NODE_TYPE }}
+run-name: aperag:${{ inputs.VERSION }} ${{ inputs.CLOUD_PROVIDER }}:${{ inputs.CLUSTER_VERSION }}:${{ inputs.NODE_TYPE }}
 
 env:
   GH_TOKEN: ${{ github.token }}
@@ -62,7 +62,7 @@ jobs:
   e2e:
     name: ${{ inputs.CLOUD_PROVIDER }}
     needs: [ check-version ]
-    uses: apecloud/apecloud-cd/.github/workflows/deeprag-test-k8s.yml@main
+    uses: apecloud/apecloud-cd/.github/workflows/aperag-test-k8s.yml@main
     with:
       DEEPRAG_VERSION: "${{ needs.check-version.outputs.release-version }}"
       KUBEBLOCKS_VERSION: "${{ inputs.KUBEBLOCKS_VERSION }}"

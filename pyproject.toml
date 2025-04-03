@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "deeprag"
+name = "aperag"
 version = "0.1.0"
 description = "A LLM based tool to support Text2SQL, Chatbot, KubeBlocks pilot and troubleshooting"
 authors = ["nayutah <dullboy@apecloud.com>"]
@@ -152,7 +152,7 @@ exclude = [
     "server",
     "models",
     "playground",
-    "deeprag/migrations",
+    "aperag/migrations",
     "vectorstore/test_connector.py",
     "readers/test_local_path_embedding.py",
 ]
@@ -170,7 +170,7 @@ exclude = [
     "server",
     "models",
     "playground",
-    "deeprag/migrations",
+    "aperag/migrations",
     "vectorstore/test_connector.py",
     "readers/test_local_path_embedding.py",
 ]

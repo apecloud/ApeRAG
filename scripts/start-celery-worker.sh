@@ -8,7 +8,7 @@ if [ -z "${LOCAL_QUEUE_NAME}" ]; then
     export LOCAL_QUEUE_NAME="localhost"
 fi
 
-# https://github.com/apecloud/DeepRAG/issues/331
+# https://github.com/apecloud/ApeRAG/issues/331
 # https://stackoverflow.com/questions/63645357/using-pytorch-with-celery
 #case "${EMBEDDING_DEVICE}" in
 #    "cpu")

@@ -53,7 +53,7 @@ services:
     volumes:
       - .:/app:z
       - ~/.cache:/root/.cache
-      - ./resources:/Users/ziang/git/DeepRAG/resources
+      - ./resources:/Users/ziang/git/ApeRAG/resources
     ports: []
     command: /app/scripts/start-celery-worker.sh
 
