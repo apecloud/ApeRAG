@@ -4,7 +4,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-DEFAULT_PACKAGE_NAME=kubechat
+DEFAULT_PACKAGE_NAME=aperag
 DEFAULT_CHANNEL=stable
 API_URL=https://jihulab.com/api/v4/projects
 
@@ -173,7 +173,7 @@ gitlab_api_curl() {
 create_release() {
     request_type=POST
     request_url=$API_URL/$PROJECT_ID/releases
-    request_data='{"ref":"main","name":"KubeChat\t'$TAG_NAME'","tag_name":"'$TAG_NAME'"}'
+    request_data='{"ref":"main","name":"ApeRAG\t'$TAG_NAME'","tag_name":"'$TAG_NAME'"}'
 
     gitlab_api_curl --request $request_type $request_url --data $request_data
 }

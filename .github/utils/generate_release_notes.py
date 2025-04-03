@@ -17,7 +17,7 @@ from github import Github
 
 RELEASE_ISSUE_RANGE = "^v(.*) Release Planning$"
 MAJOR_RELEASE_REGEX = "^([0-9]+\.[0-9]+)\.[0-9]+.*$"
-MILESTONE_REGEX = "https://github.com/apecloud/KubeChat/milestone/([0-9]+)"
+MILESTONE_REGEX = "https://github.com/apecloud/ApeRAG/milestone/([0-9]+)"
 CHANGE_TYPES : list[str] = ["New Features", "Bug Fixes", "Miscellaneous"]
 
 
@@ -38,7 +38,7 @@ def main(argv: list[str]) -> None:
     # get milestone issue
     issues = [
         i
-        for i in gh.get_repo("apecloud/KubeChat").get_issues(state="open")
+        for i in gh.get_repo("apecloud/ApeRAG").get_issues(state="open")
         if re.search(RELEASE_ISSUE_RANGE, i.title)
     ]
     issues = sorted(issues, key=lambda i: i.id)
@@ -55,7 +55,7 @@ def main(argv: list[str]) -> None:
 
     # get release version from issue name
     release_version = re.search(RELEASE_ISSUE_RANGE, issue.title).group(1)
-    print(f"Generating release notes for KubeChat {release_version}")
+    print(f"Generating release notes for ApeRAG {release_version}")
 
     # Set REL_VERSION
     if gh_env:
@@ -74,7 +74,7 @@ def main(argv: list[str]) -> None:
         print(f"WARNING: found more than one milestone in release issue body, first milestone will be picked: {[i for i in repo_milestones]}")
 
     # find all issues and PRs in milestone
-    repo = gh.get_repo("apecloud/KubeChat")
+    repo = gh.get_repo("apecloud/ApeRAG")
     milestone = repo.get_milestone(int(repo_milestones[0]))
     issue_or_prs = [i for i in repo.get_issues(milestone, state="closed")]
     print(f"Detected {len(issue_or_prs)} issues or pull requests")
