@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "A LLM based tool to support Text2SQL, Chatbot, KubeBlocks pilot and troubleshooting"
 authors = ["nayutah <dullboy@apecloud.com>"]
 readme = "README.md"
-packages = [{ include = "server" }]
+# packages = [{ include = "server" }]
 
 [tool.poetry.dependencies]
 python = ">=3.10.0,<4.0"
@@ -77,17 +77,6 @@ text2vec = "^1.2.2"
 flagembedding = "^1.1.1"
 sentence-transformers = "^2.2.2"
 
-[tool.poetry.group.llmserver]
-optional = true
-
-[tool.poetry.group.llmserver.dependencies]
-fastapi = "^0.97.0"
-nltk = "^3.8.1"
-accelerate = "^0.20.3"
-gpt4all = "0.3.5"
-auto-gpt-plugin-template = "^0.0.3"
-transformers = "^4.30.2"
-
 [tool.poetry.group.lint.dependencies]
 ruff = "^0.1.9"
 types-toml = "^0.10.8.1"
@@ -109,9 +98,6 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-start = "server.main:start"
-llmserver = "server.llmserver:start"
-webserver = "server.webserver:start"
 test_local_path_embedding = "readers.test_local_path_embedding:start"
 
 [tool.ruff]
