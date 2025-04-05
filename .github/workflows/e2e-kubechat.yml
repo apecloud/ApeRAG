@@ -64,7 +64,7 @@ jobs:
     needs: [ check-version ]
     uses: apecloud/apecloud-cd/.github/workflows/aperag-test-k8s.yml@main
     with:
-      DEEPRAG_VERSION: "${{ needs.check-version.outputs.release-version }}"
+      APERAG_VERSION: "${{ needs.check-version.outputs.release-version }}"
       KUBEBLOCKS_VERSION: "${{ inputs.KUBEBLOCKS_VERSION }}"
       CLOUD_PROVIDER: "${{ inputs.CLOUD_PROVIDER }}"
       CLUSTER_VERSION: "${{ inputs.CLUSTER_VERSION }}"

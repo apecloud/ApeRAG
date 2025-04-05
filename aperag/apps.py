@@ -6,7 +6,7 @@ from asgiref.sync import sync_to_async
 from django.apps import AppConfig
 
 
-class DeepRAGConfig(AppConfig):
+class ApeRAGConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "aperag"
 

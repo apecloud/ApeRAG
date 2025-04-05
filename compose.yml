@@ -1,16 +1,16 @@
 version: '3'
 
 volumes:
-  deeprag_postgres_data: {}
-  deeprag_qdrant_data: {}
+  aperag_postgres_data: {}
+  aperag_qdrant_data: {}
 
 services:
   django: &django
     build:
       context: .
       dockerfile: ./Dockerfile
-    image: deeprag_django
-    container_name: deeprag_django
+    image: aperag_django
+    container_name: aperag_django
     depends_on:
       - postgres
       - redis
@@ -26,26 +26,26 @@ services:
 
   postgres:
     image: postgres:14
-    container_name: deeprag_postgres
+    container_name: aperag_postgres
     volumes:
-      - deeprag_postgres_data:/var/lib/postgresql/data
+      - aperag_postgres_data:/var/lib/postgresql/data
     env_file:
       - .docker-env
 
   redis:
     image: redis:6
-    container_name: deeprag_redis
+    container_name: aperag_redis
 
   qdrant:
     image: qdrant/qdrant
-    container_name: deeprag_qdrant
+    container_name: aperag_qdrant
     volumes:
-      - deeprag_qdrant_data:/qdrant/storage
+      - aperag_qdrant_data:/qdrant/storage
 
   celeryworker:
     <<: *django
-    image: deeprag_django
-    container_name: deeprag_celeryworker
+    image: aperag_django
+    container_name: aperag_celeryworker
     depends_on:
       - redis
       - postgres
@@ -59,8 +59,8 @@ services:
 
   celerybeat:
     <<: *django
-    image: deeprag_django
-    container_name: deeprag_celerybeat
+    image: aperag_django
+    container_name: aperag_celerybeat
     depends_on:
       - redis
       - postgres
@@ -69,8 +69,8 @@ services:
 
   flower:
     <<: *django
-    image: deeprag_django
-    container_name: deeprag_flower
+    image: aperag_django
+    container_name: aperag_flower
     ports:
       - "5555:5555"
     command: /app/scripts/start-celery-flower.sh

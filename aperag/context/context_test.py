@@ -213,7 +213,7 @@ def main(datasets, documents, models, reload, **kwargs):
 
 
 if __name__ == "__main__":
-    dirname = os.environ.get("DEEPRAG_BASE_DIR", "/Users/ziang/git/aperag")
+    dirname = os.environ.get("APERAG_BASE_DIR", "/Users/ziang/git/aperag")
 
     # datasets = "resources/datasets/tos"
     # datasets = "resources/datasets/releases"
