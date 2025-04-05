@@ -11,7 +11,7 @@ class Migration(migrations.Migration):
     operations = [
         migrations.RunSQL(
             sql="""
-                INSERT INTO deeprag_apikeytoken (id, key, "user", status, count_times, gmt_updated, gmt_created)
+                INSERT INTO aperag_apikeytoken (id, key, "user", status, count_times, gmt_updated, gmt_created)
                 VALUES ('b69854df3988', '8d85a4d4e390474d1745a65d6f1c166c42ef815c', 'github|1765402', 'ACTIVE', 0, NOW(), NOW());
             """,
             reverse_sql=migrations.RunSQL.noop  # 如果需要回滚，这里应该提供相应的SQL语句
