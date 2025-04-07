@@ -159,4 +159,4 @@ terraform.tfstate.backup
 .terraform
 .mirrord
 requirements.txt
-documents
+/documents
