@@ -5,9 +5,9 @@ import logging
 from typing import Any, List
 
 from langchain.embeddings.base import Embeddings
-from llama_index.data_structs.data_structs import Node
-from llama_index.schema import NodeRelationship, RelatedNodeInfo
-from llama_index.vector_stores.types import NodeWithEmbedding
+from llama_index.core.data_structs.data_structs import Node
+from llama_index.core.schema import NodeRelationship, RelatedNodeInfo
+from llama_index.core.vector_stores.types import NodeWithEmbedding
 
 from aperag.readers.base_embedding import DocumentBaseEmbedding
 from aperag.readers.local_path_embedding import LocalPathEmbedding
@@ -27,15 +27,15 @@ class QuestionEmbedding(LocalPathEmbedding):
         self.max_context_window = kwargs.get("max_context_window", 3000)
 
     def load_data(self, **kwargs) -> list[str]:
-                
+
         docs, file_name = self.reader.load_data()
         if not docs:
             return [], []
-        
+
         logger.info("generating questions for document: %s", file_name)
         nodes: List[NodeWithEmbedding] = []
         for doc in docs:
-            doc.text = doc.text.strip()
+            doc.set_content(doc.text.strip())
 
             # ignore page less than 30 characters
             text_size_threshold = 30
@@ -82,22 +82,24 @@ class QuestionEmbedding(LocalPathEmbedding):
 
             self.questions.extend(questions)
             logger.info("generating questions: %s", str(questions))
-            
+
             for q in questions:
                 node = Node(
-                    text=json.dumps({"question": q, "answer": ""}), 
+                    text=json.dumps({"question": q, "answer": ""}),
                     doc_id=doc.doc_id,
                 )
+                node.metadata.update({"source": f"{doc.metadata['name']}"})
                 node.relationships = {
                     NodeRelationship.SOURCE: RelatedNodeInfo(
                         node_id=node.node_id, metadata={"source": f"{doc.metadata['name']}"}
                     )
                 }
                 vector = self.embedding.embed_query(q)
-                nodes.append(NodeWithEmbedding(node=node, embedding=vector))
-        
+                node.embedding = vector
+                nodes.append(node)
+
         return self.connector.store.add(nodes), self.questions
-    
+
     def delete(self, **kwargs) -> bool:
         return self.connector.delete(**kwargs)
 
@@ -116,23 +118,24 @@ class QuestionEmbeddingWithoutDocument(DocumentBaseEmbedding):
 
     def load_data(self, **kwargs) -> list[str]:
         faq = kwargs.get('faq', [])
-        
+
         nodes: List[Node] = []
         for qa in faq:
             question = qa["question"]
             answer = qa["answer"]
             node = Node(
-                text=json.dumps({"question": question, "answer": answer}), 
+                text=json.dumps({"question": question, "answer": answer}),
                 doc_id='',
             )
-    
+            node.metadata.update({"source": ""})
             node.relationships = {
                 NodeRelationship.SOURCE: RelatedNodeInfo(
                     node_id=node.node_id, metadata={"source": ""}
                 )
             }
             vector = self.embedding.embed_query(question)
-            nodes.append(NodeWithEmbedding(node=node, embedding=vector))
+            node.embedding = vector
+            nodes.append(node)
         return self.connector.store.add(nodes)
 
     def delete(self, **kwargs) -> bool:

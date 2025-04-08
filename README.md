@@ -10,7 +10,7 @@ You should install Python 3.11 first.
 
 ```bash
 curl -sSL https://install.python-poetry.org | python3 -
-poetry self add poetry-plugin-shell	
+poetry self add poetry-plugin-shell
 ```
 
 * install dependencies
@@ -50,7 +50,7 @@ poetry shell
 ```
 
 ```
-PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python celery -A config.celery worker -l INFO --pool gevent
+PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python celery -A config.celery worker -l INFO --pool threads
 ```
 
 * run the frontend

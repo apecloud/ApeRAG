@@ -27,7 +27,6 @@ import config.settings as settings
 from aperag.auth import tv
 from aperag.utils.constant import KEY_USER_ID, KEY_WEBSOCKET_PROTOCOL
 from aperag.db.models import ApiKeyToken, ApiKeyStatus
-from ninja.compatibility.request import get_headers
 from django.core.cache import cache
 from asgiref.sync import sync_to_async
 
@@ -59,7 +58,7 @@ async def get_user_from_api_key(key):
         return None
     if api_key.status == ApiKeyStatus.DELETED:
         return None
-    
+
     cache.set(cache_key, api_key.user)
     return api_key.user
 
@@ -77,7 +76,7 @@ class GlobalHTTPAuth(HttpAuthBase):
     openapi_scheme: str = "bearer"
     header: str = "Authorization"
     async def __call__(self, request: HttpRequest) -> Optional[Any]:
-        headers = get_headers(request)
+        headers = request.headers
         auth_value = headers.get(self.header)
         if not auth_value:
             return None
@@ -89,7 +88,7 @@ class GlobalHTTPAuth(HttpAuthBase):
             return None
         token = " ".join(parts[1:])
         return await self.authenticate(request, token, parts[0].lower())
-    
+
     async def authenticate(self, request, token, scheme):
         if scheme == self.openapi_scheme:
             request.META[KEY_USER_ID] = get_user_from_token(token)

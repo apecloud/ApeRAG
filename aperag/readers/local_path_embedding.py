@@ -5,10 +5,8 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from langchain.embeddings.base import Embeddings
-from llama_index.data_structs.data_structs import BaseNode
-from llama_index.langchain_helpers.text_splitter import TokenTextSplitter
-from llama_index.node_parser import NodeParser, SimpleNodeParser
-from llama_index.vector_stores.types import NodeWithEmbedding
+from llama_index.core.data_structs.data_structs import BaseNode
+from llama_index.core.node_parser import NodeParser, TokenTextSplitter
 
 from aperag.db.models import ProtectAction
 from aperag.readers.base_embedding import DocumentBaseEmbedding
@@ -45,12 +43,10 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
         self.reader = InteractiveSimpleDirectoryReader(**kwargs)
         self.filter = SensitiveFilterClassify()
         self.node_parser = node_parser or \
-            SimpleNodeParser(
-                text_splitter=TokenTextSplitter(
-                    chunk_size=kwargs.get('chunk_size', 1024),
-                    chunk_overlap=kwargs.get('chunk_overlap', 20),
-                    tokenizer=get_default_tokenizer(),
-                )
+            TokenTextSplitter(
+                chunk_size=kwargs.get('chunk_size', 1024),
+                chunk_overlap=kwargs.get('chunk_overlap', 20),
+                tokenizer=get_default_tokenizer(),
             )
 
     def load_data(self, **kwargs) -> Tuple[List[str], str, List]:
@@ -61,7 +57,6 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
             return [], "", []
 
         nodes: List[BaseNode] = []
-        nodes_with_embedding: List[NodeWithEmbedding] = []
 
         texts = []
         content = ""
@@ -69,7 +64,7 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
 
         for doc in docs:
             content += doc.text
-            doc.text = doc.text.strip()
+            doc.set_content(doc.text.strip())
 
             # ignore page less than 30 characters
             text_size_threshold = 30
@@ -142,11 +137,11 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
         vectors = self.embedding.embed_documents(texts)
 
         for i in range(len(vectors)):
-            nodes_with_embedding.append(NodeWithEmbedding(node=nodes[i], embedding=vectors[i]))
+            nodes[i].embedding = vectors[i]
 
         print(f"processed file: {file_name} ")
 
-        return self.connector.store.add(nodes_with_embedding), content, sensitive_info
+        return self.connector.store.add(nodes), content, sensitive_info
 
     def delete(self, **kwargs) -> bool:
         return self.connector.delete(**kwargs)

@@ -1,8 +1,8 @@
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from llama_index import Document
-from llama_index.readers.base import BaseReader
+from llama_index.core.schema import Document
+from llama_index.core.readers.base import BaseReader
 
 
 class TxtReader(BaseReader):

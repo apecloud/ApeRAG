@@ -28,7 +28,7 @@ class RemoteDocument(BaseModel):
     metadata: Dict[str, Any] - metadata of the document
     """
     name: str
-    size: Optional[int]
+    size: Optional[int]= None
     metadata: Dict[str, Any] = {}
 
 
@@ -43,7 +43,7 @@ class LocalDocument(BaseModel):
     """
     name: str
     path: str
-    size: Optional[int]
+    size: Optional[int]= None
     metadata: Dict[str, Any] = {}
 
 

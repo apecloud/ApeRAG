@@ -3,9 +3,9 @@ import logging
 import os
 from typing import Callable, Dict, List, Optional
 
-from llama_index.readers.base import BaseReader
-from llama_index.readers.file.base import SimpleDirectoryReader
-from llama_index.readers.schema.base import Document
+from llama_index.core.readers.base import BaseReader
+from llama_index.core.readers.file.base import SimpleDirectoryReader
+from llama_index.core.schema import Document
 
 from aperag.readers.base_readers import DEFAULT_FILE_READER_CLS
 

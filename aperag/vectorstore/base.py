@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict
 
-from llama_index.embeddings.base import BaseEmbedding
-from llama_index.vector_stores.types import VectorStore
+from llama_index.core.embeddings import BaseEmbedding
+from llama_index.core.vector_stores.types import VectorStore
 
 from aperag.query.query import QueryResult, QueryWithEmbedding
 

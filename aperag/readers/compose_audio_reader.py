@@ -2,8 +2,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import requests
-from llama_index.readers.base import BaseReader
-from llama_index.schema import Document
+from llama_index.core.readers.base import BaseReader
+from llama_index.core.schema import Document
 
 import config.settings as settings
 

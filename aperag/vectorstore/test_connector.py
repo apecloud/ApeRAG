@@ -1,12 +1,12 @@
 import time
 from typing import cast
 
-from llama_index.schema import TextNode
+from llama_index.core.schema import TextNode
 from llama_index.vector_stores.opensearch import (
     OpensearchVectorClient,
     OpensearchVectorStore,
 )
-from llama_index.vector_stores.types import NodeWithEmbedding, VectorStoreQuery
+from llama_index.core.vector_stores.types import NodeWithEmbedding, VectorStoreQuery
 from pymilvus import (
     Collection,
     CollectionSchema,

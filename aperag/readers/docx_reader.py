@@ -7,8 +7,8 @@ from docx.document import Document as Docx_document
 from docx.oxml import CT_P, CT_Tbl
 from docx.table import Table, _Cell
 from docx.text.paragraph import Paragraph
-from llama_index.readers.base import BaseReader
-from llama_index.schema import Document
+from llama_index.core.readers.base import BaseReader
+from llama_index.core.schema import Document
 
 from aperag.utils.utils import Stacks
 

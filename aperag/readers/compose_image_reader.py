@@ -6,8 +6,8 @@ from typing import Dict, List, Optional
 
 import PIL.Image
 import requests
-from llama_index.readers.base import BaseReader
-from llama_index.schema import Document, ImageDocument
+from llama_index.core.readers.base import BaseReader
+from llama_index.core.schema import Document, ImageDocument
 from PIL import Image
 
 import config.settings as settings

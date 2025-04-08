@@ -1,7 +1,7 @@
 from typing import Any, Dict
 
 from llama_index.embeddings import google
-from llama_index.vector_stores import MilvusVectorStore
+from llama_index.vector_stores.milvus import MilvusVectorStore
 from pymilvus import (
     connections,
 )

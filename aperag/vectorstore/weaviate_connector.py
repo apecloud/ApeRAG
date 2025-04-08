@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from llama_index.vector_stores.utils import DEFAULT_TEXT_KEY
+from llama_index.core.vector_stores.utils import DEFAULT_TEXT_KEY
 from llama_index.vector_stores.weaviate import WeaviateVectorStore
 from weaviate import Client
 

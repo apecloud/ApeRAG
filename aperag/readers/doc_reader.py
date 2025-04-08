@@ -5,9 +5,9 @@ import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from llama_index.readers.base import BaseReader
-from llama_index.readers.file.docs_reader import DocxReader
-from llama_index.schema import Document
+from llama_index.core.readers.base import BaseReader
+from llama_index.readers.file.docs import DocxReader
+from llama_index.core.schema import Document
 
 logger = logging.getLogger(__name__)
 

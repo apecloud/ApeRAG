@@ -46,12 +46,12 @@ logger = logging.getLogger(__name__)
 
 
 class PagedQuery(BaseModel):
-    page_number: Optional[int]
-    page_size: Optional[int]
-    match_key: Optional[str]
-    match_value: Optional[str]
-    order_by: Optional[str]
-    order_desc: Optional[bool]
+    page_number: Optional[int] = None
+    page_size: Optional[int] = None
+    match_key: Optional[str] = None
+    match_value: Optional[str] = None
+    order_by: Optional[str] = None
+    order_desc: Optional[bool] = None
 
 
 class PagedResult(BaseModel):

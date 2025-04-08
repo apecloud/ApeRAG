@@ -30,19 +30,19 @@ from aperag.utils.utils import now_unix_milliseconds
 
 class Message(BaseModel):
     id: str
-    query: Optional[str]
-    timestamp: Optional[int]
-    response: Optional[str]
-    urls: Optional[List[str]]
-    references: Optional[List[Dict]]
-    collection_id: Optional[str]
-    embedding_model: Optional[str]
-    embedding_size: Optional[int]
-    embedding_score_threshold: Optional[float]
-    embedding_topk: Optional[int]
-    llm_model: Optional[str]
-    llm_prompt_template: Optional[str]
-    llm_context_window: Optional[int]
+    query: Optional[str] = None
+    timestamp: Optional[int] = None
+    response: Optional[str] = None
+    urls: Optional[List[str]] = None
+    references: Optional[List[Dict]] = None
+    collection_id: Optional[str] = None
+    embedding_model: Optional[str] = None
+    embedding_size: Optional[int] = None
+    embedding_score_threshold: Optional[float] = None
+    embedding_topk: Optional[int] = None
+    llm_model: Optional[str] = None
+    llm_prompt_template: Optional[str] = None
+    llm_context_window: Optional[int] = None
 
 
 KUBE_CHAT_DOC_QA_REFERENCES = "|KUBE_CHAT_DOC_QA_REFERENCES|"
@@ -124,7 +124,7 @@ class Pipeline(ABC):
                     if question:
                         related_questions.append(question)
         else:
-            related_questions = [] 
+            related_questions = []
             if content=='':
                 return related_questions
             questions = re.sub(r'\n+', '\n', content).split('\n')
@@ -137,7 +137,7 @@ class Pipeline(ABC):
                     question = match.group(1)
                 related_questions.append(question)
         return related_questions
-    
+
     @staticmethod
     async def new_human_message(message, message_id):
         return Message(

@@ -1,10 +1,10 @@
 from typing import Dict, Type
 
-from llama_index.readers.base import BaseReader
-from llama_index.readers.file.docs_reader import DocxReader, PDFReader
-from llama_index.readers.file.ipynb_reader import IPYNBReader
-from llama_index.readers.file.mbox_reader import MboxReader
-from llama_index.readers.file.tabular_reader import PandasCSVReader
+from llama_index.core.readers.base import BaseReader
+from llama_index.readers.file.docs.base import DocxReader, PDFReader
+from llama_index.readers.file.ipynb import IPYNBReader
+from llama_index.readers.file.mbox import MboxReader
+from llama_index.readers.file.tabular import PandasCSVReader
 
 from aperag.readers.compose_audio_reader import ComposeAudioReader
 from aperag.readers.compose_image_reader import ComposeImageReader

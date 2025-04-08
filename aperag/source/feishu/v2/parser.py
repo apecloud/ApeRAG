@@ -119,11 +119,6 @@ class UserAccessToken(BaseModel):
     sid: str
 
 
-class OutputFormat(BaseModel):
-    PlainText = "plain_text"
-    Markdown = "markdown"
-
-
 class FeishuBlockParser(ABC):
     def __init__(self, doc_id, blocks):
         self.block_map = {}
