@@ -5,14 +5,16 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from langchain.embeddings.base import Embeddings
-from llama_index.data_structs.data_structs import Node
-from llama_index.schema import NodeRelationship, RelatedNodeInfo
+from llama_index.data_structs.data_structs import BaseNode
+from llama_index.langchain_helpers.text_splitter import TokenTextSplitter
+from llama_index.node_parser import NodeParser, SimpleNodeParser
 from llama_index.vector_stores.types import NodeWithEmbedding
 
 from aperag.db.models import ProtectAction
 from aperag.readers.base_embedding import DocumentBaseEmbedding
 from aperag.readers.local_path_reader import InteractiveSimpleDirectoryReader
 from aperag.readers.sensitive_filter import SensitiveFilterClassify
+from aperag.utils.tokenizer import get_default_tokenizer
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
 
 logger = logging.getLogger(__name__)
@@ -26,6 +28,7 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
             embedding_model: Embeddings = None,
             vector_size: int = 0,
             input_file_metadata_list: Optional[List[Dict[str, Any]]] = None,
+            node_parser: Optional[NodeParser] = None,
             **kwargs: Any,
     ) -> None:
         super().__init__(vector_store_adaptor, embedding_model, vector_size)
@@ -41,6 +44,14 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
             kwargs["file_metadata"] = metadata_mapping_func
         self.reader = InteractiveSimpleDirectoryReader(**kwargs)
         self.filter = SensitiveFilterClassify()
+        self.node_parser = node_parser or \
+            SimpleNodeParser(
+                text_splitter=TokenTextSplitter(
+                    chunk_size=kwargs.get('chunk_size', 1024),
+                    chunk_overlap=kwargs.get('chunk_overlap', 20),
+                    tokenizer=get_default_tokenizer(),
+                )
+            )
 
     def load_data(self, **kwargs) -> Tuple[List[str], str, List]:
         sensitive_protect = kwargs.get('sensitive_protect', False)
@@ -49,14 +60,13 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
         if not docs:
             return [], "", []
 
-        nodes: List[Node] = []
+        nodes: List[BaseNode] = []
         nodes_with_embedding: List[NodeWithEmbedding] = []
 
         texts = []
         content = ""
-        embedding_docs = []
         sensitive_info = []
-        
+
         for doc in docs:
             content += doc.text
             doc.text = doc.text.strip()
@@ -75,8 +85,6 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
                 logger.warning("ignore page with content ratio less than %f: %s",
                                content_ratio_threshold, doc.metadata.get("name", None))
                 continue
-
-            embedding_docs.append(doc)
 
             paddings = []
             # padding titles of the hierarchy
@@ -102,12 +110,6 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
                 doc.text, output_sensitive_info = self.filter.sensitive_filter(doc.text, sensitive_protect_method)
                 if output_sensitive_info != {}:
                     sensitive_info.append(output_sensitive_info)
-            
-            if prefix:
-                text = f"{prefix}\n{doc.text}"
-            else:
-                text = doc.text
-            texts.append(text)
 
             # embedding without the prefix #, which is usually used for padding in the LLM
             # lines = []
@@ -117,26 +119,29 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
 
             # embedding without the code block
             # text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
-            node = Node(
-                text=doc.text,
-                doc_id=doc.doc_id,
-            )
-            node.metadata.update(doc.metadata)
-            node.relationships = {
-                NodeRelationship.SOURCE: RelatedNodeInfo(
-                    node_id=node.node_id, metadata={"source": f"{doc.metadata['name']}"}
-                )
-            }
-            nodes.append(node)
+
+            chunks = self.node_parser.get_nodes_from_documents([doc])
+            for i, c in enumerate(chunks):
+                if prefix:
+                    text = f"{prefix}\n{c.get_content()}"
+                else:
+                    text = c.get_content()
+                texts.append(text)
+
+                c.metadata.update(doc.metadata)
+                c.metadata.update({
+                    "source": f"{doc.metadata['name']}",
+                    "chunk_num": str(i),
+                })
+            nodes.extend(chunks)
 
         if sensitive_protect and sensitive_protect_method == ProtectAction.WARNING_NOT_STORED and sensitive_info != []:
-            logger.info("find sensitive infomation: %s", file_name)
+            logger.info("find sensitive information: %s", file_name)
             return [], "", sensitive_info
 
         vectors = self.embedding.embed_documents(texts)
 
         for i in range(len(vectors)):
-            embedding_docs[i].embedding = vectors[i]
             nodes_with_embedding.append(NodeWithEmbedding(node=nodes[i], embedding=vectors[i]))
 
         print(f"processed file: {file_name} ")

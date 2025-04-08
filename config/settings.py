@@ -252,7 +252,7 @@ EMBEDDING_BACKEND = env.str("EMBEDDING_BACKEND", default="local")
 EMBEDDING_SERVICE_URL = env.str("EMBEDDING_SERVICE_URL", default="http://localhost:9997")
 # model is used by infinity, model_uid is used by xinference
 EMBEDDING_SERVICE_MODEL = env.str("EMBEDDING_SERVICE_MODEL", default="bge-large-zh-v1.5")
-EMBEDDING_SERVICE_TOKEN = env.str("EMBEDDING_SERVICE_TOKEN")
+EMBEDDING_SERVICE_TOKEN = env.str("EMBEDDING_SERVICE_TOKEN", default="")
 EMBEDDING_SERVICE_MODEL_UID = env.str("EMBEDDING_SERVICE_MODEL_UID", default="")
 SENSITIVE_FILTER_MODEL = env.str("SENSITIVE_FILTER_MODEL", default="")
 
