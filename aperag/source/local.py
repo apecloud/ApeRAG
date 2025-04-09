@@ -47,7 +47,10 @@ class LocalSource(Source):
                     doc = RemoteDocument(
                         name=file_path,
                         size=file_stat.st_size,
-                        modified_time=modified_time
+                        modified_time=modified_time,
+                        metadata={
+                            "path": file_path,
+                        }
                     )
                     documents.append(doc)
                 except Exception as e:
