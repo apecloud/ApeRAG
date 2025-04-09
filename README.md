@@ -18,7 +18,7 @@ poetry self add poetry-plugin-shell
 ```bash
 poetry env use 3.11
 poetry lock
-poetry install
+poetry install --with model
 ```
 
 * prepare configs

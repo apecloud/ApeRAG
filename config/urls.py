@@ -39,7 +39,7 @@ handler404 = aperag.views.main.default_page
 
 urlpatterns = [
     path("api/", include("aperag.urls")),
-    path("admin/", admin.site.urls),
+    # path("admin/", admin.site.urls),
     path('', include('django_prometheus.urls')),
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 

@@ -77,7 +77,7 @@ class ProtectAction(models.TextChoices):
     WARNING_NOT_STORED = "nostore"
     REPLACE_WORDS = "replace"
 
-    
+
 class CollectionStatus(models.TextChoices):
     INACTIVE = "INACTIVE"
     ACTIVE = "ACTIVE"
@@ -140,7 +140,7 @@ class QuestionStatus(models.TextChoices):
     WARNING = "WARNING"
     DELETED = "DELETED"
     PENDING = "PENDING"
-    
+
 class ApiKeyStatus(models.TextChoices):
     ACTIVE = "ACTIVE"
     DELETED = "DELETED"
@@ -387,7 +387,7 @@ class Question(models.Model):
     gmt_updated = models.DateTimeField(auto_now=True)
     gmt_deleted = models.DateTimeField(null=True, blank=True)
     relate_id = models.CharField(null=True, max_length=256)
-    
+
     def view(self, relate_documents=None):
         if not relate_documents:
             relate_documents = []
@@ -411,7 +411,7 @@ class ApiKeyToken(models.Model):
     gmt_updated = models.DateTimeField(auto_now=True)
     gmt_created = models.DateTimeField(auto_now_add=True)
     gmt_deleted = models.DateTimeField(null=True, blank=True)
-    
+
     def view(self):
         return {
             "id": str(self.id),
@@ -434,7 +434,7 @@ class CollectionSyncHistory(models.Model):
     total_documents_to_sync = models.PositiveIntegerField(default=0)
     execution_time = models.DurationField(null=True)
     start_time = models.DateTimeField()
-    task_context = models.JSONField(default={})
+    task_context = models.JSONField(default=dict)
     status = models.CharField(max_length=16, choices=CollectionSyncStatus.choices, default=CollectionSyncStatus.RUNNING)
     gmt_created = models.DateTimeField(auto_now_add=True, null=True)
     gmt_updated = models.DateTimeField(auto_now=True, null=True)
