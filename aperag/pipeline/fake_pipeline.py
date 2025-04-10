@@ -18,7 +18,7 @@ from pathlib import Path
 
 from aperag.pipeline.base_pipeline import Pipeline
 
-KUBE_CHAT_DOC_QA_REFERENCES = "|KUBE_CHAT_DOC_QA_REFERENCES|"
+DOC_QA_REFERENCES = "|DOC_QA_REFERENCES|"
 
 
 class FakePipeline(Pipeline):
@@ -61,4 +61,4 @@ class FakePipeline(Pipeline):
         await self.add_ai_message(message, message_id, response, references, urls=[])
 
         if gen_references:
-            yield KUBE_CHAT_DOC_QA_REFERENCES + json.dumps(references)
+            yield DOC_QA_REFERENCES + json.dumps(references)

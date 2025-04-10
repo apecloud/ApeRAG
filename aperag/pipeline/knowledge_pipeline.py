@@ -25,8 +25,8 @@ from aperag.llm.prompts import (
     DEFAULT_CHINESE_PROMPT_TEMPLATE_V3,
     DEFAULT_MODEL_MEMOTY_PROMPT_TEMPLATES,
 )
-from aperag.pipeline.base_pipeline import KUBE_CHAT_DOC_QA_REFERENCES, KUBE_CHAT_RELATED_QUESTIONS, \
-    Message, Pipeline, KUBE_CHAT_DOCUMENT_URLS
+from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES, RELATED_QUESTIONS, \
+    Message, Pipeline, DOCUMENT_URLS
 from aperag.pipeline.keyword_extractor import IKExtractor
 from aperag.query.query import DocumentWithScore, get_packed_answer
 from aperag.readers.base_embedding import get_embedding_model, rerank
@@ -248,11 +248,11 @@ class KnowledgePipeline(Pipeline):
                 related_questions.update(related_question_generate)
             related_questions = list(related_questions)
             random.shuffle(related_questions)
-            yield KUBE_CHAT_RELATED_QUESTIONS + str(related_questions[:3])
+            yield RELATED_QUESTIONS + str(related_questions[:3])
 
         if gen_references:
-            yield KUBE_CHAT_DOC_QA_REFERENCES + json.dumps(references)
+            yield DOC_QA_REFERENCES + json.dumps(references)
 
         if document_url_list:
-            yield KUBE_CHAT_DOCUMENT_URLS + json.dumps(document_url_list)
+            yield DOCUMENT_URLS + json.dumps(document_url_list)
 

@@ -29,7 +29,7 @@ from aperag.chat.utils import (
     success_response,
 )
 from aperag.chat.websocket.base_consumer import BaseConsumer
-from aperag.pipeline.base_pipeline import KUBE_CHAT_RELATED_QUESTIONS
+from aperag.pipeline.base_pipeline import RELATED_QUESTIONS
 from aperag.pipeline.common_pipeline import CommonPipeline
 from aperag.readers.base_readers import DEFAULT_FILE_READER_CLS
 from aperag.source.utils import gen_temporary_file
@@ -97,8 +97,8 @@ class CommonConsumer(BaseConsumer):
                     return
 
             async for tokens in self.predict(data["data"], message_id=message_id, file=self.file):
-                if tokens.startswith(KUBE_CHAT_RELATED_QUESTIONS):
-                    related_question = ast.literal_eval(tokens[len(KUBE_CHAT_RELATED_QUESTIONS):])
+                if tokens.startswith(RELATED_QUESTIONS):
+                    related_question = ast.literal_eval(tokens[len(RELATED_QUESTIONS):])
                     continue
 
                 # streaming response

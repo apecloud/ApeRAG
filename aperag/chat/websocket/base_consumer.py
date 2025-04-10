@@ -37,8 +37,8 @@ from aperag.chat.utils import (
     welcome_response,
 )
 from aperag.db.ops import query_bot, query_user_quota
-from aperag.pipeline.base_pipeline import KUBE_CHAT_DOC_QA_REFERENCES, KUBE_CHAT_RELATED_QUESTIONS, \
-    KUBE_CHAT_DOCUMENT_URLS
+from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES, RELATED_QUESTIONS, \
+    DOCUMENT_URLS
 from aperag.utils.constant import KEY_BOT_ID, KEY_CHAT_ID, KEY_USER_ID, KEY_WEBSOCKET_PROTOCOL
 from aperag.utils.utils import now_unix_milliseconds
 
@@ -133,14 +133,14 @@ class BaseConsumer(AsyncWebsocketConsumer):
                     return
 
             async for tokens in self.predict(data["data"], message_id=message_id):
-                if tokens.startswith(KUBE_CHAT_DOC_QA_REFERENCES):
-                    references = json.loads(tokens[len(KUBE_CHAT_DOC_QA_REFERENCES):])
+                if tokens.startswith(DOC_QA_REFERENCES):
+                    references = json.loads(tokens[len(DOC_QA_REFERENCES):])
                     continue
-                if tokens.startswith(KUBE_CHAT_RELATED_QUESTIONS):
-                    related_question = ast.literal_eval(tokens[len(KUBE_CHAT_RELATED_QUESTIONS):])
+                if tokens.startswith(RELATED_QUESTIONS):
+                    related_question = ast.literal_eval(tokens[len(RELATED_QUESTIONS):])
                     continue
-                if tokens.startswith(KUBE_CHAT_DOCUMENT_URLS):
-                    urls = ast.literal_eval(tokens[len(KUBE_CHAT_DOCUMENT_URLS):])
+                if tokens.startswith(DOCUMENT_URLS):
+                    urls = ast.literal_eval(tokens[len(DOCUMENT_URLS):])
                     continue
 
                 # streaming response
