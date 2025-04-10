@@ -310,7 +310,7 @@ EMBEDDING_MODEL_CLS = {
     ),
     "text2vec": lambda: Text2VecEmbedding(device=EMBEDDING_DEVICE),
     "bge": lambda: HuggingFaceEmbeddings(
-        model_name="BAAI/bge-large-zh-1.5",
+        model_name="BAAI/bge-large-zh-v1.5",
         model_kwargs={'device': EMBEDDING_DEVICE},
         encode_kwargs={'normalize_embeddings': True, 'batch_size': 16}
     )
