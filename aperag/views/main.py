@@ -126,38 +126,38 @@ router = Router()
 class CollectionIn(Schema):
     title: str
     type: str
-    description: Optional[str]
-    config: Optional[str]
+    description: Optional[str] = None
+    config: Optional[str] = None
 
 
 class CreateDocumentIn(Schema):
     name: str
-    config: Optional[str]
+    config: Optional[str] = None
 
 
 class UpdateDocumentIn(Schema):
     name: str
-    config: Optional[str]
+    config: Optional[str] = None
 
 
 class QuestionIn(Schema):
-    id: Optional[str]
+    id: Optional[str] = None
     question: str
-    answer: Optional[str]
-    relate_documents: Optional[List[str]]
+    answer: Optional[str] = None
+    relate_documents: Optional[List[str]] = None
 
 
 class ConnectionInfo(Schema):
     db_type: str
     host: str
-    port: Optional[int]
-    db_name: Optional[str]
-    username: Optional[str]
-    password: Optional[str]
+    port: Optional[int] = None
+    db_name: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
     verify: VerifyWay
-    ca_cert: Optional[str]
-    client_key: Optional[str]
-    client_cert: Optional[str]
+    ca_cert: Optional[str] = None
+    client_key: Optional[str] = None
+    client_cert: Optional[str] = None
 
 
 @router.get("/user_info")
@@ -796,9 +796,9 @@ async def get_chat(request, bot_id, chat_id):
 
 
 class MessageFeedbackIn(Schema):
-    upvote: Optional[int]
-    downvote: Optional[int]
-    revised_answer: Optional[str]
+    upvote: Optional[int] = None
+    downvote: Optional[int] = None
+    revised_answer: Optional[str] = None
 
 
 @router.post("/bots/{bot_id}/chats/{chat_id}/messages/{message_id}")
@@ -834,9 +834,9 @@ async def delete_chat(request, bot_id, chat_id):
 class BotIn(Schema):
     title: str
     type: str
-    description: Optional[str]
-    config: Optional[str]
-    collection_ids: Optional[List[str]]
+    description: Optional[str] = None
+    config: Optional[str] = None
+    collection_ids: Optional[List[str]] = None
 
 
 @router.post("/bots")
@@ -967,7 +967,7 @@ async def delete_bot(request, bot_id):
 
 class IntegrationIn(Schema):
     type: str
-    config: Optional[str]
+    config: Optional[str] = None
 
 
 @router.post("/bots/{bot_id}/integrations")
