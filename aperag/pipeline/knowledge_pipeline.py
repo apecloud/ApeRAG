@@ -25,13 +25,8 @@ from aperag.llm.prompts import (
     DEFAULT_CHINESE_PROMPT_TEMPLATE_V3,
     DEFAULT_MODEL_MEMOTY_PROMPT_TEMPLATES,
 )
-from aperag.pipeline.base_pipeline import (
-    KUBE_CHAT_DOC_QA_REFERENCES,
-    KUBE_CHAT_DOCUMENT_URLS,
-    KUBE_CHAT_RELATED_QUESTIONS,
-    Message,
-    Pipeline,
-)
+from aperag.pipeline.base_pipeline import KUBE_CHAT_DOC_QA_REFERENCES, KUBE_CHAT_RELATED_QUESTIONS, \
+    Message, Pipeline, KUBE_CHAT_DOCUMENT_URLS
 from aperag.pipeline.keyword_extractor import IKExtractor
 from aperag.query.query import DocumentWithScore, get_packed_answer
 from aperag.readers.base_embedding import get_embedding_model, rerank
