@@ -22,7 +22,6 @@ from aioresponses import aioresponses
 from base import KubeBlocksLLMPredictor
 
 from aperag.llm.baichuan import BaiChuanPredictor
-from aperag.llm.chatglm import ChatGLMPredictor
 from aperag.llm.custom import CustomLLMPredictor
 from aperag.llm.openai import OpenAIPredictor
 from aperag.llm.wenxin import BaiduQianFan
@@ -296,81 +295,6 @@ class TestBaiduQianFan(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(async_result, mock_responses)
 
             task_order_log.append("task2 completed.")  # 任务开始执行2s后结束，打印日志信息
-
-        # 使用gather同时启动两个任务
-        # 如果agenerate_stream是异步的，那么在task1多次尝试连接期间，task2就已经在执行中了
-        # 那么task2一定比task1先结束： (1和2同时开始)---2结束--------1结束
-
-        _, _ = await asyncio.gather(async_task(), test_stream_behavior())
-
-        self.assertEqual(task_order_log, ["task2 completed.", "task1 completed."])
-
-
-class TestChatGLMPredictor(unittest.IsolatedAsyncioTestCase):
-
-    async def test_stream_async_behabior(self):
-        predictor1 = ChatGLMPredictor(api_key="id.secret", endpoint="http://192.0.2.0")
-        predictor2 = ChatGLMPredictor(api_key="id.secret")
-
-        task_order_log = []
-
-        async def async_task():
-
-            try:
-                _ = [tokens async for tokens in predictor1.agenerate_stream(prompt="test")]
-            except aiohttp.ClientConnectorError:
-                pass
-            task_order_log.append("task1 completed.")  # 在尝试连接多次(超过60s)后结束，打印log信息
-
-        async def test_stream_behavior():
-            mock_response = [
-                "id: fb981fde-0080-4933-b87b-4a29eaba8d17",
-                "event: add",
-                "data: Kubernetes的核心技术",
-                ""
-                "id: fb981fde-0080-4933-b87b-4a29eaba8d17",
-                "event: add",
-                "data: Service的作用是防止Pod",
-                ""
-                "id: fb981fde-0080-4933-b87b-4a29eaba8d17",
-                "event: add",
-                "data: 失联（服务发现）",
-                ""
-                "id: fb981fde-0080-4933-b87b-4a29eaba8d17",
-                "event: add",
-                "data: 和定义Pod访问策略",
-                ""
-                "id: fb981fde-0080-4933-b87b-4a29eaba8d17",
-                "event: add",
-                "data: （负载均衡）。",
-                ""
-                "id: fb981fde-0080-4933-b87b-4a29eaba8d17",
-                "event: finish",
-            ]
-
-            mock_responses = [
-                "Kubernetes的核心技术",
-                "Service的作用是防止Pod",
-                "失联（服务发现）",
-                "和定义Pod访问策略",
-                "（负载均衡）。"
-            ]
-
-            # 将数据转换为字节流，每一行后面都有一个换行符
-            mock_content = "\n".join(mock_response).encode("utf-8")
-
-            url = "https://open.bigmodel.cn/api/paas/v3/model-api/chatglm_lite/sse-invoke?temperature=0.95&top_p=0.7"
-            prompt = "test prompt"
-
-            with aioresponses() as mocked:
-                mocked.post(url=url, body=mock_content, status=200)
-
-                response_list = []
-                async for resp in predictor2._agenerate_stream(prompt=prompt):
-                    response_list.append(resp)
-
-                self.assertEqual(response_list, mock_responses)
-            task_order_log.append("task2 completed.")  # 任务执行结束，打印日志信息
 
         # 使用gather同时启动两个任务
         # 如果agenerate_stream是异步的，那么在task1多次尝试连接期间，task2就已经在执行中了

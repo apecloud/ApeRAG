@@ -2,6 +2,7 @@ export type TypesModels = {
   label: string;
   value: string;
   enabled: boolean;
+  endpoint: string;
   context_window?: number;
   prompt_template?: string;
   temperature?: number;

@@ -210,6 +210,46 @@ django:
         free_tier: true
         context_window: 128000
         similarity_topk: 10
+    - name: "glm-4"
+      label: "GLM-4"
+      enabled: "true"
+      models:
+        - name: "glm-4-plus"
+          label: "GLM-4-Plus"
+          enabled: "true"
+          memory: "enabled"
+          context_window: 128000
+          similarity_topk: 10
+          endpoint: "https://open.bigmodel.cn/api/paas/v4/"
+        - name: "glm-4-air"
+          label: "GLM-4-Air"
+          enabled: "true"
+          memory: "enabled"
+          context_window: 128000
+          similarity_topk: 10
+          endpoint: "https://open.bigmodel.cn/api/paas/v4/"
+        - name: "glm-4-long"
+          label: "GLM-4-Long"
+          enabled: "true"
+          memory: "enabled"
+          context_window: 1000000
+          similarity_topk: 20
+          endpoint: "https://open.bigmodel.cn/api/paas/v4/"
+        - name: "glm-4-flashx"
+          label: "GLM-4-FlashX"
+          enabled: "true"
+          memory: "enabled"
+          context_window: 128000
+          similarity_topk: 10
+          endpoint: "https://open.bigmodel.cn/api/paas/v4/"
+        - name: "glm-4-flash"
+          label: "GLM-4-Flash"
+          enabled: "true"
+          memory: "enabled"
+          context_window: 128000
+          similarity_topk: 10
+          endpoint: "https://open.bigmodel.cn/api/paas/v4/"
+          free_tier: true
 
 celery-worker:
   replicaCount: 1

@@ -89,6 +89,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
     setCurrentModelItem(model);
 
     const llm = values.config?.llm;
+    let endpoint = llm?.endpoint;
     let template = llm?.prompt_template;
     let memoryTemplate = llm?.memory_prompt_template;
     let contextwindow = _.isNumber(llm?.context_window)?llm?.context_window:3500;
@@ -100,6 +101,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
       setContextMemory(false);
       form.setFieldValue(['config', 'memory'], false);
       // form.setFieldValue(['config', 'llm', 'trial'], false);
+      endpoint = model?.endpoint||'';
       template = model?.prompt_template||'';
       // memoryTemplate = model?.memory_prompt_template||'';
       contextwindow = _.isNumber(model?.context_window)?model?.context_window:3500;
@@ -108,6 +110,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
       similarityscorethreshold = _.isNumber(model?.similarity_score_threshold)?model?.similarity_score_threshold:0.5;
     }
 
+    form.setFieldValue(['config', 'llm', 'endpoint'], endpoint);
     form.setFieldValue(['config', 'llm', 'prompt_template'], botType==='knowledge'?template:commonPrompt);
     // form.setFieldValue(['config', 'llm', 'memory_prompt_template'], botType==='knowledge'?memoryTemplate:commonPrompt);
     form.setFieldValue(['config', 'llm', 'context_window'], contextwindow);
@@ -152,7 +155,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
     >
       <Card bordered={false} style={{ marginBottom: 20, borderRadius: 16 }}>
 
-          <Form.Item 
+          <Form.Item
             label={<FormattedMessage id="text.bot.type" />}
             name="type"
             initialValue={botType}
@@ -160,14 +163,14 @@ export default ({ onSubmit, action, values, form }: Props) => {
             className="form-item-wrap"
             required
           >
-            <Radio.Group 
+            <Radio.Group
               onChange={changeBotType}
               buttonStyle="solid">
               <Radio.Button value={"knowledge"}><FormattedMessage id="text.bot.type.knowledge" /></Radio.Button>
               <Radio.Button value={"common"}><FormattedMessage id="text.bot.type.common" /></Radio.Button>
             </Radio.Group>
           </Form.Item>
-        
+
         { botType==='knowledge' ? (
           <Form.Item
             label={<FormattedMessage id="text.collections" />}
@@ -289,7 +292,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
             }))}
           />
         </Form.Item>
-        
+
         {currentModelItem?.free_tier && (
           <Form.Item
             className="form-item-children-wrap"
@@ -300,7 +303,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
             <Switch />
           </Form.Item>
         )}
-        {currentModel?.indexOf('gpt') !== -1 || currentModel?.indexOf('deepseek') !== -1 ? (
+        {currentModel?.indexOf('gpt') !== -1 || currentModel?.indexOf('deepseek') !== -1 || currentModel?.indexOf('glm') !== -1 ? (
           <Form.Item
             className="form-item-children-wrap"
             label={<FormattedMessage id="text.model_config" />}
@@ -308,8 +311,8 @@ export default ({ onSubmit, action, values, form }: Props) => {
           >
             <Row gutter={[16, 16]}>
               <Col span={12}>
-                <Form.Item 
-                  name={['config', 'llm', 'endpoint']} 
+                <Form.Item
+                  name={['config', 'llm', 'endpoint']}
                 >
                   <Input
                     prefix={
@@ -333,7 +336,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
           </Form.Item>
         ) : null}
 
-        {['chatglm-pro', 'chatglm-std', 'chatglm-lite', 'chatglm-turbo', 'qwen-turbo', 'qwen-plus', 'qwen-max'].includes(
+        {['qwen-turbo', 'qwen-plus', 'qwen-max'].includes(
           currentModel,
         ) ? (
           <Form.Item
@@ -537,7 +540,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
           { contextMemory ? (
             <Row gutter={[16, 16]}>
               <Col span={12}>
-                <Form.Item 
+                <Form.Item
                   rules={[{ required:true, type:'integer', message: intl.formatMessage({id:'msg.need_integer'}), transform(value){return Number(value)>0?Number(value):'error'}}]}
                   name={['config', 'memory_length']}
                 >
@@ -551,7 +554,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
                 </Form.Item>
               </Col>
               <Col span={12}>
-                <Form.Item 
+                <Form.Item
                   rules={[{ required:true, type:'integer', message: intl.formatMessage({id:'msg.need_integer'}), transform(value){return Number(value)>0?Number(value):'error'}}]}
                   name={['config', 'memory_count']}
                 >

@@ -30,6 +30,7 @@ export default () => {
                 config: {
                   model: currentModel?.value,
                   llm: {
+                    endpoint: currentModel?.endpoint,
                     similarity_score_threshold: currentModel?.similarity_score_threshold,
                     similarity_topk: currentModel?.similarity_topk,
                     temperature: currentModel?.temperature,

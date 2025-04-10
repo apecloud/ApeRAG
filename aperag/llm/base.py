@@ -83,6 +83,9 @@ class Predictor(ABC):
             case "deepseek-chat" | "gpt-4-1106-preview" | "gpt-4-vision-preview" | "gpt-4" | "gpt-4-32k" | "gpt-4-0613" | "gpt-4-32k-0613":
                 from aperag.llm.openai import OpenAIPredictor
                 return OpenAIPredictor
+            case "glm-4-plus" | "glm-4-air" | "glm-4-long" | "glm-4-flashx" | "glm-4-flash":
+                from aperag.llm.openai import OpenAIPredictor
+                return OpenAIPredictor
             case "azure-openai":
                 from aperag.llm.azure import AzureOpenAIPredictor
                 return AzureOpenAIPredictor
@@ -92,10 +95,6 @@ class Predictor(ABC):
             case "ernie-bot-turbo":
                 from aperag.llm.wenxin import BaiduQianFan
                 return BaiduQianFan
-            case "chatglm-pro" | "chatglm-std" | "chatglm-lite" | "chatglm-turbo":
-                kwargs["model"] = model_name.replace("-", "_")
-                from aperag.llm.chatglm import ChatGLMPredictor
-                return ChatGLMPredictor
             case "qwen-turbo" | "qwen-plus" | "qwen-max":
                 from aperag.llm.qianwen import QianWenPredictor
                 return QianWenPredictor

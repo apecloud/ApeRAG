@@ -77,6 +77,9 @@ export const COLLECTION_MODEL_OPTIONS_CONFIG: {
   'chatglm': {
     icon: ChatglmIcon,
   },
+  'glm-4': {
+    icon: ChatglmIcon,
+  },
   'chatgpt': {
     icon: ChatGPTIcon,
   },
