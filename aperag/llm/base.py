@@ -80,7 +80,7 @@ class Predictor(ABC):
                 kwargs["model"] = "gpt-4"
                 from aperag.llm.openai import OpenAIPredictor
                 return OpenAIPredictor
-            case "gpt-4-1106-preview" | "gpt-4-vision-preview" | "gpt-4" | "gpt-4-32k" | "gpt-4-0613" | "gpt-4-32k-0613":
+            case "deepseek-chat" | "gpt-4-1106-preview" | "gpt-4-vision-preview" | "gpt-4" | "gpt-4-32k" | "gpt-4-0613" | "gpt-4-32k-0613":
                 from aperag.llm.openai import OpenAIPredictor
                 return OpenAIPredictor
             case "azure-openai":
