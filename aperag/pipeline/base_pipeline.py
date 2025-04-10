@@ -13,13 +13,13 @@
 # limitations under the License.
 
 import json
-import uuid
 import re
+import uuid
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional
 
-from langchain import PromptTemplate
 from langchain.schema import AIMessage, HumanMessage
+from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel
 
 from aperag.chat.history.base import BaseChatMessageHistory

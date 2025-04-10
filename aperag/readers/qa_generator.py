@@ -2,7 +2,7 @@ import logging
 import re
 from abc import ABC, abstractmethod
 
-from langchain import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 
 from aperag.llm.base import Predictor, PredictorType
 from aperag.llm.prompts import CHINESE_QA_EXTRACTION_PROMPT_TEMPLATE

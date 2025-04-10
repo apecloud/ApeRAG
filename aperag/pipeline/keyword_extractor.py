@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from elasticsearch import AsyncElasticsearch
-from langchain import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 
 from aperag.llm.base import Predictor, PredictorType
 from aperag.llm.prompts import KEYWORD_PROMPT_TEMPLATE

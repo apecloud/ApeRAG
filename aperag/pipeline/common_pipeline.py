@@ -15,9 +15,8 @@
 import asyncio
 import logging
 import random
-import re
 
-from langchain import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 
 from aperag.llm.prompts import COMMON_FILE_TEMPLATE
 from aperag.pipeline.base_pipeline import KUBE_CHAT_RELATED_QUESTIONS, Message, Pipeline
@@ -65,12 +64,12 @@ class CommonPipeline(Pipeline):
             related_questions.update(self.welcome_question)
             if len(self.welcome_question) >= 3:
                 need_related_question = False
-                
+
 
         # TODO: divide file_content into several parts and call API separately.
         context = file if file else ""
         context += self.bot_context
-        
+
         if len(context) > self.context_window - 500:
             context = context[:len(self.context_window) - 500]
 

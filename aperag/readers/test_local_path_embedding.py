@@ -3,7 +3,7 @@ import os
 import time
 
 import requests
-from langchain import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 
 from aperag.query.query import QueryWithEmbedding, get_packed_answer
 from aperag.readers.base_embedding import get_embedding_model

@@ -16,19 +16,22 @@ import asyncio
 import json
 import logging
 import random
-import re
 
-from langchain import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 
-from config import settings
 from aperag.context.context import ContextManager
 from aperag.context.full_text import search_document
 from aperag.llm.prompts import (
     DEFAULT_CHINESE_PROMPT_TEMPLATE_V3,
     DEFAULT_MODEL_MEMOTY_PROMPT_TEMPLATES,
 )
-from aperag.pipeline.base_pipeline import KUBE_CHAT_DOC_QA_REFERENCES, KUBE_CHAT_RELATED_QUESTIONS, \
-    Message, Pipeline, KUBE_CHAT_DOCUMENT_URLS
+from aperag.pipeline.base_pipeline import (
+    KUBE_CHAT_DOC_QA_REFERENCES,
+    KUBE_CHAT_DOCUMENT_URLS,
+    KUBE_CHAT_RELATED_QUESTIONS,
+    Message,
+    Pipeline,
+)
 from aperag.pipeline.keyword_extractor import IKExtractor
 from aperag.query.query import DocumentWithScore, get_packed_answer
 from aperag.readers.base_embedding import get_embedding_model, rerank
@@ -39,6 +42,7 @@ from aperag.utils.utils import (
     generate_vector_db_collection_name,
     now_unix_milliseconds,
 )
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -120,11 +124,11 @@ class KnowledgePipeline(Pipeline):
         history = []
         tot_history_querys = ''
         messages = await self.history.messages
-        history_querys = [json.loads(message.content)["query"] for message in messages if message.additional_kwargs["role"] == "human"] 
-        
+        history_querys = [json.loads(message.content)["query"] for message in messages if message.additional_kwargs["role"] == "human"]
+
         if self.memory:
             tot_history_querys = '\n'.join(history_querys[-self.memory_limit_count:])+'\n'
-        
+
         references = []
         related_questions = set()
         response = ""
@@ -135,7 +139,7 @@ class KnowledgePipeline(Pipeline):
         vector = self.embedding_model.embed_query(tot_history_querys+message)
         logger.info("[%s] embedding query end", log_prefix)
         # hyde_task = asyncio.create_task(self.generate_hyde_message(message))
-                
+
         results = await async_run(self.qa_context_manager.query, tot_history_querys + message, score_threshold=0.5, topk=6, vector=vector)
         logger.info("[%s] find relevant qa pairs in vector db end", log_prefix)
         for result in results:
@@ -144,17 +148,17 @@ class KnowledgePipeline(Pipeline):
                 response = result_text["answer"]
             if result.score < 0.8:
                 related_questions.add(result_text["question"])
-                
+
         # if len(related_questions) >= 3:
         #     need_related_question = False
-            
+
         if response != "":
             yield response
-            
+
             if self.use_related_question and need_related_question:
                 related_question_prompt = self.related_question_prompt.format(query=message, context=response)
                 related_question_task = asyncio.create_task(self.generate_related_question(related_question_prompt))
-          
+
         else:
             results = await async_run(self.context_manager.query, tot_history_querys + message,
                                       score_threshold=self.score_threshold, topk=self.topk * 6, vector=vector)
@@ -165,14 +169,14 @@ class KnowledgePipeline(Pipeline):
             #                           score_threshold=self.score_threshold, topk=self.topk * 6, vector=new_vector)
             # results_set = set([result.text for result in results])
             # results.extend(result for result in results2 if result.text not in results_set)
-            
+
             if self.bot_context != "":
                 bot_context_result = DocumentWithScore(
                     text=self.bot_context,  # type: ignore
                     score=0,
                 )
                 results.append(bot_context_result)
-                
+
             if len(results) > 1:
                 results = await rerank(message, results)
                 logger.info("[%s] rerank candidates end", log_prefix)
@@ -200,7 +204,7 @@ class KnowledgePipeline(Pipeline):
                     related_questions.update(self.welcome_question)
                     if len(related_questions) >= 3:
                         need_related_question = False
-                  
+
             if self.use_related_question and need_related_question:
                 related_question_prompt = self.related_question_prompt.format(query=message, context=context)
                 related_question_task = asyncio.create_task(self.generate_related_question(related_question_prompt))

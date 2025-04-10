@@ -19,7 +19,7 @@ from http import HTTPStatus
 from typing import Dict
 
 from django.http import HttpRequest, HttpResponse
-from langchain import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from ninja.main import Exc
 from pydantic import ValidationError
 

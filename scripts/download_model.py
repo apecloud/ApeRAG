@@ -14,7 +14,7 @@
 
 import os
 
-from langchain.embeddings import HuggingFaceBgeEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 
 if __name__ == "__main__":
     repo_is = [
@@ -23,7 +23,7 @@ if __name__ == "__main__":
     os.environ['CURL_CA_BUNDLE'] = ''
     os.environ.setdefault("https_proxy", "socks5://127.0.0.1:34001")
 
-    embedding_model = HuggingFaceBgeEmbeddings(
+    embedding_model = HuggingFaceEmbeddings(
         model_name="BAAI/bge-large-zh-v1.5",
     )
 

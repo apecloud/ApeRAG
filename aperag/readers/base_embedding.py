@@ -9,24 +9,24 @@ from typing import Any, List
 import aiohttp
 import requests
 from langchain.embeddings.base import Embeddings
-from langchain.embeddings.huggingface import HuggingFaceBgeEmbeddings, HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, MT5EncoderModel
 
+from aperag.query.query import DocumentWithScore
+from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
 from config.settings import (
     EMBEDDING_BACKEND,
     EMBEDDING_DEVICE,
+    EMBEDDING_DIMENSIONS,
     EMBEDDING_MODEL,
     EMBEDDING_SERVICE_MODEL,
-    EMBEDDING_SERVICE_TOKEN,
     EMBEDDING_SERVICE_MODEL_UID,
+    EMBEDDING_SERVICE_TOKEN,
     EMBEDDING_SERVICE_URL,
     RERANK_BACKEND,
     RERANK_SERVICE_MODEL_UID,
     RERANK_SERVICE_URL,
-    EMBEDDING_DIMENSIONS,
 )
-from aperag.query.query import DocumentWithScore
-from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
 
 
 class EmbeddingService(Embeddings):
@@ -309,8 +309,8 @@ EMBEDDING_MODEL_CLS = {
         model_kwargs={'device': EMBEDDING_DEVICE},
     ),
     "text2vec": lambda: Text2VecEmbedding(device=EMBEDDING_DEVICE),
-    "bge": lambda: HuggingFaceBgeEmbeddings(
-        model_name="BAAI/bge-large-zh",
+    "bge": lambda: HuggingFaceEmbeddings(
+        model_name="BAAI/bge-large-zh-1.5",
         model_kwargs={'device': EMBEDDING_DEVICE},
         encode_kwargs={'normalize_embeddings': True, 'batch_size': 16}
     )

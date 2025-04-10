@@ -19,7 +19,7 @@ import os
 import time
 from datetime import datetime
 
-from langchain import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from tabulate import tabulate
 
 from aperag.context.context import ContextManager
@@ -47,7 +47,7 @@ os.environ["RERANK_MODEL_PATH"] = "/Users/ziang/.cache/huggingface/hub/bge-reran
 table_format = """
 <html>
 <head>
-<style> 
+<style>
   table {{ table-layout: fixed; border: 1px solid black; border-collapse: collapse; }}
   th {{ border: 1px solid black; border-collapse: collapse; white-space:break-spaces; overflow:hidden; position:sticky; top: 0; padding: 5px;}}
   td {{ border: 1px solid black; border-collapse: collapse; white-space:break-spaces; overflow:hidden; padding: 5px; word-wrap: break-all}}
