@@ -1,76 +1,135 @@
-version: '3'
-
 volumes:
-  aperag_postgres_data: {}
-  aperag_qdrant_data: {}
+  aperag-postgres-data: {}
+  aperag-qdrant-data: {}
+  aperag-redis-data: {}
+  aperag-es-data: {}
 
 services:
   django: &django
     build:
       context: .
       dockerfile: ./Dockerfile
-    image: aperag_django
-    container_name: aperag_django
+    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.1.2}
+    container_name: aperag-django
     depends_on:
       - postgres
       - redis
       - qdrant
+      - es
     volumes:
       - .:/app:z
       - ~/.cache:/root/.cache
     env_file:
-      - .docker-env
+      - .docker.env
     ports:
       - "8000:8000"
-    command: /app/scripts/start-django.sh
+    entrypoint: /app/scripts/start-django.sh
 
-  postgres:
-    image: postgres:14
-    container_name: aperag_postgres
-    volumes:
-      - aperag_postgres_data:/var/lib/postgresql/data
+  frontend:
+    build:
+      context: ./web
+      dockerfile: ./Dockerfile
+    image: ${REGISTRY:-docker.io}/apecloud/aperag-frontend:${VERSION:-v0.1.2}
+    container_name: aperag-frontend
+    depends_on:
+      - django
     env_file:
-      - .docker-env
-
-  redis:
-    image: redis:6
-    container_name: aperag_redis
-
-  qdrant:
-    image: qdrant/qdrant
-    container_name: aperag_qdrant
-    volumes:
-      - aperag_qdrant_data:/qdrant/storage
+      - web/.env
+    environment:
+      - APERAG_CONSOLE_SERVICE_HOST=aperag-django
+      - APERAG_CONSOLE_SERVICE_PORT=8000
+    ports:
+      - "8001:80"
 
   celeryworker:
-    <<: *django
-    image: aperag_django
-    container_name: aperag_celeryworker
+    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.1.2}
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    container_name: aperag-celeryworker
     depends_on:
       - redis
       - postgres
       - qdrant
+      - es
     volumes:
       - .:/app:z
       - ~/.cache:/root/.cache
       - ./resources:/Users/ziang/git/ApeRAG/resources
-    ports: []
-    command: /app/scripts/start-celery-worker.sh
+    env_file:
+      - .docker.env
+    environment:
+      - NODE_IP=aperag-celeryworker
+    entrypoint: /app/scripts/start-celery-worker.sh
 
   celerybeat:
-    <<: *django
-    image: aperag_django
-    container_name: aperag_celerybeat
+    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.1.2}
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    container_name: aperag-celerybeat
+    env_file:
+      - .docker.env
     depends_on:
       - redis
       - postgres
-    ports: []
-    command: /app/scripts/start-celery-beat.sh
+    environment:
+      - NODE_IP=aperag-celerybeat
+    entrypoint: /app/scripts/start-celery-beat.sh
 
   flower:
     <<: *django
-    image: aperag_django
-    container_name: aperag_flower
+    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.1.2}
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    container_name: aperag-flower
+    env_file:
+      - .docker.env
     ports:
       - "5555:5555"
-    command: /app/scripts/start-celery-flower.sh
+    environment:
+      - NODE_IP=aperag-flower
+    entrypoint: /app/scripts/start-celery-flower.sh
+
+  postgres:
+    image: postgres:14
+    container_name: aperag-postgres
+    volumes:
+      - aperag-postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=aperag
+
+  redis:
+    image: redis:6
+    container_name: aperag-redis
+    volumes:
+      - aperag-redis-data:/data
+    ports:
+      - "6379:6379"
+
+  qdrant:
+    image: qdrant/qdrant:v1.13.4
+    container_name: aperag-qdrant
+    volumes:
+      - aperag-qdrant-data:/qdrant/storage
+    ports:
+      - "6333:6333"
+
+  es:
+    image: elasticsearch:8.8.2
+    container_name: aperag-es
+    ports:
+      - "9200:9200"
+    environment:
+      - "discovery.type=single-node"
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - "xpack.security.enabled=false"
+    volumes:
+      - aperag-es-data:/usr/share/elasticsearch/data
+      - ./scripts/init-es.sh:/usr/share/elasticsearch/bin/init-es.sh
+    command: bash /usr/share/elasticsearch/bin/init-es.sh

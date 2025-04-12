@@ -5,10 +5,6 @@ BUILDX_PLATFORM ?= linux/amd64
 BUILDX_ARGS ?= --sbom=false --provenance=false
 REGISTRY ?= registry.cn-hangzhou.aliyuncs.com
 
-init:
-	cp envs/.env.template .env
-	cp envs/.env.frontend.template .env.frontend
-
 .PHONY: version
 version:
 	@git rev-parse HEAD | cut -c1-7 > commit_id.txt
@@ -16,11 +12,24 @@ version:
 	@echo "GIT_COMMIT_ID = '$$(cat commit_id.txt)'" >> $(VERSION_FILE)
 	@rm commit_id.txt
 
-build-requirements:
-	sh scripts/export-requirements.sh
+.PHONY: image
 
-image: build-requirements version
-	docker buildx build -t $(REGISTRY)/apecloud/aperag:$(VERSION) --platform $(BUILDX_PLATFORM) $(BUILDX_ARGS) --push -f ./Dockerfile  .
+# Create a new builder instance for multi-platform builds
+setup-builder:
+	@if ! docker buildx inspect multi-platform >/dev/null 2>&1; then \
+		docker buildx create --name multi-platform --use --driver docker-container; \
+	else \
+		docker buildx use multi-platform; \
+	fi
+
+# Build and push multi-platform image
+image: setup-builder
+	docker buildx build -t $(REGISTRY)/apecloud/aperag:$(VERSION) --platform $(BUILDX_PLATFORM) $(BUILDX_ARGS) --push -f ./Dockerfile .
+	cd web && docker buildx build -t $(REGISTRY)/apecloud/aperag-frontend:$(VERSION) --platform $(BUILDX_PLATFORM) $(BUILDX_ARGS) --push -f ./Dockerfile .
+
+# Clean up builder instance
+clean-builder:
+	docker buildx rm multi-platform
 
 diff:
 	@python manage.py diffsettings
