@@ -1,0 +1,9 @@
+promptTemplate:
+  type: object
+  properties:
+    name:
+      type: string
+    prompt:
+      type: string
+    description:
+      type: string

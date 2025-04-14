@@ -1,0 +1,26 @@
+message:
+  post:
+    summary: Feedback a message
+    description: Feedback a message
+    parameters:
+      - name: bot_id
+        in: path
+        required: true
+        type: string
+      - name: chat_id
+        in: path
+        required: true
+        type: string
+      - name: message_id
+        in: path
+        required: true
+        type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/feedback.yaml#/feedback'
+    responses:
+      '200':
+        description: A message

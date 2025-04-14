@@ -1,0 +1,31 @@
+model:
+  type: object
+  properties:
+    value:
+      type: string
+    label:
+      type: string
+    enabled:
+      type: boolean
+    memory:
+      type: boolean
+    free_tier:
+      type: boolean
+    endpoint:
+      type: string
+    default_token:
+      type: boolean
+    prompt_template:
+      type: string
+    context_window:
+      type: integer
+    temperature:
+      type: number
+    similarity_score_threshold:
+      type: number
+    similarity_topk:
+      type: integer
+    family_name:
+      type: string
+    family_label:
+      type: string

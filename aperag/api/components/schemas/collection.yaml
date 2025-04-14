@@ -1,0 +1,162 @@
+collectionSource:
+  type: object
+  properties:
+    category:
+      type: string
+      enum:
+        - upload
+        - tencent
+        - oss
+        - local
+        - s3
+        - ftp
+        - email
+        - url
+        - github
+    upload:
+      type: object
+    local:
+      type: object
+      properties:
+        path:
+          type: string
+    oss:
+      type: object
+      properties:
+        access_key_id:
+          type: string
+        access_key_secret:
+          type: string
+        buckets:
+          type: array
+          items:
+            type: object
+            properties:
+              bucket:
+                type: string
+              dir:
+                type: string
+        bucket:
+          type: string
+        endpoint:
+          type: string
+        region:
+          type: string
+        dir:
+          type: string
+    s3:
+      type: object
+      properties:
+        access_key_id:
+          type: string
+        access_key_secret:
+          type: string
+        buckets:
+          type: array
+          items:
+            type: object
+        bucket:
+          type: string
+        region:
+          type: string
+        dir:
+          type: string
+    ftp:
+      type: object
+      properties:
+        path:
+          type: string
+        host:
+          type: string
+        port:
+          type: number
+        username:
+          type: string
+    email:
+      type: object
+      properties:
+        pop_server:
+          type: string
+        port:
+          type: number
+        email_address:
+          type: string
+        email_password:
+          type: string
+        detect_spam:
+          type: boolean
+    url:
+      type: object
+      properties:
+        url:
+          type: string
+        name:
+          type: string
+    feishu:
+      type: object
+      properties:
+        app_id:
+          type: string
+        app_secret:
+          type: string
+        space_id:
+          type: string
+        node_id:
+          type: string
+        method:
+          type: string
+        target_format:
+          type: string
+
+collectionCreate:
+  type: object
+  properties:
+    title:
+      type: string
+    type:
+      type: string
+    description:
+      type: string
+    config:
+      type: string
+    source:
+      $ref: '#/collectionSource'
+
+collectionUpdate:
+  type: object
+  properties:
+    title:
+      type: string
+    description:
+      type: string
+    config:
+      type: string
+    source:
+      $ref: '#/collectionSource'
+
+collection:
+  description: Collection is a collection of documents
+  properties:
+    id:
+      type: string
+    title:
+      type: string
+    description:
+      type: string
+    config:
+      type: string
+    source:
+      $ref: '#/collectionSource'
+    status:
+      type: string
+      enum:
+        - ACTIVE
+        - INACTIVE
+        - DELETED
+        - QUESTION_PENDING
+    created:
+      type: string
+      format: date-time
+    updated:
+      type: string
+      format: date-time

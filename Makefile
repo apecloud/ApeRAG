@@ -149,3 +149,40 @@ addlicense:
 	  -ignore "aperag/readers/**" \
 	  -ignore "aperag/vectorstore/**" \
 	  .
+
+.PHONY: install-redocly
+install-redocly:
+	@echo "Installing redocly..."
+	@npm install -g @redocly/cli
+
+.PHONY: merge-openapi
+merge-openapi:
+	@echo "Merging OpenAPI files..."
+	@cd aperag && redocly bundle ./api/openapi.yaml > ./api/openapi.merged.yaml
+
+.PHONY: generate-models
+generate-models: merge-openapi
+	@echo "Generating Python models from OpenAPI specification..."
+	@datamodel-codegen \
+		--input aperag/api/openapi.merged.yaml \
+		--input-file-type openapi \
+		--output aperag/views/models.py \
+		--output-model-type pydantic.BaseModel \
+		--target-python-version 3.11 \
+		--use-standard-collections \
+		--use-schema-description \
+		--enum-field-as-literal all
+	@rm aperag/api/openapi.merged.yaml
+	@echo "Models generated successfully in aperag/models directory"
+
+.PHONY: dependencies
+dependencies: ## Install dependencies.
+ifeq (, $(shell which redocly))
+	npm install @redocly/cli -g
+endif
+ifeq (, $(shell which openapi-generator-cli))
+	npm install @openapitools/openapi-generator-cli -g
+endif
+ifeq (, $(shell which datamodel-codegen))
+	pip install datamodel-code-generator
+endif

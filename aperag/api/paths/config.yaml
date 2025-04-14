@@ -1,0 +1,24 @@
+config:
+  get:
+    summary: Get system configuration
+    description: Get system configuration
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: System configuration
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/successResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '../components/schemas/config.yaml#/config'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'

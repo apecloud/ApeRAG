@@ -1,0 +1,22 @@
+user_info:
+  get:
+    summary: Get user info
+    description: Get user info
+    responses:
+      '200':
+        description: User info
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/successResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '../components/schemas/user_info.yaml#/user_info'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'

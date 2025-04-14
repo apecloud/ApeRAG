@@ -1,0 +1,17 @@
+config:
+  type: object
+  properties:
+    auth:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [none, auth0, authing, logto]
+        auth_domain:
+          type: string
+        auth_app_id:
+          type: string
+    public_ips:
+      type: array
+      items:
+        type: string

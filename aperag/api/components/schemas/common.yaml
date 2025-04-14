@@ -1,0 +1,54 @@
+pageResult:
+  description: PageResult info
+  properties:
+    first:
+      description: a link to the first page of results. This link is optional for collections that cannot be indexed directly to a given page
+      type: string
+    last:
+      description: a link to the last page of results. This link is optional for collections that cannot be indexed directly to a given page
+      type: string
+    next:
+      description: a link to the next page of results. A response that does not contain a next link does not have further data to fetch
+      type: string
+    prev:
+      description: a link to the previous page of results. A response that does not contain a prev link has no previous data. This link is optional for collections that cannot be traversed backward
+      type: string
+    totalSize:
+      description: the total count of items in the list irrespective of pagination
+      type: integer
+  type: object
+
+successResponse:
+  type: object
+  properties:
+    code:
+      type: integer
+      description: Response code, 0 for success
+      example: 0
+    data:
+      type: object
+      description: Response data, structure varies by API
+    page_number:
+      type: integer
+      description: Current page number
+      example: 1
+    page_size:
+      type: integer
+      description: Number of items per page
+      example: 10
+    count:
+      type: integer
+      description: Total number of items
+      example: 100
+
+failResponse:
+  type: object
+  properties:
+    code:
+      type: integer
+      description: Error code
+      example: 1001
+    message:
+      type: string
+      description: Error message
+      example: "Invalid request"

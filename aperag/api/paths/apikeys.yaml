@@ -1,0 +1,59 @@
+apikeys:
+  get:
+    summary: Get API keys
+    description: Get API keys
+    responses:
+      '200':
+        description: API keys
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/successResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/apikey.yaml#/apiKey'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+  post:
+    summary: Create API key
+    description: Create API key
+    security:
+      - BearerAuth: []
+    responses:
+      '201':
+        description: API key created successfully
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/successResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '../components/schemas/apikey.yaml#/apiKey'
+
+apikey:
+  delete:
+    summary: Delete API key
+    description: Delete API key
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: apikey_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '204':
+        description: API key deleted successfully
+      '404':
+        description: API key not found
