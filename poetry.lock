@@ -4402,7 +4402,7 @@ lite = ["paddleocr (==2.7.3)", "paddlepaddle (==2.6.1) ; platform_system == \"Wi
 
 [package.source]
 type = "git"
-url = "https://git@github.com/zjx20/MinerU.git"
+url = "https://git@github.com/apecloud-inc/MinerU.git"
 reference = "1.3.2-with-dill-0.3.8"
 resolved_reference = "c1c16221c0abbc9d8bd4c031ae56b15455ff29a1"
 
@@ -10375,4 +10375,4 @@ all = ["clickhouse-connect", "elasticsearch", "pymilvus", "pymongo", "weaviate-c
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10.0,<3.13"
-content-hash = "64611d0429ef6c25a5303c01b8d4793fc24c932ee19e54f9ffe3eb6eac19a2f6"
+content-hash = "7df24be3aa30b7eb7e04e78f74ab297f578f8c55c1f67b79ff720f88200df3eb"

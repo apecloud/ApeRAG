@@ -14,11 +14,12 @@ from aperag.readers.epub_reader import EpubReader
 from aperag.readers.excel_reader import ExcelReader
 from aperag.readers.html_reader import HtmlReader
 from aperag.readers.markdown_reader import MarkdownReader
+from aperag.readers.mineru_reader import MinerUReader
 from aperag.readers.ppt_reader import PptReader
 from aperag.readers.pptx_reader import PptxReader
 
 DEFAULT_FILE_READER_CLS: Dict[str, Type[BaseReader]] = {
-    ".pdf": PDFReader,
+    ".pdf": MinerUReader,
     ".docx": DocxReader,
     # ".docx": MyDocxReader,
     ".doc": MyDocReader,
