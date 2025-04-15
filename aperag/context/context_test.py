@@ -28,9 +28,9 @@ from aperag.llm.custom import CustomLLMPredictor
 from aperag.llm.prompts import DEFAULT_CHINESE_PROMPT_TEMPLATE_V2
 from aperag.pipeline.keyword_extractor import IKExtractor
 from aperag.query.query import get_packed_answer
-from aperag.readers.base_embedding import get_embedding_model
+from aperag.embed.base_embedding import get_embedding_model
 from aperag.rank.reranker import get_rerank_model
-from aperag.readers.local_path_embedding import LocalPathEmbedding
+from aperag.embed.local_path_embedding import LocalPathEmbedding
 from aperag.utils.utils import generate_fulltext_index_name
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
 

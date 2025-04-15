@@ -17,7 +17,7 @@ import logging
 from asgiref.sync import sync_to_async
 
 from aperag.pipeline.knowledge_pipeline import KnowledgePipeline
-from aperag.readers.base_embedding import get_collection_embedding_model
+from aperag.embed.base_embedding import get_collection_embedding_model
 
 from .base_consumer import BaseConsumer
 

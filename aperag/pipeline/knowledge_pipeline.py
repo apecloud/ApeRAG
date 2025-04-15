@@ -25,12 +25,13 @@ from aperag.context.full_text import search_document
 from aperag.llm.prompts import (
     DEFAULT_CHINESE_PROMPT_TEMPLATE_V3,
     DEFAULT_MODEL_MEMOTY_PROMPT_TEMPLATES,
+    DEFAULT_KG_VECTOR_MIX_ENGLISH_PROMPT_TEMPLATE,
 )
 from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES, RELATED_QUESTIONS, \
     Message, Pipeline, DOCUMENT_URLS
 from aperag.pipeline.keyword_extractor import IKExtractor
 from aperag.query.query import DocumentWithScore, get_packed_answer
-from aperag.readers.base_embedding import get_embedding_model
+from aperag.embed.base_embedding import get_embedding_model
 from aperag.rank.reranker import rerank
 from aperag.source.utils import async_run
 from aperag.utils.utils import (
@@ -68,8 +69,10 @@ class KnowledgePipeline(Pipeline):
                                                  self.qa_vectordb_ctx)
 
         if not self.prompt_template:
-            self.prompt_template = DEFAULT_MODEL_MEMOTY_PROMPT_TEMPLATES.get(self.model,
-                                                                             DEFAULT_CHINESE_PROMPT_TEMPLATE_V3)
+            if settings.RETRIEVE_MODE == "classic":
+                self.prompt_template = DEFAULT_MODEL_MEMOTY_PROMPT_TEMPLATES.get(self.model, DEFAULT_CHINESE_PROMPT_TEMPLATE_V3)
+            else:
+                self.prompt_template = DEFAULT_KG_VECTOR_MIX_ENGLISH_PROMPT_TEMPLATE
         self.prompt = PromptTemplate(template=self.prompt_template, input_variables=["query", "context"])
 
     async def new_ai_message(self, message, message_id, response, references, urls):
@@ -114,7 +117,29 @@ class KnowledgePipeline(Pipeline):
             result.append(item)
         return result
 
-    async def _run_standard_rag(self, query_with_history: str, vector: List[float], log_prefix: str) -> Tuple[str, List[DocumentWithScore]]:
+    async def build_context(self, query_with_history: str, vector: List[float], log_prefix: str) -> Tuple[str, List[DocumentWithScore]]:
+        vector_context = ""
+        kg_context = ""
+        if settings.RETRIEVE_MODE in ["classic", "mix"]:
+            vector_context = await self._run_classic_rag(query_with_history, vector, log_prefix)
+        if settings.RETRIEVE_MODE in ["local", "global", "hybrid", "mix"]:
+            kg_context = await self._run_light_rag(query_with_history, log_prefix)
+
+        if settings.RETRIEVE_MODE in ["classic"]:
+            return vector_context
+        elif settings.RETRIEVE_MODE in ["local", "global", "hybrid"]:
+            return kg_context
+        else:
+            context = f"""
+            1. From Knowledge Graph(KG):
+            {kg_context}
+            
+            2. From Document Chunks(DC):
+            {vector_context}
+            """.strip()
+            return context
+
+    async def _run_classic_rag(self, query_with_history: str, vector: List[float], log_prefix: str) -> Tuple[str, List[DocumentWithScore]]:
         """
         Executes the standard RAG pipeline: vector search, rerank, keyword filtering, context packing.
         Returns the packed context string and the list of candidate documents.
@@ -163,8 +188,15 @@ class KnowledgePipeline(Pipeline):
         This function will be implemented in a future PR.
         It should take the query and return the context string.
         """
-        logger.info("[%s] Skipping LightRAG pipeline (placeholder)", log_prefix)
-        return None
+        logger.info("[%s] Running LightRAG pipeline", log_prefix)
+        from aperag.graph import lightrag_wrapper
+        from lightrag import QueryParam
+        from aperag.utils.utils import generate_lightrag_namespace_prefix
+        return await lightrag_wrapper.query_lightrag(
+            query_with_history,
+            param=QueryParam(mode="hybrid", only_need_context=True),
+            namespace_prefix=generate_lightrag_namespace_prefix(self.collection_id),
+        )
 
     async def run(self, message, gen_references=False, message_id=""):
         log_prefix = f"{message_id}|{message}"
@@ -217,19 +249,9 @@ class KnowledgePipeline(Pipeline):
             logger.info("[%s] No high-confidence answer in QA cache, proceeding with RAG pipeline", log_prefix)
 
             # --- 3a. Choose and Run RAG method(s) ---
-            # For now, we run standard RAG. LightRAG is a placeholder.
-            # In the future, logic can be added here to choose, combine, or run in parallel.
-            standard_context, candidates = await self._run_standard_rag(query_with_history, vector, log_prefix)
-            # lightrag_context = await self._run_light_rag(query_with_history, log_prefix)
+            context = await self.build_context(query_with_history, vector, log_prefix)
 
-            # --- 3b. Select Context ---
-            # For now, prioritize standard RAG context. Future logic could combine or select.
-            context = standard_context
-            # if lightrag_context: # Example of prioritizing LightRAG if available
-            #    context = lightrag_context
-            #    candidates = [] # Clear candidates if LightRAG context is used (no direct candidates from it yet)
-
-            # --- 3c. Handle No Context Found ---
+            # --- 3b. Handle No Context Found ---
             if not context:
                 if self.oops != "":
                     response = self.oops

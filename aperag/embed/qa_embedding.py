@@ -4,7 +4,7 @@ from llama_index.core.data_structs import Node
 from llama_index.core.schema import NodeRelationship, RelatedNodeInfo
 from llama_index.core.vector_stores.types import NodeWithEmbedding
 
-from aperag.readers.base_embedding import DocumentBaseEmbedding
+from aperag.embed.base_embedding import DocumentBaseEmbedding
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
 
 

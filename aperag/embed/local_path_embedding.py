@@ -9,7 +9,7 @@ from llama_index.core.data_structs.data_structs import BaseNode
 from llama_index.core.node_parser import NodeParser, TokenTextSplitter
 
 from aperag.db.models import ProtectAction
-from aperag.readers.base_embedding import DocumentBaseEmbedding
+from aperag.embed.base_embedding import DocumentBaseEmbedding
 from aperag.readers.local_path_reader import InteractiveSimpleDirectoryReader
 from aperag.readers.sensitive_filter import SensitiveFilterClassify
 from aperag.utils.tokenizer import get_default_tokenizer

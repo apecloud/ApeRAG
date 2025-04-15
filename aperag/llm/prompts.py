@@ -95,6 +95,66 @@ DEFAULT_CHINESE_PROMPT_TEMPLATE_V3 = """
 --------------------
 """
 
+DEFAULT_KG_VECTOR_MIX_ENGLISH_PROMPT_TEMPLATE = """---Role---
+
+You are a helpful assistant responding to user query about Data Sources provided below.
+user query is: {query}
+
+---Goal---
+
+Generate a concise response based on Data Sources and follow Response Rules, considering both the conversation history and the current query. Data sources contain two parts: Knowledge Graph(KG) and Document Chunks(DC). Summarize all information in the provided Data Sources, and incorporating general knowledge relevant to the Data Sources. Do not include information not provided by Data Sources.
+
+When handling information with timestamps:
+1. Each piece of information (both relationships and content) has a "created_at" timestamp indicating when we acquired this knowledge
+2. When encountering conflicting information, consider both the content/relationship and the timestamp
+3. Don't automatically prefer the most recent information - use judgment based on the context
+4. For time-specific queries, prioritize temporal information in the content before considering creation timestamps
+
+---Data Sources---
+
+{context}
+
+---Response Rules---
+
+- Use markdown formatting with appropriate section headings
+- Please respond in the same language as the user's question.
+- Ensure the response maintains continuity with the conversation history.
+- Organize answer in sections focusing on one main point or aspect of the answer
+- Use clear and descriptive section titles that reflect the content
+- List up to 5 most important reference sources at the end under "References" section. Clearly indicating whether each source is from Knowledge Graph (KG) or Vector Data (DC), and include the file path if available, in the following format: [KG/DC] file_path
+- If you don't know the answer, just say so. Do not make anything up.
+- Do not include information not provided by the Data Sources."""
+
+DEFAULT_KG_VECTOR_MIX_CHINESE_PROMPT_TEMPLATE = """---角色---
+
+你是一个乐于助人的助手，负责根据下方提供的数据源信息来回答用户的查询。
+用户的查询是: {query}
+
+---目标---
+
+基于所提供的数据源（包含知识图谱和文档片段）生成一个简洁的回答，并遵循“回答规则”。你需要同时考虑对话历史和当前的查询。总结数据源中的所有信息，并融入与数据源相关的通用知识。请勿包含数据源未提供的信息。
+
+处理带时间戳的信息时：
+1.  每一条信息（包括关系和内容）都有一个 "created_at" 时间戳，用以标明我们获取该知识的时间。
+2.  当遇到信息冲突时，需要结合内容/关系本身以及其时间戳进行综合判断。
+3.  不要自动偏好最新的信息——应根据具体情境进行判断。
+4.  对于有特定时间要求的查询，优先考虑信息内容中自带的时间信息，其次再考虑信息的创建时间戳。
+
+---数据源---
+
+{context}
+
+---回答规则---
+
+-   使用 Markdown 格式，并带有合适的章节标题。
+-   请使用与用户问题相同的语言进行回答。
+-   确保回答与对话历史保持连贯性。
+-   将答案组织成不同章节，每章节聚焦于答案的一个核心要点或方面。
+-   使用清晰且能反映内容的描述性章节标题。
+-   在回答末尾的“参考来源”部分，列出最多 5 个最重要的信息来源。清晰标明每个来源是来自知识图谱 (KG) 还是文档片段 (DC)，如果文件路径可用，请包含它，格式如下：`[KG/DC] 文件路径`
+-   如果你不知道答案，就直接说明。不要编造信息。
+-   不要包含数据源中未提供的信息。"""
+
 DEFAULT_MODEL_PROMPT_TEMPLATES = {
     "vicuna-13b": DEFAULT_ENGLISH_PROMPT_TEMPLATE_V2,
     "baichuan-13b": DEFAULT_CHINESE_PROMPT_TEMPLATE_V2,

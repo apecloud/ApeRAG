@@ -19,7 +19,7 @@ from config.celery import app
 from config.vector_db import get_vector_db_connector
 from aperag.context.full_text import create_index, delete_index
 from aperag.db.models import Collection, CollectionStatus
-from aperag.readers.base_embedding import get_embedding_model
+from aperag.embed.base_embedding import get_embedding_model
 from aperag.source.base import get_source
 from aperag.tasks.sync_documents_task import sync_documents
 from aperag.utils.utils import (

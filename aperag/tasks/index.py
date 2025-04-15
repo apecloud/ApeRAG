@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import json
 import logging
 import os
@@ -22,6 +21,7 @@ from pathlib import Path
 
 import py7zr
 import rarfile
+from asgiref.sync import async_to_sync
 from celery import Task
 from django.core.files.base import ContentFile
 from django.utils import timezone
@@ -40,18 +40,21 @@ from aperag.db.models import (
     Question,
     QuestionStatus,
 )
-from aperag.readers.base_embedding import get_collection_embedding_model
+from aperag.embed.base_embedding import get_collection_embedding_model
 from aperag.readers.base_readers import DEFAULT_FILE_READER_CLS, SUPPORTED_COMPRESSED_EXTENSIONS
-from aperag.readers.local_path_embedding import LocalPathEmbedding
-from aperag.readers.qa_embedding import QAEmbedding
-from aperag.readers.question_embedding import QuestionEmbedding, QuestionEmbeddingWithoutDocument
+from aperag.embed.local_path_embedding import LocalPathEmbedding
+from aperag.embed.qa_embedding import QAEmbedding
+from aperag.embed.question_embedding import QuestionEmbedding, QuestionEmbeddingWithoutDocument
 from aperag.source.base import get_source
 from aperag.source.feishu.client import FeishuNoPermission, FeishuPermissionDenied
 from aperag.utils.utils import (
     generate_fulltext_index_name,
     generate_qa_vector_db_collection_name,
     generate_vector_db_collection_name,
+    generate_lightrag_namespace_prefix,
 )
+from aperag.graph import lightrag_wrapper
+from lightrag import LightRAG
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +184,6 @@ def add_index_for_local_document(self, document_id):
                 raise e
         raise self.retry(exc=e, countdown=5, max_retries=1)
 
-
 @app.task(base=CustomLoadDocumentTask, bind=True, track_started=True)
 def add_index_for_document(self, document_id):
     """
@@ -238,6 +240,12 @@ def add_index_for_document(self, document_id):
                 "ctx": ctx_ids,
             }
             document.relate_ids = json.dumps(relate_ids)
+
+            logger.info(f"begin for index for LightRAG")
+            namespace_prefix = generate_lightrag_namespace_prefix(document.collection.id)
+            rag: LightRAG = async_to_sync(lightrag_wrapper.get_lightrag_instance)(namespace_prefix=namespace_prefix)
+            rag.insert(content, ids=document.id, file_paths=local_doc.path)
+            logger.info(f"end for index for LightRAG")
             
     except FeishuNoPermission:
         raise Exception("no permission to access document %s" % document.name)
@@ -277,6 +285,10 @@ def remove_index(self, document_id):
         ctx_relate_ids = relate_ids.get("ctx", [])
         vector_db.connector.delete(ids=ctx_relate_ids)
         logger.info(f"remove ctx qdrant points: {ctx_relate_ids} for document {document.file}")
+
+        namespace_prefix = generate_lightrag_namespace_prefix(document.collection.id)
+        rag: LightRAG = async_to_sync(lightrag_wrapper.get_lightrag_instance)(namespace_prefix=namespace_prefix)
+        async_to_sync(rag.adelete_by_doc_id)(document_id)
 
     except Exception as e:
         raise e
@@ -337,6 +349,14 @@ def update_index_for_document(self, document_id):
         }
         document.relate_ids = json.dumps(relate_ids)
         logger.info(f"update qdrant points: {document.relate_ids} for document {local_doc.path}")
+
+        logger.info(f"begin updating index for LightRAG")
+        namespace_prefix = generate_lightrag_namespace_prefix(document.collection.id)
+        rag: LightRAG = async_to_sync(lightrag_wrapper.get_lightrag_instance)(namespace_prefix=namespace_prefix)
+        async_to_sync(rag.adelete_by_doc_id)(document_id)
+        rag.insert(content, ids=document.id, file_paths=local_doc.path)
+        logger.info(f"end updating index for LightRAG")
+
     except FeishuNoPermission:
         raise Exception("no permission to access document %s" % document.name)
     except FeishuPermissionDenied:
