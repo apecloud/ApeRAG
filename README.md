@@ -65,16 +65,22 @@ cp envs/env.template .env
 make run-db
 ```
 
+* download models
+
+   ```bash
+   pip install huggingface_hub
+   python ./scripts/download_models.py
+   ```
+
 * config MinerU
 
-Run the following command to download models. The script also creates the `magic-pdf.json` file in the current directory.
+   Generate `magic_pdf.json`, which is required by MinerU.
 
-```bash
-pip install huggingface_hub
-python ./scripts/download_mineru_models.py
-```
+   ```bash
+	python ./scripts/prepare_magic_pdf_json.py
+	```
 
-Optional: Edit `magic-pdf.json`, configure the LLM API settings under the `llm-aided-config` field, and set the `enable` field to `true`. MinerU will then use the LLM for enhanced parsing capabilities, such as correcting OCR errors in text and formulas, and adjusting title levels (otherwise, all titles default to level 1).
+   Optionally: Edit `magic-pdf.json`, configure the LLM API settings under the `llm-aided-config` field, and set the `enable` field to `true`. MinerU will then use the LLM for enhanced parsing capabilities, such as correcting OCR errors in text and formulas, and adjusting title levels (otherwise, all titles default to level 1).
 
 * run the django service
 
