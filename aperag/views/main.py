@@ -56,7 +56,6 @@ from aperag.db.models import (
     DocumentStatus,
     Question,
     QuestionStatus,
-    VerifyWay,
     ApiKeyToken,
     ApiKeyStatus,
 )
@@ -108,7 +107,6 @@ from aperag.tasks.scan import delete_sync_documents_cron_job, update_sync_docume
 from aperag.tasks.sync_documents_task import get_sync_progress, sync_documents
 from aperag.utils.request import get_urls, get_user
 from aperag.views.utils import (
-    add_ssl_file,
     fail,
     query_chat_messages,
     success,
@@ -144,19 +142,6 @@ class QuestionIn(Schema):
     question: str
     answer: Optional[str] = None
     relate_documents: Optional[List[str]] = None
-
-
-class ConnectionInfo(Schema):
-    db_type: str
-    host: str
-    port: Optional[int] = None
-    db_name: Optional[str] = None
-    username: Optional[str] = None
-    password: Optional[str] = None
-    verify: VerifyWay
-    ca_cert: Optional[str] = None
-    client_key: Optional[str] = None
-    client_cert: Optional[str] = None
 
 
 @router.get("/user_info")
@@ -370,12 +355,7 @@ async def create_collection(request, collection: CollectionIn):
         instance.config = collection.config
     await instance.asave()
 
-    if instance.type == CollectionType.DATABASE:
-        if config["verify"] != VerifyWay.PREFERRED:
-            add_ssl_file(config, instance)
-            collection.config = json.dumps(config)
-            await instance.asave()
-    elif instance.type == CollectionType.DOCUMENT:
+    if instance.type == CollectionType.DOCUMENT:
         document_user_quota = await query_user_quota(user, QuotaType.MAX_DOCUMENT_COUNT)
         init_collection_task.delay(instance.id, document_user_quota)
     elif instance.type == CollectionType.CODE:

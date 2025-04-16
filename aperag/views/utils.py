@@ -25,25 +25,10 @@ from pydantic import ValidationError
 
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
-from aperag.db.models import BotType, ssl_file_path, ssl_temp_file_path
 from aperag.db.ops import PagedResult, logger, query_chat_feedbacks
 from aperag.llm.base import Predictor, PredictorType
 from aperag.source.base import CustomSourceInitializationError, get_source
 from aperag.utils.utils import AVAILABLE_SOURCE
-
-
-def add_ssl_file(config, collection):
-    if not os.path.exists(ssl_file_path(collection, "")):
-        os.makedirs(ssl_file_path(collection, ""))
-
-    for ssl_file_type in ["ca_cert", "client_key", "client_cert"]:
-        if ssl_file_type in config.keys():
-            ssl_temp_name = config[ssl_file_type]
-            _, file_extension = os.path.splitext(ssl_temp_name)
-            ssl_file_name = ssl_file_type + file_extension
-            whole_ssl_file_path = ssl_file_path(collection, ssl_file_name)
-            shutil.move(ssl_temp_file_path(ssl_temp_name), whole_ssl_file_path)
-            config[ssl_file_type] = whole_ssl_file_path
 
 
 async def query_chat_messages(user, chat_id):
