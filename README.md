@@ -40,7 +40,7 @@ ApeRAG is a powerful RAG system that deeply analyzes documents and multimedia co
    docker compose up --build -d
    ```
 
-4. Access the services: http://localhost:8001/web/
+5. Access the services: http://localhost:8001/web/
 
 ## License
 
