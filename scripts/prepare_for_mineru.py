@@ -34,8 +34,6 @@ def prepare():
     if cache_dir:
         os.makedirs(cache_dir, exist_ok=True)
 
-    # The pattern can be found at:
-    #   https://raw.githubusercontent.com/opendatalab/MinerU/master/scripts/download_models_hf.py
     mineru_patterns = [
         # "models/Layout/LayoutLMv3/*",
         "models/Layout/YOLO/*",

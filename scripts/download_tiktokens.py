@@ -53,7 +53,7 @@ def download_tiktoken_file(url: str, cache_dir: str):
         exit(1)
 
 
-def download_tiktoken_models():
+def download_tiktokens():
     default_cache_dir = "~/.cache/tiktoken"
     cache_dir = os.environ.get("CACHE_DIR", default_cache_dir)
 
@@ -76,4 +76,4 @@ def download_tiktoken_models():
 
 
 if __name__ == "__main__":
-    download_tiktoken_models()
+    download_tiktokens()
