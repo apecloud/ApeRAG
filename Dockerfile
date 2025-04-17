@@ -26,9 +26,12 @@ RUN poetry install --no-interaction --no-ansi --no-root
 # Final stage
 FROM python:3.11.1-slim
 
+# Define MinerU dependencies
+ARG MINERU_DEPS="libglib2.0-0 libgl1"
+
 # Install minimal system dependencies
 RUN apt update && \
-    apt install --no-install-recommends -y curl && \
+    apt install --no-install-recommends -y curl ${MINERU_DEPS} && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
 

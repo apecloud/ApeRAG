@@ -20,7 +20,8 @@ services:
       - .:/app:z
       - ~/.cache:/root/.cache
     env_file:
-      - .docker.env
+      - .env
+      - envs/docker.env.overrides
     ports:
       - "8000:8000"
     entrypoint: /app/scripts/start-django.sh
@@ -55,9 +56,10 @@ services:
     volumes:
       - .:/app:z
       - ~/.cache:/root/.cache
-      - ./resources:/Users/ziang/git/ApeRAG/resources
+      - ./resources:/data/resources
     env_file:
-      - .docker.env
+      - .env
+      - envs/docker.env.overrides
     environment:
       - NODE_IP=aperag-celeryworker
     entrypoint: /app/scripts/start-celery-worker.sh
@@ -69,7 +71,8 @@ services:
       dockerfile: ./Dockerfile
     container_name: aperag-celerybeat
     env_file:
-      - .docker.env
+      - .env
+      - envs/docker.env.overrides
     depends_on:
       - redis
       - postgres
@@ -85,7 +88,8 @@ services:
       dockerfile: ./Dockerfile
     container_name: aperag-flower
     env_file:
-      - .docker.env
+      - .env
+      - envs/docker.env.overrides
     ports:
       - "5555:5555"
     environment:
@@ -133,3 +137,4 @@ services:
       - aperag-es-data:/usr/share/elasticsearch/data
       - ./scripts/init-es.sh:/usr/share/elasticsearch/bin/init-es.sh
     command: bash /usr/share/elasticsearch/bin/init-es.sh
+    restart: on-failure

@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import json
-import os
-import shutil
 from http import HTTPStatus
 from typing import Dict
 
@@ -25,6 +23,7 @@ from pydantic import ValidationError
 
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
+from aperag.db.models import BotType
 from aperag.db.ops import PagedResult, logger, query_chat_feedbacks
 from aperag.llm.base import Predictor, PredictorType
 from aperag.source.base import CustomSourceInitializationError, get_source

@@ -1428,7 +1428,7 @@ version = "1.1.0"
 description = "Python library for extract property from data."
 optional = false
 python-versions = ">=3.9"
-groups = ["test"]
+groups = ["main", "test"]
 files = [
     {file = "DataProperty-1.1.0-py3-none-any.whl", hash = "sha256:c61fcb2e2deca35e6d1eb1f251a7f22f0dcde63e80e61f0cc18c19f42abfd25b"},
     {file = "dataproperty-1.1.0.tar.gz", hash = "sha256:b038437a4097d1a1c497695c3586ea34bea67fdd35372b9a50f30bf044d77d04"},
@@ -4492,21 +4492,22 @@ flake8 = ["flake8"]
 tests = ["psutil", "pytest (!=3.3.0)", "pytest-cov"]
 
 [[package]]
-name = "magic_pdf"
-version = "1.3.2"
+name = "magic-pdf"
+version = "1.3.5"
 description = "A practical tool for converting PDF to Markdown"
 optional = false
-python-versions = ">=3.10,<4"
+python-versions = "<4,>=3.10"
 groups = ["main"]
-files = []
-develop = false
+files = [
+    {file = "magic_pdf-1.3.5-py3-none-any.whl", hash = "sha256:3fc2420c3a2632b6c3fced23508002e17e23894f0df45eb4bccb7ed2fbcb89f2"},
+]
 
 [package.dependencies]
 boto3 = ">=1.28.43"
 Brotli = ">=1.1.0"
 click = ">=8.1.7"
 dill = {version = ">=0.3.8,<1", optional = true, markers = "extra == \"full\""}
-doclayout_yolo = {version = "0.0.2b1", optional = true, markers = "extra == \"full\""}
+doclayout-yolo = {version = "0.0.2b1", optional = true, markers = "extra == \"full\""}
 fast-langdetect = ">=0.2.3,<0.3.0"
 ftfy = {version = ">=6.3.1,<7", optional = true, markers = "extra == \"full\""}
 loguru = ">=0.6.0"
@@ -4519,7 +4520,7 @@ pyclipper = {version = ">=1.3.0,<2", optional = true, markers = "extra == \"full
 pydantic = ">=2.7.2,<2.11"
 PyMuPDF = ">=1.24.9,<1.25.0"
 PyYAML = {version = ">=6.0.2,<7", optional = true, markers = "extra == \"full\""}
-rapid_table = {version = ">=1.0.5,<2.0.0", optional = true, markers = "extra == \"full\""}
+rapid-table = {version = ">=1.0.5,<2.0.0", optional = true, markers = "extra == \"full\""}
 scikit-learn = ">=1.0.2"
 shapely = {version = ">=2.0.7,<3", optional = true, markers = "extra == \"full\""}
 torch = ">=2.2.2,<2.5.0 || >2.5.0,<2.5.1 || >2.5.1"
@@ -4529,15 +4530,9 @@ transformers = ">=4.49.0,<4.51.0 || >4.51.0,<5.0.0"
 ultralytics = {version = ">=8.3.48,<9", optional = true, markers = "extra == \"full\""}
 
 [package.extras]
-full = ["PyYAML (>=6.0.2,<7)", "dill (>=0.3.8,<1)", "doclayout_yolo (==0.0.2b1)", "ftfy (>=6.3.1,<7)", "matplotlib (>=3.10,<4)", "omegaconf (>=2.3.0,<3)", "openai (>=1.70.0,<2)", "pyclipper (>=1.3.0,<2)", "rapid_table (>=1.0.5,<2.0.0)", "shapely (>=2.0.7,<3)", "ultralytics (>=8.3.48,<9)"]
-full-old-linux = ["PyYAML (==6.0.2)", "albumentations (==1.4.20)", "dill (>=0.3.8)", "doclayout_yolo (==0.0.2b1)", "ftfy (==6.3.1)", "matplotlib (>=3.10,<=3.10.1)", "omegaconf (==2.3.0)", "openai (==1.71.0)", "pyclipper (==1.3.0.post6)", "rapid_table (==1.0.3)", "shapely (==2.1.0)", "ultralytics (>=8.3.48,<=8.3.104)"]
+full = ["PyYAML (>=6.0.2,<7)", "dill (>=0.3.8,<1)", "doclayout-yolo (==0.0.2b1)", "ftfy (>=6.3.1,<7)", "matplotlib (>=3.10,<4)", "omegaconf (>=2.3.0,<3)", "openai (>=1.70.0,<2)", "pyclipper (>=1.3.0,<2)", "rapid-table (>=1.0.5,<2.0.0)", "shapely (>=2.0.7,<3)", "ultralytics (>=8.3.48,<9)"]
+full-old-linux = ["PyYAML (==6.0.2)", "albumentations (==1.4.20)", "dill (==0.3.8)", "doclayout-yolo (==0.0.2b1)", "ftfy (==6.3.1)", "matplotlib (>=3.10,<=3.10.1)", "omegaconf (==2.3.0)", "openai (==1.71.0)", "pyclipper (==1.3.0.post6)", "rapid-table (==1.0.3)", "shapely (==2.1.0)", "ultralytics (>=8.3.48,<=8.3.104)"]
 lite = ["paddleocr (==2.7.3)", "paddlepaddle (==2.6.1) ; platform_system == \"Windows\" or platform_system == \"Darwin\"", "paddlepaddle (==3.0.0b1) ; platform_system == \"Linux\""]
-
-[package.source]
-type = "git"
-url = "https://git@github.com/apecloud-inc/MinerU.git"
-reference = "1.3.2-with-dill-0.3.8"
-resolved_reference = "c1c16221c0abbc9d8bd4c031ae56b15455ff29a1"
 
 [[package]]
 name = "markdown-it-py"
@@ -4719,7 +4714,7 @@ version = "1.1.4"
 description = "mbstrdecoder is a Python library for multi-byte character string decoder"
 optional = false
 python-versions = ">=3.9"
-groups = ["test"]
+groups = ["main", "test"]
 files = [
     {file = "mbstrdecoder-1.1.4-py3-none-any.whl", hash = "sha256:03dae4ec50ec0d2ff4743e63fdbd5e0022815857494d35224b60775d3d934a8c"},
     {file = "mbstrdecoder-1.1.4.tar.gz", hash = "sha256:8105ef9cf6b7d7d69fe7fd6b68a2d8f281ca9b365d7a9b670be376b2e6c81b21"},
@@ -5706,7 +5701,7 @@ version = "3.2.3"
 description = "pathvalidate is a Python library to sanitize/validate a string such as filenames/file-paths/etc."
 optional = false
 python-versions = ">=3.9"
-groups = ["test"]
+groups = ["main", "test"]
 files = [
     {file = "pathvalidate-3.2.3-py3-none-any.whl", hash = "sha256:5eaf0562e345d4b6d0c0239d0f690c3bd84d2a9a3c4c73b99ea667401b27bee1"},
     {file = "pathvalidate-3.2.3.tar.gz", hash = "sha256:59b5b9278e30382d6d213497623043ebe63f10e29055be4419a9c04c721739cb"},
@@ -6991,7 +6986,7 @@ version = "1.2.1"
 description = "pytablewriter is a Python library to write a table in various formats: AsciiDoc / CSV / Elasticsearch / HTML / JavaScript / JSON / LaTeX / LDJSON / LTSV / Markdown / MediaWiki / NumPy / Excel / Pandas / Python / reStructuredText / SQLite / TOML / TSV / YAML."
 optional = false
 python-versions = ">=3.9"
-groups = ["test"]
+groups = ["main", "test"]
 files = [
     {file = "pytablewriter-1.2.1-py3-none-any.whl", hash = "sha256:e906ff7ff5151d70a5f66e0f7b75642a7f2dce8d893c265b79cc9cf6bc04ddb4"},
     {file = "pytablewriter-1.2.1.tar.gz", hash = "sha256:7bd0f4f397e070e3b8a34edcf1b9257ccbb18305493d8350a5dbc9957fced959"},
@@ -8700,7 +8695,7 @@ version = "1.3.4"
 description = "tabledata is a Python library to represent tabular data. Used for pytablewriter/pytablereader/SimpleSQLite/etc."
 optional = false
 python-versions = ">=3.9"
-groups = ["test"]
+groups = ["main", "test"]
 files = [
     {file = "tabledata-1.3.4-py3-none-any.whl", hash = "sha256:1f56e433bfdeb89f4487abfa48c4603a3b07c5d3a3c7e05ff73dd018c24bd0d4"},
     {file = "tabledata-1.3.4.tar.gz", hash = "sha256:e9649cab129d718f3bff4150083b77f8a78c30f6634a30caf692b10fdc60cb97"},
@@ -8735,7 +8730,7 @@ version = "0.1.7"
 description = "tcolopy is a Python library to apply true color for terminal text."
 optional = false
 python-versions = ">=3.9"
-groups = ["test"]
+groups = ["main", "test"]
 files = [
     {file = "tcolorpy-0.1.7-py3-none-any.whl", hash = "sha256:26a59d52027e175a37e0aba72efc99dda43f074db71f55b316d3de37d3251378"},
     {file = "tcolorpy-0.1.7.tar.gz", hash = "sha256:0fbf6bf238890bbc2e32662aa25736769a29bf6d880328f310c910a327632614"},
@@ -9210,7 +9205,7 @@ version = "1.3.4"
 description = "typepy is a Python library for variable type checker/validator/converter at a run time."
 optional = false
 python-versions = ">=3.9"
-groups = ["test"]
+groups = ["main", "test"]
 files = [
     {file = "typepy-1.3.4-py3-none-any.whl", hash = "sha256:d5ed3e0c7f49521bff0603dd08cf8d453371cf68d65a29d3d0038552ccc46e2e"},
     {file = "typepy-1.3.4.tar.gz", hash = "sha256:89c1f66de6c6133209c43a94d23431d320ba03ef5db18f241091ea594035d9de"},
@@ -10646,4 +10641,4 @@ all = ["elasticsearch", "pymilvus", "weaviate-client"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10.0,<3.13"
-content-hash = "f78644f3d6fb8884695b9427bd964fe33d7915db7984112cb4a07f229bc13e78"
+content-hash = "6a15aea3ecbffbe9b3f934bd9775b74932f3185dd9870bf89c2a4f8cda82ace0"

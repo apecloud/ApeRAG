@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import tempfile
@@ -30,8 +31,41 @@ class MinerUReader(BaseReader, Generic[FallbackReader]):
         if not path.exists():
             logger.warning(f"MinerUReader config {path} is not found, fallback to use {self._fallback_reader_cls().__name__}.")
             return False
+
+        # Adjust the model dir when running in docker.
+        new_cache_dir = os.environ.get("MINERU_ADJUST_MODEL_CACHE_DIR", None)
+        if new_cache_dir is not None:
+            cfg = {}
+            with open(str(path), "r") as f:
+                cfg = json.loads(f.read())
+            self._adjust_cache_path(cfg, "models-dir", new_cache_dir)
+            self._adjust_cache_path(cfg, "layoutreader-model-dir", new_cache_dir)
+            content = json.dumps(cfg)
+
+            path = Path(tempfile.gettempdir()) / "magic-pdf-mod.json"
+
+            should_write_file = True
+            if path.exists():
+                curr_content = ""
+                with path.open("r") as f:
+                    curr_content = f.read()
+                should_write_file = (content != curr_content)
+            if should_write_file:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                with path.open("w") as f:
+                    f.write(content)
+
         config_reader.CONFIG_FILE_NAME = str(path.absolute())
+
         return True
+
+    def _adjust_cache_path(self, cfg: dict, key: str, new_cache_dir: str):
+        cache_dir_name = ".cache"
+        orig = cfg.get(key, "")
+        pos = orig.find(cache_dir_name)
+        if pos == -1:
+            return
+        cfg[key] = str(Path(new_cache_dir + "/" + orig[pos+len(cache_dir_name):]))
 
     def _fallback_reader_cls(self) -> Type[FallbackReader]:
         return get_args(self.__orig_class__)[0]

@@ -40,33 +40,33 @@ migrate:
 
 run-redis:
 	@echo "Starting redis"
-	@docker inspect aperag-redis > /dev/null 2>&1 || docker run -d --name aperag-redis -p 6379:6379 redis:latest
-	@docker start aperag-redis
+	@docker inspect aperag-redis-dev > /dev/null 2>&1 || docker run -d --name aperag-redis-dev -p 6379:6379 redis:latest
+	@docker start aperag-redis-dev
 
 run-postgres:
 	@echo "Starting postgres"
-	@docker inspect aperag-postgres > /dev/null 2>&1 || docker run -d --name aperag-postgres -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres
-	@docker start aperag-postgres
+	@docker inspect aperag-postgres-dev > /dev/null 2>&1 || docker run -d --name aperag-postgres-dev -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres
+	@docker start aperag-postgres-dev
 
 run-qdrant:
 	@echo "Starting qdrant"
-	@docker inspect aperag-qdrant > /dev/null 2>&1 || docker run -d --name aperag-qdrant -p 6333:6333 qdrant/qdrant
-	@docker start aperag-qdrant
+	@docker inspect aperag-qdrant-dev > /dev/null 2>&1 || docker run -d --name aperag-qdrant-dev -p 6333:6333 qdrant/qdrant
+	@docker start aperag-qdrant-dev
 
 run-es:
 	@echo "Starting Elasticsearch (development mode)"
-	@docker inspect aperag-es > /dev/null 2>&1 || \
+	@docker inspect aperag-es-dev > /dev/null 2>&1 || \
 	docker run -d \
-		--name aperag-es \
+		--name aperag-es-dev \
 		-p 9200:9200 \
 		-e discovery.type=single-node \
 		-e ES_JAVA_OPTS="-Xms1g -Xmx1g" \
 		-e xpack.security.enabled=false \
 		-v esdata:/usr/share/elasticsearch/data \
 		apecloud/elasticsearch:8.8.2
-	@docker start aperag-es || true
+	@docker start aperag-es-dev || true
 	@echo "Checking if IK Analyzer is installed..."
-	@docker exec aperag-es bash -c \
+	@docker exec aperag-es-dev bash -c \
 		"if [ ! -d plugins/analysis-ik ]; then \
 			echo 'Installing IK Analyzer from get.infini.cloud...'; \
 			bin/elasticsearch-plugin install -b https://get.infini.cloud/elasticsearch/analysis-ik/8.8.2; \
@@ -74,25 +74,25 @@ run-es:
 		else \
 			echo 'IK Analyzer is already installed.'; \
 		fi"
-	@docker restart aperag-es > /dev/null
+	@docker restart aperag-es-dev > /dev/null
 	@echo "Elasticsearch is ready with IK Analyzer!"
 
 run-db: run-redis run-postgres run-qdrant run-es
 
 connect-metadb:
-	@docker exec -it aperag-postgres psql -p 5432 -U postgres
+	@docker exec -it aperag-postgres-dev psql -p 5432 -U postgres
 
 clean:
 	@echo "Removing db.sqlite3"
 	@/bin/rm -f db.sqlite3
-	@echo "Removing container aperag-postgres"
-	@docker rm -fv aperag-postgres > /dev/null 2>&1 || true
-	@echo "Removing container aperag-redis"
-	@docker rm -fv aperag-redis > /dev/null 2>&1 || true
-	@echo "Removing container aperag-qdrant"
-	@docker rm -fv aperag-qdrant > /dev/null 2>&1 || true
-	@echo "Removing container aperag-es"
-	@docker rm -fv aperag-es > /dev/null 2>&1 || true
+	@echo "Removing container aperag-postgres-dev"
+	@docker rm -fv aperag-postgres-dev > /dev/null 2>&1 || true
+	@echo "Removing container aperag-redis-dev"
+	@docker rm -fv aperag-redis-dev > /dev/null 2>&1 || true
+	@echo "Removing container aperag-qdrant-dev"
+	@docker rm -fv aperag-qdrant-dev > /dev/null 2>&1 || true
+	@echo "Removing container aperag-es-dev"
+	@docker rm -fv aperag-es-dev > /dev/null 2>&1 || true
 
 run-frontend:
 	cp ./web/deploy/env.local.template ./web/.env

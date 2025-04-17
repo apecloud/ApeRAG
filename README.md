@@ -14,21 +14,33 @@ ApeRAG is a powerful RAG system that deeply analyzes documents and multimedia co
 
 1. Configure environment variables:
    ```bash
-   cp envs/docker.env.template .docker.env
+   cp envs/.env.template .env
    cp web/deploy/env.local.template web/.env
    ```
 
-2. (Optional) use aliyun image registry if you are in China:
+   **Then edit the `.env` file to configure your AI service settings.**
+
+2. (Optional) Enable MinerU for parsing PDF & MS-Office documents.
+
+   MinerU is an excellent tool for parsing documents. However, using it requires downloading specific models beforehand. Additionally, it demands more computing resources and has a longer parsing time. You can decide whether to enable MinerU based on your specific requirements.
+
+   To enable it, run the following command:
+   ```bash
+   pip install huggingface_hub
+   python ./scripts/prepare_for_mineru.py
+   ```
+
+3. (Optional) use aliyun image registry if you are in China:
    ```bash
    export REGISTRY=apecloud-registry.cn-zhangjiakou.cr.aliyuncs.com
    ```
 
-3. Start the services:
+4. Start the services:
    ```bash
-   docker compose up -d
+   docker compose up --build -d
    ```
 
-4. Access the services: http://localhost:80
+4. Access the services: http://localhost:8001/web/
 
 ## License
 

@@ -19,12 +19,17 @@ wait_for_es
 # Check and install IK Analyzer if needed
 if [ ! -d "/usr/share/elasticsearch/plugins/ik" ]; then
     echo "Installing IK Analyzer..."
-    /usr/share/elasticsearch/bin/elasticsearch-plugin install --batch https://github.com/medcl/elasticsearch-analysis-ik/releases/download/v8.8.2/elasticsearch-analysis-ik-8.8.2.zip
-    
+    /usr/share/elasticsearch/bin/elasticsearch-plugin install -b https://get.infini.cloud/elasticsearch/analysis-ik/8.8.2
+    if [ "$?" -ne 0 ]; then
+        echo "Failed to install IK Analyzer"
+        exit 1
+    fi
+    echo "IK Analyzer installed successfully"
+
     # Kill the current ES process
     kill $ES_PID
     wait $ES_PID
-    
+
     # Start ES again
     echo "Restarting Elasticsearch after plugin installation..."
     exec /usr/share/elasticsearch/bin/elasticsearch
@@ -32,4 +37,4 @@ else
     echo "IK Analyzer is already installed"
     # Keep the current ES process running
     wait $ES_PID
-fi 
+fi
