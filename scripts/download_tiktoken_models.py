@@ -17,8 +17,6 @@ import os
 import urllib
 import urllib.request
 
-from huggingface_hub import snapshot_download
-
 
 def download_tiktoken_file(url: str, cache_dir: str):
     # Expand the user directory if '~' is used
@@ -77,40 +75,5 @@ def download_tiktoken_models():
         os.symlink(os.path.expanduser(cache_dir), ".cache/tiktoken", target_is_directory=True)
 
 
-def download_mineru_models():
-    cache_dir = os.environ.get("CACHE_DIR", None)
-    if cache_dir:
-        os.makedirs(cache_dir, exist_ok=True)
-
-    # The pattern can be found at:
-    #   https://raw.githubusercontent.com/opendatalab/MinerU/master/scripts/download_models_hf.py
-    mineru_patterns = [
-        # "models/Layout/LayoutLMv3/*",
-        "models/Layout/YOLO/*",
-        "models/MFD/YOLO/*",
-        "models/MFR/unimernet_hf_small_2503/*",
-        "models/OCR/paddleocr_torch/*",
-        # "models/TabRec/TableMaster/*",
-        # "models/TabRec/StructEqTable/*",
-    ]
-    model_dir = snapshot_download('opendatalab/PDF-Extract-Kit-1.0', allow_patterns=mineru_patterns, cache_dir=cache_dir)
-
-    layoutreader_pattern = [
-        "*.json",
-        "*.safetensors",
-    ]
-    layoutreader_model_dir = snapshot_download('hantian/layoutreader', allow_patterns=layoutreader_pattern, cache_dir=cache_dir)
-
-    model_dir = model_dir + '/models'
-
-    dirs = {
-        'models-dir': model_dir,
-        'layoutreader-model-dir': layoutreader_model_dir,
-    }
-    return dirs
-
-
-
 if __name__ == "__main__":
     download_tiktoken_models()
-    download_mineru_models()

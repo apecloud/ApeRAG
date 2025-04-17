@@ -2,7 +2,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, Generic, List, Optional, Set, Type, TypeVar, get_args
 
 from llama_index.core.readers.base import BaseReader
 from llama_index.core.schema import Document
@@ -18,11 +18,27 @@ from aperag.readers.markdown_reader import MarkdownReader
 logger = logging.getLogger(__name__)
 
 
-class MinerUReader(BaseReader):
+FallbackReader = TypeVar("FallbackReader")
 
-    def _set_config_path(self):
+
+class MinerUReader(BaseReader, Generic[FallbackReader]):
+
+    _use_fallback_reader: bool = False
+
+    def _set_config_path(self) -> bool:
         path = Path(os.environ.get("MINERU_CONFIG_JSON", "./magic-pdf.json"))
+        if not path.exists():
+            logger.warning(f"MinerUReader config {path} is not found, fallback to use {self._fallback_reader_cls().__name__}.")
+            return False
         config_reader.CONFIG_FILE_NAME = str(path.absolute())
+        return True
+
+    def _fallback_reader_cls(self) -> Type[FallbackReader]:
+        return get_args(self.__orig_class__)[0]
+
+
+    def use_fallback_reader(self, v: bool):
+        self._use_fallback_reader = v
 
     def load_data(self, file: Path, metadata: Optional[Dict] = None) -> List[Document]:
         """Parse file."""
@@ -31,7 +47,9 @@ class MinerUReader(BaseReader):
         if file.suffix.lower() not in supported_suffixes:
             raise ValueError(f"Unsupported file type: {file.suffix}. Supported types are: {', '.join(supported_suffixes)}")
 
-        self._set_config_path()
+        if not self._set_config_path() or self._use_fallback_reader:
+            reader_cls = self._fallback_reader_cls()
+            return reader_cls().load_data(file, metadata)
 
         temp_dir = os.environ.get("MINERU_TEMP_FILE_DIR", None)
         temp_dir_obj: tempfile.TemporaryDirectory | None = None

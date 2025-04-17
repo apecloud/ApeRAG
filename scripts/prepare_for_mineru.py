@@ -1,24 +1,10 @@
-# Copyright 2025 ApeCloud, Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 # From: https://raw.githubusercontent.com/opendatalab/MinerU/master/scripts/download_models_hf.py
 
 import json
 import os
 from urllib.request import urlopen
 
-from download_models import download_mineru_models
+from huggingface_hub import snapshot_download
 
 
 def download_json(url):
@@ -44,9 +30,30 @@ def download_and_modify_json(url, local_filename, modifications):
 
 
 def prepare():
-    dirs = download_mineru_models()
-    model_dir = dirs['models-dir']
-    layoutreader_model_dir = dirs['layoutreader-model-dir']
+    cache_dir = os.environ.get("CACHE_DIR", None)
+    if cache_dir:
+        os.makedirs(cache_dir, exist_ok=True)
+
+    # The pattern can be found at:
+    #   https://raw.githubusercontent.com/opendatalab/MinerU/master/scripts/download_models_hf.py
+    mineru_patterns = [
+        # "models/Layout/LayoutLMv3/*",
+        "models/Layout/YOLO/*",
+        "models/MFD/YOLO/*",
+        "models/MFR/unimernet_hf_small_2503/*",
+        "models/OCR/paddleocr_torch/*",
+        # "models/TabRec/TableMaster/*",
+        # "models/TabRec/StructEqTable/*",
+    ]
+    model_dir = snapshot_download('opendatalab/PDF-Extract-Kit-1.0', allow_patterns=mineru_patterns, cache_dir=cache_dir)
+
+    layoutreader_pattern = [
+        "*.json",
+        "*.safetensors",
+    ]
+    layoutreader_model_dir = snapshot_download('hantian/layoutreader', allow_patterns=layoutreader_pattern, cache_dir=cache_dir)
+
+    model_dir = model_dir + '/models'
 
     print(f'model_dir is: {model_dir}')
     print(f'layoutreader_model_dir is: {layoutreader_model_dir}')

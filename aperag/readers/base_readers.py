@@ -19,7 +19,7 @@ from aperag.readers.ppt_reader import PptReader
 from aperag.readers.pptx_reader import PptxReader
 
 DEFAULT_FILE_READER_CLS: Dict[str, Type[BaseReader]] = {
-    ".pdf": MinerUReader,
+    ".pdf": MinerUReader[PDFReader],
     ".docx": DocxReader,
     # ".docx": MyDocxReader,
     ".doc": MyDocReader,
