@@ -258,8 +258,8 @@ SENSITIVE_FILTER_MODEL = env.str("SENSITIVE_FILTER_MODEL", default="")
 
 RERANK_BACKEND = env.str("RERANK_BACKEND", default="local")
 RERANK_SERVICE_URL = env.str("RERANK_SERVICE_URL", default="http://localhost:9997")
-RERANK_SERVICE_MODEL = env.str("RERANK_SERVICE_MODEL", default="")
-RERANK_SERVICE_TOKEN = env.str("RERANK_SERVICE_TOKEN", default="")
+RERANK_SERVICE_MODEL = env.str("RERANK_SERVICE_MODEL")
+RERANK_SERVICE_TOKEN = env.str("RERANK_SERVICE_TOKEN")
 # xinference only needs model_uid, doesn't need model name
 RERANK_SERVICE_MODEL_UID = env.str("RERANK_SERVICE_MODEL_UID", default="")
 
