@@ -32,25 +32,6 @@ class Document(BaseModel):
     text: str = None
 
 
-class DocumentMetadata(BaseModel):
-    source: Optional[Source] = None
-    source_id: Optional[str] = None
-    url: Optional[str] = None
-    created_at: Optional[str] = None
-    author: Optional[str] = None
-
-
-class DocumentChunkMetadata(DocumentMetadata):
-    doc_id: Optional[str] = None
-
-
-class DocumentChunk(BaseModel):
-    id: Optional[str] = None
-    text: str
-    metadata: DocumentChunkMetadata
-    embedding: Optional[List[float]] = None
-
-
 class DocumentWithScore(BaseModel):
     source: Source = Source.FILE
     doc_id: str = None
@@ -61,15 +42,6 @@ class DocumentWithScore(BaseModel):
 
     def get_source_file(self) -> str:
         return self.metadata["source"]
-
-
-class DocumentMetadataFilter(BaseModel):
-    doc_id: Optional[str] = None
-    source: Optional[Source] = None
-    source_id: Optional[str] = None
-    author: Optional[str] = None
-    start_date: Optional[str] = None  # any date string format
-    end_date: Optional[str] = None  # any date string format
 
 
 class Query(BaseModel):
@@ -98,29 +70,3 @@ def get_packed_answer(results, limit_length: Optional[int] = 0) -> str:
         return answer_text[:limit_length]
     else:
         return answer_text
-
-
-class UpsertRequest(BaseModel):
-    documents: List[Document]
-
-
-class UpsertResponse(BaseModel):
-    ids: List[str]
-
-
-class QueryRequest(BaseModel):
-    queries: List[Query]
-
-
-class QueryResponse(BaseModel):
-    results: List[QueryResult]
-
-
-class DeleteRequest(BaseModel):
-    ids: Optional[List[str]] = None
-    filter: Optional[DocumentMetadataFilter] = None
-    delete_all: Optional[bool] = False
-
-
-class DeleteResponse(BaseModel):
-    success: bool

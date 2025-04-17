@@ -9,7 +9,6 @@ from typing import Any, List
 import requests
 from langchain.embeddings.base import Embeddings
 from langchain_huggingface import HuggingFaceEmbeddings
-from transformers import AutoTokenizer, MT5EncoderModel
 
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
 from config.settings import (
@@ -100,6 +99,7 @@ class Text2VecEmbedding(Embeddings):
 
 class MT5Embedding(Embeddings):
     def __init__(self):
+        from transformers import AutoTokenizer, MT5EncoderModel
         model_name = "csebuetnlp/mT5_m2o_chinese_simplified_crossSum"
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = MT5EncoderModel.from_pretrained(model_name)

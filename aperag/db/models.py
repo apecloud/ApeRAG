@@ -63,16 +63,6 @@ def upload_document_path(document, filename):
         user, document.collection.id, filename
     )
 
-
-def ssl_temp_file_path(filename):
-    return "ssl_file/upload_temp/{}".format(filename) if filename is not None else None
-
-
-def ssl_file_path(instance, filename):
-    user = instance.user.replace("|", "-")
-    return "ssl_file/user-{0}/collection-{1}/{2}".format(user, instance.id, filename)
-
-
 class ProtectAction(models.TextChoices):
     WARNING_NOT_STORED = "nostore"
     REPLACE_WORDS = "replace"
@@ -116,24 +106,6 @@ class BotStatus(models.TextChoices):
     ACTIVE = "ACTIVE"
     DELETED = "DELETED"
 
-
-class CodeChatType(models.TextChoices):
-    DEFAULT = "DEFAULT"
-    BENCHMARK = "BENCHMARK"
-    SIMPLE = "SIMPLE"
-    TDD = "TDD"
-    TDD_PLUS = "TDD+"
-    CLARIFY = "CLARIFY"
-    RESPEC = "RESPEC"
-    EXECUTE_ONLY = "EXECUTE_ONLY"
-    EVALUATE = "EVALUATE"
-    USE_FEEDBACK = "USE_FEEDBACK"
-
-
-class VerifyWay(models.TextChoices):
-    PREFERRED = "prefered"
-    CAONLY = "ca_only"
-    FULL = "full"
 
 class QuestionStatus(models.TextChoices):
     ACTIVE = "ACTIVE"

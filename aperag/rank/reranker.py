@@ -7,9 +7,6 @@ from threading import Lock
 from typing import Any, List
 
 import aiohttp
-import torch
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
-from FlagEmbedding import FlagReranker
 
 from aperag.query.query import DocumentWithScore
 from config.settings import (
@@ -95,12 +92,14 @@ class ContentRatioRanker(Ranker):
 
 class AutoCrossEncoderRanker(Ranker):
     def __init__(self):
+        from transformers import AutoTokenizer, AutoModelForSequenceClassification
         model_path = os.environ.get("RERANK_MODEL_PATH", default_rerank_model_path)
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
         self.model = AutoModelForSequenceClassification.from_pretrained(model_path)
         self.model.eval()
 
     async def rank(self, query, results: List[DocumentWithScore]):
+        import torch
         pairs = []
         for idx, doc in enumerate(results):
             pairs.append((query, doc.text))
@@ -121,10 +120,12 @@ class AutoCrossEncoderRanker(Ranker):
 
 class FlagCrossEncoderRanker(Ranker):
     def __init__(self):
+        from FlagEmbedding import FlagReranker
         model_path = os.environ.get("RERANK_MODEL_PATH", default_rerank_model_path)
         self.reranker = FlagReranker(model_path)
 
     async def rank(self, query, results: List[DocumentWithScore]):
+        import torch
         pairs = []
         max_length = 512
         for idx, doc in enumerate(results):
