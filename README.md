@@ -73,8 +73,8 @@ make run-db
 
    ```bash
    pip install huggingface_hub
-	python ./scripts/prepare_for_mineru.py
-	```
+   python ./scripts/prepare_for_mineru.py
+   ```
 
    You can further customize the `magic_pdf.json` file to configure LLM-related settings under the `llm-aided-config` section. Be sure to set the `enable` field to `true`. When enabled, MinerU will leverage an LLM to enhance parsing capabilities, for example, correcting OCR errors in text and formulas, and adjusting title levels (by default, all titles are set to level 1).
 
