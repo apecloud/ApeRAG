@@ -48,21 +48,17 @@ ApeRAG is a powerful RAG system that deeply analyzes documents and multimedia co
 
 # Development Guide
 
-You should install Python 3.11 first.
-
-* install poetry
+* install uv
 
 ```bash
-curl -sSL https://install.python-poetry.org | python3 -
-poetry self add poetry-plugin-shell
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 * install dependencies
 
 ```bash
-poetry env use 3.11
-poetry lock
-poetry install --with model
+uv venv -p 3.11
+uv sync --all-groups
 ```
 
 * prepare configs
@@ -93,7 +89,7 @@ make run-db
 * run the django service
 
 ```bash
-poetry shell
+source .venv/bin/activate
 ```
 
 ```
@@ -105,7 +101,7 @@ To debug django service, see [HOW-TO-DEBUG.md](docs%2FHOW-TO-DEBUG.md)
 * run the celery service
 
 ```bash
-poetry shell
+source .venv/bin/activate
 ```
 
 ```

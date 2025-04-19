@@ -14,8 +14,8 @@
 **核心配置项：**
 ```python
 名称: celery
-Python解释器: [通过 poetry 虚拟环境获取]
-  # 获取方法：终端运行 `poetry env info -p`，路径后追加 `/bin/python`
+Python解释器: [通过 uv 虚拟环境获取]
+  # 获取方法：终端运行 `readlink .venv/bin/python`
 脚本路径: [celery可执行文件路径]
   # 获取方法：终端运行 `which celery`
 参数: -A config.celery worker -l INFO --pool=solo
@@ -38,7 +38,7 @@ Python解释器: [通过 poetry 虚拟环境获取]
 **核心配置项：**
 ```python
 名称: backend
-Python解释器: [与Celery相同的poetry虚拟环境]
+Python解释器: [与Celery相同的uv虚拟环境]
 脚本路径: [uvicorn可执行文件路径]
   # 获取方法：which uvicorn
 参数: config.asgi:application --host 0.0.0.0 --port 8000 --reload --reload-include '*.html'

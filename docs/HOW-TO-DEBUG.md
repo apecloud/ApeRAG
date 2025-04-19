@@ -14,8 +14,8 @@ This document details how to debug two core components of the ApeRAG project in 
 **Core Settings:**
 ```python
 Name: celery
-Python interpreter: [Poetry virtual environment path]
-  # Get via: `poetry env info -p`, then append `/bin/python`
+Python interpreter: [uv virtual environment path]
+  # Get via: `readlink .venv/bin/python`
 Script path: [Celery executable path]
   # Get via: `which celery` in terminal
 Parameters: -A config.celery worker -l INFO --pool=solo
@@ -38,7 +38,7 @@ Environment variables:
 **Core Settings:**
 ```python
 Name: backend
-Python interpreter: [Same Poetry virtual environment as Celery]
+Python interpreter: [Same uv virtual environment as Celery]
 Script path: [uvicorn executable path]
   # Get via: `which uvicorn`
 Parameters: config.asgi:application --host 0.0.0.0 --port 8000 --reload --reload-include '*.html'

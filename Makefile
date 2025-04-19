@@ -112,13 +112,13 @@ compose-logs:
 	docker-compose -f compose.yml logs -f
 
 format:
-	poetry run ruff --preview --fix .
+	uvx ruff --preview --fix .
 
 lint:
-	poetry run ruff --preview .
+	uvx ruff --preview .
 
 static-check:
-	poetry run mypy .
+	uvx mypy .
 
 test:
 	echo "mock"
@@ -128,9 +128,6 @@ celery:
 
 flower:
 	celery -A config.celery flower --conf/flowerconfig.py
-
-poetry-lock-no-update:
-	poetry lock --no-update
 
 addlicense:
 	@echo "Adding license headers..."
