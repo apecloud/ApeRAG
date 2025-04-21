@@ -240,11 +240,8 @@ def add_index_for_document(self, document_id):
             }
             document.relate_ids = json.dumps(relate_ids)
 
-            logger.info(f"begin for index for LightRAG")
-            rag: LightRagHolder = async_to_sync(lightrag_holder.get_lightrag_holder)(collection=document.collection)
-            rag.insert(content, ids=document.id, file_paths=local_doc.path)
-            logger.info(f"end for index for LightRAG")
-            
+            add_lightrag_index(content, document, local_doc)
+
     except FeishuNoPermission:
         raise Exception("no permission to access document %s" % document.name)
     except FeishuPermissionDenied:
@@ -347,11 +344,7 @@ def update_index_for_document(self, document_id):
         document.relate_ids = json.dumps(relate_ids)
         logger.info(f"update qdrant points: {document.relate_ids} for document {local_doc.path}")
 
-        logger.info(f"begin updating index for LightRAG")
-        rag: LightRagHolder = async_to_sync(lightrag_holder.get_lightrag_holder)(collection=document.collection)
-        async_to_sync(rag.adelete_by_doc_id)(document_id)
-        rag.insert(content, ids=document.id, file_paths=local_doc.path)
-        logger.info(f"end updating index for LightRAG")
+        add_lightrag_index(content, document, local_doc)
 
     except FeishuNoPermission:
         raise Exception("no permission to access document %s" % document.name)
@@ -366,6 +359,18 @@ def update_index_for_document(self, document_id):
         document.save()
 
     source.cleanup_document(local_doc.path)
+
+
+def add_lightrag_index(content, document, local_doc):
+    logger.info(f"Begin indexing document for LightRAG (ID: {document.id})")
+    rag: LightRagHolder = async_to_sync(lightrag_holder.get_lightrag_holder)(collection=document.collection)
+    rag.insert(content, ids=document.id, file_paths=local_doc.path)
+    lightrag_docs = async_to_sync(rag.get_processed_docs)()
+    if not lightrag_docs or str(document.id) not in lightrag_docs:
+        error_msg = f"Error indexing document for LightRAG (ID: {document.id}). No processed document found."
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
+    logger.info(f"Successfully indexed document for LightRAG (ID: {document.id})")
 
 
 @app.task

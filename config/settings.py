@@ -24,11 +24,11 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 import os
-from pathlib import Path
 import warnings
-from django.utils.deprecation import RemovedInNextVersionWarning
+from pathlib import Path
 
 import environ
+from django.utils.deprecation import RemovedInNextVersionWarning
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -253,6 +253,7 @@ EMBEDDING_MODEL = env.str("EMBEDDING_MODEL", default="text2vec")
 EMBEDDING_DIM = env.int("EMBEDDING_DIM", default=1024)
 EMBEDDING_SERVICE_URL = env.str("EMBEDDING_SERVICE_URL", default="http://localhost:9997")
 EMBEDDING_SERVICE_API_KEY = env.str("EMBEDDING_SERVICE_API_KEY", default="")
+EMBEDDING_MAX_CHUNKS_IN_BATCH = env.int("EMBEDDING_MAX_CHUNKS_IN_BATCH", default=64)
 
 SENSITIVE_FILTER_MODEL = env.str("SENSITIVE_FILTER_MODEL", default="")
 

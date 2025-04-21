@@ -1,12 +1,13 @@
 import asyncio
 import logging
-from typing import Optional, List, Any, Dict, Callable, Awaitable, Tuple, AsyncIterator
+from typing import Optional, List, Dict, Callable, Awaitable, Tuple, AsyncIterator, Any
 
 import numpy
 from lightrag import LightRAG, QueryParam
 from lightrag.kg.shared_storage import initialize_pipeline_status
-from lightrag.llm.openai import openai_embed, openai_complete_if_cache
+from lightrag.llm.openai import openai_complete_if_cache
 from lightrag.utils import EmbeddingFunc
+from lightrag.base import DocStatus
 
 from aperag.db.models import Collection
 from aperag.embed.base_embedding import get_collection_embedding_model
@@ -57,6 +58,9 @@ class LightRagHolder:
         file_paths: str | list[str] | None = None,
     ) -> None:
         return self.rag.insert(input, split_by_character, split_by_character_only, ids, file_paths)
+
+    async def get_processed_docs(self) -> dict[str, Any]:
+        return await self.rag.get_docs_by_status(DocStatus.PROCESSED)
 
     async def aquery(self, query: str, param: QueryParam = QueryParam(), system_prompt: str | None = None) -> str | AsyncIterator[str]:
         return await self.rag.aquery(query, param, system_prompt)
