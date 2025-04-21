@@ -67,8 +67,6 @@ pipmaster = "^0.5.4"
 graspologic = "^3.4.1"
 magic-pdf = {extras = ["full"], version = "^1.3.5"}
 pytablewriter = "^1.2.1"
-numpy = "^2.2.4"
-datamodel-code-generator = "^0.28.5"
 
 [tool.poetry.group.model]
 optional = true
@@ -93,6 +91,7 @@ types-chardet = "^5.0.4.6"
 vulture = "^2.14"
 deptry = "^0.23.0"
 mypy = "^1.4.1"
+datamodel-code-generator = "^0.28.5"
 
 [tool.poetry.extras]
 all = [
