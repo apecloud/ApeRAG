@@ -12,9 +12,9 @@ from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
 from config.settings import (
     EMBEDDING_BACKEND,
     EMBEDDING_DIM,
+    EMBEDDING_MAX_CHUNKS_IN_BATCH,
     EMBEDDING_MODEL,
     EMBEDDING_SERVICE_API_KEY,
-    EMBEDDING_SERVICE_BATCH_SIZE,
     EMBEDDING_SERVICE_URL,
 )
 
@@ -44,7 +44,7 @@ def loads_or_use_default_embedding_configs(config):
     config["embedding_dim"] = config.get("embedding_dim", EMBEDDING_DIM)
     config["embedding_service_url"] = config.get("embedding_service_url", EMBEDDING_SERVICE_URL)
     config["embedding_service_api_key"] = config.get("embedding_service_api_key", EMBEDDING_SERVICE_API_KEY)
-    config["embedding_service_batch_size"] = config.get("embedding_service_batch_size", EMBEDDING_SERVICE_BATCH_SIZE)
+    config["embedding_max_chunks_in_batch"] = config.get("embedding_max_chunks_in_batch", EMBEDDING_MAX_CHUNKS_IN_BATCH)
     return config
 
 @synchronized
@@ -54,10 +54,10 @@ def get_embedding_model(
         embedding_dim: int = EMBEDDING_DIM,
         embedding_service_url: str = EMBEDDING_SERVICE_URL,
         embedding_service_api_key: str = EMBEDDING_SERVICE_API_KEY,
-        embedding_service_batch_size: int = EMBEDDING_SERVICE_BATCH_SIZE,
+        embedding_max_chunks_in_batch: int = EMBEDDING_MAX_CHUNKS_IN_BATCH,
         **kwargs) -> tuple[Embeddings | None, int]:
     embedding_svc = EmbeddingService(embedding_backend, embedding_model, embedding_dim,
-                                     embedding_service_url, embedding_service_api_key, embedding_service_batch_size)
+                                     embedding_service_url, embedding_service_api_key, embedding_max_chunks_in_batch)
     return embedding_svc, embedding_dim
 
 
@@ -69,7 +69,7 @@ def get_collection_embedding_model(collection) -> tuple[Embeddings | None, int]:
             embedding_dim=config["embedding_dim"],
             embedding_service_url=config["embedding_service_url"],
             embedding_service_api_key=config["embedding_service_api_key"],
-            embedding_service_batch_size=config["embedding_service_batch_size"],
+            embedding_max_chunks_in_batch=config["embedding_max_chunks_in_batch"],
         )
 
 class DocumentBaseEmbedding(ABC):
