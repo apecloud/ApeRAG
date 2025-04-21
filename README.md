@@ -58,7 +58,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ```bash
 uv venv -p 3.11
-uv sync --all-groups
+uv sync --all-groups --all-extras
 ```
 
 * prepare configs
