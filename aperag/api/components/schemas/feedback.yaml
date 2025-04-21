@@ -1,0 +1,9 @@
+feedback:
+  type: object
+  properties:
+    upvote:
+      type: integer
+    downvote:
+      type: integer
+    revised_answer:
+      type: string

@@ -1,0 +1,64 @@
+botCreate:
+  type: object
+  properties:
+    title:
+      type: string
+    description:
+      type: string
+    type:
+      type: string
+      enum:
+        - knowledge
+        - common
+    config:
+      type: string
+    collection_ids:
+      type: array
+      items:
+        type: string
+
+botUpdate:
+  type: object
+  properties:
+    id:
+      type: string
+    title:
+      type: string
+    description:
+      type: string
+    type:
+      type: string
+      enum:
+        - knowledge
+        - common
+    config:
+      type: string
+    collection_ids:
+      type: array
+      items:
+        type: string
+
+bot:
+  type: object
+  properties:
+    id:
+      type: string
+    title:
+      type: string
+    description:
+      type: string
+    type:
+      type: string
+      enum:
+        - knowledge
+        - common
+    collection_ids:
+      type: array
+      items:
+        type: string
+    created:
+      type: string
+      format: date-time
+    updated:
+      type: string
+      format: date-time

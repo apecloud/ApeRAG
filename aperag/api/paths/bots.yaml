@@ -1,0 +1,123 @@
+bots:
+  get:
+    summary: List bots
+    description: Get a list of bots
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          default: 1
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+          default: 10
+    responses:
+      '200':
+        description: List of bots
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/successResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/bot.yaml#/bot'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+  post:
+    summary: Create a new bot
+    description: Create a new bot
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/bot.yaml#/botCreate'
+    responses:
+      '201':
+        description: Bot created successfully
+  
+bot:
+  get:
+    summary: Get bot details
+    description: Get details of a specific bot
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: bot_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Bot details
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/successResponse'
+                - type: object
+                  properties:
+                    data:
+                      $ref: '../components/schemas/bot.yaml#/bot'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Bot not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+  delete:
+    summary: Delete a bot
+    description: Delete a bot
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: bot_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Bot deleted successfully
+
+  put:
+    summary: Update a bot
+    description: Update a bot
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: bot_id
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/bot.yaml#/botUpdate'
+    responses:
+      '200':
+        description: Bot updated successfully

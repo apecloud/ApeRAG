@@ -24,8 +24,8 @@ from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
 from aperag.db.models import Chat, ChatPeer
 from aperag.db.ops import build_pq, query_bot, query_web_chat, query_web_chats
-from aperag.views.main import MessageFeedbackIn
 from aperag.views.utils import fail, query_chat_messages, success
+from aperag.views.models import Feedback
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ async def get_chat(request, bot_id, chat_id):
 
 
 @router.post("/bots/{bot_id}/web-chats/{chat_id}/messages/{message_id}")
-async def feedback_message(request, bot_id, chat_id, message_id, msg_in: MessageFeedbackIn):
+async def feedback_message(request, bot_id, chat_id, message_id, msg_in: Feedback):
     bot = await query_bot(None, bot_id)
     if bot is None:
         return fail(HTTPStatus.NOT_FOUND, "Bot not found")

@@ -1,0 +1,54 @@
+document:
+  type: object
+  properties:
+    id:
+      type: string
+    name:
+      type: string
+    status:
+      type: string
+      enum:
+        - PENDING
+        - RUNNING
+        - COMPLETE
+        - FAILED
+        - DELETING
+        - DELETED
+        - WARNING
+    config:
+      type: string
+    size:
+      type: number
+    created:
+      type: string
+      format: date-time
+    updated:
+      type: string
+      format: date-time
+    sensitive_info:
+      type: array
+      items:
+        type: string
+
+
+documentCreate:
+  type: object
+  properties:
+    title:
+      type: string
+    description:
+      type: string
+    source:
+      type: string
+    collection_id:
+      type: string
+
+documentUpdate:
+  type: object
+  properties:
+    title:
+      type: string
+    description:
+      type: string
+    source:
+      type: string

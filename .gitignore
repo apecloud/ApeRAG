@@ -161,3 +161,4 @@ terraform.tfstate.backup
 requirements.txt
 /documents
 magic-pdf.json
+.cursor

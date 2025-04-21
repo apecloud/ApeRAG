@@ -21,7 +21,8 @@ from django.http import HttpRequest
 
 from config import settings
 from aperag.utils.constant import KEY_USER_ID
-from aperag.views.main import CollectionIn, create_collection
+from aperag.views.main import create_collection
+from aperag.views.models import CollectionCreate
 
 
 class Command(BaseCommand):
@@ -43,7 +44,7 @@ class Command(BaseCommand):
         config = {
             "source": "system"
         }
-        data = CollectionIn(type="document", title=title, description=description, config=json.dumps(config))
+        data = CollectionCreate(type="document", title=title, description=description, config=json.dumps(config))
         response = async_to_sync(create_collection)(request, data)
         if int(response["code"]) != HTTPStatus.OK:
             raise CommandError('Failed to create collection: %s' % response.get("message", "unknown error"))

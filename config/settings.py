@@ -261,24 +261,6 @@ RERANK_SERVICE_URL = env.str("RERANK_SERVICE_URL", default="http://localhost:999
 RERANK_SERVICE_MODEL = env.str("RERANK_SERVICE_MODEL",  default="")
 RERANK_SERVICE_TOKEN_API_KEY = env.str("RERANK_SERVICE_TOKEN_API_KEY")
 
-EMBEDDING_DIMENSIONS = {
-    "local": {
-        "huggingface": 768,
-        "text2vec": 768,
-        "bge": 1024,
-        "__default__": 1024
-    },
-    "xinference": {
-        "__default__": 1024
-    },
-    "openai": {
-        "text-embedding-ada-002": 1536,
-        "text-embedding-3-small": 1536,
-        "text-embedding-3-large": 3072,
-        "__default__": 1536
-    }
-}
-
 # Memory backend
 MEMORY_REDIS_URL = env.str("MEMORY_REDIS_URL", default="redis://127.0.0.1:6379/1")
 
@@ -311,12 +293,6 @@ RETRIEVE_MODE = env.str("RETRIEVE_MODE", default="classic")
 LIGHT_RAG_LLM_API_KEY = env.str("LIGHT_RAG_LLM_API_KEY", default="")
 LIGHT_RAG_LLM_BASE_URL = env.str("LIGHT_RAG_LLM_BASE_URL", default="")
 LIGHT_RAG_LLM_MODEL = env.str("LIGHT_RAG_LLM_MODEL", default="gpt-4o-mini")
-# --- Embedding Settings ---
-LIGHT_RAG_EMBEDDING_API_KEY = env.str("LIGHT_RAG_EMBEDDING_API_KEY", default=LIGHT_RAG_LLM_API_KEY)
-LIGHT_RAG_EMBEDDING_BASE_URL = env.str("LIGHT_RAG_EMBEDDING_BASE_URL", default=LIGHT_RAG_LLM_BASE_URL)
-LIGHT_RAG_EMBEDDING_MODEL = env.str("LIGHT_RAG_EMBEDDING_MODEL", default="text-embedding-ada-002")
-LIGHT_RAG_EMBEDDING_DIM = env.int("LIGHT_RAG_EMBEDDING_DIM", default=1536)
-LIGHT_RAG_EMBEDDING_MAX_TOKENS = env.int("LIGHT_RAG_EMBEDDING_MAX_TOKENS", default=8192)
 # --- General Settings ---
 LIGHT_RAG_WORKING_DIR = env.str("LIGHT_RAG_WORKING_DIR", default="./documents")
 LIGHT_RAG_ENABLE_LLM_CACHE = env.bool("LIGHT_RAG_ENABLE_LLM_CACHE", default=False)

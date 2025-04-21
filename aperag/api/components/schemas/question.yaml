@@ -1,0 +1,24 @@
+question:
+  type: object
+  properties:
+    id:
+      type: string
+    content:
+      type: string
+    collection_id:
+      type: string
+    status:
+      type: string
+      enum: [pending, processing, completed, failed]
+    created:
+      type: string
+      format: date-time
+    updated:
+      type: string
+      format: date-time
+
+questionUpdate:
+  type: object
+  properties:
+    content:
+      type: string

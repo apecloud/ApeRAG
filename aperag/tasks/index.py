@@ -26,6 +26,7 @@ from celery import Task
 from django.core.files.base import ContentFile
 from django.utils import timezone
 
+from aperag.graph.lightrag_holder import LightRagHolder
 from config.celery import app
 from config.vector_db import get_vector_db_connector
 from aperag.context.full_text import insert_document, remove_document
@@ -51,10 +52,8 @@ from aperag.utils.utils import (
     generate_fulltext_index_name,
     generate_qa_vector_db_collection_name,
     generate_vector_db_collection_name,
-    generate_lightrag_namespace_prefix,
 )
-from aperag.graph import lightrag_wrapper
-from lightrag import LightRAG
+from aperag.graph import lightrag_holder
 
 logger = logging.getLogger(__name__)
 
@@ -242,8 +241,7 @@ def add_index_for_document(self, document_id):
             document.relate_ids = json.dumps(relate_ids)
 
             logger.info(f"begin for index for LightRAG")
-            namespace_prefix = generate_lightrag_namespace_prefix(document.collection.id)
-            rag: LightRAG = async_to_sync(lightrag_wrapper.get_lightrag_instance)(namespace_prefix=namespace_prefix)
+            rag: LightRagHolder = async_to_sync(lightrag_holder.get_lightrag_holder)(collection=document.collection)
             rag.insert(content, ids=document.id, file_paths=local_doc.path)
             logger.info(f"end for index for LightRAG")
             
@@ -286,8 +284,7 @@ def remove_index(self, document_id):
         vector_db.connector.delete(ids=ctx_relate_ids)
         logger.info(f"remove ctx qdrant points: {ctx_relate_ids} for document {document.file}")
 
-        namespace_prefix = generate_lightrag_namespace_prefix(document.collection.id)
-        rag: LightRAG = async_to_sync(lightrag_wrapper.get_lightrag_instance)(namespace_prefix=namespace_prefix)
+        rag: LightRagHolder = async_to_sync(lightrag_holder.get_lightrag_holder)(collection=document.collection)
         async_to_sync(rag.adelete_by_doc_id)(document_id)
 
     except Exception as e:
@@ -351,8 +348,7 @@ def update_index_for_document(self, document_id):
         logger.info(f"update qdrant points: {document.relate_ids} for document {local_doc.path}")
 
         logger.info(f"begin updating index for LightRAG")
-        namespace_prefix = generate_lightrag_namespace_prefix(document.collection.id)
-        rag: LightRAG = async_to_sync(lightrag_wrapper.get_lightrag_instance)(namespace_prefix=namespace_prefix)
+        rag: LightRagHolder = async_to_sync(lightrag_holder.get_lightrag_holder)(collection=document.collection)
         async_to_sync(rag.adelete_by_doc_id)(document_id)
         rag.insert(content, ids=document.id, file_paths=local_doc.path)
         logger.info(f"end updating index for LightRAG")

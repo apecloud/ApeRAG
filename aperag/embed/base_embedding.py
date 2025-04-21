@@ -55,7 +55,7 @@ def get_embedding_model(
     return embedding_svc, embedding_dim
 
 
-def get_collection_embedding_model(collection):
+def get_collection_embedding_model(collection) -> tuple[Embeddings | None, int]:
     config = loads_or_use_default_embedding_configs(json.loads(collection.config))
     return get_embedding_model(
             embedding_backend=config["embedding_backend"],

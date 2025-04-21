@@ -1,0 +1,52 @@
+openapi: 3.0.0
+info:
+  title: ApeRAG API
+  description: ApeRAG API Documentation
+  version: 1.0.0
+servers:
+  - url: /api/v1
+    description: API v1
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+paths:
+  /bots:
+    $ref: './paths/bots.yaml#/bots'
+  /bots/{bot_id}:
+    $ref: './paths/bots.yaml#/bot'
+  /collections:
+    $ref: './paths/collections.yaml#/collections'
+  /collections/{collection_id}:
+    $ref: './paths/collections.yaml#/collection'
+  /collections/{collection_id}/documents:
+    $ref: './paths/collections.yaml#/documents'
+  /collections/{collection_id}/documents/{document_id}:
+    $ref: './paths/collections.yaml#/document'
+  /collections/{collection_id}/questions:
+    $ref: './paths/collections.yaml#/questions'
+  /collections/{collection_id}/questions/{question_id}:
+    $ref: './paths/collections.yaml#/question'
+  /bots/{bot_id}/chats:
+    $ref: './paths/chats.yaml#/chats'
+  /bots/{bot_id}/chats/{chat_id}:
+    $ref: './paths/chats.yaml#/chat'
+  /bots/{bot_id}/web-chats:
+    $ref: './paths/chats.yaml#/web_chats'
+  /bots/{bot_id}/web-chats/{chat_id}:
+    $ref: './paths/chats.yaml#/web_chat'
+  /bots/{bot_id}/web-chats/{chat_id}/messages/{message_id}:
+    $ref: './paths/message.yaml#/message'
+  /apikeys:
+    $ref: './paths/apikeys.yaml#/apikeys'
+  /apikeys/{apikey_id}:
+    $ref: './paths/apikeys.yaml#/apikey'
+  /user_info:
+    $ref: './paths/user_info.yaml#/user_info'
+  /models:
+    $ref: './paths/models.yaml#/models'
+  /config:
+    $ref: './paths/config.yaml#/config'
+  /prompt_templates:
+    $ref: './paths/prompt_templates.yaml#/prompt_templates'

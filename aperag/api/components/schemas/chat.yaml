@@ -1,0 +1,60 @@
+chat:
+  type: object
+  properties:
+    id:
+      type: string
+    title:
+      type: string
+    collection_id:
+      type: string
+    status:
+      type: string
+      enum: [active, archived]
+    created:
+      type: string
+      format: date-time
+    updated:
+      type: string
+      format: date-time
+
+chatCreate:
+  type: object
+  properties:
+    title:
+      type: string
+    collection_id:
+      type: string
+
+chatUpdate:
+  type: object
+  properties:
+    title:
+      type: string
+    status:
+      type: string
+      enum: [active, archived]
+
+message:
+  type: object
+  properties:
+    id:
+      type: string
+    chat_id:
+      type: string
+    role:
+      type: string
+      enum: [user, assistant]
+    content:
+      type: string
+    created:
+      type: string
+      format: date-time
+
+messageCreate:
+  type: object
+  properties:
+    content:
+      type: string
+    role:
+      type: string
+      enum: [user, assistant]

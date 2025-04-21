@@ -62,7 +62,6 @@ llama-index-vector-stores-opensearch = "^0.5.2"
 llama-index-vector-stores-milvus = "^0.7.2"
 llama-index-vector-stores-qdrant = "^0.6.0"
 llama-index-vector-stores-weaviate = "^1.3.1"
-numpy = "^1.26.4"
 lightrag-hku = "^1.3.1"
 pipmaster = "^0.5.4"
 graspologic = "^3.4.1"
@@ -92,6 +91,7 @@ types-chardet = "^5.0.4.6"
 vulture = "^2.14"
 deptry = "^0.23.0"
 mypy = "^1.4.1"
+datamodel-code-generator = "^0.28.5"
 
 [tool.poetry.extras]
 all = [

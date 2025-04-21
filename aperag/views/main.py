@@ -33,32 +33,15 @@ from ninja import File, NinjaAPI, Router, Schema
 from ninja.files import UploadedFile
 
 import aperag.chat.message
+import aperag.views.models
 from config import settings
 from config.celery import app
 from aperag.apps import QuotaType
 from aperag.auth.validator import GlobalHTTPAuth
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
-from aperag.db.models import (
-    Bot,
-    BotIntegration,
-    BotIntegrationStatus,
-    BotStatus,
-    Chat,
-    ChatPeer,
-    ChatStatus,
-    Collection,
-    CollectionStatus,
-    CollectionSyncHistory,
-    CollectionSyncStatus,
-    CollectionType,
-    Document,
-    DocumentStatus,
-    Question,
-    QuestionStatus,
-    ApiKeyToken,
-    ApiKeyStatus,
-)
+from aperag.db import models as db_models
+from aperag.views import models as view_models
 from aperag.db.ops import (
     build_pq,
     query_bot,
@@ -72,8 +55,6 @@ from aperag.db.ops import (
     query_document,
     query_documents,
     query_documents_count,
-    query_integration,
-    query_integrations,
     query_question,
     query_questions,
     query_running_sync_histories,
@@ -120,72 +101,57 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-class CollectionIn(Schema):
-    title: str
-    type: str
-    description: Optional[str] = None
-    config: Optional[str] = None
-
-
-class CreateDocumentIn(Schema):
-    name: str
-    config: Optional[str] = None
-
-
-class UpdateDocumentIn(Schema):
-    name: str
-    config: Optional[str] = None
-
-
-class QuestionIn(Schema):
-    id: Optional[str] = None
-    question: str
-    answer: Optional[str] = None
-    relate_documents: Optional[List[str]] = None
-
-
 @router.get("/user_info")
-async def get_user_info(request):
+async def get_user_info(request) -> view_models.UserInfo:
     user = get_user(request)
-    return success({"is_admin": user == settings.ADMIN_USER})
+    return success(view_models.UserInfo(is_admin=user == settings.ADMIN_USER))
 
 
 @router.get("/models")
-async def list_models(request):
-    response = []
+async def list_models(request) -> List[view_models.Model]:
+    models = []
     model_families = yaml.safe_load(settings.MODEL_FAMILIES)
     for model_family in model_families:
         for model_server in model_family.get("models", []):
-            response.append({
-                "value": model_server["name"],
-                "label": model_server.get("label", model_server["name"]),
-                "enabled": model_server.get("enabled", "true").lower() == "true",
-                "memory": model_server.get("memory", "disabled").lower() == "enabled",
-                "free_tier": model_server.get("free_tier", False),
-                "endpoint": model_server.get("endpoint", ""),
-                "default_token": Predictor.check_default_token(model_name=model_server["name"]),
-                "prompt_template": DEFAULT_MODEL_MEMOTY_PROMPT_TEMPLATES.get(model_server["name"],
+            if model_server.get("enabled", "true").lower() == "false":
+                continue
+            models.append(view_models.Model(
+                value=model_server["name"],
+                label=model_server.get("label", model_server["name"]),
+                enabled=True,
+                memory=model_server.get("memory", "disabled").lower() == "enabled",
+                free_tier=model_server.get("free_tier", False),
+                endpoint=model_server.get("endpoint", ""),
+                default_token=Predictor.check_default_token(model_name=model_server["name"]),
+                prompt_template=DEFAULT_MODEL_MEMOTY_PROMPT_TEMPLATES.get(model_server["name"],
                                                                                     DEFAULT_CHINESE_PROMPT_TEMPLATE_V3),
-                "context_window": model_server.get("context_window", 7500),
-                "temperature": model_server.get("temperature", model_family.get("temperature", 0.01)),
-                "similarity_score_threshold": model_server.get("similarity_score_threshold", 0.5),
-                "similarity_topk": model_server.get("similarity_topk", 3),
-                "family_name": model_family["name"],
-                "family_label": model_family["label"],
-            })
-    response.sort(key=lambda x: x["enabled"], reverse=True)
-    return success(response)
+                context_window=model_server.get("context_window", 7500),
+                temperature=model_server.get("temperature", model_family.get("temperature", 0.01)),
+                similarity_score_threshold=model_server.get("similarity_score_threshold", 0.5),
+                similarity_topk=model_server.get("similarity_topk", 3),
+                family_name=model_family["name"],
+                family_label=model_family["label"],
+            ))
+    return success(models)
 
 
 @router.get("/prompt_templates")
-async def list_prompt_templates(request):
+async def list_prompt_templates(request) -> List[view_models.PromptTemplate]:
     language = request.headers.get('Lang', "zh-CN")
     if language == "zh-CN":
-        return success(MULTI_ROLE_ZH_PROMPT_TEMPLATES)
+        templates = MULTI_ROLE_ZH_PROMPT_TEMPLATES
     elif language == "en-US":
-        return success(MULTI_ROLE_EN_PROMPT_TEMPLATES)
+        templates = MULTI_ROLE_EN_PROMPT_TEMPLATES
     else:
         return fail(HTTPStatus.BAD_REQUEST, "unsupported language of prompt templates")
+    response = []
+    for template in templates:
+        response.append(view_models.PromptTemplate(
+            name=template["name"],
+            prompt=template["prompt"],
+            description=template["description"],
+        ))
+    return success(response)
 
 
 @router.post("/collections/{collection_id}/sync")
@@ -200,13 +166,13 @@ async def sync_immediately(request, collection_id):
     async for task in pr.data:
         return fail(HTTPStatus.BAD_REQUEST, f"have running sync task {task.id}, please cancel it first")
 
-    instance = CollectionSyncHistory(
+    instance = db_models.CollectionSyncHistory(
         user=collection.user,
         start_time=timezone.now(),
         collection=collection,
         execution_time=datetime.timedelta(seconds=0),
         total_documents_to_sync=0,
-        status=CollectionSyncStatus.RUNNING,
+        status=db_models.CollectionSyncStatus.RUNNING,
     )
     await instance.asave()
     document_user_quota = await query_user_quota(user, QuotaType.MAX_DOCUMENT_COUNT)
@@ -249,7 +215,7 @@ async def cancel_sync(request, collection_id, collection_sync_id):
     else:
         logger.warning(f"no index task group id in sync history {collection_sync_id}")
 
-    sync_history.status = CollectionSyncStatus.CANCELED
+    sync_history.status = db_models.CollectionSyncStatus.CANCELED
     await sync_history.asave()
     return success({})
 
@@ -260,7 +226,7 @@ async def list_sync_histories(request, collection_id):
     pr = await query_sync_histories(user, collection_id, build_pq(request))
     response = []
     async for sync_history in pr.data:
-        if sync_history.status == CollectionSyncStatus.RUNNING:
+        if sync_history.status == db_models.CollectionSyncStatus.RUNNING:
             progress = get_sync_progress(sync_history)
             sync_history.failed_documents = progress.failed_documents
             sync_history.successful_documents = progress.successful_documents
@@ -276,7 +242,7 @@ async def get_sync_history(request, collection_id, sync_history_id):
     sync_history = await query_sync_history(user, collection_id, sync_history_id)
     if sync_history is None:
         return fail(HTTPStatus.NOT_FOUND, "sync history not found")
-    if sync_history.status == CollectionSyncStatus.RUNNING:
+    if sync_history.status == db_models.CollectionSyncStatus.RUNNING:
         progress = get_sync_progress(sync_history)
         sync_history.failed_documents = progress.failed_documents
         sync_history.successful_documents = progress.successful_documents
@@ -285,41 +251,50 @@ async def get_sync_history(request, collection_id, sync_history_id):
     return success(sync_history.view())
 
 @router.get("/apikeys")
-async def list_apikey(request):
+async def list_apikey(request) -> List[view_models.ApiKey]:
     user = get_user(request)
     pr = await query_apikeys(user, build_pq(request))
     response = []
     async for key in pr.data:
-        response.append(key.view())
-    return success(response, pr)
+        response.append(view_models.ApiKey(
+            id=key.id,
+            key=key.key,
+        ))
+    return success(response)
 
 @router.post("/apikeys")
-async def create_apikey(request):
+async def create_apikey(request) -> view_models.ApiKey:
     user = get_user(request)
-    new_api_key = ApiKeyToken(
+    new_api_key = db_models.ApiKeyToken(
         user=user,
-        status=ApiKeyStatus.ACTIVE,
+        status=db_models.ApiKeyStatus.ACTIVE,
         key = secrets.token_hex(20)
     )
     await new_api_key.asave()
-    return success(new_api_key.view())
+    return success(view_models.ApiKey(
+        id=new_api_key.id,
+        key=new_api_key.key,
+    ))
 
 @router.delete("/apikeys/{apikey_id}")
-async def delete_apikey(request, apikey_id):
+async def delete_apikey(request, apikey_id: str) -> view_models.ApiKey:
     user = get_user(request)
     api_key = await query_apikey(user, apikey_id)
     if api_key is None:
         return fail(HTTPStatus.NOT_FOUND, "api_key not found")
-    api_key.status = ApiKeyStatus.DELETED
+    api_key.status = db_models.ApiKeyStatus.DELETED
     api_key.gmt_deleted = timezone.now()
     await api_key.asave()
-    return success(api_key.view())
+    return success(view_models.ApiKey(
+        id=api_key.id,
+        key=api_key.key,
+    ))
 
 @router.post("/collections")
-async def create_collection(request, collection: CollectionIn):
+async def create_collection(request, collection: view_models.CollectionCreate) -> view_models.Collection:
     user = get_user(request)
     config = json.loads(collection.config)
-    if collection.type == CollectionType.DOCUMENT:
+    if collection.type == db_models.CollectionType.DOCUMENT:
         is_validate, error_msg = validate_source_connect_config(config)
         if not is_validate:
             return fail(HTTPStatus.BAD_REQUEST, error_msg)
@@ -343,10 +318,10 @@ async def create_collection(request, collection: CollectionIn):
         if collection_limit and await query_collections_count(user) >= collection_limit:
             return fail(HTTPStatus.FORBIDDEN, f"collection number has reached the limit of {collection_limit}")
 
-    instance = Collection(
+    instance = db_models.Collection(
         user=user,
         type=collection.type,
-        status=CollectionStatus.INACTIVE,
+        status=db_models.CollectionStatus.INACTIVE,
         title=collection.title,
         description=collection.description
     )
@@ -355,49 +330,61 @@ async def create_collection(request, collection: CollectionIn):
         instance.config = collection.config
     await instance.asave()
 
-    if instance.type == CollectionType.DOCUMENT:
+    if instance.type == db_models.CollectionType.DOCUMENT:
         document_user_quota = await query_user_quota(user, QuotaType.MAX_DOCUMENT_COUNT)
         init_collection_task.delay(instance.id, document_user_quota)
-    elif instance.type == CollectionType.CODE:
-        chat = Chat(
-            user=instance.user,
-            status=ChatStatus.ACTIVE,
-            collection=instance,
-            summary=instance.description,
-        )
-        await chat.asave()
     else:
         return fail(HTTPStatus.BAD_REQUEST, "unknown collection type")
 
-    return success(instance.view())
+    return success(view_models.Collection(
+        id=instance.id,
+        title=instance.title,
+        description=instance.description,
+        type=instance.type,
+        config=instance.config,
+    ))
 
 
 @router.get("/collections")
-async def list_collections(request):
+async def list_collections(request) -> List[view_models.Collection]:
     user = get_user(request)
     pr = await query_collections([user, settings.ADMIN_USER], build_pq(request))
     response = []
     async for collection in pr.data:
-        response.append(collection.view())
-    return success(response, pr)
+        response.append(view_models.Collection(
+            id=collection.id,
+            title=collection.title,
+            description=collection.description,
+            status=collection.status,
+            type=collection.type,
+            config=collection.config,
+        ))
+    return success(response)
 
 
 @router.get("/collections/{collection_id}")
-async def get_collection(request, collection_id):
+async def get_collection(request, collection_id: str) -> view_models.Collection:
     user = get_user(request)
     instance = await query_collection(user, collection_id)
     if instance is None:
         return fail(HTTPStatus.NOT_FOUND, "Collection not found")
 
-    bots = await sync_to_async(instance.bot_set.exclude)(status=BotStatus.DELETED)
+    bots = await sync_to_async(instance.bot_set.exclude)(status=db_models.BotStatus.DELETED)
     bot_ids = []
     async for bot in bots:
         bot_ids.append(bot.id)
-    return success(instance.view(bot_ids=bot_ids))
+    return success(view_models.Collection(
+        id=instance.id,
+        title=instance.title,
+        status=instance.status,
+        description=instance.description,
+        type=instance.type,
+        config=instance.config,
+    ))
 
 
 @router.put("/collections/{collection_id}")
-async def update_collection(request, collection_id, collection: CollectionIn):
+async def update_collection(request, collection_id: str, collection: view_models.CollectionUpdate) -> view_models.Collection:
     user = get_user(request)
     instance = await query_collection(user, collection_id)
     if instance is None:
@@ -410,48 +397,61 @@ async def update_collection(request, collection_id, collection: CollectionIn):
     if source.sync_enabled():
         await update_sync_documents_cron_job(instance.id)
 
-    bots = await sync_to_async(instance.bot_set.exclude)(status=BotStatus.DELETED)
+    bots = await sync_to_async(instance.bot_set.exclude)(status=db_models.BotStatus.DELETED)
     bot_ids = []
     async for bot in bots:
         bot_ids.append(bot.id)
 
-    return success(instance.view(bot_ids=bot_ids))
+    return success(view_models.Collection(
+        id=instance.id,
+        title=instance.title,
+        description=instance.description,
+        type=instance.type,
+        config=instance.config,
+        status=instance.status,
+    ))
 
 
 @router.delete("/collections/{collection_id}")
-async def delete_collection(request, collection_id):
+async def delete_collection(request, collection_id: str) -> view_models.Collection:
     user = get_user(request)
     collection = await query_collection(user, collection_id)
     if collection is None:
         return fail(HTTPStatus.NOT_FOUND, "Collection not found")
     await delete_sync_documents_cron_job(collection.id)
-    bots = await sync_to_async(collection.bot_set.exclude)(status=BotStatus.DELETED)
+    bots = await sync_to_async(collection.bot_set.exclude)(status=db_models.BotStatus.DELETED)
     bot_ids = []
     async for bot in bots:
         bot_ids.append(bot.id)
     if len(bot_ids) > 0:
         return fail(HTTPStatus.BAD_REQUEST, f"Collection has related to bots {','.join(bot_ids)}, can not be deleted")
-    collection.status = CollectionStatus.DELETED
+    collection.status = db_models.CollectionStatus.DELETED
     collection.gmt_deleted = timezone.now()
     await collection.asave()
 
     delete_collection_task.delay(collection_id)
 
-    return success(collection.view())
+    return success(view_models.Collection(
+        id=collection.id,
+        title=collection.title,
+        description=collection.description,
+        type=collection.type,
+        config=collection.config,
+    ))
 
 @router.post("/collections/{collection_id}/questions")
-async def create_questions(request, collection_id):
+async def create_questions(request, collection_id: str):
     user = get_user(request)
     collection = await query_collection(user, collection_id)
     if collection is None:
         return fail(HTTPStatus.NOT_FOUND, "Collection not found")
-    if collection.status == CollectionStatus.QUESTION_PENDING:
+    if collection.status == db_models.CollectionStatus.QUESTION_PENDING:
         return fail(HTTPStatus.BAD_REQUEST, "Collection is generating questions")
 
-    collection.status = CollectionStatus.QUESTION_PENDING
+    collection.status = db_models.CollectionStatus.QUESTION_PENDING
     await collection.asave()
 
-    documents = await sync_to_async(collection.document_set.exclude)(status=DocumentStatus.DELETED)
+    documents = await sync_to_async(collection.document_set.exclude)(status=db_models.DocumentStatus.DELETED)
     generate_tasks = []
     async for document in documents:
         generate_tasks.append(generate_questions.si(document.id))
@@ -462,7 +462,7 @@ async def create_questions(request, collection_id):
     return success({})
 
 @router.put("/collections/{collection_id}/questions")
-async def update_question(request, collection_id, question_in: QuestionIn):
+async def update_question(request, collection_id: str, question_in: view_models.QuestionUpdate) -> view_models.Question:
     user = get_user(request)
     collection = await query_collection(user, collection_id)
     if collection is None:
@@ -470,10 +470,10 @@ async def update_question(request, collection_id, question_in: QuestionIn):
 
     # ceate question
     if not question_in.id:
-        question_instance = Question(
+        question_instance = db_models.Question(
             user=collection.user,
             collection=collection,
-            status=QuestionStatus.PENDING,
+            status=db_models.QuestionStatus.PENDING,
         )
         await question_instance.asave()
     else:
@@ -483,13 +483,13 @@ async def update_question(request, collection_id, question_in: QuestionIn):
 
     question_instance.question = question_in.question
     question_instance.answer = question_in.answer if question_in.answer else ""
-    question_instance.status = QuestionStatus.PENDING
+    question_instance.status = db_models.QuestionStatus.PENDING
     await sync_to_async(question_instance.documents.clear)()
 
     if question_in.relate_documents:
         for document_id in question_in.relate_documents:
             document = await query_document(user, collection_id, document_id)
-            if document is None or document.status == DocumentStatus.DELETED:
+            if document is None or document.status == db_models.DocumentStatus.DELETED:
                 return fail(HTTPStatus.NOT_FOUND, "Document not found")
             await sync_to_async(question_instance.documents.add)(document)
     else:
@@ -497,47 +497,67 @@ async def update_question(request, collection_id, question_in: QuestionIn):
     await question_instance.asave()
     update_index_for_question.delay(question_instance.id)
 
-    return success(question_instance.view(question_in.relate_documents))
+    return success(view_models.Question(
+        id=question_instance.id,
+        question=question_instance.question,
+        answer=question_instance.answer,
+        relate_documents=question_in.relate_documents,
+    ))
 
 @router.delete("/collections/{collection_id}/questions/{question_id}")
-async def delete_question(request, collection_id, question_id):
+async def delete_question(request, collection_id: str, question_id: str) -> view_models.Question:
     user = get_user(request)
 
     question = await query_question(user, question_id)
     if question is None:
         return fail(HTTPStatus.NOT_FOUND, "Question not found")
-    question.status = QuestionStatus.DELETED
+    question.status = db_models.QuestionStatus.DELETED
     question.gmt_deleted = timezone.now()
     await question.asave()
     update_index_for_question.delay(question.id)
 
-    docs = await sync_to_async(question.documents.exclude)(status=DocumentStatus.DELETED)
+    docs = await sync_to_async(question.documents.exclude)(status=db_models.DocumentStatus.DELETED)
     doc_ids = []
     async for doc in docs:
         doc_ids.append(doc.id)
-    return success(question.view(relate_documents=doc_ids))
+    return success(view_models.Question(
+        id=question.id,
+        question=question.question,
+        answer=question.answer,
+        relate_documents=doc_ids,
+    ))
 
 @router.get("/collections/{collection_id}/questions")
-async def list_questions(request, collection_id):
+async def list_questions(request, collection_id: str) -> List[view_models.Question]:
     user = get_user(request)
     pr = await query_questions(user, collection_id, build_pq(request))
     response = []
     async for question in pr.data:
-        response.append(question.view())
-    return success(response, pr)
+        response.append(view_models.Question(
+            id=question.id,
+            question=question.question,
+            answer=question.answer,
+            relate_documents=question.documents,
+        ))
+    return success(response)
 
 @router.get("/collections/{collection_id}/questions/{question_id}")
-async def get_question(request, collection_id, question_id):
+async def get_question(request, collection_id: str, question_id: str) -> view_models.Question:
     user = get_user(request)
     question = await query_question(user, question_id)
-    docs = await sync_to_async(question.documents.exclude)(status=DocumentStatus.DELETED)
+    docs = await sync_to_async(question.documents.exclude)(status=db_models.DocumentStatus.DELETED)
     doc_ids = []
     async for doc in docs:
         doc_ids.append(doc.id)
-    return success(question.view(relate_documents=doc_ids))
+    return success(view_models.Question(
+        id=question.id,
+        question=question.question,
+        answer=question.answer,
+        relate_documents=doc_ids,
+    ))
 
 @router.post("/collections/{collection_id}/documents")
-async def create_document(request, collection_id, file: List[UploadedFile] = File(...)):
+async def create_document(request, collection_id: str, file: List[UploadedFile] = File(...)) -> List[view_models.Document]:
     if len(file) > 500:
         return fail(HTTPStatus.BAD_REQUEST, "documents are too many,add document failed")
     user = get_user(request)
@@ -559,10 +579,10 @@ async def create_document(request, collection_id, file: List[UploadedFile] = Fil
         if file_suffix not in DEFAULT_FILE_READER_CLS.keys():
             return fail(HTTPStatus.BAD_REQUEST, f"unsupported file type {file_suffix}")
         try:
-            document_instance = Document(
+            document_instance = db_models.Document(
                 user=user,
                 name=item.name,
-                status=DocumentStatus.PENDING,
+                status=db_models.DocumentStatus.PENDING,
                 size=item.size,
                 collection=collection,
                 file=ContentFile(item.read(), item.name),
@@ -572,7 +592,13 @@ async def create_document(request, collection_id, file: List[UploadedFile] = Fil
                 "path": document_instance.file.path,
             })
             await document_instance.asave()
-            response.append(document_instance.view())
+            response.append(view_models.Document(
+                id=document_instance.id,
+                name=document_instance.name,
+                status=document_instance.status,
+                size=document_instance.size,
+                collection=document_instance.collection,
+            ))
             add_index_for_local_document.delay(document_instance.id)
         except IntegrityError:
             return fail(HTTPStatus.BAD_REQUEST, f"document {item.name} already exists")
@@ -583,7 +609,7 @@ async def create_document(request, collection_id, file: List[UploadedFile] = Fil
 
 
 @router.post("/collections/{collection_id}/urls")
-async def create_url_document(request, collection_id):
+async def create_url_document(request, collection_id: str) -> List[view_models.Document]:
     user = get_user(request)
     response = {"failed_urls": []}
     collection = await query_collection(user, collection_id)
@@ -610,10 +636,10 @@ async def create_url_document(request, collection_id):
                 document_name = url + '.html'
             else:
                 document_name = url
-            document_instance = Document(
+            document_instance = db_models.Document(
                 user=user,
                 name=document_name,
-                status=DocumentStatus.PENDING,
+                status=db_models.DocumentStatus.PENDING,
                 collection=collection,
                 size=0,
             )
@@ -638,23 +664,31 @@ async def create_url_document(request, collection_id):
 
 
 @router.get("/collections/{collection_id}/documents")
-async def list_documents(request, collection_id):
+async def list_documents(request, collection_id: str) -> List[view_models.Document]:
     user = get_user(request)
     pr = await query_documents([user, settings.ADMIN_USER], collection_id, build_pq(request))
     response = []
     async for document in pr.data:
-        response.append(document.view())
-    return success(response, pr)
+        response.append(view_models.Document(
+            id=document.id,
+            name=document.name,
+            status=document.status,
+            size=document.size,
+            created=document.gmt_created,
+            updated=document.gmt_updated,
+            sensitive_info=document.sensitive_info,
+        ))
+    return success(response)
 
 
 @router.put("/collections/{collection_id}/documents/{document_id}")
 async def update_document(
-        request, collection_id, document_id, document: UpdateDocumentIn):
+        request, collection_id: str, document_id: str, document: view_models.Document) -> view_models.Document:
     user = get_user(request)
     instance = await query_document(user, collection_id, document_id)
     if instance is None:
         return fail(HTTPStatus.NOT_FOUND, "Document not found")
-    if instance.status == DocumentStatus.DELETING:
+    if instance.status == db_models.DocumentStatus.DELETING:
         return fail(HTTPStatus.BAD_REQUEST, "Document is deleting")
 
     if document.config:
@@ -669,41 +703,53 @@ async def update_document(
     # if user add labels for a document, we need to update index
     update_index_for_document.delay(instance.id)
 
-    related_questions = await sync_to_async(instance.question_set.exclude)(status=QuestionStatus.DELETED)
+    related_questions = await sync_to_async(instance.question_set.exclude)(status=db_models.QuestionStatus.DELETED)
     async for question in related_questions:
-        question.status = QuestionStatus.WARNING
+        question.status = db_models.QuestionStatus.WARNING
         await question.asave()
 
-    return success(instance.view())
+    return success(view_models.Document(
+        id=instance.id,
+        name=instance.name,
+        status=instance.status,
+        size=instance.size,
+        collection=instance.collection,
+    ))
 
 
 @router.delete("/collections/{collection_id}/documents/{document_id}")
-async def delete_document(request, collection_id, document_id):
+async def delete_document(request, collection_id: str, document_id: str) -> view_models.Document:
     user = get_user(request)
     document = await query_document(user, collection_id, document_id)
     if document is None:
         logger.info(f"document {document_id} not found, maybe has already been deleted")
         return success({})
-    if document.status == DocumentStatus.DELETING:
+    if document.status == db_models.DocumentStatus.DELETING:
         logger.info(f"document {document_id} is deleting, ignore delete")
         return success({})
-    document.status = DocumentStatus.DELETING
+    document.status = db_models.DocumentStatus.DELETING
     document.gmt_deleted = timezone.now()
     await document.asave()
 
     remove_index.delay(document.id)
 
-    related_questions = await sync_to_async(document.question_set.exclude)(status=QuestionStatus.DELETED)
+    related_questions = await sync_to_async(document.question_set.exclude)(status=db_models.QuestionStatus.DELETED)
     async for question in related_questions:
         question.documents.remove(document)
-        question.status = QuestionStatus.WARNING
+        question.status = db_models.QuestionStatus.WARNING
         await question.asave()
 
-    return success(document.view())
+    return success(view_models.Document(
+        id=document.id,
+        name=document.name,
+        status=document.status,
+        size=document.size,
+        collection=document.collection,
+    ))
 
 
 @router.delete("/collections/{collection_id}/documents")
-async def delete_documents(request, collection_id, document_ids: List[str]):
+async def delete_documents(request, collection_id: str, document_ids: List[str]):
     user = get_user(request)
     documents = await query_documents([user], collection_id, build_pq(request))
     ok = []
@@ -712,15 +758,15 @@ async def delete_documents(request, collection_id, document_ids: List[str]):
         if document.id not in document_ids:
             continue
         try:
-            document.status = DocumentStatus.DELETING
+            document.status = db_models.DocumentStatus.DELETING
             document.gmt_deleted = timezone.now()
             await document.asave()
             remove_index.delay(document.id)
 
-            related_questions = await sync_to_async(document.question_set.exclude)(status=QuestionStatus.DELETED)
+            related_questions = await sync_to_async(document.question_set.exclude)(status=db_models.QuestionStatus.DELETED)
             async for question in related_questions:
                 question.documents.remove(document)
-                question.status = QuestionStatus.WARNING
+                question.status = db_models.QuestionStatus.WARNING
                 await question.asave()
 
             ok.append(document.id)
@@ -731,28 +777,40 @@ async def delete_documents(request, collection_id, document_ids: List[str]):
 
 
 @router.post("/bots/{bot_id}/chats")
-async def create_chat(request, bot_id):
+async def create_chat(request, bot_id: str) -> view_models.Chat:
     user = get_user(request)
     bot = await query_bot(user, bot_id)
     if bot is None:
         return fail(HTTPStatus.NOT_FOUND, "Bot not found")
-    instance = Chat(user=user, bot=bot, peer_type=ChatPeer.SYSTEM)
+    instance = db_models.Chat(user=user, bot=bot, peer_type=db_models.ChatPeer.SYSTEM)
     await instance.asave()
-    return success(instance.view(bot_id))
+    return success(view_models.Chat(
+        id=instance.id,
+        summary=instance.summary,
+        bot_id=instance.bot_id,
+        peer_type=instance.peer_type,
+        peer_id=instance.peer_id,
+    ))
 
 
 @router.get("/bots/{bot_id}/chats")
-async def list_chats(request, bot_id):
+async def list_chats(request, bot_id: str) -> List[view_models.Chat]:
     user = get_user(request)
     pr = await query_chats(user, bot_id, build_pq(request))
     response = []
     async for chat in pr.data:
-        response.append(chat.view(bot_id))
-    return success(response, pr)
+        response.append(view_models.Chat(
+            id=chat.id,
+            summary=chat.summary,
+            bot_id=chat.bot_id,
+            peer_type=chat.peer_type,
+            peer_id=chat.peer_id,
+        ))
+    return success(response)
 
 
 @router.put("/bots/{bot_id}/chats/{chat_id}")
-async def update_chat(request, bot_id, chat_id):
+async def update_chat(request, bot_id: str, chat_id: str) -> view_models.Chat:
     user = get_user(request)
     chat = await query_chat(user, bot_id, chat_id)
     if chat is None:
@@ -761,28 +819,34 @@ async def update_chat(request, bot_id, chat_id):
     await chat.asave()
     history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
     await history.clear()
-    return success(chat.view(bot_id))
+    return success(view_models.Chat(
+        id=chat.id,
+        summary=chat.summary,
+        bot_id=chat.bot_id,
+        peer_type=chat.peer_type,
+        peer_id=chat.peer_id,
+    ))
 
 
 @router.get("/bots/{bot_id}/chats/{chat_id}")
-async def get_chat(request, bot_id, chat_id):
+async def get_chat(request, bot_id: str, chat_id: str) -> view_models.Chat:
     user = get_user(request)
     chat = await query_chat(user, bot_id, chat_id)
     if chat is None:
         return fail(HTTPStatus.NOT_FOUND, "Chat not found")
 
     messages = await query_chat_messages(user, chat_id)
-    return success(chat.view(bot_id, messages))
-
-
-class MessageFeedbackIn(Schema):
-    upvote: Optional[int] = None
-    downvote: Optional[int] = None
-    revised_answer: Optional[str] = None
+    return success(view_models.Chat(
+        id=chat.id,
+        summary=chat.summary,
+        bot_id=chat.bot_id,
+        peer_type=chat.peer_type,
+        peer_id=chat.peer_id,
+    ))
 
 
 @router.post("/bots/{bot_id}/chats/{chat_id}/messages/{message_id}")
-async def feedback_message(request, bot_id, chat_id, message_id, msg_in: MessageFeedbackIn):
+async def feedback_message(request, bot_id: str, chat_id: str, message_id: str, msg_in: view_models.Feedback) -> None:
     user = get_user(request)
     chat = await query_chat(user, bot_id, chat_id)
     if chat is None:
@@ -798,29 +862,27 @@ async def feedback_message(request, bot_id, chat_id, message_id, msg_in: Message
 
 
 @router.delete("/bots/{bot_id}/chats/{chat_id}")
-async def delete_chat(request, bot_id, chat_id):
+async def delete_chat(request, bot_id: str, chat_id: str) -> view_models.Chat:
     user = get_user(request)
     chat = await query_chat(user, bot_id, chat_id)
     if chat is None:
         return fail(HTTPStatus.NOT_FOUND, "Chat not found")
-    chat.status = ChatStatus.DELETED
+    chat.status = db_models.ChatStatus.DELETED
     chat.gmt_deleted = timezone.now()
     await chat.asave()
     history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
     await history.clear()
-    return success(chat.view(bot_id))
-
-
-class BotIn(Schema):
-    title: str
-    type: str
-    description: Optional[str] = None
-    config: Optional[str] = None
-    collection_ids: Optional[List[str]] = None
+    return success(view_models.Chat(
+        id=chat.id,
+        summary=chat.summary,
+        bot_id=chat.bot_id,
+        peer_type=chat.peer_type,
+        peer_id=chat.peer_id,
+    ))
 
 
 @router.post("/bots")
-async def create_bot(request, bot_in: BotIn):
+async def create_bot(request, bot_in: view_models.BotCreate) -> view_models.Bot:
     user = get_user(request)
 
     # there is quota limit on bot
@@ -831,11 +893,11 @@ async def create_bot(request, bot_in: BotIn):
         if await query_bots_count(user) >= bot_limit:
             return fail(HTTPStatus.FORBIDDEN, f"bot number has reached the limit of {bot_limit}")
 
-    bot = Bot(
+    bot = db_models.Bot(
         user=user,
         title=bot_in.title,
         type=bot_in.type,
-        status=BotStatus.ACTIVE,
+        status=db_models.BotStatus.ACTIVE,
         description=bot_in.description,
         config=bot_in.config,
     )
@@ -853,16 +915,26 @@ async def create_bot(request, bot_in: BotIn):
             collection = await query_collection(user, cid)
             if not collection:
                 return fail(HTTPStatus.NOT_FOUND, "Collection %s not found" % cid)
-            if collection.status == CollectionStatus.INACTIVE:
+            if collection.status == db_models.CollectionStatus.INACTIVE:
                 return fail(HTTPStatus.BAD_REQUEST, "Collection %s is inactive" % cid)
             await sync_to_async(bot.collections.add)(collection)
             collections.append(collection.view())
     await bot.asave()
-    return success(bot.view(collections))
+    return success(view_models.Bot(
+        id=bot.id,
+        title=bot.title,
+        type=bot.type,
+        description=bot.description,
+        config=bot.config,
+        system=bot.user == settings.ADMIN_USER,
+        collections=collections,
+        created=bot.gmt_created,
+        updated=bot.gmt_updated,
+    ))
 
 
 @router.get("/bots")
-async def list_bots(request):
+async def list_bots(request) -> List[view_models.Bot]:
     user = get_user(request)
     pr = await query_bots([user, settings.ADMIN_USER], build_pq(request))
     response = []
@@ -880,12 +952,23 @@ async def list_bots(request):
         elif model in ["gpt-4-vision-preview", "gpt-4-32k", "gpt-4-32k-0613"]:
             bot_config["model"] = "gpt-4-1106-preview"
         bot.config = json.dumps(bot_config)
-        response.append(bot.view(collections))
-    return success(response, pr)
+        collection_ids = []
+        async for collection in await sync_to_async(bot.collections.all)():
+            collection_ids.append(collection.id)
+        response.append(view_models.Bot(
+            id=bot.id,
+            title=bot.title,
+            description=bot.description,
+            type=bot.type,
+            collection_ids=collection_ids,
+            created=bot.gmt_created,
+            updated=bot.gmt_updated,
+        ))
+    return success(response)
 
 
 @router.get("/bots/{bot_id}")
-async def get_bot(request, bot_id):
+async def get_bot(request, bot_id: str) -> view_models.Bot:
     user = get_user(request)
     bot = await query_bot(user, bot_id)
     if bot is None:
@@ -893,11 +976,17 @@ async def get_bot(request, bot_id):
     collections = []
     async for collection in await sync_to_async(bot.collections.all)():
         collections.append(collection.view())
-    return success(bot.view(collections))
+    return success(view_models.Bot(
+        id=bot.id,
+        title=bot.title,
+        description=bot.description,
+        type=bot.type,
+        collection_ids=bot.collection_ids,
+    ))
 
 
 @router.put("/bots/{bot_id}")
-async def update_bot(request, bot_id, bot_in: BotIn):
+async def update_bot(request, bot_id: str, bot_in: view_models.BotUpdate) -> view_models.Bot:
     user = get_user(request)
     bot = await query_bot(user, bot_id)
     if bot is None:
@@ -921,101 +1010,44 @@ async def update_bot(request, bot_id, bot_in: BotIn):
             collection = await query_collection(user, cid)
             if not collection:
                 return fail(HTTPStatus.NOT_FOUND, "Collection %s not found" % cid)
-            if collection.status == CollectionStatus.INACTIVE:
+            if collection.status == db_models.CollectionStatus.INACTIVE:
                 return fail(HTTPStatus.BAD_REQUEST, "Collection %s is inactive" % cid)
             collections.append(collection)
         await sync_to_async(bot.collections.set)(collections)
     await bot.asave()
 
-    collections = []
+    collection_ids = []
     async for collection in await sync_to_async(bot.collections.all)():
-        collections.append(collection.view())
-    return success(bot.view(collections))
+        collection_ids.append(collection.id)
+    return success(view_models.Bot(
+        id=bot.id,
+        title=bot.title,
+        description=bot.description,
+        config=bot.config,
+        type=bot.type,
+        collection_ids=collection_ids
+    ))
 
 
 @router.delete("/bots/{bot_id}")
-async def delete_bot(request, bot_id):
+async def delete_bot(request, bot_id: str) -> view_models.Bot:
     user = get_user(request)
     bot = await query_bot(user, bot_id)
     if bot is None:
         return fail(HTTPStatus.NOT_FOUND, "Bot not found")
-    bot.status = BotStatus.DELETED
+    bot.status = db_models.BotStatus.DELETED
     bot.gmt_deleted = timezone.now()
     await bot.asave()
-    return success(bot.view())
-
-
-class IntegrationIn(Schema):
-    type: str
-    config: Optional[str] = None
-
-
-@router.post("/bots/{bot_id}/integrations")
-async def create_integration(request, bot_id, integration: IntegrationIn):
-    user = get_user(request)
-    bot = await query_bot(user, bot_id)
-    if bot is None:
-        return fail(HTTPStatus.NOT_FOUND, "Bot not found")
-    instance = BotIntegration(
-        user=user,
-        bot=bot,
-        type=integration.type,
-        config=integration.config,
-    )
-    await instance.asave()
-    return success(instance.view(bot_id))
-
-
-@router.get("/bots/{bot_id}/integrations")
-async def list_integrations(request, bot_id):
-    user = get_user(request)
-    bot = await query_bot(user, bot_id)
-    if bot is None:
-        return fail(HTTPStatus.NOT_FOUND, "Bot not found")
-    pr = await query_integrations(user, bot_id, build_pq(request))
-    response = []
-    async for integration in pr.data:
-        response.append(integration.view(bot_id))
-    return success(response, pr)
-
-
-@router.get("/bots/{bot_id}/integrations/{integration_id}")
-async def get_integration(user, bot_id, integration_id):
-    bot = await query_bot(user, bot_id)
-    if bot is None:
-        return None
-    integration = await query_integration(user, bot_id, integration_id)
-    if integration is None:
-        return None
-    return integration
-
-
-@router.put("/bots/{bot_id}/integrations/{integration_id}")
-async def update_integration(user, bot_id, integration_id, integration_in: IntegrationIn):
-    bot = await query_bot(user, bot_id)
-    if bot is None:
-        return None
-    integration = await query_integration(user, bot_id, integration_id)
-    if integration is None:
-        return None
-    integration.type = integration_in.type
-    integration.config = integration_in.config
-    await integration.asave()
-    return integration
-
-
-@router.delete("/bots/{bot_id}/integrations/{integration_id}")
-async def delete_integration(user, bot_id, integration_id):
-    bot = await query_bot(user, bot_id)
-    if bot is None:
-        return None
-    integration = await query_integration(user, bot_id, integration_id)
-    if integration is None:
-        return None
-    integration.status = BotIntegrationStatus.DELETED
-    integration.gmt_deleted = timezone.now()
-    await integration.asave()
-    return integration
+    collection_ids = []
+    async for collection in await sync_to_async(bot.collections.all)():
+        collection_ids.append(collection.id)
+    return success(view_models.Bot(
+        id=bot.id,
+        title=bot.title,
+        description=bot.description,
+        type=bot.type,
+        collection_ids=collection_ids,
+    ))
 
 
 def default_page(request, exception):
@@ -1023,10 +1055,10 @@ def default_page(request, exception):
 
 
 def dashboard(request):
-    user_count = User.objects.count()
-    collection_count = Collection.objects.count()
-    document_count = Document.objects.count()
-    chat_count = Chat.objects.count()
+    user_count = db_models.User.objects.count()
+    collection_count = db_models.Collection.objects.count()
+    document_count = db_models.Document.objects.count()
+    chat_count = db_models.Chat.objects.count()
     context = {'user_count': user_count, 'Collection_count': collection_count,
                'Document_count': document_count, 'Chat_count': chat_count}
     return render(request, 'aperag/dashboard.html', context)

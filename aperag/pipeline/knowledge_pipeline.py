@@ -118,16 +118,16 @@ class KnowledgePipeline(Pipeline):
         return result
 
     async def build_context(self, query_with_history: str, vector: List[float], log_prefix: str) -> Tuple[str, List[DocumentWithScore]]:
-        vector_context = ""
-        kg_context = ""
+        vector_context = None
+        kg_context = None
         if settings.RETRIEVE_MODE in ["classic", "mix"]:
             vector_context = await self._run_classic_rag(query_with_history, vector, log_prefix)
-        if settings.RETRIEVE_MODE in ["local", "global", "hybrid", "mix"]:
+        if settings.RETRIEVE_MODE in ["local", "global", "hybrid", "graph", "mix"]:
             kg_context = await self._run_light_rag(query_with_history, log_prefix)
 
-        if settings.RETRIEVE_MODE in ["classic"]:
+        if settings.RETRIEVE_MODE in ["classic"] or kg_context is None:
             return vector_context
-        elif settings.RETRIEVE_MODE in ["local", "global", "hybrid"]:
+        elif settings.RETRIEVE_MODE in ["local", "global", "hybrid", "graph"] or vector_context is None:
             return kg_context
         else:
             context = f"""
@@ -189,14 +189,17 @@ class KnowledgePipeline(Pipeline):
         It should take the query and return the context string.
         """
         logger.info("[%s] Running LightRAG pipeline", log_prefix)
-        from aperag.graph import lightrag_wrapper
+        from aperag.graph import lightrag_holder
         from lightrag import QueryParam
-        from aperag.utils.utils import generate_lightrag_namespace_prefix
-        return await lightrag_wrapper.query_lightrag(
-            query_with_history,
-            param=QueryParam(mode="hybrid", only_need_context=True),
-            namespace_prefix=generate_lightrag_namespace_prefix(self.collection_id),
+        from aperag.graph.lightrag_holder import LightRagHolder
+
+        rag: LightRagHolder = await lightrag_holder.get_lightrag_holder(self.collection)
+        param : QueryParam = QueryParam(
+            mode="hybrid",
+            only_need_context=True,
+            top_k=self.topk,
         )
+        return await rag.aquery(query=query_with_history, param=param)
 
     async def run(self, message, gen_references=False, message_id=""):
         log_prefix = f"{message_id}|{message}"

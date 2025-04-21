@@ -1,0 +1,24 @@
+prompt_templates:
+  get:
+    summary: Get prompt templates
+    description: Get prompt templates
+    responses:
+      '200':
+        description: A list of prompt templates
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas/common.yaml#/successResponse'
+                - type: object
+                  properties:
+                    data:
+                      type: array
+                      items:
+                        $ref: '../components/schemas/prompt_template.yaml#/promptTemplate'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
