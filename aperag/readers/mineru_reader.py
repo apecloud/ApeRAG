@@ -1,9 +1,10 @@
 import json
 import logging
 import os
+import shutil
 import tempfile
 from pathlib import Path
-from typing import Dict, Generic, List, Optional, Set, Type, TypeVar, get_args
+from typing import Dict, Generic, List, Optional, Type, TypeVar, get_args
 
 from llama_index.core.readers.base import BaseReader
 from llama_index.core.schema import Document
@@ -17,6 +18,10 @@ from magic_pdf.model.doc_analyze_by_custom_model import doc_analyze
 from aperag.readers.markdown_reader import MarkdownReader
 
 logger = logging.getLogger(__name__)
+
+
+OFFICE_DOC_SUFFIXES = set((".doc", ".docx", ".ppt", ".pptx"))
+SUPPORTED_SUFFIXES = set((".pdf",)).union(OFFICE_DOC_SUFFIXES)
 
 
 FallbackReader = TypeVar("FallbackReader")
@@ -70,18 +75,34 @@ class MinerUReader(BaseReader, Generic[FallbackReader]):
     def _fallback_reader_cls(self) -> Type[FallbackReader]:
         return get_args(self.__orig_class__)[0]
 
+    def _check_soffice(self) -> bool:
+        if shutil.which("soffice") is None:
+            logger.warning(
+                f"soffice command was not found, fallback to use {self._fallback_reader_cls().__name__}."
+            )
+            return False
+        return True
 
     def use_fallback_reader(self, v: bool):
         self._use_fallback_reader = v
 
+    def _should_use_fallback_reader(self, file_suffix: str) -> bool:
+        if self._use_fallback_reader:
+            return True
+        if not self._set_config_path():
+            return True
+        if file_suffix in OFFICE_DOC_SUFFIXES:
+            return not self._check_soffice()
+        return False
+
     def load_data(self, file: Path, metadata: Optional[Dict] = None) -> List[Document]:
         """Parse file."""
 
-        supported_suffixes: Set[str] = {".pdf", ".doc", ".docx", ".ppt", ".pptx"}
-        if file.suffix.lower() not in supported_suffixes:
-            raise ValueError(f"Unsupported file type: {file.suffix}. Supported types are: {', '.join(supported_suffixes)}")
+        file_suffix = file.suffix.lower()
+        if file_suffix not in SUPPORTED_SUFFIXES:
+            raise ValueError(f"Unsupported file type: {file_suffix}. Supported types are: {', '.join(SUPPORTED_SUFFIXES)}")
 
-        if not self._set_config_path() or self._use_fallback_reader:
+        if self._should_use_fallback_reader(file_suffix):
             reader_cls = self._fallback_reader_cls()
             return reader_cls().load_data(file, metadata)
 

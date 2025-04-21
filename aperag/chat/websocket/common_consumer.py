@@ -20,14 +20,9 @@ import traceback
 
 import websockets
 
-from aperag.chat.utils import (
-    check_quota_usage,
-    fail_response,
-    manage_quota_usage,
-    start_response,
-    stop_response,
-    success_response,
-)
+from aperag.chat.utils import (check_quota_usage, fail_response,
+                               manage_quota_usage, start_response,
+                               stop_response, success_response)
 from aperag.chat.websocket.base_consumer import BaseConsumer
 from aperag.pipeline.base_pipeline import RELATED_QUESTIONS
 from aperag.pipeline.common_pipeline import CommonPipeline
@@ -73,6 +68,14 @@ class CommonConsumer(BaseConsumer):
             temp_file.close()
 
             reader = DEFAULT_FILE_READER_CLS[file_suffix]
+            if hasattr(reader, "use_fallback_reader"):
+                # Some readers use MinerU for document parsing. However, its speed is too slow
+                # for document chat scenarios (chat with doc).
+                # Therefore, MinerUReader is disabled here, and a faster reader with
+                # lower parsing quality is used instead.
+                # In the future, we can optimize this, for example, by implementing a separate
+                # document parsing service to handle user-uploaded documents asynchronously.
+                reader.use_fallback_reader(True)
             docs = reader.load_data(temp_file.name)
             self.file = docs[0].text
             return

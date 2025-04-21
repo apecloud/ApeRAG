@@ -20,11 +20,10 @@ from aperag.readers.pptx_reader import PptxReader
 
 DEFAULT_FILE_READER_CLS: Dict[str, Type[BaseReader]] = {
     ".pdf": MinerUReader[PDFReader],
-    ".docx": DocxReader,
-    # ".docx": MyDocxReader,
-    ".doc": MyDocReader,
-    ".pptx": PptxReader,
-    ".ppt": PptReader,
+    ".docx": MinerUReader[DocxReader],
+    ".doc": MinerUReader[MyDocReader],
+    ".pptx": MinerUReader[PptxReader],
+    ".ppt": MinerUReader[PptReader],
     ".html": HtmlReader,
     ".xlxs": ExcelReader,
     ".jpg": ComposeImageReader,
