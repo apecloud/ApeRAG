@@ -14,7 +14,7 @@ ApeRAG is a powerful RAG system that deeply analyzes documents and multimedia co
 
 1. Configure environment variables:
    ```bash
-   cp envs/.env.template .env
+   cp envs/env.template .env
    cp web/deploy/env.local.template web/.env
    ```
 
