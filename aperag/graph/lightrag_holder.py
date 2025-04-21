@@ -133,11 +133,11 @@ async def _create_and_initialize_lightrag(
     logger.debug(f"LightRAG object for namespace '{namespace_prefix}' fully initialized.")
     return LightRagHolder(rag=rag, llm_func=llm_func, embed_impl=embed_impl)
 
-def gen_lightrag_embed_func(collection: Collection) -> Tuple[
+async def gen_lightrag_embed_func(collection: Collection) -> Tuple[
     Callable[[list[str]], Awaitable[numpy.ndarray]],
     int
 ]:
-    embedding_svc, dim = get_collection_embedding_model(collection)
+    embedding_svc, dim = await get_collection_embedding_model(collection)
     async def lightrag_embed_func(texts: list[str]) -> numpy.ndarray:
         embeddings = await embedding_svc.aembed_documents(texts)
         return numpy.array(embeddings)
@@ -161,7 +161,7 @@ async def get_lightrag_holder(
 
         logger.info(f"Initializing LightRAG instance for namespace '{namespace_prefix}' (lazy loading)...")
         try:
-            embed_func, dim = gen_lightrag_embed_func(collection=collection)
+            embed_func, dim = await gen_lightrag_embed_func(collection=collection)
             client = await _create_and_initialize_lightrag(namespace_prefix, llm_func, embed_func, embed_dim=dim)
             _lightrag_instances[namespace_prefix] = client
             logger.info(f"LightRAG instance for namespace '{namespace_prefix}' initialized successfully.")

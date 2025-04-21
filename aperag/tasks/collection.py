@@ -14,11 +14,13 @@
 
 import json
 
+from asgiref.sync import async_to_sync
+from config import settings
 from config.celery import app
 from config.vector_db import get_vector_db_connector
 from aperag.context.full_text import create_index, delete_index
 from aperag.db.models import Collection, CollectionStatus
-from aperag.embed.base_embedding import loads_or_use_default_embedding_configs
+from aperag.embed.base_embedding import get_collection_embedding_model
 from aperag.source.base import get_source
 from aperag.tasks.sync_documents_task import sync_documents
 from aperag.utils.utils import (
@@ -26,7 +28,6 @@ from aperag.utils.utils import (
     generate_qa_vector_db_collection_name,
     generate_vector_db_collection_name,
 )
-
 
 @app.task
 def init_collection_task(collection_id, document_user_quota):
@@ -37,13 +38,7 @@ def init_collection_task(collection_id, document_user_quota):
     vector_db_conn = get_vector_db_connector(
         collection=generate_vector_db_collection_name(collection_id=collection_id)
     )
-    config = json.loads(collection.config)
-
-    # loads (or use default) embedding configs
-    config = loads_or_use_default_embedding_configs(config)
-    collection.config = json.dumps(config)
-    vector_size = config["embedding_dim"]
-
+    _, vector_size = async_to_sync(get_collection_embedding_model)(collection)
     # pre-create collection in vector db
     vector_db_conn.connector.create_collection(vector_size=vector_size)
     

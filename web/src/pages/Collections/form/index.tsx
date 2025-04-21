@@ -1,5 +1,5 @@
 import CheckedCard from '@/components/CheckedCard';
-import { DOCUMENT_SOURCE_OPTIONS, EMAIL_CONNECT_INFO } from '@/constants';
+import { DOCUMENT_SOURCE_OPTIONS, EMAIL_CONNECT_INFO, COLLECTION_MODEL_SERVICE_PROVIDER_OPTIONS_CONFIG } from '@/constants';
 import { TypesCollection, TypesEmailSource } from '@/types';
 import {
   Alert,
@@ -9,6 +9,7 @@ import {
   Input,
   Switch,
   Radio,
+  Select,
   Segmented,
   Space,
   Typography,
@@ -26,7 +27,6 @@ import IconQQ from '@/assets/qq.ico';
 import { useIntl,useModel } from '@umijs/max';
 import DocumentCloudFormItems from './DocumentCloudFormItems';
 
-
 type Props = {
   action: 'add' | 'edit';
   values: TypesCollection;
@@ -36,6 +36,7 @@ type Props = {
 
 export default ({ onSubmit, action, values, form }: Props) => {
   const { user } = useModel('user');
+  const { embeddings, getEmbeddings} = useModel('embedding');
   const [desciption, setDesciption] = useState('');
   const [sensitiveProtect, setSensitiveProtect] = useState(values?.config?.sensitive_protect);
   const [ readonly, setReadonly ] = useState(values?.system && !user?.is_admin);
@@ -46,6 +47,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
     ['config', 'email_source'],
     form,
   );
+  const embeddingModel = Form.useWatch(['config', 'embedding_model'], form);
 
   const onFinish = async () => {
     const data = form.getFieldsValue();
@@ -60,6 +62,10 @@ export default ({ onSubmit, action, values, form }: Props) => {
   const onSPChange = (checked) => {
     setSensitiveProtect(checked);
   };
+
+  useEffect(() => {
+    getEmbeddings();
+  }, []);
 
   useEffect(() => {
     form.setFieldsValue(values);
@@ -85,6 +91,14 @@ export default ({ onSubmit, action, values, form }: Props) => {
       }
     }
   }, [source, emailSource]);
+
+  useEffect(() => {
+    if(embeddingModel) {
+      const [model_service_provider, embedding_name] = embeddingModel.split(':');
+      form.setFieldValue(['config', 'embedding_model_service_provider'], model_service_provider);
+      form.setFieldValue(["config", "embedding_model_name"], embedding_name);
+    }
+  }, [embeddingModel]);
 
   return (
     <Form
@@ -268,6 +282,62 @@ export default ({ onSubmit, action, values, form }: Props) => {
         {source === 'ftp' ? DocumentFtpFormItems(formatMessage) : null}
         {source === 'feishu' ? DocumentFeishuFormItems(formatMessage) : null}
         {source === 'github' ? DocumentGithubFormItems(formatMessage) : null}
+
+        <Form.Item
+          name={['config', 'embedding_model']}
+          rules={[
+            {
+              required: true,
+              message: formatMessage({id:"text.embedding_model"}) + formatMessage({id:"msg.required"}),
+            },
+          ]}
+          className="form-item-wrap"
+          label={formatMessage({id:"text.embedding_model"})}
+        >
+            <Select
+              fieldNames={{
+                label: 'label',
+              }}
+              options={embeddings?.map((embedding) => ({
+                label: (
+                  <Space>
+                    <img
+                      src = {COLLECTION_MODEL_SERVICE_PROVIDER_OPTIONS_CONFIG[embedding.model_service_provider]?.icon}
+                      alt="Custom Icon"
+                      style={{
+                        width: 16,
+                        height: 16,
+                        marginLeft: 8,
+                        verticalAlign: 'middle',
+                      }}
+                    />
+                    <Typography.Text>{embedding.model_service_provider}</Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      {embedding.embedding_name}
+                    </Typography.Text>
+                  </Space>
+                ),
+                value: embedding.model_service_provider + ":" + embedding.embedding_name
+              }))}
+            />
+        </Form.Item>
+
+        <Form.Item name={['config', 'embedding_model_service_provider']} hidden>
+          <input type="hidden" />
+        </Form.Item>
+        <Form.Item name={['config', 'embedding_model_name']} hidden>
+          <input type="hidden" />
+        </Form.Item>
+
+        <Form.Item
+          className="form-item-children-wrap"
+          label={formatMessage({id:"text.enable_light_rag"})}
+          valuePropName="checked"
+          name={['config', 'enable_light_rag']}
+        >
+          <Switch />
+        </Form.Item>
+
         <Form.Item
           label=" "
           style={{ textAlign: 'left' }}
@@ -280,6 +350,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
             </button>
           )}
         </Form.Item>
+
       </Card>
     </Form>
   );

@@ -32,7 +32,7 @@ from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import check_quota_usage, get_async_redis_client, get_sync_redis_client, manage_quota_usage
 from aperag.db.models import Chat, ChatPeer
 from aperag.db.ops import query_bot, query_chat_by_peer, query_user_quota
-from aperag.pipeline.knowledge_pipeline import KnowledgePipeline
+from aperag.pipeline.knowledge_pipeline import create_knowledge_pipeline
 from aperag.utils.weixin.client import WeixinClient
 from aperag.utils.weixin.WXBizMsgCrypt import WXBizMsgCrypt
 
@@ -52,7 +52,7 @@ async def weixin_text_response(client, user, bot, query, msg_id):
     collection = await sync_to_async(bot.collections.first)()
     response = ""
 
-    pipeline = KnowledgePipeline(bot=bot, collection=collection, history=history)
+    pipeline = await create_knowledge_pipeline(bot=bot, collection=collection, history=history)
     trial = pipeline.predictor.trial
 
     conversation_limit = await query_user_quota(user, QuotaType.MAX_CONVERSATION_COUNT)
@@ -93,7 +93,7 @@ async def weixin_card_response(client, user, bot, query, msg_id):
     collection = await sync_to_async(bot.collections.first)()
     response = ""
 
-    pipeline = KnowledgePipeline(bot=bot, collection=collection, history=history)
+    pipeline = await create_knowledge_pipeline(bot=bot, collection=collection, history=history)
     trial = pipeline.predictor.trial
 
     conversation_limit = await query_user_quota(user, QuotaType.MAX_CONVERSATION_COUNT)
@@ -110,7 +110,7 @@ async def weixin_card_response(client, user, bot, query, msg_id):
         task_id = int(time.time())
         _, response_code = await client.send_card("ApeRAG 正在解答中，请稍候......", user, task_id)
 
-        async for msg in KnowledgePipeline(bot=bot, collection=collection, history=history).run(query, message_id=msg_id):
+        async for msg in await create_knowledge_pipeline(bot=bot, collection=collection, history=history).run(query, message_id=msg_id):
             response += msg
 
         await client.redis_client.set(f"{task_id}2message", response)
@@ -282,7 +282,7 @@ async def weixin_officaccount_response(query, msg_id, to_user_name, bot):
 
     history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())
     collection = await sync_to_async(bot.collections.first)()
-    pipeline = KnowledgePipeline(bot=bot, collection=collection, history=history)
+    pipeline = await create_knowledge_pipeline(bot=bot, collection=collection, history=history)
     trial = pipeline.predictor.trial
     redis_client = aredis.Redis.from_url(settings.MEMORY_REDIS_URL)
     response = ""

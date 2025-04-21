@@ -69,7 +69,7 @@ class TestCase:
 class EmbeddingCtx:
     def __init__(self, collection_name, model_name):
         self.model_name = model_name
-        self.model, self.vector_size = get_embedding_model()
+        self.model, self.vector_size = get_embedding_model("local", model_name)
         self.collection_name = f"{collection_name}_{model_name}_{self.vector_size}"
         ctx = VECTOR_DB_CONTEXT.copy()
         ctx["collection"] = self.collection_name

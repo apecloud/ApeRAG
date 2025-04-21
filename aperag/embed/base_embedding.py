@@ -4,10 +4,19 @@ import json
 from abc import ABC, abstractmethod
 from threading import Lock
 from typing import Any
+import logging
 
 from langchain_core.embeddings import Embeddings
 
 from aperag.embed.embedding_service import EmbeddingService
+
+from aperag.db.models import(
+    ModelServiceProvider,
+)
+from aperag.db.ops import (
+    query_msp_dict,
+)
+
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
 from config.settings import (
     EMBEDDING_BACKEND,
@@ -16,6 +25,7 @@ from config.settings import (
     EMBEDDING_MODEL,
     EMBEDDING_SERVICE_API_KEY,
     EMBEDDING_SERVICE_URL,
+    EMBEDDING_DIMENSIONS,
 )
 
 mutex = Lock()
@@ -60,17 +70,51 @@ def get_embedding_model(
                                      embedding_service_url, embedding_service_api_key, embedding_max_chunks_in_batch)
     return embedding_svc, embedding_dim
 
+def get_embedding_dimension(embedding_backend: str, model_type: str) -> int:
+    rules = EMBEDDING_DIMENSIONS.get(embedding_backend, {})
+    if embedding_backend == "openai":
+        # Use service_model for openai, fallback to __default__ within openai rules
+        return rules.get(model_type, rules.get("__default__", 1536))
+    elif embedding_backend == "alibabacloud":
+        return rules.get(model_type, rules.get("__default__", 1024))
+    elif embedding_backend == "siliconflow":
+        return rules.get(model_type, rules.get("__default__", 1024))
 
-def get_collection_embedding_model(collection) -> tuple[Embeddings | None, int]:
-    config = loads_or_use_default_embedding_configs(json.loads(collection.config))
-    return get_embedding_model(
-            embedding_backend=config["embedding_backend"],
-            embedding_model=config["embedding_model"],
-            embedding_dim=config["embedding_dim"],
-            embedding_service_url=config["embedding_service_url"],
-            embedding_service_api_key=config["embedding_service_api_key"],
-            embedding_max_chunks_in_batch=config["embedding_max_chunks_in_batch"],
-        )
+    # Use model_type for others, fallback to __default__ for that backend
+    return rules.get(model_type, rules.get("__default__", 768))
+
+
+async def get_collection_embedding_model(collection) -> tuple[Embeddings | None, int]:
+    config = json.loads(collection.config)
+    embedding_backend = config.get("embedding_model_service_provider", "")
+    embedding_model_name = config.get("embedding_model_name", "")
+    vector_size = get_embedding_dimension(embedding_backend, embedding_model_name)
+    logging.info("get_collection_embedding_model %s %s %s", embedding_backend, embedding_model_name, vector_size)
+
+    msp_dict = await query_msp_dict(collection.user)
+    if embedding_backend in msp_dict:
+          msp = msp_dict[embedding_backend]
+          embedding_service_url = msp.uri
+          if embedding_service_url is None:
+                if embedding_backend == "alibabacloud":
+                    embedding_service_url = "https://dashscope.aliyuncs.com/compatible-mode"
+                elif embedding_backend == "siliconflow":
+                    embedding_service_url = "https://api.siliconflow.cn"
+          embedding_service_api_key = msp.api_key
+          logging.info("get_collection_embedding_model %s %s", embedding_service_url, embedding_service_api_key)
+
+          return get_embedding_model(
+            embedding_backend=embedding_backend,
+            embedding_model=embedding_model_name,
+            embedding_dim=vector_size,
+            embedding_service_url=embedding_service_url,
+            embedding_service_api_key=embedding_service_api_key,
+            embedding_max_chunks_in_batch=EMBEDDING_MAX_CHUNKS_IN_BATCH,
+          )
+    
+    logging.warning("get_collection_embedding_model cannot find model service provider %s", embedding_backend)
+    return None, 0
+
 
 class DocumentBaseEmbedding(ABC):
     def __init__(
@@ -83,16 +127,9 @@ class DocumentBaseEmbedding(ABC):
         self.connector = vector_store_adaptor.connector
         # Improved logic to handle optional embedding_model/vector_size
         if embedding_model is None or vector_size is None:
-            loaded_embedding, loaded_vector_size = get_embedding_model()
-            self.embedding = embedding_model if embedding_model is not None else loaded_embedding
-            self.vector_size = vector_size if vector_size is not None else loaded_vector_size
-        else:
-            self.embedding, self.vector_size = embedding_model, vector_size
-
-        # Ensure embedding is loaded if needed
-        if self.embedding is None:
-            raise ValueError("Embedding model could not be loaded or provided.")
-
+            raise ValueError("lacks embedding model or vector size")
+        
+        self.embedding, self.vector_size = embedding_model, vector_size
         self.client = vector_store_adaptor.connector.client
 
     @abstractmethod

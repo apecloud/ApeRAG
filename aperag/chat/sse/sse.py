@@ -23,6 +23,7 @@ from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import fail_response, get_async_redis_client, start_response, stop_response, success_response
 from aperag.db.models import BotType
 from aperag.pipeline.common_pipeline import CommonPipeline
+from aperag.pipeline.knowledge_pipeline import create_knowledge_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,6 @@ class ServerSentEventsConsumer(AsyncHttpConsumer):
     async def _handle(self, body):
         from aperag.db.models import Chat, ChatPeer
         from aperag.db.ops import query_bot, query_chat_by_peer
-        from aperag.pipeline.knowledge_pipeline import KnowledgePipeline
         await self.send_headers(headers=[
             (b"Cache-Control", b"no-cache"),
             (b"Content-Type", b"text/event-stream"),
@@ -71,7 +71,7 @@ class ServerSentEventsConsumer(AsyncHttpConsumer):
 
             if bot.type == BotType.KNOWLEDGE:
                 collection = await sync_to_async(bot.collections.first)()
-                async for msg in KnowledgePipeline(bot=bot, collection=collection, history=history).run(msg, message_id=msg_id):
+                async for msg in await create_knowledge_pipeline(bot=bot, collection=collection, history=history).run(msg, message_id=msg_id):
                     event = success_response(message_id=msg_id, data=msg)
                     await self.send_event(event)
             elif bot.type == BotType.COMMON:

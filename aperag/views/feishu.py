@@ -28,7 +28,7 @@ from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
 from aperag.db.models import Chat, ChatPeer
 from aperag.db.ops import query_bot, query_chat_by_peer
-from aperag.pipeline.knowledge_pipeline import KnowledgePipeline
+from aperag.pipeline.knowledge_pipeline import create_knowledge_pipeline
 from aperag.source.feishu.feishu import FeishuClient
 from aperag.utils.utils import AESCipher
 from aperag.views.utils import fail, success
@@ -147,7 +147,7 @@ async def feishu_streaming_response(client, chat_id, bot, msg_id, msg):
     card_id = client.reply_card_message(msg_id, build_card_data(chat_id, msg_id, response))
     last_ts = time.time()
     try:
-        async for msg in KnowledgePipeline(bot=bot, collection=collection, history=history).run(msg, message_id=msg_id):
+        async for msg in await create_knowledge_pipeline(bot=bot, collection=collection, history=history).run(msg, message_id=msg_id):
             response += msg
             now = time.time()
             if now - last_ts < 0.2:

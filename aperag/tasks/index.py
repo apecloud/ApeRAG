@@ -27,6 +27,7 @@ from django.core.files.base import ContentFile
 from django.utils import timezone
 
 from aperag.graph.lightrag_holder import LightRagHolder
+from config import settings
 from config.celery import app
 from config.vector_db import get_vector_db_connector
 from aperag.context.full_text import insert_document, remove_document
@@ -209,10 +210,11 @@ def add_index_for_document(self, document_id):
             if document.size == 0:
                 document.size = os.path.getsize(local_doc.path)
 
-            embedding_model, _ = get_collection_embedding_model(document.collection)
+            embedding_model, vector_size = async_to_sync(get_collection_embedding_model)(document.collection)
             loader = LocalPathEmbedding(input_files=[local_doc.path],
                                         input_file_metadata_list=[local_doc.metadata],
                                         embedding_model=embedding_model,
+                                        vector_size=vector_size,
                                         vector_store_adaptor=get_vector_db_connector(
                                             collection=generate_vector_db_collection_name(
                                                 collection_id=document.collection.id)))
@@ -240,7 +242,9 @@ def add_index_for_document(self, document_id):
             }
             document.relate_ids = json.dumps(relate_ids)
 
-            add_lightrag_index(content, document, local_doc)
+            enable_light_rag = config.get("enable_light_rag", True)
+            if enable_light_rag:
+                add_lightrag_index(content, document, local_doc)
 
     except FeishuNoPermission:
         raise Exception("no permission to access document %s" % document.name)
@@ -311,10 +315,11 @@ def update_index_for_document(self, document_id):
         metadata = json.loads(document.metadata)
         local_doc = source.prepare_document(name=document.name, metadata=metadata)
 
-        embedding_model, _ = get_collection_embedding_model(document.collection)
+        embedding_model, vector_size = async_to_sync(get_collection_embedding_model)(document.collection)
         loader = LocalPathEmbedding(input_files=[local_doc.path],
                                     input_file_metadata_list=[local_doc.metadata],
                                     embedding_model=embedding_model,
+                                    vector_size=vector_size,
                                     vector_store_adaptor=get_vector_db_connector(
                                         collection=generate_vector_db_collection_name(
                                             collection_id=document.collection.id)))
@@ -344,7 +349,9 @@ def update_index_for_document(self, document_id):
         document.relate_ids = json.dumps(relate_ids)
         logger.info(f"update qdrant points: {document.relate_ids} for document {local_doc.path}")
 
-        add_lightrag_index(content, document, local_doc)
+        enable_light_rag = config.get("enable_light_rag", True)
+        if enable_light_rag:
+            add_lightrag_index(content, document, local_doc)
 
     except FeishuNoPermission:
         raise Exception("no permission to access document %s" % document.name)
@@ -382,7 +389,7 @@ def message_feedback(**kwargs):
 
     qa_collection_name = generate_qa_vector_db_collection_name(collection=feedback.collection.id)
     vector_store_adaptor = get_vector_db_connector(collection=qa_collection_name)
-    embedding_model, _ = get_collection_embedding_model(feedback.collection)
+    embedding_model, _ = async_to_sync(get_collection_embedding_model)(feedback.collection)
     ids = [i for i in str(feedback.relate_ids or "").split(',') if i]
     if ids:
         vector_store_adaptor.connector.delete(ids=ids)
@@ -398,7 +405,7 @@ def message_feedback(**kwargs):
 def generate_questions(document_id):
     try:
         document = Document.objects.get(id=document_id)   
-        embedding_model, _ = get_collection_embedding_model(document.collection)
+        embedding_model, _ = async_to_sync(get_collection_embedding_model)(document.collection)
 
         source = get_source(json.loads(document.collection.config))
         metadata = json.loads(document.metadata)
@@ -429,7 +436,7 @@ def generate_questions(document_id):
 def update_index_for_question(question_id):
     try:
         question = Question.objects.get(id=question_id)   
-        embedding_model, _ = get_collection_embedding_model(question.collection)
+        embedding_model, _ = async_to_sync(get_collection_embedding_model)(question.collection)
         
         q_loaders = QuestionEmbeddingWithoutDocument(embedding_model=embedding_model,
                                 vector_store_adaptor=get_vector_db_connector(

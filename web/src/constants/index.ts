@@ -8,6 +8,7 @@ import GuanacoIcon from '@/assets/guanaco.png';
 import FalconIcon from '@/assets/falcon.png';
 import GorillaIcon from '@/assets/gorilla.png';
 import QianwenIcon from '@/assets/qianwen.png';
+import SiliconIcon from '@/assets/siliconcloud.png'
 
 import IconLocalPath from '@/assets/localpath.svg';
 import IconLocalPathOn from '@/assets/localpath-on.svg';
@@ -105,6 +106,38 @@ export const COLLECTION_MODEL_OPTIONS_CONFIG: {
     icon: QianwenIcon,
   }
 };
+
+export const COLLECTION_MODEL_SERVICE_PROVIDER_OPTIONS_CONFIG: {
+  [key in string]: {
+    icon?: string;
+  };
+} = {
+  'openai': {
+    icon: ChatGPTIcon,
+  },
+  'azure-openai':{
+    icon: AzureOpenAiIcon,
+  },
+  'deepseek': {
+    icon: IconDeepSeek,
+  },
+  'alibabacloud':{
+    icon: QianwenIcon,
+  },
+  'siliconflow':{
+    icon: SiliconIcon,
+  },
+  'chatglm': {
+    icon: ChatglmIcon,
+  },
+  'baichuan': {
+    icon: BaiChuanIcon,
+  },
+  'wenxinyiyan': {
+    icon: WenxinYiyanIcon,
+  },
+};
+
 
 export const CODE_DEFAULT_CONFIG = {};
 

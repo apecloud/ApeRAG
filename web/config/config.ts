@@ -165,6 +165,19 @@ export default defineConfig({
             },
           ],
         },
+        {
+          path: '/modelServiceProviders',
+          routes: [
+            {
+              path: '/modelServiceProviders',
+              component: './ModelServiceProviders/list',
+            },
+            {
+              path: '/modelServiceProviders/:modelServiceProviderName/settings',
+              component: './ModelServiceProviders/settings',
+            }
+          ],
+        },
       ],
     },
   ],

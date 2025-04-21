@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
+
 from asgiref.sync import sync_to_async
 from django.urls import re_path
 
@@ -21,6 +23,8 @@ from aperag.utils.utils import extract_bot_and_chat_id, extract_web_bot_and_chat
 
 
 async def bot_consumer_router(scope, receive, send):
+    logging.info("bot_consumer_router begin")
+    
     from aperag.db.models import BotType, CollectionType
     from aperag.db.ops import query_bot, query_chat
 
@@ -42,6 +46,7 @@ async def bot_consumer_router(scope, receive, send):
         if collection.type == CollectionType.DOCUMENT:
 
             if settings.CHAT_CONSUMER_IMPLEMENTATION == "document-qa":
+                logging.info("CHAT_CONSUMER_IMPLEMENTATION is document-qa")
                 from aperag.chat.websocket.document_qa_consumer import DocumentQAConsumer
                 return await DocumentQAConsumer.as_asgi()(scope, receive, send)
             elif settings.CHAT_CONSUMER_IMPLEMENTATION == "fake":
@@ -63,6 +68,8 @@ async def bot_consumer_router(scope, receive, send):
 
 
 async def web_bot_consumer_router(scope, receive, send):
+    logging.info("web_bot_consumer_router begin")
+    
     from aperag.db.models import BotType
     from aperag.db.ops import query_bot, query_web_chat
 
@@ -80,6 +87,7 @@ async def web_bot_consumer_router(scope, receive, send):
     scope[KEY_CHAT_ID] = chat_id
 
     if bot.type == BotType.KNOWLEDGE:
+        logging.info("CHAT_CONSUMER_IMPLEMENTATION is document-qa")
         from aperag.chat.websocket.document_qa_consumer import DocumentQAConsumer
         return await DocumentQAConsumer.as_asgi()(scope, receive, send)
     elif bot.type == BotType.COMMON:

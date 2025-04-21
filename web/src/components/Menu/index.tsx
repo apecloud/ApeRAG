@@ -11,6 +11,9 @@ function Menu({ menuCollapse, setMenuCollapse }) {
   const collectionsText = intl.formatMessage({
     id: 'nav.collections',
   });
+  const modelServiceProvidersText = intl.formatMessage({
+    id: 'nav.model_service_providers',
+  });
   const [activeItem, setActiveItem] = useState('');
   const location = useLocation();
 
@@ -49,6 +52,17 @@ function Menu({ menuCollapse, setMenuCollapse }) {
             to="/collections"
           >
             { collectionsText }
+          </Link>
+        </li>
+        <li>
+          <Link
+            className={
+              activeItem === 'modelServiceProviders' ? 'modelServiceProviders on' : 'modelServiceProviders'
+            }
+            onClick={() => menuClick('modelServiceProviders')}
+            to="/modelServiceProviders"
+          >
+            { modelServiceProvidersText }
           </Link>
         </li>
       </ul>

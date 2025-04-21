@@ -117,6 +117,12 @@ class ApiKeyStatus(models.TextChoices):
     ACTIVE = "ACTIVE"
     DELETED = "DELETED"
 
+class ModelServiceProviderStatus(models.TextChoices):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+    DELETED = "DELETED"
+
+
 class Collection(models.Model):
     id = models.CharField(primary_key=True, default=collection_pk, editable=False, max_length=24)
     title = models.CharField(max_length=256)
@@ -434,3 +440,28 @@ class CollectionSyncHistory(models.Model):
             "execution_time": self.execution_time,
             "status": self.status,
         }
+
+class ModelServiceProvider(models.Model):
+    name = models.CharField(primary_key=True, default=int_pk, editable=False, max_length=24)
+    user = models.CharField(max_length=256)
+    status = models.CharField(max_length=16, choices=ApiKeyStatus.choices)
+    uri = models.CharField(max_length=256, blank=True, null=True)
+    api_key = models.CharField(max_length=256)
+    gmt_created = models.DateTimeField(auto_now_add=True)
+    gmt_updated = models.DateTimeField(auto_now=True)
+    gmt_deleted = models.DateTimeField(null=True, blank=True)
+
+    def view(self):
+        return {
+            "name": self.name,
+            "user": self.user,
+            "status": self.status,
+            "uri": self.uri,
+            "api_key": self.api_key,
+            "created": self.gmt_created.isoformat(),
+            "updated": self.gmt_updated.isoformat(),
+            "sensitive_info": self.sensitive_info,
+        }
+    
+    def __str__(self):
+        return f"ModelServiceProvider(name={self.name}, user={self.user}, status={self.status}, uri={self.uri}, api_key={self.api_key})"

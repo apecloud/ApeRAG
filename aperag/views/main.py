@@ -42,6 +42,7 @@ from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
 from aperag.db import models as db_models
 from aperag.views import models as view_models
+
 from aperag.db.ops import (
     build_pq,
     query_bot,
@@ -62,7 +63,9 @@ from aperag.db.ops import (
     query_sync_history,
     query_user_quota,
     query_apikeys,
-    query_apikey
+    query_apikey,
+    query_msp_list,
+    query_msp,
 )
 from aperag.llm.base import Predictor
 from aperag.llm.prompts import (
@@ -1050,6 +1053,113 @@ async def delete_bot(request, bot_id: str) -> view_models.Bot:
     ))
 
 
+@router.get("/supported_model_service_providers")
+async def list_model_service_providers(request):
+    user = get_user(request)
+    response = []
+    for supported_msp in settings.SUPPORTED_MODEL_SERVICE_PROVIDERS:
+        response.append({
+            "name": supported_msp["name"],
+            "label": supported_msp["label"],
+            "supports_optional_uri": supported_msp["supports_optional_uri"],
+        })
+    return success(response)
+
+@router.get("/model_service_providers")
+async def list_model_service_providers(request):
+    user = get_user(request)
+    supported_msp_dict = {supported_msp["name"]: supported_msp for supported_msp in settings.SUPPORTED_MODEL_SERVICE_PROVIDERS}
+    msp_list = await query_msp_list(user)
+    logger.info(msp_list)
+    response = []
+    for msp in msp_list:
+        if msp.name in supported_msp_dict:
+            supported_msp = supported_msp_dict[msp.name]
+            response.append({
+                "name" : msp.name,
+                "label": msp.name,
+                "supports_optional_uri": supported_msp["supports_optional_uri"],
+                "uri": msp.uri,
+                "api_key": msp.api_key,
+            })
+    return success(response)
+
+class ModelServiceProviderIn(Schema):
+    name: str
+    api_key: str
+    uri: Optional[str] = None
+
+@router.put("/model_service_providers/{provider}")
+async def update_model_service_provider(request, provider, mspIn : ModelServiceProviderIn):
+    user = get_user(request)
+
+    supported_msp_names = {item["name"] for item in settings.SUPPORTED_MODEL_SERVICE_PROVIDERS}
+    if provider not in supported_msp_names:
+        return fail(HTTPStatus.BAD_REQUEST, f"unsupported model service provider {provider}")
+
+    msp_config = next(item for item in settings.SUPPORTED_MODEL_SERVICE_PROVIDERS if item["name"] == provider)    
+    if not msp_config.get("supports_optional_uri", False) and mspIn.uri is not None:
+        return fail(HTTPStatus.BAD_REQUEST, f"model service provider {provider} does not support setting uri")
+
+    msp = await query_msp(user, provider, filterDeletion=False)
+    if msp is None:
+        msp = db_models.ModelServiceProvider(
+            user=user,
+            name=provider,
+            api_key=mspIn.api_key,
+            uri=mspIn.uri if msp_config.get("supports_optional_uri", False) else None,
+            status=db_models.ModelServiceProviderStatus.ACTIVE,
+        )
+    else:
+        if msp.status == db_models.ModelServiceProviderStatus.DELETED:
+            msp.status = db_models.ModelServiceProviderStatus.ACTIVE
+            msp.gmt_deleted = None
+        
+        msp.api_key = mspIn.api_key
+        if (msp_config.get("supports_optional_uri", False) and mspIn.uri is not None):
+            msp.uri = mspIn.uri
+
+    await msp.asave()
+    return success({})
+
+
+@router.delete("/model_service_providers/{provider}")
+async def delete_model_service_provider(request, provider):
+    user = get_user(request)
+
+    supported_msp_names = {item["name"] for item in settings.SUPPORTED_MODEL_SERVICE_PROVIDERS}
+    if provider not in supported_msp_names:
+        return fail(HTTPStatus.BAD_REQUEST, f"unsupported model service provider {provider}")
+
+    msp = await query_msp(user, provider)
+    if msp is None:
+        return fail(HTTPStatus.NOT_FOUND, f"model service provider {provider} not found")
+    
+    msp.status = db_models.ModelServiceProviderStatus.DELETED
+    msp.gmt_deleted = timezone.now()
+
+    await msp.asave()
+    return success({})
+
+
+@router.get("/available_embeddings")
+async def list_available_embeddings(request):
+    user = get_user(request)
+    supported_msp_dict = {supported_msp["name"]: supported_msp for supported_msp in settings.SUPPORTED_MODEL_SERVICE_PROVIDERS}
+    msp_list = await query_msp_list(user)
+    logger.info(msp_list)
+    response = []
+    for msp in msp_list:
+        if msp.name in supported_msp_dict:
+            supported_msp = supported_msp_dict[msp.name]
+            for embedding in supported_msp.get("embeddings", []):
+                response.append({
+                    "model_service_provider" : msp.name,
+                    "embedding_name" : embedding,
+                })
+    return success(response)
+
+
 def default_page(request, exception):
     return render(request, '404.html')
 
@@ -1062,3 +1172,19 @@ def dashboard(request):
     context = {'user_count': user_count, 'Collection_count': collection_count,
                'Document_count': document_count, 'Chat_count': chat_count}
     return render(request, 'aperag/dashboard.html', context)
+
+def dump_request(request):
+    headers = dict(request.headers)
+    query_params = dict(request.GET)
+    try:
+        body = request.body.decode("utf-8")
+        json_body = json.loads(body) if body else None
+    except json.JSONDecodeError:
+        json_body = None
+
+    return {
+        "headers": headers,
+        "query_params": query_params,
+        "body": body,
+        "json_body": json_body
+    }

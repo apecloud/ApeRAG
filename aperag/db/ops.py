@@ -39,7 +39,9 @@ from aperag.db.models import (
     QuestionStatus,
     UserQuota,
     ApiKeyToken,
-    ApiKeyStatus
+    ApiKeyStatus,
+    ModelServiceProvider,
+    ModelServiceProviderStatus,
 )
 
 logger = logging.getLogger(__name__)
@@ -333,3 +335,24 @@ async def query_integrations(user, bot_id: str, pq: PagedQuery = None):
     return await build_pr(pq, query_set)
 
 
+async def query_msp_list(user):
+    def query_msp_list_sync():
+        return list(ModelServiceProvider.objects.exclude(status=ModelServiceProviderStatus.DELETED).filter(user=user))
+    
+    return await sync_to_async(query_msp_list_sync)()
+
+async def query_msp_dict(user):
+    def query_msp_dict_sync():
+        msp_list = ModelServiceProvider.objects.exclude(status=ModelServiceProviderStatus.DELETED).filter(user=user)
+        return {msp.name: msp for msp in msp_list}
+    
+    return await sync_to_async(query_msp_dict_sync)()
+
+async def query_msp(user, provider, filterDeletion=True):
+    try:
+        if filterDeletion:
+            return await ModelServiceProvider.objects.exclude(status=ModelServiceProviderStatus.DELETED).aget(user=user, pk=provider)
+        else:
+            return await ModelServiceProvider.objects.aget(user=user, pk=provider)
+    except ModelServiceProvider.DoesNotExist:
+        return None

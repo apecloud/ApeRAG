@@ -40,6 +40,7 @@ from aperag.utils.utils import (
     generate_vector_db_collection_name,
     now_unix_milliseconds,
 )
+from aperag.db.ops import query_msp_dict
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -51,22 +52,19 @@ class KnowledgePipeline(Pipeline):
         super().__init__(**kwargs)
 
         self.collection_id = self.collection.id
-        collection_name = generate_vector_db_collection_name(self.collection_id)
+        self.collection_name = generate_vector_db_collection_name(self.collection_id)
         self.vectordb_ctx = json.loads(settings.VECTOR_DB_CONTEXT)
-        self.vectordb_ctx["collection"] = collection_name
+        self.vectordb_ctx["collection"] = self.collection_name
+        
+        config = json.loads(self.collection.config)
+        self.embedding_backend = config.get("embedding_model_service_provider", "")
+        self.embedding_model_name = config.get("embedding_model_name", "")
 
-        config = loads_or_use_default_embedding_configs(json.loads(self.collection.config))
-        self.embedding_model_name = config["embedding_model"]
-        self.embedding_model, self.vector_size = get_collection_embedding_model(self.collection)
+        logging.info("KnowledgePipeline embedding model: %s, %s", self.embedding_backend, self.embedding_model_name)
 
-        self.context_manager = ContextManager(collection_name, self.embedding_model, settings.VECTOR_DB_TYPE,
-                                              self.vectordb_ctx)
-
-        qa_collection_name = generate_qa_vector_db_collection_name(self.collection_id)
+        self.qa_collection_name = generate_qa_vector_db_collection_name(self.collection_id)
         self.qa_vectordb_ctx = json.loads(settings.VECTOR_DB_CONTEXT)
-        self.qa_vectordb_ctx["collection"] = qa_collection_name
-        self.qa_context_manager = ContextManager(qa_collection_name, self.embedding_model, settings.VECTOR_DB_TYPE,
-                                                 self.qa_vectordb_ctx)
+        self.qa_vectordb_ctx["collection"] = self.qa_collection_name
 
         if not self.prompt_template:
             if settings.RETRIEVE_MODE == "classic":
@@ -74,6 +72,14 @@ class KnowledgePipeline(Pipeline):
             else:
                 self.prompt_template = DEFAULT_KG_VECTOR_MIX_ENGLISH_PROMPT_TEMPLATE
         self.prompt = PromptTemplate(template=self.prompt_template, input_variables=["query", "context"])
+
+    async def async_init(self):
+        self.embedding_model, self.vector_size = await get_collection_embedding_model(self.collection)
+
+        self.context_manager = ContextManager(self.collection_name, self.embedding_model, settings.VECTOR_DB_TYPE,
+                                              self.vectordb_ctx)
+        self.qa_context_manager = ContextManager(self.qa_collection_name, self.embedding_model, settings.VECTOR_DB_TYPE,
+                                                 self.qa_vectordb_ctx)
 
     async def new_ai_message(self, message, message_id, response, references, urls):
         return Message(
@@ -359,3 +365,9 @@ class KnowledgePipeline(Pipeline):
             logger.info("[%s] Yielded document URLs.", log_prefix)
 
         logger.info("[%s] Processing finished successfully.", log_prefix)
+
+
+async def create_knowledge_pipeline(**kwargs) -> KnowledgePipeline:
+    pipeline = KnowledgePipeline(**kwargs)
+    await pipeline.async_init()
+    return pipeline

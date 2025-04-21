@@ -12,6 +12,19 @@ export type TypesModels = {
   family_name:string;
 };
 
+export type TypesModelServiceProviders = {
+  name: string;
+  label: string;
+  supports_optional_uri: boolean;
+  uri?: string;
+  apikey?: string;
+}
+
+export type TypesEmbeddings = {
+  model_service_provider: string;
+  embedding_name: string;
+}
+
 export type TypesCollectionConfigSource =
   | 'system'
   | 'local'
@@ -25,6 +38,8 @@ export type TypesCollectionConfigSource =
 
 export type TypesCollectionConfig = {
   source?: TypesCollectionConfigSource;
+
+  embedding_model?: string;
 
   crontab?: {
     enabled: boolean;

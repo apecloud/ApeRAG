@@ -24,7 +24,7 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
             self,
             vector_store_adaptor: VectorStoreConnectorAdaptor,
             embedding_model: Embeddings = None,
-            vector_size: int = 0,
+            vector_size: int = None,
             input_file_metadata_list: Optional[List[Dict[str, Any]]] = None,
             node_parser: Optional[NodeParser] = None,
             **kwargs: Any,
@@ -138,9 +138,10 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
 
         for i in range(len(vectors)):
             nodes[i].embedding = vectors[i]
+            logger.info("embedding size %d", len(nodes[i].embedding))
 
-        print(f"processed file: {file_name} ")
-
+        logger.info(f"processed file: {file_name} with {len(vectors)} chunks")
+        logger.info("add store with %d nodes, content len %d, sensitive_info %s", len(nodes), len(content), sensitive_info)
         return self.connector.store.add(nodes), content, sensitive_info
 
     def delete(self, **kwargs) -> bool:

@@ -95,7 +95,7 @@ def test_local_path_embedding_query(query: str, collection_name: str):
         "timeout": 1000,
     }
     adaptor = VectorStoreConnectorAdaptor("qdrant", ctx)
-    embedding, vector_size = get_embedding_model()
+    embedding, vector_size = get_embedding_model("local", "huggingface")
     vector = embedding.get_query_embedding(query)
     query_embedding = QueryWithEmbedding(query=query, top_k=3, embedding=vector)
 
@@ -170,7 +170,7 @@ def test_local_llm_qa(query: str, collection_name: str):
     }
     adaptor = VectorStoreConnectorAdaptor("qdrant", ctx)
 
-    embedding, vector_size = get_embedding_model()
+    embedding, vector_size = get_embedding_model("local", "huggingface")
     vector = embedding.get_query_embedding(query)
     query_embedding = QueryWithEmbedding(query=query, top_k=10, embedding=vector)
 
