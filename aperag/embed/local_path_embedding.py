@@ -45,8 +45,8 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
         self.filter = SensitiveFilterClassify()
         self.node_parser = node_parser or \
             TokenTextSplitter(
-                chunk_size=kwargs.get('chunk_size', settings.VECTOR_INDEX_CHUNK_SIZE),
-                chunk_overlap=kwargs.get('chunk_overlap', settings.VECTOR_INDEX_CHUNK_OVERLAP),
+                chunk_size=kwargs.get('chunk_size', settings.CHUNK_SIZE),
+                chunk_overlap=kwargs.get('chunk_overlap', settings.CHUNK_OVERLAP_SIZE),
                 tokenizer=get_default_tokenizer(),
             )
 

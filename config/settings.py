@@ -291,8 +291,8 @@ CHAT_CONSUMER_IMPLEMENTATION = env.str("CHAT_CONSUMER_IMPLEMENTATION", default="
 RETRIEVE_MODE = env.str("RETRIEVE_MODE", default="classic")
 
 # Vector Index Settings
-VECTOR_INDEX_CHUNK_SIZE = env.int("VECTOR_INDEX_CHUNK_SIZE", default=400)
-VECTOR_INDEX_CHUNK_OVERLAP = env.int("VECTOR_INDEX_CHUNK_OVERLAP", default=20)
+CHUNK_SIZE = env.int("CHUNK_SIZE", default=400)
+CHUNK_OVERLAP_SIZE = env.int("CHUNK_OVERLAP_SIZE", default=20)
 
 # --- LLM Settings ---
 LIGHT_RAG_LLM_API_KEY = env.str("LIGHT_RAG_LLM_API_KEY", default="")
