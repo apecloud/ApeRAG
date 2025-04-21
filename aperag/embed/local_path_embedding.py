@@ -14,6 +14,7 @@ from aperag.readers.local_path_reader import InteractiveSimpleDirectoryReader
 from aperag.readers.sensitive_filter import SensitiveFilterClassify
 from aperag.utils.tokenizer import get_default_tokenizer
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +45,8 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
         self.filter = SensitiveFilterClassify()
         self.node_parser = node_parser or \
             TokenTextSplitter(
-                chunk_size=kwargs.get('chunk_size', 1024),
-                chunk_overlap=kwargs.get('chunk_overlap', 20),
+                chunk_size=kwargs.get('chunk_size', settings.VECTOR_INDEX_CHUNK_SIZE),
+                chunk_overlap=kwargs.get('chunk_overlap', settings.VECTOR_INDEX_CHUNK_OVERLAP),
                 tokenizer=get_default_tokenizer(),
             )
 
