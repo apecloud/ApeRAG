@@ -106,6 +106,11 @@ export default ({ onSubmit, action, values, form }: Props) => {
       labelAlign="right"
       colon={false}
       disabled={readonly}
+      initialValues={{
+        config: {
+          enable_light_rag: true,
+        }
+      }}
       form={form}
     >
       <Card bordered={false} style={{ marginBottom: 20 }}>
@@ -295,6 +300,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
           label={formatMessage({id:"text.embedding_model"})}
         >
             <Select
+              disabled={action === 'edit'}
               fieldNames={{
                 label: 'label',
               }}

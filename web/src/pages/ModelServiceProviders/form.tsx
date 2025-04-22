@@ -93,9 +93,9 @@ export default ({ onSubmit, action, values, form }: Props) => {
             <Row gutter={[16, 16]}>
               <Col span={12}>
                 <Form.Item
-                  name={['uri']}
+                  name={['base_url']}
                 >
-                  <Input placeholder = {values.mspDict?.[currentModel]?.uri || "Endpoint"}/>
+                  <Input placeholder = {values.mspDict?.[currentModel]?.base_url || "Endpoint"}/>
                 </Form.Item>
               </Col>
               <Col span={12}>

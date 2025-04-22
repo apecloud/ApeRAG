@@ -16,7 +16,7 @@ const ModelServiceProviderList = (props: IListProps) => {
     id: 'text.model_service_provider',
   });
   const uriName = formatMessage({
-    id: 'text.model_service_provider_uri',
+    id: 'text.model_service_provider_url',
   })
   const apiKeyName = formatMessage({
     id: 'text.model_service_provider_apikey',
@@ -41,9 +41,7 @@ const ModelServiceProviderList = (props: IListProps) => {
                     <h5>{item.label}</h5>
                   </div>
                   <div className="cell describe">
-                    {item.supports_optional_uri && (
-                    <p>{item.uri}</p>
-                    )}
+                    <p>{item.base_url}</p>
                   </div>
                   <div className="cell describe">
                     <p>{item.api_key}</p>

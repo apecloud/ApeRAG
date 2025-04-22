@@ -92,7 +92,7 @@ export default {
   'text.bot.type.common': '通用机器人',
   'text.common.character':'机器人角色',
   'text.model_service_provider':'模型服务商',
-  'text.model_service_provider_uri':'模型服务商 URI',
+  'text.model_service_provider_url':'模型服务商 URL',
   'text.model_service_provider_apikey':'模型服务商 API Key',
   'text.model_name': '模型名称',
   'text.model_config': '模型配置',

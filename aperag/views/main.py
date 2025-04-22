@@ -1061,7 +1061,8 @@ async def list_model_service_providers(request):
         response.append({
             "name": supported_msp["name"],
             "label": supported_msp["label"],
-            "supports_optional_uri": supported_msp["supports_optional_uri"],
+            "allow_custom_base_url": supported_msp["allow_custom_base_url"],
+            "base_url" : supported_msp["base_url"],
         })
     return success(response)
 
@@ -1078,8 +1079,8 @@ async def list_model_service_providers(request):
             response.append({
                 "name" : msp.name,
                 "label": msp.name,
-                "supports_optional_uri": supported_msp["supports_optional_uri"],
-                "uri": msp.uri,
+                "allow_custom_base_url": supported_msp["allow_custom_base_url"],
+                "base_url": msp.base_url,
                 "api_key": msp.api_key,
             })
     return success(response)
@@ -1087,7 +1088,7 @@ async def list_model_service_providers(request):
 class ModelServiceProviderIn(Schema):
     name: str
     api_key: str
-    uri: Optional[str] = None
+    base_url: Optional[str] = None
 
 @router.put("/model_service_providers/{provider}")
 async def update_model_service_provider(request, provider, mspIn : ModelServiceProviderIn):
@@ -1098,8 +1099,8 @@ async def update_model_service_provider(request, provider, mspIn : ModelServiceP
         return fail(HTTPStatus.BAD_REQUEST, f"unsupported model service provider {provider}")
 
     msp_config = next(item for item in settings.SUPPORTED_MODEL_SERVICE_PROVIDERS if item["name"] == provider)    
-    if not msp_config.get("supports_optional_uri", False) and mspIn.uri is not None:
-        return fail(HTTPStatus.BAD_REQUEST, f"model service provider {provider} does not support setting uri")
+    if not msp_config.get("allow_custom_base_url", False) and mspIn.base_url is not None:
+        return fail(HTTPStatus.BAD_REQUEST, f"model service provider {provider} does not support setting base_url")
 
     msp = await query_msp(user, provider, filterDeletion=False)
     if msp is None:
@@ -1107,7 +1108,7 @@ async def update_model_service_provider(request, provider, mspIn : ModelServiceP
             user=user,
             name=provider,
             api_key=mspIn.api_key,
-            uri=mspIn.uri if msp_config.get("supports_optional_uri", False) else None,
+            base_url=mspIn.base_url if msp_config.get("allow_custom_base_url", False) else msp_config.get("base_url"),
             status=db_models.ModelServiceProviderStatus.ACTIVE,
         )
     else:
@@ -1116,8 +1117,8 @@ async def update_model_service_provider(request, provider, mspIn : ModelServiceP
             msp.gmt_deleted = None
         
         msp.api_key = mspIn.api_key
-        if (msp_config.get("supports_optional_uri", False) and mspIn.uri is not None):
-            msp.uri = mspIn.uri
+        if (msp_config.get("allow_custom_base_url", False) and mspIn.base_url is not None):
+            msp.base_url = mspIn.base_url
 
     await msp.asave()
     return success({})

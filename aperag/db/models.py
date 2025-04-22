@@ -444,8 +444,8 @@ class CollectionSyncHistory(models.Model):
 class ModelServiceProvider(models.Model):
     name = models.CharField(primary_key=True, default=int_pk, editable=False, max_length=24)
     user = models.CharField(max_length=256)
-    status = models.CharField(max_length=16, choices=ApiKeyStatus.choices)
-    uri = models.CharField(max_length=256, blank=True, null=True)
+    status = models.CharField(max_length=16, choices=ModelServiceProviderStatus.choices)
+    base_url = models.CharField(max_length=256, blank=True, null=True)
     api_key = models.CharField(max_length=256)
     gmt_created = models.DateTimeField(auto_now_add=True)
     gmt_updated = models.DateTimeField(auto_now=True)
@@ -456,12 +456,11 @@ class ModelServiceProvider(models.Model):
             "name": self.name,
             "user": self.user,
             "status": self.status,
-            "uri": self.uri,
+            "base_url": self.base_url,
             "api_key": self.api_key,
             "created": self.gmt_created.isoformat(),
             "updated": self.gmt_updated.isoformat(),
-            "sensitive_info": self.sensitive_info,
         }
     
     def __str__(self):
-        return f"ModelServiceProvider(name={self.name}, user={self.user}, status={self.status}, uri={self.uri}, api_key={self.api_key})"
+        return f"ModelServiceProvider(name={self.name}, user={self.user}, status={self.status}, base_url={self.base_url}, api_key={self.api_key})"

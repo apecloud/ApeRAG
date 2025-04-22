@@ -91,7 +91,7 @@ export default {
   'text.bot.type.common': 'Common Bot',
   'text.common.character':'Bot Character',
   'text.model_service_provider':'Model Service Provider',
-  'text.model_service_provider_uri':'Model Service Provider URI',
+  'text.model_service_provider_url':'Model Service Provider URL',
   'text.model_service_provider_apikey':'Model Service Provider API Key',
   'text.model_name': 'Model',
   'text.model_config': 'Model Config',

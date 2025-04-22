@@ -73,7 +73,7 @@ class KnowledgePipeline(Pipeline):
                 self.prompt_template = DEFAULT_KG_VECTOR_MIX_ENGLISH_PROMPT_TEMPLATE
         self.prompt = PromptTemplate(template=self.prompt_template, input_variables=["query", "context"])
 
-    async def async_init(self):
+    async def ainit(self):
         self.embedding_model, self.vector_size = await get_collection_embedding_model(self.collection)
 
         self.context_manager = ContextManager(self.collection_name, self.embedding_model, settings.VECTOR_DB_TYPE,
@@ -369,5 +369,5 @@ class KnowledgePipeline(Pipeline):
 
 async def create_knowledge_pipeline(**kwargs) -> KnowledgePipeline:
     pipeline = KnowledgePipeline(**kwargs)
-    await pipeline.async_init()
+    await pipeline.ainit()
     return pipeline

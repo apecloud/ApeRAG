@@ -138,10 +138,8 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
 
         for i in range(len(vectors)):
             nodes[i].embedding = vectors[i]
-            logger.info("embedding size %d", len(nodes[i].embedding))
 
         logger.info(f"processed file: {file_name} with {len(vectors)} chunks")
-        logger.info("add store with %d nodes, content len %d, sensitive_info %s", len(nodes), len(content), sensitive_info)
         return self.connector.store.add(nodes), content, sensitive_info
 
     def delete(self, **kwargs) -> bool:

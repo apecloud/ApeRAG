@@ -93,24 +93,19 @@ async def get_collection_embedding_model(collection) -> tuple[Embeddings | None,
 
     msp_dict = await query_msp_dict(collection.user)
     if embedding_backend in msp_dict:
-          msp = msp_dict[embedding_backend]
-          embedding_service_url = msp.uri
-          if embedding_service_url is None:
-                if embedding_backend == "alibabacloud":
-                    embedding_service_url = "https://dashscope.aliyuncs.com/compatible-mode"
-                elif embedding_backend == "siliconflow":
-                    embedding_service_url = "https://api.siliconflow.cn"
-          embedding_service_api_key = msp.api_key
-          logging.info("get_collection_embedding_model %s %s", embedding_service_url, embedding_service_api_key)
+        msp = msp_dict[embedding_backend]
+        embedding_service_url = msp.base_url
+        embedding_service_api_key = msp.api_key
+        logging.info("get_collection_embedding_model %s %s", embedding_service_url, embedding_service_api_key)
 
-          return get_embedding_model(
+        return get_embedding_model(
             embedding_backend=embedding_backend,
             embedding_model=embedding_model_name,
             embedding_dim=vector_size,
             embedding_service_url=embedding_service_url,
             embedding_service_api_key=embedding_service_api_key,
             embedding_max_chunks_in_batch=EMBEDDING_MAX_CHUNKS_IN_BATCH,
-          )
+        )
     
     logging.warning("get_collection_embedding_model cannot find model service provider %s", embedding_backend)
     return None, 0

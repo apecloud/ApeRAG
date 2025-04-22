@@ -15,8 +15,8 @@ export type TypesModels = {
 export type TypesModelServiceProviders = {
   name: string;
   label: string;
-  supports_optional_uri: boolean;
-  uri?: string;
+  allow_custom_base_url: boolean;
+  base_url?: string;
   apikey?: string;
 }
 

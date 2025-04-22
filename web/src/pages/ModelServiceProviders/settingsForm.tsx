@@ -41,13 +41,13 @@ export default ({ onSubmit, action, values, form }: Props) => {
     >
       <Card bordered={false} style={{ marginBottom: 20, borderRadius: 16 }}>
 
-       {values["supports_optional_uri"] && (
+       {values["allow_custom_base_url"] && (
         <Form.Item
             className="form-item-children-wrap"
-            label={<FormattedMessage id="text.model_service_provider_uri" />}
-            name={['uri']}
+            label={<FormattedMessage id="text.model_service_provider_url" />}
+            name={['base_url']}
           >
-            <Input placeholder="URI" />
+            <Input placeholder="Base URL" />
           </Form.Item>
        )}
 
