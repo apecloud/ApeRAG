@@ -916,7 +916,7 @@ async def create_bot(request, bot_in: view_models.BotCreate) -> view_models.Bot:
     if not valid:
         return fail(HTTPStatus.BAD_REQUEST, msg)
     await bot.asave()
-    collections = []
+    collection_ids = []
     if bot_in.collection_ids is not None:
         for cid in bot_in.collection_ids:
             collection = await query_collection(user, cid)
@@ -925,16 +925,14 @@ async def create_bot(request, bot_in: view_models.BotCreate) -> view_models.Bot:
             if collection.status == aperag.store.collection.CollectionStatus.INACTIVE:
                 return fail(HTTPStatus.BAD_REQUEST, "Collection %s is inactive" % cid)
             await sync_to_async(bot.collections.add)(collection)
-            collections.append(collection.view())
+            collection_ids.append(collection.id)
     await bot.asave()
     return success(view_models.Bot(
         id=bot.id,
         title=bot.title,
         type=bot.type,
         description=bot.description,
-        config=bot.config,
-        system=bot.user == settings.ADMIN_USER,
-        collections=collections,
+        collection_ids=collection_ids,
         created=bot.gmt_created,
         updated=bot.gmt_updated,
     ))

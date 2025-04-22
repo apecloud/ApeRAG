@@ -17,11 +17,6 @@ class CollectionType(models.TextChoices):
     CODE = "code"
 
 
-class CollectionSyncStatus(models.TextChoices):
-    RUNNING = "RUNNING"
-    CANCELED = "CANCELED"
-    COMPLETED = "COMPLETED"
-
 def collection_pk():
     return "col" + random_id()
 

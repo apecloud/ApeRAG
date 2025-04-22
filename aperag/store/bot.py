@@ -48,17 +48,3 @@ class Bot(models.Model):
             "created": self.gmt_created.isoformat(),
             "updated": self.gmt_updated.isoformat(),
         }
-
-
-class BotIntegrationStatus(models.TextChoices):
-    ACTIVE = "ACTIVE"
-    INACTIVE = "INACTIVE"
-    DELETED = "DELETED"
-
-
-class BotIntegrationType(models.TextChoices):
-    SYSTEM = "system"
-    FEISHU = "feishu"
-    WEB = "web"
-    WEIXN = "weixin"
-    WEIXIN_OFFICIAL = "weixin_official"

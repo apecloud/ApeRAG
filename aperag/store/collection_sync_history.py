@@ -1,4 +1,4 @@
-from aperag.store.collection import Collection, CollectionSyncStatus
+from aperag.store.collection import Collection
 
 
 from django.db import models
@@ -9,6 +9,12 @@ from aperag.store.utils import random_id
 
 def collection_history_pk():
     return "colhist" + random_id()
+
+
+class CollectionSyncStatus(models.TextChoices):
+    RUNNING = "RUNNING"
+    CANCELED = "CANCELED"
+    COMPLETED = "COMPLETED"
 
 
 class CollectionSyncHistory(models.Model):

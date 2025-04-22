@@ -22,8 +22,8 @@ from pydantic import BaseModel
 from aperag.store.api_key import ApiKeyStatus, ApiKeyToken
 from aperag.store.bot import Bot, BotStatus
 from aperag.store.chat import Chat, ChatStatus
-from aperag.store.collection import Collection, CollectionStatus, CollectionSyncStatus
-from aperag.store.collection_sync_history import CollectionSyncHistory
+from aperag.store.collection import Collection, CollectionStatus
+from aperag.store.collection_sync_history import CollectionSyncHistory, CollectionSyncStatus
 from aperag.store.config import Config
 from aperag.store.document import Document, DocumentStatus
 from aperag.store.message_feedback import MessageFeedback

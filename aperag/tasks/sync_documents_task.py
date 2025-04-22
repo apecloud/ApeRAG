@@ -25,8 +25,8 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.utils import timezone
 from pydantic import BaseModel
 
-from aperag.store.collection import Collection, CollectionStatus, CollectionSyncStatus
-from aperag.store.collection_sync_history import CollectionSyncHistory
+from aperag.store.collection import Collection, CollectionStatus
+from aperag.store.collection_sync_history import CollectionSyncHistory, CollectionSyncStatus
 from aperag.store.document import Document
 from config.celery import app
 from config.settings import MAX_DOCUMENT_COUNT
