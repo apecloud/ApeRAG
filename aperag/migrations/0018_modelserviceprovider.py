@@ -19,6 +19,7 @@ class Migration(migrations.Migration):
                 ('status', models.CharField(choices=[('ACTIVE', 'Active'), ('INACTIVE', 'Inactive'), ('DELETED', 'Deleted')], max_length=16)),
                 ('base_url', models.CharField(blank=True, max_length=256, null=True)),
                 ('api_key', models.CharField(max_length=256)),
+                ('extra', models.TextField(null=True)),
                 ('gmt_created', models.DateTimeField(auto_now_add=True)),
                 ('gmt_updated', models.DateTimeField(auto_now=True)),
                 ('gmt_deleted', models.DateTimeField(blank=True, null=True)),

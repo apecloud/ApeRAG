@@ -1089,6 +1089,7 @@ class ModelServiceProviderIn(Schema):
     name: str
     api_key: str
     base_url: Optional[str] = None
+    extra: Optional[str] = None
 
 @router.put("/model_service_providers/{provider}")
 async def update_model_service_provider(request, provider, mspIn : ModelServiceProviderIn):
@@ -1109,6 +1110,7 @@ async def update_model_service_provider(request, provider, mspIn : ModelServiceP
             name=provider,
             api_key=mspIn.api_key,
             base_url=mspIn.base_url if msp_config.get("allow_custom_base_url", False) else msp_config.get("base_url"),
+            extra = mspIn.extra,
             status=db_models.ModelServiceProviderStatus.ACTIVE,
         )
     else:
@@ -1119,6 +1121,7 @@ async def update_model_service_provider(request, provider, mspIn : ModelServiceP
         msp.api_key = mspIn.api_key
         if (msp_config.get("allow_custom_base_url", False) and mspIn.base_url is not None):
             msp.base_url = mspIn.base_url
+        msp.extra = mspIn.extra
 
     await msp.asave()
     return success({})
