@@ -1,4 +1,3 @@
-from aperag import settings
 from aperag.store.collection import Collection
 
 
@@ -33,18 +32,3 @@ class Bot(models.Model):
     gmt_created = models.DateTimeField(auto_now_add=True)
     gmt_updated = models.DateTimeField(auto_now=True)
     gmt_deleted = models.DateTimeField(null=True, blank=True)
-
-    def view(self, collections=None):
-        if collections is None:
-            collections = []
-        return {
-            "id": str(self.id),
-            "title": self.title,
-            "type": self.type,
-            "description": self.description,
-            "config": self.config,
-            "system": self.user == settings.ADMIN_USER,
-            "collections": collections,
-            "created": self.gmt_created.isoformat(),
-            "updated": self.gmt_updated.isoformat(),
-        }

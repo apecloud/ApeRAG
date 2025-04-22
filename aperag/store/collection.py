@@ -32,19 +32,3 @@ class Collection(models.Model):
     gmt_created = models.DateTimeField(auto_now_add=True)
     gmt_updated = models.DateTimeField(auto_now=True)
     gmt_deleted = models.DateTimeField(null=True, blank=True)
-
-    def view(self, bot_ids=None):
-        if not bot_ids:
-            bot_ids = []
-        return {
-            "id": str(self.id),
-            "title": self.title,
-            "description": self.description,
-            "status": self.status,
-            "type": self.type,
-            "bot_ids": bot_ids,
-            "system": self.user == settings.ADMIN_USER,
-            "config": self.config,
-            "created": self.gmt_created.isoformat(),
-            "updated": self.gmt_updated.isoformat(),
-        }

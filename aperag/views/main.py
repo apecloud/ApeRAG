@@ -944,9 +944,6 @@ async def list_bots(request) -> List[view_models.Bot]:
     pr = await query_bots([user, settings.ADMIN_USER], build_pq(request))
     response = []
     async for bot in pr.data:
-        collections = []
-        async for collection in await sync_to_async(bot.collections.all)():
-            collections.append(collection.view())
         bot_config = json.loads(bot.config)
         model = bot_config.get("model", None)
         # This is a temporary solution to solve the problem of model name changes
@@ -965,6 +962,7 @@ async def list_bots(request) -> List[view_models.Bot]:
             title=bot.title,
             description=bot.description,
             type=bot.type,
+            config=bot.config,
             collection_ids=collection_ids,
             created=bot.gmt_created,
             updated=bot.gmt_updated,
@@ -978,15 +976,18 @@ async def get_bot(request, bot_id: str) -> view_models.Bot:
     bot = await query_bot(user, bot_id)
     if bot is None:
         return fail(HTTPStatus.NOT_FOUND, "Bot not found")
-    collections = []
+    collection_ids = []
     async for collection in await sync_to_async(bot.collections.all)():
-        collections.append(collection.view())
+        collection_ids.append(collection.id)
     return success(view_models.Bot(
         id=bot.id,
         title=bot.title,
         description=bot.description,
         type=bot.type,
-        collection_ids=bot.collection_ids,
+        config=bot.config,
+        collection_ids=collection_ids,
+        created=bot.gmt_created,
+        updated=bot.gmt_updated,
     ))
 
 
@@ -1030,7 +1031,9 @@ async def update_bot(request, bot_id: str, bot_in: view_models.BotUpdate) -> vie
         description=bot.description,
         config=bot.config,
         type=bot.type,
-        collection_ids=collection_ids
+        collection_ids=collection_ids,
+        created=bot.gmt_created,
+        updated=bot.gmt_updated,
     ))
 
 

@@ -52,6 +52,8 @@ bot:
       enum:
         - knowledge
         - common
+    config:
+      type: string
     collection_ids:
       type: array
       items:
