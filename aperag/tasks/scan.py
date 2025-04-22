@@ -18,7 +18,8 @@ import logging
 from celery import Task
 from django_celery_beat.models import CrontabSchedule, PeriodicTask
 
-from aperag.db.models import Collection, CollectionStatus
+from aperag.store.collection import Collection
+from aperag.store.collection import CollectionStatus
 
 logger = logging.getLogger(__name__)
 

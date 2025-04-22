@@ -2,7 +2,7 @@
 
 from django.db import migrations, models
 
-import aperag.db.models
+import aperag.store.utils
 
 
 class Migration(migrations.Migration):
@@ -53,6 +53,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='botintegration',
             name='id',
-            field=models.CharField(default=aperag.db.models.int_pk, editable=False, max_length=24, primary_key=True, serialize=False),
+            field=models.CharField(default=aperag.store.utils.int_pk, editable=False, max_length=24, primary_key=True, serialize=False),
         ),
     ]

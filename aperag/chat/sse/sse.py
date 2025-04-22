@@ -21,7 +21,8 @@ from channels.generic.http import AsyncHttpConsumer
 
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import fail_response, get_async_redis_client, start_response, stop_response, success_response
-from aperag.db.models import BotType
+from aperag.store.chat import Chat
+from aperag.store.bot import BotType
 from aperag.pipeline.common_pipeline import CommonPipeline
 
 logger = logging.getLogger(__name__)
@@ -35,8 +36,8 @@ class ServerSentEventsConsumer(AsyncHttpConsumer):
             logger.exception(e)
 
     async def _handle(self, body):
-        from aperag.db.models import Chat, ChatPeer
-        from aperag.db.ops import query_bot, query_chat_by_peer
+        from aperag.store.chat import ChatPeer
+        from aperag.store.ops import query_bot, query_chat_by_peer
         from aperag.pipeline.knowledge_pipeline import KnowledgePipeline
         await self.send_headers(headers=[
             (b"Cache-Control", b"no-cache"),

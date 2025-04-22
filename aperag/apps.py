@@ -32,7 +32,7 @@ class ApeRAGConfig(AppConfig):
 def get_ip_config():
     from django.db import transaction
 
-    from aperag.db.models import Config
+    from aperag.store.config import Config
 
     try:
         public_ip = requests.get('https://ifconfig.me', timeout=5).text.strip()

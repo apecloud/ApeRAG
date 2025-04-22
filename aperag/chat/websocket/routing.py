@@ -15,14 +15,15 @@
 from asgiref.sync import sync_to_async
 from django.urls import re_path
 
+from aperag.store.collection import CollectionType
 from config import settings
 from aperag.utils.constant import KEY_BOT_ID, KEY_CHAT_ID, KEY_USER_ID
 from aperag.utils.utils import extract_bot_and_chat_id, extract_web_bot_and_chat_id
 
 
 async def bot_consumer_router(scope, receive, send):
-    from aperag.db.models import BotType, CollectionType
-    from aperag.db.ops import query_bot, query_chat
+    from aperag.store.bot import BotType
+    from aperag.store.ops import query_bot, query_chat
 
     user = scope.get(KEY_USER_ID, None)
     path = scope["path"]
@@ -63,8 +64,8 @@ async def bot_consumer_router(scope, receive, send):
 
 
 async def web_bot_consumer_router(scope, receive, send):
-    from aperag.db.models import BotType
-    from aperag.db.ops import query_bot, query_web_chat
+    from aperag.store.bot import BotType
+    from aperag.store.ops import query_bot, query_web_chat
 
     path = scope["path"]
     bot_id, chat_id = extract_web_bot_and_chat_id(path)

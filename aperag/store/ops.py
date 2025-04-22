@@ -19,27 +19,18 @@ from asgiref.sync import sync_to_async
 from django.db.models import QuerySet
 from pydantic import BaseModel
 
-from aperag.db.models import (
-    Bot,
-    BotIntegration,
-    BotIntegrationStatus,
-    BotStatus,
-    Chat,
-    ChatPeer,
-    ChatStatus,
-    Collection,
-    CollectionStatus,
-    CollectionSyncHistory,
-    CollectionSyncStatus,
-    Config,
-    Document,
-    DocumentStatus,
-    MessageFeedback,
-    Question,
-    QuestionStatus,
-    UserQuota,
-    ApiKeyToken,
-    ApiKeyStatus
+from aperag.store.api_key import ApiKeyStatus, ApiKeyToken
+from aperag.store.bot import Bot, BotStatus
+from aperag.store.chat import Chat, ChatStatus
+from aperag.store.collection import Collection, CollectionStatus, CollectionSyncStatus
+from aperag.store.collection_sync_history import CollectionSyncHistory
+from aperag.store.config import Config
+from aperag.store.document import Document, DocumentStatus
+from aperag.store.message_feedback import MessageFeedback
+from aperag.store.question import Question, QuestionStatus
+from aperag.store.user_quota import UserQuota
+from aperag.store.chat import (
+    ChatPeer
 )
 
 logger = logging.getLogger(__name__)
@@ -279,19 +270,6 @@ async def query_running_sync_histories(user, collection_id: str, pq: PagedQuery 
     return await build_pr(pq, query_set)
 
 
-async def query_integration(user, bot_id: str, integration_id: str):
-    try:
-        kwargs = {
-            "pk": integration_id,
-            "bot_id": bot_id,
-        }
-        if user:
-            kwargs["user"] = user
-        return await BotIntegration.objects.exclude(status=BotIntegrationStatus.DELETED).aget(**kwargs)
-    except BotIntegration.DoesNotExist:
-        return None
-
-
 async def query_bot(user, bot_id: str):
     try:
         kwargs = {
@@ -324,12 +302,5 @@ def query_config(key):
 async def query_user_quota(user, key):
     result = await sync_to_async(UserQuota.objects.filter(user=user, key=key).values_list('value', flat=True).first)()
     return result
-
-
-async def query_integrations(user, bot_id: str, pq: PagedQuery = None):
-    filters = build_filters(pq)
-    query_set = BotIntegration.objects.exclude(status=BotIntegrationStatus.DELETED).filter(
-        user=user, bot_id=bot_id, **filters)
-    return await build_pr(pq, query_set)
 
 

@@ -27,19 +27,15 @@ from django.core.files.base import ContentFile
 from django.utils import timezone
 
 from aperag.graph.lightrag_holder import LightRagHolder
+from aperag.store.collection import Collection, CollectionStatus
+from aperag.store.document import Document, DocumentStatus
+from aperag.store.message_feedback import MessageFeedback, MessageFeedbackStatus
+from aperag.store.question import Question, QuestionStatus
 from config.celery import app
 from config.vector_db import get_vector_db_connector
 from aperag.context.full_text import insert_document, remove_document
-from aperag.db.models import (
-    Collection,
-    CollectionStatus,
-    Document,
-    DocumentStatus,
-    MessageFeedback,
-    MessageFeedbackStatus,
+from aperag.store.utils import (
     ProtectAction,
-    Question,
-    QuestionStatus,
 )
 from aperag.embed.base_embedding import get_collection_embedding_model
 from aperag.readers.base_readers import DEFAULT_FILE_READER_CLS, SUPPORTED_COMPRESSED_EXTENSIONS

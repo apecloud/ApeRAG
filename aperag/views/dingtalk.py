@@ -26,8 +26,9 @@ from ninja import Router
 from aperag.apps import QuotaType
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import check_quota_usage, get_async_redis_client, manage_quota_usage
-from aperag.db.models import Chat, ChatPeer
-from aperag.db.ops import query_bot, query_chat_by_peer, query_user_quota
+from aperag.store.chat import Chat
+from aperag.store.chat import ChatPeer
+from aperag.store.ops import query_bot, query_chat_by_peer, query_user_quota
 from aperag.pipeline.knowledge_pipeline import KnowledgePipeline
 from aperag.views.utils import fail, success
 

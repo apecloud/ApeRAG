@@ -7,7 +7,7 @@ from typing import Dict, Tuple
 from langchain_core.prompts import PromptTemplate
 
 from config import settings
-from aperag.db.models import ProtectAction
+from aperag.store.utils import ProtectAction
 from aperag.llm.base import Predictor, PredictorType
 from aperag.llm.prompts import CLASSIFY_SENSITIVE_INFORMATION_TEMPLATE, SENSITIVE_INFORMATION_TEMPLATE
 

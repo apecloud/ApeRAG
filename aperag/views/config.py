@@ -16,7 +16,7 @@ import json
 
 from ninja import Router
 
-from aperag.db.ops import query_config
+from aperag.store.ops import query_config
 from aperag.views.utils import success
 from config import settings
 

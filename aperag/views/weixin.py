@@ -25,13 +25,14 @@ from asgiref.sync import sync_to_async
 from ninja import Router
 
 import aperag.chat.message
+from aperag.store.chat import Chat
 from config import settings
 from config.settings import MAX_CONVERSATION_COUNT
 from aperag.apps import QuotaType
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import check_quota_usage, get_async_redis_client, get_sync_redis_client, manage_quota_usage
-from aperag.db.models import Chat, ChatPeer
-from aperag.db.ops import query_bot, query_chat_by_peer, query_user_quota
+from aperag.store.chat import ChatPeer
+from aperag.store.ops import query_bot, query_chat_by_peer, query_user_quota
 from aperag.pipeline.knowledge_pipeline import KnowledgePipeline
 from aperag.utils.weixin.client import WeixinClient
 from aperag.utils.weixin.WXBizMsgCrypt import WXBizMsgCrypt

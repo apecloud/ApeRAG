@@ -25,17 +25,15 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.utils import timezone
 from pydantic import BaseModel
 
+from aperag.store.collection import Collection, CollectionStatus, CollectionSyncStatus
+from aperag.store.collection_sync_history import CollectionSyncHistory
+from aperag.store.document import Document
 from config.celery import app
 from config.settings import MAX_DOCUMENT_COUNT
-from aperag.db.models import (
-    Collection,
-    CollectionStatus,
-    CollectionSyncHistory,
-    CollectionSyncStatus,
-    Document,
+from aperag.store.document import (
     DocumentStatus,
 )
-from aperag.db.ops import query_documents
+from aperag.store.ops import query_documents
 from aperag.readers.base_readers import DEFAULT_FILE_READER_CLS
 from aperag.source.base import get_source
 from aperag.tasks.index import add_index_for_document, remove_index, \

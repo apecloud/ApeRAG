@@ -22,12 +22,13 @@ from asgiref.sync import sync_to_async
 from ninja import Router
 
 import aperag.chat.message
+from aperag.store.chat import Chat
 from config import settings
 from aperag.auth.validator import FeishuEventVerification
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
-from aperag.db.models import Chat, ChatPeer
-from aperag.db.ops import query_bot, query_chat_by_peer
+from aperag.store.chat import ChatPeer
+from aperag.store.ops import query_bot, query_chat_by_peer
 from aperag.pipeline.knowledge_pipeline import KnowledgePipeline
 from aperag.source.feishu.feishu import FeishuClient
 from aperag.utils.utils import AESCipher
