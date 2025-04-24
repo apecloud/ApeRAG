@@ -53,7 +53,7 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
     def load_data(self, **kwargs) -> Tuple[List[str], str, List]:
         sensitive_protect = kwargs.get('sensitive_protect', False)
         sensitive_protect_method = kwargs.get('sensitive_protect_method', ProtectAction.WARNING_NOT_STORED)
-        docs, file_name = self.reader.load_data()
+        docs, file_name, chunked = self.reader.load_data()
         if not docs:
             return [], "", []
 
@@ -116,7 +116,12 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
             # embedding without the code block
             # text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
 
-            chunks = self.node_parser.get_nodes_from_documents([doc])
+            chunks = [doc]
+            if not chunked:
+                # Some readers (e.g., MinerUReader) support chunking documents during data parsing.
+                # If not, chunk the document into smaller pieces before indexing.
+                chunks = self.node_parser.get_nodes_from_documents([doc])
+
             for i, c in enumerate(chunks):
                 if prefix:
                     text = f"{prefix}\n{c.get_content()}"
@@ -126,7 +131,7 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
 
                 c.metadata.update(doc.metadata)
                 c.metadata.update({
-                    "source": f"{doc.metadata['name']}",
+                    "source": f"{doc.metadata.get('name')}",
                     "chunk_num": str(i),
                 })
             nodes.extend(chunks)

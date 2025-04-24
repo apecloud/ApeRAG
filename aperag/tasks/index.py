@@ -26,10 +26,6 @@ from celery import Task
 from django.core.files.base import ContentFile
 from django.utils import timezone
 
-from aperag.graph.lightrag_holder import LightRagHolder
-from config import settings
-from config.celery import app
-from config.vector_db import get_vector_db_connector
 from aperag.context.full_text import insert_document, remove_document
 from aperag.db.models import (
     Collection,
@@ -43,18 +39,23 @@ from aperag.db.models import (
     QuestionStatus,
 )
 from aperag.embed.base_embedding import get_collection_embedding_model
-from aperag.readers.base_readers import DEFAULT_FILE_READER_CLS, SUPPORTED_COMPRESSED_EXTENSIONS
 from aperag.embed.local_path_embedding import LocalPathEmbedding
 from aperag.embed.qa_embedding import QAEmbedding
 from aperag.embed.question_embedding import QuestionEmbedding, QuestionEmbeddingWithoutDocument
+from aperag.graph import lightrag_holder
+from aperag.graph.lightrag_holder import LightRagHolder
+from aperag.readers.base_readers import DEFAULT_FILE_READER_CLS, SUPPORTED_COMPRESSED_EXTENSIONS
 from aperag.source.base import get_source
 from aperag.source.feishu.client import FeishuNoPermission, FeishuPermissionDenied
+from aperag.utils.tokenizer import get_default_tokenizer
 from aperag.utils.utils import (
     generate_fulltext_index_name,
     generate_qa_vector_db_collection_name,
     generate_vector_db_collection_name,
 )
-from aperag.graph import lightrag_holder
+from config import settings
+from config.celery import app
+from config.vector_db import get_vector_db_connector
 
 logger = logging.getLogger(__name__)
 
@@ -217,7 +218,10 @@ def add_index_for_document(self, document_id):
                                         vector_size=vector_size,
                                         vector_store_adaptor=get_vector_db_connector(
                                             collection=generate_vector_db_collection_name(
-                                                collection_id=document.collection.id)))
+                                                collection_id=document.collection.id)),
+                                        chunk_size=settings.CHUNK_SIZE,
+                                        chunk_overlap=settings.CHUNK_OVERLAP_SIZE,
+                                        tokenizer=get_default_tokenizer())
 
             config = json.loads(document.collection.config)
             sensitive_protect = config.get("sensitive_protect", False)
@@ -322,7 +326,10 @@ def update_index_for_document(self, document_id):
                                     vector_size=vector_size,
                                     vector_store_adaptor=get_vector_db_connector(
                                         collection=generate_vector_db_collection_name(
-                                            collection_id=document.collection.id)))
+                                            collection_id=document.collection.id)),
+                                    chunk_size=settings.CHUNK_SIZE,
+                                    chunk_overlap=settings.CHUNK_OVERLAP_SIZE,
+                                    tokenizer=get_default_tokenizer())
         loader.connector.delete(ids=relate_ids.get("ctx", []))
 
         config = json.loads(document.collection.config)
@@ -404,7 +411,7 @@ def message_feedback(**kwargs):
 @app.task
 def generate_questions(document_id):
     try:
-        document = Document.objects.get(id=document_id)   
+        document = Document.objects.get(id=document_id)
         embedding_model, _ = async_to_sync(get_collection_embedding_model)(document.collection)
 
         source = get_source(json.loads(document.collection.config))
@@ -431,13 +438,13 @@ def generate_questions(document_id):
     except Exception as e:
         logger.error(e)
         raise Exception("an error occur %s" % e)
-    
+
 @app.task
 def update_index_for_question(question_id):
     try:
-        question = Question.objects.get(id=question_id)   
+        question = Question.objects.get(id=question_id)
         embedding_model, _ = async_to_sync(get_collection_embedding_model)(question.collection)
-        
+
         q_loaders = QuestionEmbeddingWithoutDocument(embedding_model=embedding_model,
                                 vector_store_adaptor=get_vector_db_connector(
                                     collection=generate_qa_vector_db_collection_name(
@@ -452,7 +459,7 @@ def update_index_for_question(question_id):
     except Exception as e:
         logger.error(e)
         raise Exception("an error occur %s" % e)
-    
+
 
 @app.task
 def update_collection_status(status, collection_id):

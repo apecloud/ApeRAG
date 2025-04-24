@@ -28,7 +28,7 @@ class QuestionEmbedding(LocalPathEmbedding):
 
     def load_data(self, **kwargs) -> list[str]:
 
-        docs, file_name = self.reader.load_data()
+        docs, file_name, _ = self.reader.load_data()
         if not docs:
             return [], []
 
