@@ -1,0 +1,123 @@
+name: "RAG Knowledge Base Flow"
+description: "A typical RAG flow with parallel retrieval and reranking"
+version: "1.0.0"
+
+# 全局变量定义
+global_variables:
+  - name: "query"
+    type: "string"
+    description: "User's question or query"
+
+# 节点定义
+nodes:
+  # 向量召回节点
+  - id: "vector_search"
+    type: "vector_search"
+    name: "Vector Search"
+    config:
+      top_k: 5
+      similarity_threshold: 0.7
+    inputs:
+      - name: "query"
+        source_type: "global"
+        global_var: "query"
+
+  # 关键词召回节点
+  - id: "keyword_search"
+    type: "keyword_search"
+    name: "Keyword Search"
+    config:
+      keywords: ["important", "key", "relevant"]
+    inputs:
+      - name: "query"
+        source_type: "global"
+        global_var: "query"
+
+  # 合并节点
+  - id: "merge"
+    type: "merge"
+    name: "Merge Results"
+    config:
+      merge_strategy: "union"
+      deduplicate: true
+    inputs:
+      - name: "docs_a"
+        source_type: "dynamic"
+        ref_node: "vector_search"
+        ref_field: "docs"
+      - name: "docs_b"
+        source_type: "dynamic"
+        ref_node: "keyword_search"
+        ref_field: "docs"
+
+  # 重排序节点
+  - id: "rerank"
+    type: "rerank"
+    name: "Rerank Results"
+    config:
+      method: "reciprocal_rank"
+      weight_vector: 0.7
+      weight_keyword: 0.3
+    inputs:
+      - name: "docs_a"
+        source_type: "dynamic"
+        ref_node: "merge"
+        ref_field: "merged_docs"
+      - name: "docs_b"
+        source_type: "dynamic"
+        ref_node: "keyword_search"
+        ref_field: "docs"
+
+  # LLM 生成节点
+  - id: "llm"
+    type: "llm"
+    name: "LLM Generation"
+    config:
+      model: "gpt-3.5-turbo"
+      temperature: 0.7
+      max_tokens: 1000
+    inputs:
+      - name: "query"
+        source_type: "global"
+        global_var: "query"
+      - name: "context"
+        source_type: "dynamic"
+        ref_node: "rerank"
+        ref_field: "ranked_docs"
+
+# 边定义（节点间的连接关系）
+edges:
+  # 向量召回到合并
+  - source: "vector_search"
+    target: "merge"
+    source_field: "docs"
+    target_field: "docs_a"
+
+  # 关键词召回到合并
+  - source: "keyword_search"
+    target: "merge"
+    source_field: "docs"
+    target_field: "docs_b"
+
+  # 合并到重排序
+  - source: "merge"
+    target: "rerank"
+    source_field: "merged_docs"
+    target_field: "docs_a"
+
+  # 重排序到 LLM
+  - source: "rerank"
+    target: "llm"
+    source_field: "ranked_docs"
+    target_field: "context"
+
+# 执行配置
+execution:
+  timeout: 300  # 整体超时时间（秒）
+  retry:
+    max_attempts: 3
+    delay: 5
+  error_handling:
+    strategy: "stop_on_error"  # 或 "continue_on_error"
+    notification:
+      email: ["admin@example.com"] 
