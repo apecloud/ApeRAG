@@ -163,6 +163,8 @@ class MinerUReader(BaseReader, Generic[FallbackReader]):
                 result = ds.apply(doc_analyze, ocr=False)
                 pipe_result = result.pipe_txt_mode(image_writer)
 
+            # TODO: save images to s3
+
             chunked = False
             chunking_params = [chunk_size, chunk_overlap, tokenizer]
             if all(param is not None for param in chunking_params):
@@ -230,7 +232,6 @@ class MinerUMiddleJsonChunker:
 
     def split(self, middle_json: str) -> list[Document]:
         group: Group = middle_json_to_group(middle_json)
-        # TODO: save images to s3
         return self._to_docs(group, None, None)
 
     def _to_docs(self, elem: Group | Elem, prev: Document | None, group_tokens: int | None = None) -> list[Document]:
@@ -330,7 +331,7 @@ class MinerUMiddleJsonChunker:
 def middle_json_to_group(middle_json: str) -> Group:
     curr_group: Group = Group(elems=[])
     group_stack: list[Group] = []
-    title_elem_stack: list[Elem] = [None]
+    title_elem_stack: list[Elem] = []
     titles: list[str] = []
 
     middle: dict[str, Any] = json.loads(middle_json)
@@ -351,7 +352,7 @@ def middle_json_to_group(middle_json: str) -> Group:
             curr_title_elem = obj
             curr_title_level = curr_title_elem.text_level
 
-            while title_elem_stack[-1] is not None and title_elem_stack[-1].text_level >= curr_title_level:
+            while len(title_elem_stack) > 0 and title_elem_stack[-1].text_level >= curr_title_level:
                 title_elem_stack.pop()
                 curr_group = group_stack.pop()
 
@@ -359,6 +360,7 @@ def middle_json_to_group(middle_json: str) -> Group:
             new_group = Group(elems=[curr_title_elem])
             curr_group.elems.append(new_group)
             curr_group = new_group
+
             title_elem_stack.append(curr_title_elem)
             titles = [elem.text.strip() for elem in title_elem_stack if elem is not None]
 
@@ -607,7 +609,7 @@ if __name__ == "__main__":
 
     import tiktoken
 
-    encoding = tiktoken.get_encoding("cl100k_base")
+    encoding = tiktoken.get_encoding(args.encoding_name)
     tokenizer = encoding.encode
 
     chunker = MinerUMiddleJsonChunker(

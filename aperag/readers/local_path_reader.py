@@ -116,6 +116,7 @@ class InteractiveSimpleDirectoryReader(SimpleDirectoryReader):
                 )
             else:
                 docs = reader.load_data(input_file)
+
             for doc in docs:
                 doc.metadata.update(metadata)
             documents.extend(docs)
