@@ -14,7 +14,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='ModelServiceProvider',
             fields=[
-                ('name', models.CharField(default=aperag.db.models.int_pk, editable=False, max_length=24, primary_key=True, serialize=False)),
+                ('name', models.CharField(default=aperag.db.models.ModelServiceProvider.generate_id, editable=False, max_length=24, primary_key=True, serialize=False)),
                 ('user', models.CharField(max_length=256)),
                 ('status', models.CharField(choices=[('ACTIVE', 'Active'), ('INACTIVE', 'Inactive'), ('DELETED', 'Deleted')], max_length=16)),
                 ('base_url', models.CharField(blank=True, max_length=256, null=True)),

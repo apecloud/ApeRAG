@@ -50,9 +50,4 @@ class Migration(migrations.Migration):
             name='gmt_updated',
             field=models.DateTimeField(auto_now=True, null=True),
         ),
-        migrations.AlterField(
-            model_name='botintegration',
-            name='id',
-            field=models.CharField(default=aperag.db.models.int_pk, editable=False, max_length=24, primary_key=True, serialize=False),
-        ),
     ]

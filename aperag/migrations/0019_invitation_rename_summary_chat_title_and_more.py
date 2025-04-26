@@ -21,7 +21,7 @@ class Migration(migrations.Migration):
                 (
                     "id",
                     models.CharField(
-                        default=aperag.db.models.invitation_pk,
+                        default=aperag.db.models.Invitation.generate_id,
                         editable=False,
                         max_length=24,
                         primary_key=True,

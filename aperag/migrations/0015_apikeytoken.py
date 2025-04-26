@@ -16,7 +16,7 @@ class Migration(migrations.Migration):
                 (
                     "id",
                     models.CharField(
-                        default=aperag.db.models.app_id,
+                        default=aperag.db.models.ApiKeyToken.generate_id,
                         editable=False,
                         max_length=24,
                         primary_key=True,

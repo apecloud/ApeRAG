@@ -38,7 +38,7 @@ class Migration(migrations.Migration):
             model_name="bot",
             name="id",
             field=models.CharField(
-                default=aperag.db.models.bot_pk,
+                default=aperag.db.models.Bot.generate_id,
                 editable=False,
                 max_length=24,
                 primary_key=True,
@@ -49,7 +49,7 @@ class Migration(migrations.Migration):
             model_name="chat",
             name="id",
             field=models.CharField(
-                default=aperag.db.models.chat_pk,
+                default=aperag.db.models.Chat.generate_id,
                 editable=False,
                 max_length=24,
                 primary_key=True,
@@ -60,7 +60,7 @@ class Migration(migrations.Migration):
             model_name="collection",
             name="id",
             field=models.CharField(
-                default=aperag.db.models.collection_pk,
+                default=aperag.db.models.Collection.generate_id,
                 editable=False,
                 max_length=24,
                 primary_key=True,
@@ -71,7 +71,7 @@ class Migration(migrations.Migration):
             model_name="collectionsynchistory",
             name="id",
             field=models.CharField(
-                default=aperag.db.models.collection_history_pk,
+                default=aperag.db.models.CollectionSyncHistory.generate_id,
                 editable=False,
                 max_length=24,
                 primary_key=True,
@@ -87,7 +87,7 @@ class Migration(migrations.Migration):
             model_name="document",
             name="id",
             field=models.CharField(
-                default=aperag.db.models.doc_pk,
+                default=aperag.db.models.Document.generate_id,
                 editable=False,
                 max_length=24,
                 primary_key=True,
