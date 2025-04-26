@@ -74,7 +74,7 @@ async def dingtalk_text_response(user, bot, query, msg_id, sender_id, session_we
         await chat.asave()
 
     history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())
-    collection = await sync_to_async(bot.collections.first)()
+    collection = (await bot.collections())[0]
     response = ""
 
     pipeline = await create_knowledge_pipeline(bot=bot, collection=collection, history=history)

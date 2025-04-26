@@ -49,7 +49,7 @@ async def weixin_text_response(client, user, bot, query, msg_id):
         await chat.asave()
 
     history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())
-    collection = await sync_to_async(bot.collections.first)()
+    collection = (await bot.collections())[0]
     response = ""
 
     pipeline = await create_knowledge_pipeline(bot=bot, collection=collection, history=history)
@@ -90,7 +90,7 @@ async def weixin_card_response(client, user, bot, query, msg_id):
         await chat.asave()
 
     history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())
-    collection = await sync_to_async(bot.collections.first)()
+    collection = (await bot.collections())[0]
     response = ""
 
     pipeline = await create_knowledge_pipeline(bot=bot, collection=collection, history=history)
@@ -281,7 +281,7 @@ async def weixin_officaccount_response(query, msg_id, to_user_name, bot):
         await chat.asave()
 
     history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())
-    collection = await sync_to_async(bot.collections.first)()
+    collection = (await bot.collections())[0]
     pipeline = await create_knowledge_pipeline(bot=bot, collection=collection, history=history)
     trial = pipeline.predictor.trial
     redis_client = aredis.Redis.from_url(settings.MEMORY_REDIS_URL)
