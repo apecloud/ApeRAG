@@ -414,13 +414,12 @@ async def delete_collection(request, collection_id: str) -> view_models.Collecti
     collection = await query_collection(user, collection_id)
     if collection is None:
         return fail(HTTPStatus.NOT_FOUND, "Collection not found")
+    
+    collection_bots = await collection.bots(only_ids=True)
+    if len(collection_bots) > 0:
+        return fail(HTTPStatus.BAD_REQUEST, f"Collection has related to bots {','.join(collection_bots)}, can not be deleted")
+
     await delete_sync_documents_cron_job(collection.id)
-    bots = await sync_to_async(collection.bot_set.exclude)(status=db_models.Bot.Status.DELETED)
-    bot_ids = []
-    async for bot in bots:
-        bot_ids.append(bot.id)
-    if len(bot_ids) > 0:
-        return fail(HTTPStatus.BAD_REQUEST, f"Collection has related to bots {','.join(bot_ids)}, can not be deleted")
     collection.status = db_models.Collection.Status.DELETED
     collection.gmt_deleted = timezone.now()
     await collection.asave()
