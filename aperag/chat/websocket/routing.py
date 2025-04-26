@@ -45,7 +45,7 @@ async def bot_consumer_router(scope, receive, send):
     scope[KEY_CHAT_ID] = chat_id
 
     if bot.type == Bot.Type.KNOWLEDGE:
-        collection = await sync_to_async(bot.collections.first)()
+        collection = (await bot.collections())[0]
         if collection.type != Collection.Type.DOCUMENT:
             raise Exception("Invalid collection type")
         if settings.CHAT_CONSUMER_IMPLEMENTATION == "document-qa":

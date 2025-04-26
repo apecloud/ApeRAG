@@ -27,7 +27,7 @@ class DocumentQAConsumer(BaseConsumer):
     async def connect(self):
         logging.info("DocumentQAConsumer connect")
         await super().connect()
-        self.collection = await sync_to_async(self.bot.collections.first)()
+        self.collection = (await self.bot.collections())[0]
         self.collection_id = self.collection.id
         self.pipeline = await create_knowledge_pipeline(bot=self.bot, collection=self.collection, history=self.history)
         self.free_tier = self.pipeline.predictor.trial

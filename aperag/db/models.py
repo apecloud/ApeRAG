@@ -84,6 +84,18 @@ class Collection(models.Model):
             "updated": self.gmt_updated.isoformat(),
         }
 
+    async def bots(self, only_ids=False):
+        """Get all active bots related to this collection"""
+        from aperag.db import models as db_models
+        result = []
+        async for rel in db_models.BotCollectionRelation.objects.filter(collection_id=self.id, gmt_deleted__isnull=True).all():
+            if only_ids:
+                result.append(rel.bot_id)
+            else:
+                bot = await db_models.Bot.objects.aget(id=rel.bot_id)
+                result.append(bot)
+        return result
+
 
 class Document(models.Model):
     class Status(models.TextChoices):
@@ -164,10 +176,37 @@ class Bot(models.Model):
     description = models.TextField(null=True, blank=True)
     status = models.CharField(max_length=16, choices=Status.choices)
     config = models.TextField()
-    collections = models.ManyToManyField(Collection)
     gmt_created = models.DateTimeField(auto_now_add=True)
     gmt_updated = models.DateTimeField(auto_now=True)
     gmt_deleted = models.DateTimeField(null=True, blank=True)
+
+    async def collections(self, only_ids=False):
+        """Get all active collections related to this bot"""
+        from aperag.db import models as db_models
+        result = []
+        async for rel in db_models.BotCollectionRelation.objects.filter(bot_id=self.id, gmt_deleted__isnull=True).all():
+            if only_ids:
+                result.append(rel.collection_id)
+            else:
+                collection = await db_models.Collection.objects.aget(id=rel.collection_id)
+                result.append(collection)
+        return result
+
+
+class BotCollectionRelation(models.Model):
+    bot_id = models.CharField(max_length=24)
+    collection_id = models.CharField(max_length=24)
+    gmt_created = models.DateTimeField(auto_now_add=True)
+    gmt_deleted = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["bot_id", "collection_id"],
+                condition=models.Q(gmt_deleted__isnull=True),
+                name="unique_active_bot_collection"
+            )
+        ]
 
 
 class Config(models.Model):
