@@ -1,5 +1,0 @@
-export * from './bot';
-export * from './chat';
-export * from './collection';
-export * from './document';
-export * from './system';
