@@ -418,7 +418,7 @@ class CollectionSyncHistory(models.Model):
 
     id = models.CharField(primary_key=True, default=generate_id.__func__, editable=False, max_length=24)
     user = models.CharField(max_length=256)
-    collection = models.ForeignKey(Collection, on_delete=models.CASCADE)
+    collection_id = models.CharField(max_length=24)
     total_documents = models.PositiveIntegerField(default=0)
     new_documents = models.PositiveIntegerField(default=0)
     deleted_documents = models.PositiveIntegerField(default=0)
@@ -440,6 +440,13 @@ class CollectionSyncHistory(models.Model):
         self.refresh_from_db()
         self.execution_time = timezone.now() - self.start_time
         self.save()
+
+    async def collection(self):
+        """Get the associated collection object"""
+        try:
+            return await Collection.objects.aget(id=self.collection_id)
+        except Collection.DoesNotExist:
+            return None
 
     def view(self):
         return {

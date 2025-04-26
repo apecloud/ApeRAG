@@ -166,7 +166,7 @@ async def sync_immediately(request, collection_id):
     instance = db_models.CollectionSyncHistory(
         user=collection.user,
         start_time=timezone.now(),
-        collection=collection,
+        collection_id=collection_id,
         execution_time=datetime.timedelta(seconds=0),
         total_documents_to_sync=0,
         status=db_models.Collection.SyncStatus.RUNNING,
