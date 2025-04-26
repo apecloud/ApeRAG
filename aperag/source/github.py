@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 class GitHubSource(Source):
     def __init__(self, ctx: Dict[str, Any]):
         super().__init__(ctx)
-        github_config = ctx["github"]
+        github_config = ctx["git"]
         self.repo_url = github_config["repo"]
         self.branch = github_config.get("branch", "main")
         self.path = github_config.get("path", "/")

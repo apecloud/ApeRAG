@@ -5,7 +5,7 @@ export type CollectionConfigSource =
   | 'oss'
   | 'ftp'
   | 'url'
-  | 'github'
+  | 'git'
   | 'email'
   | 'feishu';
 

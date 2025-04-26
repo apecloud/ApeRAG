@@ -23,7 +23,7 @@ export const collection = {
   'collection.source.ftp': 'FTP',
   'collection.source.email': 'Email',
   'collection.source.url': 'Internet URL',
-  'collection.source.github': 'Github',
+  'collection.source.git': 'Git',
   'collection.source.feishu': 'Feishu',
   'collection.source.local.placeholder': 'Path',
   'collection.source.local.required': 'Path is required',

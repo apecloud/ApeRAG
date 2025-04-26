@@ -21,7 +21,7 @@ export const collection = {
   'collection.source.ftp': 'FTP',
   'collection.source.email': '邮箱',
   'collection.source.url': '互联网地址',
-  'collection.source.github': 'Github',
+  'collection.source.git': 'Git',
   'collection.source.feishu': '飞书',
   'collection.source.local.placeholder': '目录地址',
   'collection.source.local.required': '目录地址为必填项',

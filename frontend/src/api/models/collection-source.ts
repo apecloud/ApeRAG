@@ -106,7 +106,7 @@ export const CollectionSourceCategoryEnum = {
     ftp: 'ftp',
     email: 'email',
     url: 'url',
-    github: 'github'
+    git: 'git'
 } as const;
 
 export type CollectionSourceCategoryEnum = typeof CollectionSourceCategoryEnum[keyof typeof CollectionSourceCategoryEnum];

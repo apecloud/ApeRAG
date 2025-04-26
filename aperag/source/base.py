@@ -104,7 +104,7 @@ def get_source(ctx: Dict[str, Any]):
         case "tencent":
             from aperag.source.tencent.tencent import TencentSource
             source = TencentSource(ctx)
-        case "github":
+        case "git":
             from aperag.source.github import GitHubSource
             source = GitHubSource(ctx)
     return source

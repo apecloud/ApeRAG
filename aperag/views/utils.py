@@ -14,7 +14,7 @@
 
 import json
 from http import HTTPStatus
-from typing import Dict, Any, Generic, TypeVar
+from typing import Dict, Any, Generic, TypeVar, Tuple
 
 from django.http import HttpRequest, HttpResponse
 from langchain_core.prompts import PromptTemplate
@@ -80,7 +80,7 @@ async def query_chat_messages(user: str, chat_id: str) -> list[view_models.ChatM
     return messages
 
 
-def validate_source_connect_config(config: Dict) -> (bool, str):
+def validate_source_connect_config(config: Dict) -> Tuple[bool, str]:
     if "source" not in config.keys():
         return False, ""
     if config.get("source") not in AVAILABLE_SOURCE:
@@ -92,7 +92,7 @@ def validate_source_connect_config(config: Dict) -> (bool, str):
     return True, ""
 
 
-def validate_bot_config(model, config: Dict, type, memory) -> (bool, str):
+def validate_bot_config(model, config: Dict, type, memory) -> Tuple[bool, str]:
     try:
         Predictor.from_model(model, PredictorType.CUSTOM_LLM, **config)
     except Exception as e:

@@ -92,7 +92,16 @@ export default ({ onSubmit, action, values, form }: Props) => {
             (smp) => smp.name === providerName,
           );
           return {
-            label: provider?.label || providerName,
+            label: (
+              <Space>
+                <Avatar
+                  size={24}
+                  shape="square"
+                  src={MODEL_PROVIDER_ICON[providerName]}
+                />
+                <span>{provider?.label || providerName}</span>
+              </Space>
+            ),
             options: aebs.map((aeb) => {
               return {
                 label: aeb.embedding_name,

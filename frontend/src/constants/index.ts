@@ -107,7 +107,7 @@ export const COLLECTION_SOURCE: {
   url: {
     icon: UrlIcon,
   },
-  github: {
+  git: {
     icon: GithubIcon,
   },
   feishu: {
