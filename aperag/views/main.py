@@ -589,7 +589,7 @@ async def create_document(request, collection_id: str, file: List[UploadedFile] 
                 name=item.name,
                 status=db_models.Document.Status.PENDING,
                 size=item.size,
-                collection=collection,
+                collection_id=collection.id,
                 file=ContentFile(item.read(), item.name),
             )
             await document_instance.asave()
@@ -602,7 +602,8 @@ async def create_document(request, collection_id: str, file: List[UploadedFile] 
                 name=document_instance.name,
                 status=document_instance.status,
                 size=document_instance.size,
-                collection=document_instance.collection,
+                created=document_instance.gmt_created.isoformat(),
+                updated=document_instance.gmt_updated.isoformat(),
             ))
             add_index_for_local_document.delay(document_instance.id)
         except IntegrityError:
@@ -645,7 +646,7 @@ async def create_url_document(request, collection_id: str) -> List[view_models.D
                 user=user,
                 name=document_name,
                 status=db_models.Document.Status.PENDING,
-                collection=collection,
+                collection_id=collection.id,
                 size=0,
             )
             await document_instance.asave()

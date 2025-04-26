@@ -33,7 +33,7 @@ def random_id():
 def upload_document_path(document, filename):
     user = document.user.replace("|", "-")
     return "documents/user-{0}/{1}/{2}".format(
-        user, document.collection.id, filename
+        user, document.collection_id, filename
     )
 
 
@@ -108,7 +108,7 @@ class Document(models.Model):
     name = models.CharField(max_length=1024)
     user = models.CharField(max_length=256)
     config = models.TextField(null=True)
-    collection = models.ForeignKey(Collection, on_delete=models.CASCADE)
+    collection_id = models.CharField(max_length=24, null=True)
     status = models.CharField(max_length=16, choices=Status.choices)
     size = models.BigIntegerField()
     file = models.FileField(upload_to=upload_document_path, max_length=1024)
@@ -120,16 +120,27 @@ class Document(models.Model):
     sensitive_info = models.JSONField(default=list)
 
     class Meta:
-        unique_together = ('collection', 'name')
+        unique_together = ('collection_id', 'name')
 
-    def collection_id(self):
-        if self.collection:
-            return Cast(self.collection, IntegerField())
-        else:
+    async def get_collection(self):
+        """Get the associated collection object"""
+        try:
+            return await Collection.objects.aget(id=self.collection_id)
+        except Collection.DoesNotExist:
             return None
 
-    collection_id.short_description = 'Collection ID'
-    collection_id.admin_order_field = 'collection'
+    @property
+    async def collection(self):
+        """Property to maintain backwards compatibility"""
+        return await self.get_collection()
+
+    @collection.setter 
+    async def collection(self, collection):
+        """Setter to maintain backwards compatibility"""
+        if isinstance(collection, Collection):
+            self.collection_id = collection.id
+        elif isinstance(collection, str):
+            self.collection_id = collection
 
 
 class Bot(models.Model):

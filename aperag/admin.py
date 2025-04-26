@@ -23,20 +23,11 @@ admin.site.site_title = 'ApeRAG admin'  # set title
 admin.site.index_title = 'ApeRAG admin'
 
 
-class DocumentInline(admin.StackedInline):
-    model = Document
-
-
-class ChatInline(admin.StackedInline):
-    model = Chat
-
-
 @admin.register(Collection)
 class CollectionAdmin(admin.ModelAdmin):
     list_display = ('id', 'title', 'description', 'user', 'status', 'type', 'created_date', 'updated_date')
     list_filter = ('status',)
     search_fields = ('title',)
-    inlines = [DocumentInline]  # Associated models displayed inline
     '''Replacement value for empty field'''
     empty_value_display = 'NA'
 
