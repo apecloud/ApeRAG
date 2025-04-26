@@ -19,17 +19,17 @@ from asgiref.sync import sync_to_async
 from django.db.models import QuerySet
 from pydantic import BaseModel
 
-from aperag.store.api_key import ApiKeyStatus, ApiKeyToken
-from aperag.store.bot import Bot, BotStatus
-from aperag.store.chat import Chat, ChatStatus
-from aperag.store.collection import Collection, CollectionStatus
-from aperag.store.collection_sync_history import CollectionSyncHistory, CollectionSyncStatus
-from aperag.store.config import Config
-from aperag.store.document import Document, DocumentStatus
-from aperag.store.message_feedback import MessageFeedback
-from aperag.store.question import Question, QuestionStatus
-from aperag.store.user_quota import UserQuota
-from aperag.store.chat import (
+from aperag.db.api_key import ApiKeyStatus, ApiKeyToken
+from aperag.db.bot import Bot, BotStatus
+from aperag.db.chat import Chat, ChatStatus
+from aperag.db.collection import Collection, CollectionStatus
+from aperag.db.collection_sync_history import CollectionSyncHistory, CollectionSyncStatus
+from aperag.db.config import Config
+from aperag.db.document import Document, DocumentStatus
+from aperag.db.message_feedback import MessageFeedback
+from aperag.db.question import Question, QuestionStatus
+from aperag.db.user_quota import UserQuota
+from aperag.db.chat import (
     ChatPeer
 )
 

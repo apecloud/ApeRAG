@@ -1,9 +1,9 @@
-from aperag.store.bot import Bot
+from aperag.db.bot import Bot
 
 
 from django.db import models
 
-from aperag.store.utils import random_id
+from aperag.db.utils import random_id
 
 
 class ChatStatus(models.TextChoices):

@@ -17,8 +17,8 @@ from http import HTTPStatus
 
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
-from aperag.store.message_feedback import MessageFeedback
-from aperag.store.message_feedback import MessageFeedbackStatus
+from aperag.db.message_feedback import MessageFeedback
+from aperag.db.message_feedback import MessageFeedbackStatus
 from aperag.views.utils import fail
 
 

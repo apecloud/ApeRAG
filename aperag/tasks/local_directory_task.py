@@ -17,10 +17,10 @@ import logging
 import os
 import time
 
-from aperag.store.document import Document
+from aperag.db.document import Document
 from config.celery import app
-from aperag.store.document import DocumentStatus
-from aperag.store.ops import query_collection, query_documents
+from aperag.db.document import DocumentStatus
+from aperag.db.ops import query_collection, query_documents
 from aperag.readers.base_readers import DEFAULT_FILE_READER_CLS
 from aperag.tasks.index import add_index_for_document, remove_index, update_index_for_document
 

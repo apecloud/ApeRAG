@@ -2,7 +2,7 @@
 
 from django.db import migrations, models
 
-import aperag.store.utils
+import aperag.db.utils
 
 
 class Migration(migrations.Migration):
@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
             model_name="bot",
             name="id",
             field=models.CharField(
-                default=aperag.store.utils.bot_pk,
+                default=aperag.db.utils.bot_pk,
                 editable=False,
                 max_length=16,
                 primary_key=True,
@@ -26,7 +26,7 @@ class Migration(migrations.Migration):
             model_name="chat",
             name="id",
             field=models.CharField(
-                default=aperag.store.utils.chat_pk,
+                default=aperag.db.utils.chat_pk,
                 editable=False,
                 max_length=16,
                 primary_key=True,
@@ -37,7 +37,7 @@ class Migration(migrations.Migration):
             model_name="collection",
             name="id",
             field=models.CharField(
-                default=aperag.store.utils.collection_pk,
+                default=aperag.db.utils.collection_pk,
                 editable=False,
                 max_length=16,
                 primary_key=True,
@@ -48,7 +48,7 @@ class Migration(migrations.Migration):
             model_name="collectionsynchistory",
             name="id",
             field=models.CharField(
-                default=aperag.store.utils.collection_history_pk,
+                default=aperag.db.utils.collection_history_pk,
                 editable=False,
                 max_length=16,
                 primary_key=True,
@@ -59,14 +59,14 @@ class Migration(migrations.Migration):
             model_name="document",
             name="file",
             field=models.FileField(
-                max_length=1024, upload_to=aperag.store.utils.upload_document_path
+                max_length=1024, upload_to=aperag.db.utils.upload_document_path
             ),
         ),
         migrations.AlterField(
             model_name="document",
             name="id",
             field=models.CharField(
-                default=aperag.store.utils.doc_pk,
+                default=aperag.db.utils.doc_pk,
                 editable=False,
                 max_length=16,
                 primary_key=True,

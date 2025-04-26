@@ -23,11 +23,11 @@ from django.http import HttpRequest
 from ninja.security import HttpBearer
 from ninja.security.http import HttpAuthBase
 
-from aperag.store.api_key import ApiKeyToken
+from aperag.db.api_key import ApiKeyToken
 import config.settings as settings
 from aperag.auth import tv
 from aperag.utils.constant import KEY_USER_ID, KEY_WEBSOCKET_PROTOCOL
-from aperag.store.api_key import ApiKeyStatus
+from aperag.db.api_key import ApiKeyStatus
 from django.core.cache import cache
 from asgiref.sync import sync_to_async
 

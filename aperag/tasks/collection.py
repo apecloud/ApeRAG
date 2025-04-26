@@ -14,11 +14,11 @@
 
 import json
 
-from aperag.store.collection import Collection
+from aperag.db.collection import Collection
 from config.celery import app
 from config.vector_db import get_vector_db_connector
 from aperag.context.full_text import create_index, delete_index
-from aperag.store.collection import CollectionStatus
+from aperag.db.collection import CollectionStatus
 from aperag.embed.base_embedding import loads_or_use_default_embedding_configs
 from aperag.source.base import get_source
 from aperag.tasks.sync_documents_task import sync_documents

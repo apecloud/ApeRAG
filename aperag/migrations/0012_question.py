@@ -3,7 +3,7 @@
 import django.db.models.deletion
 from django.db import migrations, models
 
-import aperag.store.utils
+import aperag.db.utils
 
 
 class Migration(migrations.Migration):
@@ -16,7 +16,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='Question',
             fields=[
-                ('id', models.CharField(default=aperag.store.utils.que_pk, editable=False, max_length=24, primary_key=True, serialize=False)),
+                ('id', models.CharField(default=aperag.db.utils.que_pk, editable=False, max_length=24, primary_key=True, serialize=False)),
                 ('user', models.CharField(max_length=256)),
                 ('question', models.TextField()),
                 ('answer', models.TextField(blank=True, null=True)),

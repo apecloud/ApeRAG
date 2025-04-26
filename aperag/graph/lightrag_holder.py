@@ -9,7 +9,7 @@ from lightrag.llm.openai import openai_complete_if_cache
 from lightrag.utils import EmbeddingFunc
 from lightrag.base import DocStatus
 
-from aperag.store.collection import Collection
+from aperag.db.collection import Collection
 from aperag.embed.base_embedding import get_collection_embedding_model
 from aperag.utils.utils import generate_lightrag_namespace_prefix
 from config.settings import (

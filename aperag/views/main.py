@@ -33,13 +33,13 @@ from ninja import File, NinjaAPI, Router, Schema
 from ninja.files import UploadedFile
 
 import aperag.chat.message
-import aperag.store.api_key
-import aperag.store.bot
-import aperag.store.chat
-import aperag.store.collection
-import aperag.store.collection_sync_history
-import aperag.store.document
-import aperag.store.question
+import aperag.db.api_key
+import aperag.db.bot
+import aperag.db.chat
+import aperag.db.collection
+import aperag.db.collection_sync_history
+import aperag.db.document
+import aperag.db.question
 import aperag.views.models
 from config import settings
 from config.celery import app
@@ -47,9 +47,9 @@ from aperag.apps import QuotaType
 from aperag.auth.validator import GlobalHTTPAuth
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
-from aperag.store import utils as db_models
+from aperag.db import utils as db_models
 from aperag.views import models as view_models
-from aperag.store.ops import (
+from aperag.db.ops import (
     build_pq,
     query_bot,
     query_bots,
@@ -173,13 +173,13 @@ async def sync_immediately(request, collection_id):
     async for task in pr.data:
         return fail(HTTPStatus.BAD_REQUEST, f"have running sync task {task.id}, please cancel it first")
 
-    instance = aperag.store.collection_sync_history.CollectionSyncHistory(
+    instance = aperag.db.collection_sync_history.CollectionSyncHistory(
         user=collection.user,
         start_time=timezone.now(),
         collection=collection,
         execution_time=datetime.timedelta(seconds=0),
         total_documents_to_sync=0,
-        status=aperag.store.collection.CollectionSyncStatus.RUNNING,
+        status=aperag.db.collection.CollectionSyncStatus.RUNNING,
     )
     await instance.asave()
     document_user_quota = await query_user_quota(user, QuotaType.MAX_DOCUMENT_COUNT)
@@ -222,7 +222,7 @@ async def cancel_sync(request, collection_id, collection_sync_id):
     else:
         logger.warning(f"no index task group id in sync history {collection_sync_id}")
 
-    sync_history.status = aperag.store.collection.CollectionSyncStatus.CANCELED
+    sync_history.status = aperag.db.collection.CollectionSyncStatus.CANCELED
     await sync_history.asave()
     return success({})
 
@@ -233,7 +233,7 @@ async def list_sync_histories(request, collection_id):
     pr = await query_sync_histories(user, collection_id, build_pq(request))
     response = []
     async for sync_history in pr.data:
-        if sync_history.status == aperag.store.collection.CollectionSyncStatus.RUNNING:
+        if sync_history.status == aperag.db.collection.CollectionSyncStatus.RUNNING:
             progress = get_sync_progress(sync_history)
             sync_history.failed_documents = progress.failed_documents
             sync_history.successful_documents = progress.successful_documents
@@ -249,7 +249,7 @@ async def get_sync_history(request, collection_id, sync_history_id):
     sync_history = await query_sync_history(user, collection_id, sync_history_id)
     if sync_history is None:
         return fail(HTTPStatus.NOT_FOUND, "sync history not found")
-    if sync_history.status == aperag.store.collection.CollectionSyncStatus.RUNNING:
+    if sync_history.status == aperag.db.collection.CollectionSyncStatus.RUNNING:
         progress = get_sync_progress(sync_history)
         sync_history.failed_documents = progress.failed_documents
         sync_history.successful_documents = progress.successful_documents
@@ -272,9 +272,9 @@ async def list_apikey(request) -> List[view_models.ApiKey]:
 @router.post("/apikeys")
 async def create_apikey(request) -> view_models.ApiKey:
     user = get_user(request)
-    new_api_key = aperag.store.api_key.ApiKeyToken(
+    new_api_key = aperag.db.api_key.ApiKeyToken(
         user=user,
-        status=aperag.store.api_key.ApiKeyStatus.ACTIVE,
+        status=aperag.db.api_key.ApiKeyStatus.ACTIVE,
         key = secrets.token_hex(20)
     )
     await new_api_key.asave()
@@ -289,7 +289,7 @@ async def delete_apikey(request, apikey_id: str) -> view_models.ApiKey:
     api_key = await query_apikey(user, apikey_id)
     if api_key is None:
         return fail(HTTPStatus.NOT_FOUND, "api_key not found")
-    api_key.status = aperag.store.api_key.ApiKeyStatus.DELETED
+    api_key.status = aperag.db.api_key.ApiKeyStatus.DELETED
     api_key.gmt_deleted = timezone.now()
     await api_key.asave()
     return success(view_models.ApiKey(
@@ -301,7 +301,7 @@ async def delete_apikey(request, apikey_id: str) -> view_models.ApiKey:
 async def create_collection(request, collection: view_models.CollectionCreate) -> view_models.Collection:
     user = get_user(request)
     config = json.loads(collection.config)
-    if collection.type == aperag.store.collection.CollectionType.DOCUMENT:
+    if collection.type == aperag.db.collection.CollectionType.DOCUMENT:
         is_validate, error_msg = validate_source_connect_config(config)
         if not is_validate:
             return fail(HTTPStatus.BAD_REQUEST, error_msg)
@@ -325,10 +325,10 @@ async def create_collection(request, collection: view_models.CollectionCreate) -
         if collection_limit and await query_collections_count(user) >= collection_limit:
             return fail(HTTPStatus.FORBIDDEN, f"collection number has reached the limit of {collection_limit}")
 
-    instance = aperag.store.collection.Collection(
+    instance = aperag.db.collection.Collection(
         user=user,
         type=collection.type,
-        status=aperag.store.collection.CollectionStatus.INACTIVE,
+        status=aperag.db.collection.CollectionStatus.INACTIVE,
         title=collection.title,
         description=collection.description
     )
@@ -337,7 +337,7 @@ async def create_collection(request, collection: view_models.CollectionCreate) -
         instance.config = collection.config
     await instance.asave()
 
-    if instance.type == aperag.store.collection.CollectionType.DOCUMENT:
+    if instance.type == aperag.db.collection.CollectionType.DOCUMENT:
         document_user_quota = await query_user_quota(user, QuotaType.MAX_DOCUMENT_COUNT)
         init_collection_task.delay(instance.id, document_user_quota)
     else:
@@ -376,7 +376,7 @@ async def get_collection(request, collection_id: str) -> view_models.Collection:
     if instance is None:
         return fail(HTTPStatus.NOT_FOUND, "Collection not found")
 
-    bots = await sync_to_async(instance.bot_set.exclude)(status=aperag.store.bot.BotStatus.DELETED)
+    bots = await sync_to_async(instance.bot_set.exclude)(status=aperag.db.bot.BotStatus.DELETED)
     bot_ids = []
     async for bot in bots:
         bot_ids.append(bot.id)
@@ -404,7 +404,7 @@ async def update_collection(request, collection_id: str, collection: view_models
     if source.sync_enabled():
         await update_sync_documents_cron_job(instance.id)
 
-    bots = await sync_to_async(instance.bot_set.exclude)(status=aperag.store.bot.BotStatus.DELETED)
+    bots = await sync_to_async(instance.bot_set.exclude)(status=aperag.db.bot.BotStatus.DELETED)
     bot_ids = []
     async for bot in bots:
         bot_ids.append(bot.id)
@@ -426,13 +426,13 @@ async def delete_collection(request, collection_id: str) -> view_models.Collecti
     if collection is None:
         return fail(HTTPStatus.NOT_FOUND, "Collection not found")
     await delete_sync_documents_cron_job(collection.id)
-    bots = await sync_to_async(collection.bot_set.exclude)(status=aperag.store.bot.BotStatus.DELETED)
+    bots = await sync_to_async(collection.bot_set.exclude)(status=aperag.db.bot.BotStatus.DELETED)
     bot_ids = []
     async for bot in bots:
         bot_ids.append(bot.id)
     if len(bot_ids) > 0:
         return fail(HTTPStatus.BAD_REQUEST, f"Collection has related to bots {','.join(bot_ids)}, can not be deleted")
-    collection.status = aperag.store.collection.CollectionStatus.DELETED
+    collection.status = aperag.db.collection.CollectionStatus.DELETED
     collection.gmt_deleted = timezone.now()
     await collection.asave()
 
@@ -452,13 +452,13 @@ async def create_questions(request, collection_id: str):
     collection = await query_collection(user, collection_id)
     if collection is None:
         return fail(HTTPStatus.NOT_FOUND, "Collection not found")
-    if collection.status == aperag.store.collection.CollectionStatus.QUESTION_PENDING:
+    if collection.status == aperag.db.collection.CollectionStatus.QUESTION_PENDING:
         return fail(HTTPStatus.BAD_REQUEST, "Collection is generating questions")
 
-    collection.status = aperag.store.collection.CollectionStatus.QUESTION_PENDING
+    collection.status = aperag.db.collection.CollectionStatus.QUESTION_PENDING
     await collection.asave()
 
-    documents = await sync_to_async(collection.document_set.exclude)(status=aperag.store.document.DocumentStatus.DELETED)
+    documents = await sync_to_async(collection.document_set.exclude)(status=aperag.db.document.DocumentStatus.DELETED)
     generate_tasks = []
     async for document in documents:
         generate_tasks.append(generate_questions.si(document.id))
@@ -477,10 +477,10 @@ async def update_question(request, collection_id: str, question_in: view_models.
 
     # ceate question
     if not question_in.id:
-        question_instance = aperag.store.question.Question(
+        question_instance = aperag.db.question.Question(
             user=collection.user,
             collection=collection,
-            status=aperag.store.question.QuestionStatus.PENDING,
+            status=aperag.db.question.QuestionStatus.PENDING,
         )
         await question_instance.asave()
     else:
@@ -490,13 +490,13 @@ async def update_question(request, collection_id: str, question_in: view_models.
 
     question_instance.question = question_in.question
     question_instance.answer = question_in.answer if question_in.answer else ""
-    question_instance.status = aperag.store.question.QuestionStatus.PENDING
+    question_instance.status = aperag.db.question.QuestionStatus.PENDING
     await sync_to_async(question_instance.documents.clear)()
 
     if question_in.relate_documents:
         for document_id in question_in.relate_documents:
             document = await query_document(user, collection_id, document_id)
-            if document is None or document.status == aperag.store.document.DocumentStatus.DELETED:
+            if document is None or document.status == aperag.db.document.DocumentStatus.DELETED:
                 return fail(HTTPStatus.NOT_FOUND, "Document not found")
             await sync_to_async(question_instance.documents.add)(document)
     else:
@@ -518,12 +518,12 @@ async def delete_question(request, collection_id: str, question_id: str) -> view
     question = await query_question(user, question_id)
     if question is None:
         return fail(HTTPStatus.NOT_FOUND, "Question not found")
-    question.status = aperag.store.question.QuestionStatus.DELETED
+    question.status = aperag.db.question.QuestionStatus.DELETED
     question.gmt_deleted = timezone.now()
     await question.asave()
     update_index_for_question.delay(question.id)
 
-    docs = await sync_to_async(question.documents.exclude)(status=aperag.store.document.DocumentStatus.DELETED)
+    docs = await sync_to_async(question.documents.exclude)(status=aperag.db.document.DocumentStatus.DELETED)
     doc_ids = []
     async for doc in docs:
         doc_ids.append(doc.id)
@@ -552,7 +552,7 @@ async def list_questions(request, collection_id: str) -> List[view_models.Questi
 async def get_question(request, collection_id: str, question_id: str) -> view_models.Question:
     user = get_user(request)
     question = await query_question(user, question_id)
-    docs = await sync_to_async(question.documents.exclude)(status=aperag.store.document.DocumentStatus.DELETED)
+    docs = await sync_to_async(question.documents.exclude)(status=aperag.db.document.DocumentStatus.DELETED)
     doc_ids = []
     async for doc in docs:
         doc_ids.append(doc.id)
@@ -586,10 +586,10 @@ async def create_document(request, collection_id: str, file: List[UploadedFile] 
         if file_suffix not in DEFAULT_FILE_READER_CLS.keys():
             return fail(HTTPStatus.BAD_REQUEST, f"unsupported file type {file_suffix}")
         try:
-            document_instance = aperag.store.document.Document(
+            document_instance = aperag.db.document.Document(
                 user=user,
                 name=item.name,
-                status=aperag.store.document.DocumentStatus.PENDING,
+                status=aperag.db.document.DocumentStatus.PENDING,
                 size=item.size,
                 collection=collection,
                 file=ContentFile(item.read(), item.name),
@@ -643,10 +643,10 @@ async def create_url_document(request, collection_id: str) -> List[view_models.D
                 document_name = url + '.html'
             else:
                 document_name = url
-            document_instance = aperag.store.document.Document(
+            document_instance = aperag.db.document.Document(
                 user=user,
                 name=document_name,
-                status=aperag.store.document.DocumentStatus.PENDING,
+                status=aperag.db.document.DocumentStatus.PENDING,
                 collection=collection,
                 size=0,
             )
@@ -695,7 +695,7 @@ async def update_document(
     instance = await query_document(user, collection_id, document_id)
     if instance is None:
         return fail(HTTPStatus.NOT_FOUND, "Document not found")
-    if instance.status == aperag.store.document.DocumentStatus.DELETING:
+    if instance.status == aperag.db.document.DocumentStatus.DELETING:
         return fail(HTTPStatus.BAD_REQUEST, "Document is deleting")
 
     if document.config:
@@ -710,9 +710,9 @@ async def update_document(
     # if user add labels for a document, we need to update index
     update_index_for_document.delay(instance.id)
 
-    related_questions = await sync_to_async(instance.question_set.exclude)(status=aperag.store.question.QuestionStatus.DELETED)
+    related_questions = await sync_to_async(instance.question_set.exclude)(status=aperag.db.question.QuestionStatus.DELETED)
     async for question in related_questions:
-        question.status = aperag.store.question.QuestionStatus.WARNING
+        question.status = aperag.db.question.QuestionStatus.WARNING
         await question.asave()
 
     return success(view_models.Document(
@@ -731,19 +731,19 @@ async def delete_document(request, collection_id: str, document_id: str) -> view
     if document is None:
         logger.info(f"document {document_id} not found, maybe has already been deleted")
         return success({})
-    if document.status == aperag.store.document.DocumentStatus.DELETING:
+    if document.status == aperag.db.document.DocumentStatus.DELETING:
         logger.info(f"document {document_id} is deleting, ignore delete")
         return success({})
-    document.status = aperag.store.document.DocumentStatus.DELETING
+    document.status = aperag.db.document.DocumentStatus.DELETING
     document.gmt_deleted = timezone.now()
     await document.asave()
 
     remove_index.delay(document.id)
 
-    related_questions = await sync_to_async(document.question_set.exclude)(status=aperag.store.question.QuestionStatus.DELETED)
+    related_questions = await sync_to_async(document.question_set.exclude)(status=aperag.db.question.QuestionStatus.DELETED)
     async for question in related_questions:
         question.documents.remove(document)
-        question.status = aperag.store.question.QuestionStatus.WARNING
+        question.status = aperag.db.question.QuestionStatus.WARNING
         await question.asave()
 
     return success(view_models.Document(
@@ -765,15 +765,15 @@ async def delete_documents(request, collection_id: str, document_ids: List[str])
         if document.id not in document_ids:
             continue
         try:
-            document.status = aperag.store.document.DocumentStatus.DELETING
+            document.status = aperag.db.document.DocumentStatus.DELETING
             document.gmt_deleted = timezone.now()
             await document.asave()
             remove_index.delay(document.id)
 
-            related_questions = await sync_to_async(document.question_set.exclude)(status=aperag.store.question.QuestionStatus.DELETED)
+            related_questions = await sync_to_async(document.question_set.exclude)(status=aperag.db.question.QuestionStatus.DELETED)
             async for question in related_questions:
                 question.documents.remove(document)
-                question.status = aperag.store.question.QuestionStatus.WARNING
+                question.status = aperag.db.question.QuestionStatus.WARNING
                 await question.asave()
 
             ok.append(document.id)
@@ -789,7 +789,7 @@ async def create_chat(request, bot_id: str) -> view_models.Chat:
     bot = await query_bot(user, bot_id)
     if bot is None:
         return fail(HTTPStatus.NOT_FOUND, "Bot not found")
-    instance = aperag.store.chat.Chat(user=user, bot=bot, peer_type=aperag.store.chat.ChatPeer.SYSTEM)
+    instance = aperag.db.chat.Chat(user=user, bot=bot, peer_type=aperag.db.chat.ChatPeer.SYSTEM)
     await instance.asave()
     return success(view_models.Chat(
         id=instance.id,
@@ -874,7 +874,7 @@ async def delete_chat(request, bot_id: str, chat_id: str) -> view_models.Chat:
     chat = await query_chat(user, bot_id, chat_id)
     if chat is None:
         return fail(HTTPStatus.NOT_FOUND, "Chat not found")
-    chat.status = aperag.store.chat.ChatStatus.DELETED
+    chat.status = aperag.db.chat.ChatStatus.DELETED
     chat.gmt_deleted = timezone.now()
     await chat.asave()
     history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
@@ -900,11 +900,11 @@ async def create_bot(request, bot_in: view_models.BotCreate) -> view_models.Bot:
         if await query_bots_count(user) >= bot_limit:
             return fail(HTTPStatus.FORBIDDEN, f"bot number has reached the limit of {bot_limit}")
 
-    bot = aperag.store.bot.Bot(
+    bot = aperag.db.bot.Bot(
         user=user,
         title=bot_in.title,
         type=bot_in.type,
-        status=aperag.store.bot.BotStatus.ACTIVE,
+        status=aperag.db.bot.BotStatus.ACTIVE,
         description=bot_in.description,
         config=bot_in.config,
     )
@@ -922,7 +922,7 @@ async def create_bot(request, bot_in: view_models.BotCreate) -> view_models.Bot:
             collection = await query_collection(user, cid)
             if not collection:
                 return fail(HTTPStatus.NOT_FOUND, "Collection %s not found" % cid)
-            if collection.status == aperag.store.collection.CollectionStatus.INACTIVE:
+            if collection.status == aperag.db.collection.CollectionStatus.INACTIVE:
                 return fail(HTTPStatus.BAD_REQUEST, "Collection %s is inactive" % cid)
             await sync_to_async(bot.collections.add)(collection)
             collection_ids.append(collection.id)
@@ -1016,7 +1016,7 @@ async def update_bot(request, bot_id: str, bot_in: view_models.BotUpdate) -> vie
             collection = await query_collection(user, cid)
             if not collection:
                 return fail(HTTPStatus.NOT_FOUND, "Collection %s not found" % cid)
-            if collection.status == aperag.store.collection.CollectionStatus.INACTIVE:
+            if collection.status == aperag.db.collection.CollectionStatus.INACTIVE:
                 return fail(HTTPStatus.BAD_REQUEST, "Collection %s is inactive" % cid)
             collections.append(collection)
         await sync_to_async(bot.collections.set)(collections)
@@ -1043,7 +1043,7 @@ async def delete_bot(request, bot_id: str) -> view_models.Bot:
     bot = await query_bot(user, bot_id)
     if bot is None:
         return fail(HTTPStatus.NOT_FOUND, "Bot not found")
-    bot.status = aperag.store.bot.BotStatus.DELETED
+    bot.status = aperag.db.bot.BotStatus.DELETED
     bot.gmt_deleted = timezone.now()
     await bot.asave()
     collection_ids = []
@@ -1064,9 +1064,9 @@ def default_page(request, exception):
 
 def dashboard(request):
     user_count = db_models.User.objects.count()
-    collection_count = aperag.store.collection.Collection.objects.count()
-    document_count = aperag.store.document.Document.objects.count()
-    chat_count = aperag.store.chat.Chat.objects.count()
+    collection_count = aperag.db.collection.Collection.objects.count()
+    document_count = aperag.db.document.Document.objects.count()
+    chat_count = aperag.db.chat.Chat.objects.count()
     context = {'user_count': user_count, 'Collection_count': collection_count,
                'Document_count': document_count, 'Chat_count': chat_count}
     return render(request, 'aperag/dashboard.html', context)

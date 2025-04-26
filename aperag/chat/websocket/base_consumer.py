@@ -36,7 +36,7 @@ from aperag.chat.utils import (
     success_response,
     welcome_response,
 )
-from aperag.store.ops import query_bot, query_user_quota
+from aperag.db.ops import query_bot, query_user_quota
 from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES, RELATED_QUESTIONS, \
     DOCUMENT_URLS
 from aperag.utils.constant import KEY_BOT_ID, KEY_CHAT_ID, KEY_USER_ID, KEY_WEBSOCKET_PROTOCOL

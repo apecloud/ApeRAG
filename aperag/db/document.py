@@ -1,11 +1,11 @@
-from aperag.store.collection import Collection
+from aperag.db.collection import Collection
 
 
 from django.db import models
 from django.db.models import IntegerField
 from django.db.models.functions import Cast
 
-from aperag.store.utils import random_id
+from aperag.db.utils import random_id
 
 
 class DocumentStatus(models.TextChoices):

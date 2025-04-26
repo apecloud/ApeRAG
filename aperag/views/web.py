@@ -22,9 +22,9 @@ from ninja import Router
 import aperag.chat
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
-from aperag.store.chat import Chat
-from aperag.store.chat import ChatPeer
-from aperag.store.ops import build_pq, query_bot, query_web_chat, query_web_chats
+from aperag.db.chat import Chat
+from aperag.db.chat import ChatPeer
+from aperag.db.ops import build_pq, query_bot, query_web_chat, query_web_chats
 from aperag.views.utils import fail, query_chat_messages, success
 from aperag.views.models import Feedback
 

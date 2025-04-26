@@ -1,7 +1,7 @@
 from django.contrib.auth import authenticate, login, logout
 from ninja import Router
 from ninja.security import django_auth
-from aperag.store.utils import User
+from aperag.db.utils import User
 import secrets
 from django.core.mail import send_mail
 from django.conf import settings
@@ -12,7 +12,7 @@ from ninja import Query
 from typing import Optional, List
 from asgiref.sync import sync_to_async
 from django.db import models
-from ..store.ops import (
+from ..db.ops import (
     query_user_exists, query_first_user_exists, create_user,
     query_invitation_by_token, create_invitation, mark_invitation_used,
     authenticate_user, login_user, logout_user, set_user_password,

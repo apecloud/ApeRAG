@@ -8,7 +8,7 @@ from langchain.embeddings.base import Embeddings
 from llama_index.core.data_structs.data_structs import BaseNode
 from llama_index.core.node_parser import NodeParser, TokenTextSplitter
 
-from aperag.store.utils import ProtectAction
+from aperag.db.utils import ProtectAction
 from aperag.embed.base_embedding import DocumentBaseEmbedding
 from aperag.readers.local_path_reader import InteractiveSimpleDirectoryReader
 from aperag.readers.sensitive_filter import SensitiveFilterClassify

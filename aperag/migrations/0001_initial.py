@@ -3,7 +3,7 @@
 import django.db.models.deletion
 from django.db import migrations, models
 
-import aperag.store.utils
+import aperag.db.utils
 
 
 class Migration(migrations.Migration):
@@ -249,7 +249,7 @@ class Migration(migrations.Migration):
                 ("size", models.BigIntegerField()),
                 (
                     "file",
-                    models.FileField(upload_to=aperag.store.utils.upload_document_path),
+                    models.FileField(upload_to=aperag.db.utils.upload_document_path),
                 ),
                 ("relate_ids", models.TextField()),
                 ("metadata", models.TextField(default="{}")),

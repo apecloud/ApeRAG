@@ -20,7 +20,7 @@ from ninja import Router
 
 from config import settings
 from aperag.context.context import ContextManager
-from aperag.store.ops import query_collection_without_user
+from aperag.db.ops import query_collection_without_user
 from aperag.embed.base_embedding import get_collection_embedding_model
 from aperag.rank.reranker import rerank
 from aperag.source.utils import async_run

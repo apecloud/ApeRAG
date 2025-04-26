@@ -1,10 +1,10 @@
-from aperag.store.collection import Collection
-from aperag.store.document import Document
+from aperag.db.collection import Collection
+from aperag.db.document import Document
 
 
 from django.db import models
 
-from aperag.store.utils import random_id
+from aperag.db.utils import random_id
 
 
 class QuestionStatus(models.TextChoices):

@@ -1,5 +1,5 @@
-from aperag.store.chat import Chat
-from aperag.store.collection import Collection
+from aperag.db.chat import Chat
+from aperag.db.collection import Collection
 
 
 from django.db import models

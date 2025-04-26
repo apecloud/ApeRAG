@@ -15,10 +15,10 @@
 from django.contrib import admin
 from django.utils.html import format_html
 
-from aperag.store.chat import Chat
-from aperag.store.collection import Collection
-from aperag.store.document import Document
-from aperag.store.collection_sync_history import CollectionSyncHistory
+from aperag.db.chat import Chat
+from aperag.db.collection import Collection
+from aperag.db.document import Document
+from aperag.db.collection_sync_history import CollectionSyncHistory
 
 admin.site.site_header = 'ApeRAG admin'  # set header
 admin.site.site_title = 'ApeRAG admin'  # set title
