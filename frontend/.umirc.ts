@@ -50,7 +50,7 @@ export default defineConfig({
   esbuildMinifyIIFE: true,
   proxy: {
     '/api': {
-      target: 'http://127.0.0.1:8000', // https://chat.kubeblocks.io | http://127.0.0.1:8000
+      target: 'http://127.0.0.1:8000',
       changeOrigin: true,
       ws: true,
       secure: false,

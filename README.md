@@ -93,8 +93,6 @@ source .venv/bin/activate
 ```
 
 ```
-# The node engine version should be ">=20"
-
 make run-backend
 ```
 
@@ -115,6 +113,7 @@ To debug celery service, see [HOW-TO-DEBUG.md](docs%2FHOW-TO-DEBUG.md)
 * run the frontend
 
 ```
+# The node engine version should be ">=20"
 make run-frontend
 ```
 

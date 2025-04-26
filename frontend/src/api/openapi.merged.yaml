@@ -1652,11 +1652,11 @@ components:
       properties:
         title:
           type: string
+        config:
+          type: string
         type:
           type: string
         description:
-          type: string
-        config:
           type: string
         source:
           $ref: '#/components/schemas/collectionSource'

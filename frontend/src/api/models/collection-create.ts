@@ -34,6 +34,12 @@ export interface CollectionCreate {
      * @type {string}
      * @memberof CollectionCreate
      */
+    'config'?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof CollectionCreate
+     */
     'type'?: string;
     /**
      * 
@@ -41,12 +47,6 @@ export interface CollectionCreate {
      * @memberof CollectionCreate
      */
     'description'?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof CollectionCreate
-     */
-    'config'?: string;
     /**
      * 
      * @type {CollectionSource}

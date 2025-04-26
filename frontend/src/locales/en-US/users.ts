@@ -3,6 +3,8 @@ export const users = {
   'users.management_tips':
     'Manage user identities including password resets, creating and provisioning, blocking and deleting users.',
   'users.invite': 'Invite User',
+  'users.all': 'All User',
+  'users.invitations': 'Invitations'
 };
 
 export const user = {

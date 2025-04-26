@@ -105,7 +105,7 @@ export default () => {
       <Tabs
         items={[
           {
-            label: '系统用户',
+            label: formatMessage({ id: 'users.all' }),
             key: 'users',
             children: (
               <Table
@@ -118,7 +118,7 @@ export default () => {
             ),
           },
           {
-            label: '邀请列表',
+            label: formatMessage({ id: 'users.invitations' }),
             key: 'invitations',
             children: '',
             disabled: true,
