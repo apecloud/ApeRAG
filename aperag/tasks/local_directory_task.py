@@ -59,7 +59,7 @@ def update_local_directory_index(user, collection_id):
                 name=filename,
                 status=Document.Status.PENDING,
                 size=file_stat.st_size,
-                collection=collection,
+                collection_id=collection.id,
                 metadata=time.strftime(
                     "%Y-%m-%d %H:%M:%S", time.localtime(file_stat.st_mtime)
                 ),

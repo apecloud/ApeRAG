@@ -210,14 +210,34 @@ class Chat(models.Model):
     peer_type = models.CharField(max_length=16, default=PeerType.SYSTEM, choices=PeerType.choices)
     peer_id = models.CharField(max_length=256, null=True)
     status = models.CharField(max_length=16, choices=Status.choices)
-    bot = models.ForeignKey(Bot, on_delete=models.CASCADE)
+    bot_id = models.CharField(max_length=24)
     title = models.TextField()
     gmt_created = models.DateTimeField(auto_now_add=True)
     gmt_updated = models.DateTimeField(auto_now=True)
     gmt_deleted = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        unique_together = ('bot', 'peer_type', 'peer_id')
+        unique_together = ('bot_id', 'peer_type', 'peer_id')
+
+    async def get_bot(self):
+        """Get the associated bot object"""
+        try:
+            return await Bot.objects.aget(id=self.bot_id)
+        except Bot.DoesNotExist:
+            return None
+
+    @property
+    async def bot(self):
+        """Property to maintain backwards compatibility"""
+        return await self.get_bot()
+
+    @bot.setter
+    async def bot(self, bot):
+        """Setter to maintain backwards compatibility"""
+        if isinstance(bot, Bot):
+            self.bot_id = bot.id
+        elif isinstance(bot, str):
+            self.bot_id = bot
 
 
 class MessageFeedback(models.Model):
@@ -228,8 +248,8 @@ class MessageFeedback(models.Model):
         FAILED = "FAILED"
 
     user = models.CharField(max_length=256)
-    collection = models.ForeignKey(Collection, on_delete=models.CASCADE, null=True, blank=True)
-    chat = models.ForeignKey(Chat, on_delete=models.CASCADE)
+    collection_id = models.CharField(max_length=24, null=True, blank=True)
+    chat_id = models.CharField(max_length=24)
     message_id = models.CharField(max_length=256)
     upvote = models.IntegerField(default=0)
     downvote = models.IntegerField(default=0)
@@ -244,6 +264,46 @@ class MessageFeedback(models.Model):
 
     class Meta:
         unique_together = ('chat_id', 'message_id')
+
+    async def get_collection(self):
+        """Get the associated collection object"""
+        try:
+            return await Collection.objects.aget(id=self.collection_id)
+        except Collection.DoesNotExist:
+            return None
+
+    @property
+    async def collection(self):
+        """Property to maintain backwards compatibility"""
+        return await self.get_collection()
+
+    @collection.setter
+    async def collection(self, collection):
+        """Setter to maintain backwards compatibility"""
+        if isinstance(collection, Collection):
+            self.collection_id = collection.id
+        elif isinstance(collection, str):
+            self.collection_id = collection
+
+    async def get_chat(self):
+        """Get the associated chat object"""
+        try:
+            return await Chat.objects.aget(id=self.chat_id)
+        except Chat.DoesNotExist:
+            return None
+
+    @property
+    async def chat(self):
+        """Property to maintain backwards compatibility"""
+        return await self.get_chat()
+
+    @chat.setter
+    async def chat(self, chat):
+        """Setter to maintain backwards compatibility"""
+        if isinstance(chat, Chat):
+            self.chat_id = chat.id
+        elif isinstance(chat, str):
+            self.chat_id = chat
 
 
 class Question(models.Model):
@@ -260,7 +320,7 @@ class Question(models.Model):
 
     id = models.CharField(primary_key=True, default=generate_id.__func__, editable=False, max_length=24)
     user = models.CharField(max_length=256)
-    collection = models.ForeignKey(Collection, on_delete=models.CASCADE)
+    collection_id = models.CharField(max_length=24)
     documents = models.ManyToManyField(Document, blank=True)
     question = models.TextField()
     answer = models.TextField(null=True, blank=True)
@@ -269,6 +329,26 @@ class Question(models.Model):
     gmt_updated = models.DateTimeField(auto_now=True)
     gmt_deleted = models.DateTimeField(null=True, blank=True)
     relate_id = models.CharField(null=True, max_length=256)
+
+    async def get_collection(self):
+        """Get the associated collection object"""
+        try:
+            return await Collection.objects.aget(id=self.collection_id)
+        except Collection.DoesNotExist:
+            return None
+
+    @property
+    async def collection(self):
+        """Property to maintain backwards compatibility"""
+        return await self.get_collection()
+
+    @collection.setter
+    async def collection(self, collection):
+        """Setter to maintain backwards compatibility"""
+        if isinstance(collection, Collection):
+            self.collection_id = collection.id
+        elif isinstance(collection, str):
+            self.collection_id = collection
 
 
 class ApiKeyToken(models.Model):

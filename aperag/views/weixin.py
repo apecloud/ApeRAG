@@ -45,7 +45,7 @@ async def weixin_text_response(client, user, bot, query, msg_id):
     chat_id = user
     chat = await query_chat_by_peer(bot.user, Chat.PeerType.WEIXIN, chat_id)
     if chat is None:
-        chat = Chat(user=bot.user, bot=bot, peer_type=Chat.PeerType.WEIXIN, peer_id=chat_id)
+        chat = Chat(user=bot.user, bot_id=bot.id, peer_type=Chat.PeerType.WEIXIN, peer_id=chat_id)
         await chat.asave()
 
     history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())
@@ -86,7 +86,7 @@ async def weixin_card_response(client, user, bot, query, msg_id):
     chat_id = user
     chat = await query_chat_by_peer(bot.user, Chat.PeerType.WEIXIN, chat_id)
     if chat is None:
-        chat = Chat(user=bot.user, bot=bot, peer_type=Chat.PeerType.WEIXIN, peer_id=chat_id)
+        chat = Chat(user=bot.user, bot_id=bot.id, peer_type=Chat.PeerType.WEIXIN, peer_id=chat_id)
         await chat.asave()
 
     history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())
@@ -130,7 +130,7 @@ async def weixin_feedback_response(client, user, bot, key, response_code, task_i
     chat_id = user
     chat = await query_chat_by_peer(bot.user, Chat.PeerType.WEIXIN, chat_id)
     if chat is None:
-        chat = Chat(user=bot.user, bot=bot, peer_type=Chat.PeerType.WEIXIN, peer_id=chat_id)
+        chat = Chat(user=bot.user, bot_id=bot.id, peer_type=Chat.PeerType.WEIXIN, peer_id=chat_id)
         await chat.asave()
 
     msg_id = await client.redis_client.get(f"{task_id}2msg_id")
@@ -277,7 +277,7 @@ async def weixin_officaccount_response(query, msg_id, to_user_name, bot):
     chat_id = to_user_name
     chat = await query_chat_by_peer(bot.user, Chat.PeerType.WEIXIN_OFFICIAL, chat_id)
     if chat is None:
-        chat = Chat(user=bot.user, bot=bot, peer_type=Chat.PeerType.WEIXIN_OFFICIAL, peer_id=chat_id)
+        chat = Chat(user=bot.user, bot_id=bot.id, peer_type=Chat.PeerType.WEIXIN_OFFICIAL, peer_id=chat_id)
         await chat.asave()
 
     history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())

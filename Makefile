@@ -37,7 +37,6 @@ diff:
 makemigration:
 	@python manage.py makemigrations
 
-
 migrate:
 	@python manage.py migrate aperag
 	@python manage.py migrate

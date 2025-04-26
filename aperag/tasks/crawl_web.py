@@ -52,7 +52,7 @@ def crawl_domain(self, root_url, url, collection_id, user, max_pages):
                 user=user,
                 name=document_name,
                 status=Document.Status.PENDING,
-                collection=collection,
+                collection_id=collection.id,
                 size=0,
             )
             document_instance.save()

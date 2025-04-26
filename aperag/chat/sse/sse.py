@@ -60,7 +60,7 @@ class ServerSentEventsConsumer(AsyncHttpConsumer):
         try:
             chat = await query_chat_by_peer(bot.user, Chat.PeerType.FEISHU, chat_id)
             if chat is None:
-                chat = Chat(user=bot.user, bot=bot, peer_type=Chat.PeerType.FEISHU, peer_id=chat_id)
+                chat = Chat(user=bot.user, bot_id=bot.id, peer_type=Chat.PeerType.FEISHU, peer_id=chat_id)
                 await chat.asave()
 
             msg = body.decode("utf-8")

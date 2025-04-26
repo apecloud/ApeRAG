@@ -156,7 +156,7 @@ def uncompress_file(document: Document):
                     name=document.name + "/" + extracted_file_path.name,
                     status=Document.Status.PENDING,
                     size=extracted_file_path.stat().st_size,
-                    collection=document.collection,
+                    collection_id=document.collection.id,
                     file=ContentFile(content, extracted_file_path.name),
                 )
                 document_instance.metadata = json.dumps({
@@ -425,7 +425,7 @@ def generate_questions(document_id):
                 question=question,
                 answer='',
                 status=Question.Status.ACTIVE,
-                collection=document.collection,
+                collection_id=document.collection.id,
                 relate_id=relate_id
             )
             question_instance.save()

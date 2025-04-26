@@ -56,7 +56,7 @@ def sync_documents(self, **kwargs):
         collection_sync_history = CollectionSyncHistory(
             user=collection.user,
             start_time=timezone.now(),
-            collection=collection,
+            collection_id=collection.id,
             execution_time=datetime.timedelta(seconds=0),
             total_documents_to_sync=0,
             status=Collection.SyncStatus.RUNNING,
@@ -97,7 +97,7 @@ def sync_documents(self, **kwargs):
             name=document.name,
             status=Document.Status.PENDING,
             size=document.size,
-            collection=collection,
+            collection_id=collection.id,
             metadata=json.dumps(document.metadata, cls=DjangoJSONEncoder),
         )
         doc.save()

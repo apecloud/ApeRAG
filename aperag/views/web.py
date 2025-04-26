@@ -75,9 +75,10 @@ async def create_chat(request, bot_id: str, session_id: str) -> view_models.Chat
     try:
         instance = Chat(
             user=bot.user,
-            bot=bot,
+            bot_id=bot_id,
             peer_type=Chat.PeerType.WEB,
-            peer_id=session_id
+            peer_id=session_id,
+            status=Chat.Status.ACTIVE
         )
         await instance.asave()
     except IntegrityError:

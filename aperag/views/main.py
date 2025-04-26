@@ -473,11 +473,11 @@ async def update_question(request, collection_id: str, question_in: view_models.
     if collection is None:
         return fail(HTTPStatus.NOT_FOUND, "Collection not found")
 
-    # ceate question
+    # create question
     if not question_in.id:
         question_instance = db_models.Question(
             user=collection.user,
-            collection=collection,
+            collection_id=collection_id,
             status=db_models.Question.Status.PENDING,
         )
         await question_instance.asave()
@@ -787,7 +787,12 @@ async def create_chat(request, bot_id: str) -> view_models.Chat:
     bot = await query_bot(user, bot_id)
     if bot is None:
         return fail(HTTPStatus.NOT_FOUND, "Bot not found")
-    instance = db_models.Chat(user=user, bot=bot, peer_type=db_models.Chat.PeerType.SYSTEM)
+    instance = db_models.Chat(
+        user=user,
+        bot_id=bot_id,
+        peer_type=db_models.Chat.PeerType.SYSTEM,
+        status=db_models.Chat.Status.ACTIVE
+    )
     await instance.asave()
     return success(view_models.Chat(
         id=instance.id,
