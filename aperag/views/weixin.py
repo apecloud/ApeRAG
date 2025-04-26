@@ -30,7 +30,7 @@ from config.settings import MAX_CONVERSATION_COUNT
 from aperag.apps import QuotaType
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import check_quota_usage, get_async_redis_client, get_sync_redis_client, manage_quota_usage
-from aperag.db.models import Chat, ChatPeer
+from aperag.db.models import Chat
 from aperag.db.ops import query_bot, query_chat_by_peer, query_user_quota
 from aperag.pipeline.knowledge_pipeline import create_knowledge_pipeline
 from aperag.utils.weixin.client import WeixinClient
@@ -43,9 +43,9 @@ router = Router()
 
 async def weixin_text_response(client, user, bot, query, msg_id):
     chat_id = user
-    chat = await query_chat_by_peer(bot.user, ChatPeer.WEIXIN, chat_id)
+    chat = await query_chat_by_peer(bot.user, Chat.PeerType.WEIXIN, chat_id)
     if chat is None:
-        chat = Chat(user=bot.user, bot=bot, peer_type=ChatPeer.WEIXIN, peer_id=chat_id)
+        chat = Chat(user=bot.user, bot=bot, peer_type=Chat.PeerType.WEIXIN, peer_id=chat_id)
         await chat.asave()
 
     history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())
@@ -84,9 +84,9 @@ async def weixin_text_response(client, user, bot, query, msg_id):
 
 async def weixin_card_response(client, user, bot, query, msg_id):
     chat_id = user
-    chat = await query_chat_by_peer(bot.user, ChatPeer.WEIXIN, chat_id)
+    chat = await query_chat_by_peer(bot.user, Chat.PeerType.WEIXIN, chat_id)
     if chat is None:
-        chat = Chat(user=bot.user, bot=bot, peer_type=ChatPeer.WEIXIN, peer_id=chat_id)
+        chat = Chat(user=bot.user, bot=bot, peer_type=Chat.PeerType.WEIXIN, peer_id=chat_id)
         await chat.asave()
 
     history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())
@@ -128,9 +128,9 @@ async def weixin_feedback_response(client, user, bot, key, response_code, task_i
     downvote = 0 if key == 0 else None
 
     chat_id = user
-    chat = await query_chat_by_peer(bot.user, ChatPeer.WEIXIN, chat_id)
+    chat = await query_chat_by_peer(bot.user, Chat.PeerType.WEIXIN, chat_id)
     if chat is None:
-        chat = Chat(user=bot.user, bot=bot, peer_type=ChatPeer.WEIXIN, peer_id=chat_id)
+        chat = Chat(user=bot.user, bot=bot, peer_type=Chat.PeerType.WEIXIN, peer_id=chat_id)
         await chat.asave()
 
     msg_id = await client.redis_client.get(f"{task_id}2msg_id")
@@ -275,9 +275,9 @@ def generate_xml_response(to_user_name, from_user_name, create_time, msg_type, r
 
 async def weixin_officaccount_response(query, msg_id, to_user_name, bot):
     chat_id = to_user_name
-    chat = await query_chat_by_peer(bot.user, ChatPeer.WEIXIN_OFFICIAL, chat_id)
+    chat = await query_chat_by_peer(bot.user, Chat.PeerType.WEIXIN_OFFICIAL, chat_id)
     if chat is None:
-        chat = Chat(user=bot.user, bot=bot, peer_type=ChatPeer.WEIXIN_OFFICIAL, peer_id=chat_id)
+        chat = Chat(user=bot.user, bot=bot, peer_type=Chat.PeerType.WEIXIN_OFFICIAL, peer_id=chat_id)
         await chat.asave()
 
     history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())

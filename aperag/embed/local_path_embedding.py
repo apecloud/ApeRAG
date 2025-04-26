@@ -8,7 +8,7 @@ from langchain.embeddings.base import Embeddings
 from llama_index.core.data_structs.data_structs import BaseNode
 from llama_index.core.node_parser import NodeParser, TokenTextSplitter
 
-from aperag.db.models import ProtectAction
+from aperag.db.models import Document
 from aperag.embed.base_embedding import DocumentBaseEmbedding
 from aperag.readers.local_path_reader import InteractiveSimpleDirectoryReader
 from aperag.readers.sensitive_filter import SensitiveFilterClassify
@@ -52,7 +52,7 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
 
     def load_data(self, **kwargs) -> Tuple[List[str], str, List]:
         sensitive_protect = kwargs.get('sensitive_protect', False)
-        sensitive_protect_method = kwargs.get('sensitive_protect_method', ProtectAction.WARNING_NOT_STORED)
+        sensitive_protect_method = kwargs.get('sensitive_protect_method', Document.ProtectAction.WARNING_NOT_STORED)
         docs, file_name, chunked = self.reader.load_data()
         if not docs:
             return [], "", []
@@ -136,7 +136,7 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
                 })
             nodes.extend(chunks)
 
-        if sensitive_protect and sensitive_protect_method == ProtectAction.WARNING_NOT_STORED and sensitive_info != []:
+        if sensitive_protect and sensitive_protect_method == Document.ProtectAction.WARNING_NOT_STORED and sensitive_info != []:
             logger.info("find sensitive information: %s", file_name)
             return [], "", sensitive_info
 

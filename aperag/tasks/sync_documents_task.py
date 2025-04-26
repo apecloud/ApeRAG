@@ -29,11 +29,8 @@ from config.celery import app
 from config.settings import MAX_DOCUMENT_COUNT
 from aperag.db.models import (
     Collection,
-    CollectionStatus,
     CollectionSyncHistory,
-    CollectionSyncStatus,
     Document,
-    DocumentStatus,
 )
 from aperag.db.ops import query_documents
 from aperag.readers.base_readers import DEFAULT_FILE_READER_CLS
@@ -47,7 +44,7 @@ logger = logging.getLogger(__name__)
 @app.task(bind=True)
 def sync_documents(self, **kwargs):
     collection_id = kwargs["collection_id"]
-    collection = Collection.objects.exclude(status=CollectionStatus.DELETED).get(id=collection_id)
+    collection = Collection.objects.exclude(status=Collection.Status.DELETED).get(id=collection_id)
     source = get_source(json.loads(collection.config))
     if not source.sync_enabled():
         return -1
@@ -62,7 +59,7 @@ def sync_documents(self, **kwargs):
             collection=collection,
             execution_time=datetime.timedelta(seconds=0),
             total_documents_to_sync=0,
-            status=CollectionSyncStatus.RUNNING,
+            status=Collection.SyncStatus.RUNNING,
         )
     logger.debug(f"sync_documents_cron_job() : sync collection{collection_id} start ")
 
@@ -98,7 +95,7 @@ def sync_documents(self, **kwargs):
         doc = Document(
             user=collection.user,
             name=document.name,
-            status=DocumentStatus.PENDING,
+            status=Document.Status.PENDING,
             size=document.size,
             collection=collection,
             metadata=json.dumps(document.metadata, cls=DjangoJSONEncoder),
@@ -127,7 +124,7 @@ def sync_documents(self, **kwargs):
             metadata = json.loads(dst_doc.metadata)
             src_modified_time = datetime.datetime.strptime(src_doc.metadata["modified_time"], "%Y-%m-%dT%H:%M:%S")
             dst_modified_time = datetime.datetime.strptime(metadata["modified_time"], "%Y-%m-%dT%H:%M:%S")
-            if src_modified_time > dst_modified_time or dst_doc.status == DocumentStatus.PENDING:
+            if src_modified_time > dst_modified_time or dst_doc.status == Document.Status.PENDING:
                 collection_sync_history.total_documents_to_sync += 1
                 collection_sync_history.modified_documents += 1
                 collection_sync_history.save()
@@ -211,21 +208,21 @@ def get_sync_progress(collection_sync_history):
 @app.task(bind=True)
 def monitor_sync_tasks(self, collection_sync_history_id):
     collection_sync_history = CollectionSyncHistory.objects.get(id=collection_sync_history_id)
-    if collection_sync_history.status == CollectionSyncStatus.COMPLETED:
+    if collection_sync_history.status == Collection.SyncStatus.COMPLETED:
         return
 
     progress = get_sync_progress(collection_sync_history)
 
     if progress.processing_documents == 0 and progress.pending_documents == 0:
-        CollectionSyncHistory.objects.filter(id=collection_sync_history_id, status=CollectionSyncStatus.RUNNING).update(
-            status=CollectionSyncStatus.COMPLETED,
+        CollectionSyncHistory.objects.filter(id=collection_sync_history_id, status=Collection.SyncStatus.RUNNING).update(
+            status=Collection.SyncStatus.COMPLETED,
             pending_documents=progress.pending_documents,
             processing_documents=progress.processing_documents,
             successful_documents=progress.successful_documents,
             failed_documents=progress.failed_documents,
         )
-    elif collection_sync_history.status == CollectionSyncStatus.CANCELED:
-        CollectionSyncHistory.objects.filter(id=collection_sync_history_id, status=CollectionSyncStatus.CANCELED).update(
+    elif collection_sync_history.status == Collection.SyncStatus.CANCELED:
+        CollectionSyncHistory.objects.filter(id=collection_sync_history_id, status=Collection.SyncStatus.CANCELED).update(
             pending_documents=progress.pending_documents,
             processing_documents=progress.processing_documents,
             successful_documents=progress.successful_documents,

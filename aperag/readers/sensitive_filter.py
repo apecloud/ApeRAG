@@ -7,7 +7,7 @@ from typing import Dict, Tuple
 from langchain_core.prompts import PromptTemplate
 
 from config import settings
-from aperag.db.models import ProtectAction
+from aperag.db.models import Document
 from aperag.llm.base import Predictor, PredictorType
 from aperag.llm.prompts import CLASSIFY_SENSITIVE_INFORMATION_TEMPLATE, SENSITIVE_INFORMATION_TEMPLATE
 
@@ -68,7 +68,7 @@ class SensitiveFilter(ABC):
             dlp_masktext = '\n'.join(output[dlp_num + 2:])
             if dlp_num > 0:
                 output_sensitive_info = {"chunk": text, "masked_chunk": dlp_masktext, "sensitive_info": dlp_outputs}
-                if sensitive_protect_method == ProtectAction.REPLACE_WORDS:
+                if sensitive_protect_method == Document.ProtectAction.REPLACE_WORDS:
                     output_text = dlp_masktext
 
                 # llm check
@@ -76,7 +76,7 @@ class SensitiveFilter(ABC):
                     llm_masktext, llm_outputs = self.sensitive_filter_llm(text)
                     if len(llm_outputs) > 0:
                         output_sensitive_info = {"chunk": text, "masked_chunk": llm_masktext, "sensitive_info": llm_outputs}
-                        if sensitive_protect_method == ProtectAction.REPLACE_WORDS:
+                        if sensitive_protect_method == Document.ProtectAction.REPLACE_WORDS:
                             output_text = llm_masktext
         except Exception as e:
             logger.error(f"sensitive filter failed:{e}")
@@ -123,7 +123,7 @@ class SensitiveFilterClassify(ABC):
                     is_sensitive = self.sensitive_filter_llm(text)
                 if is_sensitive:
                     output_sensitive_info = {"chunk": text, "masked_chunk": dlp_masktext, "sensitive_info": dlp_outputs}
-                    if sensitive_protect_method == ProtectAction.REPLACE_WORDS:
+                    if sensitive_protect_method == Document.ProtectAction.REPLACE_WORDS:
                         output_text = dlp_masktext
         except Exception as e:
             logger.error(f"sensitive filter failed:{e}")

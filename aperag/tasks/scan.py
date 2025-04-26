@@ -18,7 +18,7 @@ import logging
 from celery import Task
 from django_celery_beat.models import CrontabSchedule, PeriodicTask
 
-from aperag.db.models import Collection, CollectionStatus
+from aperag.db.models import Collection
 
 logger = logging.getLogger(__name__)
 
@@ -27,16 +27,11 @@ class CustomScanTask(Task):
     def on_success(self, retval, task_id, args, kwargs):
         collection_id = args[0]
         collection = Collection.objects.get(id=collection_id)
-        collection.status = CollectionStatus.ACTIVE
+        collection.status = Collection.Status.ACTIVE
         collection.save()
 
     def on_failure(self, exc, task_id, args, kwargs, einfo):
-        # todo: when scan fail we should do something
         raise exc
-        # collection_id = args[0]
-        # collection = Collection.objects.get(id=collection_id)
-        # collection.status = CollectionStatus.INACTIVE
-        # collection.save()
 
 
 async def update_sync_documents_cron_job(collection_id):

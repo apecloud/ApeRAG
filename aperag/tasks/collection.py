@@ -19,7 +19,7 @@ from config import settings
 from config.celery import app
 from config.vector_db import get_vector_db_connector
 from aperag.context.full_text import create_index, delete_index
-from aperag.db.models import Collection, CollectionStatus
+from aperag.db.models import Collection
 from aperag.embed.base_embedding import get_collection_embedding_model
 from aperag.source.base import get_source
 from aperag.tasks.sync_documents_task import sync_documents
@@ -32,7 +32,7 @@ from aperag.utils.utils import (
 @app.task
 def init_collection_task(collection_id, document_user_quota):
     collection = Collection.objects.get(id=collection_id)
-    if collection.status == CollectionStatus.DELETED:
+    if collection.status == Collection.Status.DELETED:
         return
 
     vector_db_conn = get_vector_db_connector(
@@ -50,7 +50,7 @@ def init_collection_task(collection_id, document_user_quota):
     index_name = generate_fulltext_index_name(collection_id)
     create_index(index_name)
 
-    collection.status = CollectionStatus.ACTIVE
+    collection.status = Collection.Status.ACTIVE
     collection.save()
     
     source = get_source(json.loads(collection.config))

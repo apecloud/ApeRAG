@@ -25,7 +25,7 @@ from aperag.utils.utils import extract_bot_and_chat_id, extract_web_bot_and_chat
 async def bot_consumer_router(scope, receive, send):
     logging.info("bot_consumer_router begin")
     
-    from aperag.db.models import BotType, CollectionType
+    from aperag.db.models import Bot, CollectionType
     from aperag.db.ops import query_bot, query_chat
 
     user = scope["user"].id
@@ -44,7 +44,7 @@ async def bot_consumer_router(scope, receive, send):
         raise Exception("Chat not found")
     scope[KEY_CHAT_ID] = chat_id
 
-    if bot.type == BotType.KNOWLEDGE:
+    if bot.type == Bot.Type.KNOWLEDGE:
         collection = await sync_to_async(bot.collections.first)()
         if collection.type != CollectionType.DOCUMENT:
             raise Exception("Invalid collection type")
@@ -57,7 +57,7 @@ async def bot_consumer_router(scope, receive, send):
         else:
             from aperag.chat.websocket.embedding_consumer import EmbeddingConsumer
             return await EmbeddingConsumer.as_asgi()(scope, receive, send)
-    elif bot.type == BotType.COMMON:
+    elif bot.type == Bot.Type.COMMON:
         from aperag.chat.websocket.common_consumer import CommonConsumer
         return await CommonConsumer.as_asgi()(scope, receive, send)
     else:
@@ -67,7 +67,7 @@ async def bot_consumer_router(scope, receive, send):
 async def web_bot_consumer_router(scope, receive, send):
     logging.info("web_bot_consumer_router begin")
     
-    from aperag.db.models import BotType
+    from aperag.db.models import Bot
     from aperag.db.ops import query_bot, query_web_chat
 
     path = scope["path"]
@@ -83,11 +83,11 @@ async def web_bot_consumer_router(scope, receive, send):
         raise Exception("Chat not found")
     scope[KEY_CHAT_ID] = chat_id
 
-    if bot.type == BotType.KNOWLEDGE:
+    if bot.type == Bot.Type.KNOWLEDGE:
         logging.info("CHAT_CONSUMER_IMPLEMENTATION is document-qa")
         from aperag.chat.websocket.document_qa_consumer import DocumentQAConsumer
         return await DocumentQAConsumer.as_asgi()(scope, receive, send)
-    elif bot.type == BotType.COMMON:
+    elif bot.type == Bot.Type.COMMON:
         from aperag.chat.websocket.common_consumer import CommonConsumer
         return await CommonConsumer.as_asgi()(scope, receive, send)
     else:

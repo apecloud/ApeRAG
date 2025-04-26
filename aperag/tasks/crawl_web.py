@@ -21,7 +21,7 @@ from bs4 import BeautifulSoup
 
 from config.celery import app
 from aperag.chat.utils import get_sync_redis_client
-from aperag.db.models import Collection, CollectionStatus, Document, DocumentStatus
+from aperag.db.models import Collection, Document
 from aperag.tasks.index import add_index_for_local_document
 
 
@@ -33,7 +33,7 @@ def crawl_domain(self, root_url, url, collection_id, user, max_pages):
 
     collection = Collection.objects.get(id=collection_id)
     redis_set_key = f"crawled_urls:{collection_id}:{root_url}"
-    if redis_conn.sismember(redis_set_key, redis_key) or redis_conn.scard(redis_set_key) >= max_pages or collection.status == CollectionStatus.DELETED:
+    if redis_conn.sismember(redis_set_key, redis_key) or redis_conn.scard(redis_set_key) >= max_pages or collection.status == Collection.Status.DELETED:
         return
 
     try:
@@ -51,7 +51,7 @@ def crawl_domain(self, root_url, url, collection_id, user, max_pages):
             document_instance = Document(
                 user=user,
                 name=document_name,
-                status=DocumentStatus.PENDING,
+                status=Document.Status.PENDING,
                 collection=collection,
                 size=0,
             )

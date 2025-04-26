@@ -16,9 +16,9 @@ import json
 import logging
 import os
 import time
-
+from typing import Tuple
 from config.celery import app
-from aperag.db.models import Document, DocumentStatus
+from aperag.db.models import Document
 from aperag.db.ops import query_collection, query_documents
 from aperag.readers.base_readers import DEFAULT_FILE_READER_CLS
 from aperag.tasks.index import add_index_for_document, remove_index, update_index_for_document
@@ -57,7 +57,7 @@ def update_local_directory_index(user, collection_id):
             document_instance = Document(
                 user=collection.user,
                 name=filename,
-                status=DocumentStatus.PENDING,
+                status=Document.Status.PENDING,
                 size=file_stat.st_size,
                 collection=collection,
                 metadata=time.strftime(
@@ -105,7 +105,7 @@ def update_strategies(stat_in_direct: filestat, stat_in_db: filestat) -> bool:
     return True
 
 
-def scan_local_direct(directory) -> (bool, dict):
+def scan_local_direct(directory) -> Tuple[bool, dict]:
     """
     return a dict, key is full-path name of a file, value is the file stat
     :param directory: scan directory

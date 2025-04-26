@@ -26,7 +26,7 @@ from ninja.security.http import HttpAuthBase
 import config.settings as settings
 from aperag.auth import tv
 from aperag.utils.constant import KEY_USER_ID, KEY_WEBSOCKET_PROTOCOL
-from aperag.db.models import ApiKeyToken, ApiKeyStatus
+from aperag.db.models import ApiKeyToken
 from django.core.cache import cache
 from asgiref.sync import sync_to_async
 from ninja.security import APIKeyCookie
@@ -55,7 +55,7 @@ async def get_user_from_api_key(key):
         api_key = await ApiKeyToken.objects.aget(key=key)
     except ApiKeyToken.DoesNotExist:
         return None
-    if api_key.status == ApiKeyStatus.DELETED:
+    if api_key.status == ApiKeyToken.Status.DELETED:
         return None
 
     cache.set(cache_key, api_key.user)

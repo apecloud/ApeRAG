@@ -26,7 +26,7 @@ from ninja import Router
 from aperag.apps import QuotaType
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import check_quota_usage, get_async_redis_client, manage_quota_usage
-from aperag.db.models import Chat, ChatPeer
+from aperag.db.models import Chat
 from aperag.db.ops import query_bot, query_chat_by_peer, query_user_quota
 from aperag.pipeline.knowledge_pipeline import create_knowledge_pipeline
 from aperag.views.utils import fail, success
@@ -68,9 +68,9 @@ def validate_sign(timestamp, client_secret, request_sign):
 
 async def dingtalk_text_response(user, bot, query, msg_id, sender_id, session_webhook):
     chat_id = user
-    chat = await query_chat_by_peer(bot.user, ChatPeer.DINGTALK, chat_id)
+    chat = await query_chat_by_peer(bot.user, Chat.PeerType.DINGTALK, chat_id)
     if chat is None:
-        chat = Chat(user=bot.user, bot=bot, peer_type=ChatPeer.DINGTALK, peer_id=chat_id)
+        chat = Chat(user=bot.user, bot=bot, peer_type=Chat.PeerType.DINGTALK, peer_id=chat_id)
         await chat.asave()
 
     history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())

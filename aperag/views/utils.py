@@ -25,7 +25,7 @@ from pydantic import ValidationError
 from asgiref.sync import sync_to_async
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
-from aperag.db.models import BotType
+from aperag.db.models import Bot
 from aperag.db.ops import PagedResult, logger, query_chat_feedbacks
 from aperag.llm.base import Predictor, PredictorType
 from aperag.source.base import CustomSourceInitializationError, get_source
@@ -101,11 +101,11 @@ def validate_bot_config(model, config: Dict, type, memory) -> Tuple[bool, str]:
     try:
         # validate the prompt
         prompt_template = config.get("prompt_template", None)
-        if not prompt_template and type == BotType.COMMON:
+        if not prompt_template and type == Bot.Type.COMMON:
             return False, "prompt of common bot cannot be null"
-        if prompt_template and type == BotType.KNOWLEDGE:
+        if prompt_template and type == Bot.Type.KNOWLEDGE:
             PromptTemplate(template=prompt_template, input_variables=["query", "context"])
-        elif prompt_template and type == BotType.COMMON:
+        elif prompt_template and type == Bot.Type.COMMON:
             PromptTemplate(template=prompt_template, input_variables=["query"])
             # pass
     except ValidationError:

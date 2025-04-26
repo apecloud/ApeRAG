@@ -21,7 +21,7 @@ from channels.generic.http import AsyncHttpConsumer
 
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import fail_response, get_async_redis_client, start_response, stop_response, success_response
-from aperag.db.models import BotType
+from aperag.db.models import Bot
 from aperag.pipeline.common_pipeline import CommonPipeline
 from aperag.pipeline.knowledge_pipeline import create_knowledge_pipeline
 
@@ -36,7 +36,7 @@ class ServerSentEventsConsumer(AsyncHttpConsumer):
             logger.exception(e)
 
     async def _handle(self, body):
-        from aperag.db.models import Chat, ChatPeer
+        from aperag.db.models import Chat
         from aperag.db.ops import query_bot, query_chat_by_peer
         await self.send_headers(headers=[
             (b"Cache-Control", b"no-cache"),
@@ -58,9 +58,9 @@ class ServerSentEventsConsumer(AsyncHttpConsumer):
             return
 
         try:
-            chat = await query_chat_by_peer(bot.user, ChatPeer.FEISHU, chat_id)
+            chat = await query_chat_by_peer(bot.user, Chat.PeerType.FEISHU, chat_id)
             if chat is None:
-                chat = Chat(user=bot.user, bot=bot, peer_type=ChatPeer.FEISHU, peer_id=chat_id)
+                chat = Chat(user=bot.user, bot=bot, peer_type=Chat.PeerType.FEISHU, peer_id=chat_id)
                 await chat.asave()
 
             msg = body.decode("utf-8")
@@ -69,12 +69,12 @@ class ServerSentEventsConsumer(AsyncHttpConsumer):
             event = start_response(message_id=msg_id)
             await self.send_event(event)
 
-            if bot.type == BotType.KNOWLEDGE:
+            if bot.type == Bot.Type.KNOWLEDGE:
                 collection = await sync_to_async(bot.collections.first)()
                 async for msg in await create_knowledge_pipeline(bot=bot, collection=collection, history=history).run(msg, message_id=msg_id):
                     event = success_response(message_id=msg_id, data=msg)
                     await self.send_event(event)
-            elif bot.type == BotType.COMMON:
+            elif bot.type == Bot.Type.COMMON:
                 async for msg in CommonPipeline(bot=bot, collection=None, history=history).run(msg, message_id=msg_id):
                     event = success_response(message_id=msg_id, data=msg)
                     await self.send_event(event)

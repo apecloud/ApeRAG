@@ -17,7 +17,7 @@ from http import HTTPStatus
 
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
-from aperag.db.models import MessageFeedback, MessageFeedbackStatus
+from aperag.db.models import MessageFeedback
 from aperag.views.utils import fail
 
 
@@ -44,7 +44,7 @@ async def feedback_message(user, chat_id, message_id, upvote, downvote, revised_
 
     if revised_answer is not None:
         data["revised_answer"] = revised_answer
-    data["status"] = MessageFeedbackStatus.PENDING
+    data["status"] = MessageFeedback.Status.PENDING
     collection_id = msg.get("collection_id", None)
     feedback, _ = await MessageFeedback.objects.aupdate_or_create(
         user=user, chat_id=chat_id, message_id=message_id, collection_id=collection_id,

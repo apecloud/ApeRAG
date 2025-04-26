@@ -26,7 +26,7 @@ from config import settings
 from aperag.auth.validator import FeishuEventVerification
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
-from aperag.db.models import Chat, ChatPeer
+from aperag.db.models import Chat
 from aperag.db.ops import query_bot, query_chat_by_peer
 from aperag.pipeline.knowledge_pipeline import create_knowledge_pipeline
 from aperag.source.feishu.feishu import FeishuClient
@@ -136,9 +136,9 @@ def build_card_data(chat_id, message_id, message, upvote=False, downvote=False):
 
 
 async def feishu_streaming_response(client, chat_id, bot, msg_id, msg):
-    chat = await query_chat_by_peer(bot.user, ChatPeer.FEISHU, chat_id)
+    chat = await query_chat_by_peer(bot.user, Chat.PeerType.FEISHU, chat_id)
     if chat is None:
-        chat = Chat(user=bot.user, bot=bot, peer_type=ChatPeer.FEISHU, peer_id=chat_id)
+        chat = Chat(user=bot.user, bot=bot, peer_type=Chat.PeerType.FEISHU, peer_id=chat_id)
         await chat.asave()
 
     history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())

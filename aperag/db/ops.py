@@ -22,28 +22,18 @@ from django.contrib.auth.hashers import make_password
 from pydantic import BaseModel
 
 from aperag.db.models import (
+    ApiKeyToken,
     Bot,
-    BotIntegration,
-    BotIntegrationStatus,
-    BotStatus,
     Chat,
-    ChatPeer,
-    ChatStatus,
     Collection,
-    CollectionStatus,
     CollectionSyncHistory,
-    CollectionSyncStatus,
     Config,
     Document,
-    DocumentStatus,
     MessageFeedback,
     Question,
-    QuestionStatus,
     UserQuota,
     ApiKeyToken,
-    ApiKeyStatus,
     ModelServiceProvider,
-    ModelServiceProviderStatus,
     User,
     Invitation,
     Role
@@ -119,7 +109,7 @@ async def get_count(collection) -> int:
 
 async def query_collection(user, collection_id: str):
     try:
-        return await Collection.objects.exclude(status=CollectionStatus.DELETED).aget(
+        return await Collection.objects.exclude(status=Collection.Status.DELETED).aget(
             user=user, pk=collection_id
         )
     except Collection.DoesNotExist:
@@ -128,26 +118,26 @@ async def query_collection(user, collection_id: str):
 
 async def query_collection_without_user(collection_id: str):
     try:
-        return await Collection.objects.exclude(status=CollectionStatus.DELETED).aget(pk=collection_id)
+        return await Collection.objects.exclude(status=Collection.Status.DELETED).aget(pk=collection_id)
     except Collection.DoesNotExist:
         return None
 
 
 async def query_collections(users: List[str], pq: PagedQuery = None):
     filters = build_filters(pq)
-    query_set = Collection.objects.exclude(status=CollectionStatus.DELETED).filter(user__in=users, **filters)
+    query_set = Collection.objects.exclude(status=Collection.Status.DELETED).filter(user__in=users, **filters)
     return await build_pr(pq, query_set)
 
 
 async def query_collections_count(user, pq: PagedQuery = None):
     filters = build_filters(pq)
-    count = await sync_to_async(Collection.objects.exclude(status=CollectionStatus.DELETED).filter(user=user, **filters).count)()
+    count = await sync_to_async(Collection.objects.exclude(status=Collection.Status.DELETED).filter(user=user, **filters).count)()
     return count
 
 
 async def query_document(user, collection_id: str, document_id: str):
     try:
-        return await Document.objects.exclude(status=DocumentStatus.DELETED).aget(
+        return await Document.objects.exclude(status=Document.Status.DELETED).aget(
             user=user, collection_id=collection_id, pk=document_id
         )
     except Document.DoesNotExist:
@@ -156,21 +146,21 @@ async def query_document(user, collection_id: str, document_id: str):
 
 async def query_documents(users, collection_id: str, pq: PagedQuery = None):
     filters = build_filters(pq)
-    query_set = Document.objects.exclude(status=DocumentStatus.DELETED).filter(
+    query_set = Document.objects.exclude(status=Document.Status.DELETED).filter(
         user__in=users, collection_id=collection_id, **filters)
     return await build_pr(pq, query_set)
 
 
 async def query_documents_count(user, collection_id: str, pq: PagedQuery = None):
     filters = build_filters(pq)
-    count = await sync_to_async(Document.objects.exclude(status=DocumentStatus.DELETED).filter(
+    count = await sync_to_async(Document.objects.exclude(status=Document.Status.DELETED).filter(
         user=user, collection_id=collection_id, **filters).count)()
     return count
 
 
 async def query_questions(user, collection_id: str, pq: PagedQuery = None):
     filters = build_filters(pq)
-    query_set = Question.objects.exclude(status=QuestionStatus.DELETED).filter(
+    query_set = Question.objects.exclude(status=Question.Status.DELETED).filter(
         user=user, collection_id=collection_id, **filters
     )
     return await build_pr(pq, query_set)
@@ -178,7 +168,7 @@ async def query_questions(user, collection_id: str, pq: PagedQuery = None):
 
 async def query_question(user, question_id: str):
     try:
-        return await Question.objects.exclude(status=QuestionStatus.DELETED).aget(
+        return await Question.objects.exclude(status=Question.Status.DELETED).aget(
             user=user, pk=question_id
         )
     except Question.DoesNotExist:
@@ -186,12 +176,12 @@ async def query_question(user, question_id: str):
 
 async def query_apikeys(user, pq: PagedQuery = None):
     filters = build_filters(pq)
-    apikey_set = ApiKeyToken.objects.exclude(status=CollectionStatus.DELETED).filter(user=user, **filters)
+    apikey_set = ApiKeyToken.objects.exclude(status=ApiKeyToken.Status.DELETED).filter(user=user, **filters)
     return await build_pr(pq, apikey_set)
 
 async def query_apikey(user, apikey_id: str):
     try:
-        return await ApiKeyToken.objects.exclude(status=ApiKeyStatus.DELETED).aget(
+        return await ApiKeyToken.objects.exclude(status=ApiKeyToken.Status.DELETED).aget(
             user=user, pk=apikey_id
         )
     except ApiKeyToken.DoesNotExist:
@@ -205,7 +195,7 @@ async def query_chat(user, bot_id: str, chat_id: str):
         }
         if user:
             kwargs["user"] = user
-        return await Chat.objects.exclude(status=ChatStatus.DELETED).aget(**kwargs)
+        return await Chat.objects.exclude(status=Chat.Status.DELETED).aget(**kwargs)
     except Chat.DoesNotExist:
         return None
 
@@ -216,9 +206,9 @@ async def query_web_chat(bot_id: str, chat_id: str):
         kwargs = {
             "pk": chat_id,
             "bot_id": bot_id,
-            "peer_type": ChatPeer.WEB,
+            "peer_type": Chat.PeerType.WEB,
         }
-        return await Chat.objects.exclude(status=ChatStatus.DELETED).aget(**kwargs)
+        return await Chat.objects.exclude(status=Chat.Status.DELETED).aget(**kwargs)
     except Chat.DoesNotExist:
         return None
 
@@ -241,7 +231,7 @@ async def query_message_feedback(user, bot_id: str, chat_id: str, message_id: st
 
 async def query_chat_by_peer(user, peer_type, peer_id: str):
     try:
-        return await Chat.objects.exclude(status=ChatStatus.DELETED).aget(
+        return await Chat.objects.exclude(status=Chat.Status.DELETED).aget(
             user=user, peer_type=peer_type, peer_id=peer_id)
     except Chat.DoesNotExist:
         return None
@@ -264,39 +254,26 @@ async def query_sync_histories(user, collection_id: str, pq: PagedQuery = None):
 
 async def query_chats(user, bot_id: str, pq: PagedQuery = None):
     filters = build_filters(pq)
-    query_set = Chat.objects.exclude(status=ChatStatus.DELETED).filter(user=user, bot_id=bot_id, **filters)
+    query_set = Chat.objects.exclude(status=Chat.Status.DELETED).filter(user=user, bot_id=bot_id, **filters)
     return await build_pr(pq, query_set)
 
 
 async def query_web_chats(bot_id: str, peer_id: str, pq: PagedQuery = None):
     filters = build_filters(pq)
     filters.update({
-        "peer_type": ChatPeer.WEB,
+        "peer_type": Chat.PeerType.WEB,
         "peer_id": peer_id,
     })
-    query_set = Chat.objects.exclude(status=ChatStatus.DELETED).filter(bot_id=bot_id, **filters)
+    query_set = Chat.objects.exclude(status=Chat.Status.DELETED).filter(bot_id=bot_id, **filters)
     return await build_pr(pq, query_set)
 
 
 async def query_running_sync_histories(user, collection_id: str, pq: PagedQuery = None):
     filters = build_filters(pq)
     query_set = CollectionSyncHistory.objects.filter(
-        user=user, collection_id=collection_id, status=CollectionSyncStatus.RUNNING, **filters,
+        user=user, collection_id=collection_id, status=Collection.SyncStatus.RUNNING, **filters,
     ).order_by('-id')
     return await build_pr(pq, query_set)
-
-
-async def query_integration(user, bot_id: str, integration_id: str):
-    try:
-        kwargs = {
-            "pk": integration_id,
-            "bot_id": bot_id,
-        }
-        if user:
-            kwargs["user"] = user
-        return await BotIntegration.objects.exclude(status=BotIntegrationStatus.DELETED).aget(**kwargs)
-    except BotIntegration.DoesNotExist:
-        return None
 
 
 async def query_bot(user: str, bot_id: str):
@@ -306,20 +283,20 @@ async def query_bot(user: str, bot_id: str):
         }
         if user:
             kwargs["user"] = user
-        return await Bot.objects.exclude(status=BotStatus.DELETED).aget(**kwargs)
+        return await Bot.objects.exclude(status=Bot.Status.DELETED).aget(**kwargs)
     except Bot.DoesNotExist:
         return None
 
 
 async def query_bots(users: List[str], pq: PagedQuery = None):
     filters = build_filters(pq)
-    query_set = Bot.objects.exclude(status=BotStatus.DELETED).filter(user__in=users, **filters)
+    query_set = Bot.objects.exclude(status=Bot.Status.DELETED).filter(user__in=users, **filters)
     return await build_pr(pq, query_set)
 
 
 async def query_bots_count(user, pq: PagedQuery = None):
     filters = build_filters(pq)
-    count = await sync_to_async(Bot.objects.exclude(status=BotStatus.DELETED).filter(user=user, **filters).count)()
+    count = await sync_to_async(Bot.objects.exclude(status=Bot.Status.DELETED).filter(user=user, **filters).count)()
     return count
 
 
@@ -333,22 +310,16 @@ async def query_user_quota(user, key):
     return result
 
 
-async def query_integrations(user, bot_id: str, pq: PagedQuery = None):
-    filters = build_filters(pq)
-    query_set = BotIntegration.objects.exclude(status=BotIntegrationStatus.DELETED).filter(
-        user=user, bot_id=bot_id, **filters)
-    return await build_pr(pq, query_set)
-
 
 async def query_msp_list(user):
     def query_msp_list_sync():
-        return list(ModelServiceProvider.objects.exclude(status=ModelServiceProviderStatus.DELETED).filter(user=user))
+        return list(ModelServiceProvider.objects.exclude(status=ModelServiceProvider.Status.DELETED).filter(user=user))
     
     return await sync_to_async(query_msp_list_sync)()
 
 async def query_msp_dict(user):
     def query_msp_dict_sync():
-        msp_list = ModelServiceProvider.objects.exclude(status=ModelServiceProviderStatus.DELETED).filter(user=user)
+        msp_list = ModelServiceProvider.objects.exclude(status=ModelServiceProvider.Status.DELETED).filter(user=user)
         return {msp.name: msp for msp in msp_list}
     
     return await sync_to_async(query_msp_dict_sync)()
@@ -356,7 +327,7 @@ async def query_msp_dict(user):
 async def query_msp(user, provider, filterDeletion=True):
     try:
         if filterDeletion:
-            return await ModelServiceProvider.objects.exclude(status=ModelServiceProviderStatus.DELETED).aget(user=user, pk=provider)
+            return await ModelServiceProvider.objects.exclude(status=ModelServiceProvider.Status.DELETED).aget(user=user, pk=provider)
         else:
             return await ModelServiceProvider.objects.aget(user=user, pk=provider)
     except ModelServiceProvider.DoesNotExist:

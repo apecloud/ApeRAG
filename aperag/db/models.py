@@ -26,42 +26,9 @@ from config import settings
 
 
 def random_id():
+    """Generate a random ID string"""
     return ''.join(random.sample(uuid.uuid4().hex, 16))
 
-
-def collection_pk():
-    return "col" + random_id()
-
-
-def doc_pk():
-    return "doc" + random_id()
-
-
-def bot_pk():
-    return "bot" + random_id()
-
-
-def chat_pk():
-    return "chat" + random_id()
-
-
-def int_pk():
-    return "int" + random_id()
-
-
-def invitation_pk():
-    return "invite" + random_id()
-
-
-def collection_history_pk():
-    return "colhist" + random_id()
-
-
-def que_pk():
-    return "que" + random_id()
-
-def app_id():
-    return ''.join(random.sample(uuid.uuid4().hex, 12))
 
 def upload_document_path(document, filename):
     user = document.user.replace("|", "-")
@@ -69,71 +36,33 @@ def upload_document_path(document, filename):
         user, document.collection.id, filename
     )
 
-class ProtectAction(models.TextChoices):
-    WARNING_NOT_STORED = "nostore"
-    REPLACE_WORDS = "replace"
-
-
-class CollectionStatus(models.TextChoices):
-    INACTIVE = "INACTIVE"
-    ACTIVE = "ACTIVE"
-    DELETED = "DELETED"
-    QUESTION_PENDING = "QUESTION_PENDING"
-
-
-class CollectionSyncStatus(models.TextChoices):
-    RUNNING = "RUNNING"
-    CANCELED = "CANCELED"
-    COMPLETED = "COMPLETED"
-
-
-class CollectionType(models.TextChoices):
-    DOCUMENT = "document"
-
-
-class DocumentStatus(models.TextChoices):
-    PENDING = "PENDING"
-    RUNNING = "RUNNING"
-    COMPLETE = "COMPLETE"
-    FAILED = "FAILED"
-    DELETING = "DELETING"
-    DELETED = "DELETED"
-    WARNING = "WARNING"
-
-
-class ChatStatus(models.TextChoices):
-    ACTIVE = "ACTIVE"
-    DELETED = "DELETED"
-
-
-class BotStatus(models.TextChoices):
-    ACTIVE = "ACTIVE"
-    DELETED = "DELETED"
-
-
-class QuestionStatus(models.TextChoices):
-    ACTIVE = "ACTIVE"
-    WARNING = "WARNING"
-    DELETED = "DELETED"
-    PENDING = "PENDING"
-
-class ApiKeyStatus(models.TextChoices):
-    ACTIVE = "ACTIVE"
-    DELETED = "DELETED"
-
-class ModelServiceProviderStatus(models.TextChoices):
-    ACTIVE = "ACTIVE"
-    INACTIVE = "INACTIVE"
-    DELETED = "DELETED"
-
 
 class Collection(models.Model):
-    id = models.CharField(primary_key=True, default=collection_pk, editable=False, max_length=24)
+    class Status(models.TextChoices):
+        INACTIVE = "INACTIVE"
+        ACTIVE = "ACTIVE"
+        DELETED = "DELETED"
+        QUESTION_PENDING = "QUESTION_PENDING"
+
+    class SyncStatus(models.TextChoices):
+        RUNNING = "RUNNING"
+        CANCELED = "CANCELED"
+        COMPLETED = "COMPLETED"
+
+    class Type(models.TextChoices):
+        DOCUMENT = "document"
+
+    @staticmethod
+    def generate_id():
+        """Generate a random ID for collection"""
+        return "col" + random_id()
+
+    id = models.CharField(primary_key=True, default=generate_id.__func__, editable=False, max_length=24)
     title = models.CharField(max_length=256)
     description = models.TextField(null=True, blank=True)
     user = models.CharField(max_length=256)
-    status = models.CharField(max_length=16, choices=CollectionStatus.choices)
-    type = models.CharField(max_length=16, choices=CollectionType.choices)
+    status = models.CharField(max_length=16, choices=Status.choices)
+    type = models.CharField(max_length=16, choices=Type.choices)
     config = models.TextField()
     gmt_created = models.DateTimeField(auto_now_add=True)
     gmt_updated = models.DateTimeField(auto_now=True)
@@ -157,12 +86,30 @@ class Collection(models.Model):
 
 
 class Document(models.Model):
-    id = models.CharField(primary_key=True, default=doc_pk, editable=False, max_length=24)
+    class Status(models.TextChoices):
+        PENDING = "PENDING"
+        RUNNING = "RUNNING"
+        COMPLETE = "COMPLETE"
+        FAILED = "FAILED"
+        DELETING = "DELETING"
+        DELETED = "DELETED"
+        WARNING = "WARNING"
+
+    class ProtectAction(models.TextChoices):
+        WARNING_NOT_STORED = "nostore"
+        REPLACE_WORDS = "replace"
+
+    @staticmethod
+    def generate_id():
+        """Generate a random ID for document"""
+        return "doc" + random_id()
+
+    id = models.CharField(primary_key=True, default=generate_id.__func__, editable=False, max_length=24)
     name = models.CharField(max_length=1024)
     user = models.CharField(max_length=256)
     config = models.TextField(null=True)
     collection = models.ForeignKey(Collection, on_delete=models.CASCADE)
-    status = models.CharField(max_length=16, choices=DocumentStatus.choices)
+    status = models.CharField(max_length=16, choices=Status.choices)
     size = models.BigIntegerField()
     file = models.FileField(upload_to=upload_document_path, max_length=1024)
     relate_ids = models.TextField()
@@ -175,25 +122,6 @@ class Document(models.Model):
     class Meta:
         unique_together = ('collection', 'name')
 
-    def view(self):
-        return {
-            "id": str(self.id),
-            "name": self.name,
-            "status": self.status,
-            "config": self.metadata,
-            "size": self.size,
-            "created": self.gmt_created.isoformat(),
-            "updated": self.gmt_updated.isoformat(),
-            "sensitive_info": self.sensitive_info,
-        }
-
-    # def collection_id(self):
-    #     if self.collection:
-    #         matches = re.findall(r'\d+', str(self.collection))
-    #         return matches[0] if matches else '-'
-    #     else:
-    #         return '-'
-
     def collection_id(self):
         if self.collection:
             return Cast(self.collection, IntegerField())
@@ -204,74 +132,31 @@ class Document(models.Model):
     collection_id.admin_order_field = 'collection'
 
 
-class BotType(models.TextChoices):
-    KNOWLEDGE = "knowledge"
-    COMMON = "common"
-
-
 class Bot(models.Model):
-    id = models.CharField(primary_key=True, default=bot_pk, editable=False, max_length=24)
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE"
+        DELETED = "DELETED"
+
+    class Type(models.TextChoices):
+        KNOWLEDGE = "knowledge"
+        COMMON = "common"
+
+    @staticmethod
+    def generate_id():
+        """Generate a random ID for bot"""
+        return "bot" + random_id()
+
+    id = models.CharField(primary_key=True, default=generate_id.__func__, editable=False, max_length=24)
     user = models.CharField(max_length=256)
     title = models.CharField(max_length=256)
-    type = models.CharField(max_length=16, choices=BotType.choices, default=BotType.KNOWLEDGE)
+    type = models.CharField(max_length=16, choices=Type.choices, default=Type.KNOWLEDGE)
     description = models.TextField(null=True, blank=True)
-    status = models.CharField(max_length=16, choices=BotStatus.choices)
+    status = models.CharField(max_length=16, choices=Status.choices)
     config = models.TextField()
     collections = models.ManyToManyField(Collection)
     gmt_created = models.DateTimeField(auto_now_add=True)
     gmt_updated = models.DateTimeField(auto_now=True)
     gmt_deleted = models.DateTimeField(null=True, blank=True)
-
-    def view(self, collections=None):
-        if collections is None:
-            collections = []
-        return {
-            "id": str(self.id),
-            "title": self.title,
-            "type": self.type,
-            "description": self.description,
-            "config": self.config,
-            "system": self.user == settings.ADMIN_USER,
-            "collections": collections,
-            "created": self.gmt_created.isoformat(),
-            "updated": self.gmt_updated.isoformat(),
-        }
-
-
-class BotIntegrationStatus(models.TextChoices):
-    ACTIVE = "ACTIVE"
-    INACTIVE = "INACTIVE"
-    DELETED = "DELETED"
-
-
-class BotIntegrationType(models.TextChoices):
-    SYSTEM = "system"
-    FEISHU = "feishu"
-    WEB = "web"
-    WEIXN = "weixin"
-    WEIXIN_OFFICIAL = "weixin_official"
-
-
-class BotIntegration(models.Model):
-    id = models.CharField(primary_key=True, default=int_pk, editable=False, max_length=24)
-    user = models.CharField(max_length=256)
-    bot = models.ForeignKey(Bot, on_delete=models.CASCADE)
-    type = models.CharField(max_length=16, choices=BotIntegrationType.choices)
-    config = models.TextField()
-    status = models.CharField(max_length=16, choices=BotIntegrationStatus.choices)
-    gmt_created = models.DateTimeField(auto_now_add=True)
-    gmt_updated = models.DateTimeField(auto_now=True)
-    gmt_deleted = models.DateTimeField(null=True, blank=True)
-
-    def view(self, bot_id):
-        return {
-            "id": str(self.id),
-            "bot_id": bot_id,
-            "status": self.status,
-            "config": self.config,
-            "created": self.gmt_created.isoformat(),
-            "updated": self.gmt_updated.isoformat(),
-        }
 
 
 class Config(models.Model):
@@ -291,21 +176,29 @@ class UserQuota(models.Model):
     gmt_deleted = models.DateTimeField(null=True, blank=True)
 
 
-class ChatPeer(models.TextChoices):
-    SYSTEM = "system"
-    FEISHU = "feishu"
-    WEIXIN = "weixin"
-    WEIXIN_OFFICIAL = "weixin_official"
-    WEB = "web"
-    DINGTALK = "dingtalk"
-
-
 class Chat(models.Model):
-    id = models.CharField(primary_key=True, default=chat_pk, editable=False, max_length=24)
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE"
+        DELETED = "DELETED"
+
+    class PeerType(models.TextChoices):
+        SYSTEM = "system"
+        FEISHU = "feishu"
+        WEIXIN = "weixin"
+        WEIXIN_OFFICIAL = "weixin_official"
+        WEB = "web"
+        DINGTALK = "dingtalk"
+
+    @staticmethod
+    def generate_id():
+        """Generate a random ID for chat"""
+        return "chat" + random_id()
+
+    id = models.CharField(primary_key=True, default=generate_id.__func__, editable=False, max_length=24)
     user = models.CharField(max_length=256)
-    peer_type = models.CharField(max_length=16, default=ChatPeer.SYSTEM, choices=ChatPeer.choices)
+    peer_type = models.CharField(max_length=16, default=PeerType.SYSTEM, choices=PeerType.choices)
     peer_id = models.CharField(max_length=256, null=True)
-    status = models.CharField(max_length=16, choices=ChatStatus.choices)
+    status = models.CharField(max_length=16, choices=Status.choices)
     bot = models.ForeignKey(Bot, on_delete=models.CASCADE)
     title = models.TextField()
     gmt_created = models.DateTimeField(auto_now_add=True)
@@ -315,29 +208,14 @@ class Chat(models.Model):
     class Meta:
         unique_together = ('bot', 'peer_type', 'peer_id')
 
-    def view(self, bot_id, messages=None):
-        if messages is None:
-            messages = []
-        return {
-            "id": str(self.id),
-            "summary": self.title,
-            "bot_id": bot_id,
-            "history": messages,
-            "peer_type": self.peer_type,
-            "peer_id": self.peer_id or "",
-            "created": self.gmt_created.isoformat(),
-            "updated": self.gmt_updated.isoformat(),
-        }
-
-
-class MessageFeedbackStatus(models.TextChoices):
-    PENDING = "PENDING"
-    RUNNING = "RUNNING"
-    COMPLETE = "COMPLETE"
-    FAILED = "FAILED"
-
 
 class MessageFeedback(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "PENDING"
+        RUNNING = "RUNNING"
+        COMPLETE = "COMPLETE"
+        FAILED = "FAILED"
+
     user = models.CharField(max_length=256)
     collection = models.ForeignKey(Collection, on_delete=models.CASCADE, null=True, blank=True)
     chat = models.ForeignKey(Chat, on_delete=models.CASCADE)
@@ -346,7 +224,7 @@ class MessageFeedback(models.Model):
     downvote = models.IntegerField(default=0)
     relate_ids = models.TextField(null=True)
     question = models.TextField(null=True, blank=True)
-    status = models.CharField(max_length=16, choices=MessageFeedbackStatus.choices, null=True)
+    status = models.CharField(max_length=16, choices=Status.choices, null=True)
     original_answer = models.TextField(null=True, blank=True)
     revised_answer = models.TextField(null=True, blank=True)
     gmt_created = models.DateTimeField(auto_now_add=True)
@@ -358,51 +236,57 @@ class MessageFeedback(models.Model):
 
 
 class Question(models.Model):
-    id = models.CharField(primary_key=True, default=que_pk, editable=False, max_length=24)
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE"
+        WARNING = "WARNING"
+        DELETED = "DELETED"
+        PENDING = "PENDING"
+
+    @staticmethod
+    def generate_id():
+        """Generate a random ID for question"""
+        return "que" + random_id()
+
+    id = models.CharField(primary_key=True, default=generate_id.__func__, editable=False, max_length=24)
     user = models.CharField(max_length=256)
     collection = models.ForeignKey(Collection, on_delete=models.CASCADE)
     documents = models.ManyToManyField(Document, blank=True)
     question = models.TextField()
     answer = models.TextField(null=True, blank=True)
-    status = models.CharField(max_length=16, choices=QuestionStatus.choices, null=True)
+    status = models.CharField(max_length=16, choices=Status.choices, null=True)
     gmt_created = models.DateTimeField(auto_now_add=True)
     gmt_updated = models.DateTimeField(auto_now=True)
     gmt_deleted = models.DateTimeField(null=True, blank=True)
     relate_id = models.CharField(null=True, max_length=256)
 
-    def view(self, relate_documents=None):
-        if not relate_documents:
-            relate_documents = []
-        return {
-            "id": str(self.id),
-            "status": self.status,
-            "question": self.question,
-            "answer": self.answer,
-            "relate_documents": relate_documents,
-            "created": self.gmt_created.isoformat(),
-            "updated": self.gmt_updated.isoformat(),
-        }
-
 
 class ApiKeyToken(models.Model):
-    id = models.CharField(primary_key=True, default=app_id, editable=False, max_length=24)
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE"
+        DELETED = "DELETED"
+
+    @staticmethod
+    def generate_id():
+        """Generate a random ID for API key"""
+        return ''.join(random.sample(uuid.uuid4().hex, 12))
+
+    id = models.CharField(primary_key=True, default=generate_id.__func__, editable=False, max_length=24)
     key = models.CharField(max_length=40, editable=False)
     user = models.CharField(max_length=256)
-    status = models.CharField(max_length=16, choices=ApiKeyStatus.choices, null=True)
+    status = models.CharField(max_length=16, choices=Status.choices, null=True)
     count_times = models.IntegerField(blank=True, null=True)
     gmt_updated = models.DateTimeField(auto_now=True)
     gmt_created = models.DateTimeField(auto_now_add=True)
     gmt_deleted = models.DateTimeField(null=True, blank=True)
 
-    def view(self):
-        return {
-            "id": str(self.id),
-            "key": self.key,
-        }
-
 
 class CollectionSyncHistory(models.Model):
-    id = models.CharField(primary_key=True, default=collection_history_pk, editable=False, max_length=24)
+    @staticmethod
+    def generate_id():
+        """Generate a random ID for collection sync history"""
+        return "colhist" + random_id()
+
+    id = models.CharField(primary_key=True, default=generate_id.__func__, editable=False, max_length=24)
     user = models.CharField(max_length=256)
     collection = models.ForeignKey(Collection, on_delete=models.CASCADE)
     total_documents = models.PositiveIntegerField(default=0)
@@ -417,7 +301,7 @@ class CollectionSyncHistory(models.Model):
     execution_time = models.DurationField(null=True)
     start_time = models.DateTimeField()
     task_context = models.JSONField(default=dict)
-    status = models.CharField(max_length=16, choices=CollectionSyncStatus.choices, default=CollectionSyncStatus.RUNNING)
+    status = models.CharField(max_length=16, choices=Collection.SyncStatus.choices, default=Collection.SyncStatus.RUNNING)
     gmt_created = models.DateTimeField(auto_now_add=True, null=True)
     gmt_updated = models.DateTimeField(auto_now=True, null=True)
     gmt_deleted = models.DateTimeField(null=True, blank=True)
@@ -445,10 +329,21 @@ class CollectionSyncHistory(models.Model):
             "status": self.status,
         }
 
+
 class ModelServiceProvider(models.Model):
-    name = models.CharField(primary_key=True, default=int_pk, editable=False, max_length=24)
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE"
+        INACTIVE = "INACTIVE"
+        DELETED = "DELETED"
+
+    @staticmethod
+    def generate_id():
+        """Generate a random ID for model service provider"""
+        return "int" + random_id()
+
+    name = models.CharField(primary_key=True, default=generate_id.__func__, editable=False, max_length=24)
     user = models.CharField(max_length=256)
-    status = models.CharField(max_length=16, choices=ModelServiceProviderStatus.choices)
+    status = models.CharField(max_length=16, choices=Status.choices)
     base_url = models.CharField(max_length=256, blank=True, null=True)
     api_key = models.CharField(max_length=256)
     extra = models.TextField(null=True)
@@ -456,26 +351,16 @@ class ModelServiceProvider(models.Model):
     gmt_updated = models.DateTimeField(auto_now=True)
     gmt_deleted = models.DateTimeField(null=True, blank=True)
 
-    def view(self):
-        return {
-            "name": self.name,
-            "user": self.user,
-            "status": self.status,
-            "base_url": self.base_url,
-            "api_key": self.api_key,
-            "extra": self.extra,
-            "created": self.gmt_created.isoformat(),
-            "updated": self.gmt_updated.isoformat(),
-        }
-    
     def __str__(self):
         return f"ModelServiceProvider(name={self.name}, user={self.user}, status={self.status}, base_url={self.base_url}, api_key={self.api_key}, extra={self.extra})"
+
 
 class Role(models.TextChoices):
     ADMIN = "admin"
     RW = "rw"
     RO = "ro"
     
+
 class User(AbstractUser):
     """Custom user model that extends AbstractUser"""
     email = models.EmailField(unique=True, blank=True, null=True)
@@ -484,9 +369,15 @@ class User(AbstractUser):
     class Meta:
         app_label = 'aperag'  # Set app_label to 'aperag' since we're using AUTH_USER_MODEL = 'aperag.User'
 
+
 class Invitation(models.Model):
     """Invitation model for user registration"""
-    id = models.CharField(primary_key=True, default=invitation_pk, editable=False, max_length=24)
+    @staticmethod
+    def generate_id():
+        """Generate a random ID for invitation"""
+        return "invite" + random_id()
+
+    id = models.CharField(primary_key=True, default=generate_id.__func__, editable=False, max_length=24)
     email = models.EmailField()
     token = models.CharField(max_length=64, unique=True)
     created_by = models.CharField(max_length=256)

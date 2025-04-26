@@ -22,7 +22,7 @@ from ninja import Router
 import aperag.chat
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
-from aperag.db.models import Chat, ChatPeer
+from aperag.db.models import Chat 
 from aperag.db.ops import build_pq, query_bot, query_web_chat, query_web_chats
 from aperag.views.utils import fail, query_chat_messages, success
 from aperag.views import models as view_models
@@ -76,7 +76,7 @@ async def create_chat(request, bot_id: str, session_id: str) -> view_models.Chat
         instance = Chat(
             user=bot.user,
             bot=bot,
-            peer_type=ChatPeer.WEB,
+            peer_type=Chat.PeerType.WEB,
             peer_id=session_id
         )
         await instance.asave()

@@ -29,14 +29,9 @@ from django.utils import timezone
 from aperag.context.full_text import insert_document, remove_document
 from aperag.db.models import (
     Collection,
-    CollectionStatus,
     Document,
-    DocumentStatus,
     MessageFeedback,
-    MessageFeedbackStatus,
-    ProtectAction,
     Question,
-    QuestionStatus,
 )
 from aperag.embed.base_embedding import get_collection_embedding_model
 from aperag.embed.local_path_embedding import LocalPathEmbedding
@@ -64,15 +59,15 @@ class CustomLoadDocumentTask(Task):
     def on_success(self, retval, task_id, args, kwargs):
         document_id = args[0]
         document = Document.objects.get(id=document_id)
-        if document.status != DocumentStatus.WARNING:
-            document.status = DocumentStatus.COMPLETE
+        if document.status != Document.Status.WARNING:
+            document.status = Document.Status.COMPLETE
         document.save()
         logger.info(f"add qdrant points for document {document.name} success")
 
     def on_failure(self, exc, task_id, args, kwargs, einfo):
         document_id = args[0]
         document = Document.objects.get(id=document_id)
-        document.status = DocumentStatus.FAILED
+        document.status = Document.Status.FAILED
         document.save()
         logger.error(f"add qdrant points for document {document.name} error:{exc}")
 
@@ -82,7 +77,7 @@ class CustomDeleteDocumentTask(Task):
         document_id = args[0]
         document = Document.objects.get(id=document_id)
         logger.info(f"remove qdrant points for document {document.name} success")
-        document.status = DocumentStatus.DELETED
+        document.status = Document.Status.DELETED
         document.gmt_deleted = timezone.now()
         document.name = document.name + "-" + str(uuid.uuid4())
         document.save()
@@ -90,7 +85,7 @@ class CustomDeleteDocumentTask(Task):
     def on_failure(self, exc, task_id, args, kwargs, einfo):
         document_id = args[0]
         document = Document.objects.get(id=document_id)
-        document.status = DocumentStatus.FAILED
+        document.status = Document.Status.FAILED
         document.save()
         logger.error(f"remove_index(): index delete from vector db failed:{exc}")
 
@@ -159,7 +154,7 @@ def uncompress_file(document: Document):
                 document_instance = Document(
                     user=document.user,
                     name=document.name + "/" + extracted_file_path.name,
-                    status=DocumentStatus.PENDING,
+                    status=Document.Status.PENDING,
                     size=extracted_file_path.stat().st_size,
                     collection=document.collection,
                     file=ContentFile(content, extracted_file_path.name),
@@ -193,7 +188,7 @@ def add_index_for_document(self, document_id):
             document_id: the document in Django Module
     """
     document = Document.objects.get(id=document_id)
-    document.status = DocumentStatus.RUNNING
+    document.status = Document.Status.RUNNING
     document.save()
 
     source = None
@@ -225,15 +220,15 @@ def add_index_for_document(self, document_id):
 
             config = json.loads(document.collection.config)
             sensitive_protect = config.get("sensitive_protect", False)
-            sensitive_protect_method = config.get("sensitive_protect_method", ProtectAction.WARNING_NOT_STORED)
+            sensitive_protect_method = config.get("sensitive_protect_method", Document.ProtectAction.WARNING_NOT_STORED)
             ctx_ids, content, sensitive_info = loader.load_data(sensitive_protect=sensitive_protect,
                                                                 sensitive_protect_method=sensitive_protect_method)
             document.sensitive_info = sensitive_info
             if sensitive_protect and sensitive_info:
-                if sensitive_protect_method == ProtectAction.WARNING_NOT_STORED:
+                if sensitive_protect_method == Document.ProtectAction.WARNING_NOT_STORED:
                     raise SensitiveInformationFound()
                 else:
-                    document.status = DocumentStatus.WARNING
+                    document.status = Document.Status.WARNING
             logger.info(f"add ctx qdrant points: {ctx_ids} for document {local_doc.path}")
 
             # only index the document that have points in the vector database
@@ -310,7 +305,7 @@ def update_index_for_local_document(self, document_id):
 @app.task(base=CustomLoadDocumentTask, bind=True, track_started=True)
 def update_index_for_document(self, document_id):
     document = Document.objects.get(id=document_id)
-    document.status = DocumentStatus.RUNNING
+    document.status = Document.Status.RUNNING
     document.save()
 
     try:
@@ -334,15 +329,15 @@ def update_index_for_document(self, document_id):
 
         config = json.loads(document.collection.config)
         sensitive_protect = config.get("sensitive_protect", False)
-        sensitive_protect_method = config.get("sensitive_protect_method", ProtectAction.WARNING_NOT_STORED)
+        sensitive_protect_method = config.get("sensitive_protect_method", Document.ProtectAction.WARNING_NOT_STORED)
         ctx_ids, content, sensitive_info = loader.load_data(sensitive_protect=sensitive_protect,
                                                             sensitive_protect_method=sensitive_protect_method)
         document.sensitive_info = sensitive_info
         if sensitive_protect and sensitive_info != []:
-            if sensitive_protect_method == ProtectAction.WARNING_NOT_STORED:
+            if sensitive_protect_method == Document.ProtectAction.WARNING_NOT_STORED:
                 raise SensitiveInformationFound()
             else:
-                document.status = DocumentStatus.WARNING
+                document.status = Document.Status.WARNING
         logger.info(f"add ctx qdrant points: {ctx_ids} for document {local_doc.path}")
 
         # only index the document that have points in the vector database
@@ -391,7 +386,7 @@ def add_lightrag_index(content, document, local_doc):
 def message_feedback(**kwargs):
     feedback_id = kwargs["feedback_id"]
     feedback = MessageFeedback.objects.get(id=feedback_id)
-    feedback.status = MessageFeedbackStatus.RUNNING
+    feedback.status = MessageFeedback.Status.RUNNING
     feedback.save()
 
     qa_collection_name = generate_qa_vector_db_collection_name(collection=feedback.collection.id)
@@ -405,7 +400,7 @@ def message_feedback(**kwargs):
         feedback.relate_ids = ",".join(ids)
         feedback.save()
 
-    feedback.status = MessageFeedbackStatus.COMPLETE
+    feedback.status = MessageFeedback.Status.COMPLETE
     feedback.save()
 
 @app.task
@@ -429,7 +424,7 @@ def generate_questions(document_id):
                 user=document.user,
                 question=question,
                 answer='',
-                status=QuestionStatus.ACTIVE,
+                status=Question.Status.ACTIVE,
                 collection=document.collection,
                 relate_id=relate_id
             )
@@ -451,10 +446,10 @@ def update_index_for_question(question_id):
                                         collection=question.collection.id)))
         if question.relate_id is not None:
             q_loaders.delete(ids=[question.relate_id])
-        if question.status != QuestionStatus.DELETED:
+        if question.status != Question.Status.DELETED:
             ids = q_loaders.load_data(faq=[{"question": question.question, "answer": question.answer}])
             question.relate_id = ids[0]
-            question.status = QuestionStatus.ACTIVE
+            question.status = Question.Status.ACTIVE
             question.save()
     except Exception as e:
         logger.error(e)
@@ -465,5 +460,5 @@ def update_index_for_question(question_id):
 def update_collection_status(status, collection_id):
     Collection.objects.filter(
         id=collection_id,
-        status=CollectionStatus.QUESTION_PENDING
-    ).update(status=CollectionStatus.ACTIVE)
+        status=Collection.Status.QUESTION_PENDING
+    ).update(status=Collection.Status.ACTIVE)

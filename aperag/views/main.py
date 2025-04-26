@@ -169,7 +169,7 @@ async def sync_immediately(request, collection_id):
         collection=collection,
         execution_time=datetime.timedelta(seconds=0),
         total_documents_to_sync=0,
-        status=db_models.CollectionSyncStatus.RUNNING,
+        status=db_models.Collection.SyncStatus.RUNNING,
     )
     await instance.asave()
     document_user_quota = await query_user_quota(user, QuotaType.MAX_DOCUMENT_COUNT)
@@ -212,7 +212,7 @@ async def cancel_sync(request, collection_id, collection_sync_id):
     else:
         logger.warning(f"no index task group id in sync history {collection_sync_id}")
 
-    sync_history.status = db_models.CollectionSyncStatus.CANCELED
+    sync_history.status = db_models.Collection.SyncStatus.CANCELED
     await sync_history.asave()
     return success({})
 
@@ -264,7 +264,7 @@ async def create_apikey(request) -> view_models.ApiKey:
     user = get_user(request)
     new_api_key = db_models.ApiKeyToken(
         user=user,
-        status=db_models.ApiKeyStatus.ACTIVE,
+        status=db_models.ApiKeyToken.Status.ACTIVE,
         key = secrets.token_hex(20)
     )
     await new_api_key.asave()
@@ -279,7 +279,7 @@ async def delete_apikey(request, apikey_id: str) -> view_models.ApiKey:
     api_key = await query_apikey(user, apikey_id)
     if api_key is None:
         return fail(HTTPStatus.NOT_FOUND, "api_key not found")
-    api_key.status = db_models.ApiKeyStatus.DELETED
+    api_key.status = db_models.ApiKeyToken.Status.DELETED
     api_key.gmt_deleted = timezone.now()
     await api_key.asave()
     return success(view_models.ApiKey(
@@ -318,7 +318,7 @@ async def create_collection(request, collection: view_models.CollectionCreate) -
     instance = db_models.Collection(
         user=user,
         type=collection.type,
-        status=db_models.CollectionStatus.INACTIVE,
+        status=db_models.Collection.Status.INACTIVE,
         title=collection.title,
         description=collection.description
     )
@@ -370,7 +370,7 @@ async def get_collection(request, collection_id: str) -> view_models.Collection:
     if instance is None:
         return fail(HTTPStatus.NOT_FOUND, "Collection not found")
 
-    bots = await sync_to_async(instance.bot_set.exclude)(status=db_models.BotStatus.DELETED)
+    bots = await sync_to_async(instance.bot_set.exclude)(status=db_models.Bot.Status.DELETED)
     bot_ids = []
     async for bot in bots:
         bot_ids.append(bot.id)
@@ -400,7 +400,7 @@ async def update_collection(request, collection_id: str, collection: view_models
     if source.sync_enabled():
         await update_sync_documents_cron_job(instance.id)
 
-    bots = await sync_to_async(instance.bot_set.exclude)(status=db_models.BotStatus.DELETED)
+    bots = await sync_to_async(instance.bot_set.exclude)(status=db_models.Bot.Status.DELETED)
     bot_ids = []
     async for bot in bots:
         bot_ids.append(bot.id)
@@ -424,13 +424,13 @@ async def delete_collection(request, collection_id: str) -> view_models.Collecti
     if collection is None:
         return fail(HTTPStatus.NOT_FOUND, "Collection not found")
     await delete_sync_documents_cron_job(collection.id)
-    bots = await sync_to_async(collection.bot_set.exclude)(status=db_models.BotStatus.DELETED)
+    bots = await sync_to_async(collection.bot_set.exclude)(status=db_models.Bot.Status.DELETED)
     bot_ids = []
     async for bot in bots:
         bot_ids.append(bot.id)
     if len(bot_ids) > 0:
         return fail(HTTPStatus.BAD_REQUEST, f"Collection has related to bots {','.join(bot_ids)}, can not be deleted")
-    collection.status = db_models.CollectionStatus.DELETED
+    collection.status = db_models.Collection.Status.DELETED
     collection.gmt_deleted = timezone.now()
     await collection.asave()
 
@@ -450,13 +450,13 @@ async def create_questions(request, collection_id: str):
     collection = await query_collection(user, collection_id)
     if collection is None:
         return fail(HTTPStatus.NOT_FOUND, "Collection not found")
-    if collection.status == db_models.CollectionStatus.QUESTION_PENDING:
+    if collection.status == db_models.Collection.Status.QUESTION_PENDING:
         return fail(HTTPStatus.BAD_REQUEST, "Collection is generating questions")
 
-    collection.status = db_models.CollectionStatus.QUESTION_PENDING
+    collection.status = db_models.Collection.Status.QUESTION_PENDING
     await collection.asave()
 
-    documents = await sync_to_async(collection.document_set.exclude)(status=db_models.DocumentStatus.DELETED)
+    documents = await sync_to_async(collection.document_set.exclude)(status=db_models.Document.Status.DELETED)
     generate_tasks = []
     async for document in documents:
         generate_tasks.append(generate_questions.si(document.id))
@@ -478,7 +478,7 @@ async def update_question(request, collection_id: str, question_in: view_models.
         question_instance = db_models.Question(
             user=collection.user,
             collection=collection,
-            status=db_models.QuestionStatus.PENDING,
+            status=db_models.Question.Status.PENDING,
         )
         await question_instance.asave()
     else:
@@ -488,13 +488,13 @@ async def update_question(request, collection_id: str, question_in: view_models.
 
     question_instance.question = question_in.question
     question_instance.answer = question_in.answer if question_in.answer else ""
-    question_instance.status = db_models.QuestionStatus.PENDING
+    question_instance.status = db_models.Question.Status.PENDING
     await sync_to_async(question_instance.documents.clear)()
 
     if question_in.relate_documents:
         for document_id in question_in.relate_documents:
             document = await query_document(user, collection_id, document_id)
-            if document is None or document.status == db_models.DocumentStatus.DELETED:
+            if document is None or document.status == db_models.Document.Status.DELETED:
                 return fail(HTTPStatus.NOT_FOUND, "Document not found")
             await sync_to_async(question_instance.documents.add)(document)
     else:
@@ -516,12 +516,12 @@ async def delete_question(request, collection_id: str, question_id: str) -> view
     question = await query_question(user, question_id)
     if question is None:
         return fail(HTTPStatus.NOT_FOUND, "Question not found")
-    question.status = db_models.QuestionStatus.DELETED
+    question.status = db_models.Question.Status.DELETED
     question.gmt_deleted = timezone.now()
     await question.asave()
     update_index_for_question.delay(question.id)
 
-    docs = await sync_to_async(question.documents.exclude)(status=db_models.DocumentStatus.DELETED)
+    docs = await sync_to_async(question.documents.exclude)(status=db_models.Document.Status.DELETED)
     doc_ids = []
     async for doc in docs:
         doc_ids.append(doc.id)
@@ -550,7 +550,7 @@ async def list_questions(request, collection_id: str) -> view_models.QuestionLis
 async def get_question(request, collection_id: str, question_id: str) -> view_models.Question:
     user = get_user(request)
     question = await query_question(user, question_id)
-    docs = await sync_to_async(question.documents.exclude)(status=db_models.DocumentStatus.DELETED)
+    docs = await sync_to_async(question.documents.exclude)(status=db_models.Document.Status.DELETED)
     doc_ids = []
     async for doc in docs:
         doc_ids.append(doc.id)
@@ -587,7 +587,7 @@ async def create_document(request, collection_id: str, file: List[UploadedFile] 
             document_instance = db_models.Document(
                 user=user,
                 name=item.name,
-                status=db_models.DocumentStatus.PENDING,
+                status=db_models.Document.Status.PENDING,
                 size=item.size,
                 collection=collection,
                 file=ContentFile(item.read(), item.name),
@@ -644,7 +644,7 @@ async def create_url_document(request, collection_id: str) -> List[view_models.D
             document_instance = db_models.Document(
                 user=user,
                 name=document_name,
-                status=db_models.DocumentStatus.PENDING,
+                status=db_models.Document.Status.PENDING,
                 collection=collection,
                 size=0,
             )
@@ -693,7 +693,7 @@ async def update_document(
     instance = await query_document(user, collection_id, document_id)
     if instance is None:
         return fail(HTTPStatus.NOT_FOUND, "Document not found")
-    if instance.status == db_models.DocumentStatus.DELETING:
+    if instance.status == db_models.Document.Status.DELETING:
         return fail(HTTPStatus.BAD_REQUEST, "Document is deleting")
 
     if document.config:
@@ -708,9 +708,9 @@ async def update_document(
     # if user add labels for a document, we need to update index
     update_index_for_document.delay(instance.id)
 
-    related_questions = await sync_to_async(instance.question_set.exclude)(status=db_models.QuestionStatus.DELETED)
+    related_questions = await sync_to_async(instance.question_set.exclude)(status=db_models.Question.Status.DELETED)
     async for question in related_questions:
-        question.status = db_models.QuestionStatus.WARNING
+        question.status = db_models.Question.Status.WARNING
         await question.asave()
 
     return success(view_models.Document(
@@ -729,19 +729,19 @@ async def delete_document(request, collection_id: str, document_id: str) -> view
     if document is None:
         logger.info(f"document {document_id} not found, maybe has already been deleted")
         return success({})
-    if document.status == db_models.DocumentStatus.DELETING:
+    if document.status == db_models.Document.Status.DELETING:
         logger.info(f"document {document_id} is deleting, ignore delete")
         return success({})
-    document.status = db_models.DocumentStatus.DELETING
+    document.status = db_models.Document.Status.DELETING
     document.gmt_deleted = timezone.now()
     await document.asave()
 
     remove_index.delay(document.id)
 
-    related_questions = await sync_to_async(document.question_set.exclude)(status=db_models.QuestionStatus.DELETED)
+    related_questions = await sync_to_async(document.question_set.exclude)(status=db_models.Question.Status.DELETED)
     async for question in related_questions:
         question.documents.remove(document)
-        question.status = db_models.QuestionStatus.WARNING
+        question.status = db_models.Question.Status.WARNING
         await question.asave()
 
     return success(view_models.Document(
@@ -762,15 +762,15 @@ async def delete_documents(request, collection_id: str, document_ids: List[str])
         if document.id not in document_ids:
             continue
         try:
-            document.status = db_models.DocumentStatus.DELETING
+            document.status = db_models.Document.Status.DELETING
             document.gmt_deleted = timezone.now()
             await document.asave()
             remove_index.delay(document.id)
 
-            related_questions = await sync_to_async(document.question_set.exclude)(status=db_models.QuestionStatus.DELETED)
+            related_questions = await sync_to_async(document.question_set.exclude)(status=db_models.Question.Status.DELETED)
             async for question in related_questions:
                 question.documents.remove(document)
-                question.status = db_models.QuestionStatus.WARNING
+                question.status = db_models.Question.Status.WARNING
                 await question.asave()
 
             ok.append(document.id)
@@ -786,7 +786,7 @@ async def create_chat(request, bot_id: str) -> view_models.Chat:
     bot = await query_bot(user, bot_id)
     if bot is None:
         return fail(HTTPStatus.NOT_FOUND, "Bot not found")
-    instance = db_models.Chat(user=user, bot=bot, peer_type=db_models.ChatPeer.SYSTEM)
+    instance = db_models.Chat(user=user, bot=bot, peer_type=db_models.Chat.PeerType.SYSTEM)
     await instance.asave()
     return success(view_models.Chat(
         id=instance.id,
@@ -878,7 +878,7 @@ async def delete_chat(request, bot_id: str, chat_id: str) -> view_models.Chat:
     chat = await query_chat(user, bot_id, chat_id)
     if chat is None:
         return fail(HTTPStatus.NOT_FOUND, "Chat not found")
-    chat.status = db_models.ChatStatus.DELETED
+    chat.status = db_models.Chat.Status.DELETED
     chat.gmt_deleted = timezone.now()
     await chat.asave()
     history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
@@ -908,7 +908,7 @@ async def create_bot(request, bot_in: view_models.BotCreate) -> view_models.Bot:
         user=user,
         title=bot_in.title,
         type=bot_in.type,
-        status=db_models.BotStatus.ACTIVE,
+        status=db_models.Bot.Status.ACTIVE,
         description=bot_in.description,
         config=bot_in.config,
     )
@@ -926,7 +926,7 @@ async def create_bot(request, bot_in: view_models.BotCreate) -> view_models.Bot:
             collection = await query_collection(user, cid)
             if not collection:
                 return fail(HTTPStatus.NOT_FOUND, "Collection %s not found" % cid)
-            if collection.status == db_models.CollectionStatus.INACTIVE:
+            if collection.status == db_models.Collection.Status.INACTIVE:
                 return fail(HTTPStatus.BAD_REQUEST, "Collection %s is inactive" % cid)
             await sync_to_async(bot.collections.add)(collection)
             collections.append(collection.view())
@@ -950,9 +950,6 @@ async def list_bots(request) -> view_models.BotList:
     pr = await query_bots([user, settings.ADMIN_USER], build_pq(request))
     response = []
     async for bot in pr.data:
-        collections = []
-        async for collection in await sync_to_async(bot.collections.all)():
-            collections.append(collection.view())
         bot_config = json.loads(bot.config)
         model = bot_config.get("model", None)
         # This is a temporary solution to solve the problem of model name changes
@@ -1025,7 +1022,7 @@ async def update_bot(request, bot_id: str, bot_in: view_models.BotUpdate) -> vie
             collection = await query_collection(user, cid)
             if not collection:
                 return fail(HTTPStatus.NOT_FOUND, "Collection %s not found" % cid)
-            if collection.status == db_models.CollectionStatus.INACTIVE:
+            if collection.status == db_models.Collection.Status.INACTIVE:
                 return fail(HTTPStatus.BAD_REQUEST, "Collection %s is inactive" % cid)
             collections.append(collection)
         await sync_to_async(bot.collections.set)(collections)
@@ -1052,7 +1049,7 @@ async def delete_bot(request, bot_id: str) -> view_models.Bot:
     bot = await query_bot(user, bot_id)
     if bot is None:
         return fail(HTTPStatus.NOT_FOUND, "Bot not found")
-    bot.status = db_models.BotStatus.DELETED
+    bot.status = db_models.Bot.Status.DELETED
     bot.gmt_deleted = timezone.now()
     await bot.asave()
     collection_ids = []
@@ -1125,11 +1122,11 @@ async def update_model_service_provider(request, provider, mspIn : ModelServiceP
             api_key=mspIn.api_key,
             base_url=mspIn.base_url if msp_config.get("allow_custom_base_url", False) else msp_config.get("base_url"),
             extra = mspIn.extra,
-            status=db_models.ModelServiceProviderStatus.ACTIVE,
+            status=db_models.ModelServiceProvider.Status.ACTIVE,
         )
     else:
-        if msp.status == db_models.ModelServiceProviderStatus.DELETED:
-            msp.status = db_models.ModelServiceProviderStatus.ACTIVE
+        if msp.status == db_models.ModelServiceProvider.Status.DELETED:
+            msp.status = db_models.ModelServiceProvider.Status.ACTIVE
             msp.gmt_deleted = None
         
         msp.api_key = mspIn.api_key
@@ -1153,7 +1150,7 @@ async def delete_model_service_provider(request, provider):
     if msp is None:
         return fail(HTTPStatus.NOT_FOUND, f"model service provider {provider} not found")
     
-    msp.status = db_models.ModelServiceProviderStatus.DELETED
+    msp.status = db_models.ModelServiceProvider.Status.DELETED
     msp.gmt_deleted = timezone.now()
 
     await msp.asave()
