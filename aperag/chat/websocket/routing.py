@@ -25,7 +25,7 @@ from aperag.utils.utils import extract_bot_and_chat_id, extract_web_bot_and_chat
 async def bot_consumer_router(scope, receive, send):
     logging.info("bot_consumer_router begin")
     
-    from aperag.db.models import Bot, CollectionType
+    from aperag.db.models import Bot, Collection
     from aperag.db.ops import query_bot, query_chat
 
     user = scope["user"].id
@@ -46,7 +46,7 @@ async def bot_consumer_router(scope, receive, send):
 
     if bot.type == Bot.Type.KNOWLEDGE:
         collection = await sync_to_async(bot.collections.first)()
-        if collection.type != CollectionType.DOCUMENT:
+        if collection.type != Collection.Type.DOCUMENT:
             raise Exception("Invalid collection type")
         if settings.CHAT_CONSUMER_IMPLEMENTATION == "document-qa":
             from aperag.chat.websocket.document_qa_consumer import DocumentQAConsumer

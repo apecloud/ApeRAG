@@ -291,7 +291,7 @@ async def delete_apikey(request, apikey_id: str) -> view_models.ApiKey:
 async def create_collection(request, collection: view_models.CollectionCreate) -> view_models.Collection:
     user = get_user(request)
     config = json.loads(collection.config)
-    if collection.type == db_models.CollectionType.DOCUMENT:
+    if collection.type == db_models.Collection.Type.DOCUMENT:
         is_validate, error_msg = validate_source_connect_config(config)
         if not is_validate:
             return fail(HTTPStatus.BAD_REQUEST, error_msg)
@@ -327,7 +327,7 @@ async def create_collection(request, collection: view_models.CollectionCreate) -
         instance.config = collection.config
     await instance.asave()
 
-    if instance.type == db_models.CollectionType.DOCUMENT:
+    if instance.type == db_models.Collection.Type.DOCUMENT:
         document_user_quota = await query_user_quota(user, QuotaType.MAX_DOCUMENT_COUNT)
         init_collection_task.delay(instance.id, document_user_quota)
     else:
