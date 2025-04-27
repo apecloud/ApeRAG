@@ -411,11 +411,11 @@ async def query_invitations():
 
 async def list_user_api_keys(username: str) -> List[ApiKey]:
     """List all active API keys for a user"""
-    return await ApiKey.objects.filter(
+    return await sync_to_async(ApiKey.objects.filter(
         user=username,
         status=ApiKey.Status.ACTIVE,
         gmt_deleted__isnull=True
-    ).all()
+    ).all)()
 
 
 async def create_api_key(username: str, description: Optional[str] = None) -> ApiKey:
@@ -448,16 +448,15 @@ async def delete_api_key(username: str, key_id: str) -> bool:
         return False
 
 
-async def get_api_key_by_token(token: str) -> Optional[ApiKey]:
-    """Get API key by token string"""
+async def get_api_key_by_id(user: str, id: str) -> Optional[ApiKey]:
+    """Get API key by id string"""
     try:
-        api_key = await ApiKey.objects.aget(
-            key=token,
+        return await ApiKey.objects.aget(
+            user=user,
+            id=id,
             status=ApiKey.Status.ACTIVE,
             gmt_deleted__isnull=True
         )
-        await api_key.update_last_used()
-        return api_key
     except ApiKey.DoesNotExist:
         return None
 
