@@ -374,7 +374,7 @@ class Question(models.Model):
             self.collection_id = collection
 
 
-class ApiKeyToken(models.Model):
+class ApiKey(models.Model):
     class Status(models.TextChoices):
         ACTIVE = "ACTIVE"
         DELETED = "DELETED"
@@ -384,14 +384,28 @@ class ApiKeyToken(models.Model):
         """Generate a random ID for API key"""
         return ''.join(random.sample(uuid.uuid4().hex, 12))
 
+    @staticmethod
+    def generate_key():
+        """Generate a random API key with sk- prefix"""
+        return f"sk-{uuid.uuid4().hex}"
+
     id = models.CharField(primary_key=True, default=generate_id.__func__, editable=False, max_length=24)
-    key = models.CharField(max_length=40, editable=False)
+    key = models.CharField(max_length=40, default=generate_key.__func__, editable=False)
     user = models.CharField(max_length=256)
-    status = models.CharField(max_length=16, choices=Status.choices, null=True)
-    count_times = models.IntegerField(blank=True, null=True)
+    description = models.CharField(max_length=256, blank=True, null=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.ACTIVE)
+    last_used_at = models.DateTimeField(null=True, blank=True)
     gmt_updated = models.DateTimeField(auto_now=True)
     gmt_created = models.DateTimeField(auto_now_add=True)
     gmt_deleted = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"ApiKeyToken(id={self.id}, user={self.user}, description={self.description})"
+
+    def update_last_used(self):
+        """Update the last used timestamp"""
+        self.last_used_at = timezone.now()
+        self.save()
 
 
 class CollectionSyncHistory(models.Model):

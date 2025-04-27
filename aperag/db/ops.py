@@ -13,16 +13,17 @@
 # limitations under the License.
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from asgiref.sync import sync_to_async
 from django.db.models import QuerySet
 from django.contrib.auth import aauthenticate, alogin, alogout
 from django.contrib.auth.hashers import make_password
 from pydantic import BaseModel
+from django.utils import timezone
 
 from aperag.db.models import (
-    ApiKeyToken,
+    ApiKey,
     Bot,
     Chat,
     Collection,
@@ -32,7 +33,6 @@ from aperag.db.models import (
     MessageFeedback,
     Question,
     UserQuota,
-    ApiKeyToken,
     ModelServiceProvider,
     User,
     Invitation,
@@ -176,15 +176,15 @@ async def query_question(user, question_id: str):
 
 async def query_apikeys(user, pq: PagedQuery = None):
     filters = build_filters(pq)
-    apikey_set = ApiKeyToken.objects.exclude(status=ApiKeyToken.Status.DELETED).filter(user=user, **filters)
+    apikey_set = ApiKey.objects.exclude(status=ApiKey.Status.DELETED).filter(user=user, **filters)
     return await build_pr(pq, apikey_set)
 
 async def query_apikey(user, apikey_id: str):
     try:
-        return await ApiKeyToken.objects.exclude(status=ApiKeyToken.Status.DELETED).aget(
+        return await ApiKey.objects.exclude(status=ApiKey.Status.DELETED).aget(
             user=user, pk=apikey_id
         )
-    except ApiKeyToken.DoesNotExist:
+    except ApiKey.DoesNotExist:
         return None
 
 async def query_chat(user, bot_id: str, chat_id: str):
@@ -408,5 +408,57 @@ async def query_admin_count():
 async def query_invitations():
     """Query all valid invitations"""
     return await sync_to_async(Invitation.objects.filter( is_used=False,).order_by('-created_at').all)()
+
+async def list_user_api_keys(username: str) -> List[ApiKey]:
+    """List all active API keys for a user"""
+    return await ApiKey.objects.filter(
+        user=username,
+        status=ApiKey.Status.ACTIVE,
+        gmt_deleted__isnull=True
+    ).all()
+
+
+async def create_api_key(username: str, description: Optional[str] = None) -> ApiKey:
+    """Create a new API key for a user"""
+    return await ApiKey.objects.acreate(
+        user=username,
+        description=description,
+        status=ApiKey.Status.ACTIVE
+    )
+
+
+async def delete_api_key(username: str, key_id: str) -> bool:
+    """Delete an API key
+    
+    Returns:
+        Tuple[bool, Optional[str]]: (success, error_message)
+    """
+    try:
+        api_key = await ApiKey.objects.aget(
+            id=key_id,
+            user=username,
+            status=ApiKey.Status.ACTIVE,
+            gmt_deleted__isnull=True
+        )
+        api_key.status = ApiKey.Status.DELETED
+        api_key.gmt_deleted = timezone.now()
+        await api_key.asave()
+        return True
+    except ApiKey.DoesNotExist:
+        return False
+
+
+async def get_api_key_by_token(token: str) -> Optional[ApiKey]:
+    """Get API key by token string"""
+    try:
+        api_key = await ApiKey.objects.aget(
+            key=token,
+            status=ApiKey.Status.ACTIVE,
+            gmt_deleted__isnull=True
+        )
+        await api_key.update_last_used()
+        return api_key
+    except ApiKey.DoesNotExist:
+        return None
 
 

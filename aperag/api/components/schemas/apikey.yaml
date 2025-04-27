@@ -5,6 +5,17 @@ apiKey:
       type: string
     key:
       type: string
+    description:
+      type: string
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+    last_used_at:
+      type: string
+      format: date-time
 
 apiKeyList:
   type: object
@@ -16,3 +27,15 @@ apiKeyList:
         $ref: '#/apiKey'
     pageResult:
       $ref: './common.yaml#/pageResult'
+
+apiKeyCreate:
+  type: object
+  properties:
+    description:
+      type: string
+
+apiKeyUpdate:
+  type: object
+  properties:
+    description:
+      type: string

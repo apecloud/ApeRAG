@@ -247,45 +247,6 @@ async def get_sync_history(request, collection_id, sync_history_id):
         sync_history.pending_documents = progress.pending_documents
     return success(sync_history.view())
 
-@router.get("/apikeys")
-async def list_apikey(request) -> view_models.ApiKeyList:
-    user = get_user(request)
-    pr = await query_apikeys(user, build_pq(request))
-    response = []
-    async for key in pr.data:
-        response.append(view_models.ApiKey(
-            id=key.id,
-            key=key.key,
-        ))
-    return success(view_models.ApiKeyList(items=response), pr=pr)
-
-@router.post("/apikeys")
-async def create_apikey(request) -> view_models.ApiKey:
-    user = get_user(request)
-    new_api_key = db_models.ApiKeyToken(
-        user=user,
-        status=db_models.ApiKeyToken.Status.ACTIVE,
-        key = secrets.token_hex(20)
-    )
-    await new_api_key.asave()
-    return success(view_models.ApiKey(
-        id=new_api_key.id,
-        key=new_api_key.key,
-    ))
-
-@router.delete("/apikeys/{apikey_id}")
-async def delete_apikey(request, apikey_id: str) -> view_models.ApiKey:
-    user = get_user(request)
-    api_key = await query_apikey(user, apikey_id)
-    if api_key is None:
-        return fail(HTTPStatus.NOT_FOUND, "api_key not found")
-    api_key.status = db_models.ApiKeyToken.Status.DELETED
-    api_key.gmt_deleted = timezone.now()
-    await api_key.asave()
-    return success(view_models.ApiKey(
-        id=api_key.id,
-        key=api_key.key,
-    ))
 
 @router.post("/collections")
 async def create_collection(request, collection: view_models.CollectionCreate) -> view_models.Collection:

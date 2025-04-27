@@ -20,6 +20,12 @@ apikeys:
     description: Create API key
     security:
       - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/apikey.yaml#/apiKeyCreate'
     responses:
       '200':
         description: API key created successfully
@@ -35,6 +41,33 @@ apikeys:
               $ref: '../components/schemas/common.yaml#/failResponse'
 
 apikey:
+  put:
+    summary: Update API key
+    description: Update API key
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: apikey_id
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/apikey.yaml#/apiKeyUpdate'
+    responses:
+      '200':
+        description: API key updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/apikey.yaml#/apiKey'
+      '401':
+        description: Unauthorized
+
   delete:
     summary: Delete API key
     description: Delete API key
