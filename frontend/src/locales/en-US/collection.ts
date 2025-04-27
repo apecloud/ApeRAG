@@ -35,9 +35,13 @@ export const collection = {
   'collection.delete': 'Delete collection',
   'collection.delete.confirm':
     'The collection "{name}" will be deleted, confirm the current operation.',
-  'collection.enable_light_rag': 'Enable Light RAG',
+  'collection.enable_lightrag': 'Enable Light RAG',
   'collection.embedding_model': 'Embedding Model',
   'collection.embedding_model_not_found':
     'Please set the API Key in Settings -> Model Provider',
   'collection.embedding_model.required': 'Embedding Model is required',
+  'collection.lightrag_model': 'Light RAG Model',
+  'collection.lightrag_model_not_found':
+    'Please set the API Key in Settings -> Model Provider',
+  'collection.lightrag_model.required': 'Light RAG Model is required',
 };

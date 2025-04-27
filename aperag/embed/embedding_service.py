@@ -57,9 +57,6 @@ class EmbeddingService(Embeddings):
         reraise=True,
     )
     def _embed_batch(self, batch: Sequence[str]) -> List[List[float]]:
-        """
-        单个 batch 的真正请求；加 tenacity 保证稳一点。
-        """
         response = litellm.embedding(
             model=self.model,
             api_base=self.api_base,

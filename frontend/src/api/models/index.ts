@@ -2,6 +2,8 @@ export * from './api-key';
 export * from './api-key-list';
 export * from './available-embedding';
 export * from './available-embedding-list';
+export * from './available-model';
+export * from './available-model-list';
 export * from './bot';
 export * from './bot-create';
 export * from './bot-list';

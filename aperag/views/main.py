@@ -1157,6 +1157,25 @@ async def list_available_embeddings(request) -> view_models.AvailableEmbeddingLi
     return success(view_models.AvailableEmbeddingList( items=response,))
 
 
+
+@router.get("/available_models")
+async def list_available_models(request) -> view_models.AvailableModelList:
+    user = get_user(request)
+    supported_msp_dict = {supported_msp["name"]: supported_msp for supported_msp in settings.SUPPORTED_MODEL_SERVICE_PROVIDERS}
+    msp_list = await query_msp_list(user)
+    logger.info(msp_list)
+    response = []
+    for msp in msp_list:
+        if msp.name in supported_msp_dict:
+            supported_msp = supported_msp_dict[msp.name]
+            for model in supported_msp.get("models", []):
+                response.append(view_models.AvailableModel(
+                    model_service_provider=msp.name,
+                    model_name=model,
+                ))
+    return success(view_models.AvailableModelList( items=response,))
+
+
 def default_page(request, exception):
     return render(request, '404.html')
 

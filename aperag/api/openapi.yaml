@@ -71,6 +71,8 @@ paths:
     $ref: './paths/models.yaml#/modelServiceProvider'
   /available_embeddings:
     $ref: './paths/models.yaml#/availableEmbeddings'
+  /available_models:
+    $ref: './paths/models.yaml#/availableModels'
 
 
   # config

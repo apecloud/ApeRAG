@@ -34,6 +34,24 @@ availableEmbeddings:
             schema:
               $ref: '../components/schemas/common.yaml#/failResponse'
 
+availableModels:
+  get:
+    summary: Get available models
+    description: Get available models 
+    responses:
+      '200':
+        description: Available models
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/model.yaml#/availableModelList'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
 modelServiceProvider:
   put:
     summary: Update model service provider

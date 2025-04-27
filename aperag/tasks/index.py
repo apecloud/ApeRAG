@@ -243,8 +243,8 @@ def add_index_for_document(self, document_id):
             }
             document.relate_ids = json.dumps(relate_ids)
 
-            enable_light_rag = config.get("enable_light_rag", True)
-            if enable_light_rag:
+            enable_lightrag = config.get("enable_lightrag", True)
+            if enable_lightrag:
                 add_lightrag_index(content, document, local_doc)
 
     except FeishuNoPermission:
@@ -355,8 +355,8 @@ def update_index_for_document(self, document_id):
         document.relate_ids = json.dumps(relate_ids)
         logger.info(f"update qdrant points: {document.relate_ids} for document {local_doc.path}")
 
-        enable_light_rag = config.get("enable_light_rag", True)
-        if enable_light_rag:
+        enable_lightrag = config.get("enable_lightrag", True)
+        if enable_lightrag:
             add_lightrag_index(content, document, local_doc)
 
     except FeishuNoPermission:

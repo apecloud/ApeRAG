@@ -28,6 +28,8 @@ import type { ApiKeyList } from '../models';
 // @ts-ignore
 import type { AvailableEmbeddingList } from '../models';
 // @ts-ignore
+import type { AvailableModelList } from '../models';
+// @ts-ignore
 import type { Bot } from '../models';
 // @ts-ignore
 import type { BotCreate } from '../models';
@@ -215,6 +217,36 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
          */
         availableEmbeddingsGet: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             const localVarPath = `/available_embeddings`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Get available models
+         * @summary Get available models
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        availableModelsGet: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/available_models`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
             let baseOptions;
@@ -2135,6 +2167,18 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Get available models
+         * @summary Get available models
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async availableModelsGet(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<AvailableModelList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.availableModelsGet(options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.availableModelsGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Delete a chat
          * @summary Delete a chat
          * @param {string} botId 
@@ -2817,6 +2861,15 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.availableEmbeddingsGet(options).then((request) => request(axios, basePath));
         },
         /**
+         * Get available models
+         * @summary Get available models
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        availableModelsGet(options?: RawAxiosRequestConfig): AxiosPromise<AvailableModelList> {
+            return localVarFp.availableModelsGet(options).then((request) => request(axios, basePath));
+        },
+        /**
          * Delete a chat
          * @summary Delete a chat
          * @param {DefaultApiBotsBotIdChatsChatIdDeleteRequest} requestParameters Request parameters.
@@ -3322,6 +3375,15 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     availableEmbeddingsGet(options?: RawAxiosRequestConfig): AxiosPromise<AvailableEmbeddingList>;
+
+    /**
+     * Get available models
+     * @summary Get available models
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    availableModelsGet(options?: RawAxiosRequestConfig): AxiosPromise<AvailableModelList>;
 
     /**
      * Delete a chat
@@ -4613,6 +4675,17 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      */
     public availableEmbeddingsGet(options?: RawAxiosRequestConfig) {
         return DefaultApiFp(this.configuration).availableEmbeddingsGet(options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Get available models
+     * @summary Get available models
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public availableModelsGet(options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).availableModelsGet(options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

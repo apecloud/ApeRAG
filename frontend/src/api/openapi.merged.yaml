@@ -1052,6 +1052,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
+  /available_models:
+    get:
+      summary: Get available models
+      description: Get available models
+      responses:
+        '200':
+          description: Available models
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/availableModelList'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
   /config:
     get:
       summary: Get system configuration
@@ -1894,6 +1911,20 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/availableEmbedding'
+    availableModel:
+      type: object
+      properties:
+        model_service_provider:
+          type: string
+        model_name:
+          type: string
+    availableModelList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/availableModel'
     config:
       type: object
       properties:

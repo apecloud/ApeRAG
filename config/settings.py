@@ -258,6 +258,18 @@ SUPPORTED_MODEL_SERVICE_PROVIDERS = [
             "text-embedding-3-small",
             "text-embedding-3-large",
             "text-embedding-ada-002",
+        ],
+        "models": [
+            "gpt-3.5-turbo",
+            "gpt-4",
+            "gpt-4-turbo",
+            "gpt-4o-mini",
+            "gpt-4o",
+            "o1",
+            "o1-mini",
+            "o3",
+            "o3-mini",
+            "o4-mini",
         ]
     },
     {
@@ -269,13 +281,31 @@ SUPPORTED_MODEL_SERVICE_PROVIDERS = [
             "text-embedding-v1",
             "text-embedding-v2",
             "text-embedding-v3",
+        ],
+        "models": [
+            "deepseek-r1",
+            "deepseek-v3",
+            "qwen-max",
+            "qwen-long",
+            "qwen-plus",
+            "qwen-plus-latest",
+            "qwen-turbo",
+            "qwq-32b",
+            "qwq-plus",
+            "qwq-plus-latest",
+            "qwen-vl-max",
+            "qwen-vl-plus"
         ]
     },
     {
         "name": "deepseek",
         "label": "DeepSeek",
         "allow_custom_base_url": False,
-        "base_url": "https://api.deepseek.com/v1"
+        "base_url": "https://api.deepseek.com/v1",
+        "models": [
+            "deepseek-r1",
+            "deepseek-v3"
+        ]
     },
     {
         "name": "siliconflow",
@@ -286,6 +316,11 @@ SUPPORTED_MODEL_SERVICE_PROVIDERS = [
             "BAAI/bge-large-en-v1.5",
             "BAAI/bge-large-zh-v1.5",
             "BAAI/bge-m3",
+        ],
+        "models": [
+            "Qwen/QwQ-32B",
+            "deepseek-ai/Deepseek-R1",
+            "deepseek-ai/Deepseek-V3",
         ]
     },
 ]

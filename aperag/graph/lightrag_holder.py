@@ -2,6 +2,7 @@ import asyncio
 import logging
 from typing import Optional, List, Dict, Callable, Awaitable, Tuple, AsyncIterator, Any
 
+import json
 import numpy
 from lightrag import LightRAG, QueryParam
 from lightrag.kg.shared_storage import initialize_pipeline_status
@@ -10,6 +11,9 @@ from lightrag.utils import EmbeddingFunc
 from lightrag.base import DocStatus
 
 from aperag.db.models import Collection
+from aperag.db.ops import (
+    query_msp_dict,
+)
 from aperag.embed.base_embedding import get_collection_embedding_model
 from aperag.utils.utils import generate_lightrag_namespace_prefix
 from config.settings import (
@@ -72,24 +76,40 @@ class LightRagHolder:
 
 
 # ---------- Default llm_func & embed_impl ---------- #
-async def _default_llm_func(
-    prompt: str,
-    system_prompt: Optional[str] = None,
-    history_messages: List = [],
-    **kwargs,
-) -> str:
-    merged_kwargs = {
-        "api_key": LLM_API_KEY,
-        "base_url": LLM_BASE_URL,
-        "model": LLM_MODEL,
-        **kwargs,
-    }
-    return await openai_complete_if_cache(
-        prompt=prompt,
-        system_prompt=system_prompt,
-        history_messages=history_messages,
-        **merged_kwargs,
-    )
+async def gen_lightrag_llm_func(collection: Collection) -> Callable[..., Awaitable[str]]:
+    config = json.loads(collection.config)
+    lightrag_backend = config.get("lightrag_model_service_provider", "")
+    lightrag_model_name = config.get("lightrag_model_name", "")
+    logging.info("gen_lightrag_llm_func %s %s", lightrag_backend, lightrag_model_name)
+
+    msp_dict = await query_msp_dict(collection.user)
+    if lightrag_backend in msp_dict:
+        msp = msp_dict[lightrag_backend]
+        lightrag_model_service_url = msp.base_url
+        lightrag_model_service_api_key = msp.api_key
+        logging.info("gen_lightrag_llm_func %s %s", lightrag_model_service_url, lightrag_model_service_api_key)
+
+        async def lightrag_llm_func(
+            prompt: str,
+            system_prompt: Optional[str] = None,
+            history_messages: List = [],
+            **kwargs,
+        ) -> str:
+            merged_kwargs = {
+                "api_key": lightrag_model_service_api_key,
+                "base_url": lightrag_model_service_url,
+                "model": lightrag_model_name,
+                **kwargs,
+            }
+            return await openai_complete_if_cache(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                history_messages=history_messages,
+                **merged_kwargs,
+            )
+        return lightrag_llm_func
+    
+    return None
 
 # Module-level cache
 _lightrag_instances: Dict[str, LightRagHolder] = {}
@@ -145,9 +165,9 @@ async def gen_lightrag_embed_func(collection: Collection) -> Tuple[
     return lightrag_embed_func, dim
 
 async def get_lightrag_holder(
-    collection: Collection,
-    llm_func: Callable[..., Awaitable[str]] = _default_llm_func,
+    collection: Collection
 ) -> LightRagHolder:
+    # Fixme: if lightrag_model changes, we need to re-initialize the lightrag instance
     namespace_prefix: str = generate_lightrag_namespace_prefix(collection.id)
     if not namespace_prefix or not isinstance(namespace_prefix, str):
         raise ValueError("A valid namespace_prefix string must be provided.")
@@ -162,6 +182,7 @@ async def get_lightrag_holder(
         logger.info(f"Initializing LightRAG instance for namespace '{namespace_prefix}' (lazy loading)...")
         try:
             embed_func, dim = await gen_lightrag_embed_func(collection=collection)
+            llm_func = await gen_lightrag_llm_func(collection=collection)
             client = await _create_and_initialize_lightrag(namespace_prefix, llm_func, embed_func, embed_dim=dim)
             _lightrag_instances[namespace_prefix] = client
             logger.info(f"LightRAG instance for namespace '{namespace_prefix}' initialized successfully.")

@@ -28,7 +28,6 @@ def synchronized(func):
 
     return wrapper
 
-
 _dimension_cache: dict[tuple[str, str], int] = {}
 
 

@@ -1,4 +1,4 @@
-import { AvailableEmbedding, SupportedModelServiceProvider } from '@/api';
+import { AvailableEmbedding, AvailableModel, SupportedModelServiceProvider } from '@/api';
 import { ApeMarkdown, CheckCard } from '@/components';
 import {
   COLLECTION_SOURCE,
@@ -56,6 +56,8 @@ export default ({ onSubmit, action, values, form }: Props) => {
 
   const [availableEmbeddings, setAvailableEmbeddings] =
     useState<AvailableEmbedding[]>();
+  const [availableModels, setAvailableModels] =
+    useState<AvailableModel[]>();
   const [supportedModelServiceProviders, setSupportedModelServiceProviders] =
     useState<SupportedModelServiceProvider[]>();
 
@@ -66,16 +68,20 @@ export default ({ onSubmit, action, values, form }: Props) => {
   );
   const sensitiveProtect = Form.useWatch(['config', 'sensitive_protect'], form);
   const embeddingModel = Form.useWatch(['config', 'embedding_model'], form);
+  const enableLightRAG = Form.useWatch(['config', 'enable_lightrag'], form);
+  const lightRAGModel = Form.useWatch(['config', 'lightrag_model'], form);
 
-  const getEmbeddings = async () => {
+  const getEmbeddingsAndModels = async () => {
     setLoading(true);
-    const [availableEmbeddingsRes, supportedModelServiceProvidersRes] =
+    const [availableEmbeddingsRes, availableModelsRes, supportedModelServiceProvidersRes] =
       await Promise.all([
         api.availableEmbeddingsGet(),
+        api.availableModelsGet(),
         api.supportedModelServiceProvidersGet(),
       ]);
     setLoading(false);
     setAvailableEmbeddings(availableEmbeddingsRes.data.items);
+    setAvailableModels(availableModelsRes.data.items);
     setSupportedModelServiceProviders(
       supportedModelServiceProvidersRes.data.items,
     );
@@ -112,6 +118,38 @@ export default ({ onSubmit, action, values, form }: Props) => {
     [availableEmbeddings, supportedModelServiceProviders],
   );
 
+
+  const modelsOptions = useMemo(
+    () =>
+      _.map(
+        _.groupBy(availableModels, 'model_service_provider'),
+        (aebs, providerName) => {
+          const provider = supportedModelServiceProviders?.find(
+            (smp) => smp.name === providerName,
+          );
+          return {
+            label: (
+              <Space>
+                <Avatar
+                  size={24}
+                  shape="square"
+                  src={MODEL_PROVIDER_ICON[providerName]}
+                />
+                <span>{provider?.label || providerName}</span>
+              </Space>
+            ),
+            options: aebs.map((aeb) => {
+              return {
+                label: aeb.model_name,
+                value: `${providerName}:${aeb.model_name}`,
+              };
+            }),
+          };
+        },
+      ),
+    [availableModels, supportedModelServiceProviders],
+  );
+
   const onFinish = async () => {
     const data = await form.validateFields();
     onSubmit(data);
@@ -128,6 +166,18 @@ export default ({ onSubmit, action, values, form }: Props) => {
       form.setFieldValue(['config', 'embedding_model_name'], embedding_name);
     }
   }, [embeddingModel]);
+
+
+  useEffect(() => {
+    if (lightRAGModel) {
+      const [model_service_provider, model_name] = lightRAGModel.split(':');
+      form.setFieldValue(
+        ['config', 'lightrag_model_service_provider'],
+        model_service_provider,
+      );
+      form.setFieldValue(['config', 'lightrag_model_name'], model_name);
+    }
+  }, [lightRAGModel]);
 
   useEffect(() => {
     if (source === 'ftp') {
@@ -150,7 +200,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
   }, [source, emailSource]);
 
   useEffect(() => {
-    getEmbeddings();
+    getEmbeddingsAndModels();
   }, []);
 
   return (
@@ -208,6 +258,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
             >
               <Select
                 options={embeddingModelOptions}
+                disabled={action == 'edit'}
                 labelRender={({ label, value }) => {
                   const [model_service_provider, model_name] = (
                     value as string
@@ -268,14 +319,83 @@ export default ({ onSubmit, action, values, form }: Props) => {
             }}
           >
             <Form.Item
-              label={formatMessage({ id: 'collection.enable_light_rag' })}
+              label={formatMessage({ id: 'collection.enable_lightrag' })}
               valuePropName="checked"
-              name={['config', 'enable_light_rag']}
+              name={['config', 'enable_lightrag']}
             >
               <Switch />
             </Form.Item>
           </Col>
         </Row>
+
+        {enableLightRAG ? (
+          <>
+            <Form.Item
+              label={formatMessage({
+                id: 'collection.lightrag_model',
+              })}
+              name={['config', 'lightrag_model']}
+              required
+              rules={[
+                {
+                  required: true,
+                  message: formatMessage({
+                    id: 'collection.lightrag_model.required',
+                  }),
+                },
+              ]}
+            >
+              <Select
+                options={modelsOptions}
+                labelRender={({ label, value }) => {
+                  const [model_service_provider, model_name] = (
+                    value as string
+                  ).split(':');
+                  return (
+                    <Space style={{ alignItems: 'center' }}>
+                      <Avatar
+                        size={24}
+                        shape="square"
+                        src={MODEL_PROVIDER_ICON[model_service_provider]}
+                        style={{
+                          transform: 'translateY(-1px)',
+                        }}
+                      />
+                      {label || model_name}
+                    </Space>
+                  );
+                }}
+                notFoundContent={
+                  <Space
+                    direction="vertical"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      marginBlock: 24,
+                    }}
+                  >
+                    <UndrawEmpty
+                      primaryColor={token.colorPrimary}
+                      height="80px"
+                    />
+                    <Typography.Text type="secondary">
+                      <FormattedMessage id="collection.lightrag_model_not_found" />
+                    </Typography.Text>
+                  </Space>
+                }
+              />
+            </Form.Item>
+            <Form.Item
+              name={['config', 'lightrag_model_service_provider']}
+              hidden
+            >
+              <Input type="hidden" />
+            </Form.Item>
+            <Form.Item name={['config', 'lightrag_model_name']} hidden>
+              <Input type="hidden" />
+            </Form.Item>
+          </>
+        ) : null }
 
         <Form.Item
           label={
