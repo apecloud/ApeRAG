@@ -402,10 +402,10 @@ class ApiKey(models.Model):
     def __str__(self):
         return f"ApiKeyToken(id={self.id}, user={self.user}, description={self.description})"
 
-    def update_last_used(self):
+    async def update_last_used(self):
         """Update the last used timestamp"""
         self.last_used_at = timezone.now()
-        self.save()
+        await self.asave()
 
 
 class CollectionSyncHistory(models.Model):

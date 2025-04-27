@@ -13,6 +13,7 @@ from aperag.db.ops import get_api_key_by_key
 from aperag.utils.constant import KEY_USER_ID, KEY_WEBSOCKET_PROTOCOL
 import config.settings as settings
 from aperag.auth import tv
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +55,8 @@ async def get_user_from_api_key(key: str) -> Optional[str]:
     api_key = await get_api_key_by_key(key)
     if not api_key or api_key.status == api_key.Status.DELETED:
         return None
+    await api_key.update_last_used()
 
-    print("api_key: %s" % api_key)
     cache.set(cache_key, api_key.user)
     return api_key.user
 
@@ -94,6 +95,7 @@ class ApiKeyAuth(HttpBearer, BaseAuthBackend):
         if user:
             self.set_user(request, user)
             return key
+
         return None
 
 class JWTAuth(HttpBearer, BaseAuthBackend):
