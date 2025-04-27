@@ -23,7 +23,7 @@ from ninja import Router
 
 import aperag.chat.message
 from config import settings
-from aperag.auth.validator import FeishuEventVerification
+from aperag.auth.authentication import FeishuEventVerification
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
 from aperag.db.models import Chat

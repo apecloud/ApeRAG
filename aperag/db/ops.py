@@ -418,10 +418,10 @@ async def list_user_api_keys(username: str) -> List[ApiKey]:
     ).all)()
 
 
-async def create_api_key(username: str, description: Optional[str] = None) -> ApiKey:
+async def create_api_key(user: str, description: Optional[str] = None) -> ApiKey:
     """Create a new API key for a user"""
     return await ApiKey.objects.acreate(
-        user=username,
+        user=user,
         description=description,
         status=ApiKey.Status.ACTIVE
     )
@@ -459,5 +459,18 @@ async def get_api_key_by_id(user: str, id: str) -> Optional[ApiKey]:
         )
     except ApiKey.DoesNotExist:
         return None
+
+async def get_api_key_by_key(key: str) -> Optional[ApiKey]:
+    """Get API key by key string"""
+    try:
+        return await ApiKey.objects.aget(
+            key=key,
+            status=ApiKey.Status.ACTIVE,
+            gmt_deleted__isnull=True
+        )
+    except ApiKey.DoesNotExist:
+        return None
+
+
 
 

@@ -37,7 +37,6 @@ import aperag.views.models
 from config import settings
 from config.celery import app
 from aperag.apps import QuotaType
-from aperag.auth.validator import GlobalHTTPAuth
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
 from aperag.db import models as db_models

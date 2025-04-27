@@ -13,10 +13,11 @@
 # limitations under the License.
 
 import json
+from aperag.utils.constant import KEY_USER_ID
 
 
 def get_user(request):
-    return request.META.get("X-USER-ID", "")
+    return request.META.get(KEY_USER_ID, "")
 
 
 def get_urls(request):

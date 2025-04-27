@@ -23,6 +23,7 @@ import aperag.views.models as view_models
 from aperag.views.utils import success,fail, auth_middleware
 from http import HTTPStatus
 from aperag.db.models import Role
+from aperag.auth.authentication import GlobalAuth
 
 router = Router()
 

@@ -31,7 +31,7 @@ from aperag.llm.base import Predictor, PredictorType
 from aperag.source.base import CustomSourceInitializationError, get_source
 from aperag.utils.utils import AVAILABLE_SOURCE
 from django.conf import settings
-from aperag.auth.validator import GlobalHTTPAuth
+from aperag.auth.authentication import GlobalAuth
 from aperag.utils import constant
 from aperag.views import models as view_models
 
@@ -162,19 +162,10 @@ def fail(status: HTTPStatus, message: str, raise_exception: bool = True):
         raise HttpError(status, message)
     return status, view_models.FailResponse(code=status.name, message=message)
 
-async def async_auth(request: HttpRequest):
-    user = await request.auser()
-    if user.is_authenticated:
-        request.META[constant.KEY_USER_ID] = "%d" % user.id
-        return user
-    return None
-
-if settings.AUTH_TYPE == "cookie":
-    auth_middleware = async_auth
-elif settings.AUTH_TYPE == "jwt":
-    auth_middleware = GlobalHTTPAuth
-else:
+if not settings.AUTH_TYPE:
     auth_middleware = None
+else:
+    auth_middleware = GlobalAuth()
 
 def validation_errors(request: HttpRequest, exc: Exc) -> HttpResponse:
     msgs = []

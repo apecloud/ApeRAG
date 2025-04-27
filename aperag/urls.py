@@ -16,8 +16,7 @@ from django.urls import path
 from ninja import NinjaAPI
 from ninja.errors import AuthenticationError, ValidationError
 
-from aperag.auth.validator import GlobalHTTPAuth
-from aperag.auth.validator import AdminAuth
+from aperag.auth.authentication import AdminAuth
 from aperag.utils.weixin.renderer import MyJSONRenderer
 from aperag.views import main
 from aperag.views.admin import router as admin_router
@@ -36,9 +35,9 @@ api = NinjaAPI(renderer=MyJSONRenderer)
 api.add_exception_handler(ValidationError, validation_errors)
 api.add_exception_handler(AuthenticationError, auth_errors)
 api.add_router("/", main_router, auth=auth_middleware)
+api.add_router("/", api_key_router, auth=auth_middleware)
 api.add_router("/", web_router)
 api.add_router("/", auth_router)
-api.add_router("/", api_key_router)
 api.add_router("/config", config_router)
 api.add_router("/feishu", feishu_router)
 api.add_router("/weixin", weixin_router)
