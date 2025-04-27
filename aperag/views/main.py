@@ -1047,7 +1047,7 @@ async def delete_bot(request, bot_id: str) -> view_models.Bot:
 
 
 @router.get("/supported_model_service_providers")
-async def list_model_service_providers(request):
+async def list_model_service_providers(request) -> view_models.SupportedModelServiceProviderList:
     user = get_user(request)
     response = []
     for supported_msp in settings.SUPPORTED_MODEL_SERVICE_PROVIDERS:
@@ -1060,7 +1060,7 @@ async def list_model_service_providers(request):
     return success(view_models.SupportedModelServiceProviderList( items=response,))
 
 @router.get("/model_service_providers")
-async def list_model_service_providers(request):
+async def list_model_service_providers(request) -> view_models.ModelServiceProviderList:
     user = get_user(request)
     supported_msp_dict = {supported_msp["name"]: supported_msp for supported_msp in settings.SUPPORTED_MODEL_SERVICE_PROVIDERS}
     msp_list = await query_msp_list(user)
@@ -1140,7 +1140,7 @@ async def delete_model_service_provider(request, provider):
 
 
 @router.get("/available_embeddings")
-async def list_available_embeddings(request):
+async def list_available_embeddings(request) -> view_models.AvailableEmbeddingList:
     user = get_user(request)
     supported_msp_dict = {supported_msp["name"]: supported_msp for supported_msp in settings.SUPPORTED_MODEL_SERVICE_PROVIDERS}
     msp_list = await query_msp_list(user)
@@ -1169,19 +1169,3 @@ def dashboard(request):
     context = {'user_count': user_count, 'Collection_count': collection_count,
                'Document_count': document_count, 'Chat_count': chat_count}
     return render(request, 'aperag/dashboard.html', context)
-
-def dump_request(request):
-    headers = dict(request.headers)
-    query_params = dict(request.GET)
-    try:
-        body = request.body.decode("utf-8")
-        json_body = json.loads(body) if body else None
-    except json.JSONDecodeError:
-        json_body = None
-
-    return {
-        "headers": headers,
-        "query_params": query_params,
-        "body": body,
-        "json_body": json_body
-    }

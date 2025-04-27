@@ -68,22 +68,6 @@ class Collection(models.Model):
     gmt_updated = models.DateTimeField(auto_now=True)
     gmt_deleted = models.DateTimeField(null=True, blank=True)
 
-    def view(self, bot_ids=None):
-        if not bot_ids:
-            bot_ids = []
-        return {
-            "id": str(self.id),
-            "title": self.title,
-            "description": self.description,
-            "status": self.status,
-            "type": self.type,
-            "bot_ids": bot_ids,
-            "system": self.user == settings.ADMIN_USER,
-            "config": self.config,
-            "created": self.gmt_created.isoformat(),
-            "updated": self.gmt_updated.isoformat(),
-        }
-
     async def bots(self, only_ids=False):
         """Get all active bots related to this collection"""
         from aperag.db import models as db_models

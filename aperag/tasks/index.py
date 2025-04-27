@@ -101,9 +101,10 @@ class SensitiveInformationFound(Exception):
 
 
 def uncompress_file(document: Document):
+    collection = async_to_sync(document.get_collection)()
     file = Path(document.file.path)
     MAX_EXTRACTED_SIZE = 5000 * 1024 * 1024  # 5 GB
-    tmp_dir = Path(os.path.join('/tmp/aperag', document.collection.id, document.name))
+    tmp_dir = Path(os.path.join('/tmp/aperag', collection.id, document.name))
     try:
         os.makedirs(tmp_dir, exist_ok=True)
     except Exception as e:
@@ -156,7 +157,7 @@ def uncompress_file(document: Document):
                     name=document.name + "/" + extracted_file_path.name,
                     status=Document.Status.PENDING,
                     size=extracted_file_path.stat().st_size,
-                    collection_id=document.collection.id,
+                    collection_id=collection.id,
                     file=ContentFile(content, extracted_file_path.name),
                 )
                 document_instance.metadata = json.dumps({
@@ -194,31 +195,32 @@ def add_index_for_document(self, document_id):
     source = None
     local_doc = None
     metadata = json.loads(document.metadata)
+    collection = async_to_sync(document.get_collection)()
     try:
         if document.file and Path(document.file.path).suffix in SUPPORTED_COMPRESSED_EXTENSIONS:
-            if json.loads(document.collection.config)["source"] != "system":
+            if json.loads(collection.config)["source"] != "system":
                 return
             uncompress_file(document)
             return
         else:
-            source = get_source(json.loads(document.collection.config))
+            source = get_source(json.loads(collection.config))
             local_doc = source.prepare_document(name=document.name, metadata=metadata)
             if document.size == 0:
                 document.size = os.path.getsize(local_doc.path)
 
-            embedding_model, vector_size = async_to_sync(get_collection_embedding_model)(document.collection)
+            embedding_model, vector_size = async_to_sync(get_collection_embedding_model)(collection)
             loader = LocalPathEmbedding(input_files=[local_doc.path],
                                         input_file_metadata_list=[local_doc.metadata],
                                         embedding_model=embedding_model,
                                         vector_size=vector_size,
                                         vector_store_adaptor=get_vector_db_connector(
                                             collection=generate_vector_db_collection_name(
-                                                collection_id=document.collection.id)),
+                                                collection_id=collection.id)),
                                         chunk_size=settings.CHUNK_SIZE,
                                         chunk_overlap=settings.CHUNK_OVERLAP_SIZE,
                                         tokenizer=get_default_tokenizer())
 
-            config = json.loads(document.collection.config)
+            config = json.loads(collection.config)
             sensitive_protect = config.get("sensitive_protect", False)
             sensitive_protect_method = config.get("sensitive_protect_method", Document.ProtectAction.WARNING_NOT_STORED)
             ctx_ids, content, sensitive_info = loader.load_data(sensitive_protect=sensitive_protect,
@@ -233,7 +235,7 @@ def add_index_for_document(self, document_id):
 
             # only index the document that have points in the vector database
             if ctx_ids:
-                index = generate_fulltext_index_name(document.collection.id)
+                index = generate_fulltext_index_name(collection.id)
                 insert_document(index, document.id, local_doc.name, content)
 
             relate_ids = {
@@ -270,7 +272,8 @@ def remove_index(self, document_id):
     """
     document = Document.objects.get(id=document_id)
     try:
-        index = generate_fulltext_index_name(document.collection.id)
+        collection = async_to_sync(document.get_collection)()
+        index = generate_fulltext_index_name(collection.id)
         remove_document(index, document.id)
 
         if document.relate_ids == "":
@@ -278,13 +281,13 @@ def remove_index(self, document_id):
 
         relate_ids = json.loads(document.relate_ids)
         vector_db = get_vector_db_connector(
-            collection=generate_vector_db_collection_name(collection_id=document.collection.id)
+            collection=generate_vector_db_collection_name(collection_id=collection.id)
         )
         ctx_relate_ids = relate_ids.get("ctx", [])
         vector_db.connector.delete(ids=ctx_relate_ids)
         logger.info(f"remove ctx qdrant points: {ctx_relate_ids} for document {document.file}")
 
-        rag: LightRagHolder = async_to_sync(lightrag_holder.get_lightrag_holder)(collection=document.collection)
+        rag: LightRagHolder = async_to_sync(lightrag_holder.get_lightrag_holder)(collection=collection)
         async_to_sync(rag.adelete_by_doc_id)(document_id)
 
     except Exception as e:
@@ -310,24 +313,25 @@ def update_index_for_document(self, document_id):
 
     try:
         relate_ids = json.loads(document.relate_ids) if document.relate_ids.strip() else {}
-        source = get_source(json.loads(document.collection.config))
+        collection = async_to_sync(document.get_collection)()
+        source = get_source(json.loads(collection.config))
         metadata = json.loads(document.metadata)
         local_doc = source.prepare_document(name=document.name, metadata=metadata)
 
-        embedding_model, vector_size = async_to_sync(get_collection_embedding_model)(document.collection)
+        embedding_model, vector_size = async_to_sync(get_collection_embedding_model)(collection)
         loader = LocalPathEmbedding(input_files=[local_doc.path],
                                     input_file_metadata_list=[local_doc.metadata],
                                     embedding_model=embedding_model,
                                     vector_size=vector_size,
                                     vector_store_adaptor=get_vector_db_connector(
                                         collection=generate_vector_db_collection_name(
-                                            collection_id=document.collection.id)),
+                                            collection_id=collection.id)),
                                     chunk_size=settings.CHUNK_SIZE,
                                     chunk_overlap=settings.CHUNK_OVERLAP_SIZE,
                                     tokenizer=get_default_tokenizer())
         loader.connector.delete(ids=relate_ids.get("ctx", []))
 
-        config = json.loads(document.collection.config)
+        config = json.loads(collection.config)
         sensitive_protect = config.get("sensitive_protect", False)
         sensitive_protect_method = config.get("sensitive_protect_method", Document.ProtectAction.WARNING_NOT_STORED)
         ctx_ids, content, sensitive_info = loader.load_data(sensitive_protect=sensitive_protect,
@@ -342,7 +346,7 @@ def update_index_for_document(self, document_id):
 
         # only index the document that have points in the vector database
         if ctx_ids:
-            index = generate_fulltext_index_name(document.collection.id)
+            index = generate_fulltext_index_name(collection.id)
             insert_document(index, document.id, local_doc.name, content)
 
         relate_ids = {
@@ -372,7 +376,8 @@ def update_index_for_document(self, document_id):
 
 def add_lightrag_index(content, document, local_doc):
     logger.info(f"Begin indexing document for LightRAG (ID: {document.id})")
-    rag: LightRagHolder = async_to_sync(lightrag_holder.get_lightrag_holder)(collection=document.collection)
+    collection = async_to_sync(document.get_collection)()
+    rag: LightRagHolder = async_to_sync(lightrag_holder.get_lightrag_holder)(collection=collection)
     rag.insert(content, ids=document.id, file_paths=local_doc.path)
     lightrag_docs = async_to_sync(rag.get_processed_docs)()
     if not lightrag_docs or str(document.id) not in lightrag_docs:
@@ -407,9 +412,10 @@ def message_feedback(**kwargs):
 def generate_questions(document_id):
     try:
         document = Document.objects.get(id=document_id)
-        embedding_model, _ = async_to_sync(get_collection_embedding_model)(document.collection)
+        collection = async_to_sync(document.get_collection)()
+        embedding_model, _ = async_to_sync(get_collection_embedding_model)(collection)
 
-        source = get_source(json.loads(document.collection.config))
+        source = get_source(json.loads(collection.config))
         metadata = json.loads(document.metadata)
         local_doc = source.prepare_document(name=document.name, metadata=metadata)
         q_loaders = QuestionEmbedding(input_files=[local_doc.path],
@@ -417,7 +423,7 @@ def generate_questions(document_id):
                                 embedding_model=embedding_model,
                                 vector_store_adaptor=get_vector_db_connector(
                                     collection=generate_qa_vector_db_collection_name(
-                                        collection=document.collection.id)))
+                                        collection=collection.id)))
         ids, questions = q_loaders.load_data()
         for relate_id, question in zip(ids, questions):
             question_instance = Question(
@@ -425,7 +431,7 @@ def generate_questions(document_id):
                 question=question,
                 answer='',
                 status=Question.Status.ACTIVE,
-                collection_id=document.collection.id,
+                collection_id=collection.id,
                 relate_id=relate_id
             )
             question_instance.save()
