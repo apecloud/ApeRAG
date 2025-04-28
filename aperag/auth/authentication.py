@@ -133,7 +133,7 @@ class SessionAuth(APIKeyCookie, BaseAuthBackend):
         user = await request.auser()
         if not user.is_authenticated:
             return None
-        self.set_user(request, user.id)
+        self.set_user(request, str(user.id))
         return user
 
 class AdminAuth(HttpBearer, BaseAuthBackend):
