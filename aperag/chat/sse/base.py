@@ -69,20 +69,26 @@ class MessageProcessor:
     async def process_message(self, message: str, msg_id: str) -> AsyncGenerator[str, None]:
         """Process a message and yield content chunks as they become available"""
         if self.bot.type == Bot.Type.KNOWLEDGE:
-            collection = await sync_to_async(self.bot.collections.first)()
-            async for msg in await create_knowledge_pipeline(
+            collections = await self.bot.collections()
+            if len(collections) > 0:
+                collection = collections[0]
+            else:
+                raise ValueError("No collection found for bot")
+            pipeline = await create_knowledge_pipeline(
                 bot=self.bot, 
                 collection=collection, 
                 history=self.history
-            ).run(message, message_id=msg_id):
+            )
+            async for msg in pipeline.run(message, message_id=msg_id):
                 yield msg
                 
         elif self.bot.type == Bot.Type.COMMON:
-            async for msg in CommonPipeline(
+            pipeline = CommonPipeline(
                 bot=self.bot, 
                 collection=None, 
                 history=self.history
-            ).run(message, message_id=msg_id):
+            )
+            async for msg in pipeline.run(message, message_id=msg_id):
                 yield msg
                 
         else:

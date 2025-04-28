@@ -219,7 +219,10 @@ class KnowledgePipeline(Pipeline):
         need_generate_answer = True
         need_related_question = True
 
-        messages = await self.history.messages
+        if self.history:
+            messages = await self.history.messages
+        else:
+            messages = []
         history_querys = [json.loads(msg.content)["query"] for msg in messages if msg.additional_kwargs.get("role") == "human"]
         tot_history_querys = '\n'.join(history_querys[-self.memory_limit_count:]) + '\n' if self.memory else ''
         query_with_history = tot_history_querys + message
@@ -322,12 +325,13 @@ class KnowledgePipeline(Pipeline):
                     document_url_list.append(url)
 
         # --- 6. Finalization: Save Messages & Yield Metadata ---
-        await self.add_human_message(message, message_id)
-        logger.info("[%s] Human message saved.", log_prefix)
+        if self.history:
+            await self.add_human_message(message, message_id)
+            logger.info("[%s] Human message saved.", log_prefix)
 
-        # Ensure AI message includes references/URLs derived from the context used
-        await self.add_ai_message(message, message_id, response, references, document_url_list)
-        logger.info("[%s] AI message saved.", log_prefix)
+            # Ensure AI message includes references/URLs derived from the context used
+            await self.add_ai_message(message, message_id, response, references, document_url_list)
+            logger.info("[%s] AI message saved.", log_prefix)
 
         # Yield related questions if generated/collected
         if self.use_related_question:
