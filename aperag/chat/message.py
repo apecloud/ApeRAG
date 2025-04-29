@@ -33,16 +33,25 @@ async def feedback_message(user, chat_id, message_id, feedback_type=None, feedba
         msg = item
     if msg is None:
         return fail(HTTPStatus.NOT_FOUND, "Message not found")
+
+    # If feedback_type is None, delete the feedback record
+    if feedback_type is None:
+        try:
+            feedback = await MessageFeedback.objects.aget(
+                user=user, chat_id=chat_id, message_id=message_id)
+            await feedback.adelete()
+            return None
+        except MessageFeedback.DoesNotExist:
+            return None
+
+    # Otherwise create or update the feedback record
     data = {
         "question": msg["query"],
         "original_answer": msg.get("response", ""),
+        "type": feedback_type,
+        "tag": feedback_tag,
+        "message": feedback_message,
     }
-    if feedback_type is not None:
-        data["type"] = feedback_type
-    if feedback_tag is not None:
-        data["tag"] = feedback_tag
-    if feedback_message is not None:
-        data["message"] = feedback_message
 
     data["status"] = MessageFeedback.Status.PENDING
     collection_id = msg.get("collection_id", None)

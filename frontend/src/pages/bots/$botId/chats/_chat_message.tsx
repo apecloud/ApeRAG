@@ -162,7 +162,9 @@ export const ChatMessageItem = ({
     }));
 
   const handleFeedback = (type: FeedbackTypeEnum) => {
-    if (type === FeedbackTypeEnum.good) {
+    if (type === item.feedback?.type) {
+      onVote(item, {});
+    } else if (type === FeedbackTypeEnum.good) {
       onVote(item, { type });
     } else {
       setFeedbackModalVisible(true);
