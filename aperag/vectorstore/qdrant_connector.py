@@ -96,8 +96,8 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
 
     def delete(self, **delete_kwargs: Any):
         ids = delete_kwargs.get("ids")
-        for doc_id in ids:
-            self.store.delete(ref_doc_id=doc_id, **delete_kwargs)
+        if ids:
+            self.store.delete_nodes(ids)
 
     def create_collection(self, **kwargs: Any):
         vector_size = kwargs.get("vector_size")
