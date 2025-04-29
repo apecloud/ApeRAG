@@ -1003,6 +1003,7 @@ async def delete_bot(request, bot_id: str) -> view_models.Bot:
     bot.status = db_models.Bot.Status.DELETED
     bot.gmt_deleted = timezone.now()
     await bot.asave()
+    await db_models.BotCollectionRelation.objects.filter(bot_id=bot.id, gmt_deleted__isnull=True).aupdate(gmt_deleted=timezone.now())
     collection_ids = await bot.collections(only_ids=True)
     return success(view_models.Bot(
         id=bot.id,
