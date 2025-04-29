@@ -289,7 +289,8 @@ async def create_collection(request, collection: view_models.CollectionCreate) -
     if collection.config is not None:
         instance.config = collection.config
     await instance.asave()
-    await reload_lightrag_holder(instance)  # LightRAG init might be slow, so we reload it once we update the collection
+    if config.get("enable_lightrag", True):
+        await reload_lightrag_holder(instance)  # LightRAG init might be slow, so we reload it once we update the collection
 
     if instance.type == db_models.Collection.Type.DOCUMENT:
         document_user_quota = await query_user_quota(user, QuotaType.MAX_DOCUMENT_COUNT)

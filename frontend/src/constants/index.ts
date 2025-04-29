@@ -148,7 +148,7 @@ export const COLLECTION_SOURCE_EMAIL: {
 
 export const DOCUMENT_DEFAULT_CONFIG: CollectionConfig = {
   source: 'system',
-  enable_light_rag: true,
+  enable_lightrag: true,
   crontab: {
     enabled: false,
     minute: '0',
