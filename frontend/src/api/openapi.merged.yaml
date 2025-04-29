@@ -1545,11 +1545,18 @@ components:
     feedback:
       type: object
       properties:
-        upvote:
-          type: integer
-        downvote:
-          type: integer
-        revised_answer:
+        type:
+          type: string
+          enum:
+            - good
+            - bad
+        tag:
+          type: string
+          enum:
+            - Recall
+            - Fake
+            - Other
+        message:
           type: string
     collectionSource:
       type: object
@@ -1904,6 +1911,8 @@ components:
       properties:
         name:
           type: string
+        dialect:
+          type: string
         label:
           type: string
         allow_custom_base_url:
@@ -1923,6 +1932,8 @@ components:
       type: object
       properties:
         name:
+          type: string
+        dialect:
           type: string
         label:
           type: string

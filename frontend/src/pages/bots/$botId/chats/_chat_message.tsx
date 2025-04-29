@@ -1,4 +1,4 @@
-import { ChatMessage } from '@/api';
+import { ChatMessage, Feedback, FeedbackTagEnum, FeedbackTypeEnum } from '@/api';
 import { ApeMarkdown } from '@/components';
 import { TypingAnimate } from '@/components/typing-animate';
 import { DATETIME_FORMAT } from '@/constants';
@@ -18,10 +18,13 @@ import {
   CollapseProps,
   Drawer,
   GlobalToken,
+  Modal,
+  Radio,
   Space,
   theme,
   Tooltip,
   Typography,
+  Input,
 } from 'antd';
 import _ from 'lodash';
 import moment from 'moment';
@@ -113,13 +116,16 @@ export const ChatMessageItem = ({
 }: {
   item: ChatMessage;
   loading: boolean;
-  onVote: (item: ChatMessage, like: boolean) => void;
+  onVote: (item: ChatMessage, feedback: Feedback) => void;
 }) => {
   const { token } = theme.useToken();
   const hoverRef = useRef(null);
   const isHovering = useHover(hoverRef);
   const { formatMessage } = useIntl();
   const [referencesVisible, setReferencesVisible] = useState<boolean>(false);
+  const [feedbackModalVisible, setFeedbackModalVisible] = useState<boolean>(false);
+  const [feedbackTag, setFeedbackTag] = useState<FeedbackTagEnum>();
+  const [feedbackMessage, setFeedbackMessage] = useState<string>();
 
   const getReferences: () => CollapseProps['items'] = () =>
     item.references?.map((reference, index) => ({
@@ -154,6 +160,25 @@ export const ChatMessageItem = ({
         border: `1px solid ${token.colorBorderSecondary}`,
       },
     }));
+
+  const handleFeedback = (type: FeedbackTypeEnum) => {
+    if (type === FeedbackTypeEnum.good) {
+      onVote(item, { type });
+    } else {
+      setFeedbackModalVisible(true);
+    }
+  };
+
+  const handleFeedbackSubmit = () => {
+    onVote(item, {
+      type: FeedbackTypeEnum.bad,
+      tag: feedbackTag,
+      message: feedbackMessage,
+    });
+    setFeedbackModalVisible(false);
+    setFeedbackTag(undefined);
+    setFeedbackMessage(undefined);
+  };
 
   return (
     <>
@@ -194,27 +219,27 @@ export const ChatMessageItem = ({
                   icon={
                     <LikeFilled
                       style={{
-                        color: item.upvote
+                        color: item.feedback?.type === FeedbackTypeEnum.good
                           ? token.colorSuccess
                           : token.colorTextDisabled,
                       }}
                     />
                   }
                   type="text"
-                  onClick={() => onVote(item, true)}
+                  onClick={() => handleFeedback(FeedbackTypeEnum.good)}
                 />
                 <Button
                   icon={
                     <DislikeFilled
                       style={{
-                        color: item.downvote
+                        color: item.feedback?.type === FeedbackTypeEnum.bad
                           ? token.colorError
                           : token.colorTextDisabled,
                       }}
                     />
                   }
                   type="text"
-                  onClick={() => onVote(item, false)}
+                  onClick={() => handleFeedback(FeedbackTypeEnum.bad)}
                 />
               </Space>
             ) : null}
@@ -244,6 +269,45 @@ export const ChatMessageItem = ({
           items={getReferences()}
         />
       </Drawer>
+      <Modal
+        title={formatMessage({ id: 'feedback.bad.title' })}
+        open={feedbackModalVisible}
+        onOk={handleFeedbackSubmit}
+        onCancel={() => {
+          setFeedbackModalVisible(false);
+          setFeedbackTag(undefined);
+          setFeedbackMessage(undefined);
+        }}
+        okButtonProps={{
+          disabled: !feedbackTag,
+        }}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Typography.Text type="secondary">
+            {formatMessage({ id: 'feedback.bad.description' })}
+          </Typography.Text>
+        </div>
+        <Radio.Group
+          value={feedbackTag}
+          onChange={(e) => setFeedbackTag(e.target.value)}
+          style={{ width: '100%' }}
+        >
+          <Space direction="vertical" style={{ width: '100%' }}>
+            {Object.values(FeedbackTagEnum).map((tag) => (
+              <Radio key={tag} value={tag}>
+                {formatMessage({ id: `feedback.tag.${tag.toLowerCase()}` })}
+              </Radio>
+            ))}
+          </Space>
+        </Radio.Group>
+        <Input.TextArea
+          value={feedbackMessage}
+          onChange={(e) => setFeedbackMessage(e.target.value)}
+          placeholder={formatMessage({ id: 'feedback.message.placeholder' })}
+          style={{ marginTop: 16 }}
+          rows={4}
+        />
+      </Modal>
     </>
   );
 };

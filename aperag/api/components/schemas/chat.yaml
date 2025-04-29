@@ -55,15 +55,8 @@ chatMessage:
       type: array
       items:
         type: string
-    upvote:
-      type: number
-    downvote:
-      type: number
-    revised_answer:
-      type: string
-    feed_back_status:
-      type: string
-      enum: [PENDING, RUNNING, COMPLETE, FAILED]
+    feedback:
+      $ref: './feedback.yaml#/feedback'
 
 chatDetails:
   type: object

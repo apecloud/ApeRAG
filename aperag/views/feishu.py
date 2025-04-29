@@ -82,7 +82,7 @@ def get_user_access_token(request, code, redirect_uri):
     return success({"token": token})
 
 
-def build_card_content(chat_id, message_id, message, upvote=False, downvote=False):
+def build_card_content(chat_id, message_id, message, feedback_type=None):
     return {
         "config": {
             "wide_screen_mode": True
@@ -101,9 +101,9 @@ def build_card_content(chat_id, message_id, message, upvote=False, downvote=Fals
                             "tag": "plain_text",
                             "content": "赞"
                         },
-                        "type": "primary" if upvote else "default",
+                        "type": "primary" if feedback_type == "good" else "default",
                         "value": {
-                            "upvote": True,
+                            "type": "good",
                             "message_id": f"{message_id}",
                             "chat_id": f"{chat_id}",
                         }
@@ -114,9 +114,9 @@ def build_card_content(chat_id, message_id, message, upvote=False, downvote=Fals
                             "tag": "plain_text",
                             "content": "踩"
                         },
-                        "type": "primary" if downvote else "default",
+                        "type": "primary" if feedback_type == "bad" else "default",
                         "value": {
-                            "downvote": True,
+                            "type": "bad",
                             "message_id": f"{message_id}",
                             "chat_id": f"{chat_id}",
                         }
@@ -128,10 +128,10 @@ def build_card_content(chat_id, message_id, message, upvote=False, downvote=Fals
     }
 
 
-def build_card_data(chat_id, message_id, message, upvote=False, downvote=False):
+def build_card_data(chat_id, message_id, message, feedback_type=None):
     return {
         "msg_type": "interactive",
-        "content": json.dumps(build_card_content(chat_id, message_id, message, upvote, downvote)),
+        "content": json.dumps(build_card_content(chat_id, message_id, message, feedback_type)),
     }
 
 
@@ -173,9 +173,8 @@ async def feishu_response_card_update(user, bot_id, data):
     value = action["value"]
     chat_id = value["chat_id"]
     msg_id = value["message_id"]
-    upvote = value.get("upvote", None)
-    downvote = value.get("downvote", None)
-    await aperag.chat.message.feedback_message(user, chat_id, msg_id, upvote, downvote, "")
+    feedback_type = value.get("type", None)
+    await aperag.chat.message.feedback_message(user, chat_id, msg_id, feedback_type, None, None)
 
     bot = await query_bot(user, bot_id)
     bot_config = json.loads(bot.config)
@@ -192,7 +191,7 @@ async def feishu_response_card_update(user, bot_id, data):
     }
     client = FeishuClient(ctx)
     token = data["token"]
-    card = build_card_content(chat_id, msg_id, msg_cache[msg_id], upvote, downvote)
+    card = build_card_content(chat_id, msg_id, msg_cache[msg_id], feedback_type)
     card["open_ids"] = [data["open_id"]]
     data = {
         "token": token,

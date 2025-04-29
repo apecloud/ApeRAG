@@ -1,4 +1,4 @@
-import { ChatMessage, Reference } from '@/api';
+import { ChatMessage, Feedback, Reference } from '@/api';
 import { PageContainer } from '@/components';
 import { api } from '@/services';
 import { useWebSocket } from 'ahooks';
@@ -38,18 +38,8 @@ export default () => {
     sendMessage(JSON.stringify(msg));
   }, []);
 
-  const onVote = async (item: ChatMessage, like: boolean) => {
+  const onVote = async (item: ChatMessage, feedback: Feedback) => {
     if (!botId || !chatId || !item.id) return;
-    const feedback = {
-      revised_answer: item.revised_answer,
-      upvote: 0,
-      downvote: 0,
-    };
-    if (like) {
-      feedback.upvote = item.upvote ? 0 : 1;
-    } else {
-      feedback.downvote = item.downvote ? 0 : 1;
-    }
 
     const res = await api.botsBotIdChatsChatIdMessagesMessageIdPost({
       botId,
@@ -62,7 +52,7 @@ export default () => {
         const index = msgs.findIndex(
           (m) => m.id === item.id && m.role === 'ai',
         );
-        if (index !== -1) msgs.splice(index, 1, { ...item, ...feedback });
+        if (index !== -1) msgs.splice(index, 1, { ...item, feedback });
         return [...msgs];
       });
     }

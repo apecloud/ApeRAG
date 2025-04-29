@@ -126,7 +126,7 @@ async def feedback_message(request, bot_id: str, chat_id: str, message_id: str, 
     if chat is None:
         return fail(HTTPStatus.NOT_FOUND, "Chat not found")
 
-    await aperag.chat.message.feedback_message(chat.user, chat_id, message_id, msg_in.upvote, msg_in.downvote)
+    await aperag.chat.message.feedback_message(chat.user, chat_id, message_id, msg_in.type, msg_in.tag, msg_in.message)
     return success({})
 
 

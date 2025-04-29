@@ -21,7 +21,7 @@ from aperag.db.models import MessageFeedback
 from aperag.views.utils import fail
 
 
-async def feedback_message(user, chat_id, message_id, upvote, downvote, revised_answer=None):
+async def feedback_message(user, chat_id, message_id, feedback_type=None, feedback_tag=None, feedback_message=None):
     history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
     msg = None
     for message in await history.messages:
@@ -37,13 +37,13 @@ async def feedback_message(user, chat_id, message_id, upvote, downvote, revised_
         "question": msg["query"],
         "original_answer": msg.get("response", ""),
     }
-    if upvote is not None:
-        data["upvote"] = upvote
-    if downvote is not None:
-        data["downvote"] = downvote
+    if feedback_type is not None:
+        data["type"] = feedback_type
+    if feedback_tag is not None:
+        data["tag"] = feedback_tag
+    if feedback_message is not None:
+        data["message"] = feedback_message
 
-    if revised_answer is not None:
-        data["revised_answer"] = revised_answer
     data["status"] = MessageFeedback.Status.PENDING
     collection_id = msg.get("collection_id", None)
     feedback, _ = await MessageFeedback.objects.aupdate_or_create(

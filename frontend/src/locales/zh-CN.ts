@@ -115,7 +115,7 @@ export default {
   'email.gmail.tips.title':
     'Please follow the steps below to connect to your Gmail account',
   'email.gmail.tips.description': `
-1. Enable POP service in the Gmail’s web application
+1. Enable POP service in the Gmail's web application
 2. In Google account, enable 2-step verification
 3. Create your google account app password for Gmail, which is not account password.
 4. Enter your Gmaill address and app password
@@ -124,7 +124,7 @@ export default {
   'email.qqmail.tips.title':
     'Please follow the steps below to connect to your QQMail account',
   'email.qqmail.tips.description': `
-1. Enable POP service in the QQMail’s web application
+1. Enable POP service in the QQMail's web application
 2. Get the authorization code, which is not account password.
 3. Enter your email address and authorization code
   `,
@@ -132,16 +132,16 @@ export default {
   'email.outlook.tips.title':
     'Please follow the steps below to connect to your Outlook email account',
   'email.outlook.tips.description': `
-1. Enable POP service in the Outlook email’s web application
+1. Enable POP service in the Outlook email's web application
 2. Enter your email address and account password
 `,
   'email.others': '其他邮箱',
   'email.others.tips.title':
     'Please follow the steps below to connect to your email account',
   'email.others.tips.description': `
-1. Enable POP service in the email’s web application
+1. Enable POP service in the email's web application
 2. If your email has POP authorization code, generate it.
-3. Enter your email’s POP server and port
+3. Enter your email's POP server and port
 4. Enter your email address and password or authorization code
 `,
 
@@ -199,4 +199,14 @@ export default {
 
   system: '------------------------------',
   'system.management': '系统设置',
+
+  feedback: '---------------',
+  'feedback.bad.title': '这个回答有什么问题？',
+  'feedback.bad.description': '请选择你不满意的原因',
+  'feedback.message.placeholder': '请详细描述你的反馈意见',
+  'feedback.tag.harmful': '有害/不安全的内容',
+  'feedback.tag.unsafe': '不安全的内容',
+  'feedback.tag.fake': '虚假或误导性信息',
+  'feedback.tag.unhelpful': '没有帮助',
+  'feedback.tag.other': '其他问题',
 };

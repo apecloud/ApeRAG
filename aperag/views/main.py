@@ -844,13 +844,7 @@ async def feedback_message(request, bot_id: str, chat_id: str, message_id: str, 
     chat = await query_chat(user, bot_id, chat_id)
     if chat is None:
         return fail(HTTPStatus.NOT_FOUND, "Chat not found")
-    feedback = await aperag.chat.message.feedback_message(chat.user, chat_id, message_id, msg_in.upvote,
-                                                            msg_in.downvote,
-                                                            msg_in.revised_answer)
-
-    # embedding the revised answer
-    if msg_in.revised_answer is not None:
-        message_feedback.delay(feedback_id=feedback.id)
+    feedback = await aperag.chat.message.feedback_message(chat.user, chat_id, message_id, msg_in.type, msg_in.tag, msg_in.message)
     return success({})
 
 

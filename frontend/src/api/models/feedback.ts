@@ -12,8 +12,6 @@
  * Do not edit the class manually.
  */
 
-
-
 /**
  * 
  * @export
@@ -22,21 +20,39 @@
 export interface Feedback {
     /**
      * 
-     * @type {number}
+     * @type {string}
      * @memberof Feedback
      */
-    'upvote'?: number;
-    /**
-     * 
-     * @type {number}
-     * @memberof Feedback
-     */
-    'downvote'?: number;
+    'type'?: FeedbackTypeEnum;
     /**
      * 
      * @type {string}
      * @memberof Feedback
      */
-    'revised_answer'?: string;
+    'tag'?: FeedbackTagEnum;
+    /**
+     * 
+     * @type {string}
+     * @memberof Feedback
+     */
+    'message'?: string;
 }
+
+export const FeedbackTypeEnum = {
+    good: 'good',
+    bad: 'bad'
+} as const;
+
+export type FeedbackTypeEnum = typeof FeedbackTypeEnum[keyof typeof FeedbackTypeEnum];
+
+export const FeedbackTagEnum = {
+    Harmful: 'Harmful',
+    Unsafe: 'Unsafe',
+    Fake: 'Fake',
+    Unhelpful: 'Unhelpful',
+    Other: 'Other'
+} as const;
+
+export type FeedbackTagEnum = typeof FeedbackTagEnum[keyof typeof FeedbackTagEnum];
+
 

@@ -270,12 +270,24 @@ class MessageFeedback(models.Model):
         COMPLETE = "COMPLETE"
         FAILED = "FAILED"
 
+    class Type(models.TextChoices):
+        GOOD = "good"
+        BAD = "bad"
+
+    class Tag(models.TextChoices):
+        HARMFUL = "Harmful"
+        UNSAFE = "Unsafe"
+        FAKE = "Fake"
+        UNHELPFUL = "Unhelpful"
+        OTHER = "Other"
+
     user = models.CharField(max_length=256)
     collection_id = models.CharField(max_length=24, null=True, blank=True)
     chat_id = models.CharField(max_length=24)
     message_id = models.CharField(max_length=256)
-    upvote = models.IntegerField(default=0)
-    downvote = models.IntegerField(default=0)
+    type = models.CharField(max_length=16, choices=Type.choices, null=True)
+    tag = models.CharField(max_length=16, choices=Tag.choices, null=True)
+    message = models.TextField(null=True, blank=True)
     relate_ids = models.TextField(null=True)
     question = models.TextField(null=True, blank=True)
     status = models.CharField(max_length=16, choices=Status.choices, null=True)

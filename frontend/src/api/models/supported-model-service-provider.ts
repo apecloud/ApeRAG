@@ -31,6 +31,12 @@ export interface SupportedModelServiceProvider {
      * @type {string}
      * @memberof SupportedModelServiceProvider
      */
+    'dialect'?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof SupportedModelServiceProvider
+     */
     'label'?: string;
     /**
      * 

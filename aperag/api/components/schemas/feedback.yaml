@@ -1,9 +1,18 @@
 feedback:
   type: object
   properties:
-    upvote:
-      type: integer
-    downvote:
-      type: integer
-    revised_answer:
+    type:
+      type: string
+      enum:
+        - good
+        - bad
+    tag:
+      type: string
+      enum:
+        - Harmful
+        - Unsafe
+        - Fake
+        - Unhelpful
+        - Other
+    message:
       type: string

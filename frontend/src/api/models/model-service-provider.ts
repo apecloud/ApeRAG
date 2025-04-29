@@ -31,6 +31,12 @@ export interface ModelServiceProvider {
      * @type {string}
      * @memberof ModelServiceProvider
      */
+    'dialect'?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ModelServiceProvider
+     */
     'label'?: string;
     /**
      * 
