@@ -4,7 +4,7 @@ from abc import ABC
 
 from langchain_core.prompts import PromptTemplate
 
-from aperag.llm.base import Predictor, PredictorType
+from aperag.llm.base import Predictor
 from aperag.llm.prompts import QUESTION_EXTRACTION_PROMPT_TEMPLATE_V2
 
 logger = logging.getLogger(__name__)
@@ -12,9 +12,9 @@ logger.setLevel(logging.INFO)
 
 
 class QuestionGenerator(ABC):
-    def __init__(self, **kwargs):
+    def __init__(self, predictor, **kwargs):
         self.prompt_template = PromptTemplate(template=QUESTION_EXTRACTION_PROMPT_TEMPLATE_V2, input_variables=["context"])
-        self.predictor = Predictor.get_completion_service(model_name="gpt-4-1106-preview", predictor_type=PredictorType.CUSTOM_LLM, **kwargs)
+        self.predictor = predictor
 
     def gen_questions(self, text):
         prompt = self.prompt_template.format(context=text)

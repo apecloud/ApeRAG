@@ -1859,6 +1859,8 @@ components:
     model:
       type: object
       properties:
+        model_service_provider:
+          type: string
         value:
           type: string
         label:

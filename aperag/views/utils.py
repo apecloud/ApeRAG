@@ -27,7 +27,7 @@ from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
 from aperag.db.models import Bot
 from aperag.db.ops import PagedResult, logger, query_chat_feedbacks
-from aperag.llm.base import Predictor, PredictorType
+from aperag.llm.base import Predictor 
 from aperag.source.base import CustomSourceInitializationError, get_source
 from aperag.utils.utils import AVAILABLE_SOURCE
 from django.conf import settings
@@ -92,9 +92,9 @@ def validate_source_connect_config(config: Dict) -> Tuple[bool, str]:
     return True, ""
 
 
-def validate_bot_config(model, config: Dict, type, memory) -> Tuple[bool, str]:
+def validate_bot_config(model_service_provider, model_name, base_url, api_key, config: Dict, type, memory) -> Tuple[bool, str]:
     try:
-        Predictor.get_completion_service(model, PredictorType.CUSTOM_LLM, **config)
+        Predictor.get_completion_service(model_service_provider, model_name, base_url, api_key, **config)
     except Exception as e:
         return False, str(e)
 

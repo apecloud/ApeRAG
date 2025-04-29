@@ -23,10 +23,10 @@ from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel
 
 from aperag.chat.history.base import BaseChatMessageHistory
-from aperag.llm.base import Predictor, PredictorType
+from aperag.llm.base import Predictor
 from aperag.llm.prompts import RELATED_QUESTIONS_TEMPLATE_V2
 from aperag.utils.utils import now_unix_milliseconds
-
+from aperag.db.ops import query_msp_dict
 
 class Message(BaseModel):
     id: str
@@ -61,7 +61,9 @@ class Pipeline(ABC):
         self.history = history
         bot_config = json.loads(self.bot.config)
         self.llm_config = bot_config.get("llm", {})
-        self.model = bot_config.get("model", "baichuan-13b")
+        self.model = bot_config.get("model")
+        self.model_service_provider = bot_config.get("model_service_provider")
+        self.model_name = bot_config.get("model_name")
         self.memory = bot_config.get("memory", False)
         self.memory_count = 0
         self.memory_limit_length = bot_config.get("memory_length", 0)
@@ -83,17 +85,23 @@ class Pipeline(ABC):
 
         self.prompt_template = self.llm_config.get("prompt_template", None)
 
-        kwargs = {"model": self.model}
-        kwargs.update(self.llm_config)
-        self.predictor = Predictor.get_completion_service(self.model, PredictorType.CUSTOM_LLM, **kwargs)
+    async def ainit(self):
+        msp_dict = await query_msp_dict(self.bot.user)
+        if self.model_service_provider in msp_dict:
+            msp = msp_dict[self.model_service_provider]
+            base_url = msp.base_url
+            api_key = msp.api_key
+            self.predictor = Predictor.get_completion_service(self.model_service_provider, self.model_name, base_url, api_key, **self.llm_config)
 
-        if self.use_related_question:
-            self.related_prompt_template = self.llm_config.get("related_prompt_template", RELATED_QUESTIONS_TEMPLATE_V2)
-            self.related_question_prompt = PromptTemplate(template=self.related_prompt_template,
+            if self.use_related_question:
+                self.related_prompt_template = self.llm_config.get("related_prompt_template", RELATED_QUESTIONS_TEMPLATE_V2)
+                self.related_question_prompt = PromptTemplate(template=self.related_prompt_template,
                                                           input_variables=["query", "context"])
-            kwargs = {"model": self.model}
-            kwargs.update(self.llm_config)
-            self.related_question_predictor = Predictor.get_completion_service(self.model, PredictorType.CUSTOM_LLM, **kwargs)
+                self.related_question_predictor = Predictor.get_completion_service(self.model_service_provider, self.model_name, 
+                                                                       base_url, api_key, **self.llm_config)
+
+        else:
+            raise Exception("Model service provider not found")
 
     async def generate_related_question(self, related_question_prompt):
         tools = [

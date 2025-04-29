@@ -421,6 +421,7 @@ def generate_questions(document_id):
         q_loaders = QuestionEmbedding(input_files=[local_doc.path],
                                 input_file_metadata_list=[local_doc.metadata],
                                 embedding_model=embedding_model,
+                                llm_model=None, #todo Fixme
                                 vector_store_adaptor=get_vector_db_connector(
                                     collection=generate_qa_vector_db_collection_name(
                                         collection=collection.id)))

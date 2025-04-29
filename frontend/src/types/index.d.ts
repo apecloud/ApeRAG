@@ -9,9 +9,10 @@ export type Merge<M, N> = Omit<M, Extract<keyof M, keyof N>> & N;
  */
 export type BotConfig = {
   model?: string;
-  chractor?: string;
+  model_service_provider?: string;
+  model_name?: string;
+  charactor?: string;
   llm?: {
-    endpoint?: string;
     similarity_score_threshold?: number;
     similarity_topk?: number;
     context_window?: number;

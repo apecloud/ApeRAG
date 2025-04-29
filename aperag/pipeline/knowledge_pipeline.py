@@ -74,6 +74,7 @@ class KnowledgePipeline(Pipeline):
         self.prompt = PromptTemplate(template=self.prompt_template, input_variables=["query", "context"])
 
     async def ainit(self):
+        await super().ainit()
         self.embedding_model, self.vector_size = await get_collection_embedding_service(self.collection)
 
         self.context_manager = ContextManager(self.collection_name, self.embedding_model, settings.VECTOR_DB_TYPE,

@@ -113,3 +113,8 @@ class CommonPipeline(Pipeline):
                 related_questions = list(related_questions)
                 random.shuffle(related_questions)
                 yield RELATED_QUESTIONS + str(related_questions[:3])
+
+async def create_common_pipeline(**kwargs) -> CommonPipeline:
+    pipeline = CommonPipeline(**kwargs)
+    await pipeline.ainit()
+    return pipeline

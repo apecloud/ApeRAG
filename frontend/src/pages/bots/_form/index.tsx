@@ -1,13 +1,13 @@
-import { CollectionStatusEnum } from '@/api';
+import { CollectionStatusEnum, AvailableModel, SupportedModelServiceProvider } from '@/api';
 import iconCommon from '@/assets/bots/common.svg';
 import iconKnowledge from '@/assets/bots/knowledge.svg';
 import { CheckCard, RefreshButton } from '@/components';
 import {
-  MODEL_FAMILYS_ICON,
   MODEL_PROVIDER_ICON,
   UI_COLLECTION_STATUS,
 } from '@/constants';
 import { ApeBot } from '@/types';
+import { api } from '@/services';
 import {
   Avatar,
   Badge,
@@ -27,7 +27,7 @@ import {
   Typography,
 } from 'antd';
 import _ from 'lodash';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FormattedMessage, Link, useIntl, useModel } from 'umi';
 
 type Props = {
@@ -41,8 +41,11 @@ export default ({ form, onSubmit, values, action }: Props) => {
   const { formatMessage } = useIntl();
   const { collections, collectionsLoading, getCollections } =
     useModel('collection');
+  const [availableModels, setAvailableModels] = useState<AvailableModel[]>();
+  const [supportedModelServiceProviders, setSupportedModelServiceProviders] =
+      useState<SupportedModelServiceProvider[]>();
   const { models, promptTemplates, getPromptTemplates } = useModel('models');
-  const { loading } = useModel('global');
+  const { loading, setLoading } = useModel('global');
 
   const { token } = theme.useToken();
 
@@ -51,33 +54,35 @@ export default ({ form, onSubmit, values, action }: Props) => {
     onSubmit(data);
   };
 
-  const modelOptions = useMemo(
+  const modelsOptions = useMemo(
     () =>
-      Object.keys(_.groupBy(models, 'family_name')).map((familyName) => {
-        const children = models?.filter(
-          (item) => item.family_name === familyName,
-        );
-        const mod = children?.[0];
-
-        return {
-          label: (
-            <Space>
-              <Avatar
-                size={24}
-                shape="square"
-                src={
-                  mod?.family_name
-                    ? MODEL_FAMILYS_ICON[mod.family_name]
-                    : undefined
-                }
-              />
-              {mod?.family_label}
-            </Space>
-          ),
-          options: children,
-        };
-      }),
-    [models],
+      _.map(
+        _.groupBy(availableModels, 'model_service_provider'),
+        (aebs, providerName) => {
+          const provider = supportedModelServiceProviders?.find(
+            (smp) => smp.name === providerName,
+          );
+          return {
+            label: (
+              <Space>
+                <Avatar
+                  size={24}
+                  shape="square"
+                  src={MODEL_PROVIDER_ICON[providerName]}
+                />
+                <span>{provider?.label || providerName}</span>
+              </Space>
+            ),
+            options: aebs.map((aeb) => {
+              return {
+                label: aeb.model_name,
+                value: `${providerName}:${aeb.model_name}`,
+              };
+            }),
+          };
+        },
+      ),
+    [availableModels, supportedModelServiceProviders],
   );
 
   const botType = Form.useWatch(['type'], form);
@@ -89,10 +94,26 @@ export default ({ form, onSubmit, values, action }: Props) => {
     form,
   );
 
-  const currentModel = useMemo(
-    () => models?.find((m) => m.value === botModel),
-    [botModel, models],
-  );
+  const getModels = async () => {
+    setLoading(true);
+    const [
+      availableModelsRes,
+      supportedModelServiceProvidersRes,
+    ] = await Promise.all([
+      api.availableModelsGet(),
+      api.supportedModelServiceProvidersGet(),
+    ]);
+    setLoading(false);
+    setAvailableModels(availableModelsRes.data.items);
+    setSupportedModelServiceProviders(
+      supportedModelServiceProvidersRes.data.items,
+    );
+  };
+
+  const currentModel = useMemo( () => {
+    return models?.find((m) => `${m.model_service_provider}:${m.value}` === botModel)
+  }, [botModel, models]);
+
   const currentPromptTemplate = useMemo(() => {
     return promptTemplates?.find((m) => m.prompt === botChractor);
   }, [botChractor, promptTemplates]);
@@ -102,7 +123,6 @@ export default ({ form, onSubmit, values, action }: Props) => {
     let memory = Boolean(config?.memory);
 
     const llm = config?.llm;
-    let endpoint = llm?.endpoint;
     let template = llm?.prompt_template;
 
     let contextWindow = _.isNumber(llm?.context_window)
@@ -117,7 +137,6 @@ export default ({ form, onSubmit, values, action }: Props) => {
       : 0.5;
 
     if (botModel !== config?.model) {
-      endpoint = currentModel?.endpoint || '';
       memory = false;
       contextWindow = _.isNumber(currentModel?.context_window)
         ? currentModel?.context_window
@@ -138,12 +157,11 @@ export default ({ form, onSubmit, values, action }: Props) => {
     if (botType === 'knowledge' && botModel !== config?.model) {
       template = currentModel?.prompt_template;
     }
-    if (botType === 'common' && botChractor !== config?.chractor) {
+    if (botType === 'common' && botChractor !== config?.charactor) {
       template = currentPromptTemplate?.prompt;
     }
 
     form.setFieldValue(['config', 'memory'], memory);
-    form.setFieldValue(['config', 'llm', 'endpoint'], endpoint);
     form.setFieldValue(['config', 'llm', 'prompt_template'], template);
 
     form.setFieldValue(['config', 'llm', 'context_window'], contextWindow);
@@ -158,7 +176,7 @@ export default ({ form, onSubmit, values, action }: Props) => {
   useEffect(() => {
     const config = values.config;
     if (_.isEmpty(config?.model)) {
-      form.setFieldValue(['config', 'model'], models?.[0]?.value);
+      form.setFieldValue(['config', 'model'], `${models?.[0]?.model_service_provider}:${models?.[0]?.value}`);
     }
   }, [models]);
 
@@ -170,8 +188,23 @@ export default ({ form, onSubmit, values, action }: Props) => {
   }, [collections]);
 
   useEffect(() => {
+    if (botModel) {
+      const [model_service_provider, model_name] =
+      botModel.split(':');
+      console.log("model_service_provider", model_service_provider)
+      console.log("model_name", model_name)
+      form.setFieldValue(
+        ['config', 'model_service_provider'],
+        model_service_provider,
+      );
+      form.setFieldValue(['config', 'model_name'], model_name);
+    }
+  }, [botModel]);
+
+  useEffect(() => {
     getCollections();
     getPromptTemplates();
+    getModels();
   }, []);
 
   return (
@@ -245,29 +278,28 @@ export default ({ form, onSubmit, values, action }: Props) => {
               ]}
             >
               <Select
-                options={modelOptions}
+                options={modelsOptions}
                 labelRender={({ label, value }) => {
-                  const mod = models?.find((m) => m.value === value);
+                  const [model_service_provider, model_name] = (
+                    value as string
+                  ).split(':');
                   return (
-                    <Space>
+                    <Space style={{ alignItems: 'center' }}>
                       <Avatar
                         size={24}
                         shape="square"
-                        src={
-                          mod?.family_name
-                            ? MODEL_FAMILYS_ICON[mod.family_name]
-                            : undefined
-                        }
+                        src={MODEL_PROVIDER_ICON[model_service_provider]}
                         style={{
                           transform: 'translateY(-1px)',
                         }}
                       />
-                      {label}
+                      {label || model_name}
                     </Space>
                   );
                 }}
               />
             </Form.Item>
+
           </Col>
           <Col
             {...{
@@ -415,6 +447,13 @@ export default ({ form, onSubmit, values, action }: Props) => {
           </Col>
         </Row>
 
+        <Form.Item name={['config', 'model_service_provider']} hidden>
+          <Input type="hidden" />
+        </Form.Item>
+        <Form.Item name={['config', 'model_name']} hidden>
+          <Input type="hidden" />
+        </Form.Item>
+
         <Form.Item
           label={<FormattedMessage id="model.prompt_template" />}
           name={['config', 'llm', 'prompt_template']}
@@ -424,120 +463,6 @@ export default ({ form, onSubmit, values, action }: Props) => {
             style={{ color: token.colorTextSecondary }}
           />
         </Form.Item>
-
-        {currentModel?.free_tier && (
-          <Form.Item
-            label={<FormattedMessage id="text.trial" />}
-            valuePropName="checked"
-            name={['config', 'llm', 'trial']}
-          >
-            <Switch />
-          </Form.Item>
-        )}
-
-        {botModel &&
-        (botModel.indexOf('gpt') !== -1 ||
-          botModel.indexOf('deepseek') !== -1 ||
-          botModel.indexOf('glm') !== -1) ? (
-          <Form.Item
-            label={<FormattedMessage id="model.config" />}
-            style={{ marginBottom: 0 }}
-          >
-            <Row gutter={[16, 16]}>
-              <Col span={12}>
-                <Form.Item name={['config', 'llm', 'base_url']}>
-                  <Input
-                    prefix={
-                      <Typography.Text type="secondary">
-                        BASE URL
-                      </Typography.Text>
-                    }
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item name={['config', 'llm', 'api_key']}>
-                  <Input
-                    prefix={
-                      <Typography.Text type="secondary">API KEY</Typography.Text>
-                    }
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
-          </Form.Item>
-        ) : null}
-
-        {['qwen-turbo', 'qwen-plus', 'qwen-max'].includes(botModel) ? (
-          <Form.Item
-            label={<FormattedMessage id="model.config" />}
-            name={['config', 'llm', 'api_key']}
-          >
-            <Input placeholder="API Key" />
-          </Form.Item>
-        ) : null}
-
-        {['azure-openai'].includes(botModel) ? (
-          <Form.Item
-            label={<FormattedMessage id="model.config" />}
-            style={{ marginBottom: 0 }}
-          >
-            <Row gutter={[8, 0]}>
-              <Col span={6}>
-                <Form.Item name={['config', 'llm', 'deployment_id']}>
-                  <Input placeholder="Deployment ID" />
-                </Form.Item>
-              </Col>
-              <Col span={6}>
-                <Form.Item name={['config', 'llm', 'api_version']}>
-                  <Input placeholder="API Version" />
-                </Form.Item>
-              </Col>
-              <Col span={6}>
-                <Form.Item name={['config', 'llm', 'endpoint']}>
-                  <Input placeholder="Endpoint" />
-                </Form.Item>
-              </Col>
-              <Col span={6}>
-                <Form.Item name={['config', 'llm', 'token']}>
-                  <Input placeholder="Token" />
-                </Form.Item>
-              </Col>
-            </Row>
-          </Form.Item>
-        ) : null}
-
-        {['baichuan-53b', 'ernie-bot-turbo'].includes(botModel) ? (
-          <Form.Item
-            label={<FormattedMessage id="model.config" />}
-            style={{ marginBottom: 0 }}
-          >
-            <Row gutter={[16, 16]}>
-              <Col span={12}>
-                <Form.Item name={['config', 'llm', 'api_key']}>
-                  <Input
-                    prefix={
-                      <Typography.Text type="secondary">
-                        API Key
-                      </Typography.Text>
-                    }
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item name={['config', 'llm', 'secret_key']}>
-                  <Input
-                    prefix={
-                      <Typography.Text type="secondary">
-                        Secret Key
-                      </Typography.Text>
-                    }
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
-          </Form.Item>
-        ) : null}
 
         <Form.Item
           label={<FormattedMessage id="model.llm_params" />}

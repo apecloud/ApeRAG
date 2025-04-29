@@ -337,6 +337,7 @@ class ApiKeyUpdate(BaseModel):
 
 
 class Model(BaseModel):
+    model_service_provider: Optional[str] = None
     value: Optional[str] = None
     label: Optional[str] = None
     enabled: Optional[bool] = None

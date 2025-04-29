@@ -336,8 +336,6 @@ MODEL_FAMILIES = env.str("MODEL_FAMILIES", default='[]')
 EMBEDDING_MAX_CHUNKS_IN_BATCH = env.int("EMBEDDING_MAX_CHUNKS_IN_BATCH", default=64)
 
 
-SENSITIVE_FILTER_MODEL = env.str("SENSITIVE_FILTER_MODEL", default="")
-
 RERANK_BACKEND = env.str("RERANK_BACKEND", default="local")
 RERANK_SERVICE_URL = env.str("RERANK_SERVICE_URL", default="http://localhost:9997")
 RERANK_SERVICE_MODEL = env.str("RERANK_SERVICE_MODEL",  default="")

@@ -63,6 +63,7 @@ from aperag.db.ops import (
     query_sync_history,
     query_user_quota,
     query_msp_list,
+    query_msp_dict,
     query_msp,
 )
 from aperag.graph.lightrag_holder import reload_lightrag_holder, delete_lightrag_holder
@@ -105,33 +106,56 @@ logger = logging.getLogger(__name__)
 
 router = Router()
 
-
 @router.get("/models")
 async def list_models(request) -> view_models.ModelList:
     models = []
-    model_families = yaml.safe_load(settings.MODEL_FAMILIES)
-    for model_family in model_families:
-        for model_server in model_family.get("models", []):
-            if model_server.get("enabled", "true").lower() == "false":
-                continue
-            models.append(view_models.Model(
-                value=model_server["name"],
-                label=model_server.get("label", model_server["name"]),
-                enabled=True,
-                memory=model_server.get("memory", "disabled").lower() == "enabled",
-                free_tier=model_server.get("free_tier", False),
-                endpoint=model_server.get("endpoint", ""),
-                default_token=Predictor.check_default_token(model_name=model_server["name"]),
-                prompt_template=DEFAULT_MODEL_MEMOTY_PROMPT_TEMPLATES.get(model_server["name"],
-                                                                                    DEFAULT_CHINESE_PROMPT_TEMPLATE_V3),
-                context_window=model_server.get("context_window", 7500),
-                temperature=model_server.get("temperature", model_family.get("temperature", 0.01)),
-                similarity_score_threshold=model_server.get("similarity_score_threshold", 0.5),
-                similarity_topk=model_server.get("similarity_topk", 3),
-                family_name=model_family["name"],
-                family_label=model_family["label"],
-            ))
+    user = get_user(request)
+    supported_msp_dict = {supported_msp["name"]: supported_msp for supported_msp in settings.SUPPORTED_MODEL_SERVICE_PROVIDERS}
+    msp_list = await query_msp_list(user)
+    response = []
+    for msp in msp_list:
+        if msp.name in supported_msp_dict:
+            supported_msp = supported_msp_dict[msp.name]
+            for model in supported_msp.get("models", []):
+                models.append(view_models.Model(
+                    model_service_provider=msp.name,
+                    value=model,
+                    label=model,
+                    enabled=True,
+                    memory=True,
+                    # Fixme, should support both Chinese and English
+                    prompt_template=DEFAULT_CHINESE_PROMPT_TEMPLATE_V3, 
+                    context_window=7500,
+                    temperature=0.01,
+                    similarity_score_threshold=0.5,
+                    similarity_topk=3
+                ))
     return success(view_models.ModelList(items=models))
+
+    # models = []
+    # model_families = yaml.safe_load(settings.MODEL_FAMILIES)
+    # for model_family in model_families:
+    #     for model_server in model_family.get("models", []):
+    #         if model_server.get("enabled", "true").lower() == "false":
+    #             continue
+    #         models.append(view_models.Model(
+    #             value=model_server["name"],
+    #             label=model_server.get("label", model_server["name"]),
+    #             enabled=True,
+    #             memory=model_server.get("memory", "disabled").lower() == "enabled",
+    #             free_tier=model_server.get("free_tier", False),
+    #             endpoint=model_server.get("endpoint", ""),
+    #             default_token=Predictor.check_default_token(model_name=model_server["name"]),
+    #             prompt_template=DEFAULT_MODEL_MEMOTY_PROMPT_TEMPLATES.get(model_server["name"],
+    #                                                                                 DEFAULT_CHINESE_PROMPT_TEMPLATE_V3),
+    #             context_window=model_server.get("context_window", 7500),
+    #             temperature=model_server.get("temperature", model_family.get("temperature", 0.01)),
+    #             similarity_score_threshold=model_server.get("similarity_score_threshold", 0.5),
+    #             similarity_topk=model_server.get("similarity_topk", 3),
+    #             family_name=model_family["name"],
+    #             family_label=model_family["label"],
+    #         ))
+
 
 
 @router.get("/prompt-templates")
@@ -872,11 +896,21 @@ async def create_bot(request, bot_in: view_models.BotCreate) -> view_models.Bot:
     )
     config = json.loads(bot_in.config)
     memory = config.get("memory", False)
-    model = config.get("model")
+    model_service_provider = config.get("model_service_provider")
+    model_name = config.get("model_name")
     llm_config = config.get("llm")
-    valid, msg = validate_bot_config(model, llm_config, bot_in.type, memory)
-    if not valid:
-        return fail(HTTPStatus.BAD_REQUEST, msg)
+
+    msp_dict = await query_msp_dict(user)
+    if model_service_provider in msp_dict:
+        msp = msp_dict[model_service_provider]
+        base_url = msp.base_url
+        api_key = msp.api_key
+        valid, msg = validate_bot_config(model_service_provider, model_name, base_url, api_key, llm_config, bot_in.type, memory)
+        if not valid:
+            return fail(HTTPStatus.BAD_REQUEST, msg)
+    else:
+        return fail(HTTPStatus.BAD_REQUEST, "Model service provider not found")
+
     await bot.asave()
     collection_ids = []
     if bot_in.collection_ids is not None:
@@ -958,12 +992,22 @@ async def update_bot(request, bot_id: str, bot_in: view_models.BotUpdate) -> vie
     if bot is None:
         return fail(HTTPStatus.NOT_FOUND, "Bot not found")
     new_config = json.loads(bot_in.config)
-    model = new_config.get("model")
+    model_service_provider = new_config.get("model_service_provider")
+    model_name = new_config.get("model_name")
     memory = new_config.get("memory", False)
     llm_config = new_config.get("llm")
-    valid, msg = validate_bot_config(model, llm_config, bot_in.type, memory)
-    if not valid:
-        return fail(HTTPStatus.BAD_REQUEST, msg)
+    
+    msp_dict = await query_msp_dict(user)
+    if model_service_provider in msp_dict:
+        msp = msp_dict[model_service_provider]
+        base_url = msp.base_url
+        api_key = msp.api_key
+        valid, msg = validate_bot_config(model_service_provider, model_name, base_url, api_key, llm_config, bot_in.type, memory)
+        if not valid:
+            return fail(HTTPStatus.BAD_REQUEST, msg)
+    else:
+        return fail(HTTPStatus.BAD_REQUEST, "Model service provider not found")
+    
     old_config = json.loads(bot.config)
     old_config.update(new_config)
     bot.config = json.dumps(old_config)

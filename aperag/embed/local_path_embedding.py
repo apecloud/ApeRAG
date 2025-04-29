@@ -42,7 +42,7 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
 
             kwargs["file_metadata"] = metadata_mapping_func
         self.reader = InteractiveSimpleDirectoryReader(**kwargs)
-        self.filter = SensitiveFilterClassify()
+        self.filter = SensitiveFilterClassify(None) #todo Fixme, use a llm model
         self.node_parser = node_parser or \
             TokenTextSplitter(
                 chunk_size=kwargs.get('chunk_size', settings.CHUNK_SIZE),

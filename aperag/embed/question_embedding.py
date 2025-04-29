@@ -22,7 +22,8 @@ class QuestionEmbedding(LocalPathEmbedding):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.question_generator = QuestionGenerator()
+        llm_model = kwargs.get("llm_model")
+        self.question_generator = QuestionGenerator(llm_model)
         self.questions = []
         self.max_context_window = kwargs.get("max_context_window", 3000)
 

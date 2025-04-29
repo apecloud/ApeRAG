@@ -8,7 +8,7 @@ from langchain_core.prompts import PromptTemplate
 
 from config import settings
 from aperag.db.models import Document
-from aperag.llm.base import Predictor, PredictorType
+from aperag.llm.base import Predictor
 from aperag.llm.prompts import CLASSIFY_SENSITIVE_INFORMATION_TEMPLATE, SENSITIVE_INFORMATION_TEMPLATE
 
 logger = logging.getLogger(__name__)
@@ -17,13 +17,12 @@ logger.setLevel(logging.INFO)
 
 class SensitiveFilter(ABC):
 
-    def __init__(self, **kwargs):
+    def __init__(self, predictor_model, **kwargs):
         self.prompt_template = PromptTemplate(template=SENSITIVE_INFORMATION_TEMPLATE, input_variables=["context", "types"])
-        sensitive_filter_model = settings.SENSITIVE_FILTER_MODEL
         self.sensitive_protect_llm = False
-        if sensitive_filter_model != '':
+        if predictor_model != None:
             self.sensitive_protect_llm = True
-            self.predictor = Predictor.get_completion_service(self.sensitive_filter_model, PredictorType.CUSTOM_LLM, **kwargs)
+            self.predictor = predictor_model
 
     def sensitive_filter_llm(self, context, types=["密码", "API-KEY", "special token"]):
         prompt = self.prompt_template.format(context=context, types=types)
@@ -86,13 +85,12 @@ class SensitiveFilter(ABC):
 
 class SensitiveFilterClassify(ABC):
 
-    def __init__(self, **kwargs):
+    def __init__(self, predictor_model, **kwargs):
         self.prompt_template = PromptTemplate(template=CLASSIFY_SENSITIVE_INFORMATION_TEMPLATE, input_variables=["context", "types"])
-        sensitive_filter_model = settings.SENSITIVE_FILTER_MODEL
         self.sensitive_protect_llm = False
-        if sensitive_filter_model != '':
+        if predictor_model != None:
             self.sensitive_protect_llm = True
-            self.predictor = Predictor.get_completion_service(self.sensitive_filter_model, PredictorType.CUSTOM_LLM, **kwargs)
+            self.predictor = predictor_model
     def sensitive_filter_llm(self, context, types=["密码", "API-KEY", "special token"]):
         prompt = self.prompt_template.format(context=context, types=types)
         response = ""

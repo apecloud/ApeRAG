@@ -21,7 +21,7 @@ from typing import Any, Dict
 from elasticsearch import AsyncElasticsearch
 from langchain_core.prompts import PromptTemplate
 
-from aperag.llm.base import Predictor, PredictorType
+from aperag.llm.base import Predictor
 from aperag.llm.prompts import KEYWORD_PROMPT_TEMPLATE
 
 logger = logging.getLogger(__name__)
@@ -79,9 +79,9 @@ class LLMExtractor(KeywordExtractor):
     Extract keywords from text using LLM
     """
 
-    def __init__(self, ctx: Dict[str, Any]):
+    def __init__(self, predictor, ctx: Dict[str, Any]):
         super().__init__(ctx)
-        self.predictor = Predictor.get_completion_service(ctx["model"], PredictorType.CUSTOM_LLM)
+        self.predictor = predictor
 
     async def extract(self, text):
         keyword_template = PromptTemplate(template=KEYWORD_PROMPT_TEMPLATE, input_variables=["query"])

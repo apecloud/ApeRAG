@@ -25,7 +25,7 @@ from aperag.chat.utils import (check_quota_usage, fail_response,
                                stop_response, success_response)
 from aperag.chat.websocket.base_consumer import BaseConsumer
 from aperag.pipeline.base_pipeline import RELATED_QUESTIONS
-from aperag.pipeline.common_pipeline import CommonPipeline
+from aperag.pipeline.common_pipeline import create_common_pipeline
 from aperag.readers.base_readers import DEFAULT_FILE_READER_CLS
 from aperag.source.utils import gen_temporary_file
 from aperag.utils.utils import now_unix_milliseconds
@@ -38,7 +38,7 @@ class CommonConsumer(BaseConsumer):
         await super().connect()
         self.file = None
         self.file_name = None
-        self.pipeline = CommonPipeline(bot=self.bot, collection=self.collection, history=self.history)
+        self.pipeline = await create_common_pipeline(bot=self.bot, collection=self.collection, history=self.history)
         self.free_tier = self.pipeline.predictor.trial
 
     async def predict(self, query, **kwargs):

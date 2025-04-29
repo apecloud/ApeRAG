@@ -25,6 +25,12 @@ export interface Model {
      * @type {string}
      * @memberof Model
      */
+    'model_service_provider'?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof Model
+     */
     'value'?: string;
     /**
      * 

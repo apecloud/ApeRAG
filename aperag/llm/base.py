@@ -17,17 +17,11 @@ import logging
 from abc import ABC, abstractmethod
 from enum import Enum
 
-import requests
 import yaml
 
 from config import settings
 
 logger = logging.getLogger(__name__)
-
-
-class PredictorType(Enum):
-    CUSTOM_LLM = "custom-llm"
-
 
 class LLMConfigError(Exception):
     """
@@ -66,52 +60,26 @@ class Predictor(ABC):
         return None
 
     @staticmethod
-    def match_predictor(model_name, predictor_type, kwargs):
-        from aperag.llm.completion_service import CompletionService
-        match model_name:
-            case "chatgpt-3.5":
-                kwargs["model"] = "gpt-3.5-turbo"
+    def match_predictor(model_service_provider, model_name, base_url, api_key, kwargs):
+        match model_service_provider:
+            case "openai" | "siliconflow" | "deepseek":
+                kwargs["model"] = model_name
+                kwargs["base_url"] = base_url
+                kwargs["api_key"] = api_key
+                from aperag.llm.completion_service import CompletionService
                 return CompletionService
-            case "gpt-3.5-turbo-1106" | "gpt-3.5-turbo" | "gpt-3.5-turbo-16k" | "gpt-3.5-turbo-instruct":
-                return CompletionService
-            case "chatgpt-4":
-                kwargs["model"] = "gpt-4"
-                return CompletionService
-            case "deepseek-chat" | "gpt-4-1106-preview" | "gpt-4-vision-preview" | "gpt-4" | "gpt-4-32k" | "gpt-4-0613" | "gpt-4-32k-0613":
-                return CompletionService
-            case "glm-4-plus" | "glm-4-air" | "glm-4-long" | "glm-4-flashx" | "glm-4-flash":
-                return CompletionService
-            case "azure-openai":
-                return CompletionService
-            case "qwen-turbo" | "qwen-plus" | "qwen-max":
+            case "alibabacloud":
+                kwargs["model"] = model_name
+                kwargs["api_key"] = api_key
                 from aperag.llm.qianwen import QianWenPredictor
                 return QianWenPredictor
-
-        endpoint = kwargs.get("endpoint", "")
-        if not endpoint:
-            ctx = Predictor.get_model_context(model_name)
-            if not ctx:
-                raise Exception("No model server available for model: %s" % model_name)
-            endpoint = ctx.get("endpoint", "")
-            kwargs["endpoint"] = endpoint
-            predictor_type = ctx.get("type", PredictorType.CUSTOM_LLM)
-
-        match predictor_type:
-            case PredictorType.CUSTOM_LLM:
-                from aperag.llm.custom import CustomLLMPredictor
-                return CustomLLMPredictor
-            case _:
-                raise Exception("Unsupported predictor type: %s" % predictor_type)
+        
+        raise Exception("Unsupported model service provider: %s", model_service_provider)
 
     @staticmethod
-    def get_completion_service(model_name, predictor_type="", **kwargs):
-        predictor = Predictor.match_predictor(model_name, predictor_type, kwargs)
+    def get_completion_service(model_service_provider, model_name, base_url, api_key, **kwargs):
+        predictor = Predictor.match_predictor(model_service_provider, model_name, base_url, api_key, kwargs)
         return predictor(**kwargs)
-
-    @staticmethod
-    def check_default_token(model_name, predictor_type="", **kwargs):
-        predictor = Predictor.match_predictor(model_name, predictor_type, kwargs)
-        return predictor.provide_default_token()
 
     def get_latest_history(self, messages, limit_length, limit_count, use_ai_memory) -> str:
         latest_history = []
