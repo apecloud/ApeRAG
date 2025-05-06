@@ -1,7 +1,7 @@
 import yaml
 from typing import Dict, Any
 from aperag.flow.models import (
-    FlowInstance, NodeInstance, Edge, InputBinding,
+    FlowInstance, InputSourceType, NodeInstance, Edge, InputBinding,
     GlobalVariable, FieldType
 )
 from .exceptions import ValidationError
@@ -80,7 +80,7 @@ class FlowParser:
             inputs.append(input_binding)
             
             # Add dependency if this is a dynamic input binding
-            if input_binding.source_type == "dynamic" and input_binding.ref_node:
+            if input_binding.source_type == InputSourceType.DYNAMIC and input_binding.ref_node:
                 depends_on.add(input_binding.ref_node)
 
         # Create node instance

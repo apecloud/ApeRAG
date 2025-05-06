@@ -3,6 +3,7 @@ from typing import List, Set, Dict, Any, Optional
 from concurrent.futures import ThreadPoolExecutor, wait
 from aperag.flow.models import FlowInstance, NodeInstance, ExecutionContext, NodeRegistry
 from aperag.flow.exceptions import CycleError, NodeNotFoundError, ValidationError
+from aperag.flow.models import InputSourceType
 import logging
 import uuid
 
@@ -70,11 +71,11 @@ class FlowEngine:
         else:
             # Use node's configured input bindings
             for input_binding in node.inputs:
-                if input_binding.source_type == "static":
+                if input_binding.source_type == InputSourceType.STATIC:
                     temp_context.variables[node.id][input_binding.name] = input_binding.value
-                elif input_binding.source_type == "global":
+                elif input_binding.source_type == InputSourceType.GLOBAL:
                     temp_context.variables[node.id][input_binding.name] = self.context.get_global(input_binding.global_var)
-                elif input_binding.source_type == "dynamic":
+                elif input_binding.source_type == InputSourceType.DYNAMIC:
                     ref_value = self.context.get_input(input_binding.ref_node, input_binding.ref_field)
                     temp_context.variables[node.id][input_binding.name] = ref_value
         
@@ -103,6 +104,9 @@ class FlowEngine:
         
         # Start with nodes that have no dependencies
         queue = deque([node_id for node_id, degree in in_degree.items() if degree == 0])
+        if len(queue) == 0:
+            raise CycleError("Flow contains cycles")
+
         sorted_nodes = []
         
         while queue:
@@ -121,41 +125,40 @@ class FlowEngine:
         
         return sorted_nodes
 
-    def _find_parallel_groups(self, flow: FlowInstance, 
-                            sorted_nodes: List[str]) -> List[Set[str]]:
-        """Find groups of nodes that can be executed in parallel
+    def _find_parallel_groups(self, flow: FlowInstance, sorted_nodes: List[str]) -> List[Set[str]]:
+        """Find groups of nodes that can be executed in parallel (level by level)
         
         Args:
             flow: The flow instance
             sorted_nodes: Topologically sorted list of node IDs
-            
+        
         Returns:
             List of node groups, where each group can be executed in parallel
         """
+        # Build in-degree map
+        in_degree = {node_id: 0 for node_id in flow.nodes}
+        for edge in flow.edges:
+            in_degree[edge.target] += 1
+        
+        # Track processed nodes
+        processed = set()
         groups = []
-        current_group = set()
-        processed_nodes = set()
         
-        for node_id in sorted_nodes:
-            node = flow.nodes[node_id]
-            
-            # If this node depends on any node in the current group,
-            # or if any node in the current group depends on this node,
-            # start a new group
-            if any(dep in current_group for dep in node.depends_on) or \
-               any(node_id in flow.nodes[dep].depends_on for dep in current_group):
-                if current_group:
-                    groups.append(current_group)
-                current_group = set()
-            
-            # Add this node to the current group
-            current_group.add(node_id)
-            processed_nodes.add(node_id)
-        
-        # Add the last group if not empty
-        if current_group:
+        while len(processed) < len(sorted_nodes):
+            # Find all nodes with in-degree 0 and not processed
+            current_group = set(
+                node_id for node_id in sorted_nodes
+                if in_degree[node_id] == 0 and node_id not in processed
+            )
+            if not current_group:
+                break  # Should not happen if topological sort is correct
             groups.append(current_group)
-            
+            # Mark nodes as processed and update in-degree for successors
+            for node_id in current_group:
+                processed.add(node_id)
+                for edge in flow.edges:
+                    if edge.source == node_id:
+                        in_degree[edge.target] -= 1
         return groups
 
     def _execute_node_group(self, flow: FlowInstance, node_group: Set[str]):
@@ -175,6 +178,37 @@ class FlowEngine:
                     futures.append(executor.submit(self._execute_node, node))
                 wait(futures)
 
+    def _bind_node_inputs(self, node: NodeInstance, ctx: ExecutionContext) -> dict:
+        """Bind input variables for a node according to its input schema and bindings
+        
+        Args:
+            node: The node instance
+            ctx: The execution context to use
+        Returns:
+            Dictionary of input values for the node
+        Raises:
+            ValidationError: If required input is missing
+        """
+        node_def = NodeRegistry.get(node.type)
+        inputs = {}
+        for field in node_def.input_schema:
+            value = None
+            for input_binding in node.inputs:
+                if input_binding.name == field.name:
+                    if input_binding.source_type == InputSourceType.STATIC:
+                        value = input_binding.value
+                    elif input_binding.source_type == InputSourceType.GLOBAL:
+                        value = ctx.get_global(input_binding.global_var)
+                    elif input_binding.source_type == InputSourceType.DYNAMIC:
+                        value = ctx.get_input(input_binding.ref_node, input_binding.ref_field)
+                    break
+            if value is None:
+                value = ctx.get_input(node.id, field.name)
+            if field.required and value is None:
+                raise ValidationError(f"Required input '{field.name}' not provided for node {node.id}")
+            inputs[field.name] = value
+        return inputs
+
     def _execute_node(self, node: NodeInstance, context: Optional[ExecutionContext] = None) -> None:
         """Execute a single node using the provided context
         
@@ -184,43 +218,16 @@ class FlowEngine:
         """
         # Use provided context or default to engine's context
         ctx = context or self.context
-        
+        # Bind inputs using the helper method
+        inputs = self._bind_node_inputs(node, ctx)
         # Get node definition
         node_def = NodeRegistry.get(node.type)
-        
-        # Prepare inputs
-        inputs = {}
-        for field in node_def.input_schema:
-            # Try to get value from input bindings
-            value = None
-            for input_binding in node.inputs:
-                if input_binding.name == field.name:
-                    if input_binding.source_type == "static":
-                        value = input_binding.value
-                    elif input_binding.source_type == "global":
-                        value = ctx.get_global(input_binding.global_var)
-                    elif input_binding.source_type == "dynamic":
-                        value = ctx.get_input(input_binding.ref_node, input_binding.ref_field)
-                    break
-            
-            # If no binding found, try to get from context
-            if value is None:
-                value = ctx.get_input(node.id, field.name)
-            
-            # Validate required inputs
-            if field.required and value is None:
-                raise ValidationError(f"Required input '{field.name}' not provided for node {node.id}")
-            
-            inputs[field.name] = value
-        
         # Execute node logic
         outputs = self._execute_node_logic(node, inputs)
-        
         # Validate outputs
         for field in node_def.output_schema:
             if field.required and field.name not in outputs:
                 raise ValidationError(f"Required output '{field.name}' not produced by node {node.id}")
-        
         # Store outputs in context
         ctx.set_output(node.id, outputs)
 

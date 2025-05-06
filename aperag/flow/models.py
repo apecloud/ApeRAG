@@ -20,13 +20,18 @@ class FieldType(str, Enum):
     ARRAY = "array"
     OBJECT = "object"
 
+class InputSourceType(str, Enum):
+    STATIC = "static"
+    DYNAMIC = "dynamic"
+    GLOBAL = "global"
+
 @dataclass
 class FieldDefinition:
     """Definition of a field in node input/output schema"""
     name: str
     type: FieldType
     description: Optional[str] = None
-    required: bool = True
+    required: bool = False
     default: Any = None
 
 @dataclass
@@ -83,7 +88,6 @@ NodeRegistry.register(NodeDefinition(
     name="Keyword Search",
     type=NodeType.PROCESS,
     config_schema=[
-        FieldDefinition("keywords", FieldType.ARRAY)
     ],
     input_schema=[
         FieldDefinition("query", FieldType.STRING)
@@ -115,9 +119,7 @@ NodeRegistry.register(NodeDefinition(
     name="Rerank",
     type=NodeType.PROCESS,
     config_schema=[
-        FieldDefinition("method", FieldType.STRING, default="reciprocal_rank"),
-        FieldDefinition("weight_vector", FieldType.FLOAT, default=0.7),
-        FieldDefinition("weight_keyword", FieldType.FLOAT, default=0.3)
+        FieldDefinition("model", FieldType.STRING, default="gpt-4o"),
     ],
     input_schema=[
         FieldDefinition("docs_a", FieldType.ARRAY),
@@ -133,7 +135,7 @@ NodeRegistry.register(NodeDefinition(
     name="LLM",
     type=NodeType.PROCESS,
     config_schema=[
-        FieldDefinition("model", FieldType.STRING, default="gpt-3.5-turbo"),
+        FieldDefinition("model", FieldType.STRING, default="gpt-4o"),
         FieldDefinition("temperature", FieldType.FLOAT, default=0.7),
         FieldDefinition("max_tokens", FieldType.INTEGER, default=1000)
     ],
@@ -150,7 +152,7 @@ NodeRegistry.register(NodeDefinition(
 class InputBinding:
     """Binding of an input field to its source"""
     name: str  # Name of the input field
-    source_type: str  # "static", "dynamic" or "global"
+    source_type: InputSourceType  
     value: Any = None  # for static
     ref_node: Optional[str] = None  # for dynamic
     ref_field: Optional[str] = None  # for dynamic
@@ -204,14 +206,14 @@ class FlowInstance:
             preceding_nodes = set(sorted_nodes[:current_index])
             
             for input_binding in node.inputs:
-                if input_binding.source_type == "static":
+                if input_binding.source_type == InputSourceType.STATIC:
                     continue  # Static config doesn't need validation
-                elif input_binding.source_type == "global":
+                elif input_binding.source_type == InputSourceType.GLOBAL:
                     # Validate global variable exists
                     if input_binding.global_var not in self.global_variables:
                         raise ValidationError(
                             f"Node {node.id} references non-existent global variable: {input_binding.global_var}")
-                elif input_binding.source_type == "dynamic":
+                elif input_binding.source_type == InputSourceType.DYNAMIC:
                     # Validate referenced node exists
                     if input_binding.ref_node not in self.nodes:
                         raise ValidationError(
@@ -237,6 +239,9 @@ class FlowInstance:
         
         # Topological sort
         queue = deque([node_id for node_id, degree in in_degree.items() if degree == 0])
+        if len(queue) == 0:
+            raise CycleError("Flow contains cycles")
+
         sorted_nodes = []
 
         while queue:

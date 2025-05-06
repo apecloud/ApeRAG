@@ -1,5 +1,5 @@
 import pytest
-from aperag.flow.models import FlowInstance, NodeInstance, Edge, InputBinding, GlobalVariable, FieldType
+from aperag.flow.models import FlowInstance, InputSourceType, NodeInstance, Edge, InputBinding, GlobalVariable, FieldType
 from aperag.flow.exceptions import ValidationError, CycleError
 
 def test_valid_flow():
@@ -20,11 +20,11 @@ def test_valid_flow():
             type="vector_search",
             inputs=[
                 InputBinding(
-                    source_type="global",
+                    source_type=InputSourceType.GLOBAL,
                     global_var="query"
                 ),
                 InputBinding(
-                    source_type="static",
+                    source_type=InputSourceType.STATIC,
                     value=5
                 )
             ]
@@ -34,7 +34,7 @@ def test_valid_flow():
             type="keyword_search",
             inputs=[
                 InputBinding(
-                    source_type="global",
+                    source_type=InputSourceType.GLOBAL,
                     global_var="query"
                 )
             ]
@@ -44,12 +44,12 @@ def test_valid_flow():
             type="rerank",
             inputs=[
                 InputBinding(
-                    source_type="dynamic",
+                    source_type=InputSourceType.DYNAMIC,
                     ref_node="vector_search",
                     ref_field="docs"
                 ),
                 InputBinding(
-                    source_type="dynamic",
+                    source_type=InputSourceType.DYNAMIC,
                     ref_node="keyword_search",
                     ref_field="docs"
                 )
@@ -107,7 +107,7 @@ def test_invalid_global_variable():
             type="type1",
             inputs=[
                 InputBinding(
-                    source_type="global",
+                    source_type=InputSourceType.GLOBAL,
                     global_var="non_existent_var"
                 )
             ]
@@ -133,7 +133,7 @@ def test_invalid_node_reference():
             type="type1",
             inputs=[
                 InputBinding(
-                    source_type="dynamic",
+                    source_type=InputSourceType.DYNAMIC,
                     ref_node="non_existent_node",
                     ref_field="output"
                 )
@@ -160,7 +160,7 @@ def test_invalid_field_reference():
             type="type1",
             inputs=[
                 InputBinding(
-                    source_type="dynamic",
+                    source_type=InputSourceType.DYNAMIC,
                     ref_node="node2",
                     ref_field="non_existent_field"
                 )
@@ -195,7 +195,7 @@ def test_non_preceding_node_reference():
             type="type1",
             inputs=[
                 InputBinding(
-                    source_type="dynamic",
+                    source_type=InputSourceType.DYNAMIC,
                     ref_node="node2",
                     ref_field="output"
                 )
