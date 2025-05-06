@@ -8,6 +8,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Generic, List, Type, TypeVar, Union, get_args
 
+import fitz
 from llama_index.core.readers.base import BaseReader
 from llama_index.core.schema import Document
 from magic_pdf.config.enums import SupportedPdfParseMethod
@@ -165,12 +166,15 @@ class MinerUReader(BaseReader, Generic[FallbackReader]):
 
             # TODO: save images to s3
 
+            if hasattr(pipe_result, "_pipe_res"):
+                adjust_title_level(file, pipe_result._pipe_res)
+
             chunked = False
             chunking_params = [chunk_size, chunk_overlap, tokenizer]
             if all(param is not None for param in chunking_params):
                 logger.info("Chunking the document using MinerUMiddleJsonChunker.")
                 middle_json = pipe_result.get_middle_json()
-                docs = MinerUMiddleJsonChunker(chunk_size, chunk_overlap, tokenizer).split(middle_json)
+                docs = MinerUMiddleJsonChunker(metadata, chunk_size, chunk_overlap, tokenizer).split(middle_json)
                 chunked = True
                 return docs, chunked
 
@@ -185,6 +189,127 @@ class MinerUReader(BaseReader, Generic[FallbackReader]):
         finally:
             if temp_dir_obj is not None:
                 temp_dir_obj.cleanup()
+
+
+def adjust_title_level(pdf_file: Path | None, pipe_res: dict):
+    logger.info("Adjusting title level...")
+    raw_text_blocks: dict[int, list[tuple[str, float]]] = {}
+    if pdf_file is not None:
+        raw_text_blocks = collect_all_text_blocks(pdf_file)
+    title_blocks = []
+    for page_num, page_info in enumerate(pipe_res.get("pdf_info", [])):
+        paras_of_layout: list[dict[str, Any]] = page_info.get("para_blocks")
+        if not paras_of_layout:
+            continue
+        for para_block in paras_of_layout:
+            para_type = para_block["type"]
+            if para_type != BlockType.Title:
+                continue
+            has_level = para_block.get("level", None)
+            if has_level is not None:
+                logger.info("MinerU has already set a title level; skipping adjustment.")
+                return
+
+            raw_text_map = {}
+            for raw_text in raw_text_blocks.get(page_num, []):
+                raw_text_map[raw_text[0]] = raw_text[1]
+
+            font_size = None
+            lines = para_block.get("lines", [])
+            for line in lines:
+                spans = line.get("spans", [])
+                for span in spans:
+                    content = span.get("content", "").strip()
+                    if content in raw_text_map:
+                        font_size = raw_text_map[content]
+
+            # If the font size cannot be obtained directly from the PDF document,
+            # calculate an approximate font size based on the bounding box height.
+            if font_size is None:
+                bbox = para_block.get("bbox", None)
+                if bbox is not None:
+                    height = bbox[3] - bbox[1]
+                    lines = para_block.get("lines", None)
+                    if lines is not None and len(lines) > 1:
+                        height = height / len(lines)
+                    # NOTE: This formula is derived from simple observation
+                    # and may not be applicable to all situations.
+                    font_size = height * 0.78
+
+            if font_size is None:
+                continue
+
+            title_blocks.append(
+                (
+                    font_size,
+                    para_block,
+                )
+            )
+
+    if len(title_blocks) == 0:
+        return
+
+    title_blocks.sort(key=lambda x: x[0], reverse=True)
+    level = 1
+    prev_font_size = None
+    delta = 0.2
+    max_level = 8
+    for font_size, para_block in title_blocks:
+        if prev_font_size is not None and prev_font_size - font_size > delta:
+            level += 1
+            if level > max_level:
+                level = max_level
+        para_block["level"] = level
+        prev_font_size = font_size
+
+
+def collect_all_text_blocks(pdf_path: Path) -> dict[int, list[tuple[str, float]]]:
+    try:
+        with fitz.open(pdf_path) as doc:
+            if not doc.is_pdf:
+                return {}
+
+            ret = {}
+            for page_num, page in enumerate(doc):
+                try:
+                    # Extract text using 'dict' mode, which returns a dictionary structure
+                    # containing detailed information: page -> block -> line -> span.
+                    # Each span includes font size, content, etc.
+                    page_data = page.get_text("dict")
+
+                    blocks = page_data.get("blocks", [])
+                    if not blocks:
+                        continue
+
+                    texts = []
+                    # Iterate over all blocks in the page
+                    for block in blocks:
+                        # Check if the block is a text block (type 0) and contains line information
+                        if block.get("type") == 0 and "lines" in block:
+                            lines = block.get("lines", [])
+                            # Iterate over all lines in the block
+                            for line in lines:
+                                spans = line.get("spans", [])
+                                # Iterate over all spans in the line
+                                for span in spans:
+                                    font_size = span.get("size", 1.0)
+                                    text_content = span.get("text", "").strip()
+                                    if text_content:
+                                        texts.append(
+                                            (
+                                                text_content,
+                                                font_size,
+                                            )
+                                        )
+
+                    ret[page_num] = texts
+                except Exception:
+                    logger.exception(f"collect_all_text_blocks error processing page {page_num + 1}")
+
+            return ret
+    except Exception:
+        logger.exception("collect_all_text_blocks failed")
+        return {}
 
 
 class Type(Enum):
@@ -225,7 +350,10 @@ class Group:
 
 
 class MinerUMiddleJsonChunker:
-    def __init__(self, chunk_size: int, chunk_overlap: int, tokenizer: Callable[[str], List[int]]):
+    def __init__(
+        self, metadata: dict | None, chunk_size: int, chunk_overlap: int, tokenizer: Callable[[str], List[int]]
+    ):
+        self.metadata = metadata or {}
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
         self.tokenizer = tokenizer
@@ -296,15 +424,20 @@ class MinerUMiddleJsonChunker:
 
     def _to_doc_metadata(self, md: Metadata) -> dict[str, Any]:
         titles = md.titles or []
-        return {
-            "source_locations": [
-                {
-                    "page_idx": md.page_idx,
-                    "bbox": md.bbox,
-                }
-            ],
-            "titles": titles,
-        }
+        d = {}
+        d.update(self.metadata)
+        d.update(
+            {
+                "source_locations": [
+                    {
+                        "page_idx": md.page_idx,
+                        "bbox": md.bbox,
+                    }
+                ],
+                "titles": titles,
+            }
+        )
+        return d
 
     def _update_token_count(self, doc: Document, tokens: int):
         doc.metadata["tokens"] = tokens
@@ -396,9 +529,14 @@ def convert_para(
             metadata=metadata,
         )
     elif para_type == BlockType.Title:
+        title_level = para_block.get("level", 1)
+        title_prefix = ""
+        if title_level > 0:
+            title_prefix = ("#" * title_level) + " "
+
         return Elem(
             type=Type.TITLE,
-            text=f"{merge_para_with_text(para_block)}\n\n",
+            text=f"{title_prefix}{merge_para_with_text(para_block)}\n\n",
             text_level=get_title_level(para_block),
             metadata=metadata,  # Note: the titles field is not correct and will be fixed later
         )
@@ -497,7 +635,7 @@ class SimpleSemanticSplitter:
         ["\n\n"],
         ["\n"],
         ["。”", "！”", "？”"],
-        [".\"", "!\"", "?\""],
+        ['."', '!"', '?"'],
         ["。", "！", "？"],
         [".", "!", "?"],
         ["；", "，", "、"],
@@ -596,6 +734,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("--pdf_path", type=str, help="Path to a PDF file")
     parser.add_argument("--middle_json_path", type=str, help="Path to the middle.json file")
     parser.add_argument("--chunk_size", type=int, default=400, help="Chunk size")
     parser.add_argument("--chunk_overlap", type=int, default=20, help="Chunk overlap")
@@ -603,21 +742,38 @@ if __name__ == "__main__":
     args = parser.parse_args()
     print(args)
 
-    middle_json = ""
-    with open(args.middle_json_path, "r") as f:
-        middle_json = f.read()
+    logging.basicConfig(level=logging.INFO)
 
     import tiktoken
 
     encoding = tiktoken.get_encoding(args.encoding_name)
     tokenizer = encoding.encode
 
-    chunker = MinerUMiddleJsonChunker(
-        chunk_size=args.chunk_size,
-        chunk_overlap=args.chunk_overlap,
-        tokenizer=tokenizer,
-    )
-    docs = chunker.split(middle_json)
+    if args.pdf_path:
+        docs, chunked = MinerUReader().load_data_ex(
+            Path(args.pdf_path),
+            None,
+            chunk_size=args.chunk_size,
+            chunk_overlap=args.chunk_overlap,
+            tokenizer=tokenizer,
+        )
+        _ = chunked
+    else:
+        middle_json = ""
+        with open(args.middle_json_path, "r") as f:
+            middle_json = f.read()
+
+        middle_dict = json.loads(middle_json)
+        adjust_title_level(middle_dict)
+        middle_json = json.dumps(middle_dict)
+
+        chunker = MinerUMiddleJsonChunker(
+            metadata=None,
+            chunk_size=args.chunk_size,
+            chunk_overlap=args.chunk_overlap,
+            tokenizer=tokenizer,
+        )
+        docs = chunker.split(middle_json)
 
     for i, doc in enumerate(docs):
         print(f"--- Document {i + 1} ---")
