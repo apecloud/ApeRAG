@@ -1,6 +1,6 @@
 import pytest
-from aperag.flow.models import FlowInstance, InputSourceType, NodeInstance, Edge, InputBinding, GlobalVariable, FieldType
-from aperag.flow.exceptions import ValidationError, CycleError
+from aperag.flow.base.models import FlowInstance, InputSourceType, NodeInstance, Edge, InputBinding, GlobalVariable, FieldType
+from aperag.flow.base.exceptions import ValidationError, CycleError
 
 def test_valid_flow():
     """Test a valid flow configuration"""

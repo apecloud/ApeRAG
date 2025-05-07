@@ -1,5 +1,7 @@
+import logging
+import os
 from django.http import HttpRequest, StreamingHttpResponse
-from aperag.chat.sse.base import APIRequest, MessageProcessor, logger
+from aperag.chat.sse.base import APIRequest, MessageProcessor
 from aperag.chat.sse.openai_consumer import OpenAIFormatter
 from aperag.db.ops import query_bot
 from ninja import Router
@@ -7,8 +9,11 @@ import json
 import uuid
 import asyncio
 from typing import AsyncGenerator
+from aperag.flow.engine import FlowEngine
+from aperag.flow.parser import FlowParser
 from aperag.utils.request import get_user
-from aperag.views.utils import auth_middleware
+
+logger = logging.getLogger(__name__)
 
 router = Router()
 
@@ -63,16 +68,57 @@ async def openai_chat_completions(request: HttpRequest):
                 json.dumps(OpenAIFormatter.format_error("Bot not found")),
                 content_type="application/json"
             )
+
+        collections = await bot.collections()
+        if len(collections) > 0:
+            collection = collections[0]
+        else:
+            raise ValueError("No collection found for bot")
         
         # Initialize message processor
         processor = MessageProcessor(bot)
         formatter = OpenAIFormatter()
+
+        """Test the RAG flow execution"""
+        # Get current directory
+        yaml_path = "/Users/ziang/git/aperag/aperag/flow/examples/rag_flow.yaml"
+        
+        # Load flow configuration
+        flow = FlowParser.load_from_file(yaml_path)
+        
+        # Create execution engine
+        engine = FlowEngine()
+        
+        # Execute flow with initial data
+        initial_data = {
+            "query": api_request.messages[-1]["content"],
+            "bot": bot,
+            "user": api_request.user,
+            "collection": collection,
+            "formatter": formatter,
+            "msg_id": api_request.msg_id
+        }
+        
+        try:
+            result = await engine.execute_flow(flow, initial_data)
+            logger.info("Flow executed successfully!")
+        except Exception as e:
+            logger.exception(e)
+
+        async_generator = None
+        nodes = engine.find_output_nodes(flow)
+        for node in nodes:
+            async_generator = result[node].get("async_generator")
+            if async_generator:
+                break
+        if not async_generator:
+            raise ValueError("No output node found")
         
         # Process message and send response based on stream mode
         if api_request.stream:
             return StreamingHttpResponse(
                 stream_openai_sse_response(
-                    processor.process_message(api_request.messages[-1]["content"], api_request.msg_id),
+                    async_generator(),
                     formatter,
                     api_request.msg_id
                 ),
@@ -81,7 +127,7 @@ async def openai_chat_completions(request: HttpRequest):
         else:
             # Collect all content for non-streaming mode
             full_content = ""
-            async for chunk in processor.process_message(api_request.messages[-1]["content"], api_request.msg_id):
+            async for chunk in async_generator():
                 full_content += chunk
             
             return StreamingHttpResponse(

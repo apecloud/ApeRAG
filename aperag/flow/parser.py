@@ -1,10 +1,10 @@
 import yaml
 from typing import Dict, Any
-from aperag.flow.models import (
+from aperag.flow.base.models import (
     FlowInstance, InputSourceType, NodeInstance, Edge, InputBinding,
     GlobalVariable, FieldType
 )
-from .exceptions import ValidationError
+from .base.exceptions import ValidationError
 
 class FlowParser:
     """Parser for flow configuration in YAML format"""

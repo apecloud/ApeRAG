@@ -1,11 +1,14 @@
+from abc import ABC, abstractmethod
 from collections import deque
 from typing import List, Set, Dict, Any, Optional
 from concurrent.futures import ThreadPoolExecutor, wait
-from aperag.flow.models import FlowInstance, NodeInstance, ExecutionContext, NodeRegistry
-from aperag.flow.exceptions import CycleError, NodeNotFoundError, ValidationError
-from aperag.flow.models import InputSourceType
+from aperag.flow.base.models import FlowInstance, NodeInstance, ExecutionContext, NodeRegistry
+from aperag.flow.base.exceptions import CycleError, ValidationError
+from aperag.flow.base.models import InputSourceType, NODE_RUNNER_REGISTRY
 import logging
 import uuid
+from .runners import *
+import asyncio
 
 # Configure logging
 logging.basicConfig(
@@ -21,7 +24,7 @@ class FlowEngine:
         self.context = ExecutionContext()
         self.execution_id = None
 
-    def execute_flow(self, flow: FlowInstance, initial_data: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def execute_flow(self, flow: FlowInstance, initial_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """Execute a flow instance with optional initial data
         
         Args:
@@ -38,20 +41,19 @@ class FlowEngine:
         # Initialize global variables
         if initial_data:
             for var_name, var_value in initial_data.items():
-                if var_name in flow.global_variables:
-                    self.context.set_global(var_name, var_value)
+                self.context.set_global(var_name, var_value)
 
         # Build dependency graph and perform topological sort
         sorted_nodes = self._topological_sort(flow)
         
         # Execute nodes
         for node_group in self._find_parallel_groups(flow, sorted_nodes):
-            self._execute_node_group(flow, node_group)
+            await self._execute_node_group(flow, node_group)
             
         logger.info(f"Completed flow execution {self.execution_id}", extra={'execution_id': self.execution_id})
         return self.context.variables
 
-    def execute_node(self, node: NodeInstance, inputs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def execute_node(self, node: NodeInstance, inputs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Execute a single node with manual input binding
         
         Args:
@@ -80,7 +82,7 @@ class FlowEngine:
                     temp_context.variables[node.id][input_binding.name] = ref_value
         
         # Execute the node
-        self._execute_node(node, temp_context)
+        await self._execute_node(node, temp_context)
         
         # Return the node's outputs
         return temp_context.variables.get(node.id, {})
@@ -161,36 +163,32 @@ class FlowEngine:
                         in_degree[edge.target] -= 1
         return groups
 
-    def _execute_node_group(self, flow: FlowInstance, node_group: Set[str]):
+    async def _execute_node_group(self, flow: FlowInstance, node_group: Set[str]):
         """Execute a group of nodes (possibly in parallel)"""
         logger.info(f"Executing node group: {node_group}", extra={'execution_id': self.execution_id})
         if len(node_group) == 1:
-            # Serial execution
             node_id = next(iter(node_group))
             node = flow.nodes[node_id]
-            self._execute_node(node)
+            await self._execute_node(node)
         else:
-            # Parallel execution
-            with ThreadPoolExecutor() as executor:
-                futures = []
-                for node_id in node_group:
-                    node = flow.nodes[node_id]
-                    futures.append(executor.submit(self._execute_node, node))
-                wait(futures)
+            tasks = []
+            for node_id in node_group:
+                node = flow.nodes[node_id]
+                tasks.append(self._execute_node(node))
+            await asyncio.gather(*tasks)
 
-    def _bind_node_inputs(self, node: NodeInstance, ctx: ExecutionContext) -> dict:
+    def _bind_node_inputs(self, node: NodeInstance) -> dict:
         """Bind input variables for a node according to its input schema and bindings
         
         Args:
             node: The node instance
-            ctx: The execution context to use
         Returns:
             Dictionary of input values for the node
         Raises:
             ValidationError: If required input is missing
         """
         node_def = NodeRegistry.get(node.type)
-        inputs = {}
+        inputs = self.context.global_variables.copy()
         for field in node_def.input_schema:
             value = None
             for input_binding in node.inputs:
@@ -198,92 +196,49 @@ class FlowEngine:
                     if input_binding.source_type == InputSourceType.STATIC:
                         value = input_binding.value
                     elif input_binding.source_type == InputSourceType.GLOBAL:
-                        value = ctx.get_global(input_binding.global_var)
+                        value = self.context.get_global(input_binding.global_var)
                     elif input_binding.source_type == InputSourceType.DYNAMIC:
-                        value = ctx.get_input(input_binding.ref_node, input_binding.ref_field)
+                        value = self.context.get_input(input_binding.ref_node, input_binding.ref_field)
                     break
             if value is None:
-                value = ctx.get_input(node.id, field.name)
+                value = self.context.get_input(node.id, field.name)
             if field.required and value is None:
                 raise ValidationError(f"Required input '{field.name}' not provided for node {node.id}")
             inputs[field.name] = value
         return inputs
 
-    def _execute_node(self, node: NodeInstance, context: Optional[ExecutionContext] = None) -> None:
+    async def _execute_node(self, node: NodeInstance) -> None:
         """Execute a single node using the provided context
         
         Args:
             node: The node instance to execute
-            context: Optional execution context to use. If not provided, uses the engine's context
         """
-        # Use provided context or default to engine's context
-        ctx = context or self.context
         # Bind inputs using the helper method
-        inputs = self._bind_node_inputs(node, ctx)
+        inputs = self._bind_node_inputs(node)
         # Get node definition
         node_def = NodeRegistry.get(node.type)
         # Execute node logic
-        outputs = self._execute_node_logic(node, inputs)
+        outputs = await self._execute_node_logic(node, inputs)
         # Validate outputs
         for field in node_def.output_schema:
             if field.required and field.name not in outputs:
                 raise ValidationError(f"Required output '{field.name}' not produced by node {node.id}")
         # Store outputs in context
-        ctx.set_output(node.id, outputs)
+        self.context.set_output(node.id, outputs)
 
-    def _execute_node_logic(self, node: NodeInstance, inputs: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute the actual logic of a node
-        
-        Args:
-            node: The node instance to execute
-            inputs: Dictionary of input values
-            
-        Returns:
-            Dictionary of output values
-        """
-        logger.info(f"Executing node logic: {node.type}, inputs: {inputs}", extra={'execution_id': self.execution_id})
-        # Get node definition
-        node_def = NodeRegistry.get(node.type)
-        
-        # Execute based on node type
-        if node.type == "vector_search":
-            # For now, just echo the inputs
-            return {"docs": [{"content": "doc1", "score": 0.8}, {"content": "doc2", "score": 0.7}]}
-        elif node.type == "keyword_search":
-            # For now, just echo the inputs
-            return {"docs": [{"content": "doc1", "score": 0.7}, {"content": "doc3", "score": 0.6}]}
-        elif node.type == "merge":
-            # Merge docs from both sources
-            docs_a = inputs["docs_a"]
-            docs_b = inputs["docs_b"]
-            merge_strategy = node.config.get("merge_strategy", "union")
-            deduplicate = node.config.get("deduplicate", True)
-            
-            if merge_strategy == "union":
-                # Simple union of docs
-                all_docs = docs_a + docs_b
-                if deduplicate:
-                    # Remove duplicates based on content
-                    seen = set()
-                    unique_docs = []
-                    for doc in all_docs:
-                        if doc["content"] not in seen:
-                            seen.add(doc["content"])
-                            unique_docs.append(doc)
-                    return {"merged_docs": unique_docs}
-                return {"merged_docs": all_docs}
-            else:
-                raise ValidationError(f"Unknown merge strategy: {merge_strategy}")
-        elif node.type == "rerank":
-            # Combine and sort docs from both sources
-            docs_a = inputs["docs_a"]
-            docs_b = inputs["docs_b"]
-            all_docs = docs_a + docs_b
-            # Sort by score
-            ranked_docs = sorted(all_docs, key=lambda x: x["score"], reverse=True)
-            return {"ranked_docs": ranked_docs}
-        elif node.type == "llm":
-            # For now, just echo the inputs
-            return {"answer": f"Based on the context: {inputs['context']}"}
-        else:
+    async def _execute_node_logic(self, node: NodeInstance, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        """Dispatch node execution to the registered NodeRunner class"""
+        runner = NODE_RUNNER_REGISTRY.get(node.type)
+        if not runner:
             raise ValidationError(f"Unknown node type: {node.type}")
+        return await runner.run(node, inputs)
+
+    def find_output_nodes(self, flow: FlowInstance) -> List[str]:
+        """Find all output nodes (nodes with in-degree > 0 and out-degree 0) in the flow"""
+        in_degree = {node_id: 0 for node_id in flow.nodes}
+        out_degree = {node_id: 0 for node_id in flow.nodes}
+        for edge in flow.edges:
+            in_degree[edge.target] += 1
+            out_degree[edge.source] += 1
+        output_nodes = [node_id for node_id in flow.nodes if in_degree[node_id] > 0 and out_degree[node_id] == 0]
+        return output_nodes

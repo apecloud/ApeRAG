@@ -1,9 +1,10 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, List, Set, Any, Optional
 from datetime import datetime
 from enum import Enum
 from collections import deque
-from aperag.flow.exceptions import ValidationError, CycleError
+from aperag.flow.base.exceptions import ValidationError, CycleError
 
 class NodeType(str, Enum):
     """Node types in the flow"""
@@ -66,8 +67,14 @@ class NodeRegistry:
         """List all registered node types"""
         return list(cls._nodes.values())
 
-# Register predefined nodes
-NodeRegistry.register(NodeDefinition(
+NODE_DEFINITION_REGISTRY = {}
+
+def register_node_definition(node_def: NodeDefinition):
+    NodeRegistry.register(node_def)
+    NODE_DEFINITION_REGISTRY[node_def.id] = node_def
+    return node_def
+
+register_node_definition(NodeDefinition(
     id="vector_search",
     name="Vector Search",
     type=NodeType.PROCESS,
@@ -79,25 +86,24 @@ NodeRegistry.register(NodeDefinition(
         FieldDefinition("query", FieldType.STRING)
     ],
     output_schema=[
-        FieldDefinition("docs", FieldType.ARRAY)
+        FieldDefinition("vector_search_docs", FieldType.ARRAY)
     ]
 ))
 
-NodeRegistry.register(NodeDefinition(
+register_node_definition(NodeDefinition(
     id="keyword_search",
     name="Keyword Search",
     type=NodeType.PROCESS,
-    config_schema=[
-    ],
+    config_schema=[],
     input_schema=[
         FieldDefinition("query", FieldType.STRING)
     ],
     output_schema=[
-        FieldDefinition("docs", FieldType.ARRAY)
+        FieldDefinition("keyword_search_docs", FieldType.ARRAY)
     ]
 ))
 
-NodeRegistry.register(NodeDefinition(
+register_node_definition(NodeDefinition(
     id="merge",
     name="Merge Results",
     type=NodeType.PROCESS,
@@ -106,15 +112,15 @@ NodeRegistry.register(NodeDefinition(
         FieldDefinition("deduplicate", FieldType.BOOLEAN, default=True)
     ],
     input_schema=[
-        FieldDefinition("docs_a", FieldType.ARRAY),
-        FieldDefinition("docs_b", FieldType.ARRAY)
+        FieldDefinition("vector_search_docs", FieldType.ARRAY),
+        FieldDefinition("keyword_search_docs", FieldType.ARRAY)
     ],
     output_schema=[
-        FieldDefinition("merged_docs", FieldType.ARRAY)
+        FieldDefinition("docs", FieldType.ARRAY)
     ]
 ))
 
-NodeRegistry.register(NodeDefinition(
+register_node_definition(NodeDefinition(
     id="rerank",
     name="Rerank",
     type=NodeType.PROCESS,
@@ -122,15 +128,14 @@ NodeRegistry.register(NodeDefinition(
         FieldDefinition("model", FieldType.STRING, default="gpt-4o"),
     ],
     input_schema=[
-        FieldDefinition("docs_a", FieldType.ARRAY),
-        FieldDefinition("docs_b", FieldType.ARRAY)
+        FieldDefinition("docs", FieldType.ARRAY)
     ],
     output_schema=[
-        FieldDefinition("ranked_docs", FieldType.ARRAY)
+        FieldDefinition("docs", FieldType.ARRAY)
     ]
 ))
 
-NodeRegistry.register(NodeDefinition(
+register_node_definition(NodeDefinition(
     id="llm",
     name="LLM",
     type=NodeType.PROCESS,
@@ -141,7 +146,7 @@ NodeRegistry.register(NodeDefinition(
     ],
     input_schema=[
         FieldDefinition("query", FieldType.STRING),
-        FieldDefinition("context", FieldType.ARRAY)
+        FieldDefinition("docs", FieldType.ARRAY)
     ],
     output_schema=[
         FieldDefinition("answer", FieldType.STRING)
@@ -281,3 +286,17 @@ class ExecutionContext:
     def set_global(self, name: str, value: Any) -> None:
         """Set global variable value"""
         self.global_variables[name] = value
+
+NODE_RUNNER_REGISTRY = {}
+
+class BaseNodeRunner(ABC):
+
+    @abstractmethod
+    async def run(self, node: NodeInstance, inputs: Dict[str, Any]):
+        raise NotImplementedError
+
+def register_node_runner(node_type: str):
+    def decorator(cls):
+        NODE_RUNNER_REGISTRY[node_type] = cls()
+        return cls
+    return decorator

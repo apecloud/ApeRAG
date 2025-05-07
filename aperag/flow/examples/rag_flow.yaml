@@ -27,7 +27,6 @@ nodes:
     type: "keyword_search"
     name: "Keyword Search"
     config:
-      keywords: ["important", "key", "relevant"]
     inputs:
       - name: "query"
         source_type: "global"
@@ -41,14 +40,14 @@ nodes:
       merge_strategy: "union"
       deduplicate: true
     inputs:
-      - name: "docs_a"
+      - name: "vector_search_docs"
         source_type: "dynamic"
         ref_node: "vector_search"
-        ref_field: "docs"
-      - name: "docs_b"
+        ref_field: "vector_search_docs"
+      - name: "keyword_search_docs"
         source_type: "dynamic"
         ref_node: "keyword_search"
-        ref_field: "docs"
+        ref_field: "keyword_search_docs"
 
   # 重排序节点
   - id: "rerank"
@@ -59,13 +58,9 @@ nodes:
       weight_vector: 0.7
       weight_keyword: 0.3
     inputs:
-      - name: "docs_a"
+      - name: "docs"
         source_type: "dynamic"
         ref_node: "merge"
-        ref_field: "merged_docs"
-      - name: "docs_b"
-        source_type: "dynamic"
-        ref_node: "keyword_search"
         ref_field: "docs"
 
   # LLM 生成节点
@@ -83,32 +78,32 @@ nodes:
       - name: "context"
         source_type: "dynamic"
         ref_node: "rerank"
-        ref_field: "ranked_docs"
+        ref_field: "docs"
 
 # 边定义（节点间的连接关系）
 edges:
   # 向量召回到合并
   - source: "vector_search"
     target: "merge"
-    source_field: "docs"
-    target_field: "docs_a"
+    source_field: "vector_search_docs"
+    target_field: "vector_search_docs"
 
   # 关键词召回到合并
   - source: "keyword_search"
     target: "merge"
-    source_field: "docs"
-    target_field: "docs_b"
+    source_field: "keyword_search_docs"
+    target_field: "keyword_search_docs"
 
   # 合并到重排序
   - source: "merge"
     target: "rerank"
-    source_field: "merged_docs"
-    target_field: "docs_a"
+    source_field: "docs"
+    target_field: "docs"
 
   # 重排序到 LLM
   - source: "rerank"
     target: "llm"
-    source_field: "ranked_docs"
+    source_field: "docs"
     target_field: "context"
 
 # 执行配置

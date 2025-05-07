@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-
 from ninja import Router
 
 from aperag.db.ops import query_config, query_first_user_exists
