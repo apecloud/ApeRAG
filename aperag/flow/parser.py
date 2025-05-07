@@ -94,9 +94,7 @@ class FlowParser:
         """Parse an edge definition"""
         return Edge(
             source=edge_data["source"],
-            target=edge_data["target"],
-            source_field=edge_data.get("source_field"),
-            target_field=edge_data.get("target_field")
+            target=edge_data["target"]
         )
 
     @staticmethod

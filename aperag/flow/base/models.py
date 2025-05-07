@@ -167,8 +167,6 @@ class Edge:
     """Connection between nodes in the flow"""
     source: str
     target: str
-    source_field: Optional[str] = None
-    target_field: Optional[str] = None
 
 @dataclass
 class GlobalVariable:
@@ -191,59 +189,64 @@ class FlowInstance:
 
     def validate(self) -> None:
         """Validate the flow configuration"""
-        # 1. Validate node dependencies (check for cycles)
         sorted_nodes = self._topological_sort()
-        
-        # 2. Validate each node's input dependencies and var schema
         for node_id in sorted_nodes:
             node = self.nodes[node_id]
             node_def = NodeRegistry.get(node.type)
-            schema_fields = {f.name: f for f in node_def.vars_schema}
-            # Check each var in node.vars
-            for var in node.vars:
-                if var.name not in schema_fields:
-                    raise ValidationError(f"Unknown var '{var.name}' for node type {node.type}")
-                expected_type = schema_fields[var.name].type
-                # Static value type check
-                if var.source_type == InputSourceType.STATIC:
-                    if var.value is None and schema_fields[var.name].required:
-                        raise ValidationError(f"Static var '{var.name}' is required for node {node.id}")
-                    # Type check for static value
-                    if var.value is not None:
-                        if expected_type == FieldType.STRING and not isinstance(var.value, str):
-                            raise ValidationError(f"Var '{var.name}' should be string for node {node.id}")
-                        if expected_type == FieldType.INTEGER and not isinstance(var.value, int):
-                            raise ValidationError(f"Var '{var.name}' should be integer for node {node.id}")
-                        if expected_type == FieldType.FLOAT and not isinstance(var.value, float):
-                            raise ValidationError(f"Var '{var.name}' should be float for node {node.id}")
-                        if expected_type == FieldType.BOOLEAN and not isinstance(var.value, bool):
-                            raise ValidationError(f"Var '{var.name}' should be boolean for node {node.id}")
-                        if expected_type == FieldType.ARRAY and not isinstance(var.value, list):
-                            raise ValidationError(f"Var '{var.name}' should be array for node {node.id}")
-                        if expected_type == FieldType.OBJECT and not isinstance(var.value, dict):
-                            raise ValidationError(f"Var '{var.name}' should be object for node {node.id}")
-                elif var.source_type == InputSourceType.GLOBAL:
-                    if not var.global_var:
-                        raise ValidationError(f"Global var '{var.name}' must specify global_var for node {node.id}")
-                    if var.global_var not in self.global_variables:
-                        raise ValidationError(f"Node {node.id} references non-existent global variable: {var.global_var}")
-                elif var.source_type == InputSourceType.DYNAMIC:
-                    if not var.ref_node or not var.ref_field:
-                        raise ValidationError(f"Dynamic var '{var.name}' must specify ref_node and ref_field for node {node.id}")
-                    if var.ref_node not in self.nodes:
-                        raise ValidationError(f"Node {node.id} references non-existent node: {var.ref_node}")
-                    current_index = sorted_nodes.index(node_id)
-                    preceding_nodes = set(sorted_nodes[:current_index])
-                    if var.ref_node not in preceding_nodes:
-                        raise ValidationError(f"Node {node.id} references non-preceding node: {var.ref_node}")
-                    ref_node = self.nodes[var.ref_node]
-                    ref_node_def = NodeRegistry.get(ref_node.type)
-                    if not any(field.name == var.ref_field for field in ref_node_def.output_schema):
-                        raise ValidationError(f"Node {node.id} references non-existent field {var.ref_field} in node {var.ref_node}")
-            # Check required vars in schema
-            for field in node_def.vars_schema:
-                if field.required and not any(var.name == field.name for var in node.vars):
-                    raise ValidationError(f"Missing required var '{field.name}' for node {node.id}")
+            self._validate_node_vars_schema(node, node_def, sorted_nodes)
+
+    def _validate_node_vars_schema(self, node, node_def, sorted_nodes):
+        schema_fields = {f.name: f for f in node_def.vars_schema}
+        for var in node.vars:
+            if var.name not in schema_fields:
+                raise ValidationError(f"Unknown var '{var.name}' for node type {node.type}")
+            expected_type = schema_fields[var.name].type
+            if var.source_type == InputSourceType.STATIC:
+                self._validate_node_var_static(var, expected_type, node, schema_fields)
+            elif var.source_type == InputSourceType.GLOBAL:
+                self._validate_node_var_global(var, node)
+            elif var.source_type == InputSourceType.DYNAMIC:
+                self._validate_node_var_dynamic(var, node, sorted_nodes)
+        for field in node_def.vars_schema:
+            if field.required and not any(var.name == field.name for var in node.vars):
+                raise ValidationError(f"Missing required var '{field.name}' for node {node.id}")
+
+    def _validate_node_var_static(self, var, expected_type, node, schema_fields):
+        if var.value is None and schema_fields[var.name].required:
+            raise ValidationError(f"Static var '{var.name}' is required for node {node.id}")
+        if var.value is not None:
+            if expected_type == FieldType.STRING and not isinstance(var.value, str):
+                raise ValidationError(f"Var '{var.name}' should be string for node {node.id}")
+            if expected_type == FieldType.INTEGER and not isinstance(var.value, int):
+                raise ValidationError(f"Var '{var.name}' should be integer for node {node.id}")
+            if expected_type == FieldType.FLOAT and not isinstance(var.value, float):
+                raise ValidationError(f"Var '{var.name}' should be float for node {node.id}")
+            if expected_type == FieldType.BOOLEAN and not isinstance(var.value, bool):
+                raise ValidationError(f"Var '{var.name}' should be boolean for node {node.id}")
+            if expected_type == FieldType.ARRAY and not isinstance(var.value, list):
+                raise ValidationError(f"Var '{var.name}' should be array for node {node.id}")
+            if expected_type == FieldType.OBJECT and not isinstance(var.value, dict):
+                raise ValidationError(f"Var '{var.name}' should be object for node {node.id}")
+
+    def _validate_node_var_global(self, var, node):
+        if not var.global_var:
+            raise ValidationError(f"Global var '{var.name}' must specify global_var for node {node.id}")
+        if var.global_var not in self.global_variables:
+            raise ValidationError(f"Node {node.id} references non-existent global variable: {var.global_var}")
+
+    def _validate_node_var_dynamic(self, var, node, sorted_nodes):
+        if not var.ref_node or not var.ref_field:
+            raise ValidationError(f"Dynamic var '{var.name}' must specify ref_node and ref_field for node {node.id}")
+        if var.ref_node not in self.nodes:
+            raise ValidationError(f"Node {node.id} references non-existent node: {var.ref_node}")
+        current_index = sorted_nodes.index(node.id)
+        preceding_nodes = set(sorted_nodes[:current_index])
+        if var.ref_node not in preceding_nodes:
+            raise ValidationError(f"Node {node.id} references non-preceding node: {var.ref_node}")
+        ref_node = self.nodes[var.ref_node]
+        ref_node_def = NodeRegistry.get(ref_node.type)
+        if not any(field.name == var.ref_field for field in ref_node_def.output_schema):
+            raise ValidationError(f"Node {node.id} references non-existent field {var.ref_field} in node {var.ref_node}")
 
     def _topological_sort(self) -> List[str]:
         """Perform topological sort to detect cycles"""

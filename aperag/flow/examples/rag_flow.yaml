@@ -11,7 +11,7 @@ global_variables:
 # Node definitions
 nodes:
   # Vector search node
-  - id: "vector_search-1715078400"
+  - id: "vector_search-3f8e2c1a"
     type: "vector_search"
     name: "Vector Search"
     vars:
@@ -24,7 +24,7 @@ nodes:
         global_var: "query"
 
   # Keyword search node
-  - id: "keyword_search-1715078400"
+  - id: "keyword_search-7b2d4e9f"
     type: "keyword_search"
     name: "Keyword Search"
     vars:
@@ -33,7 +33,7 @@ nodes:
         global_var: "query"
 
   # Merge node
-  - id: "merge-1715078400"
+  - id: "merge-1a9c5d8e"
     type: "merge"
     name: "Merge Results"
     vars:
@@ -43,15 +43,15 @@ nodes:
         value: true
       - name: "vector_search_docs"
         source_type: "dynamic"
-        ref_node: "vector_search-1715078400"
+        ref_node: "vector_search-3f8e2c1a"
         ref_field: "vector_search_docs"
       - name: "keyword_search_docs"
         source_type: "dynamic"
-        ref_node: "keyword_search-1715078400"
+        ref_node: "keyword_search-7b2d4e9f"
         ref_field: "keyword_search_docs"
 
   # Rerank node
-  - id: "rerank-1715078400"
+  - id: "rerank-5c7e1b2a"
     type: "rerank"
     name: "Rerank Results"
     vars:
@@ -59,11 +59,11 @@ nodes:
         value: "bge-reranker"
       - name: "docs"
         source_type: "dynamic"
-        ref_node: "merge-1715078400"
+        ref_node: "merge-1a9c5d8e"
         ref_field: "docs"
 
   # LLM generation node
-  - id: "llm-1715078400"
+  - id: "llm-8e4f2a7b"
     type: "llm"
     name: "LLM Generation"
     vars:
@@ -78,34 +78,23 @@ nodes:
         global_var: "query"
       - name: "docs"
         source_type: "dynamic"
-        ref_node: "rerank-1715078400"
+        ref_node: "rerank-5c7e1b2a"
         ref_field: "docs"
 
 # Edge definitions (connections between nodes)
 edges:
   # Vector search to merge
-  - source: "vector_search-1715078400"
-    target: "merge-1715078400"
-    source_field: "vector_search_docs"
-    target_field: "vector_search_docs"
-
+  - source: "vector_search-3f8e2c1a"
+    target: "merge-1a9c5d8e"
   # Keyword search to merge
-  - source: "keyword_search-1715078400"
-    target: "merge-1715078400"
-    source_field: "keyword_search_docs"
-    target_field: "keyword_search_docs"
-
+  - source: "keyword_search-7b2d4e9f"
+    target: "merge-1a9c5d8e"
   # Merge to rerank
-  - source: "merge-1715078400"
-    target: "rerank-1715078400"
-    source_field: "docs"
-    target_field: "docs"
-
+  - source: "merge-1a9c5d8e"
+    target: "rerank-5c7e1b2a"
   # Rerank to LLM
-  - source: "rerank-1715078400"
-    target: "llm-1715078400"
-    source_field: "docs"
-    target_field: "context"
+  - source: "rerank-5c7e1b2a"
+    target: "llm-8e4f2a7b"
 
 # Execution configuration
 execution:
