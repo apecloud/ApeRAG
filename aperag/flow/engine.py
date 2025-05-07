@@ -71,15 +71,21 @@ class FlowEngine:
         if inputs:
             temp_context.variables[node.id] = inputs
         else:
-            # Use node's configured input bindings
-            for input_binding in node.inputs:
-                if input_binding.source_type == InputSourceType.STATIC:
-                    temp_context.variables[node.id][input_binding.name] = input_binding.value
-                elif input_binding.source_type == InputSourceType.GLOBAL:
-                    temp_context.variables[node.id][input_binding.name] = self.context.get_global(input_binding.global_var)
-                elif input_binding.source_type == InputSourceType.DYNAMIC:
-                    ref_value = self.context.get_input(input_binding.ref_node, input_binding.ref_field)
-                    temp_context.variables[node.id][input_binding.name] = ref_value
+            # Use node's input bindings (vars)
+            for var in node.vars:
+                if var.source_type == InputSourceType.STATIC:
+                    if node.id not in temp_context.variables:
+                        temp_context.variables[node.id] = {}
+                    temp_context.variables[node.id][var.name] = var.value
+                elif var.source_type == InputSourceType.GLOBAL:
+                    if node.id not in temp_context.variables:
+                        temp_context.variables[node.id] = {}
+                    temp_context.variables[node.id][var.name] = self.context.get_global(var.global_var)
+                elif var.source_type == InputSourceType.DYNAMIC:
+                    ref_value = self.context.get_input(var.ref_node, var.ref_field)
+                    if node.id not in temp_context.variables:
+                        temp_context.variables[node.id] = {}
+                    temp_context.variables[node.id][var.name] = ref_value
         
         # Execute the node
         await self._execute_node(node, temp_context)
@@ -189,16 +195,16 @@ class FlowEngine:
         """
         node_def = NodeRegistry.get(node.type)
         inputs = self.context.global_variables.copy()
-        for field in node_def.input_schema:
+        for field in node_def.vars_schema:
             value = None
-            for input_binding in node.inputs:
-                if input_binding.name == field.name:
-                    if input_binding.source_type == InputSourceType.STATIC:
-                        value = input_binding.value
-                    elif input_binding.source_type == InputSourceType.GLOBAL:
-                        value = self.context.get_global(input_binding.global_var)
-                    elif input_binding.source_type == InputSourceType.DYNAMIC:
-                        value = self.context.get_input(input_binding.ref_node, input_binding.ref_field)
+            for var in node.vars:
+                if var.name == field.name:
+                    if var.source_type == InputSourceType.STATIC:
+                        value = var.value
+                    elif var.source_type == InputSourceType.GLOBAL:
+                        value = self.context.get_global(var.global_var)
+                    elif var.source_type == InputSourceType.DYNAMIC:
+                        value = self.context.get_input(var.ref_node, var.ref_field)
                     break
             if value is None:
                 value = self.context.get_input(node.id, field.name)

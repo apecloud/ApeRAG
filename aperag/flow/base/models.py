@@ -41,8 +41,7 @@ class NodeDefinition:
     id: str
     name: str
     type: NodeType
-    config_schema: List[FieldDefinition]  # Static configuration parameters
-    input_schema: List[FieldDefinition]   # Dynamic input parameters
+    vars_schema: List[FieldDefinition]  # Merged input/config parameter definitions
     output_schema: List[FieldDefinition]
     description: Optional[str] = None
 
@@ -78,11 +77,9 @@ register_node_definition(NodeDefinition(
     id="vector_search",
     name="Vector Search",
     type=NodeType.PROCESS,
-    config_schema=[
+    vars_schema=[
         FieldDefinition("top_k", FieldType.INTEGER, default=5),
-        FieldDefinition("similarity_threshold", FieldType.FLOAT, default=0.7)
-    ],
-    input_schema=[
+        FieldDefinition("similarity_threshold", FieldType.FLOAT, default=0.7),
         FieldDefinition("query", FieldType.STRING)
     ],
     output_schema=[
@@ -94,8 +91,7 @@ register_node_definition(NodeDefinition(
     id="keyword_search",
     name="Keyword Search",
     type=NodeType.PROCESS,
-    config_schema=[],
-    input_schema=[
+    vars_schema=[
         FieldDefinition("query", FieldType.STRING)
     ],
     output_schema=[
@@ -107,11 +103,9 @@ register_node_definition(NodeDefinition(
     id="merge",
     name="Merge Results",
     type=NodeType.PROCESS,
-    config_schema=[
+    vars_schema=[
         FieldDefinition("merge_strategy", FieldType.STRING, default="union"),
-        FieldDefinition("deduplicate", FieldType.BOOLEAN, default=True)
-    ],
-    input_schema=[
+        FieldDefinition("deduplicate", FieldType.BOOLEAN, default=True),
         FieldDefinition("vector_search_docs", FieldType.ARRAY),
         FieldDefinition("keyword_search_docs", FieldType.ARRAY)
     ],
@@ -124,10 +118,8 @@ register_node_definition(NodeDefinition(
     id="rerank",
     name="Rerank",
     type=NodeType.PROCESS,
-    config_schema=[
-        FieldDefinition("model", FieldType.STRING, default="gpt-4o"),
-    ],
-    input_schema=[
+    vars_schema=[
+        FieldDefinition("model", FieldType.STRING, default="bge-reranker"),
         FieldDefinition("docs", FieldType.ARRAY)
     ],
     output_schema=[
@@ -139,12 +131,10 @@ register_node_definition(NodeDefinition(
     id="llm",
     name="LLM",
     type=NodeType.PROCESS,
-    config_schema=[
+    vars_schema=[
         FieldDefinition("model", FieldType.STRING, default="gpt-4o"),
         FieldDefinition("temperature", FieldType.FLOAT, default=0.7),
-        FieldDefinition("max_tokens", FieldType.INTEGER, default=1000)
-    ],
-    input_schema=[
+        FieldDefinition("max_tokens", FieldType.INTEGER, default=1000),
         FieldDefinition("query", FieldType.STRING),
         FieldDefinition("docs", FieldType.ARRAY)
     ],
@@ -168,9 +158,9 @@ class NodeInstance:
     """Instance of a node in the flow"""
     id: str
     type: str  # NodeDefinition.id
-    config: Dict[str, Any] = field(default_factory=dict)
-    inputs: List[InputBinding] = field(default_factory=list)
+    vars: List[InputBinding] = field(default_factory=list)
     depends_on: Set[str] = field(default_factory=set)
+    name: Optional[str] = None
 
 @dataclass
 class Edge:
@@ -204,36 +194,56 @@ class FlowInstance:
         # 1. Validate node dependencies (check for cycles)
         sorted_nodes = self._topological_sort()
         
-        # 2. Validate each node's input dependencies
+        # 2. Validate each node's input dependencies and var schema
         for node_id in sorted_nodes:
             node = self.nodes[node_id]
-            current_index = sorted_nodes.index(node_id)
-            preceding_nodes = set(sorted_nodes[:current_index])
-            
-            for input_binding in node.inputs:
-                if input_binding.source_type == InputSourceType.STATIC:
-                    continue  # Static config doesn't need validation
-                elif input_binding.source_type == InputSourceType.GLOBAL:
-                    # Validate global variable exists
-                    if input_binding.global_var not in self.global_variables:
-                        raise ValidationError(
-                            f"Node {node.id} references non-existent global variable: {input_binding.global_var}")
-                elif input_binding.source_type == InputSourceType.DYNAMIC:
-                    # Validate referenced node exists
-                    if input_binding.ref_node not in self.nodes:
-                        raise ValidationError(
-                            f"Node {node.id} references non-existent node: {input_binding.ref_node}")
-                    # Validate referenced node is a preceding node
-                    if input_binding.ref_node not in preceding_nodes:
-                        raise ValidationError(
-                            f"Node {node.id} references non-preceding node: {input_binding.ref_node}")
-                    # Validate referenced field exists
-                    ref_node = self.nodes[input_binding.ref_node]
+            node_def = NodeRegistry.get(node.type)
+            schema_fields = {f.name: f for f in node_def.vars_schema}
+            # Check each var in node.vars
+            for var in node.vars:
+                if var.name not in schema_fields:
+                    raise ValidationError(f"Unknown var '{var.name}' for node type {node.type}")
+                expected_type = schema_fields[var.name].type
+                # Static value type check
+                if var.source_type == InputSourceType.STATIC:
+                    if var.value is None and schema_fields[var.name].required:
+                        raise ValidationError(f"Static var '{var.name}' is required for node {node.id}")
+                    # Type check for static value
+                    if var.value is not None:
+                        if expected_type == FieldType.STRING and not isinstance(var.value, str):
+                            raise ValidationError(f"Var '{var.name}' should be string for node {node.id}")
+                        if expected_type == FieldType.INTEGER and not isinstance(var.value, int):
+                            raise ValidationError(f"Var '{var.name}' should be integer for node {node.id}")
+                        if expected_type == FieldType.FLOAT and not isinstance(var.value, float):
+                            raise ValidationError(f"Var '{var.name}' should be float for node {node.id}")
+                        if expected_type == FieldType.BOOLEAN and not isinstance(var.value, bool):
+                            raise ValidationError(f"Var '{var.name}' should be boolean for node {node.id}")
+                        if expected_type == FieldType.ARRAY and not isinstance(var.value, list):
+                            raise ValidationError(f"Var '{var.name}' should be array for node {node.id}")
+                        if expected_type == FieldType.OBJECT and not isinstance(var.value, dict):
+                            raise ValidationError(f"Var '{var.name}' should be object for node {node.id}")
+                elif var.source_type == InputSourceType.GLOBAL:
+                    if not var.global_var:
+                        raise ValidationError(f"Global var '{var.name}' must specify global_var for node {node.id}")
+                    if var.global_var not in self.global_variables:
+                        raise ValidationError(f"Node {node.id} references non-existent global variable: {var.global_var}")
+                elif var.source_type == InputSourceType.DYNAMIC:
+                    if not var.ref_node or not var.ref_field:
+                        raise ValidationError(f"Dynamic var '{var.name}' must specify ref_node and ref_field for node {node.id}")
+                    if var.ref_node not in self.nodes:
+                        raise ValidationError(f"Node {node.id} references non-existent node: {var.ref_node}")
+                    current_index = sorted_nodes.index(node_id)
+                    preceding_nodes = set(sorted_nodes[:current_index])
+                    if var.ref_node not in preceding_nodes:
+                        raise ValidationError(f"Node {node.id} references non-preceding node: {var.ref_node}")
+                    ref_node = self.nodes[var.ref_node]
                     ref_node_def = NodeRegistry.get(ref_node.type)
-                    if not any(field.name == input_binding.ref_field for field in ref_node_def.output_schema):
-                        raise ValidationError(
-                            f"Node {node.id} references non-existent field {input_binding.ref_field} "
-                            f"in node {input_binding.ref_node}")
+                    if not any(field.name == var.ref_field for field in ref_node_def.output_schema):
+                        raise ValidationError(f"Node {node.id} references non-existent field {var.ref_field} in node {var.ref_node}")
+            # Check required vars in schema
+            for field in node_def.vars_schema:
+                if field.required and not any(var.name == field.name for var in node.vars):
+                    raise ValidationError(f"Missing required var '{field.name}' for node {node.id}")
 
     def _topological_sort(self) -> List[str]:
         """Perform topological sort to detect cycles"""

@@ -2,117 +2,118 @@ name: "RAG Knowledge Base Flow"
 description: "A typical RAG flow with parallel retrieval and reranking"
 version: "1.0.0"
 
-# 全局变量定义
+# Global variable definitions
 global_variables:
   - name: "query"
     type: "string"
     description: "User's question or query"
 
-# 节点定义
+# Node definitions
 nodes:
-  # 向量召回节点
-  - id: "vector_search"
+  # Vector search node
+  - id: "vector_search-1715078400"
     type: "vector_search"
     name: "Vector Search"
-    config:
-      top_k: 5
-      similarity_threshold: 0.7
-    inputs:
+    vars:
+      - name: "top_k"
+        value: 5
+      - name: "similarity_threshold"
+        value: 0.7
       - name: "query"
         source_type: "global"
         global_var: "query"
 
-  # 关键词召回节点
-  - id: "keyword_search"
+  # Keyword search node
+  - id: "keyword_search-1715078400"
     type: "keyword_search"
     name: "Keyword Search"
-    config:
-    inputs:
+    vars:
       - name: "query"
         source_type: "global"
         global_var: "query"
 
-  # 合并节点
-  - id: "merge"
+  # Merge node
+  - id: "merge-1715078400"
     type: "merge"
     name: "Merge Results"
-    config:
-      merge_strategy: "union"
-      deduplicate: true
-    inputs:
+    vars:
+      - name: "merge_strategy"
+        value: "union"
+      - name: "deduplicate"
+        value: true
       - name: "vector_search_docs"
         source_type: "dynamic"
-        ref_node: "vector_search"
+        ref_node: "vector_search-1715078400"
         ref_field: "vector_search_docs"
       - name: "keyword_search_docs"
         source_type: "dynamic"
-        ref_node: "keyword_search"
+        ref_node: "keyword_search-1715078400"
         ref_field: "keyword_search_docs"
 
-  # 重排序节点
-  - id: "rerank"
+  # Rerank node
+  - id: "rerank-1715078400"
     type: "rerank"
     name: "Rerank Results"
-    config:
-      method: "reciprocal_rank"
-      weight_vector: 0.7
-      weight_keyword: 0.3
-    inputs:
+    vars:
+      - name: "model"
+        value: "bge-reranker"
       - name: "docs"
         source_type: "dynamic"
-        ref_node: "merge"
+        ref_node: "merge-1715078400"
         ref_field: "docs"
 
-  # LLM 生成节点
-  - id: "llm"
+  # LLM generation node
+  - id: "llm-1715078400"
     type: "llm"
     name: "LLM Generation"
-    config:
-      model: "gpt-3.5-turbo"
-      temperature: 0.7
-      max_tokens: 1000
-    inputs:
+    vars:
+      - name: "model"
+        value: "gpt-3.5-turbo"
+      - name: "temperature"
+        value: 0.7
+      - name: "max_tokens"
+        value: 1000
       - name: "query"
         source_type: "global"
         global_var: "query"
-      - name: "context"
+      - name: "docs"
         source_type: "dynamic"
-        ref_node: "rerank"
+        ref_node: "rerank-1715078400"
         ref_field: "docs"
 
-# 边定义（节点间的连接关系）
+# Edge definitions (connections between nodes)
 edges:
-  # 向量召回到合并
-  - source: "vector_search"
-    target: "merge"
+  # Vector search to merge
+  - source: "vector_search-1715078400"
+    target: "merge-1715078400"
     source_field: "vector_search_docs"
     target_field: "vector_search_docs"
 
-  # 关键词召回到合并
-  - source: "keyword_search"
-    target: "merge"
+  # Keyword search to merge
+  - source: "keyword_search-1715078400"
+    target: "merge-1715078400"
     source_field: "keyword_search_docs"
     target_field: "keyword_search_docs"
 
-  # 合并到重排序
-  - source: "merge"
-    target: "rerank"
+  # Merge to rerank
+  - source: "merge-1715078400"
+    target: "rerank-1715078400"
     source_field: "docs"
     target_field: "docs"
 
-  # 重排序到 LLM
-  - source: "rerank"
-    target: "llm"
+  # Rerank to LLM
+  - source: "rerank-1715078400"
+    target: "llm-1715078400"
     source_field: "docs"
     target_field: "context"
 
-# 执行配置
+# Execution configuration
 execution:
-  timeout: 300  # 整体超时时间（秒）
+  timeout: 300  # Overall timeout (seconds)
   retry:
     max_attempts: 3
     delay: 5
   error_handling:
-    strategy: "stop_on_error"  # 或 "continue_on_error"
+    strategy: "stop_on_error"  # or "continue_on_error"
     notification:
-      email: ["admin@example.com"] 
+      email: ["admin@example.com"]

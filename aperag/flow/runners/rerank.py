@@ -19,4 +19,4 @@ class RerankNodeRunner(BaseNodeRunner):
         result = []
         if docs:
             result = await rerank(query, docs)
-        return {"docs": [doc.dict() for doc in result]} 
+        return {"docs": result} 

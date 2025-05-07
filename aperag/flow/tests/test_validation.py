@@ -18,12 +18,14 @@ def test_valid_flow():
         "vector_search": NodeInstance(
             id="vector_search",
             type="vector_search",
-            inputs=[
+            vars=[
                 InputBinding(
+                    name="query",
                     source_type=InputSourceType.GLOBAL,
                     global_var="query"
                 ),
                 InputBinding(
+                    name="top_k",
                     source_type=InputSourceType.STATIC,
                     value=5
                 )
@@ -32,8 +34,9 @@ def test_valid_flow():
         "keyword_search": NodeInstance(
             id="keyword_search",
             type="keyword_search",
-            inputs=[
+            vars=[
                 InputBinding(
+                    name="query",
                     source_type=InputSourceType.GLOBAL,
                     global_var="query"
                 )
@@ -42,13 +45,15 @@ def test_valid_flow():
         "rerank": NodeInstance(
             id="rerank",
             type="rerank",
-            inputs=[
+            vars=[
                 InputBinding(
+                    name="docs",
                     source_type=InputSourceType.DYNAMIC,
                     ref_node="vector_search",
                     ref_field="docs"
                 ),
                 InputBinding(
+                    name="docs",
                     source_type=InputSourceType.DYNAMIC,
                     ref_node="keyword_search",
                     ref_field="docs"
@@ -105,7 +110,7 @@ def test_invalid_global_variable():
         "node1": NodeInstance(
             id="node1",
             type="type1",
-            inputs=[
+            vars=[
                 InputBinding(
                     source_type=InputSourceType.GLOBAL,
                     global_var="non_existent_var"
@@ -131,7 +136,7 @@ def test_invalid_node_reference():
         "node1": NodeInstance(
             id="node1",
             type="type1",
-            inputs=[
+            vars=[
                 InputBinding(
                     source_type=InputSourceType.DYNAMIC,
                     ref_node="non_existent_node",
@@ -158,7 +163,7 @@ def test_invalid_field_reference():
         "node1": NodeInstance(
             id="node1",
             type="type1",
-            inputs=[
+            vars=[
                 InputBinding(
                     source_type=InputSourceType.DYNAMIC,
                     ref_node="node2",
@@ -193,7 +198,7 @@ def test_non_preceding_node_reference():
         "node1": NodeInstance(
             id="node1",
             type="type1",
-            inputs=[
+            vars=[
                 InputBinding(
                     source_type=InputSourceType.DYNAMIC,
                     ref_node="node2",

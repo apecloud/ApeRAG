@@ -64,34 +64,29 @@ class FlowParser:
     @staticmethod
     def _parse_node(node_data: Dict[str, Any]) -> NodeInstance:
         """Parse a node definition"""
-        # Parse input bindings
-        inputs = []
-        depends_on = set()  # Track node dependencies
-        
-        for input_data in node_data.get("inputs", []):
+        vars = []
+        depends_on = set()
+        input_list = node_data["vars"]
+        for input_data in input_list:
             input_binding = InputBinding(
                 name=input_data["name"],
-                source_type=input_data["source_type"],
+                source_type=InputSourceType(input_data.get("source_type", "static")),
                 value=input_data.get("value"),
                 ref_node=input_data.get("ref_node"),
                 ref_field=input_data.get("ref_field"),
                 global_var=input_data.get("global_var")
             )
-            inputs.append(input_binding)
-            
-            # Add dependency if this is a dynamic input binding
+            vars.append(input_binding)
             if input_binding.source_type == InputSourceType.DYNAMIC and input_binding.ref_node:
                 depends_on.add(input_binding.ref_node)
-
-        # Create node instance
         node = NodeInstance(
             id=node_data["id"],
             type=node_data["type"],
-            config=node_data.get("config", {}),
-            inputs=inputs,
+            vars=vars,
             depends_on=depends_on
         )
-        
+        if "name" in node_data:
+            node.name = node_data["name"]
         return node
 
     @staticmethod
