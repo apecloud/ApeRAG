@@ -2,6 +2,17 @@ name: "RAG Knowledge Base Flow"
 description: "A typical RAG flow with parallel retrieval and reranking"
 version: "1.0.0"
 
+# Execution configuration
+execution:
+  timeout: 300  # Overall timeout (seconds)
+  retry:
+    max_attempts: 3
+    delay: 5
+  error_handling:
+    strategy: "stop_on_error"  # or "continue_on_error"
+    notification:
+      email: ["admin@example.com"]
+
 # Global variable definitions
 global_variables:
   - name: "query"
@@ -95,14 +106,3 @@ edges:
   # Rerank to LLM
   - source: "rerank-5c7e1b2a"
     target: "llm-8e4f2a7b"
-
-# Execution configuration
-execution:
-  timeout: 300  # Overall timeout (seconds)
-  retry:
-    max_attempts: 3
-    delay: 5
-  error_handling:
-    strategy: "stop_on_error"  # or "continue_on_error"
-    notification:
-      email: ["admin@example.com"]

@@ -54,6 +54,9 @@ async def bot_consumer_router(scope, receive, send):
         elif settings.CHAT_CONSUMER_IMPLEMENTATION == "fake":
             from aperag.chat.websocket.fake_consumer import FakeConsumer
             return await FakeConsumer.as_asgi()(scope, receive, send)
+        elif settings.CHAT_CONSUMER_IMPLEMENTATION == "flow":
+            from aperag.chat.websocket.flow_consumer import FlowConsumer
+            return await FlowConsumer.as_asgi()(scope, receive, send)
         else:
             from aperag.chat.websocket.embedding_consumer import EmbeddingConsumer
             return await EmbeddingConsumer.as_asgi()(scope, receive, send)

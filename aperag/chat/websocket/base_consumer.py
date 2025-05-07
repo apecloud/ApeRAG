@@ -56,6 +56,7 @@ class BaseConsumer(AsyncWebsocketConsumer):
         self.vector_size = 0
         self.history = None
         self.pipeline = None
+        self.free_tier = False
 
     async def connect(self):
         self.user = self.scope[KEY_USER_ID]
@@ -160,6 +161,6 @@ class BaseConsumer(AsyncWebsocketConsumer):
                 await manage_quota_usage(self.user, self.conversation_limit)
             # send stop message
             await self.send(text_data=stop_response(message_id, references, related_question,
-                                                    self.related_question_prompt, self.pipeline.memory_count, urls=urls))
+                                                    self.related_question_prompt, self.pipeline.memory_count if self.pipeline else 0, urls=urls))
 
 

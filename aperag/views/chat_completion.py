@@ -104,6 +104,7 @@ async def openai_chat_completions(request: HttpRequest):
             logger.info("Flow executed successfully!")
         except Exception as e:
             logger.exception(e)
+            raise e
 
         async_generator = None
         nodes = engine.find_output_nodes(flow)

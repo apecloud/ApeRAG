@@ -25,7 +25,8 @@ class LLMNodeRunner(BaseNodeRunner):
             raise Exception("Model service provider not found")
         prompt_template = llm_config.get("prompt_template", "{context}\n{query}")
         if docs:
-            context = get_packed_answer(docs, 1000)
+            # FIXME: This is a hack to ensure the context is not too long
+            context = get_packed_answer(docs, 100000)
         else:
             context = ""
         prompt = prompt_template.format(query=inputs["query"], context=context)
