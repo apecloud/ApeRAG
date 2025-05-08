@@ -97,7 +97,7 @@ async def openai_chat_completions(request: HttpRequest):
             "user": api_request.user,
             "collection": collection,
             "formatter": formatter,
-            "msg_id": api_request.msg_id
+            "message_id": api_request.msg_id
         }
         
         try:
