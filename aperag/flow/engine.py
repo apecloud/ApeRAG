@@ -1,7 +1,5 @@
-from abc import ABC, abstractmethod
 from collections import deque
 from typing import List, Set, Dict, Any, Optional
-from concurrent.futures import ThreadPoolExecutor, wait
 from aperag.flow.base.models import FlowInstance, NodeInstance, ExecutionContext, NodeRegistry
 from aperag.flow.base.exceptions import CycleError, ValidationError
 from aperag.flow.base.models import InputSourceType, NODE_RUNNER_REGISTRY
@@ -17,6 +15,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# FlowEngine is responsible for executing a FlowInstance (a flow definition with nodes and edges).
+# Each FlowEngine instance maintains its own execution context (self.context) and execution_id.
+# Usage notes:
+# - Do NOT reuse the same FlowEngine instance for multiple or concurrent flow executions.
+#   Each execution should use a new FlowEngine instance to avoid context and execution_id conflicts.
+# - The context stores all global variables and node outputs for the current execution.
+# - The execution_id is a unique identifier for the current execution, mainly for logging and tracing.
+# - Reusing the same FlowEngine instance for multiple executions will result in data corruption or unexpected behavior.
 class FlowEngine:
     """Engine for executing flow instances"""
     
@@ -206,8 +212,6 @@ class FlowEngine:
                     elif var.source_type == InputSourceType.DYNAMIC:
                         value = self.context.get_input(var.ref_node, var.ref_field)
                     break
-            if value is None:
-                value = self.context.get_input(node.id, field.name)
             if field.required and value is None:
                 raise ValidationError(f"Required input '{field.name}' not provided for node {node.id}")
             inputs[field.name] = value
@@ -221,11 +225,12 @@ class FlowEngine:
         """
         # Bind inputs using the helper method
         inputs = self._bind_node_inputs(node)
-        # Get node definition
-        node_def = NodeRegistry.get(node.type)
+
         # Execute node logic
         outputs = await self._execute_node_logic(node, inputs)
+
         # Validate outputs
+        node_def = NodeRegistry.get(node.type)
         for field in node_def.output_schema:
             if field.required and field.name not in outputs:
                 raise ValidationError(f"Required output '{field.name}' not produced by node {node.id}")

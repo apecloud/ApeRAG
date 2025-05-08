@@ -38,10 +38,8 @@ class FieldDefinition:
 @dataclass
 class NodeDefinition:
     """Definition of a node type"""
-    id: str
-    name: str
-    type: NodeType
-    vars_schema: List[FieldDefinition]  # Merged input/config parameter definitions
+    type: str  # e.g. "vector_search"
+    vars_schema: List[FieldDefinition]
     output_schema: List[FieldDefinition]
     description: Optional[str] = None
 
@@ -52,14 +50,14 @@ class NodeRegistry:
     @classmethod
     def register(cls, node_def: NodeDefinition) -> None:
         """Register a new node type"""
-        cls._nodes[node_def.id] = node_def
+        cls._nodes[node_def.type] = node_def
 
     @classmethod
-    def get(cls, node_id: str) -> NodeDefinition:
-        """Get a node type definition by ID"""
-        if node_id not in cls._nodes:
-            raise KeyError(f"Node definition not found: {node_id}")
-        return cls._nodes[node_id]
+    def get(cls, node_type: str) -> NodeDefinition:
+        """Get a node type definition by type (string)"""
+        if node_type not in cls._nodes:
+            raise KeyError(f"Node definition not found: {node_type}")
+        return cls._nodes[node_type]
 
     @classmethod
     def list_nodes(cls) -> List[NodeDefinition]:
@@ -70,13 +68,11 @@ NODE_DEFINITION_REGISTRY = {}
 
 def register_node_definition(node_def: NodeDefinition):
     NodeRegistry.register(node_def)
-    NODE_DEFINITION_REGISTRY[node_def.id] = node_def
+    NODE_DEFINITION_REGISTRY[node_def.type] = node_def
     return node_def
 
 register_node_definition(NodeDefinition(
-    id="vector_search",
-    name="Vector Search",
-    type=NodeType.PROCESS,
+    type="vector_search",
     vars_schema=[
         FieldDefinition("top_k", FieldType.INTEGER, default=5),
         FieldDefinition("similarity_threshold", FieldType.FLOAT, default=0.7),
@@ -88,9 +84,7 @@ register_node_definition(NodeDefinition(
 ))
 
 register_node_definition(NodeDefinition(
-    id="keyword_search",
-    name="Keyword Search",
-    type=NodeType.PROCESS,
+    type="keyword_search",
     vars_schema=[
         FieldDefinition("query", FieldType.STRING)
     ],
@@ -100,9 +94,7 @@ register_node_definition(NodeDefinition(
 ))
 
 register_node_definition(NodeDefinition(
-    id="merge",
-    name="Merge Results",
-    type=NodeType.PROCESS,
+    type="merge",
     vars_schema=[
         FieldDefinition("merge_strategy", FieldType.STRING, default="union"),
         FieldDefinition("deduplicate", FieldType.BOOLEAN, default=True),
@@ -115,9 +107,7 @@ register_node_definition(NodeDefinition(
 ))
 
 register_node_definition(NodeDefinition(
-    id="rerank",
-    name="Rerank",
-    type=NodeType.PROCESS,
+    type="rerank",
     vars_schema=[
         FieldDefinition("model", FieldType.STRING, default="bge-reranker"),
         FieldDefinition("docs", FieldType.ARRAY)
@@ -128,9 +118,7 @@ register_node_definition(NodeDefinition(
 ))
 
 register_node_definition(NodeDefinition(
-    id="llm",
-    name="LLM",
-    type=NodeType.PROCESS,
+    type="llm",
     vars_schema=[
         FieldDefinition("model", FieldType.STRING, default="gpt-4o"),
         FieldDefinition("temperature", FieldType.FLOAT, default=0.7),
@@ -157,7 +145,7 @@ class InputBinding:
 class NodeInstance:
     """Instance of a node in the flow"""
     id: str
-    type: str  # NodeDefinition.id
+    type: str  # NodeDefinition.type
     vars: List[InputBinding] = field(default_factory=list)
     depends_on: Set[str] = field(default_factory=set)
     name: Optional[str] = None
@@ -195,7 +183,7 @@ class FlowInstance:
             node_def = NodeRegistry.get(node.type)
             self._validate_node_vars_schema(node, node_def, sorted_nodes)
 
-    def _validate_node_vars_schema(self, node, node_def, sorted_nodes):
+    def _validate_node_vars_schema(self, node: NodeInstance, node_def: NodeDefinition, sorted_nodes: List[str]):
         schema_fields = {f.name: f for f in node_def.vars_schema}
         for var in node.vars:
             if var.name not in schema_fields:
@@ -209,9 +197,9 @@ class FlowInstance:
                 self._validate_node_var_dynamic(var, node, sorted_nodes)
         for field in node_def.vars_schema:
             if field.required and not any(var.name == field.name for var in node.vars):
-                raise ValidationError(f"Missing required var '{field.name}' for node {node.id}")
+                raise ValidationError(f"Missing required var '{field.name}' for node {node.type}")
 
-    def _validate_node_var_static(self, var, expected_type, node, schema_fields):
+    def _validate_node_var_static(self, var: InputBinding, expected_type: FieldType, node: NodeInstance, schema_fields: Dict[str, FieldDefinition]):
         if var.value is None and schema_fields[var.name].required:
             raise ValidationError(f"Static var '{var.name}' is required for node {node.id}")
         if var.value is not None:
@@ -228,13 +216,13 @@ class FlowInstance:
             if expected_type == FieldType.OBJECT and not isinstance(var.value, dict):
                 raise ValidationError(f"Var '{var.name}' should be object for node {node.id}")
 
-    def _validate_node_var_global(self, var, node):
+    def _validate_node_var_global(self, var: InputBinding, node: NodeInstance):
         if not var.global_var:
             raise ValidationError(f"Global var '{var.name}' must specify global_var for node {node.id}")
         if var.global_var not in self.global_variables:
             raise ValidationError(f"Node {node.id} references non-existent global variable: {var.global_var}")
 
-    def _validate_node_var_dynamic(self, var, node, sorted_nodes):
+    def _validate_node_var_dynamic(self, var: InputBinding, node: NodeInstance, sorted_nodes: List[str]):
         if not var.ref_node or not var.ref_field:
             raise ValidationError(f"Dynamic var '{var.name}' must specify ref_node and ref_field for node {node.id}")
         if var.ref_node not in self.nodes:

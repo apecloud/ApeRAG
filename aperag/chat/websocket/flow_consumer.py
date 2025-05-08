@@ -28,17 +28,14 @@ class FlowConsumer(BaseConsumer):
         await super().connect()
         self.collection = (await self.bot.collections())[0]
         self.collection_id = self.collection.id
-        from django.conf import settings
 
-        yaml_path = os.path.join(settings.BASE_DIR, 'aperag/flow/examples/rag_flow.yaml')
-        
         # Load flow configuration
+        from django.conf import settings
+        yaml_path = os.path.join(settings.BASE_DIR, 'aperag/flow/examples/rag_flow.yaml')
         self.flow = FlowParser.load_from_file(yaml_path)
         
-        # Create execution engine
-        self.engine = FlowEngine()
-
     async def predict(self, query, **kwargs):
+        engine = FlowEngine()
         initial_data = {
             "query": query,
             "bot": self.bot,
@@ -48,7 +45,7 @@ class FlowConsumer(BaseConsumer):
             "message_id": kwargs.get("message_id")
         }
         try:
-            result = await self.engine.execute_flow(self.flow, initial_data)
+            result = await engine.execute_flow(self.flow, initial_data)
             logger.info("Flow executed successfully!")
         except Exception as e:
             logger.exception(e)
@@ -58,7 +55,7 @@ class FlowConsumer(BaseConsumer):
             raise ValueError("No output node found")
 
         async_generator = None
-        nodes = self.engine.find_output_nodes(self.flow)
+        nodes = engine.find_output_nodes(self.flow)
         for node in nodes:
             async_generator = result[node].get("async_generator")
             if async_generator:
