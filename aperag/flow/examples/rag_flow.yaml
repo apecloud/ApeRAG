@@ -25,72 +25,77 @@ nodes:
   - id: "vector_search-3f8e2c1a"
     type: "vector_search"
     name: "Vector Search"
-    vars:
-      - name: "top_k"
-        value: 5
-      - name: "similarity_threshold"
-        value: 0.7
-      - name: "query"
-        source_type: "global"
-        global_var: "query"
+    data:
+      vars:
+        - name: "top_k"
+          value: 5
+        - name: "similarity_threshold"
+          value: 0.7
+        - name: "query"
+          source_type: "global"
+          global_var: "query"
 
   # Keyword search node
   - id: "keyword_search-7b2d4e9f"
     type: "keyword_search"
     name: "Keyword Search"
-    vars:
-      - name: "query"
-        source_type: "global"
-        global_var: "query"
+    data:
+      vars:
+        - name: "query"
+          source_type: "global"
+          global_var: "query"
 
   # Merge node
   - id: "merge-1a9c5d8e"
     type: "merge"
     name: "Merge Results"
-    vars:
-      - name: "merge_strategy"
-        value: "union"
-      - name: "deduplicate"
-        value: true
-      - name: "vector_search_docs"
-        source_type: "dynamic"
-        ref_node: "vector_search-3f8e2c1a"
-        ref_field: "vector_search_docs"
-      - name: "keyword_search_docs"
-        source_type: "dynamic"
-        ref_node: "keyword_search-7b2d4e9f"
-        ref_field: "keyword_search_docs"
+    data:
+      vars:
+        - name: "merge_strategy"
+          value: "union"
+        - name: "deduplicate"
+          value: true
+        - name: "vector_search_docs"
+          source_type: "dynamic"
+          ref_node: "vector_search-3f8e2c1a"
+          ref_field: "vector_search_docs"
+        - name: "keyword_search_docs"
+          source_type: "dynamic"
+          ref_node: "keyword_search-7b2d4e9f"
+          ref_field: "keyword_search_docs"
 
   # Rerank node
   - id: "rerank-5c7e1b2a"
     type: "rerank"
     name: "Rerank Results"
-    vars:
-      - name: "model"
-        value: "bge-reranker"
-      - name: "docs"
-        source_type: "dynamic"
-        ref_node: "merge-1a9c5d8e"
-        ref_field: "docs"
+    data:
+      vars:
+        - name: "model"
+          value: "bge-reranker"
+        - name: "docs"
+          source_type: "dynamic"
+          ref_node: "merge-1a9c5d8e"
+          ref_field: "docs"
 
   # LLM generation node
   - id: "llm-8e4f2a7b"
     type: "llm"
     name: "LLM Generation"
-    vars:
-      - name: "model"
-        value: "gpt-3.5-turbo"
-      - name: "temperature"
-        value: 0.7
-      - name: "max_tokens"
-        value: 1000
-      - name: "query"
-        source_type: "global"
-        global_var: "query"
-      - name: "docs"
-        source_type: "dynamic"
-        ref_node: "rerank-5c7e1b2a"
-        ref_field: "docs"
+    data:
+      vars:
+        - name: "model"
+          value: "gpt-3.5-turbo"
+        - name: "temperature"
+          value: 0.7
+        - name: "max_tokens"
+          value: 1000
+        - name: "query"
+          source_type: "global"
+          global_var: "query"
+        - name: "docs"
+          source_type: "dynamic"
+          ref_node: "rerank-5c7e1b2a"
+          ref_field: "docs"
 
 # Edge definitions (connections between nodes)
 edges:

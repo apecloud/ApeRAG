@@ -66,7 +66,7 @@ class FlowParser:
         """Parse a node definition"""
         vars = []
         depends_on = set()
-        input_list = node_data["vars"]
+        input_list = node_data["data"]["vars"]
         for input_data in input_list:
             input_binding = InputBinding(
                 name=input_data["name"],
