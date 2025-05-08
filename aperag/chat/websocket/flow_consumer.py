@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import logging
+import os
 
 from aperag.flow.engine import FlowEngine
 from aperag.flow.parser import FlowParser
@@ -27,7 +28,9 @@ class FlowConsumer(BaseConsumer):
         await super().connect()
         self.collection = (await self.bot.collections())[0]
         self.collection_id = self.collection.id
-        yaml_path = "/Users/ziang/git/aperag/aperag/flow/examples/rag_flow.yaml"
+        from django.conf import settings
+
+        yaml_path = os.path.join(settings.BASE_DIR, 'aperag/flow/examples/rag_flow.yaml')
         
         # Load flow configuration
         self.flow = FlowParser.load_from_file(yaml_path)

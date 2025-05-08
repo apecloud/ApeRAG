@@ -12,6 +12,7 @@ from typing import AsyncGenerator
 from aperag.flow.engine import FlowEngine
 from aperag.flow.parser import FlowParser
 from aperag.utils.request import get_user
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +82,7 @@ async def openai_chat_completions(request: HttpRequest):
 
         """Test the RAG flow execution"""
         # Get current directory
-        yaml_path = "/Users/ziang/git/aperag/aperag/flow/examples/rag_flow.yaml"
+        yaml_path = os.path.join(settings.BASE_DIR, 'aperag/flow/examples/rag_flow.yaml')
         
         # Load flow configuration
         flow = FlowParser.load_from_file(yaml_path)
