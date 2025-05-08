@@ -6,10 +6,12 @@ from litellm import BaseModel
 
 from langchain.schema import AIMessage, HumanMessage
 from aperag.chat.history.base import BaseChatMessageHistory
+from aperag.db.models import Bot
 from aperag.db.ops import query_msp_dict
 from aperag.flow.base.models import BaseNodeRunner, register_node_runner, NodeInstance
 from aperag.llm.base import Predictor
 from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES
+from aperag.query.query import DocumentWithScore
 from aperag.utils.utils import now_unix_milliseconds
 
 class Message(BaseModel):
@@ -71,9 +73,12 @@ async def add_ai_message(history: BaseChatMessageHistory, message, message_id, r
 @register_node_runner("llm")
 class LLMNodeRunner(BaseNodeRunner):
     async def run(self, node: NodeInstance, inputs: Dict[str, Any]):
-        bot = inputs["bot"]
-        docs = inputs["docs"]
+        bot: Bot = inputs["bot"]
+        query: str = inputs["query"]
+        message_id: str = inputs["message_id"]
+        docs: List[DocumentWithScore] = inputs.get("docs", [])
         history: BaseChatMessageHistory = inputs.get("history")
+
         bot_config = json.loads(bot.config)
         model_service_provider = bot_config.get("model_service_provider")
         model_name = bot_config.get("model_name")
@@ -100,7 +105,7 @@ class LLMNodeRunner(BaseNodeRunner):
                     "metadata": doc.metadata,
                     "score": doc.score
                 })
-        prompt = prompt_template.format(query=inputs["query"], context=context)
+        prompt = prompt_template.format(query=query, context=context)
         async def async_generator():
             response = ""
             async for chunk in predictor.agenerate_stream([], prompt, False):
@@ -109,6 +114,6 @@ class LLMNodeRunner(BaseNodeRunner):
             if references:
                 yield DOC_QA_REFERENCES + json.dumps(references)
             if history:
-                await add_human_message(history, inputs["query"], inputs["message_id"])
-                await add_ai_message(history, inputs["query"], inputs["message_id"], response, references, [])
+                await add_human_message(history, query, message_id)
+                await add_ai_message(history, query, message_id, response, references, [])
         return {"async_generator": async_generator} 
