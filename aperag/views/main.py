@@ -16,31 +16,32 @@ import datetime
 import json
 import logging
 import os
-import uuid
 from http import HTTPStatus
 from typing import AsyncGenerator, List, Optional
+import uuid
 from urllib.parse import parse_qsl
 
+from django.http import HttpRequest, StreamingHttpResponse
+import yaml
 from asgiref.sync import sync_to_async
 from celery import chain, group
 from celery.result import GroupResult
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
-from django.http import HttpRequest, StreamingHttpResponse
 from django.shortcuts import render
 from django.utils import timezone
 from ninja import File, Router, Schema
 from ninja.files import UploadedFile
 
 import aperag.chat.message
+from aperag.chat.sse.base import ChatRequest, MessageProcessor, logger
+from aperag.chat.sse.frontend_consumer import FrontendFormatter
+from aperag.db.models import Chat, SearchTestHistory
 import aperag.views.models
 from aperag.apps import QuotaType
 from aperag.chat.history.redis import RedisChatMessageHistory
-from aperag.chat.sse.base import ChatRequest, MessageProcessor, logger
-from aperag.chat.sse.frontend_consumer import FrontendFormatter
 from aperag.chat.utils import get_async_redis_client
 from aperag.db import models as db_models
-from aperag.db.models import Chat
 from aperag.db.ops import (
     build_pq,
     query_bot,
@@ -66,18 +67,21 @@ from aperag.db.ops import (
     query_msp,
 )
 from aperag.graph.lightrag_holder import reload_lightrag_holder, delete_lightrag_holder
+from aperag.llm.base import Predictor
 from aperag.llm.prompts import (
+    DEFAULT_CHINESE_PROMPT_TEMPLATE_V3,
+    DEFAULT_MODEL_MEMOTY_PROMPT_TEMPLATES,
     MULTI_ROLE_EN_PROMPT_TEMPLATES,
     MULTI_ROLE_ZH_PROMPT_TEMPLATES,
 )
 from aperag.readers.base_readers import DEFAULT_FILE_READER_CLS
-from aperag.schema.utils import parseCollectionConfig, dumpCollectionConfig
 from aperag.source.base import get_source
 from aperag.tasks.collection import delete_collection_task, init_collection_task
 from aperag.tasks.crawl_web import crawl_domain
 from aperag.tasks.index import (
     add_index_for_local_document,
     generate_questions,
+    message_feedback,
     remove_index,
     update_collection_status,
     update_index_for_document,
@@ -97,10 +101,45 @@ from aperag.views.utils import (
 )
 from config import settings
 from config.celery import app
+from aperag.flow.engine import FlowEngine
+from aperag.flow.base.models import FlowInstance, NodeInstance, Edge, InputBinding, InputSourceType
 
 logger = logging.getLogger(__name__)
 
 router = Router()
+
+
+@router.get("/models")
+async def list_models(request) -> view_models.ModelList:
+    models = []
+    user = get_user(request)
+
+    supported_msp_dict = {
+        provider_data["name"]: view_models.SupportedModelServiceProvider(**provider_data)
+        for provider_data in settings.SUPPORTED_MODEL_SERVICE_PROVIDERS
+    }
+
+    msp_list = await query_msp_list(user)
+
+    for msp in msp_list:
+        if msp.name in supported_msp_dict:
+            supported_msp = supported_msp_dict[msp.name]
+            if supported_msp.completion:
+                for model_spec in supported_msp.completion:
+                    if model_spec.model:
+                        models.append(view_models.Model(
+                            model_service_provider=msp.name,
+                            value=model_spec.model,
+                            label=model_spec.model,
+                            enabled=True,
+                            memory=True,
+                            prompt_template=DEFAULT_CHINESE_PROMPT_TEMPLATE_V3,
+                            context_window=7500,
+                            temperature=0.01,
+                            similarity_score_threshold=0.5,
+                            similarity_topk=3
+                        ))
+    return success(view_models.ModelList(items=models))
 
 
 @router.get("/prompt-templates")
@@ -126,7 +165,7 @@ async def list_prompt_templates(request) -> view_models.PromptTemplateList:
 async def sync_immediately(request, collection_id):
     user = get_user(request)
     collection = await query_collection(user, collection_id)
-    source = get_source(parseCollectionConfig(collection.config))
+    source = get_source(json.loads(collection.config))
     if not source.sync_enabled():
         return fail(HTTPStatus.BAD_REQUEST, "source type not supports sync")
 
@@ -183,7 +222,7 @@ async def cancel_sync(request, collection_id, collection_sync_id):
     else:
         logger.warning(f"no index task group id in sync history {collection_sync_id}")
 
-    sync_history.status = db_models.Collection.SyncStatus.CANCELED
+    sync_history.status = db_models.CollectionSyncStatus.CANCELED
     await sync_history.asave()
     return success({})
 
@@ -222,21 +261,20 @@ async def get_sync_history(request, collection_id, sync_history_id):
 @router.post("/collections")
 async def create_collection(request, collection: view_models.CollectionCreate) -> view_models.Collection:
     user = get_user(request)
-    collection_config = collection.config
+    config = json.loads(collection.config)
     if collection.type == db_models.Collection.Type.DOCUMENT:
-        is_validate, error_msg = validate_source_connect_config(collection_config)
+        is_validate, error_msg = validate_source_connect_config(config)
         if not is_validate:
             return fail(HTTPStatus.BAD_REQUEST, error_msg)
 
-    if collection_config.source == "tencent":
+    if config.get("source") == "tencent":
         redis_client = get_async_redis_client()
         if await redis_client.exists("tencent_code_" + user):
             code = await redis_client.get("tencent_code_" + user)
             redirect_uri = await redis_client.get("tencent_redirect_uri_" + user)
-            collection_config.code = code.decode()
-            collection_config.redirect_uri = redirect_uri
-            raise NotImplementedError
-            collection.config = dumpCollectionConfig(collection_config)
+            config["code"] = code.decode()
+            config["redirect_uri"] = redirect_uri
+            collection.config = json.dumps(config)
         else:
             return fail(HTTPStatus.BAD_REQUEST, "用户未进行授权或授权已过期，请重新操作")
 
@@ -257,9 +295,9 @@ async def create_collection(request, collection: view_models.CollectionCreate) -
     )
 
     if collection.config is not None:
-        instance.config = dumpCollectionConfig(collection_config)
+        instance.config = collection.config
     await instance.asave()
-    if collection_config.enable_knowledge_graph or False:
+    if config.get("enable_knowledge_graph", True):
         await reload_lightrag_holder(instance)  # LightRAG init might be slow, so we reload it once we update the collection
 
     if instance.type == db_models.Collection.Type.DOCUMENT:
@@ -273,7 +311,7 @@ async def create_collection(request, collection: view_models.CollectionCreate) -
         title=instance.title,
         description=instance.description,
         type=instance.type,
-        config=parseCollectionConfig(instance.config),
+        config=instance.config,
         created=instance.gmt_created.isoformat(),
         updated=instance.gmt_updated.isoformat(),
     ))
@@ -291,7 +329,7 @@ async def list_collections(request) -> view_models.CollectionList:
             description=collection.description,
             status=collection.status,
             type=collection.type,
-            config=parseCollectionConfig(collection.config),
+            config=collection.config,
             created=collection.gmt_created.isoformat(),
             updated=collection.gmt_updated.isoformat(),
         ))
@@ -301,19 +339,19 @@ async def list_collections(request) -> view_models.CollectionList:
 @router.get("/collections/{collection_id}")
 async def get_collection(request, collection_id: str) -> view_models.Collection:
     user = get_user(request)
-    collection = await query_collection(user, collection_id)
-    if collection is None:
+    instance = await query_collection(user, collection_id)
+    if instance is None:
         return fail(HTTPStatus.NOT_FOUND, "Collection not found")
 
     return success(view_models.Collection(
-        id=collection.id,
-        title=collection.title,
-        status=collection.status,
-        description=collection.description,
-        type=collection.type,
-        config=parseCollectionConfig(collection.config),
-        created=collection.gmt_created.isoformat(),
-        updated=collection.gmt_updated.isoformat(),
+        id=instance.id,
+        title=instance.title,
+        status=instance.status,
+        description=instance.description,
+        type=instance.type,
+        config=instance.config,
+        created=instance.gmt_created.isoformat(),
+        updated=instance.gmt_updated.isoformat(),
     ))
 
 
@@ -325,10 +363,10 @@ async def update_collection(request, collection_id: str, collection: view_models
         return fail(HTTPStatus.NOT_FOUND, "Collection not found")
     instance.title = collection.title
     instance.description = collection.description
-    instance.config = dumpCollectionConfig(collection.config)
+    instance.config = collection.config
     await instance.asave()
     await reload_lightrag_holder(instance) # LightRAG init might be slow, so we reload it once we update the collection
-    source = get_source(collection.config)
+    source = get_source(json.loads(collection.config))
     if source.sync_enabled():
         await update_sync_documents_cron_job(instance.id)
 
@@ -337,7 +375,7 @@ async def update_collection(request, collection_id: str, collection: view_models
         title=instance.title,
         description=instance.description,
         type=instance.type,
-        config=parseCollectionConfig(instance.config),
+        config=instance.config,
         status=instance.status,
         created=instance.gmt_created.isoformat(),
         updated=instance.gmt_updated.isoformat(),
@@ -368,7 +406,7 @@ async def delete_collection(request, collection_id: str) -> view_models.Collecti
         title=collection.title,
         description=collection.description,
         type=collection.type,
-        config=parseCollectionConfig(collection.config),
+        config=collection.config,
     ))
 
 @router.post("/collections/{collection_id}/questions")
@@ -999,27 +1037,30 @@ async def delete_bot(request, bot_id: str) -> view_models.Bot:
 
 
 @router.get("/supported_model_service_providers")
-async def list_model_service_providers(request) -> view_models.ModelServiceProviderList:
+async def list_model_service_providers(request) -> view_models.SupportedModelServiceProviderList:
     user = get_user(request)
     response = []
-    for supported_msp in settings.MODEL_CONFIGS:
-        provider = view_models.ModelServiceProvider(
+    for supported_msp in settings.SUPPORTED_MODEL_SERVICE_PROVIDERS:
+        provider = view_models.SupportedModelServiceProvider(
             name=supported_msp["name"],
             dialect=supported_msp["dialect"],
             label=supported_msp["label"],
             allow_custom_base_url=supported_msp["allow_custom_base_url"],
             base_url=supported_msp["base_url"],
+            embedding=supported_msp["embedding"],
+            completion=supported_msp["completion"],
+            rerank=supported_msp["rerank"]
         )
         response.append(provider)
-    return success(view_models.ModelServiceProviderList(items=response))
+    return success(view_models.SupportedModelServiceProviderList(items=response))
 
 
 @router.get("/model_service_providers")
 async def list_model_service_providers(request) -> view_models.ModelServiceProviderList:
     user = get_user(request)
 
-    supported_msp_dict = {msp["name"]: view_models.ModelConfig(**msp)
-                          for msp in settings.MODEL_CONFIGS}
+    supported_msp_dict = {msp["name"]: view_models.SupportedModelServiceProvider(**msp)
+                          for msp in settings.SUPPORTED_MODEL_SERVICE_PROVIDERS}
 
     msp_list = await query_msp_list(user)
     logger.info(msp_list)
@@ -1053,8 +1094,8 @@ async def update_model_service_provider(request, provider, mspIn: ModelServicePr
     user = get_user(request)
 
     supported_providers = [
-        view_models.ModelConfig(**item)
-        for item in settings.MODEL_CONFIGS
+        view_models.SupportedModelServiceProvider(**item)
+        for item in settings.SUPPORTED_MODEL_SERVICE_PROVIDERS
     ]
     supported_msp_names = {provider.name for provider in supported_providers if provider.name}
 
@@ -1095,7 +1136,7 @@ async def update_model_service_provider(request, provider, mspIn: ModelServicePr
 async def delete_model_service_provider(request, provider):
     user = get_user(request)
 
-    supported_msp_names = {item["name"] for item in settings.MODEL_CONFIGS}
+    supported_msp_names = {item["name"] for item in settings.SUPPORTED_MODEL_SERVICE_PROVIDERS}
     if provider not in supported_msp_names:
         return fail(HTTPStatus.BAD_REQUEST, f"unsupported model service provider {provider}")
 
@@ -1111,11 +1152,11 @@ async def delete_model_service_provider(request, provider):
 
 
 @router.get("/available_models")
-async def list_available_models(request) -> view_models.ModelConfigList:
+async def list_available_models(request) -> view_models.SupportedModelServiceProviderList:
     user = get_user(request)
 
-    supported_providers = [view_models.ModelConfig(**msp) for msp in
-                           settings.MODEL_CONFIGS]
+    supported_providers = [view_models.SupportedModelServiceProvider(**msp) for msp in
+                           settings.SUPPORTED_MODEL_SERVICE_PROVIDERS]
     supported_msp_dict = {provider.name: provider for provider in supported_providers}
 
     msp_list = await query_msp_list(user)
@@ -1126,7 +1167,7 @@ async def list_available_models(request) -> view_models.ModelConfigList:
         if msp.name in supported_msp_dict:
             available_providers.append(supported_msp_dict[msp.name])
 
-    return success(view_models.ModelConfigList(items=available_providers, pageResult=None).model_dump(exclude_none=True))
+    return success(view_models.SupportedModelServiceProviderList(items=available_providers, pageResult=None))
 
 
 def default_page(request, exception):
@@ -1230,3 +1271,165 @@ async def frontend_chat_completions(request: HttpRequest):
             json.dumps(FrontendFormatter.format_error(str(e))),
             content_type="application/json"
         )
+
+@router.post("/collections/{collection_id}/searchTests")
+async def create_search_test(request, collection_id: str, data: view_models.SearchTestRequest) -> view_models.SearchTestResult:
+    """
+    Search test API, dynamically build flow according to search_type and execute.
+    """
+    user = get_user(request)
+    collection = await query_collection(user, collection_id)
+    if not collection:
+        return fail(404, "Collection not found")
+    # Build nodes and edges according to search_type
+    nodes = {}
+    edges = []
+    query = data.query
+    flow_id = str(uuid.uuid4())
+    if data.search_type == "vector":
+        # Only vector_search node
+        node_id = "vector_search"
+        nodes[node_id] = NodeInstance(
+            id=node_id,
+            type="vector_search",
+            vars=[
+                InputBinding(name="query", source_type=InputSourceType.STATIC, value=query),
+                InputBinding(name="top_k", source_type=InputSourceType.STATIC, value=(data.vector_search.topk if data.vector_search else 5)),
+                InputBinding(name="similarity_threshold", source_type=InputSourceType.STATIC, value=(data.vector_search.similarity if data.vector_search else 0.7)),
+            ]
+        )
+        output_node = node_id
+    elif data.search_type == "fulltext":
+        # Only keyword_search node
+        node_id = "keyword_search"
+        nodes[node_id] = NodeInstance(
+            id=node_id,
+            type="keyword_search",
+            vars=[
+                InputBinding(name="query", source_type=InputSourceType.STATIC, value=query),
+            ]
+        )
+        output_node = node_id
+    elif data.search_type == "hybrid":
+        # vector_search -> merge
+        nodes["vector_search"] = NodeInstance(
+            id="vector_search",
+            type="vector_search",
+            vars=[
+                InputBinding(name="query", source_type=InputSourceType.STATIC, value=query),
+                InputBinding(name="top_k", source_type=InputSourceType.STATIC, value=(data.vector_search.topk if data.vector_search else 5)),
+                InputBinding(name="similarity_threshold", source_type=InputSourceType.STATIC, value=(data.vector_search.similarity if data.vector_search else 0.7)),
+            ]
+        )
+        nodes["keyword_search"] = NodeInstance(
+            id="keyword_search",
+            type="keyword_search",
+            vars=[
+                InputBinding(name="query", source_type=InputSourceType.STATIC, value=query),
+            ]
+        )
+        nodes["merge"] = NodeInstance(
+            id="merge",
+            type="merge",
+            vars=[
+                InputBinding(name="merge_strategy", source_type=InputSourceType.STATIC, value="union"),
+                InputBinding(name="deduplicate", source_type=InputSourceType.STATIC, value=True),
+                InputBinding(name="vector_search_docs", source_type=InputSourceType.DYNAMIC, ref_node="vector_search", ref_field="vector_search_docs"),
+                InputBinding(name="keyword_search_docs", source_type=InputSourceType.DYNAMIC, ref_node="keyword_search", ref_field="keyword_search_docs"),
+            ]
+        )
+        edges = [
+            Edge(source="vector_search", target="merge"),
+            Edge(source="keyword_search", target="merge"),
+        ]
+        output_node = "merge"
+    else:
+        return fail(400, "Invalid search_type")
+
+    flow = FlowInstance(
+        id=flow_id,
+        name=f"search_test_{data.search_type}",
+        nodes=nodes,
+        edges=edges,
+    )
+    engine = FlowEngine()
+    initial_data = {
+        "query": query,
+        "collection": collection
+    }
+    result = await engine.execute_flow(flow, initial_data)
+    if not result:
+        return fail(400, "Failed to execute flow")
+
+    output_nodes = engine.find_output_nodes(flow)
+    if not output_nodes:
+        return fail(400, "No output node found")
+    # Extract docs from output node
+    output_node = output_nodes[0]
+    docs = []
+    if data.search_type == "vector":
+        docs = result.get(output_node, {}).get("vector_search_docs", [])
+    elif data.search_type == "fulltext":
+        docs = result.get(output_node, {}).get("keyword_search_docs", [])
+    elif data.search_type == "hybrid":
+        docs = result.get(output_node, {}).get("docs", [])
+    # Convert docs to SearchTestResult
+    items = []
+    for idx, doc in enumerate(docs):
+        items.append(view_models.SearchTestResultItem(
+            rank=idx+1,
+            score=doc.score,
+            content=doc.text,
+            source=doc.metadata.get("source", "")
+        ))
+    record = await SearchTestHistory.objects.acreate(
+        user=user,
+        query=data.query,
+        search_type=data.search_type,
+        vector_search=data.vector_search.dict() if data.vector_search else None,
+        fulltext_search=data.fulltext_search.dict() if data.fulltext_search else None,
+        items=[item.dict() for item in items]
+    )
+    result = view_models.SearchTestResult(
+        id=record.id,
+        query=record.query,
+        search_type=record.search_type,
+        vector_search=record.vector_search,
+        fulltext_search=record.fulltext_search,
+        items=items,
+        created=record.gmt_created.isoformat(),
+    )
+    return success(result)
+
+
+@router.delete("/collections/{collection_id}/searchTests/{search_test_id}")
+async def delete_search_test(request, collection_id: str, search_test_id: str):
+    user = get_user(request)
+    await SearchTestHistory.objects.filter(user=user, id=search_test_id, gmt_deleted__isnull=True).aupdate(gmt_deleted=timezone.now())
+    return success({})
+
+@router.get("/collections/{collection_id}/searchTests")
+async def list_search_tests(request, collection_id: str) -> view_models.SearchTestResultList:
+    user = get_user(request)
+    qs = SearchTestHistory.objects.filter(user=user, gmt_deleted__isnull=True).order_by("-gmt_created")[:50]
+    resultList = []
+    async for record in qs:
+        items = []
+        for item in record.items:
+            items.append(view_models.SearchTestResultItem(
+                rank=item["rank"],
+                score=item["score"],
+                content=item["content"],
+                source=item["source"],
+            ))
+        result = view_models.SearchTestResult(
+            id=record.id,
+            query=record.query,
+            search_type=record.search_type,
+            vector_search=record.vector_search,
+            fulltext_search=record.fulltext_search,
+            items=items,
+            created=record.gmt_created.isoformat(),
+        )
+        resultList.append(result)
+    return success(view_models.SearchTestResultList(items=resultList))

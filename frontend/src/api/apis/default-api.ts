@@ -96,6 +96,12 @@ import type { QuestionUpdate } from '../models';
 // @ts-ignore
 import type { Register } from '../models';
 // @ts-ignore
+import type { SearchTestRequest } from '../models';
+// @ts-ignore
+import type { SearchTestResult } from '../models';
+// @ts-ignore
+import type { SearchTestResultList } from '../models';
+// @ts-ignore
 import type { User } from '../models';
 // @ts-ignore
 import type { UserList } from '../models';
@@ -1554,6 +1560,130 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
+         * Get the history of search tests
+         * @summary Get search test history
+         * @param {string} collectionId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdSearchTestsGet: async (collectionId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('collectionsCollectionIdSearchTestsGet', 'collectionId', collectionId)
+            const localVarPath = `/collections/{collection_id}/searchTests`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Test search in a collection with different search types
+         * @summary Test search in collection
+         * @param {string} collectionId 
+         * @param {SearchTestRequest} searchTestRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdSearchTestsPost: async (collectionId: string, searchTestRequest: SearchTestRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('collectionsCollectionIdSearchTestsPost', 'collectionId', collectionId)
+            // verify required parameter 'searchTestRequest' is not null or undefined
+            assertParamExists('collectionsCollectionIdSearchTestsPost', 'searchTestRequest', searchTestRequest)
+            const localVarPath = `/collections/{collection_id}/searchTests`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(searchTestRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Delete a search test
+         * @summary Delete a search test
+         * @param {string} collectionId 
+         * @param {string} searchTestId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdSearchTestsSearchTestIdDelete: async (collectionId: string, searchTestId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('collectionsCollectionIdSearchTestsSearchTestIdDelete', 'collectionId', collectionId)
+            // verify required parameter 'searchTestId' is not null or undefined
+            assertParamExists('collectionsCollectionIdSearchTestsSearchTestIdDelete', 'searchTestId', searchTestId)
+            const localVarPath = `/collections/{collection_id}/searchTests/{search_test_id}`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)))
+                .replace(`{${"search_test_id"}}`, encodeURIComponent(String(searchTestId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'DELETE', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Get a list of collections
          * @summary List collections
          * @param {number} [page] 
@@ -2591,6 +2721,47 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Get the history of search tests
+         * @summary Get search test history
+         * @param {string} collectionId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async collectionsCollectionIdSearchTestsGet(collectionId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SearchTestResultList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdSearchTestsGet(collectionId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdSearchTestsGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Test search in a collection with different search types
+         * @summary Test search in collection
+         * @param {string} collectionId 
+         * @param {SearchTestRequest} searchTestRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async collectionsCollectionIdSearchTestsPost(collectionId: string, searchTestRequest: SearchTestRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SearchTestResult>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdSearchTestsPost(collectionId, searchTestRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdSearchTestsPost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Delete a search test
+         * @summary Delete a search test
+         * @param {string} collectionId 
+         * @param {string} searchTestId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async collectionsCollectionIdSearchTestsSearchTestIdDelete(collectionId: string, searchTestId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<void>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdSearchTestsSearchTestIdDelete(collectionId, searchTestId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdSearchTestsSearchTestIdDelete']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Get a list of collections
          * @summary List collections
          * @param {number} [page] 
@@ -3151,6 +3322,36 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.collectionsCollectionIdQuestionsQuestionIdPut(requestParameters.collectionId, requestParameters.questionId, requestParameters.questionUpdate, options).then((request) => request(axios, basePath));
         },
         /**
+         * Get the history of search tests
+         * @summary Get search test history
+         * @param {DefaultApiCollectionsCollectionIdSearchTestsGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdSearchTestsGet(requestParameters: DefaultApiCollectionsCollectionIdSearchTestsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<SearchTestResultList> {
+            return localVarFp.collectionsCollectionIdSearchTestsGet(requestParameters.collectionId, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Test search in a collection with different search types
+         * @summary Test search in collection
+         * @param {DefaultApiCollectionsCollectionIdSearchTestsPostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdSearchTestsPost(requestParameters: DefaultApiCollectionsCollectionIdSearchTestsPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<SearchTestResult> {
+            return localVarFp.collectionsCollectionIdSearchTestsPost(requestParameters.collectionId, requestParameters.searchTestRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Delete a search test
+         * @summary Delete a search test
+         * @param {DefaultApiCollectionsCollectionIdSearchTestsSearchTestIdDeleteRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdSearchTestsSearchTestIdDelete(requestParameters: DefaultApiCollectionsCollectionIdSearchTestsSearchTestIdDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<void> {
+            return localVarFp.collectionsCollectionIdSearchTestsSearchTestIdDelete(requestParameters.collectionId, requestParameters.searchTestId, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Get a list of collections
          * @summary List collections
          * @param {DefaultApiCollectionsGetRequest} requestParameters Request parameters.
@@ -3658,6 +3859,36 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     collectionsCollectionIdQuestionsQuestionIdPut(requestParameters: DefaultApiCollectionsCollectionIdQuestionsQuestionIdPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<Question>;
+
+    /**
+     * Get the history of search tests
+     * @summary Get search test history
+     * @param {DefaultApiCollectionsCollectionIdSearchTestsGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    collectionsCollectionIdSearchTestsGet(requestParameters: DefaultApiCollectionsCollectionIdSearchTestsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<SearchTestResultList>;
+
+    /**
+     * Test search in a collection with different search types
+     * @summary Test search in collection
+     * @param {DefaultApiCollectionsCollectionIdSearchTestsPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    collectionsCollectionIdSearchTestsPost(requestParameters: DefaultApiCollectionsCollectionIdSearchTestsPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<SearchTestResult>;
+
+    /**
+     * Delete a search test
+     * @summary Delete a search test
+     * @param {DefaultApiCollectionsCollectionIdSearchTestsSearchTestIdDeleteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    collectionsCollectionIdSearchTestsSearchTestIdDelete(requestParameters: DefaultApiCollectionsCollectionIdSearchTestsSearchTestIdDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
 
     /**
      * Get a list of collections
@@ -4500,6 +4731,62 @@ export interface DefaultApiCollectionsCollectionIdQuestionsQuestionIdPutRequest 
 }
 
 /**
+ * Request parameters for collectionsCollectionIdSearchTestsGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiCollectionsCollectionIdSearchTestsGetRequest
+ */
+export interface DefaultApiCollectionsCollectionIdSearchTestsGetRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof DefaultApiCollectionsCollectionIdSearchTestsGet
+     */
+    readonly collectionId: string
+}
+
+/**
+ * Request parameters for collectionsCollectionIdSearchTestsPost operation in DefaultApi.
+ * @export
+ * @interface DefaultApiCollectionsCollectionIdSearchTestsPostRequest
+ */
+export interface DefaultApiCollectionsCollectionIdSearchTestsPostRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof DefaultApiCollectionsCollectionIdSearchTestsPost
+     */
+    readonly collectionId: string
+
+    /**
+     * 
+     * @type {SearchTestRequest}
+     * @memberof DefaultApiCollectionsCollectionIdSearchTestsPost
+     */
+    readonly searchTestRequest: SearchTestRequest
+}
+
+/**
+ * Request parameters for collectionsCollectionIdSearchTestsSearchTestIdDelete operation in DefaultApi.
+ * @export
+ * @interface DefaultApiCollectionsCollectionIdSearchTestsSearchTestIdDeleteRequest
+ */
+export interface DefaultApiCollectionsCollectionIdSearchTestsSearchTestIdDeleteRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof DefaultApiCollectionsCollectionIdSearchTestsSearchTestIdDelete
+     */
+    readonly collectionId: string
+
+    /**
+     * 
+     * @type {string}
+     * @memberof DefaultApiCollectionsCollectionIdSearchTestsSearchTestIdDelete
+     */
+    readonly searchTestId: string
+}
+
+/**
  * Request parameters for collectionsGet operation in DefaultApi.
  * @export
  * @interface DefaultApiCollectionsGetRequest
@@ -5048,6 +5335,42 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      */
     public collectionsCollectionIdQuestionsQuestionIdPut(requestParameters: DefaultApiCollectionsCollectionIdQuestionsQuestionIdPutRequest, options?: RawAxiosRequestConfig) {
         return DefaultApiFp(this.configuration).collectionsCollectionIdQuestionsQuestionIdPut(requestParameters.collectionId, requestParameters.questionId, requestParameters.questionUpdate, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Get the history of search tests
+     * @summary Get search test history
+     * @param {DefaultApiCollectionsCollectionIdSearchTestsGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public collectionsCollectionIdSearchTestsGet(requestParameters: DefaultApiCollectionsCollectionIdSearchTestsGetRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).collectionsCollectionIdSearchTestsGet(requestParameters.collectionId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Test search in a collection with different search types
+     * @summary Test search in collection
+     * @param {DefaultApiCollectionsCollectionIdSearchTestsPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public collectionsCollectionIdSearchTestsPost(requestParameters: DefaultApiCollectionsCollectionIdSearchTestsPostRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).collectionsCollectionIdSearchTestsPost(requestParameters.collectionId, requestParameters.searchTestRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Delete a search test
+     * @summary Delete a search test
+     * @param {DefaultApiCollectionsCollectionIdSearchTestsSearchTestIdDeleteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public collectionsCollectionIdSearchTestsSearchTestIdDelete(requestParameters: DefaultApiCollectionsCollectionIdSearchTestsSearchTestIdDeleteRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).collectionsCollectionIdSearchTestsSearchTestIdDelete(requestParameters.collectionId, requestParameters.searchTestId, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

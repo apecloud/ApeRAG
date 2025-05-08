@@ -36,6 +36,10 @@ export const NavbarCollection = () => {
         label: <FormattedMessage id="collection.settings" />,
         key: `/collections/${collectionId}/settings`,
       },
+      {
+        label: 'Search Test',
+        key: `/collections/${collectionId}/search-test`,
+      },
     ],
     [collectionId],
   );

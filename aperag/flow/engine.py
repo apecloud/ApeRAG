@@ -246,10 +246,8 @@ class FlowEngine:
 
     def find_output_nodes(self, flow: FlowInstance) -> List[str]:
         """Find all output nodes (nodes with in-degree > 0 and out-degree 0) in the flow"""
-        in_degree = {node_id: 0 for node_id in flow.nodes}
         out_degree = {node_id: 0 for node_id in flow.nodes}
         for edge in flow.edges:
-            in_degree[edge.target] += 1
             out_degree[edge.source] += 1
-        output_nodes = [node_id for node_id in flow.nodes if in_degree[node_id] > 0 and out_degree[node_id] == 0]
+        output_nodes = [node_id for node_id in flow.nodes if out_degree[node_id] == 0]
         return output_nodes

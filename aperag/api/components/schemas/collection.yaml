@@ -290,3 +290,86 @@ collectionList:
         $ref: '#/collection'
     pageResult:
       $ref: './common.yaml#/pageResult'
+
+vectorSearchParams:
+  type: object
+  properties:
+    topk:
+      type: integer
+      description: Top K results
+    similarity:
+      type: number
+      description: Similarity threshold
+      minimum: 0
+      maximum: 1
+
+fulltextSearchParams:
+  type: object
+  properties:
+    topk:
+      type: integer
+      description: Top K results
+
+
+searchTestRequest:
+  type: object
+  properties:
+    query:
+      type: string
+      description: The user input question
+    search_type:
+      type: string
+      enum: [vector, fulltext, hybrid]
+      description: Search type
+    vector_search:
+      $ref: '#/vectorSearchParams'
+    fulltext_search:
+      $ref: '#/fulltextSearchParams'
+
+searchTestResultItem:
+  type: object
+  properties:
+    rank:
+      type: integer
+      description: Result rank
+    score:
+      type: number
+      description: Result score
+    content:
+      type: string
+      description: Result content
+    source:
+      type: string
+      description: Source document or metadata
+
+searchTestResult:
+  type: object
+  properties:
+    id:
+      type: string
+      description: The id of the search test result
+    query:
+      type: string
+    search_type:
+      type: string
+    vector_search:
+      $ref: '#/vectorSearchParams'
+    fulltext_search:
+      $ref: '#/fulltextSearchParams'
+    items:
+      type: array
+      items:
+        $ref: '#/searchTestResultItem'
+    created:
+      type: string
+      format: date-time
+      description: The creation time of the search test result
+
+searchTestResultList:
+  type: object
+  description: A list of search test results
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/searchTestResult'

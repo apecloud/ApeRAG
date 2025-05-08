@@ -550,3 +550,20 @@ class Invitation(models.Model):
         self.is_used = True
         self.used_at = timezone.now()
         await self.asave()
+
+
+class SearchTestHistory(models.Model):
+    @staticmethod
+    def generate_id():
+        """Generate a random ID for search test history"""
+        return "sth" + random_id()
+
+    id = models.CharField(primary_key=True, default=generate_id.__func__, editable=False, max_length=24)
+    user = models.CharField(max_length=256)
+    query = models.TextField()
+    search_type = models.CharField(max_length=16)
+    vector_search = models.JSONField(null=True, blank=True)
+    fulltext_search = models.JSONField(null=True, blank=True)
+    items = models.JSONField(default=list)
+    gmt_created = models.DateTimeField(auto_now_add=True)
+    gmt_deleted = models.DateTimeField(null=True, blank=True)

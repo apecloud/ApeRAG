@@ -6,12 +6,6 @@ from enum import Enum
 from collections import deque
 from aperag.flow.base.exceptions import ValidationError, CycleError
 
-class NodeType(str, Enum):
-    """Node types in the flow"""
-    INPUT = "input"
-    PROCESS = "process"
-    OUTPUT = "output"
-
 class FieldType(str, Enum):
     """Field types for node inputs and outputs"""
     STRING = "string"

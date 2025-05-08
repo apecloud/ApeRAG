@@ -878,6 +878,83 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
+  /collections/{collection_id}/searchTests:
+    get:
+      summary: Get search test history
+      description: Get the history of search tests
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Search test history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/searchTestResultList'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+    post:
+      summary: Test search in collection
+      description: Test search in a collection with different search types
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/searchTestRequest'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/searchTestResult'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /collections/{collection_id}/searchTests/{search_test_id}:
+    delete:
+      summary: Delete a search test
+      description: Delete a search test
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: search_test_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Search test deleted successfully
+        '401':
+          description: Unauthorized
   /apikeys:
     get:
       summary: Get API keys
@@ -1940,6 +2017,82 @@ components:
       properties:
         content:
           type: string
+    vectorSearchParams:
+      type: object
+      properties:
+        topk:
+          type: integer
+          description: Top K results
+        similarity:
+          type: number
+          description: Similarity threshold
+          minimum: 0
+          maximum: 1
+    fulltextSearchParams:
+      type: object
+      properties:
+        topk:
+          type: integer
+          description: Top K results
+    searchTestResultItem:
+      type: object
+      properties:
+        rank:
+          type: integer
+          description: Result rank
+        score:
+          type: number
+          description: Result score
+        content:
+          type: string
+          description: Result content
+        source:
+          type: string
+          description: Source document or metadata
+    searchTestResult:
+      type: object
+      properties:
+        query:
+          type: string
+        search_type:
+          type: string
+        vector_search:
+          $ref: '#/components/schemas/vectorSearchParams'
+        fulltext_search:
+          $ref: '#/components/schemas/fulltextSearchParams'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/searchTestResultItem'
+        created:
+          type: string
+          format: date-time
+          description: The creation time of the search test result
+    searchTestResultList:
+      type: object
+      description: A list of search test results
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/searchTestResult'
+    searchTestRequest:
+      type: object
+      properties:
+        query:
+          type: string
+          description: The user input question
+        search_type:
+          type: string
+          enum:
+            - vector
+            - fulltext
+            - hybrid
+          description: Search type
+        vector_search:
+          $ref: '#/components/schemas/vectorSearchParams'
+        fulltext_search:
+          $ref: '#/components/schemas/fulltextSearchParams'
     apiKey:
       type: object
       properties:

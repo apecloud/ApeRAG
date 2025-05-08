@@ -53,6 +53,10 @@ paths:
     $ref: './paths/collections.yaml#/questions'
   /collections/{collection_id}/questions/{question_id}:
     $ref: './paths/collections.yaml#/question'
+  /collections/{collection_id}/searchTests:
+    $ref: './paths/collections.yaml#/searchTests'
+  /collections/{collection_id}/searchTests/{search_test_id}:
+    $ref: './paths/collections.yaml#/searchTest'
 
   # apikeys
   /apikeys:
