@@ -12,16 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 import logging
-import uuid
 
-from asgiref.sync import sync_to_async
-
-from aperag.chat.sse.frontend_consumer import FrontendFormatter
 from aperag.flow.engine import FlowEngine
 from aperag.flow.parser import FlowParser
-
 from .base_consumer import BaseConsumer
 
 logger = logging.getLogger(__name__)
@@ -48,7 +42,8 @@ class FlowConsumer(BaseConsumer):
             "bot": self.bot,
             "user": self.user,
             "collection": self.collection,
-            "msg_id": kwargs.get("message_id")
+            "history": self.history,
+            "message_id": kwargs.get("message_id")
         }
         try:
             result = await self.engine.execute_flow(self.flow, initial_data)
