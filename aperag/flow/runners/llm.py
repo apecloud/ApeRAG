@@ -14,6 +14,8 @@ from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES
 from aperag.query.query import DocumentWithScore
 from aperag.utils.utils import now_unix_milliseconds
 
+MAX_CONTEXT_LENGTH = 100000
+
 class Message(BaseModel):
     id: str
     query: Optional[str] = None
@@ -21,14 +23,6 @@ class Message(BaseModel):
     response: Optional[str] = None
     urls: Optional[List[str]] = None
     references: Optional[List[Dict]] = None
-    collection_id: Optional[str] = None
-    embedding_model: Optional[str] = None
-    embedding_size: Optional[int] = None
-    embedding_score_threshold: Optional[float] = None
-    embedding_topk: Optional[int] = None
-    llm_model: Optional[str] = None
-    llm_prompt_template: Optional[str] = None
-    llm_context_window: Optional[int] = None
 
 def new_ai_message(message, message_id, response, references, urls):
     return Message(
@@ -95,9 +89,8 @@ class LLMNodeRunner(BaseNodeRunner):
         context = ""
         references = []
         if docs:
-            max_length = 100000
             for doc in docs:
-                if len(context) + len(doc.text) > max_length:
+                if len(context) + len(doc.text) > MAX_CONTEXT_LENGTH:
                     break
                 context += doc.text
                 references.append({

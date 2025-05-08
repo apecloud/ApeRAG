@@ -36,7 +36,6 @@ class FlowConsumer(BaseConsumer):
         self.engine = FlowEngine()
 
     async def predict(self, query, **kwargs):
-        # Execute flow with initial data
         initial_data = {
             "query": query,
             "bot": self.bot,

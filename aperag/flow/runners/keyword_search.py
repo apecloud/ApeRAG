@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 class KeywordSearchNodeRunner(BaseNodeRunner):
     async def run(self, node: NodeInstance, inputs: Dict[str, Any]):
         query: str = inputs["query"]
-        collection: Collection = inputs.get("collection")
         topk: int = inputs.get("top_k", 5)
+        collection: Collection = inputs.get("collection")
 
         from aperag.pipeline.keyword_extractor import IKExtractor
         from aperag.context.full_text import search_document
