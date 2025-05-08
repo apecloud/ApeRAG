@@ -29,6 +29,7 @@ class FlowConsumer(BaseConsumer):
         self.collection = (await self.bot.collections())[0]
         self.collection_id = self.collection.id
 
+        # FIXME: get flow from the bot config when the frontend is ready
         # Load flow configuration
         from django.conf import settings
         yaml_path = os.path.join(settings.BASE_DIR, 'aperag/flow/examples/rag_flow.yaml')

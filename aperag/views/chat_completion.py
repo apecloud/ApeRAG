@@ -81,7 +81,7 @@ async def openai_chat_completions(request: HttpRequest):
         formatter = OpenAIFormatter()
 
         """Test the RAG flow execution"""
-        # Get current directory
+        # FIXME: get flow from the bot config when the frontend is ready
         yaml_path = os.path.join(settings.BASE_DIR, 'aperag/flow/examples/rag_flow.yaml')
         
         # Load flow configuration
