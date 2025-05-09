@@ -38,7 +38,11 @@ class ObjectStore(ABC):
 
 def get_object_store() -> ObjectStore:
     match settings.OBJECT_STORE_TYPE:
-        case "s3":
-            from aperag.objectstore.s3 import S3
+        case "local":
+            from aperag.objectstore.local import Local, LocalConfig
 
-            return S3(settings.S3_CONFIG)
+            return Local(LocalConfig(**settings.OBJECT_STORE_LOCAL_CONFIG))
+        case "s3":
+            from aperag.objectstore.s3 import S3, S3Config
+
+            return S3(S3Config(**settings.OBJECT_STORE_S3_CONFIG))

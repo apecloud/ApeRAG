@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import logging
 from io import BytesIO
 from typing import IO
@@ -122,7 +121,11 @@ class S3(ObjectStore):
     def delete(self, path: str):
         self._ensure_conn()
         path = self._final_path(path)
-        self.conn.delete_object(Bucket=self.cfg.bucket, Key=path)
+        try:
+            self.conn.delete_object(Bucket=self.cfg.bucket, Key=path)
+        except (self.conn.exceptions.NoSuchKey, self.conn.exceptions.NoSuchBucket):
+            # Ignore
+            return
 
     def delete_objects_by_prefix(self, path_prefix: str):
         self._ensure_conn()

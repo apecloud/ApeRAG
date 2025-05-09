@@ -1,3 +1,17 @@
+# Copyright 2025 ApeCloud, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import io
 import os
 import uuid
@@ -420,3 +434,39 @@ def test_get_object_from_non_existent_bucket(s3_service: S3):
     assert result is None, "get() should return None when the bucket does not exist."
 
     s3_service.cfg.bucket = original_bucket_name
+
+
+def test_delete_non_existent_object(s3_service: S3):
+    non_existent_file = f"this_file_really_does_not_exist_for_deletion_{uuid.uuid4().hex}.txt"
+    # Ensure it doesn't exist
+    assert not s3_service.obj_exists(non_existent_file)
+
+    try:
+        s3_service.delete(non_existent_file)
+    except Exception as e:
+        pytest.fail(f"s3_service.delete() raised an exception for a non-existent object: {e}")
+
+    # Optionally, re-check it still doesn't exist (though delete shouldn't create it)
+    assert not s3_service.obj_exists(non_existent_file)
+
+
+def test_delete_object_from_non_existent_bucket(s3_target_config: S3Config, s3_client_real_or_moto: boto3.client):
+    # Use a bucket name that is highly unlikely to exist
+    non_existent_bucket_name = f"non-existent-bucket-{uuid.uuid4().hex}"
+
+    # Create a new config object for the non-existent bucket
+    temp_config = s3_target_config.model_copy(deep=True)
+    temp_config.bucket = non_existent_bucket_name
+
+    # Create a new S3 service instance with this temporary config
+    # This service instance will use the provided s3_client_real_or_moto if its conn is set,
+    # but it will operate on the non_existent_bucket_name.
+    s3_service_for_non_existent_bucket = S3(temp_config)
+    s3_service_for_non_existent_bucket.conn = s3_client_real_or_moto # Use the same client connection
+
+    try:
+        s3_service_for_non_existent_bucket.delete("some_object_in_non_existent_bucket.txt")
+    except Exception as e:
+        pytest.fail(
+            f"S3.delete() raised an unexpected exception for a non-existent bucket: {type(e).__name__} - {e}"
+        )

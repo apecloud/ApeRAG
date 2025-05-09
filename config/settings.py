@@ -270,19 +270,27 @@ VECTOR_DB_CONTEXT = env.str(
 
 CODE_STORAGE_DIR = env.str("CODE_STORAGE_DIR", default=str(BASE_DIR))
 
-S3_CONFIG = None
-OBJECT_STORE_TYPE = env.str("OBJECT_STORE_TYPE", default="s3")
+OBJECT_STORE_TYPE = env.str("OBJECT_STORE_TYPE", default="local")
+OBJECT_STORE_LOCAL_CONFIG = None
+OBJECT_STORE_S3_CONFIG = None
 match OBJECT_STORE_TYPE:
+    case "local":
+        OBJECT_STORE_LOCAL_CONFIG = {
+            "root_dir": env.str("OBJECT_STORE_LOCAL_ROOT_DIR", default=".objects"),
+        }
     case "s3":
-        from aperag.objectstore.s3 import S3Config
-        S3_CONFIG = S3Config(
-            endpoint=env.str("OBJECT_STORE_S3_ENDPOINT", default="http://127.0.0.1:9000"),
-            access_key=env.str("OBJECT_STORE_S3_ACCESS_KEY", default="minioadmin"),
-            secret_key=env.str("OBJECT_STORE_S3_SECRET_KEY", default="minioadmin"),
-            bucket=env.str("OBJECT_STORE_S3_BUCKET", default="aperag"),
-            region=env.str("OBJECT_STORE_S3_REGION", default=None),
-            prefix_path=env.str("OBJECT_STORE_S3_PREFIX_PATH", default=None),
-            use_path_style=env.bool("OBJECT_STORE_S3_USE_PATH_STYLE", default=True),
+        OBJECT_STORE_S3_CONFIG = {
+            "endpoint": env.str("OBJECT_STORE_S3_ENDPOINT", default="http://127.0.0.1:9000"),
+            "access_key": env.str("OBJECT_STORE_S3_ACCESS_KEY", default="minioadmin"),
+            "secret_key": env.str("OBJECT_STORE_S3_SECRET_KEY", default="minioadmin"),
+            "bucket": env.str("OBJECT_STORE_S3_BUCKET", default="aperag"),
+            "region": env.str("OBJECT_STORE_S3_REGION", default=None),
+            "prefix_path": env.str("OBJECT_STORE_S3_PREFIX_PATH", default=None),
+            "use_path_style": env.bool("OBJECT_STORE_S3_USE_PATH_STYLE", default=True),
+        }
+    case _:
+        raise ValueError(
+            f"Unsupported OBJECT_STORE_TYPE: {OBJECT_STORE_TYPE}. Supported types are: local, s3."
         )
 
 # prometheus
