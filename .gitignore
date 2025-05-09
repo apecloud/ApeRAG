@@ -162,3 +162,4 @@ requirements.txt
 /documents
 magic-pdf.json
 .cursor
+.objects/

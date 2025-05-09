@@ -25,19 +25,20 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.utils import timezone
 from pydantic import BaseModel
 
-from aperag.schema.utils import parseCollectionConfig
-from config.celery import app
-from config.settings import MAX_DOCUMENT_COUNT
-from aperag.db.models import (
-    Collection,
-    CollectionSyncHistory,
-    Document,
-)
+from aperag.db.models import Collection, CollectionSyncHistory, Document
 from aperag.db.ops import query_documents
 from aperag.readers.base_readers import DEFAULT_FILE_READER_CLS
+from aperag.schema.utils import parseCollectionConfig
 from aperag.source.base import get_source
-from aperag.tasks.index import add_index_for_document, remove_index, \
-    update_index_for_document, add_index_for_local_document, update_index_for_local_document
+from aperag.tasks.index import (
+    add_index_for_document,
+    add_index_for_local_document,
+    remove_index,
+    update_index_for_document,
+    update_index_for_local_document,
+)
+from config.celery import app
+from config.settings import MAX_DOCUMENT_COUNT
 
 logger = logging.getLogger(__name__)
 
@@ -112,8 +113,8 @@ def sync_documents(self, **kwargs):
         if src_doc.name in src_docs:
             logger.warning(f"Duplicate document {src_doc.name}")
             continue
-        
-        if not os.path.exists(src_doc.metadata["path"]):
+
+        if is_local_doc(src_doc) and not os.path.exists(src_doc.metadata["path"]):
             continue
 
         src_docs[src_doc.name] = src_doc

@@ -15,9 +15,11 @@ import json
 import logging
 import os
 import tarfile
+import tempfile
 import uuid
 import zipfile
 from pathlib import Path
+from typing import IO
 
 import py7zr
 import rarfile
@@ -27,18 +29,14 @@ from django.core.files.base import ContentFile
 from django.utils import timezone
 
 from aperag.context.full_text import insert_document, remove_document
-from aperag.db.models import (
-    Collection,
-    Document,
-    MessageFeedback,
-    Question,
-)
+from aperag.db.models import Collection, Document, MessageFeedback, Question
 from aperag.embed.base_embedding import get_collection_embedding_service
 from aperag.embed.local_path_embedding import LocalPathEmbedding
 from aperag.embed.qa_embedding import QAEmbedding
 from aperag.embed.question_embedding import QuestionEmbedding, QuestionEmbeddingWithoutDocument
 from aperag.graph import lightrag_holder
 from aperag.graph.lightrag_holder import LightRagHolder
+from aperag.objectstore.base import get_object_store
 from aperag.readers.base_readers import DEFAULT_FILE_READER_CLS, SUPPORTED_COMPRESSED_EXTENSIONS
 from aperag.schema.utils import parseCollectionConfig
 from aperag.source.base import get_source
@@ -101,74 +99,79 @@ class SensitiveInformationFound(Exception):
     """
 
 
+def uncompress(fileobj: IO[bytes], suffix: str, dest: str):
+    if suffix == '.zip':
+        with zipfile.ZipFile(fileobj, 'r') as zf:
+            for name in zf.namelist():
+                try:
+                    name_utf8 = name.encode('cp437').decode('utf-8')
+                except Exception:
+                    name_utf8 = name
+                zf.extract(name, dest)
+                if name_utf8 != name:
+                    os.rename(os.path.join(dest, name), os.path.join(dest, name_utf8))
+    elif suffix in ['.rar', '.r00']:
+        with rarfile.RarFile(fileobj, 'r') as rf:
+            rf.extractall(dest)
+    elif suffix == '.7z':
+        with py7zr.SevenZipFile(fileobj, 'r') as z7:
+            z7.extractall(dest)
+    elif suffix in ['.tar', '.gz', '.xz', '.bz2', '.tar.gz', '.tar.xz', '.tar.bz2', '.tar.7z']:
+        with tarfile.open(fileobj=fileobj, mode='r:*') as tf:
+            tf.extractall(dest)
+    else:
+        raise ValueError(f"Unsupported file format {suffix}")
+
+
 def uncompress_file(document: Document):
-    collection = async_to_sync(document.get_collection)()
-    file = Path(document.file.path)
     MAX_EXTRACTED_SIZE = 5000 * 1024 * 1024  # 5 GB
-    tmp_dir = Path(os.path.join('/tmp/aperag', collection.id, document.name))
-    try:
-        os.makedirs(tmp_dir, exist_ok=True)
-    except Exception as e:
-        raise e
-    extracted_files = []
+    obj_store = get_object_store()
 
-    try:
-        if file.suffix == '.zip':
-            with zipfile.ZipFile(file, 'r') as zf:
-                for name in zf.namelist():
-                    try:
-                        name_utf8 = name.encode('cp437').decode('utf-8')
-                    except Exception:
-                        name_utf8 = name
-                    zf.extract(name, tmp_dir)
-                    if name_utf8 != name:
-                        os.rename(os.path.join(tmp_dir, name), os.path.join(tmp_dir, name_utf8))
-        elif file.suffix in ['.rar', '.r00']:
-            with rarfile.RarFile(file, 'r') as rf:
-                rf.extractall(tmp_dir)
-        elif file.suffix == '.7z':
-            with py7zr.SevenZipFile(file, 'r') as z7:
-                z7.extractall(tmp_dir)
-        elif file.suffix in ['.tar', '.gz', '.xz', '.bz2', '.tar.gz', '.tar.xz', '.tar.bz2', '.tar.7z']:
-            with tarfile.open(file, 'r:*') as tf:
-                tf.extractall(tmp_dir)
-        else:
-            raise ValueError("Unsupported file format")
-    except Exception as e:
-        raise e
-    total_size = 0
-    for root, dirs, file_names in os.walk(tmp_dir):
-        for name in file_names:
-            path = Path(os.path.join(root, name))
-            if path.suffix in SUPPORTED_COMPRESSED_EXTENSIONS:
-                continue
-            if path.suffix not in DEFAULT_FILE_READER_CLS.keys():
-                continue
-            extracted_files.append(path)
-            total_size += path.stat().st_size
+    with tempfile.TemporaryDirectory(prefix=f"aperag_unzip_{document.id}_") as temp_dir_path_str:
+        tmp_dir = Path(temp_dir_path_str)
+        obj = obj_store.get(document.object_path)
+        if obj is None:
+            raise Exception(f"object '{document.object_path}' is not found")
+        suffix = Path(document.object_path).suffix
+        with obj:
+            uncompress(obj, suffix, tmp_dir)
 
-            if total_size > MAX_EXTRACTED_SIZE:
-                raise Exception("Extracted size exceeded limit")
-    for extracted_file_path in extracted_files:
-        try:
+        extracted_files = []
+        total_size = 0
+        for root, dirs, file_names in os.walk(tmp_dir):
+            for name in file_names:
+                path = Path(os.path.join(root, name))
+                if path.suffix in SUPPORTED_COMPRESSED_EXTENSIONS:
+                    continue
+                if path.suffix not in DEFAULT_FILE_READER_CLS.keys():
+                    continue
+                extracted_files.append(path)
+                total_size += path.stat().st_size
+
+                if total_size > MAX_EXTRACTED_SIZE:
+                    raise Exception("Extracted size exceeded limit")
+
+        for extracted_file_path in extracted_files:
             with extracted_file_path.open(mode="rb") as extracted_file:  # open in binary
-                content = extracted_file.read()
                 document_instance = Document(
                     user=document.user,
                     name=document.name + "/" + extracted_file_path.name,
                     status=Document.Status.PENDING,
                     size=extracted_file_path.stat().st_size,
-                    collection_id=collection.id,
-                    file=ContentFile(content, extracted_file_path.name),
+                    collection_id=document.collection_id,
                 )
+                # Upload to object store
+                upload_path = f"{document_instance.object_store_base_path()}/original{suffix}"
+                obj_store.put(upload_path, extracted_file)
+
+                document_instance.object_path = upload_path
                 document_instance.metadata = json.dumps({
-                    "path": str(extracted_file_path),
+                    "object_path": upload_path,
                     "uncompressed": "true"
                 })
                 document_instance.save()
                 add_index_for_local_document.delay(document_instance.id)
-        except Exception as e:
-            raise e
+
     return
 
 
@@ -198,7 +201,7 @@ def add_index_for_document(self, document_id):
     metadata = json.loads(document.metadata)
     collection = async_to_sync(document.get_collection)()
     try:
-        if document.file and Path(document.file.path).suffix in SUPPORTED_COMPRESSED_EXTENSIONS:
+        if document.object_path and Path(document.object_path).suffix in SUPPORTED_COMPRESSED_EXTENSIONS:
             config = parseCollectionConfig(collection.config)
             if config.source != "system":
                 return
@@ -261,8 +264,6 @@ def add_index_for_document(self, document_id):
         document.save()
         if local_doc and source:
             source.cleanup_document(local_doc.path)
-            if "uncompressed" in metadata:
-                source.cleanup_document(metadata["path"])
 
 
 @app.task(base=CustomDeleteDocumentTask, bind=True, track_started=True)
@@ -287,7 +288,7 @@ def remove_index(self, document_id):
         )
         ctx_relate_ids = relate_ids.get("ctx", [])
         vector_db.connector.delete(ids=ctx_relate_ids)
-        logger.info(f"remove ctx qdrant points: {ctx_relate_ids} for document {document.file}")
+        logger.info(f"remove ctx qdrant points: {ctx_relate_ids} for document {document.name}")
 
         rag: LightRagHolder = async_to_sync(lightrag_holder.get_lightrag_holder)(collection=collection)
         async_to_sync(rag.adelete_by_doc_id)(document_id)

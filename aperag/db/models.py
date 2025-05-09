@@ -14,27 +14,16 @@
 
 import random
 import uuid
-
-from django.db import models
-from django.db.models import IntegerField
-from django.db.models.functions import Cast
-from django.utils import timezone
-from django.contrib.auth.models import AbstractUser
 from datetime import timedelta
 
-from config import settings
+from django.contrib.auth.models import AbstractUser
+from django.db import models
+from django.utils import timezone
 
 
 def random_id():
     """Generate a random ID string"""
     return ''.join(random.sample(uuid.uuid4().hex, 16))
-
-
-def upload_document_path(document, filename):
-    user = document.user.replace("|", "-")
-    return "documents/user-{0}/{1}/{2}".format(
-        user, document.collection_id, filename
-    )
 
 
 class Collection(models.Model):
@@ -107,7 +96,7 @@ class Document(models.Model):
     collection_id = models.CharField(max_length=24, null=True)
     status = models.CharField(max_length=16, choices=Status.choices)
     size = models.BigIntegerField()
-    file = models.FileField(upload_to=upload_document_path, max_length=1024)
+    object_path = models.CharField(max_length=1024, null=True)
     relate_ids = models.TextField()
     metadata = models.TextField(default="{}")
     gmt_created = models.DateTimeField(auto_now_add=True)
@@ -117,6 +106,12 @@ class Document(models.Model):
 
     class Meta:
         unique_together = ('collection_id', 'name')
+
+    def object_store_base_path(self) -> str:
+        user = self.user.replace("|", "-")
+        return "user-{0}/{1}/{2}".format(
+            user, self.collection_id, self.id
+        )
 
     async def get_collection(self):
         """Get the associated collection object"""
@@ -130,7 +125,7 @@ class Document(models.Model):
         """Property to maintain backwards compatibility"""
         return await self.get_collection()
 
-    @collection.setter 
+    @collection.setter
     async def collection(self, collection):
         """Setter to maintain backwards compatibility"""
         if isinstance(collection, Collection):
@@ -507,7 +502,7 @@ class Role(models.TextChoices):
     ADMIN = "admin"
     RW = "rw"
     RO = "ro"
-    
+
 
 class User(AbstractUser):
     """Custom user model that extends AbstractUser"""
@@ -534,18 +529,18 @@ class Invitation(models.Model):
     is_used = models.BooleanField(default=False)
     used_at = models.DateTimeField(null=True, blank=True)
     role = models.CharField(max_length=16, choices=Role.choices, default=Role.RO)
-    
+
     class Meta:
         app_label = 'aperag'
-        
+
     async def asave(self, *args, **kwargs):
         if not self.expires_at:
             self.expires_at = timezone.now() + timedelta(days=7)
         await super().asave(*args, **kwargs)
-        
+
     def is_valid(self):
         return not self.is_used and self.expires_at > timezone.now()
-        
+
     async def use(self):
         self.is_used = True
         self.used_at = timezone.now()

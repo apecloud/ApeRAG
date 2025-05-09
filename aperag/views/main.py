@@ -57,23 +57,21 @@ from aperag.db.ops import (
     query_document,
     query_documents,
     query_documents_count,
+    query_msp,
+    query_msp_dict,
+    query_msp_list,
     query_question,
     query_questions,
     query_running_sync_histories,
     query_sync_histories,
     query_sync_history,
     query_user_quota,
-    query_msp_list,
-    query_msp_dict,
-    query_msp,
 )
-from aperag.graph.lightrag_holder import reload_lightrag_holder, delete_lightrag_holder
-from aperag.llm.prompts import (
-    MULTI_ROLE_EN_PROMPT_TEMPLATES,
-    MULTI_ROLE_ZH_PROMPT_TEMPLATES,
-)
+from aperag.graph.lightrag_holder import delete_lightrag_holder, reload_lightrag_holder
+from aperag.llm.prompts import MULTI_ROLE_EN_PROMPT_TEMPLATES, MULTI_ROLE_ZH_PROMPT_TEMPLATES
+from aperag.objectstore.base import get_object_store
 from aperag.readers.base_readers import DEFAULT_FILE_READER_CLS
-from aperag.schema.utils import parseCollectionConfig, dumpCollectionConfig
+from aperag.schema.utils import dumpCollectionConfig, parseCollectionConfig
 from aperag.source.base import get_source
 from aperag.tasks.collection import delete_collection_task, init_collection_task
 from aperag.tasks.crawl_web import crawl_domain
@@ -352,7 +350,7 @@ async def delete_collection(request, collection_id: str) -> view_models.Collecti
     collection = await query_collection(user, collection_id)
     if collection is None:
         return fail(HTTPStatus.NOT_FOUND, "Collection not found")
-    
+
     collection_bots = await collection.bots(only_ids=True)
     if len(collection_bots) > 0:
         return fail(HTTPStatus.BAD_REQUEST, f"Collection has related to bots {','.join(collection_bots)}, can not be deleted")
@@ -519,11 +517,17 @@ async def create_document(request, collection_id: str, file: List[UploadedFile] 
                 status=db_models.Document.Status.PENDING,
                 size=item.size,
                 collection_id=collection.id,
-                file=ContentFile(item.read(), item.name),
             )
             await document_instance.asave()
+
+            # Upload to object store
+            obj_store = get_object_store()
+            upload_path = f"{document_instance.object_store_base_path()}/original{file_suffix}"
+            await sync_to_async(obj_store.put)(upload_path, item)
+
+            document_instance.object_path = upload_path
             document_instance.metadata = json.dumps({
-                "path": document_instance.file.path,
+                "object_path": upload_path,
             })
             await document_instance.asave()
             response.append(view_models.Document(
@@ -662,6 +666,11 @@ async def delete_document(request, collection_id: str, document_id: str) -> view
     if document.status == db_models.Document.Status.DELETING:
         logger.info(f"document {document_id} is deleting, ignore delete")
         return success({})
+
+    # Delete all related objects from object store
+    obj_store = get_object_store()
+    await sync_to_async(obj_store.delete_objects_by_prefix)(f"{document.object_store_base_path()}/")
+
     document.status = db_models.Document.Status.DELETING
     document.gmt_deleted = timezone.now()
     await document.asave()
@@ -938,7 +947,7 @@ async def update_bot(request, bot_id: str, bot_in: view_models.BotUpdate) -> vie
     model_name = new_config.get("model_name")
     memory = new_config.get("memory", False)
     llm_config = new_config.get("llm")
-    
+
     msp_dict = await query_msp_dict(user)
     if model_service_provider in msp_dict:
         msp = msp_dict[model_service_provider]
@@ -949,7 +958,7 @@ async def update_bot(request, bot_id: str, bot_in: view_models.BotUpdate) -> vie
             return fail(HTTPStatus.BAD_REQUEST, msg)
     else:
         return fail(HTTPStatus.BAD_REQUEST, "Model service provider not found")
-    
+
     old_config = json.loads(bot.config)
     old_config.update(new_config)
     bot.config = json.dumps(old_config)
@@ -1163,11 +1172,11 @@ async def frontend_chat_completions(request: HttpRequest):
     try:
         # Get user ID from request
         user = get_user(request)
-        
+
         # Parse request parameters
         query_params = dict(parse_qsl(request.GET.urlencode()))
         body = request.body.decode("utf-8")
-        
+
         # Create chat request
         chat_request = ChatRequest(
             user=user,
@@ -1177,7 +1186,7 @@ async def frontend_chat_completions(request: HttpRequest):
             stream=query_params.get("stream", "false").lower() == "true",
             message=body
         )
-        
+
         # Get bot
         bot = await query_bot(chat_request.user, chat_request.bot_id)
         if not bot:
@@ -1185,7 +1194,7 @@ async def frontend_chat_completions(request: HttpRequest):
                 json.dumps(FrontendFormatter.format_error("Bot not found")),
                 content_type="application/json"
             )
-        
+
         # Get or create chat
         chat = await query_chat_by_peer(bot.user, Chat.PeerType.FEISHU, chat_request.chat_id)
         if chat is None:
@@ -1196,7 +1205,7 @@ async def frontend_chat_completions(request: HttpRequest):
                 peer_id=chat_request.chat_id
             )
             await chat.asave()
-        
+
         # Initialize message processor with history
         history = RedisChatMessageHistory(
             session_id=str(chat.id),
@@ -1204,7 +1213,7 @@ async def frontend_chat_completions(request: HttpRequest):
         )
         processor = MessageProcessor(bot, history)
         formatter = FrontendFormatter()
-        
+
         # Process message and send response based on stream mode
         if chat_request.stream:
             return StreamingHttpResponse(
@@ -1220,12 +1229,12 @@ async def frontend_chat_completions(request: HttpRequest):
             full_content = ""
             async for chunk in processor.process_message(chat_request.message, chat_request.msg_id):
                 full_content += chunk
-            
+
             return StreamingHttpResponse(
                 json.dumps(formatter.format_complete_response(chat_request.msg_id, full_content)),
                 content_type="application/json"
             )
-            
+
     except Exception as e:
         logger.exception(e)
         return StreamingHttpResponse(
