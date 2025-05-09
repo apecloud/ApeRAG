@@ -72,7 +72,8 @@ run-es:
 	@docker exec aperag-es-dev bash -c \
 		"if [ ! -d plugins/analysis-ik ]; then \
 			echo 'Installing IK Analyzer from get.infini.cloud...'; \
-			bin/elasticsearch-plugin install -b https://get.infini.cloud/elasticsearch/analysis-ik/8.8.2; \
+			curl -L --output /tmp/analysis-ik.zip https://get.infini.cloud/elasticsearch/analysis-ik/8.8.2; \
+			echo 'y' | bin/elasticsearch-plugin install file:///tmp/analysis-ik.zip; \
 			echo 'Restarting Elasticsearch to apply changes...'; \
 		else \
 			echo 'IK Analyzer is already installed.'; \
