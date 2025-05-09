@@ -270,6 +270,21 @@ VECTOR_DB_CONTEXT = env.str(
 
 CODE_STORAGE_DIR = env.str("CODE_STORAGE_DIR", default=str(BASE_DIR))
 
+S3_CONFIG = None
+OBJECT_STORE_TYPE = env.str("OBJECT_STORE_TYPE", default="s3")
+match OBJECT_STORE_TYPE:
+    case "s3":
+        from aperag.objectstore.s3 import S3Config
+        S3_CONFIG = S3Config(
+            endpoint=env.str("OBJECT_STORE_S3_ENDPOINT", default="http://127.0.0.1:9000"),
+            access_key=env.str("OBJECT_STORE_S3_ACCESS_KEY", default="minioadmin"),
+            secret_key=env.str("OBJECT_STORE_S3_SECRET_KEY", default="minioadmin"),
+            bucket=env.str("OBJECT_STORE_S3_BUCKET", default="aperag"),
+            region=env.str("OBJECT_STORE_S3_REGION", default=None),
+            prefix_path=env.str("OBJECT_STORE_S3_PREFIX_PATH", default=None),
+            use_path_style=env.bool("OBJECT_STORE_S3_USE_PATH_STYLE", default=True),
+        )
+
 # prometheus
 INSTALLED_APPS += ["django_prometheus"]
 

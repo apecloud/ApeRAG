@@ -81,6 +81,13 @@ run-es:
 	@docker restart aperag-es-dev > /dev/null
 	@echo "Elasticsearch is ready with IK Analyzer!"
 
+run-minio:
+	@echo "Starting MinIO"
+	@docker inspect aperag-minio-dev > /dev/null 2>&1 || \
+	docker run -d --name aperag-minio-dev -p 9000:9000 -p 9001:9001 \
+		quay.io/minio/minio server /data --console-address ":9001"
+	@docker start aperag-minio-dev > /dev/null
+
 run-db: run-redis run-postgres run-qdrant run-es
 
 connect-metadb:
