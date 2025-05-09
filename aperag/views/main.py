@@ -34,6 +34,7 @@ from ninja.files import UploadedFile
 
 import aperag.chat.message
 from aperag.flow.base.models import Edge, InputBinding, InputSourceType, NodeInstance, FlowInstance
+from aperag.flow.engine import FlowEngine
 import aperag.views.models
 from aperag.apps import QuotaType
 from aperag.chat.history.redis import RedisChatMessageHistory
@@ -1345,6 +1346,7 @@ async def create_search_test(request, collection_id: str, data: view_models.Sear
     record = await SearchTestHistory.objects.acreate(
         user=user,
         query=data.query,
+        collection_id=collection_id,
         search_type=data.search_type,
         vector_search=data.vector_search.dict() if data.vector_search else None,
         fulltext_search=data.fulltext_search.dict() if data.fulltext_search else None,
@@ -1365,13 +1367,13 @@ async def create_search_test(request, collection_id: str, data: view_models.Sear
 @router.delete("/collections/{collection_id}/searchTests/{search_test_id}")
 async def delete_search_test(request, collection_id: str, search_test_id: str):
     user = get_user(request)
-    await SearchTestHistory.objects.filter(user=user, id=search_test_id, gmt_deleted__isnull=True).aupdate(gmt_deleted=timezone.now())
+    await SearchTestHistory.objects.filter(user=user, id=search_test_id, collection_id=collection_id, gmt_deleted__isnull=True).aupdate(gmt_deleted=timezone.now())
     return success({})
 
 @router.get("/collections/{collection_id}/searchTests")
 async def list_search_tests(request, collection_id: str) -> view_models.SearchTestResultList:
     user = get_user(request)
-    qs = SearchTestHistory.objects.filter(user=user, gmt_deleted__isnull=True).order_by("-gmt_created")[:50]
+    qs = SearchTestHistory.objects.filter(user=user, collection_id=collection_id, gmt_deleted__isnull=True).order_by("-gmt_created")[:50]
     resultList = []
     async for record in qs:
         items = []

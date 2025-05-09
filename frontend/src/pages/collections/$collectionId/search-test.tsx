@@ -30,7 +30,7 @@ const SearchTest: React.FC = () => {
     if (!collectionId) return;
     try {
       const res = await api.collectionsCollectionIdSearchTestsGet({ collectionId });
-      const items = Array.isArray(res.data.items) ? res.data.items : [];
+      const items = Array.isArray(res?.data?.items) ? res.data.items : [];
       setHistory(items);
       setTotal(items.length);
     } catch (e) {
@@ -57,9 +57,15 @@ const SearchTest: React.FC = () => {
         params.fulltext_search = fulltextParams;
       }
       const res = await api.collectionsCollectionIdSearchTestsPost({ collectionId: collectionId as string, searchTestRequest: params });
+      if (!res || !res.data) {
+        message.error(formatMessage({ id: 'searchTest.searchFailed' }) + ' (No response or timeout)');
+        setResult([]);
+        return;
+      }
       setResult(res.data.items || []);
       fetchHistory();
     } catch (e: any) {
+      setResult([]);
       message.error(e?.message || formatMessage({ id: 'searchTest.searchFailed' }));
     } finally {
       setLoading(false);
