@@ -63,7 +63,9 @@ dependencies = [
     "magic-pdf[full]<2.0.0,>=1.3.5",
     "pytablewriter<2.0.0,>=1.2.1",
     "litellm>=v1.68.0",
-    "requests"
+    "requests",
+    "markitdown[all]>=0.1.1",
+    "markdown-it-py[linkify]>=3.0.0",
 ]
 name = "aperag"
 version = "0.1.0"
