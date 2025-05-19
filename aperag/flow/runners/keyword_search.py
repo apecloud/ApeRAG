@@ -13,7 +13,9 @@ logger = logging.getLogger(__name__)
 class KeywordSearchNodeRunner(BaseNodeRunner):
     async def run(self, node: NodeInstance, inputs: Dict[str, Any]):
         query: str = inputs["query"]
-        topk: int = inputs.get("top_k", 5)
+        topk: int = inputs.get("top_k")
+        if topk is None:
+            topk = 5
         collection_ids: List[str] = inputs.get("collection_ids", [])
         collection = None
         if collection_ids:

@@ -153,5 +153,9 @@ async def search_document(index: str, keywords: List[str], topk=3):
     hits = resp.body["hits"]
     result = []
     for hit in hits["hits"]:
-        result.append(hit["_source"])
+        result.append({
+            "content": hit["_source"]["content"],
+            "name": hit["_source"]["name"],
+            "score": hit["_score"],
+        })
     return result

@@ -91,3 +91,13 @@ botList:
         $ref: '#/bot'
     pageResult:
       $ref: './common.yaml#/pageResult'
+
+debugFlowRequest:
+  type: object
+  properties:
+    flow:
+      type: string
+    query:
+      type: string
+  required:
+    - query

@@ -44,6 +44,8 @@ nodes:
         - name: "query"
           source_type: "global"
           global_var: "query"
+        - name: "top_k"
+          value: 5
 
   # Merge node
   - id: "merge-1a9c5d8e"

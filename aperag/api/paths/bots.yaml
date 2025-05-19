@@ -120,3 +120,31 @@ bot:
     responses:
       '200':
         description: Bot updated successfully
+
+debugFlow:
+  post:
+    summary: Debug a flow
+    description: Debug a flow
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: bot_id
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/bot.yaml#/debugFlowRequest'
+    responses:
+      '200':
+        description: Flow debugged successfully
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'

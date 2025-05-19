@@ -88,6 +88,7 @@ register_node_definition(NodeDefinition(
     type="keyword_search",
     vars_schema=[
         FieldDefinition("query", FieldType.STRING),
+        FieldDefinition("top_k", FieldType.INTEGER, default=5),
         FieldDefinition("collection_ids", FieldType.ARRAY)
     ],
     output_schema=[

@@ -25,6 +25,8 @@ paths:
     $ref: './paths/bots.yaml#/bots'
   /bots/{bot_id}:
     $ref: './paths/bots.yaml#/bot'
+  /bots/{bot_id}/flow/debug:
+    $ref: './paths/bots.yaml#/debugFlow'
 
   # chats
   /bots/{bot_id}/chats:
@@ -73,8 +75,7 @@ paths:
     $ref: './paths/models.yaml#/modelServiceProvider'
   /available_models:
     $ref: './paths/models.yaml#/availableModels'
-
-
+  
   # config
   /config:
     $ref: './paths/config.yaml#/config'

@@ -1,5 +1,5 @@
 from collections import deque
-from typing import List, Set, Dict, Any, Optional
+from typing import List, Set, Dict, Any, Optional, AsyncGenerator
 from aperag.flow.base.models import FlowInstance, NodeInstance, ExecutionContext, NodeRegistry
 from aperag.flow.base.exceptions import CycleError, ValidationError
 from aperag.flow.base.models import InputSourceType, NODE_RUNNER_REGISTRY
@@ -7,6 +7,8 @@ import logging
 import uuid
 from .runners import *
 import asyncio
+import json
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(
@@ -14,6 +16,33 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - [%(execution_id)s] - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+class FlowEvent:
+    """Event emitted during flow execution"""
+    def __init__(self, event_type: str, node_id: str, execution_id: str, data: Dict[str, Any] = None):
+        self.event_type = event_type
+        self.node_id = node_id
+        self.execution_id = execution_id
+        self.timestamp = datetime.utcnow().isoformat()
+        self.data = data or {}
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "event_type": self.event_type,
+            "node_id": self.node_id,
+            "execution_id": self.execution_id,
+            "timestamp": self.timestamp,
+            "data": self.data
+        }
+
+class FlowEventType:
+    """Event types for flow execution"""
+    NODE_START = "node_start"
+    NODE_END = "node_end"
+    NODE_ERROR = "node_error"
+    FLOW_START = "flow_start"
+    FLOW_END = "flow_end"
+    FLOW_ERROR = "flow_error"
 
 # FlowEngine is responsible for executing a FlowInstance (a flow definition with nodes and edges).
 # Each FlowEngine instance maintains its own execution context (self.context) and execution_id.
@@ -29,6 +58,25 @@ class FlowEngine:
     def __init__(self):
         self.context = ExecutionContext()
         self.execution_id = None
+        self._event_queue = asyncio.Queue()
+        self._event_consumers = set()
+
+    async def emit_event(self, event: FlowEvent):
+        """Emit an event to all consumers"""
+        await self._event_queue.put(event)
+        # Also log the event
+        logger.info(f"Flow event: {event.event_type} for node {event.node_id}", 
+                   extra={'execution_id': self.execution_id})
+
+    async def get_events(self) -> AsyncGenerator[Dict[str, Any], None]:
+        """Get events as an async generator"""
+        try:
+            while True:
+                event = await self._event_queue.get()
+                yield event.to_dict()
+                self._event_queue.task_done()
+        except asyncio.CancelledError:
+            pass
 
     async def execute_flow(self, flow: FlowInstance, initial_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """Execute a flow instance with optional initial data
@@ -44,20 +92,47 @@ class FlowEngine:
         self.execution_id = str(uuid.uuid4())[:8]  # Use first 8 characters of UUID
         logger.info(f"Starting flow execution {self.execution_id} for flow {flow.id}", extra={'execution_id': self.execution_id})
 
-        # Initialize global variables
-        if initial_data:
-            for var_name, var_value in initial_data.items():
-                self.context.set_global(var_name, var_value)
+        try:
+            # Emit flow start event
+            await self.emit_event(FlowEvent(
+                FlowEventType.FLOW_START,
+                "flow",
+                self.execution_id,
+                {"flow_id": flow.id}
+            ))
 
-        # Build dependency graph and perform topological sort
-        sorted_nodes = self._topological_sort(flow)
-        
-        # Execute nodes
-        for node_group in self._find_parallel_groups(flow, sorted_nodes):
-            await self._execute_node_group(flow, node_group)
+            # Initialize global variables
+            if initial_data:
+                for var_name, var_value in initial_data.items():
+                    self.context.set_global(var_name, var_value)
+
+            # Build dependency graph and perform topological sort
+            sorted_nodes = self._topological_sort(flow)
             
-        logger.info(f"Completed flow execution {self.execution_id}", extra={'execution_id': self.execution_id})
-        return self.context.variables
+            # Execute nodes
+            for node_group in self._find_parallel_groups(flow, sorted_nodes):
+                await self._execute_node_group(flow, node_group)
+            
+            # Emit flow end event
+            await self.emit_event(FlowEvent(
+                FlowEventType.FLOW_END,
+                "flow",
+                self.execution_id,
+                {"flow_id": flow.id}
+            ))
+                
+            logger.info(f"Completed flow execution {self.execution_id}", extra={'execution_id': self.execution_id})
+            return self.context.variables
+
+        except Exception as e:
+            # Emit flow error event
+            await self.emit_event(FlowEvent(
+                FlowEventType.FLOW_ERROR,
+                "flow",
+                self.execution_id,
+                {"flow_id": flow.id, "error": str(e)}
+            ))
+            raise e
 
     async def execute_node(self, node: NodeInstance, inputs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Execute a single node with manual input binding
@@ -94,7 +169,7 @@ class FlowEngine:
                     temp_context.variables[node.id][var.name] = ref_value
         
         # Execute the node
-        await self._execute_node(node, temp_context)
+        await self._execute_node(node)
         
         # Return the node's outputs
         return temp_context.variables.get(node.id, {})
@@ -200,7 +275,7 @@ class FlowEngine:
             ValidationError: If required input is missing
         """
         node_def = NodeRegistry.get(node.type)
-        inputs = self.context.global_variables.copy()
+        inputs = {}
         for field in node_def.vars_schema:
             value = None
             for var in node.vars:
@@ -218,24 +293,52 @@ class FlowEngine:
         return inputs
 
     async def _execute_node(self, node: NodeInstance) -> None:
-        """Execute a single node using the provided context
-        
-        Args:
-            node: The node instance to execute
-        """
-        # Bind inputs using the helper method
-        inputs = self._bind_node_inputs(node)
+        """Execute a single node using the provided context"""
+        try:
+            # Bind inputs using the helper method
+            inputs = self._bind_node_inputs(node)
 
-        # Execute node logic
-        outputs = await self._execute_node_logic(node, inputs)
+            # Emit node start event with inputs
+            await self.emit_event(FlowEvent(
+                FlowEventType.NODE_START,
+                node.id,
+                self.execution_id,
+                {
+                    "node_type": node.type,
+                    "inputs": inputs.copy()
+                }
+            ))
+            inputs.update(self.context.global_variables)
 
-        # Validate outputs
-        node_def = NodeRegistry.get(node.type)
-        for field in node_def.output_schema:
-            if field.required and field.name not in outputs:
-                raise ValidationError(f"Required output '{field.name}' not produced by node {node.id}")
-        # Store outputs in context
-        self.context.set_output(node.id, outputs)
+            # Execute node logic
+            outputs = await self._execute_node_logic(node, inputs)
+
+            # Validate outputs
+            node_def = NodeRegistry.get(node.type)
+            for field in node_def.output_schema:
+                if field.required and field.name not in outputs:
+                    raise ValidationError(f"Required output '{field.name}' not produced by node {node.id}")
+
+            # Store outputs in context
+            self.context.set_output(node.id, outputs)
+
+            # Emit node end event
+            await self.emit_event(FlowEvent(
+                FlowEventType.NODE_END,
+                node.id,
+                self.execution_id,
+                {"node_type": node.type, "outputs": outputs}
+            ))
+
+        except Exception as e:
+            # Emit node error event
+            await self.emit_event(FlowEvent(
+                FlowEventType.NODE_ERROR,
+                node.id,
+                self.execution_id,
+                {"node_type": node.type, "error": str(e)}
+            ))
+            raise e
 
     async def _execute_node_logic(self, node: NodeInstance, inputs: Dict[str, Any]) -> Dict[str, Any]:
         """Dispatch node execution to the registered NodeRunner class"""

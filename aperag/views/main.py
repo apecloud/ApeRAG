@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
+import asyncio
+from datetime import datetime
 import json
 import logging
 import os
 import uuid
 from http import HTTPStatus
-from typing import AsyncGenerator, List, Optional
+from typing import AsyncGenerator, List, Optional, Dict, Any
 from urllib.parse import parse_qsl
 
 from asgiref.sync import sync_to_async
@@ -35,6 +36,7 @@ from ninja.files import UploadedFile
 import aperag.chat.message
 from aperag.flow.base.models import Edge, InputBinding, InputSourceType, NodeInstance, FlowInstance
 from aperag.flow.engine import FlowEngine
+from aperag.flow.parser import FlowParser
 import aperag.views.models
 from aperag.apps import QuotaType
 from aperag.chat.history.redis import RedisChatMessageHistory
@@ -183,7 +185,7 @@ async def cancel_sync(request, collection_id, collection_sync_id):
     else:
         logger.warning(f"no index task group id in sync history {collection_sync_id}")
 
-    sync_history.status = db_models.Collection.SyncStatus.CANCELED
+    sync_history.status = db_models.CollectionSyncStatus.CANCELED
     await sync_history.asave()
     return success({})
 
@@ -1410,3 +1412,127 @@ async def list_search_tests(request, collection_id: str) -> view_models.SearchTe
         )
         resultList.append(result)
     return success(view_models.SearchTestResultList(items=resultList))
+
+def _convert_to_serializable(obj):
+    """Convert object to JSON serializable format
+    
+    Args:
+        obj: Object to convert, can be BaseModel, dict, list, or primitive type
+        
+    Returns:
+        JSON serializable object
+    """
+    if hasattr(obj, 'model_dump'):  # For Pydantic BaseModel
+        return obj.model_dump()
+    elif isinstance(obj, dict):
+        return {k: _convert_to_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_convert_to_serializable(item) for item in obj]
+    elif hasattr(obj, '__dict__'):  # For other objects with __dict__
+        return _convert_to_serializable(obj.__dict__)
+    return obj
+
+async def stream_flow_events(flow_generator: AsyncGenerator[Dict[str, Any], None], flow_task: asyncio.Task, execution_id: str):
+    """Stream SSE response for flow events and output generator
+    
+    Args:
+        flow_generator: Generator for flow execution events
+        flow_task: Task for flow execution
+        execution_id: Flow execution ID
+    """
+    try:
+        # First stream all flow events
+        async for event in flow_generator:
+            # Convert event to serializable format
+            serializable_event = _convert_to_serializable(event)
+            # Send event data
+            yield f"data: {json.dumps(serializable_event)}\n\n"
+            
+            # If this is a flow end event, break to handle output generator
+            if event.get("event_type") == "flow_end":
+                break
+
+        # Wait for flow execution to complete
+        try:
+            flow_result = await flow_task
+            if not flow_result:
+                raise Exception("Flow execution failed")
+
+            # Find output nodes and their generators
+            output_nodes = []
+            for node_id, node_result in flow_result.items():
+                if "async_generator" in node_result:
+                    output_nodes.append((node_id, node_result["async_generator"]))
+            
+            if not output_nodes:
+                raise Exception("No output nodes found")
+
+            # Stream output from each output node
+            for node_id, output_gen in output_nodes:
+                try:
+                    async for chunk in output_gen():
+                        data = {
+                            'event_type': 'output_chunk',
+                            'node_id': node_id,
+                            'execution_id': execution_id,
+                            'timestamp': datetime.now().isoformat(),
+                            'data': {'chunk': _convert_to_serializable(chunk)}
+                        }
+                        yield f"data: {json.dumps(data)}\n\n"
+                except Exception as e:
+                    logger.exception(f"Error streaming output from node {node_id}")
+                    raise e
+
+        except Exception as e:
+            logger.exception(f"Error waiting for flow execution {execution_id}")
+            raise e
+
+    except asyncio.CancelledError:
+        logger.info(f"Flow event stream cancelled for execution {execution_id}")
+    except Exception as e:
+        logger.exception(f"Error in flow event stream for execution {execution_id}")
+        raise e
+
+@router.post("/bots/{bot_id}/flow/debug")
+async def debug_flow_stream(request: HttpRequest, bot_id: str, debug: view_models.DebugFlowRequest):
+    """Debug flow execution with SSE event streaming"""
+    try:
+        user = get_user(request)
+        bot = await query_bot(user, bot_id)
+        if not bot:
+            return StreamingHttpResponse(
+                json.dumps({"error": "Bot not found"}),
+                content_type="application/json"
+            )
+
+        # Parse flow configuration
+        flow_config = debug.flow
+        if not flow_config:
+            flow_config = json.loads(bot.config)["flow"]
+        flow = FlowParser.parse_yaml(flow_config)
+        
+        engine = FlowEngine()
+        initial_data = {
+            "query": debug.query,
+            "bot": bot,
+            "user": user,
+            "history": [],
+            "message_id": ""
+        }
+        # Start flow execution in background
+        task = asyncio.create_task(
+            engine.execute_flow(flow, initial_data)
+        )
+        
+        # Return SSE response with events
+        return StreamingHttpResponse(
+            stream_flow_events(engine.get_events(), task, engine.execution_id),
+            content_type="text/event-stream"
+        )
+        
+    except Exception as e:
+        logger.exception("Error in debug flow stream")
+        return StreamingHttpResponse(
+            json.dumps({"error": str(e)}),
+            content_type="application/json"
+        )
