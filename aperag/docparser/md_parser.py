@@ -76,9 +76,21 @@ def extract_data_uri(text: str, metadata: dict[str, Any]) -> tuple[str, list[Par
 class PartConverter:
     @dataclass
     class Context:
+        nesting: int = 0
         ordinal: int = 1
         pause_extraction: bool = False
 
+    class Nester:
+        def __init__(self, ctx: "PartConverter.Context"):
+            self.ctx = ctx
+
+        def __enter__(self):
+            self.ctx.nesting += 1
+            return self.ctx
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            self.ctx.nesting -= 1
+            return False
     class OrderedListNester:
         def __init__(self, ctx: "PartConverter.Context"):
             self.ctx = ctx
@@ -86,10 +98,12 @@ class PartConverter:
 
         def __enter__(self):
             self.ctx.ordinal = 1
+            self.ctx.nesting += 1
             return self.ctx
 
         def __exit__(self, exc_type, exc_val, exc_tb):
             self.ctx.ordinal = self.old_ordinal
+            self.ctx.nesting -= 1
             return False
 
     class PauseExtraction:
@@ -187,7 +201,8 @@ class PartConverter:
     def _convert_blockquote_open(
         self, ctx: Context, tokens: list[Token], idx: int, metadata: dict[str, Any]
     ) -> tuple[list[Part], int]:
-        parts, pos = self.convert_until_close(ctx, "blockquote_close", tokens, idx + 1, metadata)
+        with self.Nester(ctx):
+            parts, pos = self.convert_until_close(ctx, "blockquote_close", tokens, idx + 1, metadata)
 
         token = tokens[idx]
         for part in parts:
@@ -217,6 +232,7 @@ class PartConverter:
     ) -> tuple[list[Part], int]:
         token = tokens[idx]
         metadata["md_source_map"] = token.map
+        metadata["md_nesting"] = ctx.nesting
         code = self._to_code_content(token.content, None)
         return [CodePart(content=code, metadata=metadata)], idx + 1
 
@@ -225,6 +241,7 @@ class PartConverter:
     ) -> tuple[list[Part], int]:
         token = tokens[idx]
         metadata["md_source_map"] = token.map
+        metadata["md_nesting"] = ctx.nesting
         lang = None
         if token.info:
             lang = token.info
@@ -241,6 +258,7 @@ class PartConverter:
                 text += part.content
         token = tokens[idx]
         metadata["md_source_map"] = token.map
+        metadata["md_nesting"] = ctx.nesting
         if token.markup in ["=", "-"]:
             # It's a lheading
             if token.markup == "=":
@@ -258,6 +276,7 @@ class PartConverter:
         token = tokens[idx]
         img_parts = self._extract_image_parts(ctx, tokens[idx : idx + 1], metadata)
         metadata["md_source_map"] = token.map
+        metadata["md_nesting"] = ctx.nesting
         return [TextPart(content=token.content, metadata=metadata)] + img_parts, idx + 1
 
     def _convert_hr(
@@ -265,6 +284,7 @@ class PartConverter:
     ) -> tuple[list[Part], int]:
         token = tokens[idx]
         metadata["md_source_map"] = token.map
+        metadata["md_nesting"] = ctx.nesting
         return [TextPart(content=token.markup, metadata=metadata)], idx + 1
 
     def _convert_html_block(
@@ -272,6 +292,7 @@ class PartConverter:
     ) -> tuple[list[Part], int]:
         token = tokens[idx]
         metadata["md_source_map"] = token.map
+        metadata["md_nesting"] = ctx.nesting
         return [TextPart(content=token.content, metadata=metadata)], idx + 1
 
     def _convert_paragraph_open(
@@ -290,8 +311,9 @@ class PartConverter:
     def _convert_bullet_list_open(
         self, ctx: Context, tokens: list[Token], idx: int, metadata: dict[str, Any]
     ) -> tuple[list[Part], int]:
-        parts, pos = self.convert_until_close(ctx, "bullet_list_close", tokens, idx + 1, metadata)
-        return parts, pos
+        with self.Nester(ctx):
+            parts, pos = self.convert_until_close(ctx, "bullet_list_close", tokens, idx + 1, metadata)
+            return parts, pos
 
     def _convert_list_item_open(
         self, ctx: Context, tokens: list[Token], idx: int, metadata: dict[str, Any]
@@ -308,11 +330,12 @@ class PartConverter:
         if len(parts) == 0:
             # Empty item, e.g. "2. "
             metadata["md_source_map"] = token.map
+            metadata["md_nesting"] = ctx.nesting
             return [TextPart(content=item_marker, metadata=metadata)], pos
 
         result = []
         first_part = parts[0]
-        if isinstance(first_part, (TextPart, TitlePart,)):
+        if isinstance(first_part, TextPart):
             # If the first block is a paragraph-like block, then prepend the marker:
             #   item content,     =>  1. item content,
             #   the second line          the second line
@@ -325,19 +348,21 @@ class PartConverter:
             else:
                 lines.append(item_marker)
 
-            result.append(TextPart(content="\n".join(lines), metadata=first_part.metadata))
+            first_part.content = "\n".join(lines)
+            result.append(first_part)
         else:
             # If the first block is a code block, or something else,
             # we don't modify the content of the block.
             meta = metadata.copy()
             meta["md_source_map"] = token.map
+            meta["md_nesting"] = ctx.nesting
             result.append(TextPart(content=item_marker, metadata=meta))
             result.append(first_part)
 
         spaces = "    "
         for part in parts[1:]:
             # Adjust indention for paragraph blocks
-            if isinstance(part, (TextPart, TitlePart,)):
+            if isinstance(part, TextPart):
                 lines = (part.content or "").split("\n")
                 lines = [spaces + line for line in lines]
                 if len(lines) > 0:
@@ -357,6 +382,7 @@ class PartConverter:
         if title:
             content = content + f" ({title})"
         metadata["md_source_map"] = token.map
+        metadata["md_nesting"] = ctx.nesting
         return [TextPart(content=content, metadata=metadata)], idx + 1
 
     def _convert_table_open(
@@ -366,12 +392,14 @@ class PartConverter:
         # mistakenly identify an ImagePart as a separate column, leading to errors.
         # Therefore, we temporarily disable image extraction and handle it after
         # the entire table has been processed.
-        with self.PauseExtraction(ctx):
-            parts, pos = self.convert_until_close(ctx, "table_close", tokens, idx + 1, metadata)
+        with self.Nester(ctx):
+            with self.PauseExtraction(ctx):
+                parts, pos = self.convert_until_close(ctx, "table_close", tokens, idx + 1, metadata)
         img_parts = self._extract_image_parts(ctx, tokens[idx : pos], metadata)
         # Parts should contain two items, thead and tbody
         text = "\n".join([part.content for part in parts if part.content is not None])
         metadata["md_source_map"] = tokens[idx].map
+        metadata["md_nesting"] = ctx.nesting
         return [TextPart(content=text, metadata=metadata)] + img_parts, pos
 
     def _convert_thead_open(

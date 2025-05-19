@@ -310,8 +310,10 @@ def convert_para(
     para_type = para_block["type"]
     bbox = para_block.get("bbox", (0, 0, 0, 0))
     metadata.update({
-        "page_idx": page_idx,
-        "bbox": tuple(bbox),
+        "pdf_source_map": [{
+            "page_idx": page_idx,
+            "bbox": tuple(bbox),
+        }],
         "para_type": str(para_type),
     })
 

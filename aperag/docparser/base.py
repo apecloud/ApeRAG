@@ -43,7 +43,7 @@ class ImagePart(MediaPart):
     title: str | None = None
 
 
-class AssetBinPart(BaseModel):
+class AssetBinPart(Part):
     asset_id: str
     data: bytes
     mime_type: str | None = None
