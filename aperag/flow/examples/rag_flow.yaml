@@ -83,8 +83,12 @@ nodes:
     name: "LLM Generation"
     data:
       vars:
-        - name: "model"
-          value: "gpt-3.5-turbo"
+        - name: "model_service_provider"
+          value: "openai"
+        - name: "model_name"
+          value: "gpt-4o"
+        - name: "prompt_template"
+          value: "{context}\n{query}"
         - name: "temperature"
           value: 0.7
         - name: "max_tokens"

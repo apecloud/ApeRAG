@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
 import os
 
@@ -32,8 +33,9 @@ class FlowConsumer(BaseConsumer):
         # FIXME: get flow from the bot config when the frontend is ready
         # Load flow configuration
         from django.conf import settings
-        yaml_path = os.path.join(settings.BASE_DIR, 'aperag/flow/examples/rag_flow.yaml')
-        self.flow = FlowParser.load_from_file(yaml_path)
+        config = json.loads(self.bot.config)
+        flow = config.get("flow")
+        self.flow = FlowParser.parse_yaml(flow)
         
     async def predict(self, query, **kwargs):
         engine = FlowEngine()
@@ -41,7 +43,6 @@ class FlowConsumer(BaseConsumer):
             "query": query,
             "bot": self.bot,
             "user": self.user,
-            "collection": self.collection,
             "history": self.history,
             "message_id": kwargs.get("message_id")
         }

@@ -4,9 +4,9 @@ from aperag.flow.base.models import NodeInstance, register_node_runner, BaseNode
 from aperag.query.query import DocumentWithScore
 from aperag.utils.utils import generate_vector_db_collection_name
 from config import settings
-from typing import Any, Dict
+from typing import Any, Dict, List
 from aperag.db.models import Collection
-
+from asgiref.sync import sync_to_async
 logger = logging.getLogger(__name__)
 
 @register_node_runner("keyword_search")
@@ -14,7 +14,15 @@ class KeywordSearchNodeRunner(BaseNodeRunner):
     async def run(self, node: NodeInstance, inputs: Dict[str, Any]):
         query: str = inputs["query"]
         topk: int = inputs.get("top_k", 5)
-        collection: Collection = inputs.get("collection")
+        collection_ids: List[str] = inputs.get("collection_ids", [])
+        collection = None
+        if collection_ids:
+            collections = await sync_to_async(Collection.objects.filter(id__in=collection_ids).all)()
+            async for item in collections:
+                collection = item
+                break
+        if not collection:
+            return {"keyword_search_docs": []}
 
         from aperag.pipeline.keyword_extractor import IKExtractor
         from aperag.context.full_text import search_document

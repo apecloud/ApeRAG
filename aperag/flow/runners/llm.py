@@ -67,25 +67,27 @@ async def add_ai_message(history: BaseChatMessageHistory, message, message_id, r
 @register_node_runner("llm")
 class LLMNodeRunner(BaseNodeRunner):
     async def run(self, node: NodeInstance, inputs: Dict[str, Any]):
-        bot: Bot = inputs["bot"]
-        query: str = inputs["query"]
+        user = inputs.get("user")
         message_id: str = inputs["message_id"]
+        query: str = inputs["query"]
+        temperature: float = inputs.get("temperature", 0.2)
+        model_service_provider = inputs.get("model_service_provider")
+        model_name = inputs.get("model_name")
+        prompt_template = inputs.get("prompt_template", "{context}\n{query}")
+
         docs: List[DocumentWithScore] = inputs.get("docs", [])
         history: BaseChatMessageHistory = inputs.get("history")
-
-        bot_config = json.loads(bot.config)
-        model_service_provider = bot_config.get("model_service_provider")
-        model_name = bot_config.get("model_name")
-        llm_config = bot_config.get("llm", {})
-        msp_dict = await query_msp_dict(bot.user)
+        llm_kwargs = {
+            "temperature": temperature,
+        }
+        msp_dict = await query_msp_dict(user)
         if model_service_provider in msp_dict:
             msp = msp_dict[model_service_provider]
             base_url = msp.base_url
             api_key = msp.api_key
-            predictor = Predictor.get_completion_service(model_service_provider, model_name, base_url, api_key, **llm_config)
+            predictor = Predictor.get_completion_service(model_service_provider, model_name, base_url, api_key, **llm_kwargs)
         else:
             raise Exception("Model service provider not found")
-        prompt_template = llm_config.get("prompt_template", "{context}\n{query}")
         context = ""
         references = []
         if docs:

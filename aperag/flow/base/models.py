@@ -66,11 +66,18 @@ def register_node_definition(node_def: NodeDefinition):
     return node_def
 
 register_node_definition(NodeDefinition(
+    type="start",
+    vars_schema=[],
+    output_schema=[]
+))
+
+register_node_definition(NodeDefinition(
     type="vector_search",
     vars_schema=[
         FieldDefinition("top_k", FieldType.INTEGER, default=5),
         FieldDefinition("similarity_threshold", FieldType.FLOAT, default=0.7),
-        FieldDefinition("query", FieldType.STRING)
+        FieldDefinition("query", FieldType.STRING),
+        FieldDefinition("collection_ids", FieldType.ARRAY)
     ],
     output_schema=[
         FieldDefinition("vector_search_docs", FieldType.ARRAY)
@@ -80,7 +87,8 @@ register_node_definition(NodeDefinition(
 register_node_definition(NodeDefinition(
     type="keyword_search",
     vars_schema=[
-        FieldDefinition("query", FieldType.STRING)
+        FieldDefinition("query", FieldType.STRING),
+        FieldDefinition("collection_ids", FieldType.ARRAY)
     ],
     output_schema=[
         FieldDefinition("keyword_search_docs", FieldType.ARRAY)
@@ -103,7 +111,8 @@ register_node_definition(NodeDefinition(
 register_node_definition(NodeDefinition(
     type="rerank",
     vars_schema=[
-        FieldDefinition("model", FieldType.STRING, default="bge-reranker"),
+        FieldDefinition("model_name", FieldType.STRING, default="bge-reranker"),
+        FieldDefinition("model_service_provider", FieldType.STRING, default="openai"),
         FieldDefinition("docs", FieldType.ARRAY)
     ],
     output_schema=[
@@ -114,9 +123,11 @@ register_node_definition(NodeDefinition(
 register_node_definition(NodeDefinition(
     type="llm",
     vars_schema=[
-        FieldDefinition("model", FieldType.STRING, default="gpt-4o"),
+        FieldDefinition("model_service_provider", FieldType.STRING, default="openai"),
+        FieldDefinition("model_name", FieldType.STRING, default="gpt-4o"),
         FieldDefinition("temperature", FieldType.FLOAT, default=0.7),
         FieldDefinition("max_tokens", FieldType.INTEGER, default=1000),
+        FieldDefinition("prompt_template", FieldType.STRING, default="{context}\n{query}"),
         FieldDefinition("query", FieldType.STRING),
         FieldDefinition("docs", FieldType.ARRAY)
     ],

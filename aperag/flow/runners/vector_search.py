@@ -1,11 +1,13 @@
 import json
-from typing import Any, Dict
+from typing import Any, Dict, List
 from aperag.db.models import Collection
 from aperag.embed.base_embedding import get_collection_embedding_service
 from aperag.flow.base.models import BaseNodeRunner, register_node_runner, NodeInstance
 from aperag.context.context import ContextManager
 from aperag.utils.utils import generate_vector_db_collection_name
 from config import settings
+from asgiref.sync import sync_to_async
+
 
 @register_node_runner("vector_search")
 class VectorSearchNodeRunner(BaseNodeRunner):
@@ -13,7 +15,15 @@ class VectorSearchNodeRunner(BaseNodeRunner):
         query: str = inputs["query"]
         topk: int = inputs.get("top_k", 5)
         score_threshold: float = inputs.get("similarity_threshold", 0.7)
-        collection: Collection = inputs.get("collection")
+        collection_ids: List[str] = inputs.get("collection_ids", [])
+        collection = None
+        if collection_ids:
+            collections = await sync_to_async(Collection.objects.filter(id__in=collection_ids).all)()
+            async for item in collections:
+                collection = item
+                break
+        if not collection:
+            return {"vector_search_docs": []}
 
         collection_name = generate_vector_db_collection_name(collection.id)
         embedding_model, vector_size = await get_collection_embedding_service(collection)
