@@ -1266,6 +1266,7 @@ async def create_search_test(request, collection_id: str, data: view_models.Sear
                 InputBinding(name="query", source_type=InputSourceType.STATIC, value=query),
                 InputBinding(name="top_k", source_type=InputSourceType.STATIC, value=(data.vector_search.topk if data.vector_search else 5)),
                 InputBinding(name="similarity_threshold", source_type=InputSourceType.STATIC, value=(data.vector_search.similarity if data.vector_search else 0.7)),
+                InputBinding(name="collection_ids", source_type=InputSourceType.STATIC, value=[collection_id]),
             ]
         )
         output_node = node_id
@@ -1277,6 +1278,8 @@ async def create_search_test(request, collection_id: str, data: view_models.Sear
             type="keyword_search",
             vars=[
                 InputBinding(name="query", source_type=InputSourceType.STATIC, value=query),
+                InputBinding(name="top_k", source_type=InputSourceType.STATIC, value=(data.vector_search.topk if data.vector_search else 5)),
+                InputBinding(name="collection_ids", source_type=InputSourceType.STATIC, value=[collection_id]),
             ]
         )
         output_node = node_id
@@ -1289,6 +1292,7 @@ async def create_search_test(request, collection_id: str, data: view_models.Sear
                 InputBinding(name="query", source_type=InputSourceType.STATIC, value=query),
                 InputBinding(name="top_k", source_type=InputSourceType.STATIC, value=(data.vector_search.topk if data.vector_search else 5)),
                 InputBinding(name="similarity_threshold", source_type=InputSourceType.STATIC, value=(data.vector_search.similarity if data.vector_search else 0.7)),
+                InputBinding(name="collection_ids", source_type=InputSourceType.STATIC, value=[collection_id]),
             ]
         )
         nodes["keyword_search"] = NodeInstance(
@@ -1296,6 +1300,8 @@ async def create_search_test(request, collection_id: str, data: view_models.Sear
             type="keyword_search",
             vars=[
                 InputBinding(name="query", source_type=InputSourceType.STATIC, value=query),
+                InputBinding(name="top_k", source_type=InputSourceType.STATIC, value=(data.vector_search.topk if data.vector_search else 5)),
+                InputBinding(name="collection_ids", source_type=InputSourceType.STATIC, value=[collection_id]),
             ]
         )
         nodes["merge"] = NodeInstance(
