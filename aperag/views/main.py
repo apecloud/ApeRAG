@@ -1443,15 +1443,22 @@ async def stream_flow_events(flow_generator: AsyncGenerator[Dict[str, Any], None
     try:
         # First stream all flow events
         async for event in flow_generator:
-            # Convert event to serializable format
-            serializable_event = _convert_to_serializable(event)
             # Send event data
-            yield f"data: {json.dumps(serializable_event)}\n\n"
+            try:
+                serializable_event = _convert_to_serializable(event)
+                yield f"data: {json.dumps(serializable_event)}\n\n"
+            except Exception as e:
+                logger.exception(f"Error sending event {event}")
+                raise e
             
+            event_type = event.get("event_type")
             # If this is a flow end event, break to handle output generator
-            if event.get("event_type") == "flow_end":
+            if event_type == "flow_end":
                 break
-
+            
+            if event_type == "flow_error":
+                raise Exception(str(event))
+            
         # Wait for flow execution to complete
         try:
             flow_result = await flow_task
@@ -1476,7 +1483,7 @@ async def stream_flow_events(flow_generator: AsyncGenerator[Dict[str, Any], None
                             'node_id': node_id,
                             'execution_id': execution_id,
                             'timestamp': datetime.now().isoformat(),
-                            'data': {'chunk': _convert_to_serializable(chunk)}
+                            'data': {'chunk':  _convert_to_serializable(chunk)}
                         }
                         yield f"data: {json.dumps(data)}\n\n"
                 except Exception as e:
