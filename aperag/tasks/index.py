@@ -199,6 +199,7 @@ def add_index_for_document(self, document_id):
     source = None
     local_doc = None
     metadata = json.loads(document.metadata)
+    metadata["doc_id"] = document_id
     collection = async_to_sync(document.get_collection)()
     try:
         if document.object_path and Path(document.object_path).suffix in SUPPORTED_COMPRESSED_EXTENSIONS:
@@ -319,6 +320,7 @@ def update_index_for_document(self, document_id):
         collection = async_to_sync(document.get_collection)()
         source = get_source(parseCollectionConfig(collection.config))
         metadata = json.loads(document.metadata)
+        metadata["doc_id"] = document_id
         local_doc = source.prepare_document(name=document.name, metadata=metadata)
 
         embedding_model, vector_size = async_to_sync(get_collection_embedding_service)(collection)
@@ -420,6 +422,7 @@ def generate_questions(document_id):
 
         source = get_source(parseCollectionConfig(collection.config))
         metadata = json.loads(document.metadata)
+        metadata["doc_id"] = document_id
         local_doc = source.prepare_document(name=document.name, metadata=metadata)
         q_loaders = QuestionEmbedding(filepath=local_doc.path,
                                 file_metadata=local_doc.metadata,
