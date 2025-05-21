@@ -5,7 +5,7 @@ from typing import Any
 from markitdown import MarkItDown
 
 from aperag.docparser.base import BaseParser, FallbackError, Part
-from aperag.docparser.md_parser import parse_md
+from aperag.docparser.parse_md import parse_md
 from aperag.docparser.utils import convert_office_doc, get_soffice_cmd
 
 SUPPORTED_EXTENSIONS = [

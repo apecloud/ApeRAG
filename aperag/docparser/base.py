@@ -18,7 +18,7 @@ class Part(BaseModel):
 
 
 class MarkdownPart(Part):
-    pass
+    markdown: str
 
 
 class TextPart(Part):
@@ -51,6 +51,9 @@ class AssetBinPart(Part):
 
 
 class BaseParser(ABC):
+    def __init__(**kwargs):
+        pass
+
     @abstractmethod
     def supported_extensions(self) -> list[str]: ...
 

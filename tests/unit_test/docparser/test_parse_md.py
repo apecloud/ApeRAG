@@ -1,16 +1,15 @@
 import base64
 from hashlib import md5
-from pathlib import Path
 from typing import Any
 
 from aperag.docparser.base import AssetBinPart, CodePart, ImagePart, MarkdownPart, Part, TextPart, TitlePart
-from aperag.docparser.md_parser import MDParser, extract_data_uri, parse_md
+from aperag.docparser.parse_md import extract_data_uri, parse_md
 
 
 def test_parse_md_empty_input():
     input_md = ""
     metadata: dict[str, Any] = {}
-    expected_parts: list[Part] = [MarkdownPart(content="", metadata={})]
+    expected_parts: list[Part] = [MarkdownPart(markdown="", metadata={})]
     actual_parts = parse_md(input_md, metadata)
     assert actual_parts == expected_parts
 
@@ -21,7 +20,7 @@ def test_parse_md_simple_text():
     actual_parts = parse_md(input_md, metadata)
     assert len(actual_parts) == 2
     assert isinstance(actual_parts[0], MarkdownPart)
-    assert actual_parts[0].content == input_md
+    assert actual_parts[0].markdown == input_md
     assert isinstance(actual_parts[1], TextPart)
     assert actual_parts[1].content == input_md
 
@@ -141,7 +140,7 @@ def test_parse_md_blockquote_with_image():
     mime_type = "image/png"
     data_uri = f"data:{mime_type};base64,{encoded_data}"
     asset_id = md5(image_data).hexdigest()
-    input_md = f"> An image: ![the image alt text]({data_uri} \"the title\")"
+    input_md = f'> An image: ![the image alt text]({data_uri} "the title")'
     metadata: dict[str, Any] = {}
     actual_parts = parse_md(input_md, metadata)
     # Expected: MarkdownPart, AssetBinPart, TextPart(containing image ref)
@@ -154,7 +153,7 @@ def test_parse_md_blockquote_with_image():
 
     assert isinstance(actual_parts[2], TextPart)
     # The text part should now contain the asset URL
-    assert actual_parts[2].content == f"> An image: ![the image alt text](asset://{asset_id} \"the title\")"
+    assert actual_parts[2].content == f'> An image: ![the image alt text](asset://{asset_id} "the title")'
 
     assert isinstance(actual_parts[3], ImagePart)
     assert actual_parts[3].url == f"asset://{asset_id}"
@@ -186,7 +185,7 @@ def test_parse_md_simple_ordered_list():
     input_md = "1. First item\n2. Second item"
     metadata: dict[str, Any] = {}
     actual_parts = parse_md(input_md, metadata)
-    assert len(actual_parts) == 3 # MarkdownPart, TextPart for item1, TextPart for item2
+    assert len(actual_parts) == 3  # MarkdownPart, TextPart for item1, TextPart for item2
     assert isinstance(actual_parts[0], MarkdownPart)
     assert isinstance(actual_parts[1], TextPart)
     assert actual_parts[1].content == "1. First item"
@@ -238,7 +237,7 @@ def test_parse_md_nested_ordered_list():
     input_md = "1. Outer item 1\n   1. Inner item 1.1\n   2. Inner item 1.2\n2. Outer item 2"
     metadata: dict[str, Any] = {}
     actual_parts = parse_md(input_md, metadata)
-    assert len(actual_parts) == 5 # MarkdownPart, Text (Outer1), Text (Inner1.1), Text (Inner1.2), Text (Outer2)
+    assert len(actual_parts) == 5  # MarkdownPart, Text (Outer1), Text (Inner1.1), Text (Inner1.2), Text (Outer2)
     assert isinstance(actual_parts[0], MarkdownPart)
     assert actual_parts[1].content == "1. Outer item 1"
     assert actual_parts[2].content == "    1. Inner item 1.1"
@@ -259,7 +258,9 @@ def test_parse_md_nested_unordered_list():
 
 
 def test_parse_md_nested_mixed_list():
-    input_md = "1. Outer ordered\n   - Inner unordered 1\n   - Inner unordered 2\n* Outer unordered\n  1. Inner ordered 1"
+    input_md = (
+        "1. Outer ordered\n   - Inner unordered 1\n   - Inner unordered 2\n* Outer unordered\n  1. Inner ordered 1"
+    )
     metadata: dict[str, Any] = {}
     actual_parts = parse_md(input_md, metadata)
     assert len(actual_parts) == 6
@@ -272,7 +273,7 @@ def test_parse_md_nested_mixed_list():
 
 
 def test_parse_md_definitions():
-    input_md = "[label1]: url1 (title1)\n[label2]: url2 \"title2\""
+    input_md = '[label1]: url1 (title1)\n[label2]: url2 "title2"'
     metadata: dict[str, Any] = {}
     actual_parts = parse_md(input_md, metadata)
     assert len(actual_parts) == 3
@@ -355,29 +356,11 @@ def test_extract_data_uri_single_image():
     assert modified_text == f"![alt text](asset://{asset_id})"
 
 
-def test_md_parser_parse_file(tmp_path: Path):
-    # Create a temporary markdown file
-    md_file = tmp_path / "test.md"
-    content = "# Test Markdown File\nhello world"
-    md_file.write_text(content)
-
-    parser = MDParser()
-    parts = parser.parse_file(md_file)
-
-    assert len(parts) == 3
-    assert isinstance(parts[0], MarkdownPart)
-    assert parts[0].content == content
-    assert isinstance(parts[1], TitlePart)
-    assert parts[1].content == "# Test Markdown File"
-    assert parts[1].level == 1
-    assert isinstance(parts[2], TextPart)
-    assert parts[2].content == "hello world"
-    assert isinstance(parts[2], TextPart)
-
-
 def test_parse_md_complex_document():
     # Data URIs for images used in the document
-    smiley_image_data_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    smiley_image_data_b64 = (
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    )
     dog_icon_data_b64 = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
 
     smiley_asset_id = md5(base64.b64decode(smiley_image_data_b64)).hexdigest()
@@ -458,9 +441,9 @@ End of the document.
     actual_parts = parse_md(input_md, metadata)
 
     # Basic checks - you'll want to add more specific assertions
-    assert len(actual_parts) > 10 # Expecting many parts
+    assert len(actual_parts) > 10  # Expecting many parts
     assert isinstance(actual_parts[0], MarkdownPart)
-    assert actual_parts[0].content.startswith("# Document Title (Level 1)") # Check modified MD
+    assert actual_parts[0].markdown.startswith("# Document Title (Level 1)")  # Check modified MD
 
     # Check for AssetBinParts
     asset_ids_found = {part.asset_id for part in actual_parts if isinstance(part, AssetBinPart)}
@@ -475,26 +458,30 @@ End of the document.
     # Check for a specific title
     titles = [part for part in actual_parts if isinstance(part, TitlePart)]
     assert any(title.content == "# Document Title (Level 1)" and title.level == 1 for title in titles)
-    assert any(title.content == "## Section 1: Lists and Blockquotes (Level 2)" and title.level == 2 for title in titles)
-    assert any(title.content == "### Subsection 2.1: A More Complex Table (Level 3)" and title.level == 3 for title in titles)
+    assert any(
+        title.content == "## Section 1: Lists and Blockquotes (Level 2)" and title.level == 2 for title in titles
+    )
+    assert any(
+        title.content == "### Subsection 2.1: A More Complex Table (Level 3)" and title.level == 3 for title in titles
+    )
 
     # Check for a specific code block
     code_blocks = [part for part in actual_parts if isinstance(part, CodePart)]
-    assert any("print(\"Hello from nested list code block\")" in cb.content and cb.lang == "python" for cb in code_blocks)
+    assert any('print("Hello from nested list code block")' in cb.content and cb.lang == "python" for cb in code_blocks)
     assert any("console.log('Hi there!');" in cb.content and cb.lang == "javascript" for cb in code_blocks)
-    assert any("def greet(name):" in cb.content and cb.lang is None for cb in code_blocks) # Indented
+    assert any("def greet(name):" in cb.content and cb.lang is None for cb in code_blocks)  # Indented
 
     # Check for a specific table (as TextPart)
     text_parts = [part for part in actual_parts if isinstance(part, TextPart)]
     assert any("| Animal | Sound | Image in Table |" in tp.content for tp in text_parts)
-    assert any("![Dog Icon]" in tp.content for tp in text_parts) # Image in table
+    assert any("![Dog Icon]" in tp.content for tp in text_parts)  # Image in table
     assert any("| Feature | Status | Notes |" in tp.content for tp in text_parts)
 
     # Check for a specific list item text
     assert any("1. First item." in tp.content for tp in text_parts)
-    assert any("    - Nested unordered item 1.1" in tp.content for tp in text_parts) # Check indentation
+    assert any("    - Nested unordered item 1.1" in tp.content for tp in text_parts)  # Check indentation
     assert any("    - Nested unordered item 1.2 with an image: ![Smiley]" in tp.content for tp in text_parts)
-    assert any("    > > And even have nested blockquotes!" in tp.content for tp in text_parts) # Nested blockquote
+    assert any("    > > And even have nested blockquotes!" in tp.content for tp in text_parts)  # Nested blockquote
 
     # Check for definition
     assert any(tp.content == "[ref_label]: https://www.example.com (Reference Title)" for tp in text_parts)

@@ -15,28 +15,11 @@ from aperag.docparser.base import AssetBinPart, BaseParser, CodePart, ImagePart,
 logger = logging.getLogger(__name__)
 
 DATA_URI_PATTERN: Pattern = re.compile(r"!\[.*?\]\(\s*(data:.+?;base64,.+?)(?:\s+\"(.*?)\")?\)")
-SUPPORTED_EXTENSIONS = [
-    ".md",
-    ".markdown",
-]
-
-
-class MDParser(BaseParser):
-    def supported_extensions(self) -> list[str]:
-        return SUPPORTED_EXTENSIONS
-
-    def parse_file(self, path: Path, metadata: dict[str, Any] = {}, **kwargs) -> list[Part]:
-        with path.open("r") as f:
-            text = f.read()
-            return self.parse_text(text, metadata, **kwargs)
-
-    def parse_text(self, text: str, metadata: dict[str, Any] = {}, **kwargs) -> list[Part]:
-        return parse_md(text, metadata)
 
 
 def parse_md(input_md: str, metadata: dict[str, Any]) -> list[Part]:
     input_md, asset_bin_parts = extract_data_uri(input_md, metadata)
-    md_part = MarkdownPart(content=input_md, metadata=metadata)
+    md_part = MarkdownPart(markdown=input_md, metadata=metadata)
 
     md = MarkdownIt("gfm-like", options_update={"inline_definitions": True})
     tokens = md.parse(input_md)
@@ -245,6 +228,7 @@ class PartConverter:
         lang = None
         if token.info:
             lang = token.info
+            metadata["code_lang"] = lang
         code = self._to_code_content(token.content, lang)
         return [CodePart(content=code, metadata=metadata, lang=lang)], idx + 1
 

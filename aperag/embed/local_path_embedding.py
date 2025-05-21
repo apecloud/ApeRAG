@@ -2,15 +2,17 @@
 # -*- coding: utf-8 -*-
 import faulthandler
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
 
 from langchain.embeddings.base import Embeddings
-from llama_index.core.data_structs.data_structs import BaseNode
-from llama_index.core.node_parser import NodeParser, TokenTextSplitter
+from llama_index.core.schema import BaseNode, TextNode
 
 from aperag.db.models import Document
+from aperag.docparser.base import AssetBinPart, MarkdownPart, Part
+from aperag.docparser.chunking import rechunk
+from aperag.docparser.doc_parser import DocParser
 from aperag.embed.base_embedding import DocumentBaseEmbedding
-from aperag.readers.local_path_reader import InteractiveSimpleDirectoryReader
 from aperag.readers.sensitive_filter import SensitiveFilterClassify
 from aperag.utils.tokenizer import get_default_tokenizer
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
@@ -23,74 +25,69 @@ faulthandler.enable()
 class LocalPathEmbedding(DocumentBaseEmbedding):
     def __init__(
             self,
+            filepath: str,
+            file_metadata: Dict[str, Any],
             vector_store_adaptor: VectorStoreConnectorAdaptor,
             embedding_model: Embeddings = None,
             vector_size: int = None,
-            input_file_metadata_list: Optional[List[Dict[str, Any]]] = None,
-            node_parser: Optional[NodeParser] = None,
             **kwargs: Any,
     ) -> None:
         super().__init__(vector_store_adaptor, embedding_model, vector_size)
-        input_files = kwargs.get("input_files", [])
-        if input_files and input_file_metadata_list:
-            metadata_mapping = {}
-            for idx, metadata in enumerate(input_file_metadata_list):
-                metadata_mapping[input_files[idx]] = metadata
 
-            def metadata_mapping_func(path: str) -> Dict[str, Any]:
-                return metadata_mapping.get(path, {})
-
-            kwargs["file_metadata"] = metadata_mapping_func
-        self.reader = InteractiveSimpleDirectoryReader(**kwargs)
+        self.filepath = filepath
+        self.file_metadata = file_metadata or {}
+        self.parser = DocParser()  # TODO: use the parser config from the collection
         self.filter = SensitiveFilterClassify(None) #todo Fixme, use a llm model
-        self.node_parser = node_parser or \
-            TokenTextSplitter(
-                chunk_size=kwargs.get('chunk_size', settings.CHUNK_SIZE),
-                chunk_overlap=kwargs.get('chunk_overlap', settings.CHUNK_OVERLAP_SIZE),
-                tokenizer=get_default_tokenizer(),
-            )
+        self.chunk_size = kwargs.get('chunk_size', settings.CHUNK_SIZE)
+        self.chunk_overlap = kwargs.get('chunk_overlap', settings.CHUNK_OVERLAP_SIZE)
+        self.tokenizer = get_default_tokenizer()
+
+    def parse_doc(self, ) -> list[Part]:
+        filepath = Path(self.filepath)
+        if not self.parser.accept(filepath.suffix):
+            raise ValueError(f"unsupported file type: {filepath.suffix}")
+        parts = self.parser.parse_file(filepath, self.file_metadata)
+        return parts
 
     def load_data(self, **kwargs) -> Tuple[List[str], str, List]:
         sensitive_protect = kwargs.get('sensitive_protect', False)
         sensitive_protect_method = kwargs.get('sensitive_protect_method', Document.ProtectAction.WARNING_NOT_STORED)
-        docs, file_name, chunked = self.reader.load_data()
-        if not docs:
-            return [], "", []
 
         nodes: List[BaseNode] = []
-
-        texts = []
         content = ""
         sensitive_info = []
 
-        for doc in docs:
-            content += doc.text
-            doc.set_content(doc.text.strip())
+        parts = self.parse_doc()
+        if len(parts) == 0:
+            return [], "", []
+        parts = rechunk(parts, self.chunk_size, self.chunk_overlap, self.tokenizer)
 
-            # ignore page less than 30 characters
-            text_size_threshold = 30
-            if len(doc.text) < text_size_threshold:
-                logger.warning("ignore page less than %d characters: %s",
-                               text_size_threshold, doc.metadata.get("name", None))
+        md_part = next((part for part in parts if isinstance(part, MarkdownPart)), None)
+        if md_part is not None:
+            content = md_part.content
+        # TODO: save the markdown to object store
+
+        for part in parts:
+            if isinstance(part, MarkdownPart):
+                continue
+            if isinstance(part, AssetBinPart):
+                # TODO: save the asset to object store
+                continue
+            if not part.content:
                 continue
 
-            # ignore page with content ratio less than 0.5
-            content_ratio = doc.metadata.get("content_ratio", 1)
-            content_ratio_threshold = 0.5
-            if content_ratio < content_ratio_threshold:
-                logger.warning("ignore page with content ratio less than %f: %s",
-                               content_ratio_threshold, doc.metadata.get("name", None))
-                continue
+            if md_part is None:
+                content += part.content + "\n\n"
 
             paddings = []
             # padding titles of the hierarchy
-            if "titles" in doc.metadata:
-                paddings.append(" ".join(doc.metadata["titles"]))
+            if "titles" in part.metadata:
+                paddings.append(" ".join(part.metadata["titles"]))
 
             # padding user custom labels
-            if "labels" in doc.metadata:
+            if "labels" in part.metadata:
                 labels = []
-                for item in doc.metadata.get("labels", [{}]):
+                for item in part.metadata.get("labels", [{}]):
                     if not item.get("key", None) or not item.get("value", None):
                         continue
                     labels.append("%s=%s" % (item["key"], item["value"]))
@@ -99,11 +96,11 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
             prefix = ""
             if len(paddings) > 0:
                 prefix = "\n\n".join(paddings)
-                logger.info("add extra prefix for document %s before embedding: %s",
-                            doc.metadata.get("name", None), prefix)
+                logger.debug("add extra prefix for document %s before embedding: %s",
+                             self.filepath, prefix)
 
             if sensitive_protect:
-                doc.text, output_sensitive_info = self.filter.sensitive_filter(doc.text, sensitive_protect_method)
+                part.content, output_sensitive_info = self.filter.sensitive_filter(part.content, sensitive_protect_method)
                 if output_sensitive_info != {}:
                     sensitive_info.append(output_sensitive_info)
 
@@ -116,36 +113,22 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
             # embedding without the code block
             # text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
 
-            chunks = [doc]
-            if not chunked:
-                # Some readers (e.g., MinerUReader) support chunking documents during data parsing.
-                # If not, chunk the document into smaller pieces before indexing.
-                chunks = self.node_parser.get_nodes_from_documents([doc])
-
-            for i, c in enumerate(chunks):
-                if prefix:
-                    text = f"{prefix}\n{c.get_content()}"
-                else:
-                    text = c.get_content()
-                texts.append(text)
-
-                c.metadata.update(doc.metadata)
-                c.metadata.update({
-                    "source": f"{doc.metadata.get('name')}",
-                    "chunk_num": str(i),
-                })
-            nodes.extend(chunks)
+            if prefix:
+                text = f"{prefix}\n\n{part.content}"
+            else:
+                text = part.content
+            nodes.append(TextNode(text=text, metadata=part.metadata))
 
         if sensitive_protect and sensitive_protect_method == Document.ProtectAction.WARNING_NOT_STORED and sensitive_info != []:
-            logger.info("find sensitive information: %s", file_name)
+            logger.info("find sensitive information: %s", self.filepath)
             return [], "", sensitive_info
 
+        texts = [node.get_content() for node in nodes]
         vectors = self.embedding.embed_documents(texts)
-
         for i in range(len(vectors)):
             nodes[i].embedding = vectors[i]
 
-        logger.info(f"processed file: {file_name} with {len(vectors)} chunks")
+        logger.info(f"processed file: {self.filepath} with {len(vectors)} chunks")
         return self.connector.store.add(nodes), content, sensitive_info
 
     def delete(self, **kwargs) -> bool:

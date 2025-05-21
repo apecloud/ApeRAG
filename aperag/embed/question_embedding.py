@@ -5,10 +5,9 @@ import logging
 from typing import Any, List
 
 from langchain.embeddings.base import Embeddings
-from llama_index.core.data_structs.data_structs import Node
-from llama_index.core.schema import NodeRelationship, RelatedNodeInfo
-from llama_index.core.vector_stores.types import NodeWithEmbedding
+from llama_index.core.schema import TextNode
 
+from aperag.docparser.chunking import rechunk
 from aperag.embed.base_embedding import DocumentBaseEmbedding
 from aperag.embed.local_path_embedding import LocalPathEmbedding
 from aperag.readers.question_generator import QuestionGenerator
@@ -25,59 +24,47 @@ class QuestionEmbedding(LocalPathEmbedding):
         llm_model = kwargs.get("llm_model")
         self.question_generator = QuestionGenerator(llm_model)
         self.questions = []
-        self.max_context_window = kwargs.get("max_context_window", 3000)
+        self.max_context_window = kwargs.get("max_context_window", 4000)
 
-    def load_data(self, **kwargs) -> list[str]:
-
-        docs, file_name, _ = self.reader.load_data()
-        if not docs:
+    def load_data(self, **kwargs) -> tuple[list[str], list[str]]:
+        parts = self.parse_doc()
+        parts = [part for part in parts if part.content]
+        if not parts:
             return [], []
 
-        logger.info("generating questions for document: %s", file_name)
-        nodes: List[NodeWithEmbedding] = []
-        for doc in docs:
-            doc.set_content(doc.text.strip())
+        has_room_for_prefix = False
+        reserve_tokens_for_prefix = 300
+        chunk_size = self.max_context_window
+        if chunk_size > 5 * reserve_tokens_for_prefix:
+            chunk_size -= reserve_tokens_for_prefix
+            has_room_for_prefix = True
+        parts = rechunk(parts, chunk_size, self.chunk_overlap, self.tokenizer)
 
-            # ignore page less than 30 characters
-            text_size_threshold = 30
-            if len(doc.text) < text_size_threshold:
-                logger.warning("ignore page less than %d characters: %s",
-                               text_size_threshold, doc.metadata.get("name", None))
-                continue
+        logger.info("generating questions for document: %s", self.filepath)
+        nodes: List[TextNode] = []
+        for part in parts:
+            text = part.content
+            if has_room_for_prefix:
+                paddings = []
+                # padding titles of the hierarchy
+                if "titles" in part.metadata:
+                    paddings.append(" ".join(part.metadata["titles"]))
 
-            # ignore page with content ratio less than 0.75
-            content_ratio = doc.metadata.get("content_ratio", 1)
-            content_ratio_threshold = 0.75
-            if content_ratio < content_ratio_threshold:
-                logger.warning("ignore page with content ratio less than %f: %s",
-                               content_ratio_threshold, doc.metadata.get("name", None))
-                continue
-
-            # ignore page larger than 200 characters
-            # large_doc_threshold = 200
-            # if len(doc.text) > large_doc_threshold:
-            #     logger.warning("ignore doc larger than %d", large_doc_threshold)
-            #     continue
-
-            paddings = []
-            # padding titles of the hierarchy
-            if "titles" in doc.metadata:
-                paddings.append(" ".join(doc.metadata["titles"]))
-
-            # padding user custom labels
-            if "labels" in doc.metadata:
-                labels = []
-                for item in doc.metadata.get("labels", [{}]):
-                    if not item.get("key", None) or not item.get("value", None):
-                        continue
-                    labels.append("%s=%s" % (item["key"], item["value"]))
-                paddings.append(" ".join(labels))
-            prefix = "\n\n".join(paddings)
+                # padding user custom labels
+                if "labels" in part.metadata:
+                    labels = []
+                    for item in part.metadata.get("labels", [{}]):
+                        if not item.get("key", None) or not item.get("value", None):
+                            continue
+                        labels.append("%s=%s" % (item["key"], item["value"]))
+                    paddings.append(" ".join(labels))
+                prefix = "\n\n".join(paddings)
+                text = f"{prefix}\n{text}"
 
             # embedding without the code block
             # text = re.sub(r"```.*?```", "", doc.text, flags=re.DOTALL)
-            text = f"{prefix}\n{doc.text}"
-            questions = self.question_generator.gen_questions(text[:self.max_context_window])
+
+            questions = self.question_generator.gen_questions(text)
             if len(questions) == 0:
                 continue
 
@@ -85,16 +72,10 @@ class QuestionEmbedding(LocalPathEmbedding):
             logger.info("generating questions: %s", str(questions))
 
             for q in questions:
-                node = Node(
+                node = TextNode(
                     text=json.dumps({"question": q, "answer": ""}),
-                    doc_id=doc.doc_id,
                 )
-                node.metadata.update({"source": f"{doc.metadata['name']}"})
-                node.relationships = {
-                    NodeRelationship.SOURCE: RelatedNodeInfo(
-                        node_id=node.node_id, metadata={"source": f"{doc.metadata['name']}"}
-                    )
-                }
+                node.metadata.update({"source": f"{part.metadata.get('doc_id', "")}"})
                 vector = self.embedding.embed_query(q)
                 node.embedding = vector
                 nodes.append(node)
@@ -120,24 +101,18 @@ class QuestionEmbeddingWithoutDocument(DocumentBaseEmbedding):
     def load_data(self, **kwargs) -> list[str]:
         faq = kwargs.get('faq', [])
 
-        nodes: List[Node] = []
+        nodes: List[TextNode] = []
         for qa in faq:
             question = qa["question"]
             answer = qa["answer"]
-            node = Node(
+            node = TextNode(
                 text=json.dumps({"question": question, "answer": answer}),
-                doc_id='',
             )
             node.metadata.update({"source": ""})
-            node.relationships = {
-                NodeRelationship.SOURCE: RelatedNodeInfo(
-                    node_id=node.node_id, metadata={"source": ""}
-                )
-            }
             vector = self.embedding.embed_query(question)
             node.embedding = vector
             nodes.append(node)
         return self.connector.store.add(nodes)
 
     def delete(self, **kwargs) -> bool:
-        self.connector.delete(**kwargs)
+        return self.connector.delete(**kwargs)

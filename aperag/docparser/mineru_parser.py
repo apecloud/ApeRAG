@@ -161,8 +161,8 @@ class MinerUParser(BaseParser):
                 pos += lines + 1
 
         return MarkdownPart(
-            content=md,
             metadata=metadata,
+            markdown=md,
         )
 
 

@@ -61,14 +61,14 @@ class CustomLoadDocumentTask(Task):
         if document.status != Document.Status.WARNING:
             document.status = Document.Status.COMPLETE
         document.save()
-        logger.info(f"add qdrant points for document {document.name} success")
+        logger.info(f"index for document {document.name} success")
 
     def on_failure(self, exc, task_id, args, kwargs, einfo):
         document_id = args[0]
         document = Document.objects.get(id=document_id)
         document.status = Document.Status.FAILED
         document.save()
-        logger.error(f"add qdrant points for document {document.name} error:{exc}")
+        logger.error(f"index for document {document.name} error:{exc}")
 
 
 class CustomDeleteDocumentTask(Task):
@@ -214,8 +214,8 @@ def add_index_for_document(self, document_id):
                 document.size = os.path.getsize(local_doc.path)
 
             embedding_model, vector_size = async_to_sync(get_collection_embedding_service)(collection)
-            loader = LocalPathEmbedding(input_files=[local_doc.path],
-                                        input_file_metadata_list=[local_doc.metadata],
+            loader = LocalPathEmbedding(filepath=local_doc.path,
+                                        file_metadata=local_doc.metadata,
                                         embedding_model=embedding_model,
                                         vector_size=vector_size,
                                         vector_store_adaptor=get_vector_db_connector(
@@ -322,8 +322,8 @@ def update_index_for_document(self, document_id):
         local_doc = source.prepare_document(name=document.name, metadata=metadata)
 
         embedding_model, vector_size = async_to_sync(get_collection_embedding_service)(collection)
-        loader = LocalPathEmbedding(input_files=[local_doc.path],
-                                    input_file_metadata_list=[local_doc.metadata],
+        loader = LocalPathEmbedding(filepath=local_doc.path,
+                                    file_metadata=local_doc.metadata,
                                     embedding_model=embedding_model,
                                     vector_size=vector_size,
                                     vector_store_adaptor=get_vector_db_connector(
@@ -421,8 +421,8 @@ def generate_questions(document_id):
         source = get_source(parseCollectionConfig(collection.config))
         metadata = json.loads(document.metadata)
         local_doc = source.prepare_document(name=document.name, metadata=metadata)
-        q_loaders = QuestionEmbedding(input_files=[local_doc.path],
-                                input_file_metadata_list=[local_doc.metadata],
+        q_loaders = QuestionEmbedding(filepath=local_doc.path,
+                                file_metadata=local_doc.metadata,
                                 embedding_model=embedding_model,
                                 llm_model=None, #todo Fixme
                                 vector_store_adaptor=get_vector_db_connector(
