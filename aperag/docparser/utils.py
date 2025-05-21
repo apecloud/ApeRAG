@@ -2,6 +2,9 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from urllib.parse import quote_plus
+
+from aperag.docparser.base import AssetBinPart
 
 
 def get_soffice_cmd() -> str | None:
@@ -36,3 +39,10 @@ def convert_office_doc(input_path: Path, output_dir: Path, target_format: str) -
         )
 
     return output_dir / f"{input_path.stem}.{target_format}"
+
+
+def asset_bin_part_to_url(part: AssetBinPart) -> str:
+    url = f"asset://{part.asset_id}"
+    if part.mime_type:
+        url += f"?mime_type={quote_plus(part.mime_type)}"
+    return url

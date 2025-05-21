@@ -13,6 +13,7 @@ from aperag.docparser.base import AssetBinPart, MarkdownPart, Part
 from aperag.docparser.chunking import rechunk
 from aperag.docparser.doc_parser import DocParser
 from aperag.embed.base_embedding import DocumentBaseEmbedding
+from aperag.objectstore.base import get_object_store
 from aperag.readers.sensitive_filter import SensitiveFilterClassify
 from aperag.utils.tokenizer import get_default_tokenizer
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
@@ -25,8 +26,10 @@ faulthandler.enable()
 class LocalPathEmbedding(DocumentBaseEmbedding):
     def __init__(
             self,
+            *,
             filepath: str,
             file_metadata: Dict[str, Any],
+            object_store_base_path: str | None = None,
             vector_store_adaptor: VectorStoreConnectorAdaptor,
             embedding_model: Embeddings = None,
             vector_size: int = None,
@@ -36,6 +39,7 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
 
         self.filepath = filepath
         self.file_metadata = file_metadata or {}
+        self.object_store_base_path = object_store_base_path
         self.parser = DocParser()  # TODO: use the parser config from the collection
         self.filter = SensitiveFilterClassify(None) #todo Fixme, use a llm model
         self.chunk_size = kwargs.get('chunk_size', settings.CHUNK_SIZE)
@@ -64,15 +68,9 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
 
         md_part = next((part for part in parts if isinstance(part, MarkdownPart)), None)
         if md_part is not None:
-            content = md_part.content
-        # TODO: save the markdown to object store
+            content = md_part.markdown
 
         for part in parts:
-            if isinstance(part, MarkdownPart):
-                continue
-            if isinstance(part, AssetBinPart):
-                # TODO: save the asset to object store
-                continue
             if not part.content:
                 continue
 
@@ -122,6 +120,19 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
         if sensitive_protect and sensitive_protect_method == Document.ProtectAction.WARNING_NOT_STORED and sensitive_info != []:
             logger.info("find sensitive information: %s", self.filepath)
             return [], "", sensitive_info
+
+        if self.object_store_base_path is not None:
+            base_path = self.object_store_base_path
+            obj_store = get_object_store()
+
+            # Save markdown content
+            obj_store.put(f"{base_path}/parsed.md", content.encode("utf-8"))
+
+            # Save assets
+            for part in parts:
+                if not isinstance(part, AssetBinPart):
+                    continue
+                obj_store.put(f"{base_path}/assets/{part.asset_id}", part.data)
 
         texts = [node.get_content() for node in nodes]
         vectors = self.embedding.embed_documents(texts)

@@ -153,10 +153,10 @@ def test_parse_md_blockquote_with_image():
 
     assert isinstance(actual_parts[2], TextPart)
     # The text part should now contain the asset URL
-    assert actual_parts[2].content == f'> An image: ![the image alt text](asset://{asset_id} "the title")'
+    assert actual_parts[2].content == f'> An image: ![the image alt text](asset://{asset_id}?mime_type=image%2Fpng "the title")'
 
     assert isinstance(actual_parts[3], ImagePart)
-    assert actual_parts[3].url == f"asset://{asset_id}"
+    assert actual_parts[3].url == f"asset://{asset_id}?mime_type=image%2Fpng"
     assert actual_parts[3].alt_text == "the image alt text"
     assert actual_parts[3].title == "the title"
 
@@ -321,13 +321,13 @@ def test_parse_md_table_with_inline_markdown_and_image():
     assert len(actual_parts) == 4  # MarkdownPart, AssetBinPart, TextPart (table), ImagePart
     assert isinstance(actual_parts[0], MarkdownPart)
     assert any(isinstance(p, AssetBinPart) and p.asset_id == asset_id for p in actual_parts)
-    assert any(isinstance(p, ImagePart) and p.url == f"asset://{asset_id}" for p in actual_parts)
+    assert any(isinstance(p, ImagePart) and p.url == f"asset://{asset_id}?mime_type=image%2Fpng" for p in actual_parts)
 
     table_part = next(p for p in actual_parts if isinstance(p, TextPart))
     expected_table_md = f"""| Format | Example |
 |---|---|
 | Bold | **Strong text** \\| |
-| Image | ![alt text](asset://{asset_id} "title") |"""
+| Image | ![alt text](asset://{asset_id}?mime_type=image%2Fpng "title") |"""
     assert table_part.content.strip() == expected_table_md.strip()
 
 
@@ -353,7 +353,7 @@ def test_extract_data_uri_single_image():
     assert asset_parts[0].asset_id == asset_id
     assert asset_parts[0].mime_type == mime_type
     assert asset_parts[0].data == image_data
-    assert modified_text == f"![alt text](asset://{asset_id})"
+    assert modified_text == f"![alt text](asset://{asset_id}?mime_type=image%2Fpng)"
 
 
 def test_parse_md_complex_document():
@@ -452,8 +452,8 @@ End of the document.
 
     # Check for ImageParts
     image_urls_found = {part.url for part in actual_parts if isinstance(part, ImagePart)}
-    assert f"asset://{smiley_asset_id}" in image_urls_found
-    assert f"asset://{dog_asset_id}" in image_urls_found
+    assert f"asset://{smiley_asset_id}?mime_type=image%2Fpng" in image_urls_found
+    assert f"asset://{dog_asset_id}?mime_type=image%2Fgif" in image_urls_found
 
     # Check for a specific title
     titles = [part for part in actual_parts if isinstance(part, TitlePart)]

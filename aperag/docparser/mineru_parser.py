@@ -27,7 +27,7 @@ from aperag.docparser.base import (
     TextPart,
     TitlePart,
 )
-from aperag.docparser.utils import get_soffice_cmd
+from aperag.docparser.utils import asset_bin_part_to_url, get_soffice_cmd
 
 logger = logging.getLogger(__name__)
 
@@ -374,14 +374,16 @@ def _convert_image_para(image_dir: Path, para_block: dict[str, Any], metadata: d
         return [TextPart(content=text, metadata=metadata)]
 
     asset_id = md5(img_data).hexdigest()
-    filename = Path(img_path).stem
-    asset_url = f"asset://{asset_id}"
-    text = f"![{filename}]({asset_url})\n" + text
     asset_bin_part = AssetBinPart(
         asset_id=asset_id,
         data=img_data,
         metadata=metadata,
     )
+
+    asset_url = asset_bin_part_to_url(asset_bin_part)
+    filename = Path(img_path).stem
+    text = f"![{filename}]({asset_url})\n" + text
+
     img_part = ImagePart(
         content=text,
         metadata=metadata,
@@ -435,14 +437,16 @@ def _convert_table_para(image_dir: Path, para_block: dict[str, Any], metadata: d
         return [TextPart(content=text, metadata=metadata)]
 
     asset_id = md5(img_data).hexdigest()
-    filename = Path(img_path).stem
-    asset_url = f"asset://{asset_id}"
-    text = f"![{filename}]({asset_url})\n" + text
     asset_bin_part = AssetBinPart(
         asset_id=asset_id,
         data=img_data,
         metadata=metadata,
     )
+
+    asset_url = asset_bin_part_to_url(asset_bin_part)
+    filename = Path(img_path).stem
+    text = f"![{filename}]({asset_url})\n" + text
+
     img_part = ImagePart(
         content=text,
         metadata=metadata,

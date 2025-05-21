@@ -10,6 +10,7 @@ from markdown_it import MarkdownIt
 from markdown_it.token import Token
 
 from aperag.docparser.base import AssetBinPart, CodePart, ImagePart, MarkdownPart, Part, TextPart, TitlePart
+from aperag.docparser.utils import asset_bin_part_to_url
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ def extract_data_uri(text: str, metadata: dict[str, Any]) -> tuple[str, list[Par
             )
             asset_bin_parts.append(asset_bin_part)
 
-            asset_url = f"asset://{asset_id}"
+            asset_url = asset_bin_part_to_url(asset_bin_part)
             text = text.replace(data_uri, asset_url)
         except Exception as e:
             logger.warning(f"Error processing data URI: {e}")
