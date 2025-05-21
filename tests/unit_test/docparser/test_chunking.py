@@ -74,19 +74,46 @@ def test_rechunking_with_title_merge_prevention():
         Part(content="Intro text", metadata={}),
         TitlePart(content="# Main Title", level=1),
         Part(content="Content under main title", metadata={}),
-        TitlePart(content="## Subtitle", level=2),
-        Part(content="Content under subtitle", metadata={}),
+        TitlePart(content="## Subtitle 1", level=2),
+        Part(content="Content under subtitle 1", metadata={}),
+        TitlePart(content="## Subtitle 2", level=2),
+        Part(content="Content under subtitle 2", metadata={}),
+        TitlePart(content="# Main Title 2", level=1),
+        Part(content="Content under main title 2", metadata={}),
     ]
 
-    rechunker = Rechunker(chunk_size=8, chunk_overlap=0, tokenizer=mock_tokenizer)
+    rechunker = Rechunker(chunk_size=6, chunk_overlap=0, tokenizer=mock_tokenizer)
     rechunked_parts = rechunker(parts)
 
-    assert len(rechunked_parts) == 3
-    assert "Intro text" in rechunked_parts[0].content
-    assert "# Main Title" in rechunked_parts[1].metadata.get("section_title", "")
-    assert "Content under main title" in rechunked_parts[1].content
-    assert "## Subtitle" in rechunked_parts[2].metadata.get("section_title", "")
-    assert "Content under subtitle" in rechunked_parts[2].content
+    print(rechunked_parts)
+    assert len(rechunked_parts) == 9
+
+    assert rechunked_parts[0].content == "Intro text"
+    assert rechunked_parts[0].metadata.get("titles") is None
+
+    assert rechunked_parts[1].content == "# Main Title"
+    assert rechunked_parts[1].metadata.get("titles") is None
+
+    assert rechunked_parts[2].content == "Content under main title"
+    assert rechunked_parts[2].metadata.get("titles") == ["# Main Title"]
+
+    assert rechunked_parts[3].content == "## Subtitle 1"
+    assert rechunked_parts[3].metadata.get("titles") == ["# Main Title"]
+
+    assert rechunked_parts[4].content == "Content under subtitle 1"
+    assert rechunked_parts[4].metadata.get("titles") == ["# Main Title", "## Subtitle 1"]
+
+    assert rechunked_parts[5].content == "## Subtitle 2"
+    assert rechunked_parts[5].metadata.get("titles") == ["# Main Title"]
+
+    assert rechunked_parts[6].content == "Content under subtitle 2"
+    assert rechunked_parts[6].metadata.get("titles") == ["# Main Title", "## Subtitle 2"]
+
+    assert rechunked_parts[7].content == "# Main Title 2"
+    assert rechunked_parts[7].metadata.get("titles") is None
+
+    assert rechunked_parts[8].content == "Content under main title 2"
+    assert rechunked_parts[8].metadata.get("titles") == ["# Main Title 2"]
 
 
 def test_append_group_to_part():
@@ -101,7 +128,7 @@ def test_append_group_to_part():
     )
 
     dest_part = Part(content="Initial content.", metadata={})
-    result_part = rechunker._append_group_to_part(group, dest_part)
+    result_part = rechunker._append_group_to_part(group, dest_part, [])
 
     assert "Initial content." in result_part.content
     assert "Part 1 of group." in result_part.content
@@ -125,7 +152,7 @@ def test_append_part_to_part():
             "pdf_source_map": [{"page_idx": 0, "bbox": [0, 0, 200, 200]}, {"page_idx": 100, "bbox": [0, 0, 200, 200]}],
         },
     )
-    result_part = rechunker._append_part_to_part(part, dest_part, "")
+    result_part = rechunker._append_part_to_part(part, dest_part, [])
 
     assert "Destination content." in result_part.content
     assert "Content to append." in result_part.content
@@ -252,8 +279,8 @@ def test_rechunker_edge_case_large_title():
     rechunked_parts = rechunker(parts)
 
     assert len(rechunked_parts) == 2
-    assert "# AAAAA" in rechunked_parts[0].metadata.get("section_title", "")
-    assert "AAAAA" in rechunked_parts[1].metadata.get("section_title", "")
+    assert "# AAAAA" in rechunked_parts[0].content
+    assert "AAAAA" in rechunked_parts[1].content
     assert "Normal Content" in rechunked_parts[1].content
 
 

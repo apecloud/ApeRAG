@@ -1,10 +1,12 @@
 from dataclasses import dataclass
 from typing import Callable, List
 
-from aperag.docparser.base import AssetBinPart, MarkdownPart, Part, TitlePart
+from aperag.docparser.base import Part, TitlePart
 
 
-def rechunk(parts: list[Part], chunk_size: int, chunk_overlap: int, tokenizer: Callable[[str], List[int]]) -> list[Part]:
+def rechunk(
+    parts: list[Part], chunk_size: int, chunk_overlap: int, tokenizer: Callable[[str], List[int]]
+) -> list[Part]:
     rechunker = Rechunker(chunk_size, chunk_overlap, tokenizer)
     return rechunker(parts)
 
@@ -32,10 +34,6 @@ class Rechunker:
         curr_group: Group | None = None
 
         for part in parts:
-            if isinstance(part, MarkdownPart):
-                continue
-            if isinstance(part, AssetBinPart):
-                continue
             if not part.content:
                 continue
 
@@ -62,15 +60,24 @@ class Rechunker:
         return result
 
     def _rechunk(self, groups: list[Group]) -> list[Part]:
+        title_stack: list[tuple[str, int]] = []
+        titles: list[str] = []
         result: list[Part] = []
         last_part: Part | None = None
-        prev_group: Group | None = None
+        highest_level_in_last_part: int | None = None
+
         for group in groups:
+            while len(title_stack) > 0 and title_stack[-1][1] >= group.title_level:
+                title_stack.pop()
+            if group.title_level > 0:
+                title_stack.append((group.title, group.title_level))
+            titles = [tup[0] for tup in title_stack]
+
             group_tokens = self._count_tokens(group)
 
             # Check if the group can be merged into the last Part
             can_merge = True
-            if prev_group is not None and prev_group.title_level > group.title_level:
+            if highest_level_in_last_part is not None and highest_level_in_last_part > group.title_level:
                 # Do not merge if the current group has a higher title level
                 # (e.g., merging content under a main heading into a sub-heading)
                 can_merge = False
@@ -78,9 +85,10 @@ class Rechunker:
             if last_part_tokens + group_tokens > self.chunk_size:
                 can_merge = False
 
-            prev_group = group
             if can_merge:
-                last_part = self._append_group_to_part(group, last_part)
+                last_part = self._append_group_to_part(group, last_part, titles)
+                if highest_level_in_last_part is None:
+                    highest_level_in_last_part = group.title_level
                 continue
 
             # Since the current group can't be merged into the last part,
@@ -88,8 +96,9 @@ class Rechunker:
             if last_part is not None:
                 result.append(last_part)
                 last_part = None
+                highest_level_in_last_part = None
 
-            # Rechunk the group into parts
+            # Split large parts
             parts: list[Part] = []
             for part in group.items:
                 tokens = self._count_tokens(part)
@@ -104,7 +113,9 @@ class Rechunker:
                 else:
                     parts.append(part)
 
+            # Rechunk the parts
             assert last_part is None
+            highest_level_in_last_part = group.title_level  # All parts are in the same group
             tokens_sum = 0
             for part in parts:
                 tokens = self._count_tokens(part)
@@ -114,7 +125,7 @@ class Rechunker:
                         last_part = None
                         tokens_sum = 0
 
-                last_part = self._append_part_to_part(part, last_part, group.title)
+                last_part = self._append_part_to_part(part, last_part, titles)
                 tokens_sum += tokens
 
         if last_part is not None:
@@ -122,16 +133,20 @@ class Rechunker:
 
         return result
 
-    def _append_group_to_part(self, group: Group, dest: Part | None) -> Part:
+    def _append_group_to_part(self, group: Group, dest: Part | None, titles: list[str]) -> Part:
         for part in group.items:
-            dest = self._append_part_to_part(part, dest, group.title)
+            dest = self._append_part_to_part(part, dest, titles)
         return dest
 
-    def _append_part_to_part(self, part: Part, dest: Part | None, section_title: str) -> Part:
+    def _append_part_to_part(self, part: Part, dest: Part | None, titles: list[str]) -> Part:
         if dest is None:
             metadata = part.metadata.copy()
-            if section_title:
-                metadata["section_title"] = section_title
+            if titles and titles[-1] == part.content:
+                # Remove the last title if it is exactly the current part
+                titles = titles[:-1]
+            if titles:
+                metadata["titles"] = titles.copy()
+            # Normalize to a Part
             return Part(content=part.content, metadata=metadata)
         dest.content += "\n\n" + part.content
         self._merge_md_source_map(dest, part)

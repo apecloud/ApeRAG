@@ -4,13 +4,12 @@ import logging
 import re
 from dataclasses import dataclass
 from hashlib import md5
-from pathlib import Path
 from typing import Any, Pattern
 
 from markdown_it import MarkdownIt
 from markdown_it.token import Token
 
-from aperag.docparser.base import AssetBinPart, BaseParser, CodePart, ImagePart, MarkdownPart, Part, TextPart, TitlePart
+from aperag.docparser.base import AssetBinPart, CodePart, ImagePart, MarkdownPart, Part, TextPart, TitlePart
 
 logger = logging.getLogger(__name__)
 
