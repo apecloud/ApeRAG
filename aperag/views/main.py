@@ -33,6 +33,10 @@ from ninja import File, Router, Schema
 from ninja.files import UploadedFile
 
 import aperag.chat.message
+from aperag.flow.base.models import Edge, NodeInstance, FlowInstance
+from aperag.flow.engine import FlowEngine
+from aperag.flow.parser import FlowParser
+import aperag.views.models
 from aperag.apps import QuotaType
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.sse.base import ChatRequest, MessageProcessor
@@ -1277,12 +1281,12 @@ async def create_search_test(request, collection_id: str, data: view_models.Sear
         nodes[node_id] = NodeInstance(
             id=node_id,
             type="vector_search",
-            vars=[
-                InputBinding(name="query", source_type=InputSourceType.STATIC, value=query),
-                InputBinding(name="top_k", source_type=InputSourceType.STATIC, value=(data.vector_search.topk if data.vector_search else 5)),
-                InputBinding(name="similarity_threshold", source_type=InputSourceType.STATIC, value=(data.vector_search.similarity if data.vector_search else 0.7)),
-                InputBinding(name="collection_ids", source_type=InputSourceType.STATIC, value=[collection_id]),
-            ]
+            input_values = {
+                "query": query,
+                "top_k": data.vector_search.topk if data.vector_search else 5,
+                "similarity_threshold": data.vector_search.similarity if data.vector_search else 0.7,
+                "collection_ids": [collection_id],
+            }
         )
         output_node = node_id
     elif data.search_type == "fulltext":
@@ -1291,11 +1295,11 @@ async def create_search_test(request, collection_id: str, data: view_models.Sear
         nodes[node_id] = NodeInstance(
             id=node_id,
             type="keyword_search",
-            vars=[
-                InputBinding(name="query", source_type=InputSourceType.STATIC, value=query),
-                InputBinding(name="top_k", source_type=InputSourceType.STATIC, value=(data.vector_search.topk if data.vector_search else 5)),
-                InputBinding(name="collection_ids", source_type=InputSourceType.STATIC, value=[collection_id]),
-            ]
+            input_values={
+                "query": query,
+                "top_k": data.vector_search.topk if data.vector_search else 5,
+                "collection_ids": [collection_id],
+            }
         )
         output_node = node_id
     elif data.search_type == "hybrid":
@@ -1303,31 +1307,31 @@ async def create_search_test(request, collection_id: str, data: view_models.Sear
         nodes["vector_search"] = NodeInstance(
             id="vector_search",
             type="vector_search",
-            vars=[
-                InputBinding(name="query", source_type=InputSourceType.STATIC, value=query),
-                InputBinding(name="top_k", source_type=InputSourceType.STATIC, value=(data.vector_search.topk if data.vector_search else 5)),
-                InputBinding(name="similarity_threshold", source_type=InputSourceType.STATIC, value=(data.vector_search.similarity if data.vector_search else 0.7)),
-                InputBinding(name="collection_ids", source_type=InputSourceType.STATIC, value=[collection_id]),
-            ]
+            input_values={
+                "query": query,
+                "top_k": data.vector_search.topk if data.vector_search else 5,
+                "similarity_threshold": data.vector_search.similarity if data.vector_search else 0.7,
+                "collection_ids": [collection_id],
+            }
         )
         nodes["keyword_search"] = NodeInstance(
             id="keyword_search",
             type="keyword_search",
-            vars=[
-                InputBinding(name="query", source_type=InputSourceType.STATIC, value=query),
-                InputBinding(name="top_k", source_type=InputSourceType.STATIC, value=(data.vector_search.topk if data.vector_search else 5)),
-                InputBinding(name="collection_ids", source_type=InputSourceType.STATIC, value=[collection_id]),
-            ]
+            input_values={
+                "query": query,
+                "top_k": data.vector_search.topk if data.vector_search else 5,
+                "collection_ids": [collection_id],
+            }
         )
         nodes["merge"] = NodeInstance(
             id="merge",
             type="merge",
-            vars=[
-                InputBinding(name="merge_strategy", source_type=InputSourceType.STATIC, value="union"),
-                InputBinding(name="deduplicate", source_type=InputSourceType.STATIC, value=True),
-                InputBinding(name="vector_search_docs", source_type=InputSourceType.DYNAMIC, ref_node="vector_search", ref_field="vector_search_docs"),
-                InputBinding(name="keyword_search_docs", source_type=InputSourceType.DYNAMIC, ref_node="keyword_search", ref_field="keyword_search_docs"),
-            ]
+            input_values={
+                "merge_strategy": "union",
+                "deduplicate": True,
+                "vector_search_docs": "vector_search",
+                "keyword_search_docs": "keyword_search",
+            }
         )
         edges = [
             Edge(source="vector_search", target="merge"),
@@ -1338,7 +1342,6 @@ async def create_search_test(request, collection_id: str, data: view_models.Sear
         return fail(400, "Invalid search_type")
 
     flow = FlowInstance(
-        id=flow_id,
         name=f"search_test_{data.search_type}",
         nodes=nodes,
         edges=edges,

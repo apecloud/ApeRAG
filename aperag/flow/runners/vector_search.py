@@ -23,7 +23,7 @@ class VectorSearchNodeRunner(BaseNodeRunner):
                 collection = item
                 break
         if not collection:
-            return {"vector_search_docs": []}
+            return {"docs": []}
 
         collection_name = generate_vector_db_collection_name(collection.id)
         embedding_model, vector_size = await get_collection_embedding_service(collection)
@@ -33,4 +33,4 @@ class VectorSearchNodeRunner(BaseNodeRunner):
 
         vector = embedding_model.embed_query(query)
         results = context_manager.query(query, score_threshold=score_threshold, topk=topk, vector=vector)
-        return {"vector_search_docs": results} 
+        return {"docs": results} 

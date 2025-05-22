@@ -24,7 +24,7 @@ class KeywordSearchNodeRunner(BaseNodeRunner):
                 collection = item
                 break
         if not collection:
-            return {"keyword_search_docs": []}
+            return {"docs": []}
 
         from aperag.pipeline.keyword_extractor import IKExtractor
         from aperag.context.full_text import search_document
@@ -37,4 +37,4 @@ class KeywordSearchNodeRunner(BaseNodeRunner):
         result = []
         if docs:
             result = [DocumentWithScore(text=doc["content"], score=doc.get("score", 0.5), metadata=doc) for doc in docs]
-        return {"keyword_search_docs": result}
+        return {"docs": result}

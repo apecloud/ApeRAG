@@ -1,0 +1,217 @@
+openapi: 3.0.3
+info:
+  title: Workflow DSL Schema
+  description: Schema definition for Workflow DSL YAML files
+  version: 1.0.0
+
+components:
+  schemas:
+    WorkflowDefinition:
+      type: object
+      required:
+        - name
+        - title
+        - version
+        - nodes
+        - edges
+      properties:
+        name:
+          type: string
+          description: Machine-readable identifier for the workflow
+          example: rag_flow
+        title:
+          type: string
+          description: Human-readable title of the workflow
+          example: RAG Knowledge Base Flow
+        description:
+          type: string
+          description: Detailed description of the workflow
+          example: A typical RAG flow with parallel retrieval and reranking
+        version:
+          type: string
+          description: Version number of the workflow definition
+          example: 1.0.0
+        execution:
+          $ref: '#/components/schemas/ExecutionConfig'
+        schema:
+          type: object
+          description: Custom schema definitions used across the workflow
+          additionalProperties:
+            $ref: '#/components/schemas/SchemaDefinition'
+        nodes:
+          type: array
+          description: List of nodes in the workflow
+          items:
+            $ref: '#/components/schemas/Node'
+        edges:
+          type: array
+          description: List of edges connecting nodes in the workflow
+          items:
+            $ref: '#/components/schemas/Edge'
+
+    ExecutionConfig:
+      type: object
+      description: Configuration for workflow execution
+      properties:
+        timeout:
+          type: integer
+          description: Overall timeout in seconds
+          example: 300
+        retry:
+          type: object
+          properties:
+            max_attempts:
+              type: integer
+              description: Maximum number of retry attempts
+              example: 3
+            delay:
+              type: integer
+              description: Delay between retries in seconds
+              example: 5
+        error_handling:
+          type: object
+          properties:
+            strategy:
+              type: string
+              enum: [stop_on_error, continue_on_error]
+              description: Error handling strategy
+              example: stop_on_error
+            notification:
+              type: object
+              properties:
+                email:
+                  type: array
+                  items:
+                    type: string
+                    format: email
+                  example: ["admin@example.com"]
+
+    SchemaDefinition:
+      type: object
+      description: JSON Schema definition
+      properties:
+        type:
+          type: string
+          enum: [object, array, string, number, integer, boolean, null]
+        properties:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/SchemaProperty'
+        required:
+          type: array
+          items:
+            type: string
+        additionalProperties:
+          type: boolean
+      additionalProperties: true
+
+    SchemaProperty:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [object, array, string, number, integer, boolean, null]
+        description:
+          type: string
+        default:
+          type: [string, number, boolean, object, array, null]
+        enum:
+          type: array
+        format:
+          type: string
+        minimum:
+          type: number
+        maximum:
+          type: number
+        minLength:
+          type: integer
+        maxLength:
+          type: integer
+        pattern:
+          type: string
+        items:
+          oneOf:
+            - $ref: '#/components/schemas/SchemaProperty'
+            - type: object
+              properties:
+                $ref:
+                  type: string
+        properties:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/SchemaProperty'
+        additionalProperties:
+          oneOf:
+            - type: boolean
+            - $ref: '#/components/schemas/SchemaProperty'
+        required:
+          type: array
+          items:
+            type: string
+      additionalProperties: true
+
+    Node:
+      type: object
+      required:
+        - id
+        - type
+        - title
+        - data
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the node
+          example: vector_search_3f8e2c1a
+        type:
+          type: string
+          description: Type of node
+          example: vector_search
+        title:
+          type: string
+          description: Human-readable title of the node
+          example: Vector Search
+        data:
+          type: object
+          required:
+            - input
+            - output
+          properties:
+            input:
+              type: object
+              required:
+                - schema
+              properties:
+                schema:
+                  $ref: '#/components/schemas/SchemaDefinition'
+                values:
+                  type: object
+                  description: Default values and template references
+                  additionalProperties: true
+            output:
+              type: object
+              required:
+                - schema
+              properties:
+                schema:
+                  $ref: '#/components/schemas/SchemaDefinition'
+
+    Edge:
+      type: object
+      required:
+        - source
+        - target
+      properties:
+        source:
+          type: string
+          description: ID of the source node
+          example: start
+        target:
+          type: string
+          description: ID of the target node
+          example: vector_search_3f8e2c1a
+
+    TemplateValue:
+      type: string
+      description: Value template referencing other node outputs
+      pattern: '^{{.*}}$'
+      example: "{{ .nodes.start.output.query }}"

@@ -31,6 +31,7 @@ from aperag.views.weixin import router as weixin_router
 from aperag.views.auth import router as auth_router
 from aperag.views.api_key import router as api_key_router
 from aperag.views.chat_completion import router as chat_completion_router
+from aperag.views.flow import router as flow_router
 
 api = NinjaAPI(renderer=MyJSONRenderer)
 api.add_exception_handler(ValidationError, validation_errors)
@@ -39,6 +40,7 @@ api.add_router("/", main_router, auth=auth_middleware)
 api.add_router("/", api_key_router, auth=auth_middleware)
 api.add_router("/", web_router)
 api.add_router("/", auth_router)
+api.add_router("/", flow_router)
 api.add_router("/config", config_router)
 api.add_router("/feishu", feishu_router)
 api.add_router("/weixin", weixin_router)

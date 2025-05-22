@@ -1,64 +1,50 @@
 import pytest
-from aperag.flow.base.models import FlowInstance, InputSourceType, NodeInstance, Edge, InputBinding, GlobalVariable, FieldType
+from aperag.flow.base.models import FlowInstance, NodeInstance, Edge
 from aperag.flow.base.exceptions import ValidationError, CycleError
 
 def test_valid_flow():
     """Test a valid flow configuration"""
-    # Create global variables
-    global_vars = {
-        "query": GlobalVariable(
-            name="query",
-            description="User query",
-            type=FieldType.STRING
-        )
-    }
-
     # Create nodes
     nodes = {
+        "start": NodeInstance(
+            id="start",
+            type="start",
+            input_values={
+                "query": "hello"
+            },
+            output_values={
+                "query": "hello"
+            }
+        ),
         "vector_search": NodeInstance(
             id="vector_search",
             type="vector_search",
-            vars=[
-                InputBinding(
-                    name="query",
-                    source_type=InputSourceType.GLOBAL,
-                    global_var="query"
-                ),
-                InputBinding(
-                    name="top_k",
-                    source_type=InputSourceType.STATIC,
-                    value=5
-                )
-            ]
+            input_values={
+                "query": "{{ .nodes.start.output.query }}",
+                "top_k": 5
+            },
+            output_values={
+                "docs": "docs"
+            }
         ),
         "keyword_search": NodeInstance(
             id="keyword_search",
             type="keyword_search",
-            vars=[
-                InputBinding(
-                    name="query",
-                    source_type=InputSourceType.GLOBAL,
-                    global_var="query"
-                )
-            ]
+            input_values={
+                "query": "{{ .nodes.start.output.query }}",
+                "top_k": 5
+            },
+            output_values={
+                "docs": "docs"
+            }
         ),
         "rerank": NodeInstance(
             id="rerank",
             type="rerank",
-            vars=[
-                InputBinding(
-                    name="docs",
-                    source_type=InputSourceType.DYNAMIC,
-                    ref_node="vector_search",
-                    ref_field="docs"
-                ),
-                InputBinding(
-                    name="docs",
-                    source_type=InputSourceType.DYNAMIC,
-                    ref_node="keyword_search",
-                    ref_field="docs"
-                )
-            ]
+            input_values={
+                "docs": "{{ .nodes.vector_search.output.docs }}",
+                "docs": "{{ .nodes.keyword_search.output.docs }}"
+            }
         )
     }
 
@@ -70,11 +56,9 @@ def test_valid_flow():
 
     # Create flow instance
     flow = FlowInstance(
-        id="test_flow",
         name="Test Flow",
         nodes=nodes,
         edges=edges,
-        global_variables=global_vars
     )
 
     # Validate flow
@@ -95,7 +79,6 @@ def test_cyclic_dependency():
     ]
 
     flow = FlowInstance(
-        id="cyclic_flow",
         name="Cyclic Flow",
         nodes=nodes,
         edges=edges
@@ -104,50 +87,19 @@ def test_cyclic_dependency():
     with pytest.raises(CycleError):
         flow.validate()
 
-def test_invalid_global_variable():
-    """Test invalid global variable reference"""
-    nodes = {
-        "node1": NodeInstance(
-            id="node1",
-            type="type1",
-            vars=[
-                InputBinding(
-                    source_type=InputSourceType.GLOBAL,
-                    global_var="non_existent_var"
-                )
-            ]
-        )
-    }
-
-    flow = FlowInstance(
-        id="invalid_global_flow",
-        name="Invalid Global Flow",
-        nodes=nodes,
-        edges=[]
-    )
-
-    with pytest.raises(ValidationError) as exc_info:
-        flow.validate()
-    assert "non-existent global variable" in str(exc_info.value)
-
 def test_invalid_node_reference():
     """Test invalid node reference"""
     nodes = {
         "node1": NodeInstance(
             id="node1",
             type="type1",
-            vars=[
-                InputBinding(
-                    source_type=InputSourceType.DYNAMIC,
-                    ref_node="non_existent_node",
-                    ref_field="output"
-                )
-            ]
+            input_values={
+                "non_existent_node": "{{ .nodes.non_existent_node.output.docs }}"
+            }
         )
     }
 
     flow = FlowInstance(
-        id="invalid_node_flow",
         name="Invalid Node Flow",
         nodes=nodes,
         edges=[]
@@ -163,13 +115,9 @@ def test_invalid_field_reference():
         "node1": NodeInstance(
             id="node1",
             type="type1",
-            vars=[
-                InputBinding(
-                    source_type=InputSourceType.DYNAMIC,
-                    ref_node="node2",
-                    ref_field="non_existent_field"
-                )
-            ]
+            input_values={
+                "non_existent_field": "{{ .nodes.node2.output.non_existent_field }}"
+            }
         ),
         "node2": NodeInstance(
             id="node2",
@@ -182,7 +130,6 @@ def test_invalid_field_reference():
     ]
 
     flow = FlowInstance(
-        id="invalid_field_flow",
         name="Invalid Field Flow",
         nodes=nodes,
         edges=edges
@@ -198,13 +145,9 @@ def test_non_preceding_node_reference():
         "node1": NodeInstance(
             id="node1",
             type="type1",
-            vars=[
-                InputBinding(
-                    source_type=InputSourceType.DYNAMIC,
-                    ref_node="node2",
-                    ref_field="output"
-                )
-            ]
+            input_values={
+                "non_existent_node": "{{ .nodes.node2.output.docs }}"
+            }
         ),
         "node2": NodeInstance(
             id="node2",
@@ -217,7 +160,6 @@ def test_non_preceding_node_reference():
     ]
 
     flow = FlowInstance(
-        id="invalid_order_flow",
         name="Invalid Order Flow",
         nodes=nodes,
         edges=edges

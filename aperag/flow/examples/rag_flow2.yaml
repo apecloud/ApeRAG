@@ -1,0 +1,294 @@
+name: rag_flow
+title: "RAG Knowledge Base Flow"
+description: "A typical RAG flow with parallel retrieval and reranking"
+version: "1.0.0"
+# Execution configuration
+execution:
+  timeout: 300 # Overall timeout (seconds)
+  retry:
+    max_attempts: 3
+    delay: 5
+  error_handling:
+    strategy: "stop_on_error" # or "continue_on_error"
+    notification:
+      email: ["admin@example.com"]
+
+schema:
+  document_with_score:
+    type: object
+    properties:
+      doc_id:
+        type: string
+      text:
+        type: string
+      score:
+        type: number
+      metadata:
+        type: object
+
+
+# Node definitions
+nodes:
+  # Start node
+  - id: start
+    type: start
+    title: Start
+    data:
+      input:
+        schema:
+          type: object
+          properties:
+            query:
+              type: string
+              description: User's question or query
+          required: [query]
+        values:
+          query: "hello"
+      output:
+        schema:
+          type: object
+          properties:
+            query:
+              type: string
+              description: User's question or query
+          required: [query]
+
+  # Vector search node
+  - id: vector_search_3f8e2c1a
+    type: vector_search
+    title: Vector Search
+    data:
+      input:
+        schema:
+          type: object
+          properties:
+            top_k:
+              type: integer
+              default: 5
+              minimum: 1
+              maximum: 10
+              description: Number of top results to return
+            similarity_threshold:
+              type: number
+              default: 0.7
+              minimum: 0.1
+              maximum: 1
+              description: Similarity threshold for vector search
+            query:
+              type: string
+              description: User's question or query
+          required: [top_k, similarity_threshold, query]
+        # 输入值和引用
+        values:
+          top_k: 5
+          similarity_threshold: 0.7
+          query: "{{ nodes.start.output.query }}"
+      output:
+        schema:
+          type: object
+          properties:
+            docs:
+              type: array
+              description: Docs from vector search
+              items:
+                $ref: '#/schema/document_with_score'
+          required: [docs]
+
+  # Keyword search node
+  - id: keyword_search_7b2d4e9f
+    type: keyword_search
+    title: Keyword Search
+    data:
+      input:
+        schema:
+          type: object
+          properties:
+            query:
+              type: string
+              description: User's question or query
+            top_k:
+              type: integer
+              default: 3
+              minimum: 1
+              maximum: 10
+              description: Number of top results to return
+          required: [query, top_k]
+        values:
+          query: "{{ nodes.start.output.query }}"
+          top_k: 5
+      output:
+        schema:
+          type: object
+          properties:
+            docs:
+              type: array
+              description: Docs from keyword search
+              items:
+                $ref: '#/schema/document_with_score'
+          required: [docs]
+
+  # Merge node
+  - id: merge_1a9c5d8e
+    type: merge
+    title: Merge Results
+    data:
+      input:
+        schema:
+          type: object
+          properties:
+            merge_strategy:
+              type: string
+              default: union
+              enum: [union, intersection]
+              description: How to merge results
+            deduplicate:
+              type: boolean
+              default: true
+              description: Whether to deduplicate merged results
+            vector_search_docs:
+              type: array
+              description: Docs from vector search
+              items:
+                $ref: '#/schema/document_with_score'
+            keyword_search_docs:
+              type: array
+              description: Docs from keyword search
+              items:
+                $ref: '#/schema/document_with_score'
+          required: [merge_strategy, deduplicate, vector_search_docs, keyword_search_docs]
+        values:
+          merge_strategy: union
+          deduplicate: true
+          vector_search_docs: "{{ nodes.vector_search_3f8e2c1a.output.docs }}"
+          keyword_search_docs: "{{ nodes.keyword_search_7b2d4e9f.output.docs }}"
+      output:
+        schema:
+          type: object
+          properties:
+            docs:
+              type: array
+              description: Docs after merge
+              items:
+                $ref: '#/schema/document_with_score'
+          required: [docs]
+
+  # Rerank node
+  - id: rerank_5c7e1b2a
+    type: rerank
+    title: Rerank Results
+    data:
+      input:
+        schema:
+          type: object
+          properties:
+            model:
+              type: string
+              default: bge-reranker
+              description: Rerank model name
+            model_service_provider:
+              type: string
+              description: model service provider
+            docs:
+              type: array
+              description: Docs to rerank
+              items:
+                $ref: '#/schema/document_with_score'
+          required: [model, model_service_provider, docs]
+        values:
+          model: bge-reranker
+          model_service_provider: openai
+          docs: "{{ nodes.merge_1a9c5d8e.output.docs }}"
+      output:
+        schema:
+          type: object
+          properties:
+            docs:
+              type: array
+              description: Docs after rerank
+              items:
+                $ref: '#/schema/document_with_score'
+          required: [docs]
+
+  # LLM generation node
+  - id: llm_8e4f2a7b
+    type: llm
+    title: LLM Generation
+    data:
+      input:
+        schema:
+          type: object
+          properties:
+            model_service_provider:
+              type: string
+              default: openrouter
+              description: model service provider
+            model_name:
+              type: string
+              default: deepseek/deepseek-v3-base:free
+              description: model name
+            custom_llm_provider:
+              type: string
+              default: openai
+              description: custom llm provider
+            prompt_template:
+              type: string
+              default: "{context}\n{query}"
+              description: Prompt template
+            temperature:
+              type: number
+              default: 0.7
+              minimum: 0
+              maximum: 1
+              description: Sampling temperature
+            max_tokens:
+              type: integer
+              default: 1000
+              minimum: 1
+              maximum: 128000
+              description: Max tokens for generation
+            query:
+              type: string
+              description: User's question or query
+            docs:
+              type: array
+              description: Docs for LLM context
+              items:
+                $ref: '#/schema/document_with_score'
+          required: [model_service_provider, model_name, custom_llm_provider, prompt_template, temperature, max_tokens, query, docs]
+        values:
+          model_service_provider: openrouter
+          model_name: deepseek/deepseek-v3-base:free
+          custom_llm_provider: openrouter
+          prompt_template: "{context}\n{query}"
+          temperature: 0.7
+          max_tokens: 1000
+          query: "{{ nodes.start.output.query }}"
+          docs: "{{ nodes.rerank_5c7e1b2a.output.docs }}"
+      output:
+        schema:
+          type: object
+          properties:
+            text:
+              type: string
+              description: text generated by LLM
+
+# Edge definitions (connections between nodes)
+edges:
+  # Start to vector search
+  - source: start
+    target: vector_search_3f8e2c1a
+  # Start to keyword search
+  - source: start
+    target: keyword_search_7b2d4e9f
+  # Vector search to merge
+  - source: vector_search_3f8e2c1a
+    target: merge_1a9c5d8e
+  # Keyword search to merge
+  - source: keyword_search_7b2d4e9f
+    target: merge_1a9c5d8e
+  # Merge to rerank
+  - source: merge_1a9c5d8e
+    target: rerank_5c7e1b2a
+  # Rerank to LLM
+  - source: rerank_5c7e1b2a
+    target: llm_8e4f2a7b

@@ -71,21 +71,19 @@ class LLMNodeRunner(BaseNodeRunner):
         message_id: str = inputs["message_id"]
         query: str = inputs["query"]
         temperature: float = inputs.get("temperature", 0.2)
+        max_tokens: int = inputs.get("max_tokens", 1000)
         model_service_provider = inputs.get("model_service_provider")
         model_name = inputs.get("model_name")
+        custom_llm_provider = inputs.get("custom_llm_provider")
         prompt_template = inputs.get("prompt_template", "{context}\n{query}")
-
         docs: List[DocumentWithScore] = inputs.get("docs", [])
+
         history: BaseChatMessageHistory = inputs.get("history")
-        llm_kwargs = {
-            "temperature": temperature,
-        }
         msp_dict = await query_msp_dict(user)
         if model_service_provider in msp_dict:
             msp = msp_dict[model_service_provider]
             base_url = msp.base_url
             api_key = msp.api_key
-            predictor = Predictor.get_completion_service(model_service_provider, model_name, base_url, api_key, **llm_kwargs)
         else:
             raise Exception("Model service provider not found")
         context = ""
@@ -101,11 +99,18 @@ class LLMNodeRunner(BaseNodeRunner):
                     "score": doc.score
                 })
         prompt = prompt_template.format(query=query, context=context)
+        llm_kwargs = {
+            "custom_llm_provider": custom_llm_provider,
+            "temperature": temperature,
+            "max_tokens": max_tokens - len(prompt),
+        }
+        predictor = Predictor.get_completion_service(model_service_provider, model_name, base_url, api_key, **llm_kwargs)
         async def async_generator():
             response = ""
             async for chunk in predictor.agenerate_stream([], prompt, False):
                 yield chunk
-                response += chunk
+                if chunk:
+                    response += chunk
             if references:
                 yield DOC_QA_REFERENCES + json.dumps(references)
             if history:

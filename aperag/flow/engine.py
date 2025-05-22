@@ -1,14 +1,15 @@
 from collections import deque
-from typing import List, Set, Dict, Any, Optional, AsyncGenerator
-from aperag.flow.base.models import FlowInstance, NodeInstance, ExecutionContext, NodeRegistry
+from typing import List, Set, Dict, Any, AsyncGenerator
+from aperag.flow.base.models import FlowInstance, NodeInstance, ExecutionContext
 from aperag.flow.base.exceptions import CycleError, ValidationError
-from aperag.flow.base.models import InputSourceType, NODE_RUNNER_REGISTRY
+from aperag.flow.base.models import NODE_RUNNER_REGISTRY
 import logging
 import uuid
 from .runners import *
 import asyncio
-import json
 from datetime import datetime
+from jinja2 import Environment, StrictUndefined
+import jsonschema
 
 # Configure logging
 logging.basicConfig(
@@ -59,7 +60,7 @@ class FlowEngine:
         self.context = ExecutionContext()
         self.execution_id = None
         self._event_queue = asyncio.Queue()
-        self._event_consumers = set()
+        self.jinja_env = Environment(undefined=StrictUndefined)
 
     async def emit_event(self, event: FlowEvent):
         """Emit an event to all consumers"""
@@ -90,15 +91,15 @@ class FlowEngine:
         """
         # Generate execution ID
         self.execution_id = str(uuid.uuid4())[:8]  # Use first 8 characters of UUID
-        logger.info(f"Starting flow execution {self.execution_id} for flow {flow.id}", extra={'execution_id': self.execution_id})
+        logger.info(f"Starting flow execution {self.execution_id} for flow {flow.name}", extra={'execution_id': self.execution_id})
 
         try:
             # Emit flow start event
             await self.emit_event(FlowEvent(
-                FlowEventType.FLOW_START,
-                "flow",
-                self.execution_id,
-                {"flow_id": flow.id}
+                event_type=FlowEventType.FLOW_START,
+                execution_id=self.execution_id,
+                node_id=None,
+                data={"flow_name": flow.name}
             ))
 
             # Initialize global variables
@@ -115,64 +116,24 @@ class FlowEngine:
             
             # Emit flow end event
             await self.emit_event(FlowEvent(
-                FlowEventType.FLOW_END,
-                "flow",
-                self.execution_id,
-                {"flow_id": flow.id}
+                event_type=FlowEventType.FLOW_END,
+                execution_id=self.execution_id,
+                node_id=None,
+                data={"flow_name": flow.name}
             ))
                 
             logger.info(f"Completed flow execution {self.execution_id}", extra={'execution_id': self.execution_id})
-            return self.context.variables
+            return self.context.outputs
 
         except Exception as e:
             # Emit flow error event
             await self.emit_event(FlowEvent(
-                FlowEventType.FLOW_ERROR,
-                "flow",
-                self.execution_id,
-                {"flow_id": flow.id, "error": str(e)}
+                event_type=FlowEventType.FLOW_ERROR,
+                execution_id=self.execution_id,
+                node_id=None,
+                data={"flow_name": flow.name, "error": str(e)}
             ))
             raise e
-
-    async def execute_node(self, node: NodeInstance, inputs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Execute a single node with manual input binding
-        
-        Args:
-            node: The node instance to execute
-            inputs: Optional dictionary of input values to bind manually
-                   If not provided, will use the node's configured input bindings
-        
-        Returns:
-            Dictionary of output values from the node execution
-        """
-        # Create a temporary context for this node
-        temp_context = ExecutionContext()
-        
-        # If manual inputs provided, bind them
-        if inputs:
-            temp_context.variables[node.id] = inputs
-        else:
-            # Use node's input bindings (vars)
-            for var in node.vars:
-                if var.source_type == InputSourceType.STATIC:
-                    if node.id not in temp_context.variables:
-                        temp_context.variables[node.id] = {}
-                    temp_context.variables[node.id][var.name] = var.value
-                elif var.source_type == InputSourceType.GLOBAL:
-                    if node.id not in temp_context.variables:
-                        temp_context.variables[node.id] = {}
-                    temp_context.variables[node.id][var.name] = self.context.get_global(var.global_var)
-                elif var.source_type == InputSourceType.DYNAMIC:
-                    ref_value = self.context.get_input(var.ref_node, var.ref_field)
-                    if node.id not in temp_context.variables:
-                        temp_context.variables[node.id] = {}
-                    temp_context.variables[node.id][var.name] = ref_value
-        
-        # Execute the node
-        await self._execute_node(node)
-        
-        # Return the node's outputs
-        return temp_context.variables.get(node.id, {})
 
     def _topological_sort(self, flow: FlowInstance) -> List[str]:
         """Perform topological sort to detect cycles
@@ -264,8 +225,88 @@ class FlowEngine:
                 tasks.append(self._execute_node(node))
             await asyncio.gather(*tasks)
 
+    def resolve_expression(self, value, node_id=None, nodes_ctx=None):
+        """
+        Recursively render input values using Jinja2.
+        Supports any Jinja2 template logic, with context: nodes[node_id]['output'][output_name].
+        Keeps type safety: int/float/str/template.
+        """
+        if nodes_ctx is None:
+            nodes_ctx = {nid: {'output': outputs} for nid, outputs in self.context.outputs.items()}
+        if isinstance(value, dict):
+            return {k: self.resolve_expression(v, node_id, nodes_ctx) for k, v in value.items()}
+        if isinstance(value, list):
+            return [self.resolve_expression(v, node_id, nodes_ctx) for v in value]
+        if not isinstance(value, str):
+            return value
+
+        # Render with Jinja2
+        try:
+            template = self.jinja_env.from_string(value)
+            rendered = template.render(nodes=nodes_ctx)
+        except Exception as e:
+            raise ValidationError(f"Jinja2 render error in node '{node_id}': {e}")
+
+        return rendered
+
+    def convert_type_by_schema(self, value, field_schema):
+        """Convert value to the type declared in field_schema (jsonschema property)."""
+        if value is None:
+            return None
+        typ = field_schema.get('type')
+        if typ == 'string':
+            return str(value)
+        if typ == 'integer':
+            try:
+                return int(value)
+            except Exception:
+                raise ValueError(f"Cannot convert '{value}' to integer")
+        if typ == 'number':
+            try:
+                return float(value)
+            except Exception:
+                raise ValueError(f"Cannot convert '{value}' to float")
+        if typ == 'boolean':
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                if value.lower() in ['true', '1', 'yes']:
+                    return True
+                if value.lower() in ['false', '0', 'no']:
+                    return False
+            if isinstance(value, int):
+                return bool(value)
+            raise ValueError(f"Cannot convert '{value}' to boolean")
+        if typ == 'array':
+            if isinstance(value, list):
+                return value
+            if isinstance(value, str):
+                import json
+                try:
+                    arr = json.loads(value)
+                    if isinstance(arr, list):
+                        return arr
+                except Exception:
+                    pass
+                # Try comma split
+                return [v.strip() for v in value.split(',') if v.strip()]
+            raise ValueError(f"Cannot convert '{value}' to array")
+        if typ == 'object':
+            if isinstance(value, dict):
+                return value
+            if isinstance(value, str):
+                import json
+                try:
+                    obj = json.loads(value)
+                    if isinstance(obj, dict):
+                        return obj
+                except Exception:
+                    pass
+            raise ValueError(f"Cannot convert '{value}' to object")
+        return value
+
     def _bind_node_inputs(self, node: NodeInstance) -> dict:
-        """Bind input variables for a node according to its input schema and bindings
+        """Bind input variables for a node
         
         Args:
             node: The node instance
@@ -274,22 +315,25 @@ class FlowEngine:
         Raises:
             ValidationError: If required input is missing
         """
-        node_def = NodeRegistry.get(node.type)
+        # Use input_values as the raw input
+        raw_inputs = getattr(node, 'input_values', {})
+        # Recursively resolve expressions
+        resolved_inputs = self.resolve_expression(raw_inputs, node.id)
+        # Use input_schema (already jsonschema) for validation and type conversion
+        json_schema = getattr(node, 'input_schema', {})
         inputs = {}
-        for field in node_def.vars_schema:
-            value = None
-            for var in node.vars:
-                if var.name == field.name:
-                    if var.source_type == InputSourceType.STATIC:
-                        value = var.value
-                    elif var.source_type == InputSourceType.GLOBAL:
-                        value = self.context.get_global(var.global_var)
-                    elif var.source_type == InputSourceType.DYNAMIC:
-                        value = self.context.get_input(var.ref_node, var.ref_field)
-                    break
-            if field.required and value is None:
-                raise ValidationError(f"Required input '{field.name}' not provided for node {node.id}")
-            inputs[field.name] = value
+        if 'properties' in json_schema:
+            for key, field_schema in json_schema['properties'].items():
+                value = resolved_inputs.get(key)
+                try:
+                    value = self.convert_type_by_schema(value, field_schema)
+                except Exception as e:
+                    raise ValidationError(f"Type conversion error for field '{key}' in node {node.id}: {e}")
+                inputs[key] = value
+        try:
+            jsonschema.validate(instance=inputs, schema=json_schema)
+        except jsonschema.ValidationError as e:
+            raise ValidationError(f"Input validation error for node {node.id}: {e.message}")
         return inputs
 
     async def _execute_node(self, node: NodeInstance) -> None:
@@ -297,6 +341,12 @@ class FlowEngine:
         try:
             # Bind inputs using the helper method
             inputs = self._bind_node_inputs(node)
+            # Use input_schema (already jsonschema) for validation
+            input_json_schema = getattr(node, 'input_schema', {})
+            try:
+                jsonschema.validate(instance=inputs, schema=input_json_schema)
+            except jsonschema.ValidationError as e:
+                raise ValidationError(f"Input validation error for node {node.id}: {e.message}")
 
             # Emit node start event with inputs
             await self.emit_event(FlowEvent(
@@ -314,10 +364,11 @@ class FlowEngine:
             outputs = await self._execute_node_logic(node, inputs)
 
             # Validate outputs
-            node_def = NodeRegistry.get(node.type)
-            for field in node_def.output_schema:
-                if field.required and field.name not in outputs:
-                    raise ValidationError(f"Required output '{field.name}' not produced by node {node.id}")
+            output_json_schema = getattr(node, 'output_schema', {})
+            try:
+                jsonschema.validate(instance=outputs, schema=output_json_schema)
+            except jsonschema.ValidationError as e:
+                raise ValidationError(f"Output validation error for node {node.id}: {e.message}")
 
             # Store outputs in context
             self.context.set_output(node.id, outputs)

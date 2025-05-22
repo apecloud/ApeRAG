@@ -1,119 +1,276 @@
-name: "RAG Knowledge Base Flow"
+name: rag_flow
+title: "RAG Knowledge Base Flow"
 description: "A typical RAG flow with parallel retrieval and reranking"
 version: "1.0.0"
-
 # Execution configuration
 execution:
-  timeout: 300  # Overall timeout (seconds)
+  timeout: 300 # Overall timeout (seconds)
   retry:
     max_attempts: 3
     delay: 5
   error_handling:
-    strategy: "stop_on_error"  # or "continue_on_error"
+    strategy: "stop_on_error" # or "continue_on_error"
     notification:
       email: ["admin@example.com"]
 
-# Global variable definitions
-global_variables:
-  - name: "query"
-    type: "string"
-    description: "User's question or query"
+schema:
+  document_with_score:
+    type: object
+    properties:
+      doc_id:
+        type: string
+      text:
+        type: string
+      score:
+        type: number
+      metadata:
+        type: object
+
 
 # Node definitions
 nodes:
+  # Start node
+  - id: start
+    type: start
+    title: Start
+    data:
+      input:
+        properties:
+          query:
+            type: string
+            description: User's question or query
+        required:
+          - query
+      output:
+        properties:
+          query:
+            type: string
+            description: User's question or query
   # Vector search node
-  - id: "vector_search-3f8e2c1a"
-    type: "vector_search"
-    name: "Vector Search"
+  - id: vector_search_3f8e2c1a
+    type: vector_search
+    title: Vector Search
     data:
-      vars:
-        - name: "top_k"
-          value: 5
-        - name: "similarity_threshold"
-          value: 0.7
-        - name: "query"
-          source_type: "global"
-          global_var: "query"
-
+      input:
+        properties:
+          top_k:
+            value: 5
+            type: integer
+            default: 3
+            minimum: 1
+            maximum: 10
+            description: Number of top results to return
+          similarity_threshold:
+            value: 0.7
+            type: number
+            default: 0.7
+            minimum: 0.1
+            maximum: 1
+            description: Similarity threshold for vector search
+          query:
+            value: {{ .nodes.start.output.query }}
+            type: string
+            description: User's question or query
+        required:
+          - top_k
+          - similarity_threshold
+          - query
+      output:
+        properties:
+          docs:
+            type: array
+            description: Docs from vector search
+            items:
+              $ref: '#/schema/document_with_score'
+        required:
+          - docs
   # Keyword search node
-  - id: "keyword_search-7b2d4e9f"
-    type: "keyword_search"
-    name: "Keyword Search"
+  - id: keyword_search_7b2d4e9f
+    type: keyword_search
+    title: Keyword Search
     data:
-      vars:
-        - name: "query"
-          source_type: "global"
-          global_var: "query"
-        - name: "top_k"
-          value: 5
-
+      input:
+        properties:
+          query:
+            type: string
+            value: {{ .nodes.start.output.query }}
+            description: User's question or query
+          top_k:
+            value: 5
+            type: integer
+            default: 3
+            minimum: 1
+            maximum: 10
+            description: Number of top results to return
+        required:
+          - query
+          - top_k
+      output:
+        properties:
+          docs:
+            type: array
+            description: Docs from keyword search
+            items:
+              $ref: '#/schema/document_with_score'
+        required:
+          - docs
   # Merge node
-  - id: "merge-1a9c5d8e"
-    type: "merge"
-    name: "Merge Results"
+  - id: merge_1a9c5d8e
+    type: merge
+    title: Merge Results
     data:
-      vars:
-        - name: "merge_strategy"
-          value: "union"
-        - name: "deduplicate"
-          value: true
-        - name: "vector_search_docs"
-          source_type: "dynamic"
-          ref_node: "vector_search-3f8e2c1a"
-          ref_field: "vector_search_docs"
-        - name: "keyword_search_docs"
-          source_type: "dynamic"
-          ref_node: "keyword_search-7b2d4e9f"
-          ref_field: "keyword_search_docs"
-
+      input:
+        properties:
+          merge_strategy:
+            value: union
+            type: string
+            default: union
+            enum: [union, intersection]
+            description: How to merge results
+          deduplicate:
+            value: true
+            type: boolean
+            default: true
+            description: Whether to deduplicate merged results
+          vector_search_docs:
+            value: {{ .nodes.vector_search_3f8e2c1a.output.docs }}
+            type: array
+            description: Docs from vector search
+            items:
+              $ref: '#/schema/document_with_score'
+          keyword_search_docs:
+            value: {{ .nodes.keyword_search_7b2d4e9f.output.docs }}
+            type: array
+            description: Docs from keyword search
+            items:
+              $ref: '#/schema/document_with_score'
+        required:
+          - merge_strategy
+          - deduplicate
+          - vector_search_docs
+          - keyword_search_docs
+      output:
+        properties:
+          docs:
+            type: array
+            description: Docs after merge
+            items:
+              $ref: '#/schema/document_with_score'
+        required:
+          - docs
   # Rerank node
-  - id: "rerank-5c7e1b2a"
-    type: "rerank"
-    name: "Rerank Results"
+  - id: rerank_5c7e1b2a
+    type: rerank
+    title: Rerank Results
     data:
-      vars:
-        - name: "model"
-          value: "bge-reranker"
-        - name: "docs"
-          source_type: "dynamic"
-          ref_node: "merge-1a9c5d8e"
-          ref_field: "docs"
-
+      input:
+        properties:
+          model:
+            value: bge-reranker
+            type: string
+            default: bge-reranker
+            description: Rerank model name
+          model_service_provider:
+            value: openai
+            type: string
+            description: model service provider
+          docs:
+            value: {{ .nodes.merge_1a9c5d8e.output.docs }}
+            type: array
+            description: Docs to rerank
+            items:
+              $ref: '#/schema/document_with_score'
+        required:
+          - model
+          - model_service_provider
+          - docs
+      output:
+        properties:
+          docs:
+            type: array
+            description: Docs after rerank
+            items:
+              $ref: '#/schema/document_with_score'
+        required:
+          - docs
   # LLM generation node
-  - id: "llm-8e4f2a7b"
-    type: "llm"
-    name: "LLM Generation"
+  - id: llm_8e4f2a7b
+    type: llm
+    title: LLM Generation
     data:
-      vars:
-        - name: "model_service_provider"
-          value: "openai"
-        - name: "model_name"
-          value: "gpt-4o"
-        - name: "prompt_template"
-          value: "{context}\n{query}"
-        - name: "temperature"
-          value: 0.7
-        - name: "max_tokens"
-          value: 1000
-        - name: "query"
-          source_type: "global"
-          global_var: "query"
-        - name: "docs"
-          source_type: "dynamic"
-          ref_node: "rerank-5c7e1b2a"
-          ref_field: "docs"
-
+      input:
+        properties:
+          model_service_provider:
+            value: openai
+            type: string
+            default: openai
+            description: model service provider
+          model_name:
+            value: gpt-4o
+            type: string
+            default: gpt-4o
+            description: model name
+          prompt_template:
+            value: "{context}\n{query}"
+            type: string
+            default: "{context}\n{query}"
+            description: Prompt template
+          temperature:
+            value: 0.7
+            type: number
+            default: 0.7
+            minimum: 0
+            maximum: 1
+            description: Sampling temperature
+          max_tokens:
+            value: 1000
+            type: integer
+            default: 1000
+            minimum: 1
+            maximum: 128000
+            description: Max tokens for generation
+          query:
+            value: {{ .nodes.start.output.query }}
+            type: string
+            description: User's question or query
+          docs:
+            value: {{ .nodes.rerank_5c7e1b2a.output.docs }}
+            type: array
+            description: Docs for LLM context
+            items:
+              $ref: '#/schema/document_with_score'
+        required:
+          - model_service_provider
+          - model_name
+          - prompt_template
+          - temperature
+          - max_tokens
+          - query
+          - docs
+      output:
+        properties:
+          text:
+            type: string
+            description: text generated by LLM
+        required:
+          - text
 # Edge definitions (connections between nodes)
 edges:
+  # Start to vector search
+  - source: start
+    target: vector_search_3f8e2c1a
+  # Start to keyword search
+  - source: start
+    target: keyword_search_7b2d4e9f
   # Vector search to merge
-  - source: "vector_search-3f8e2c1a"
-    target: "merge-1a9c5d8e"
+  - source: vector_search_3f8e2c1a
+    target: merge_1a9c5d8e
   # Keyword search to merge
-  - source: "keyword_search-7b2d4e9f"
-    target: "merge-1a9c5d8e"
+  - source: keyword_search_7b2d4e9f
+    target: merge_1a9c5d8e
   # Merge to rerank
-  - source: "merge-1a9c5d8e"
-    target: "rerank-5c7e1b2a"
+  - source: merge_1a9c5d8e
+    target: rerank_5c7e1b2a
   # Rerank to LLM
-  - source: "rerank-5c7e1b2a"
-    target: "llm-8e4f2a7b"
+  - source: rerank_5c7e1b2a
+    target: llm_8e4f2a7b
