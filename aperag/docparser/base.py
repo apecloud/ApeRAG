@@ -51,7 +51,7 @@ class AssetBinPart(Part):
 
 
 class BaseParser(ABC):
-    def __init__(**kwargs):
+    def __init__(self, **kwargs):
         pass
 
     @abstractmethod

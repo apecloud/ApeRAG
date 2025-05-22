@@ -13,19 +13,18 @@
 # limitations under the License.
 
 import asyncio
-from datetime import datetime
 import json
 import logging
 import os
 import uuid
+from datetime import datetime
 from http import HTTPStatus
-from typing import AsyncGenerator, List, Optional, Dict, Any
+from typing import Any, AsyncGenerator, Dict, List, Optional
 from urllib.parse import parse_qsl
 
 from asgiref.sync import sync_to_async
 from celery import chain, group
 from celery.result import GroupResult
-from django.core.files.base import ContentFile
 from django.db import IntegrityError
 from django.http import HttpRequest, StreamingHttpResponse
 from django.shortcuts import render
@@ -34,13 +33,9 @@ from ninja import File, Router, Schema
 from ninja.files import UploadedFile
 
 import aperag.chat.message
-from aperag.flow.base.models import Edge, InputBinding, InputSourceType, NodeInstance, FlowInstance
-from aperag.flow.engine import FlowEngine
-from aperag.flow.parser import FlowParser
-import aperag.views.models
 from aperag.apps import QuotaType
 from aperag.chat.history.redis import RedisChatMessageHistory
-from aperag.chat.sse.base import ChatRequest, MessageProcessor, logger
+from aperag.chat.sse.base import ChatRequest, MessageProcessor
 from aperag.chat.sse.frontend_consumer import FrontendFormatter
 from aperag.chat.utils import get_async_redis_client
 from aperag.db import models as db_models
@@ -69,10 +64,13 @@ from aperag.db.ops import (
     query_sync_history,
     query_user_quota,
 )
+from aperag.docparser.doc_parser import DocParser, get_default_config
+from aperag.flow.base.models import Edge, FlowInstance, InputBinding, InputSourceType, NodeInstance
+from aperag.flow.engine import FlowEngine
+from aperag.flow.parser import FlowParser
 from aperag.graph.lightrag_holder import delete_lightrag_holder, reload_lightrag_holder
 from aperag.llm.prompts import MULTI_ROLE_EN_PROMPT_TEMPLATES, MULTI_ROLE_ZH_PROMPT_TEMPLATES
 from aperag.objectstore.base import get_object_store
-from aperag.readers.base_readers import DEFAULT_FILE_READER_CLS
 from aperag.schema.utils import dumpCollectionConfig, parseCollectionConfig
 from aperag.source.base import get_source
 from aperag.tasks.collection import delete_collection_task, init_collection_task
@@ -88,6 +86,7 @@ from aperag.tasks.index import (
 from aperag.tasks.scan import delete_sync_documents_cron_job, update_sync_documents_cron_job
 from aperag.tasks.sync_documents_task import get_sync_progress, sync_documents
 from aperag.utils.request import get_urls, get_user
+from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
 from aperag.views import models as view_models
 from aperag.views.utils import (
     fail,
@@ -507,10 +506,13 @@ async def create_document(request, collection_id: str, file: List[UploadedFile] 
         if await query_documents_count(user, collection_id) >= document_limit:
             return fail(HTTPStatus.FORBIDDEN, f"document number has reached the limit of {document_limit}")
 
+    supported_file_extensions = DocParser().supported_extensions()  # TODO: apply collection config
+    supported_file_extensions += SUPPORTED_COMPRESSED_EXTENSIONS
+
     response = []
     for item in file:
         file_suffix = os.path.splitext(item.name)[1].lower()
-        if file_suffix not in DEFAULT_FILE_READER_CLS.keys():
+        if file_suffix not in supported_file_extensions:
             return fail(HTTPStatus.BAD_REQUEST, f"unsupported file type {file_suffix}")
         try:
             document_instance = db_models.Document(
@@ -1415,10 +1417,10 @@ async def list_search_tests(request, collection_id: str) -> view_models.SearchTe
 
 def _convert_to_serializable(obj):
     """Convert object to JSON serializable format
-    
+
     Args:
         obj: Object to convert, can be BaseModel, dict, list, or primitive type
-        
+
     Returns:
         JSON serializable object
     """
@@ -1434,7 +1436,7 @@ def _convert_to_serializable(obj):
 
 async def stream_flow_events(flow_generator: AsyncGenerator[Dict[str, Any], None], flow_task: asyncio.Task, execution_id: str):
     """Stream SSE response for flow events and output generator
-    
+
     Args:
         flow_generator: Generator for flow execution events
         flow_task: Task for flow execution
@@ -1450,15 +1452,15 @@ async def stream_flow_events(flow_generator: AsyncGenerator[Dict[str, Any], None
             except Exception as e:
                 logger.exception(f"Error sending event {event}")
                 raise e
-            
+
             event_type = event.get("event_type")
             # If this is a flow end event, break to handle output generator
             if event_type == "flow_end":
                 break
-            
+
             if event_type == "flow_error":
                 raise Exception(str(event))
-            
+
         # Wait for flow execution to complete
         try:
             flow_result = await flow_task
@@ -1470,7 +1472,7 @@ async def stream_flow_events(flow_generator: AsyncGenerator[Dict[str, Any], None
             for node_id, node_result in flow_result.items():
                 if "async_generator" in node_result:
                     output_nodes.append((node_id, node_result["async_generator"]))
-            
+
             if not output_nodes:
                 raise Exception("No output nodes found")
 
@@ -1517,7 +1519,7 @@ async def debug_flow_stream(request: HttpRequest, bot_id: str, debug: view_model
         if not flow_config:
             flow_config = json.loads(bot.config)["flow"]
         flow = FlowParser.parse_yaml(flow_config)
-        
+
         engine = FlowEngine()
         initial_data = {
             "query": debug.query,
@@ -1530,13 +1532,13 @@ async def debug_flow_stream(request: HttpRequest, bot_id: str, debug: view_model
         task = asyncio.create_task(
             engine.execute_flow(flow, initial_data)
         )
-        
+
         # Return SSE response with events
         return StreamingHttpResponse(
             stream_flow_events(engine.get_events(), task, engine.execution_id),
             content_type="text/event-stream"
         )
-        
+
     except Exception as e:
         logger.exception("Error in debug flow stream")
         return StreamingHttpResponse(

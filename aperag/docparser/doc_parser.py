@@ -23,6 +23,13 @@ def get_default_config() -> list["ParserConfig"]:
     ]
 
 
+def get_fast_doc_parser() -> "DocParser":
+    fast_config = [
+        ParserConfig(name="markitdown", enabled=True),
+    ]
+    return DocParser(config=fast_config)
+
+
 class ParserConfig(BaseModel):
     name: str = Field(..., description="The name of the parser")
     enabled: bool = Field(True, description="Whether this parser is enabled")
@@ -51,6 +58,7 @@ class DocParser(BaseParser):
             if cfg.supported_extensions_override is not None:
                 self.ext_override[cfg.name] = cfg.supported_extensions_override
             parser = parser_class(**(cfg.settings or {}))
+            self.parsing_order.append(cfg.name)
             self.parsers[cfg.name] = parser
 
     def _get_parser_supported_extensions(self, parser_name: str) -> list[str]:

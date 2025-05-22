@@ -27,7 +27,7 @@ from aperag.docparser.base import (
     TextPart,
     TitlePart,
 )
-from aperag.docparser.utils import asset_bin_part_to_url, get_soffice_cmd
+from aperag.docparser.utils import asset_bin_part_to_url, extension_to_mime_type, get_soffice_cmd
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,6 @@ class MinerUParser(BaseParser):
 
         try:
             local_image_dir = os.path.join(temp_dir, "output/images")
-            image_dir = str(os.path.basename(local_image_dir))
 
             os.makedirs(local_image_dir, exist_ok=True)
 
@@ -136,7 +135,7 @@ class MinerUParser(BaseParser):
 
             if metadata is None:
                 metadata = {}
-            parts = middle_json_to_parts(image_dir, pipe_result.get_middle_json(), metadata)
+            parts = middle_json_to_parts(Path(local_image_dir), pipe_result.get_middle_json(), metadata)
             if not parts:
                 return []
             md_part = self.to_md_part(parts, metadata.copy())
@@ -310,31 +309,41 @@ def convert_para(
 ) -> list[Part]:
     para_type = para_block["type"]
     bbox = para_block.get("bbox", (0, 0, 0, 0))
-    metadata.update({
-        "pdf_source_map": [{
-            "page_idx": page_idx,
-            "bbox": tuple(bbox),
-        }],
-        "para_type": str(para_type),
-    })
+    metadata.update(
+        {
+            "pdf_source_map": [
+                {
+                    "page_idx": page_idx,
+                    "bbox": tuple(bbox),
+                }
+            ],
+            "para_type": str(para_type),
+        }
+    )
 
     if para_type in [BlockType.Text, BlockType.List, BlockType.Index]:
-        return [TextPart(
-            content=merge_para_with_text(para_block),
-            metadata=metadata,
-        )]
+        return [
+            TextPart(
+                content=merge_para_with_text(para_block),
+                metadata=metadata,
+            )
+        ]
     elif para_type == BlockType.Title:
         title_level = para_block.get("level", 1)
-        return [TitlePart(
-            content=f"{'#' * title_level} {merge_para_with_text(para_block)}",
-            metadata=metadata,
-            level=title_level,
-        )]
+        return [
+            TitlePart(
+                content=f"{'#' * title_level} {merge_para_with_text(para_block)}",
+                metadata=metadata,
+                level=title_level,
+            )
+        ]
     elif para_type == BlockType.InterlineEquation:
-        return [TextPart(
-            content=merge_para_with_text(para_block),
-            metadata=metadata,
-        )]
+        return [
+            TextPart(
+                content=merge_para_with_text(para_block),
+                metadata=metadata,
+            )
+        ]
     elif para_type == BlockType.Image:
         return _convert_image_para(image_dir, para_block, metadata)
     elif para_type == BlockType.Table:
@@ -353,7 +362,6 @@ def _convert_image_para(image_dir: Path, para_block: dict[str, Any], metadata: d
                     if span["type"] == ContentType.Image:
                         if span.get("image_path", ""):
                             img_path = span["image_path"]
-                            text = f"[ImageFile: {img_path}]\n"
         if block["type"] == BlockType.ImageCaption:
             text += f"[ImageCaption: {merge_para_with_text(block)}]\n"
         if block["type"] == BlockType.ImageFootnote:
@@ -374,15 +382,16 @@ def _convert_image_para(image_dir: Path, para_block: dict[str, Any], metadata: d
         return [TextPart(content=text, metadata=metadata)]
 
     asset_id = md5(img_data).hexdigest()
+    mime_type = extension_to_mime_type(Path(img_path).suffix)
     asset_bin_part = AssetBinPart(
         asset_id=asset_id,
         data=img_data,
         metadata=metadata,
+        mime_type=mime_type,
     )
 
     asset_url = asset_bin_part_to_url(asset_bin_part)
-    filename = Path(img_path).stem
-    text = f"![{filename}]({asset_url})\n" + text
+    text = f"![{img_path}]({asset_url})\n" + text
 
     img_part = ImagePart(
         content=text,
@@ -437,15 +446,16 @@ def _convert_table_para(image_dir: Path, para_block: dict[str, Any], metadata: d
         return [TextPart(content=text, metadata=metadata)]
 
     asset_id = md5(img_data).hexdigest()
+    mime_type = extension_to_mime_type(Path(img_path).suffix)
     asset_bin_part = AssetBinPart(
         asset_id=asset_id,
         data=img_data,
         metadata=metadata,
+        mime_type=mime_type,
     )
 
     asset_url = asset_bin_part_to_url(asset_bin_part)
-    filename = Path(img_path).stem
-    text = f"![{filename}]({asset_url})\n" + text
+    text = f"![{img_path}]({asset_url})\n" + text
 
     img_part = ImagePart(
         content=text,

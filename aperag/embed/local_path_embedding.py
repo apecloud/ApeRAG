@@ -11,7 +11,7 @@ from llama_index.core.schema import BaseNode, TextNode
 from aperag.db.models import Document
 from aperag.docparser.base import AssetBinPart, MarkdownPart, Part
 from aperag.docparser.chunking import rechunk
-from aperag.docparser.doc_parser import DocParser
+from aperag.docparser.doc_parser import DocParser, get_default_config
 from aperag.embed.base_embedding import DocumentBaseEmbedding
 from aperag.objectstore.base import get_object_store
 from aperag.readers.sensitive_filter import SensitiveFilterClassify
@@ -82,7 +82,7 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
             paddings = []
             # padding titles of the hierarchy
             if "titles" in part.metadata:
-                paddings.append(" ".join(part.metadata["titles"]))
+                paddings.append("Breadcrumbs: " + " > ".join(part.metadata["titles"]))
 
             # padding user custom labels
             if "labels" in part.metadata:
@@ -117,7 +117,9 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
                 text = f"{prefix}\n\n{part.content}"
             else:
                 text = part.content
-            nodes.append(TextNode(text=text, metadata=part.metadata))
+            metadata = part.metadata.copy()
+            metadata["source"] = metadata.get("name", "")
+            nodes.append(TextNode(text=text, metadata=metadata))
 
         if sensitive_protect and sensitive_protect_method == Document.ProtectAction.WARNING_NOT_STORED and sensitive_info != []:
             logger.info("find sensitive information: %s", self.filepath)
@@ -128,13 +130,18 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
             obj_store = get_object_store()
 
             # Save markdown content
-            obj_store.put(f"{base_path}/parsed.md", content.encode("utf-8"))
+            md_upload_path = f"{base_path}/parsed.md"
+            md_data = content.encode("utf-8")
+            obj_store.put(md_upload_path, md_data)
+            logger.info(f"uploaded markdown content to {md_upload_path}, size: {len(md_data)}")
 
             # Save assets
             for part in doc_parts:
                 if not isinstance(part, AssetBinPart):
                     continue
-                obj_store.put(f"{base_path}/assets/{part.asset_id}", part.data)
+                asset_upload_path = f"{base_path}/assets/{part.asset_id}"
+                obj_store.put(asset_upload_path, part.data)
+                logger.info(f"uploaded asset to {asset_upload_path}, size: {len(part.data)}")
 
         texts = [node.get_content() for node in nodes]
         vectors = self.embedding.embed_documents(texts)

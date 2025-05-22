@@ -27,7 +27,7 @@ from pydantic import BaseModel
 
 from aperag.db.models import Collection, CollectionSyncHistory, Document
 from aperag.db.ops import query_documents
-from aperag.readers.base_readers import DEFAULT_FILE_READER_CLS
+from aperag.docparser.doc_parser import DocParser, get_default_config
 from aperag.schema.utils import parseCollectionConfig
 from aperag.source.base import get_source
 from aperag.tasks.index import (
@@ -37,6 +37,7 @@ from aperag.tasks.index import (
     update_index_for_document,
     update_index_for_local_document,
 )
+from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
 from config.celery import app
 from config.settings import MAX_DOCUMENT_COUNT
 
@@ -106,9 +107,12 @@ def sync_documents(self, **kwargs):
         collection_sync_history.save()
         return doc
 
+    supported_file_extensions = DocParser().supported_extensions()  # TODO: apply collection config
+    supported_file_extensions += SUPPORTED_COMPRESSED_EXTENSIONS
+
     source = get_source(parseCollectionConfig(collection.config))
     for src_doc in source.scan_documents():
-        if os.path.splitext(src_doc.name)[1].lower() not in DEFAULT_FILE_READER_CLS.keys():
+        if os.path.splitext(src_doc.name)[1].lower() not in supported_file_extensions:
             continue
         if src_doc.name in src_docs:
             logger.warning(f"Duplicate document {src_doc.name}")

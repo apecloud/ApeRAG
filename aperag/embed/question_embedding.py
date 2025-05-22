@@ -50,7 +50,7 @@ class QuestionEmbedding(LocalPathEmbedding):
                 paddings = []
                 # padding titles of the hierarchy
                 if "titles" in part.metadata:
-                    paddings.append(" ".join(part.metadata["titles"]))
+                    paddings.append("Breadcrumbs: " + " > ".join(part.metadata["titles"]))
 
                 # padding user custom labels
                 if "labels" in part.metadata:
@@ -77,7 +77,7 @@ class QuestionEmbedding(LocalPathEmbedding):
                 node = TextNode(
                     text=json.dumps({"question": q, "answer": ""}),
                 )
-                node.metadata.update({"source": f"{part.metadata.get('doc_id', "")}"})
+                node.metadata.update({"source": f"{part.metadata.get('doc_id', '')}"})
                 vector = self.embedding.embed_query(q)
                 node.embedding = vector
                 nodes.append(node)

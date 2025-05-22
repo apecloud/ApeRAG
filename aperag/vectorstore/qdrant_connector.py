@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from typing import Any, Dict
 
@@ -9,6 +10,8 @@ from qdrant_client.models import VectorParams
 
 from aperag.query.query import DocumentWithScore, QueryResult, QueryWithEmbedding
 from aperag.vectorstore.base import VectorStoreConnector
+
+logger = logging.getLogger(__name__)
 
 
 class QdrantVectorStoreConnector(VectorStoreConnector):
@@ -60,12 +63,12 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
             score_threshold=score_threshold,
         )
 
+        results = [self._convert_scored_point_to_document_with_score(point) for point in hits]
+        results = [result for result in results if result is not None]
+
         return QueryResult(
             query=query.query,
-            results=[
-                self._convert_scored_point_to_document_with_score(point)
-                for point in hits
-            ],
+            results=results,
         )
 
     def _convert_scored_point_to_document_with_score(
@@ -91,7 +94,8 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
                 embedding=scored_point.vector,  # type: ignore
                 score=scored_point.score,
             )
-        except Exception as _:
+        except Exception:
+            logger.exception("Failed to convert scored point to document")
             return None
 
     def delete(self, **delete_kwargs: Any):
@@ -113,4 +117,3 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
 
     def delete_collection(self, **kwargs: Any):
         self.client.delete_collection(collection_name=self.collection_name)
-

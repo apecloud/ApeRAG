@@ -17,16 +17,23 @@ import json
 import logging
 import os
 import traceback
+from pathlib import Path
 
 import websockets
 
-from aperag.chat.utils import (check_quota_usage, fail_response,
-                               manage_quota_usage, start_response,
-                               stop_response, success_response)
+from aperag.chat.utils import (
+    check_quota_usage,
+    fail_response,
+    manage_quota_usage,
+    start_response,
+    stop_response,
+    success_response,
+)
 from aperag.chat.websocket.base_consumer import BaseConsumer
+from aperag.docparser.base import MarkdownPart
+from aperag.docparser.doc_parser import get_fast_doc_parser
 from aperag.pipeline.base_pipeline import RELATED_QUESTIONS
 from aperag.pipeline.common_pipeline import create_common_pipeline
-from aperag.readers.base_readers import DEFAULT_FILE_READER_CLS
 from aperag.source.utils import gen_temporary_file
 from aperag.utils.utils import now_unix_milliseconds
 
@@ -57,8 +64,11 @@ class CommonConsumer(BaseConsumer):
             self.file_name = file_name_bytes.decode('utf-8')
             file_content = bytes_data[4 + file_name_length:]
 
+            doc_parser = get_fast_doc_parser()
+            supported_file_extensions = doc_parser.supported_extensions()
+
             file_suffix = os.path.splitext(self.file_name)[1].lower()
-            if file_suffix not in DEFAULT_FILE_READER_CLS.keys():
+            if file_suffix not in supported_file_extensions:
                 error = f"unsupported file type {file_suffix}"
                 await self.send(text_data=fail_response(message_id, error=error))
                 return
@@ -67,17 +77,17 @@ class CommonConsumer(BaseConsumer):
             temp_file.write(file_content)
             temp_file.close()
 
-            reader = DEFAULT_FILE_READER_CLS[file_suffix]
-            if hasattr(reader, "use_fallback_reader"):
-                # Some readers use MinerU for document parsing. However, its speed is too slow
-                # for document chat scenarios (chat with doc).
-                # Therefore, MinerUReader is disabled here, and a faster reader with
-                # lower parsing quality is used instead.
-                # In the future, we can optimize this, for example, by implementing a separate
-                # document parsing service to handle user-uploaded documents asynchronously.
-                reader.use_fallback_reader(True)
-            docs = reader.load_data(temp_file.name)
-            self.file = docs[0].text
+            content = None
+            try:
+                parts = doc_parser.parse_file(Path(temp_file.name))
+                for part in parts:
+                    if isinstance(part, MarkdownPart):
+                        content = part.markdown
+                        break
+            except Exception:
+                logger.exception("Failed to parse file %s", self.file_name)
+
+            self.file = content
             return
 
         data = json.loads(text_data)

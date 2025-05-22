@@ -60,7 +60,3 @@ FULLTEXT_SUFFIX = {
     ".md": True,
     ".txt": True,
 }
-
-
-SUPPORTED_COMPRESSED_EXTENSIONS = ['.zip', '.rar', '.r00', '.7z', '.tar', '.gz', '.xz', '.bz2', '.tar.gz', '.tar.xz', '.tar.bz2', '.tar.7z']
-

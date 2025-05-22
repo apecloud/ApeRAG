@@ -46,3 +46,29 @@ def asset_bin_part_to_url(part: AssetBinPart) -> str:
     if part.mime_type:
         url += f"?mime_type={quote_plus(part.mime_type)}"
     return url
+
+
+def extension_to_mime_type(extension: str) -> str:
+    extension = extension.lower()
+    if extension == ".pdf":
+        return "application/pdf"
+    elif extension == ".docx":
+        return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    elif extension == ".xlsx":
+        return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    elif extension == ".pptx":
+        return "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    elif extension == ".epub":
+        return "application/epub+zip"
+    elif extension == ".jpg" or extension == ".jpeg":
+        return "image/jpeg"
+    elif extension == ".png":
+        return "image/png"
+    elif extension == ".gif":
+        return "image/gif"
+    elif extension == ".svg":
+        return "image/svg+xml"
+    elif extension == ".webp":
+        return "image/webp"
+    else:
+        return "application/octet-stream"
