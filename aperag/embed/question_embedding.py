@@ -27,9 +27,8 @@ class QuestionEmbedding(LocalPathEmbedding):
         self.max_context_window = kwargs.get("max_context_window", 4000)
 
     def load_data(self, **kwargs) -> tuple[list[str], list[str]]:
-        parts = self.parse_doc()
-        parts = [part for part in parts if part.content]
-        if not parts:
+        doc_parts = self.parse_doc()
+        if not doc_parts:
             return [], []
 
         has_room_for_prefix = False
@@ -38,11 +37,14 @@ class QuestionEmbedding(LocalPathEmbedding):
         if chunk_size > 5 * reserve_tokens_for_prefix:
             chunk_size -= reserve_tokens_for_prefix
             has_room_for_prefix = True
-        parts = rechunk(parts, chunk_size, self.chunk_overlap, self.tokenizer)
+        parts = rechunk(doc_parts, chunk_size, self.chunk_overlap, self.tokenizer)
 
         logger.info("generating questions for document: %s", self.filepath)
         nodes: List[TextNode] = []
         for part in parts:
+            if not part.content:
+                continue
+
             text = part.content
             if has_room_for_prefix:
                 paddings = []

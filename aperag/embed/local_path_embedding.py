@@ -61,12 +61,14 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
         content = ""
         sensitive_info = []
 
-        parts = self.parse_doc()
-        if len(parts) == 0:
+        doc_parts = self.parse_doc()
+        if len(doc_parts) == 0:
             return [], "", []
-        parts = rechunk(parts, self.chunk_size, self.chunk_overlap, self.tokenizer)
 
-        md_part = next((part for part in parts if isinstance(part, MarkdownPart)), None)
+        # After rechunk(), parts only contains TextPart
+        parts = rechunk(doc_parts, self.chunk_size, self.chunk_overlap, self.tokenizer)
+
+        md_part = next((part for part in doc_parts if isinstance(part, MarkdownPart)), None)
         if md_part is not None:
             content = md_part.markdown
 
@@ -129,7 +131,7 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
             obj_store.put(f"{base_path}/parsed.md", content.encode("utf-8"))
 
             # Save assets
-            for part in parts:
+            for part in doc_parts:
                 if not isinstance(part, AssetBinPart):
                     continue
                 obj_store.put(f"{base_path}/assets/{part.asset_id}", part.data)
