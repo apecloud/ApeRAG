@@ -11,10 +11,10 @@ from llama_index.core.schema import BaseNode, TextNode
 from aperag.db.models import Document
 from aperag.docparser.base import AssetBinPart, MarkdownPart, Part
 from aperag.docparser.chunking import rechunk
-from aperag.docparser.doc_parser import DocParser, get_default_config
+from aperag.docparser.doc_parser import DocParser
 from aperag.embed.base_embedding import DocumentBaseEmbedding
+from aperag.embed.sensitive_filter import SensitiveFilterClassify
 from aperag.objectstore.base import get_object_store
-from aperag.readers.sensitive_filter import SensitiveFilterClassify
 from aperag.utils.tokenizer import get_default_tokenizer
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
 from config import settings

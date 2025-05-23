@@ -10,7 +10,7 @@ from llama_index.core.schema import TextNode
 from aperag.docparser.chunking import rechunk
 from aperag.embed.base_embedding import DocumentBaseEmbedding
 from aperag.embed.local_path_embedding import LocalPathEmbedding
-from aperag.readers.question_generator import QuestionGenerator
+from aperag.embed.question_generator import QuestionGenerator
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
 
 logger = logging.getLogger(__name__)
