@@ -42,6 +42,8 @@ SUPPORTED_EXTENSIONS = [
 
 
 class MinerUParser(BaseParser):
+    name = "mineru"
+
     def _set_config_path(self) -> bool:
         path = Path(os.environ.get("MINERU_CONFIG_JSON", "./magic-pdf.json"))
         if not path.exists():

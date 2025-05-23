@@ -28,6 +28,8 @@ SUPPORTED_EXTENSIONS = [
 
 
 class MarkItDownParser(BaseParser):
+    name = "markitdown"
+
     def supported_extensions(self) -> list[str]:
         return SUPPORTED_EXTENSIONS
 

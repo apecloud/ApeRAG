@@ -4,28 +4,41 @@ from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field
 
+from aperag.docparser.audio_parser import AudioParser
 from aperag.docparser.base import BaseParser, FallbackError, Part
+from aperag.docparser.image_parser import ImageParser
 from aperag.docparser.markitdown_parser import MarkItDownParser
 from aperag.docparser.mineru_parser import MinerUParser
 
 logger = logging.getLogger(__name__)
 
-PARSERS = {
-    "mineru": MinerUParser,
-    "markitdown": MarkItDownParser,
+ALL_PARSERS = [
+    AudioParser,
+    ImageParser,
+    MarkItDownParser,
+    MinerUParser
+]
+
+PARSER_MAP = {
+    cls.name: cls
+    for cls in ALL_PARSERS
 }
 
 
 def get_default_config() -> list["ParserConfig"]:
     return [
-        ParserConfig(name="mineru", enabled=True),
-        ParserConfig(name="markitdown", enabled=True),
+        ParserConfig(name=MinerUParser.name, enabled=True),
+        ParserConfig(name=ImageParser.name, enabled=True),
+        ParserConfig(name=AudioParser.name, enabled=True),
+        ParserConfig(name=MarkItDownParser.name, enabled=True),
     ]
 
 
 def get_fast_doc_parser() -> "DocParser":
     fast_config = [
-        ParserConfig(name="markitdown", enabled=True),
+        ParserConfig(name=ImageParser.name, enabled=True),
+        ParserConfig(name=AudioParser.name, enabled=True),
+        ParserConfig(name=MarkItDownParser.name, enabled=True),
     ]
     return DocParser(config=fast_config)
 
@@ -50,7 +63,7 @@ class DocParser(BaseParser):
         for cfg in self.config:
             if not cfg.enabled:
                 continue
-            parser_class = PARSERS.get(cfg.name)
+            parser_class = PARSER_MAP.get(cfg.name)
             if parser_class is None:
                 # Parser not found
                 logger.warning(f'Parser "{cfg.name}" not found. Skipping.')
