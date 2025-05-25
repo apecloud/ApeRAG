@@ -17,7 +17,7 @@ from typing import Any, Dict, Iterator
 
 from aperag.source.base import LocalDocument, RemoteDocument, Source
 from aperag.utils.spider.base_spider import WebCannotBeCrawledException, url_selector
-from aperag.views.models import CollectionConfig
+from aperag.schema.view_models import CollectionConfig
 
 
 def download_web_text_to_temp_file(url, name):

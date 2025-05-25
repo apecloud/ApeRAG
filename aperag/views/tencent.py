@@ -15,18 +15,12 @@
 import time
 
 from ninja import Router
-
-from aperag.chat.utils import get_async_redis_client
+from aperag.service.tencent_service import save_tencent_code_and_uri
 
 router = Router()
 
 @router.get("/webhook/event")
-async def callback(request, code, state):
-    # restore user_id in state, to distinguish code of different users
-    redis_client = get_async_redis_client()
+async def callback_view(request, code, state):
     redirect_uri = str(request.url)
-
-    await redis_client.set("tencent_code_" + state, code)
-    await redis_client.set("tencent_redirect_uri_" + state, redirect_uri)
-    await redis_client.expireat("tencent_code_" + state, int(time.time()) + 300)
+    await save_tencent_code_and_uri(state, code, redirect_uri)
 

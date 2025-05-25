@@ -23,7 +23,7 @@ import requests
 from pydantic import BaseModel
 
 from aperag.source.base import CustomSourceInitializationError
-from aperag.views.models import CollectionConfig
+from aperag.schema.view_models import CollectionConfig
 
 logger = logging.getLogger(__name__)
 

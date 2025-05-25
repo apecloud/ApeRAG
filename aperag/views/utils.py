@@ -33,8 +33,8 @@ from aperag.utils.utils import AVAILABLE_SOURCE
 from django.conf import settings
 from aperag.auth.authentication import GlobalAuth
 from aperag.utils import constant
-from aperag.views import models as view_models
-from aperag.views.models import CollectionConfig
+from aperag.schema import view_models
+from aperag.schema.view_models import CollectionConfig
 
 
 async def query_chat_messages(user: str, chat_id: str) -> list[view_models.ChatMessage]:

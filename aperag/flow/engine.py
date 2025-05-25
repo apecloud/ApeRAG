@@ -8,8 +8,8 @@ import uuid
 from .runners import *
 import asyncio
 from datetime import datetime
-from jinja2 import Environment, StrictUndefined
 import jsonschema
+from jinja2 import Environment, StrictUndefined
 
 # Configure logging
 logging.basicConfig(
@@ -225,11 +225,35 @@ class FlowEngine:
                 tasks.append(self._execute_node(node))
             await asyncio.gather(*tasks)
 
+    def _resolve_variable(self, expr: str, nodes_ctx: dict):
+        """
+        Resolve variable path like 'nodes.start.output.query' from nodes_ctx.
+        """
+        parts = expr.strip().split('.')
+        if not parts:
+            return None
+        if parts[0] == 'nodes':
+            if len(parts) < 4 or parts[2] != 'output':
+                raise ValidationError(f"Invalid variable reference: ${{{{ {expr} }}}}")
+            node_id = parts[1]
+            field_path = parts[3:]
+            node_outputs = self.context.outputs.get(node_id, {})
+            value = node_outputs
+            for key in field_path:
+                if isinstance(value, dict) and key in value:
+                    value = value[key]
+                else:
+                    raise ValidationError(f"Cannot resolve variable: ${{{{ {expr} }}}}")
+            return value
+        else:
+            raise ValidationError(f"Unknown variable scope: ${{{{ {expr} }}}}")
+
     def resolve_expression(self, value, node_id=None, nodes_ctx=None):
         """
-        Recursively render input values using Jinja2.
-        Supports any Jinja2 template logic, with context: nodes[node_id]['output'][output_name].
-        Keeps type safety: int/float/str/template.
+        Recursively resolve input values.
+        1. If value is a string and starts with ${{ ... }}, resolve as variable path.
+        2. Otherwise, use jinja2 template rendering with nodes_ctx as context.
+        3. Recursively handle dict/list.
         """
         if nodes_ctx is None:
             nodes_ctx = {nid: {'output': outputs} for nid, outputs in self.context.outputs.items()}
@@ -240,13 +264,17 @@ class FlowEngine:
         if not isinstance(value, str):
             return value
 
-        # Render with Jinja2
+        value_strip = value.strip()
+        # Only handle variable reference like ${{ ... }}
+        if value_strip.startswith('$') and value_strip.startswith('${{') and value_strip.endswith('}}'):
+            expr = value_strip[3:-2].strip()
+            return self._resolve_variable(expr, nodes_ctx)
+        # Otherwise, use jinja2 template rendering
         try:
             template = self.jinja_env.from_string(value)
             rendered = template.render(nodes=nodes_ctx)
         except Exception as e:
             raise ValidationError(f"Jinja2 render error in node '{node_id}': {e}")
-
         return rendered
 
     def convert_type_by_schema(self, value, field_schema):
@@ -286,8 +314,8 @@ class FlowEngine:
                     arr = json.loads(value)
                     if isinstance(arr, list):
                         return arr
-                except Exception:
-                    pass
+                except Exception as e:
+                    raise ValidationError(f"Cannot convert '{value}' to array: {e}")
                 # Try comma split
                 return [v.strip() for v in value.split(',') if v.strip()]
             raise ValueError(f"Cannot convert '{value}' to array")
@@ -321,15 +349,17 @@ class FlowEngine:
         resolved_inputs = self.resolve_expression(raw_inputs, node.id)
         # Use input_schema (already jsonschema) for validation and type conversion
         json_schema = getattr(node, 'input_schema', {})
+        if not json_schema or "properties" not in json_schema:
+            return resolved_inputs
+
         inputs = {}
-        if 'properties' in json_schema:
-            for key, field_schema in json_schema['properties'].items():
-                value = resolved_inputs.get(key)
-                try:
-                    value = self.convert_type_by_schema(value, field_schema)
-                except Exception as e:
-                    raise ValidationError(f"Type conversion error for field '{key}' in node {node.id}: {e}")
-                inputs[key] = value
+        for key, field_schema in json_schema['properties'].items():
+            value = resolved_inputs.get(key)
+            try:
+                value = self.convert_type_by_schema(value, field_schema)
+            except Exception as e:
+                raise ValidationError(f"Type conversion error for field '{key}' in node {node.id}: {e}")
+            inputs[key] = value
         try:
             jsonschema.validate(instance=inputs, schema=json_schema)
         except jsonschema.ValidationError as e:

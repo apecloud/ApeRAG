@@ -49,10 +49,6 @@ document:
     updated:
       type: string
       format: date-time
-    sensitive_info:
-      type: array
-      items:
-        type: string
 
 documentList:
   type: object

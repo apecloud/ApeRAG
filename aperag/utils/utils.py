@@ -33,17 +33,6 @@ def extract_bot_and_chat_id(path: str):
         raise ValueError(f"Invalid path format: {path}")
 
 
-def extract_web_bot_and_chat_id(path: str):
-    match = re.match(
-        r"/api/v1/bots/(?P<bot_id>\w+)/web-chats/(?P<chat_id>\w+)/connect$",
-        path,
-    )
-    if match:
-        return match.group("bot_id"), match.group("chat_id")
-    else:
-        raise ValueError(f"Invalid path format: {path}")
-
-
 def now_unix_milliseconds():
     return int(datetime.utcnow().timestamp() * 1e3)
 

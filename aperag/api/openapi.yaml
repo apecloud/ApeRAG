@@ -37,12 +37,6 @@ paths:
     $ref: './paths/chats.yaml#/chat'
   /bots/{bot_id}/chats/{chat_id}/messages/{message_id}:
     $ref: './paths/message.yaml#/message'
-  /bots/{bot_id}/web-chats:
-    $ref: './paths/chats.yaml#/web_chats'
-  /bots/{bot_id}/web-chats/{chat_id}:
-    $ref: './paths/chats.yaml#/web_chat'
-  /bots/{bot_id}/web-chats/{chat_id}/messages/{message_id}:
-    $ref: './paths/message.yaml#/message'
 
   # collections
   /collections:

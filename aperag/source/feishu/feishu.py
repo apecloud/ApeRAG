@@ -23,7 +23,7 @@ import aperag.source.feishu.v2.parser as v2
 from aperag.source.base import CustomSourceInitializationError, LocalDocument, RemoteDocument, Source
 from aperag.source.feishu.client import FeishuClient
 from aperag.source.utils import gen_temporary_file
-from aperag.views.models import CollectionConfig
+from aperag.schema.view_models import CollectionConfig
 
 logger = logging.getLogger(__name__)
 

@@ -183,14 +183,14 @@ generate-models: merge-openapi
 	@datamodel-codegen \
 		--input aperag/api/openapi.merged.yaml \
 		--input-file-type openapi \
-		--output aperag/views/models.py \
+		--output aperag/schema/view_models.py \
 		--output-model-type pydantic.BaseModel \
 		--target-python-version 3.11 \
 		--use-standard-collections \
 		--use-schema-description \
 		--enum-field-as-literal all
 	@rm aperag/api/openapi.merged.yaml
-	@echo "Models generated successfully in aperag/models directory"
+	@echo "Models generated successfully in aperag/schema directory"
 
 .PHONY: generate_model_configs
 generate_model_configs:

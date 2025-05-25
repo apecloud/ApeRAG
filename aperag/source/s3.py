@@ -21,7 +21,7 @@ import botocore
 
 from aperag.source.base import CustomSourceInitializationError, LocalDocument, RemoteDocument, Source
 from aperag.source.utils import find_duplicate_paths, gen_temporary_file
-from aperag.views.models import CollectionConfig
+from aperag.schema.view_models import CollectionConfig
 
 logger = logging.getLogger(__name__)
 

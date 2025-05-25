@@ -8,12 +8,10 @@ from typing import Any, Dict, List, Tuple
 from langchain.embeddings.base import Embeddings
 from llama_index.core.schema import BaseNode, TextNode
 
-from aperag.db.models import Document
 from aperag.docparser.base import AssetBinPart, MarkdownPart, Part
 from aperag.docparser.chunking import rechunk
 from aperag.docparser.doc_parser import DocParser
 from aperag.embed.base_embedding import DocumentBaseEmbedding
-from aperag.embed.sensitive_filter import SensitiveFilterClassify
 from aperag.objectstore.base import get_object_store
 from aperag.utils.tokenizer import get_default_tokenizer
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
@@ -41,7 +39,6 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
         self.file_metadata = file_metadata or {}
         self.object_store_base_path = object_store_base_path
         self.parser = DocParser()  # TODO: use the parser config from the collection
-        self.filter = SensitiveFilterClassify(None) #todo Fixme, use a llm model
         self.chunk_size = kwargs.get('chunk_size', settings.CHUNK_SIZE)
         self.chunk_overlap = kwargs.get('chunk_overlap', settings.CHUNK_OVERLAP_SIZE)
         self.tokenizer = get_default_tokenizer()
@@ -53,17 +50,13 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
         parts = self.parser.parse_file(filepath, self.file_metadata)
         return parts
 
-    def load_data(self, **kwargs) -> Tuple[List[str], str, List]:
-        sensitive_protect = kwargs.get('sensitive_protect', False)
-        sensitive_protect_method = kwargs.get('sensitive_protect_method', Document.ProtectAction.WARNING_NOT_STORED)
-
+    def load_data(self, **kwargs) -> Tuple[List[str], str]:
         nodes: List[BaseNode] = []
         content = ""
-        sensitive_info = []
 
         doc_parts = self.parse_doc()
         if len(doc_parts) == 0:
-            return [], "", []
+            return [], ""
 
         # After rechunk(), parts only contains TextPart
         parts = rechunk(doc_parts, self.chunk_size, self.chunk_overlap, self.tokenizer)
@@ -99,11 +92,6 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
                 logger.debug("add extra prefix for document %s before embedding: %s",
                              self.filepath, prefix)
 
-            if sensitive_protect:
-                part.content, output_sensitive_info = self.filter.sensitive_filter(part.content, sensitive_protect_method)
-                if output_sensitive_info != {}:
-                    sensitive_info.append(output_sensitive_info)
-
             # embedding without the prefix #, which is usually used for padding in the LLM
             # lines = []
             # for line in text.split("\n"):
@@ -120,10 +108,6 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
             metadata = part.metadata.copy()
             metadata["source"] = metadata.get("name", "")
             nodes.append(TextNode(text=text, metadata=metadata))
-
-        if sensitive_protect and sensitive_protect_method == Document.ProtectAction.WARNING_NOT_STORED and sensitive_info != []:
-            logger.info("find sensitive information: %s", self.filepath)
-            return [], "", sensitive_info
 
         if self.object_store_base_path is not None:
             base_path = self.object_store_base_path
@@ -149,7 +133,7 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
             nodes[i].embedding = vectors[i]
 
         logger.info(f"processed file: {self.filepath} with {len(vectors)} chunks")
-        return self.connector.store.add(nodes), content, sensitive_info
+        return self.connector.store.add(nodes), content
 
     def delete(self, **kwargs) -> bool:
         return self.connector.delete(**kwargs)

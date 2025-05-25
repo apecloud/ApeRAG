@@ -38,7 +38,6 @@ class DocumentWithScore(BaseModel):
     text: str = None
     score: float
     metadata: dict = None
-    rank_before: int = -1
 
     def get_source_file(self) -> str:
         return self.metadata["source"]

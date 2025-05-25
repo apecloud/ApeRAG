@@ -259,9 +259,6 @@ class WebSocketAuthMiddleware(BaseMiddleware):
         headers = dict(scope["headers"])
         path = scope['path']
 
-        if "/web-chats" in path:
-            return self.app(scope, receive, send)
-
         token = headers.get(KEY_WEBSOCKET_PROTOCOL.lower().encode("ascii"), None)
         if token is not None:
             token = token.decode("ascii")

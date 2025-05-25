@@ -16,14 +16,14 @@ from ninja import Router
 
 from aperag.db.ops import query_config, query_first_user_exists
 from aperag.views.utils import success
-from aperag.views.models import Config, Auth, Auth0, Authing, Logto
+from aperag.schema.view_models import Config, Auth, Auth0, Authing, Logto
 from config import settings
 
 router = Router()
 
 
 @router.get("")
-async def config(request) -> Config:
+async def config_view(request) -> Config:
     auth = Auth(
         type=settings.AUTH_TYPE,
     )

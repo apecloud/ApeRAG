@@ -1,41 +1,25 @@
 from ninja import Router
 from django.http import HttpRequest
 from aperag.utils.request import get_user
-from aperag.views.models import WorkflowDefinition
-from aperag.views.utils import success, fail
-from http import HTTPStatus
+from aperag.schema.view_models import WorkflowDefinition
+from aperag.service.flow_service import get_flow, update_flow
 
 router = Router()
 
-from aperag.db.ops import query_bot
-import json
-
 @router.get("/bots/{bot_id}/flow", response=WorkflowDefinition)
-async def get_flow(request: HttpRequest, bot_id: str):
+async def get_flow_view(request: HttpRequest, bot_id: str):
     user = get_user(request)
-    bot = await query_bot(user, bot_id)
-    if not bot:
-        return fail(HTTPStatus.NOT_FOUND, message="Bot not found")
-    try:
-        config = json.loads(bot.config or '{}')
-        flow = config.get('flow')
-        if not flow:
-            return fail(HTTPStatus.NOT_FOUND, message="Flow config not found")
-        return success(flow)
-    except Exception as e:
-        return fail(HTTPStatus.INTERNAL_SERVER_ERROR, message=str(e))
+    logic = get_flow(user, bot_id)
+    flow, error = await logic()
+    if error:
+        return error
+    return flow
 
 @router.put("/bots/{bot_id}/flow", response=WorkflowDefinition)
-async def update_flow(request: HttpRequest, bot_id: str, data: WorkflowDefinition):
+async def update_flow_view(request: HttpRequest, bot_id: str, data: WorkflowDefinition):
     user = get_user(request)
-    bot = await query_bot(user, bot_id)
-    if not bot:
-        return fail(HTTPStatus.NOT_FOUND, message="Bot not found")
-    try:
-        config = json.loads(bot.config or '{}')
-        config['flow'] = data.dict(exclude_unset=True)
-        bot.config = json.dumps(config, ensure_ascii=False)
-        await bot.asave()
-        return success(data)
-    except Exception as e:
-        return fail(HTTPStatus.INTERNAL_SERVER_ERROR, message=str(e))
+    logic = update_flow(user, bot_id, data)
+    result, error = await logic()
+    if error:
+        return error
+    return result

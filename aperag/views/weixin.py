@@ -21,7 +21,6 @@ import xml.etree.cElementTree as ET
 from urllib.parse import unquote
 
 import redis.asyncio as aredis
-from asgiref.sync import sync_to_async
 from ninja import Router
 
 import aperag.chat.message
@@ -141,7 +140,7 @@ async def weixin_feedback_response(client, user, bot, key, response_code, task_i
 
 
 @router.get("/webhook/event")
-async def verify_callback(request, user, bot_id, msg_signature, timestamp, nonce, echostr):
+async def verify_callback_view(request, user, bot_id, msg_signature, timestamp, nonce, echostr):
     bot = await query_bot(user, bot_id)
     if bot is None:
         logger.warning("bot not found: %s", bot_id)
@@ -171,7 +170,7 @@ async def verify_callback(request, user, bot_id, msg_signature, timestamp, nonce
 
 
 @router.post("/webhook/event")
-async def event_callback(request, user, bot_id, msg_signature, timestamp, nonce):
+async def event_callback_view(request, user, bot_id, msg_signature, timestamp, nonce):
     bot = await query_bot(user, bot_id)
     if bot is None:
         logger.warning("bot not found: %s", bot_id)
@@ -235,7 +234,7 @@ async def event_callback(request, user, bot_id, msg_signature, timestamp, nonce)
 
 
 @router.get("/officaccount/webhook/event")
-async def officaccount_callback(request, user, bot_id, signature, timestamp, nonce, echostr):
+async def officaccount_callback_view(request, user, bot_id, signature, timestamp, nonce, echostr):
     bot = await query_bot(user, bot_id)
     if bot is None:
         logger.warning("bot not found: %s", bot_id)
@@ -313,7 +312,7 @@ async def weixin_officaccount_response(query, msg_id, to_user_name, bot):
 
 
 @router.post("/officialaccount/webhook/event")
-async def officialaccount_callback(request, user, bot_id, signature, timestamp, nonce, openid, encrypt_type, msg_signature):
+async def officialaccount_callback_view(request, user, bot_id, signature, timestamp, nonce, openid, encrypt_type, msg_signature):
     bot = await query_bot(user, bot_id)
     if bot is None:
         logger.warning("bot not found: %s", bot_id)

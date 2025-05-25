@@ -22,7 +22,7 @@ from django.http import HttpRequest
 from config import settings
 from aperag.utils.constant import KEY_USER_ID
 from aperag.views.main import create_collection
-from aperag.views.models import CollectionCreate
+from aperag.schema.view_models import CollectionCreate
 
 
 class Command(BaseCommand):

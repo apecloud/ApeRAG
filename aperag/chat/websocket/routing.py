@@ -19,7 +19,7 @@ from django.urls import re_path
 
 from config import settings
 from aperag.utils.constant import KEY_BOT_ID, KEY_CHAT_ID, KEY_USER_ID
-from aperag.utils.utils import extract_bot_and_chat_id, extract_web_bot_and_chat_id
+from aperag.utils.utils import extract_bot_and_chat_id
 
 
 async def bot_consumer_router(scope, receive, send):
@@ -67,43 +67,9 @@ async def bot_consumer_router(scope, receive, send):
         raise Exception("Invalid bot type")
 
 
-async def web_bot_consumer_router(scope, receive, send):
-    logging.info("web_bot_consumer_router begin")
-    
-    from aperag.db.models import Bot
-    from aperag.db.ops import query_bot, query_web_chat
-
-    path = scope["path"]
-    bot_id, chat_id = extract_web_bot_and_chat_id(path)
-    bot = await query_bot(None, bot_id)
-    if bot is None:
-        raise Exception("Collection not found")
-    scope[KEY_BOT_ID] = bot_id
-    scope[KEY_USER_ID] = bot.user
-
-    chat = await query_web_chat(bot_id, chat_id)
-    if chat is None:
-        raise Exception("Chat not found")
-    scope[KEY_CHAT_ID] = chat_id
-
-    if bot.type == Bot.Type.KNOWLEDGE:
-        logging.info("CHAT_CONSUMER_IMPLEMENTATION is document-qa")
-        from aperag.chat.websocket.document_qa_consumer import DocumentQAConsumer
-        return await DocumentQAConsumer.as_asgi()(scope, receive, send)
-    elif bot.type == Bot.Type.COMMON:
-        from aperag.chat.websocket.common_consumer import CommonConsumer
-        return await CommonConsumer.as_asgi()(scope, receive, send)
-    else:
-        raise Exception("Invalid bot type")
-
-
 websocket_urlpatterns = [
     re_path(
         r"api/v1/bots/(?P<bot_id>\w+)/chats/(?P<chat_id>\w+)/connect$",
         bot_consumer_router,
-    ),
-    re_path(
-        r"api/v1/bots/(?P<bot_id>\w+)/web-chats/(?P<chat_id>\w+)/connect$",
-        web_bot_consumer_router,
     ),
 ]

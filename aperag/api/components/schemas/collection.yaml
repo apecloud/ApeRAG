@@ -152,11 +152,6 @@ collectionConfig:
       $ref: './model.yaml#/modelSpec'
     completion:
       $ref: './model.yaml#/modelSpec'
-    sensitive_protect:
-      type: boolean
-    sensitive_protect_method:
-      type: string
-      enum: ['nostore', 'replace']
     path:
       type: string
       description: Path for local and ftp sources
@@ -259,6 +254,8 @@ collection:
     id:
       type: string
     title:
+      type: string
+    type:
       type: string
     description:
       type: string

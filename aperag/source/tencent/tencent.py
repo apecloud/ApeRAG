@@ -16,7 +16,7 @@ from typing import Any, Dict, Iterator
 
 from aperag.source.base import LocalDocument, RemoteDocument, Source
 from aperag.source.tencent.client import TencentClient
-from aperag.views.models import CollectionConfig
+from aperag.schema.view_models import CollectionConfig
 
 
 class TencentSource(Source):

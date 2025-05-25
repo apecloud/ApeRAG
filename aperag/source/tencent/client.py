@@ -20,7 +20,7 @@ from typing import Any, Dict, Iterator
 import redis
 import requests
 
-from aperag.views.models import CollectionConfig
+from aperag.schema.view_models import CollectionConfig
 from config import settings
 from aperag.source.base import CustomSourceInitializationError, LocalDocument, RemoteDocument
 from aperag.source.utils import gen_temporary_file

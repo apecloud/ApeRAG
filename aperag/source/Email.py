@@ -25,7 +25,7 @@ from typing import Any, Dict, Iterator
 from bs4 import BeautifulSoup
 
 from aperag.source.base import CustomSourceInitializationError, LocalDocument, RemoteDocument, Source
-from aperag.views.models import CollectionConfig
+from aperag.schema.view_models import CollectionConfig
 
 logger = logging.getLogger(__name__)
 

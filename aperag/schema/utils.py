@@ -1,5 +1,5 @@
 import json
-from aperag.views.models import CollectionConfig
+from aperag.schema.view_models import CollectionConfig
 
 
 def parseCollectionConfig(config: str) -> CollectionConfig:

@@ -32,7 +32,6 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
-from aperag.views.chat_completion import openai_chat_completions
 
 import aperag.views.main
 

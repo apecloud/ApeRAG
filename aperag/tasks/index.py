@@ -53,10 +53,12 @@ logger = logging.getLogger(__name__)
 # Configuration constants
 class IndexTaskConfig:
     MAX_EXTRACTED_SIZE = 5000 * 1024 * 1024  # 5 GB
-    RETRY_COUNTDOWN_SENSITIVE = 5
-    RETRY_MAX_RETRIES_SENSITIVE = 1
     RETRY_COUNTDOWN_LIGHTRAG = 60
     RETRY_MAX_RETRIES_LIGHTRAG = 2
+    RETRY_COUNTDOWN_ADD_INDEX = 5
+    RETRY_MAX_RETRIES_ADD_INDEX = 1
+    RETRY_COUNTDOWN_UPDATE_INDEX = 5
+    RETRY_MAX_RETRIES_UPDATE_INDEX = 1
 
 
 class CustomLoadDocumentTask(Task):
@@ -98,12 +100,6 @@ class CustomDeleteDocumentTask(Task):
         logger.error(f"remove_index(): index delete from vector db failed:{exc}")
 
 
-class SensitiveInformationFound(Exception):
-    """
-    raised when Sensitive information found in document
-    """
-
-
 # Utility functions: Extract repeated code without changing main flow
 def create_local_path_embedding_loader(local_doc, document, collection, embedding_model, vector_size):
     """Create LocalPathEmbedding instance - extracted from repeated code"""
@@ -121,25 +117,10 @@ def create_local_path_embedding_loader(local_doc, document, collection, embeddin
     )
 
 
-def check_and_handle_sensitive_info(document, sensitive_info, sensitive_protect, sensitive_protect_method):
-    """Check and handle sensitive information - extracted from repeated code"""
-    document.sensitive_info = sensitive_info
-    if sensitive_protect and sensitive_info:
-        if sensitive_protect_method == Document.ProtectAction.WARNING_NOT_STORED:
-            raise SensitiveInformationFound()
-        else:
-            document.status = Document.Status.WARNING
-
-
 def get_collection_config_settings(collection):
     """Extract collection configuration settings - extracted from repeated code"""
     config = parseCollectionConfig(collection.config)
-    return (
-        config,
-        config.sensitive_protect or False,
-        config.sensitive_protect_method or Document.ProtectAction.WARNING_NOT_STORED,
-        config.enable_knowledge_graph or False
-    )
+    return config, config.enable_knowledge_graph or False
 
 
 def uncompress_file(document: Document, supported_file_extensions: list[str]):
@@ -199,10 +180,7 @@ def add_index_for_local_document(self, document_id):
     try:
         add_index_for_document(document_id)
     except Exception as e:
-        for info in e.args:
-            if isinstance(info, str) and "sensitive information" in info:
-                raise e
-        raise self.retry(exc=e, countdown=IndexTaskConfig.RETRY_COUNTDOWN_SENSITIVE, max_retries=IndexTaskConfig.RETRY_MAX_RETRIES_SENSITIVE)
+        raise self.retry(exc=e, countdown=IndexTaskConfig.RETRY_COUNTDOWN_ADD_INDEX, max_retries=IndexTaskConfig.RETRY_MAX_RETRIES_ADD_INDEX)
 
 @app.task(base=CustomLoadDocumentTask, bind=True, track_started=True)
 def add_index_for_document(self, document_id):
@@ -215,7 +193,7 @@ def add_index_for_document(self, document_id):
         document_id: ID of the Django Document model
         
     Raises:
-        Exception: Various document processing exceptions (permissions, sensitive info, etc.)
+        Exception: Various document processing exceptions (permissions, etc.)
     """
     document = Document.objects.get(id=document_id)
     # Set all index statuses to running
@@ -245,7 +223,7 @@ def add_index_for_document(self, document_id):
             if document.size == 0:
                 document.size = os.path.getsize(local_doc.path)
 
-            config, sensitive_protect, sensitive_protect_method, enable_knowledge_graph = get_collection_config_settings(collection)
+            config, enable_knowledge_graph = get_collection_config_settings(collection)
 
             # Process vector index
             try:
@@ -254,11 +232,7 @@ def add_index_for_document(self, document_id):
                     local_doc, document, collection, embedding_model, vector_size
                 )
 
-                ctx_ids, content, sensitive_info = loader.load_data(sensitive_protect=sensitive_protect,
-                                                                    sensitive_protect_method=sensitive_protect_method)
-                
-                # Check for sensitive information using extracted function
-                check_and_handle_sensitive_info(document, sensitive_info, sensitive_protect, sensitive_protect_method)
+                ctx_ids, content = loader.load_data()
 
                 relate_ids = {
                     "ctx": ctx_ids,
@@ -304,8 +278,6 @@ def add_index_for_document(self, document_id):
         raise Exception("no permission to access document %s" % document.name)
     except FeishuPermissionDenied:
         raise Exception("permission denied to access document %s" % document.name)
-    except SensitiveInformationFound:
-        raise Exception("sensitive information found in document %s" % document.name)
     except Exception as e:
         raise e
     finally:
@@ -360,10 +332,7 @@ def update_index_for_local_document(self, document_id):
     try:
         update_index_for_document(document_id)
     except Exception as e:
-        for info in e.args:
-            if isinstance(info, str) and "sensitive information" in info:
-                raise e
-        raise self.retry(exc=e, countdown=IndexTaskConfig.RETRY_COUNTDOWN_SENSITIVE, max_retries=IndexTaskConfig.RETRY_MAX_RETRIES_SENSITIVE)
+        raise self.retry(exc=e, countdown=IndexTaskConfig.RETRY_COUNTDOWN_UPDATE_INDEX, max_retries=IndexTaskConfig.RETRY_MAX_RETRIES_UPDATE_INDEX)
 
 
 @app.task(base=CustomLoadDocumentTask, bind=True, track_started=True)
@@ -377,7 +346,7 @@ def update_index_for_document(self, document_id):
         document_id: ID of the Django Document model
         
     Raises:
-        Exception: Various document processing exceptions (permissions, sensitive info, etc.)
+        Exception: Various document processing exceptions (permissions, etc.)
     """
     document = Document.objects.get(id=document_id)
     document.status = Document.Status.RUNNING
@@ -397,17 +366,8 @@ def update_index_for_document(self, document_id):
         )
         loader.connector.delete(ids=relate_ids.get("ctx", []))
 
-        config, sensitive_protect, sensitive_protect_method, enable_knowledge_graph = get_collection_config_settings(collection)
-        ctx_ids, content, sensitive_info = loader.load_data(sensitive_protect=sensitive_protect,
-                                                            sensitive_protect_method=sensitive_protect_method)
-        
-        # Check for sensitive information using extracted function
-        if sensitive_protect and sensitive_info != []:
-            if sensitive_protect_method == Document.ProtectAction.WARNING_NOT_STORED:
-                raise SensitiveInformationFound()
-            else:
-                document.status = Document.Status.WARNING
-        document.sensitive_info = sensitive_info
+        config, enable_knowledge_graph = get_collection_config_settings(collection)
+        ctx_ids, content = loader.load_data()
         logger.info(f"add ctx qdrant points: {ctx_ids} for document {local_doc.path}")
 
         # only index the document that have points in the vector database
@@ -428,8 +388,6 @@ def update_index_for_document(self, document_id):
         raise Exception("no permission to access document %s" % document.name)
     except FeishuPermissionDenied:
         raise Exception("permission denied to access document %s" % document.name)
-    except SensitiveInformationFound:
-        raise Exception("sensitive information found in document %s" % document.name)
     except Exception as e:
         logger.error(e)
         raise Exception("an error occur %s" % e)

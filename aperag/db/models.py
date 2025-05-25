@@ -78,7 +78,6 @@ class Document(models.Model):
         FAILED = "FAILED"
         DELETING = "DELETING"
         DELETED = "DELETED"
-        WARNING = "WARNING"
 
     class IndexStatus(models.TextChoices):
         PENDING = "PENDING"
@@ -86,10 +85,6 @@ class Document(models.Model):
         COMPLETE = "COMPLETE"
         FAILED = "FAILED"
         SKIPPED = "SKIPPED"  # When certain functionality is not enabled
-
-    class ProtectAction(models.TextChoices):
-        WARNING_NOT_STORED = "nostore"
-        REPLACE_WORDS = "replace"
 
     @staticmethod
     def generate_id():
@@ -115,7 +110,6 @@ class Document(models.Model):
     gmt_created = models.DateTimeField(auto_now_add=True)
     gmt_updated = models.DateTimeField(auto_now=True)
     gmt_deleted = models.DateTimeField(null=True, blank=True)
-    sensitive_info = models.JSONField(default=list)
 
     class Meta:
         unique_together = ('collection_id', 'name')
@@ -139,9 +133,6 @@ class Document(models.Model):
         # If all indexes are complete or skipped, overall status is complete
         elif all(status in [self.IndexStatus.COMPLETE, self.IndexStatus.SKIPPED] for status in index_statuses):
             return self.Status.COMPLETE
-        # If there are sensitive information warnings, maintain warning status
-        elif self.status == self.Status.WARNING:
-            return self.Status.WARNING
         # Otherwise, status is pending
         else:
             return self.Status.PENDING

@@ -39,7 +39,7 @@ router = Router()
 
 
 @router.get("/spaces")
-async def feishu_get_spaces(request, app_id, app_secret):
+async def feishu_get_spaces_view(request, app_id, app_secret):
     ctx = {
         "app_id": app_id,
         "app_secret": app_secret,
@@ -201,7 +201,7 @@ async def feishu_response_card_update(user, bot_id, data):
 
 
 @router.post("/card/event")
-async def feishu_card_event(request, user=None, bot_id=None):
+async def feishu_card_event_view(request, user=None, bot_id=None):
     data = json.loads(request.body)
     if "challenge" in data:
         return {"challenge": data["challenge"]}
@@ -209,7 +209,7 @@ async def feishu_card_event(request, user=None, bot_id=None):
 
 
 @router.post("/webhook/event")
-async def feishu_webhook_event(request, user=None, bot_id=None):
+async def feishu_webhook_event_view(request, user=None, bot_id=None):
     data = json.loads(request.body)
     bot = await query_bot(user, bot_id)
     if bot is None:

@@ -19,7 +19,7 @@ from ..db.ops import (
     login_user, logout_user, set_user_password,
     delete_user, query_users, query_admin_count, query_invitations
 )
-import aperag.views.models as view_models
+from aperag.schema import view_models
 from aperag.views.utils import success,fail, auth_middleware
 from http import HTTPStatus
 from aperag.db.models import Role
@@ -69,7 +69,7 @@ async def create_invitation_view(request, data: view_models.InvitationCreate) ->
     ))
 
 @router.get("/invitations", auth=auth_middleware)
-async def list_invitations(request) -> view_models.InvitationList:
+async def list_invitations_view(request) -> view_models.InvitationList:
     """List all invitations (admin only)"""
     user = await request.auser()
     if not user.role == Role.ADMIN:
@@ -90,7 +90,7 @@ async def list_invitations(request) -> view_models.InvitationList:
     return success(view_models.InvitationList(items=invitations))
 
 @router.post("/register")
-async def register(request, data: view_models.Register) -> view_models.User:
+async def register_view(request, data: view_models.Register) -> view_models.User:
     """Register a new user with invitation token"""
     # Check if this is the first user (will be admin)
     is_first_user = not await query_first_user_exists()
@@ -160,7 +160,7 @@ async def logout_view(request):
     return success({})
 
 @router.get("/user", auth=auth_middleware)
-async def get_user(request) -> view_models.User:
+async def get_user_view(request) -> view_models.User:
     """Get user info"""
     user = await request.auser()
     return success(view_models.User(
@@ -173,7 +173,7 @@ async def get_user(request) -> view_models.User:
     ))
 
 @router.get("/users", auth=auth_middleware)
-async def list_users(request) -> view_models.UserList:
+async def list_users_view(request) -> view_models.UserList:
     """List all users (admin only)"""
     user = await request.auser()
     if not user.role == Role.ADMIN:
@@ -194,7 +194,7 @@ async def list_users(request) -> view_models.UserList:
     return success(view_models.UserList(items=users))
 
 @router.post("/change-password")
-async def change_password(request, data: view_models.ChangePassword) -> view_models.User:
+async def change_password_view(request, data: view_models.ChangePassword) -> view_models.User:
     """Change user password"""
     user = await aauthenticate(username=data.username, password=data.old_password)
     
