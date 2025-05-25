@@ -114,7 +114,12 @@ components:
         description:
           type: string
         default:
-          type: [string, number, boolean, object, array, null]
+          oneOf:
+            - type: string
+            - type: number
+            - type: boolean
+            - type: object
+            - type: array
         enum:
           type: array
         format:
