@@ -1,7 +1,7 @@
 from ninja import Router
 from django.http import HttpRequest
 from aperag.utils.request import get_user
-from aperag.views.models import Flow
+from aperag.views.models import WorkflowDefinition
 from aperag.views.utils import success, fail
 from http import HTTPStatus
 
@@ -10,7 +10,7 @@ router = Router()
 from aperag.db.ops import query_bot
 import json
 
-@router.get("/bots/{bot_id}/flow", response=Flow)
+@router.get("/bots/{bot_id}/flow", response=WorkflowDefinition)
 async def get_flow(request: HttpRequest, bot_id: str):
     user = get_user(request)
     bot = await query_bot(user, bot_id)
@@ -25,8 +25,8 @@ async def get_flow(request: HttpRequest, bot_id: str):
     except Exception as e:
         return fail(HTTPStatus.INTERNAL_SERVER_ERROR, message=str(e))
 
-@router.put("/bots/{bot_id}/flow", response=Flow)
-async def update_flow(request: HttpRequest, bot_id: str, data: Flow):
+@router.put("/bots/{bot_id}/flow", response=WorkflowDefinition)
+async def update_flow(request: HttpRequest, bot_id: str, data: WorkflowDefinition):
     user = get_user(request)
     bot = await query_bot(user, bot_id)
     if not bot:

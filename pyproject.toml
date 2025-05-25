@@ -9,7 +9,7 @@ dependencies = [
     "llama-index<1.0.0,>=0.12.28",
     "uvicorn[standard]<1.0.0,>=0.23.1",
     "django==5.0.14",
-    "pydantic<3.0.0,>=2.10.3",
+    "pydantic[email]>=2.10.3,<3.0.0",
     "cryptography<42.0.0,>=41.0.1",
     "python-dotenv<2.0.0,>=1.0.0",
     "django-environ<1.0.0,>=0.10.0",
