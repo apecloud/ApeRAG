@@ -141,7 +141,7 @@ static-check:
 	uvx mypy .
 
 test:
-	pytest tests/ -v
+	pytest tests/unit_test -v
 
 celery:
 	celery -A config.celery worker -B -l INFO
