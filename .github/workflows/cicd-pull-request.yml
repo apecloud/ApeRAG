@@ -57,7 +57,7 @@ jobs:
 
       - name: make lint
         run: |
-          pip install ruff
+          uv tool install ruff@latest
           make lint
 
       - name: make test
