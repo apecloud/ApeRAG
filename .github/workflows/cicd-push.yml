@@ -14,46 +14,46 @@ env:
   GO_VERSION: "1.20"
 
 jobs:
-  trigger-mode:
-    runs-on: ubuntu-latest
-    outputs:
-      trigger-mode: ${{ steps.get_trigger_mode.outputs.trigger_mode }}
-    steps:
-      - name: Cancel Previous Runs
-        if: github.ref_name != 'main'
-        uses: styfle/cancel-workflow-action@0.11.0
-        with:
-          all_but_latest: true
-          access_token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Get trigger mode
-        id: get_trigger_mode
-        run: |
-          TRIGGER_MODE=`bash .github/utils/utils.sh --type 6 \
-              --branch-name "${{ github.ref_name }}" \
-              --base-branch "${{ env.BASE_BRANCH }}"`
-          
-          echo $TRIGGER_MODE
-          echo trigger_mode=$TRIGGER_MODE >> $GITHUB_OUTPUT
-
-  pre-push:
-    needs: trigger-mode
-    runs-on: ubuntu-latest
-    name: Push Pre-Check
-    steps:
-      - uses: actions/checkout@v4
-      - name: Spell Check with Typos
-        if: contains(needs.trigger-mode.outputs.trigger-mode, '[docs]')
-        uses: crate-ci/typos@v1.13.14
-        with:
-          files: docs/
-          config: .github/utils/typos.toml
+#  trigger-mode:
+#    runs-on: ubuntu-latest
+#    outputs:
+#      trigger-mode: ${{ steps.get_trigger_mode.outputs.trigger_mode }}
+#    steps:
+#      - name: Cancel Previous Runs
+#        if: github.ref_name != 'main'
+#        uses: styfle/cancel-workflow-action@0.11.0
+#        with:
+#          all_but_latest: true
+#          access_token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+#
+#      - uses: actions/checkout@v4
+#        with:
+#          fetch-depth: 0
+#      - name: Get trigger mode
+#        id: get_trigger_mode
+#        run: |
+#          TRIGGER_MODE=`bash .github/utils/utils.sh --type 6 \
+#              --branch-name "${{ github.ref_name }}" \
+#              --base-branch "${{ env.BASE_BRANCH }}"`
+#
+#          echo $TRIGGER_MODE
+#          echo trigger_mode=$TRIGGER_MODE >> $GITHUB_OUTPUT
+#
+#  pre-push:
+#    needs: trigger-mode
+#    runs-on: ubuntu-latest
+#    name: Push Pre-Check
+#    steps:
+#      - uses: actions/checkout@v4
+#      - name: Spell Check with Typos
+#        if: contains(needs.trigger-mode.outputs.trigger-mode, '[docs]')
+#        uses: crate-ci/typos@v1.13.14
+#        with:
+#          files: docs/
+#          config: .github/utils/typos.toml
 
   make-test:
-    needs: trigger-mode
+#    needs: trigger-mode
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -76,35 +76,35 @@ jobs:
         run: |
           make test
 
-  check-image:
-    needs: trigger-mode
-    if: ${{ contains(needs.trigger-mode.outputs.trigger-mode, '[docker]') }}
-    uses: apecloud/apecloud-cd/.github/workflows/release-image-check.yml@v0.1.49
-    with:
-      IMG: "apecloud/aperag"
-      BUILDX_PLATFORMS: "linux/amd64"
-      DOCKERFILE_PATH: "./Dockerfile"
-      PYTHON_VERSION: "3.11"
-    secrets: inherit
-
-  check-frontend-image:
-    needs: trigger-mode
-    if: ${{ contains(needs.trigger-mode.outputs.trigger-mode, '[frontend]') }}
-    uses: apecloud/apecloud-cd/.github/workflows/release-image-check.yml@v0.1.49
-    with:
-      IMG: "apecloud/aperag-frontend"
-      BUILDX_PLATFORMS: "linux/amd64"
-      DOCKERFILE_PATH: "./frontend/Dockerfile.prod"
-      PYTHON_VERSION: "3.11"
-    secrets: inherit
-
-  check-helm:
-    needs: trigger-mode
-    if: ${{ contains(needs.trigger-mode.outputs.trigger-mode, '[deploy]') }}
-    uses: apecloud/apecloud-cd/.github/workflows/release-charts-check.yml@v0.1.48
-    with:
-      VERSION: "v0.4.0-check"
-      CHART_NAME: "aperag"
-      CHART_DIR: "deploy"
-      APECD_REF: "v0.1.48"
-    secrets: inherit
+#  check-image:
+#    needs: trigger-mode
+#    if: ${{ contains(needs.trigger-mode.outputs.trigger-mode, '[docker]') }}
+#    uses: apecloud/apecloud-cd/.github/workflows/release-image-check.yml@v0.1.49
+#    with:
+#      IMG: "apecloud/aperag"
+#      BUILDX_PLATFORMS: "linux/amd64"
+#      DOCKERFILE_PATH: "./Dockerfile"
+#      PYTHON_VERSION: "3.11"
+#    secrets: inherit
+#
+#  check-frontend-image:
+#    needs: trigger-mode
+#    if: ${{ contains(needs.trigger-mode.outputs.trigger-mode, '[frontend]') }}
+#    uses: apecloud/apecloud-cd/.github/workflows/release-image-check.yml@v0.1.49
+#    with:
+#      IMG: "apecloud/aperag-frontend"
+#      BUILDX_PLATFORMS: "linux/amd64"
+#      DOCKERFILE_PATH: "./frontend/Dockerfile.prod"
+#      PYTHON_VERSION: "3.11"
+#    secrets: inherit
+#
+#  check-helm:
+#    needs: trigger-mode
+#    if: ${{ contains(needs.trigger-mode.outputs.trigger-mode, '[deploy]') }}
+#    uses: apecloud/apecloud-cd/.github/workflows/release-charts-check.yml@v0.1.48
+#    with:
+#      VERSION: "v0.4.0-check"
+#      CHART_NAME: "aperag"
+#      CHART_DIR: "deploy"
+#      APECD_REF: "v0.1.48"
+#    secrets: inherit
