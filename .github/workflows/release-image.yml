@@ -15,7 +15,7 @@ on:
         options:
           - ""
           - aperag
-          - aperag-llmserver
+          - aperag-frontend
   release:
     types:
       - published
@@ -28,6 +28,7 @@ run-name: Release Image:${{ inputs.image_name }}:${{ inputs.image_tag }} ${{ git
 
 jobs:
   enable-gke-runner:
+    if: ${{ github.event.action == 'published' || inputs.image_name == '' || inputs.image_name == 'aperag' }}
     uses: apecloud/apecloud-cd/.github/workflows/enable-self-runner.yml@v0.1.76
     with:
       CLOUD_PROVIDER: "eks"
@@ -67,7 +68,7 @@ jobs:
     secrets: inherit
 
   release-aperag-frontend-image:
-    if: ${{ github.event.action == 'published' || inputs.image_name == '' || inputs.image_name == 'aperag' }}
+    if: ${{ github.event.action == 'published' || inputs.image_name == '' || inputs.image_name == 'aperag-frontend' }}
     name: release-aperag-frontend
     needs: [ image-tag ]
     uses: apecloud/apecloud-cd/.github/workflows/release-image-cache.yml@v0.1.36
