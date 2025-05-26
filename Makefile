@@ -135,7 +135,7 @@ format:
 	uvx ruff --preview --fix .
 
 lint:
-	uvx ruff --preview .
+	uvx ruff check --preview .
 
 static-check:
 	uvx mypy .
