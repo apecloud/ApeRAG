@@ -53,7 +53,6 @@ jobs:
 #          config: .github/utils/typos.toml
 
   make-test:
-#    needs: trigger-mode
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
