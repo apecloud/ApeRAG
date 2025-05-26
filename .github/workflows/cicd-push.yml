@@ -68,13 +68,16 @@ jobs:
         with:
           version: "latest"
           python-version: "3.11"
+          github-token: ${{ env.GITHUB_TOKEN }}
 
       - name: make lint
         run: |
+          pip install ruff
           make lint
 
       - name: make test
         run: |
+          pip install pytest
           make test
 
   check-image:
