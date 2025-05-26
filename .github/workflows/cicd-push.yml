@@ -71,6 +71,7 @@ jobs:
 
       - name: make lint
         run: |
+          pip install ruff
           make lint
 
       - name: make test
