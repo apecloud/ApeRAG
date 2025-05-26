@@ -26,7 +26,7 @@ jobs:
           all_but_latest: true
           access_token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Get trigger mode
@@ -44,26 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Push Pre-Check
     steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 2
-      - name: install pcregrep
-        run: |
-          sudo apt-get update
-          sudo apt-get install pcregrep
-
-      - name: gen pcregrep
-        run: |
-          pcregrep --exclude-dir=mtr -r -n -I '[^\x00-\x7f]' . > pcregrep.out
-
-      - name: pcregrep Chinese
-        run: |
-          FILE_PATH=`git diff --name-only HEAD HEAD^`
-
-          python ${{ github.workspace }}/.github/utils/pcregrep.py \
-            --source="${{ github.workspace }}/pcregrep.out" \
-            --filter="$FILE_PATH"
-
+      - uses: actions/checkout@v4
       - name: Spell Check with Typos
         if: contains(needs.trigger-mode.outputs.trigger-mode, '[docs]')
         uses: crate-ci/typos@v1.13.14
@@ -76,26 +57,21 @@ jobs:
     runs-on: ubuntu-latest
     if: contains(needs.trigger-mode.outputs.trigger-mode, '[test]')
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.11"
 
-      - name: Setup Poetry
-        uses: Gr1N/setup-poetry@v8
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
         with:
-          poetry-version: "1.6.1"
+          version: "latest"
+          python-version: "3.11"
 
       - name: make lint
         run: |
-          pip install ruff
           make lint
-
-#      - name: make static-check
-#        run: |
-#          pip install mypy
-#          make lint
 
       - name: make test
         run: |

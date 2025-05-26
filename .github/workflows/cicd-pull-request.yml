@@ -23,7 +23,7 @@ jobs:
           all_but_latest: true
           access_token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           repository: ${{ github.event.pull_request.head.repo.full_name }}
@@ -42,7 +42,18 @@ jobs:
     needs: trigger-mode
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+          python-version: "3.11"
+
       - name: make lint
         run: |
           make lint

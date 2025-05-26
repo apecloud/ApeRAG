@@ -11,7 +11,7 @@ jobs:
   size-label:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: set size label
         run: |
           bash .github/utils/utils.sh --type 15 \
