@@ -58,7 +58,6 @@ jobs:
     needs: [ image-tag, enable-gke-runner ]
     uses: apecloud/apecloud-cd/.github/workflows/release-image-cache-amd-sync.yml@v0.1.36
     with:
-      MAKE_OPS_PRE: "poetry-lock-no-update build-requirements version"
       IMG: "apecloud/aperag"
       VERSION: "${{ needs.image-tag.outputs.tag-name }}"
       DOCKERFILE_PATH: "./Dockerfile"
@@ -71,28 +70,15 @@ jobs:
     if: ${{ github.event.action == 'published' || inputs.image_name == '' || inputs.image_name == 'aperag' }}
     name: release-aperag-frontend
     needs: [ image-tag ]
-    uses: apecloud/apecloud-cd/.github/workflows/trigger-workflow.yml@v0.1.42
+    uses: apecloud/apecloud-cd/.github/workflows/release-image-cache.yml@v0.1.36
     with:
-      GITHUB_REPO: "apecloud/ApeRAG-FrontEnd"
-      BRANCH_NAME: "main"
-      WORKFLOW_ID: "release-image.yml"
-      APECD_REF: "v0.1.42"
+      IMG: "apecloud/aperag-frontend"
       VERSION: "${{ needs.image-tag.outputs.tag-name }}"
+      DOCKERFILE_PATH: "./frontend/Dockerfile"
+      REMOVE_PREFIX: false
+      APECD_REF: "v0.1.36"
+      ENABLE_SUBMODULE: true
     secrets: inherit
-
-#  release-aperag-llmserver-image:
-#    if: ${{ github.event.action == 'published' || inputs.image_name == '' || inputs.image_name == 'aperag-llmserver' }}
-#    needs: [ image-tag, enable-gke-runner ]
-#    uses: apecloud/apecloud-cd/.github/workflows/release-image-cache-amd-sync.yml@v0.1.36
-#    with:
-#      MAKE_OPS_PRE: "poetry-lock-no-update build-requirements version"
-#      IMG: "apecloud/aperag-llmserver"
-#      VERSION: "${{ needs.image-tag.outputs.tag-name }}"
-#      DOCKERFILE_PATH: "./Dockerfile-llmserver"
-#      REMOVE_PREFIX: false
-#      APECD_REF: "v0.1.36"
-#      ENABLE_SUBMODULE: true
-#    secrets: inherit
 
   disable-gke-runner:
     if: ${{ always() }}
