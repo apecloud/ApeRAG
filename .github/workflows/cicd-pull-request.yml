@@ -53,6 +53,7 @@ jobs:
         with:
           version: "latest"
           python-version: "3.11"
+          github-token: ${{ env.GITHUB_TOKEN }}
 
       - name: make lint
         run: |
