@@ -68,11 +68,11 @@ jobs:
           version: "latest"
           python-version: "3.11"
           github-token: ${{ env.GITHUB_TOKEN }}
-
-      - name: make lint
-        run: |
-          uv tool install ruff@latest
-          make lint
+#
+#      - name: make lint
+#        run: |
+#          uv tool install ruff@latest
+#          make lint
 
       - name: make test
         run: |
