@@ -478,17 +478,17 @@ get_trigger_mode() {
             docs/*)
                 add_trigger_mode "[docs]"
             ;;
-            docker/*)
+            Dockerfile*)
                 add_trigger_mode "[docker]"
+            ;;
+            frontend/*)
+                add_trigger_mode "[frontend]"
             ;;
             deploy/*)
                 add_trigger_mode "[deploy]"
             ;;
-            .github/*|.devcontainer/*|githooks/*|examples/*)
+            .github/*)
                 add_trigger_mode "[other]"
-            ;;
-            internal/cli/cmd/*)
-                add_trigger_mode "[cli][test]"
             ;;
             *)
                 add_trigger_mode "[test]"

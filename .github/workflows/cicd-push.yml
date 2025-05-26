@@ -86,7 +86,17 @@ jobs:
       BUILDX_PLATFORMS: "linux/amd64"
       DOCKERFILE_PATH: "./Dockerfile"
       PYTHON_VERSION: "3.11"
-      POETRY_VERSION: "1.6.1"
+    secrets: inherit
+
+  check-frontend-image:
+    needs: trigger-mode
+    if: ${{ contains(needs.trigger-mode.outputs.trigger-mode, '[frontend]') }}
+    uses: apecloud/apecloud-cd/.github/workflows/release-image-check.yml@v0.1.49
+    with:
+      IMG: "apecloud/aperag-frontend"
+      BUILDX_PLATFORMS: "linux/amd64"
+      DOCKERFILE_PATH: "./frontend/Dockerfile"
+      PYTHON_VERSION: "3.11"
     secrets: inherit
 
   check-helm:
