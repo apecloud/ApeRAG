@@ -9,9 +9,10 @@ from aperag.rank.reranker import rerank
 class RerankNodeRunner(BaseNodeRunner):
     async def run(self, node: NodeInstance, inputs: Dict[str, Any]):
         query: str = inputs.get("query")
-        docs: List[DocumentWithScore] = inputs.get("docs", [])
+        docs: List = inputs.get("docs", [])
 
         result = []
         if docs:
+            docs = [DocumentWithScore(**doc) for doc in docs]
             result = await rerank(query, docs)
-        return {"docs": result}
+        return {"docs": [item.model_dump(exclude_none=True, include={"text", "score"}) for item in result]}

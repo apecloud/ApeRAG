@@ -59,6 +59,7 @@ dependencies = [
     "markitdown[all]>=0.1.1",
     "markdown-it-py[linkify]>=3.0.0",
     "nano-vectordb>=0.0.4.3",
+    "jsonref>=1.1.0",
 ]
 name = "aperag"
 version = "0.1.0"

@@ -41,4 +41,4 @@ class KeywordSearchNodeRunner(BaseNodeRunner):
         result = []
         if docs:
             result = [DocumentWithScore(text=doc["content"], score=doc.get("score", 0.5), metadata=doc) for doc in docs]
-        return {"docs": result}
+        return {"docs": [item.model_dump(exclude_none=True, include={"text", "score"}) for item in result]}

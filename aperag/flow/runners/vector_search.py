@@ -35,4 +35,4 @@ class VectorSearchNodeRunner(BaseNodeRunner):
 
         vector = embedding_model.embed_query(query)
         results = context_manager.query(query, score_threshold=score_threshold, topk=topk, vector=vector)
-        return {"docs": results}
+        return {"docs": [item.model_dump(exclude_none=True, include={"text", "score"}) for item in results]}

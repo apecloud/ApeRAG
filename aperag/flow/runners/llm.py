@@ -71,7 +71,7 @@ class LLMNodeRunner(BaseNodeRunner):
         model_name = inputs.get("model_name")
         custom_llm_provider = inputs.get("custom_llm_provider")
         prompt_template = inputs.get("prompt_template", "{context}\n{query}")
-        docs: List[DocumentWithScore] = inputs.get("docs", [])
+        docs: List = inputs.get("docs", [])
 
         history: BaseChatMessageHistory = inputs.get("history")
         msp_dict = await query_msp_dict(user)
@@ -85,10 +85,10 @@ class LLMNodeRunner(BaseNodeRunner):
         references = []
         if docs:
             for doc in docs:
-                if len(context) + len(doc.text) > MAX_CONTEXT_LENGTH:
+                if len(context) + len(doc["text"]) > MAX_CONTEXT_LENGTH:
                     break
-                context += doc.text
-                references.append({"text": doc.text, "metadata": doc.metadata, "score": doc.score})
+                context += doc["text"]
+                references.append({"text": doc["text"], "metadata": doc.get("metadata", {}), "score": doc["score"]})
         prompt = prompt_template.format(query=query, context=context)
         llm_kwargs = {
             "custom_llm_provider": custom_llm_provider,
@@ -102,9 +102,10 @@ class LLMNodeRunner(BaseNodeRunner):
         async def async_generator():
             response = ""
             async for chunk in predictor.agenerate_stream([], prompt, False):
+                if not chunk:
+                    continue
                 yield chunk
-                if chunk:
-                    response += chunk
+                response += chunk
             if references:
                 yield DOC_QA_REFERENCES + json.dumps(references)
             if history:

@@ -83,7 +83,7 @@ async def debug_flow_stream(user: str, bot_id: str, debug: view_models.DebugFlow
         flow_config = debug.flow
         if not flow_config:
             flow_config = json.loads(bot.config)["flow"]
-        flow = FlowParser.parse_yaml(flow_config)
+        flow = FlowParser.parse(flow_config)
         engine = FlowEngine()
         initial_data = {"query": debug.query, "bot": bot, "user": user, "history": [], "message_id": ""}
         task = asyncio.create_task(engine.execute_flow(flow, initial_data))

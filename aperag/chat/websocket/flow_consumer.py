@@ -35,7 +35,7 @@ class FlowConsumer(BaseConsumer):
 
         config = json.loads(self.bot.config)
         flow = config.get("flow")
-        self.flow = FlowParser.parse_yaml(flow)
+        self.flow = FlowParser.parse(flow)
 
     async def predict(self, query, **kwargs):
         engine = FlowEngine()
