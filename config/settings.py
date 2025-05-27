@@ -331,6 +331,7 @@ QIANFAN_SECRET_KEY = env.str("QIANFAN_SECRET_KEY", default="")
 
 WHISPER_HOST = env.str("WHISPER_HOST", default="")
 PADDLEOCR_HOST = env.str("PADDLEOCR_HOST", default="")
+DOCRAY_HOST = env.str("DOCRAY_HOST", default="")
 
 ADMIN_USER = env.str("ADMIN_USER", default="aperag")
 ADMIN_TOKEN = env.str("ADMIN_TOKEN", default="")

@@ -6,9 +6,9 @@ from pydantic import BaseModel, Field
 
 from aperag.docparser.audio_parser import AudioParser
 from aperag.docparser.base import BaseParser, FallbackError, Part
+from aperag.docparser.docray_parser import DocRayParser
 from aperag.docparser.image_parser import ImageParser
 from aperag.docparser.markitdown_parser import MarkItDownParser
-from aperag.docparser.mineru_parser import MinerUParser
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ ALL_PARSERS = [
     AudioParser,
     ImageParser,
     MarkItDownParser,
-    MinerUParser
+    DocRayParser,
 ]
 
 PARSER_MAP = {
@@ -27,7 +27,7 @@ PARSER_MAP = {
 
 def get_default_config() -> list["ParserConfig"]:
     return [
-        ParserConfig(name=MinerUParser.name, enabled=True),
+        ParserConfig(name=DocRayParser.name, enabled=True),
         ParserConfig(name=ImageParser.name, enabled=True),
         ParserConfig(name=AudioParser.name, enabled=True),
         ParserConfig(name=MarkItDownParser.name, enabled=True),

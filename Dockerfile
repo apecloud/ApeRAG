@@ -23,18 +23,9 @@ RUN apt clean && \
 # Final stage
 FROM python:3.11.1-slim
 
-# MinerU dependencies, for the cv module
-ARG MINERU_DEPS="libglib2.0-0 libgl1"
-
-# LibreOffice is required by MinerU for converting docs to PDF
-ARG LIBREOFFICE_DEPS="libreoffice"
-# Install Chinese fonts to prevent garbled text when converting docs
-ARG LIBREOFFICE_FONT_DEPS="fonts-noto-cjk fonts-wqy-zenhei fonts-wqy-microhei fontconfig"
-
 # Install minimal system dependencies in one layer and clean up
 RUN apt update && \
-    apt install --no-install-recommends -y curl \
-        ${MINERU_DEPS} ${LIBREOFFICE_DEPS} ${LIBREOFFICE_FONT_DEPS} && \
+    apt install --no-install-recommends -y curl && \
     apt clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /var/cache/apt/archives/*
 

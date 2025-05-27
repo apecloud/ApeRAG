@@ -20,17 +20,12 @@ ApeRAG is a powerful RAG system that deeply analyzes documents and multimedia co
 
    **Then edit the `.env` file to configure your AI service settings.**
 
-2. (Optional) Enable MinerU for parsing PDF & MS-Office documents.
+2. (Optional) Set up [doc-ray](https://github.com/apecloud/doc-ray) for improved (but slower) parsing of PDF and MS Office documents.
 
-   MinerU is an excellent tool for parsing documents. However, using it requires downloading specific models beforehand. Additionally, it demands more computing resources and has a longer parsing time. You can decide whether to enable MinerU based on your specific requirements.
+   * Refer to the deployment instructions within the doc-ray project. **Using a GPU is highly recommended for optimal performance.**
+   * In your `.env` file, update the `DOCRAY_HOST` variable to your doc-ray service endpoint, for example: `DOCRAY_HOST=http://<your-doc-ray-server-host>:8639`.
 
-   To enable it, run the following command:
-   ```bash
-   pip install huggingface_hub
-   python ./scripts/prepare_for_mineru.py
-   ```
-
-3. (Optional) use aliyun image registry if you are in China:
+3. (Optional) Use Aliyun image registry if you are in China:
    ```bash
    export REGISTRY=apecloud-registry.cn-zhangjiakou.cr.aliyuncs.com
    ```
@@ -72,19 +67,6 @@ cp envs/env.template .env
 ```bash
 make run-db
 ```
-
-* optional: enable MinerU
-
-   ApeRAG supports parsing PDF and Microsoft Office documents using MinerU. However, this feature requires pre-downloaded models for document layout detection, as well as a magic_pdf.json configuration file. Therefore, it is disabled by default.
-
-   To enable MinerU, run the following script. It will automatically download the necessary models and generate the configuration file for you:
-
-   ```bash
-   pip install huggingface_hub
-   python ./scripts/prepare_for_mineru.py
-   ```
-
-   You can further customize the `magic_pdf.json` file to configure LLM-related settings under the `llm-aided-config` section. Be sure to set the `enable` field to `true`. When enabled, MinerU will leverage an LLM to enhance parsing capabilities, for example, correcting OCR errors in text and formulas, and adjusting title levels (by default, all titles are set to level 1).
 
 * run the django service
 
