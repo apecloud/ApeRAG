@@ -46,9 +46,6 @@ class BaseChatMessageHistory(ABC):
                        f.write("[]")
     """
 
-    messages: List[BaseMessage]
-    """A list of Messages stored in-memory."""
-
     async def add_user_message(self, message: str) -> None:
         """Convenience method for adding a human message string to the store.
 

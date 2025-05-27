@@ -49,10 +49,7 @@ components:
           items:
             $ref: '#/components/schemas/Edge'
         style:
-          type: object
-          description: Workflow style
-          additionalProperties:
-            $ref: '#/components/schemas/WorkflowStyle'
+          $ref: '#/components/schemas/WorkflowStyle'
 
     WorkflowStyle:
       type: object

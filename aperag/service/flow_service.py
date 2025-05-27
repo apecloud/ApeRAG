@@ -95,7 +95,7 @@ async def debug_flow_stream(user: str, bot_id: str, debug: view_models.DebugFlow
         return StreamingHttpResponse(json.dumps({"error": str(e)}), content_type="application/json")
 
 
-async def get_flow(user, bot_id):
+async def get_flow(user: str, bot_id: str) -> view_models.WorkflowDefinition:
     """Get flow config for a bot"""
     bot = await query_bot(user, bot_id)
     if not bot:
@@ -110,16 +110,17 @@ async def get_flow(user, bot_id):
         return fail(HTTPStatus.INTERNAL_SERVER_ERROR, message=str(e))
 
 
-async def update_flow(user, bot_id, data):
+async def update_flow(user: str, bot_id: str, data: view_models.WorkflowDefinition):
     """Update flow config for a bot"""
     bot = await query_bot(user, bot_id)
     if not bot:
         return fail(HTTPStatus.NOT_FOUND, message="Bot not found")
     try:
         config = json.loads(bot.config or "{}")
-        config["flow"] = data.dict(exclude_unset=True)
+        flow = data.model_dump(exclude_unset=True, by_alias=True)
+        config["flow"] = flow
         bot.config = json.dumps(config, ensure_ascii=False)
         await bot.asave()
-        return success(data)
+        return success(flow)
     except Exception as e:
         return fail(HTTPStatus.INTERNAL_SERVER_ERROR, message=str(e))

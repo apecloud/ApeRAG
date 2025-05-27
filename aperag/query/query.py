@@ -26,18 +26,12 @@ class Source(str, Enum):
     APP = "app"
 
 
-class Document(BaseModel):
-    source: Source = Source.FILE
-    doc_id: str = None
-    text: str = None
-
-
 class DocumentWithScore(BaseModel):
     source: Source = Source.FILE
-    doc_id: str = None
-    text: str = None
+    doc_id: Optional[str] = None
+    text: Optional[str] = None
     score: float
-    metadata: dict = None
+    metadata: Optional[dict] = None
 
     def get_source_file(self) -> str:
         return self.metadata["source"]

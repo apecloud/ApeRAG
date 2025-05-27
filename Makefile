@@ -135,11 +135,8 @@ format:
 	uvx ruff check --fix ./aperag
 	uvx ruff format --preview ./aperag
 
-lint:
-	uvx ruff check --preview ./aperag
-
 static-check:
-	uvx mypy .
+	uvx mypy ./aperag
 
 test:
 	pytest tests/ -v

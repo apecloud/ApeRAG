@@ -19,10 +19,7 @@ ALL_PARSERS = [
     DocRayParser,
 ]
 
-PARSER_MAP = {
-    cls.name: cls
-    for cls in ALL_PARSERS
-}
+PARSER_MAP = {cls.name: cls for cls in ALL_PARSERS}
 
 
 def get_default_config() -> list["ParserConfig"]:

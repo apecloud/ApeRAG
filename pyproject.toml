@@ -24,7 +24,6 @@ dependencies = [
     "arrow<2.0.0,>=1.2.3",
     "func-timeout<5.0.0,>=4.3.5",
     "terminal<1.0.0,>=0.4.0",
-    "types-chardet<6.0.0.0,>=5.0.4.6",
     "psycopg2-binary<3.0.0,>=2.9.6",
     "watchfiles<1.0.0,>=0.19.0",
     "flower<3.0.0,>=2.0.0",
@@ -35,7 +34,6 @@ dependencies = [
     "socksio<2.0.0,>=1.0.0",
     "django-prometheus<3.0.0,>=2.3.1",
     "whitenoise<7.0.0,>=6.5.0",
-    "types-requests<3.0.0.0,>=2.31.0.2",
     "elasticsearch<9.0.0,>=8.9.0",
     "gevent<24.0.0,>=23.9.1",
     "requests<3.0.0,>=2.31.0",
@@ -99,6 +97,8 @@ dev = [
     "types-toml<1.0.0.0,>=0.10.8.1",
     "types-redis<5.0.0.0,>=4.3.21.6",
     "types-chardet<6.0.0.0,>=5.0.4.6",
+    "types-requests>=2.31.0.2,<3.0.0.0",
+    "types-chardet<6.0.0.0,>=5.0.4.6",
     "vulture<3.0,>=2.14",
     "deptry<1.0.0,>=0.23.0",
     "mypy<2.0.0,>=1.4.1",
@@ -159,8 +159,11 @@ exclude = [
 line-length = 120
 
 [tool.mypy]
-ignore_missing_imports = "True"
-disallow_untyped_defs = "False"
+ignore_missing_imports = true
+disallow_untyped_defs = false
+# https://discuss.python.org/t/mypy-dir-is-excluded-but-then-errors-are-thrown-for-files-within-the-dir/75952
+# https://mypy.readthedocs.io/en/stable/running_mypy.html#following-imports
+follow_imports = "silent"
 exclude = [
     "playground",
     "services/text2SQL",
@@ -170,6 +173,7 @@ exclude = [
     "aperag/migrations",
     "vectorstore/test_connector.py",
     "readers/test_local_path_embedding.py",
+    "aperag/schema/view_models.py",
 ]
 
 [tool.setuptools]
