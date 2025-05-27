@@ -1,7 +1,7 @@
 from typing import Any, Dict
 
-import yaml
 import jsonref
+import yaml
 
 from aperag.flow.base.models import Edge, FlowInstance, NodeInstance
 
@@ -49,7 +49,7 @@ class FlowParser:
 
     @staticmethod
     def _parse_node(node_data: Dict[str, Any]) -> NodeInstance:
-        """Parse a node definition and dereference $ref in input/output schema"""
+        """Parse a node definition"""
         data = node_data.get("data", {})
         input_schema = data.get("input", {}).get("schema", {})
         output_schema = data.get("output", {}).get("schema", {})

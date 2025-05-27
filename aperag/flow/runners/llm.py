@@ -10,7 +10,6 @@ from aperag.db.ops import query_msp_dict
 from aperag.flow.base.models import BaseNodeRunner, NodeInstance, register_node_runner
 from aperag.llm.base import Predictor
 from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES
-from aperag.query.query import DocumentWithScore
 from aperag.utils.utils import now_unix_milliseconds
 
 MAX_CONTEXT_LENGTH = 100000
@@ -92,7 +91,9 @@ class LLMNodeRunner(BaseNodeRunner):
         prompt = prompt_template.format(query=query, context=context)
         output_max_tokens = max_tokens - len(prompt)
         if output_max_tokens < 0:
-            raise Exception("max_tokens %d is too small to hold the prompt which size is %d" % (max_tokens, len(prompt)))
+            raise Exception(
+                "max_tokens %d is too small to hold the prompt which size is %d" % (max_tokens, len(prompt))
+            )
         llm_kwargs = {
             "custom_llm_provider": custom_llm_provider,
             "temperature": temperature,
