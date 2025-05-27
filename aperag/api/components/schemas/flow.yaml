@@ -146,6 +146,26 @@ components:
               properties:
                 schema:
                   $ref: '#/components/schemas/SchemaDefinition'
+            collapsed:
+              type: boolean
+              description: Whether the node is collapsed, only useful for frontend to collapse the node
+              example: false
+        position:
+          type: object
+          description: Position of the node in the frontend
+        dragHandle:
+          type: string
+          description: Drag handle of the node, only useful for frontend to drag the node
+        measured:
+          type: object
+          description: Measured position of the node, only useful for frontend to measure the node
+        selected:
+          type: boolean
+          description: Whether the node is selected, only useful for frontend to select the node
+        deletable:
+          type: boolean
+          description: Whether the node is deletable, only useful for frontend to delete the node
+          example: true
 
     Edge:
       type: object
@@ -153,6 +173,14 @@ components:
         - source
         - target
       properties:
+        id:
+          type: string
+          description: Unique identifier for the edge, only useful for frontend to identify the edge
+          example: edge_1
+        deletable:
+          type: boolean
+          description: Whether the edge is deletable, only useful for frontend to delete the edge
+          example: true
         source:
           type: string
           description: ID of the source node
