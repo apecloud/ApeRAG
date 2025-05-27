@@ -181,6 +181,10 @@ components:
           type: boolean
           description: Whether the edge is deletable, only useful for frontend to delete the edge
           example: true
+        type:
+          type: string
+          description: Type of the edge
+          example: edge
         source:
           type: string
           description: ID of the source node
