@@ -18,15 +18,14 @@ from datetime import datetime
 from ftplib import FTP
 from typing import Any, Dict, Iterator
 
+from aperag.schema.view_models import CollectionConfig
 from aperag.source.base import CustomSourceInitializationError, LocalDocument, RemoteDocument, Source
 from aperag.source.utils import gen_temporary_file
-from aperag.schema.view_models import CollectionConfig
 
 logger = logging.getLogger(__name__)
 
 
 class FTPSource(Source):
-
     def __init__(self, ctx: CollectionConfig):
         super().__init__(ctx)
         self.path = ctx.path
@@ -51,7 +50,7 @@ class FTPSource(Source):
     def _deal_the_path(self, ftp, path="/"):
         if not self.isDir(path):
             size = ftp.size(path)
-            mtime = ftp.sendcmd('MDTM ' + path)[4:]
+            mtime = ftp.sendcmd("MDTM " + path)[4:]
             modified_time = datetime.strptime(f"{mtime}", "%Y%m%d%H%M%S")
             doc = RemoteDocument(
                 name=path,
@@ -73,13 +72,13 @@ class FTPSource(Source):
                     self.ftp.cwd(curPath)
                 else:
                     size = ftp.size(file_path)
-                    mtime = ftp.sendcmd('MDTM ' + file_path)[4:]
+                    mtime = ftp.sendcmd("MDTM " + file_path)[4:]
                     doc = RemoteDocument(
                         name=file_path,
                         size=size,
                         metadata={
                             "modified_time": datetime.strptime(f"{mtime}", "%Y%m%d%H%M%S"),
-                        }
+                        },
                     )
                     yield doc
 

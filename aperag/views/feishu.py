@@ -18,11 +18,9 @@ import logging
 import time
 from http import HTTPStatus
 
-from asgiref.sync import sync_to_async
 from ninja import Router
 
 import aperag.chat.message
-from config import settings
 from aperag.auth.authentication import FeishuEventVerification
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
@@ -32,6 +30,7 @@ from aperag.pipeline.knowledge_pipeline import create_knowledge_pipeline
 from aperag.source.feishu.feishu import FeishuClient
 from aperag.utils.utils import AESCipher
 from aperag.views.utils import fail, success
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -84,9 +83,7 @@ def get_user_access_token(request, code, redirect_uri):
 
 def build_card_content(chat_id, message_id, message, feedback_type=None):
     return {
-        "config": {
-            "wide_screen_mode": True
-        },
+        "config": {"wide_screen_mode": True},
         "elements": [
             {
                 "tag": "markdown",
@@ -97,34 +94,28 @@ def build_card_content(chat_id, message_id, message, feedback_type=None):
                 "actions": [
                     {
                         "tag": "button",
-                        "text": {
-                            "tag": "plain_text",
-                            "content": "赞"
-                        },
+                        "text": {"tag": "plain_text", "content": "赞"},
                         "type": "primary" if feedback_type == "good" else "default",
                         "value": {
                             "type": "good",
                             "message_id": f"{message_id}",
                             "chat_id": f"{chat_id}",
-                        }
+                        },
                     },
                     {
                         "tag": "button",
-                        "text": {
-                            "tag": "plain_text",
-                            "content": "踩"
-                        },
+                        "text": {"tag": "plain_text", "content": "踩"},
                         "type": "primary" if feedback_type == "bad" else "default",
                         "value": {
                             "type": "bad",
                             "message_id": f"{message_id}",
                             "chat_id": f"{chat_id}",
-                        }
-                    }
+                        },
+                    },
                 ],
-                "layout": "bisected"
-            }
-        ]
+                "layout": "bisected",
+            },
+        ],
     }
 
 
@@ -147,7 +138,9 @@ async def feishu_streaming_response(client, chat_id, bot, msg_id, msg):
     card_id = client.reply_card_message(msg_id, build_card_data(chat_id, msg_id, response))
     last_ts = time.time()
     try:
-        async for msg in await create_knowledge_pipeline(bot=bot, collection=collection, history=history).run(msg, message_id=msg_id):
+        async for msg in await create_knowledge_pipeline(bot=bot, collection=collection, history=history).run(
+            msg, message_id=msg_id
+        ):
             response += msg
             now = time.time()
             if now - last_ts < 0.2:

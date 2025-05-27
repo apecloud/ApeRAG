@@ -1,8 +1,8 @@
 import os
+
 import pytest
 
 from aperag.llm.completion_service import CompletionService
-
 
 MODEL = "gpt-4o-mini"
 API_BASE = os.getenv("OPENAI_API_BASE")

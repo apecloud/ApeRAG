@@ -19,9 +19,9 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management.base import BaseCommand, CommandError
 from django.http import HttpRequest
 
-from config import settings
 from aperag.utils.constant import KEY_USER_ID
 from aperag.views.main import create_document
+from config import settings
 
 
 class Command(BaseCommand):
@@ -42,16 +42,18 @@ class Command(BaseCommand):
         request.META = {
             KEY_USER_ID: settings.ADMIN_USER,
         }
-        with open(path, 'rb') as fd:
+        with open(path, "rb") as fd:
             content = fd.read()
         file = SimpleUploadedFile(name=path, content=content, content_type=content_type)
         response = async_to_sync(create_document)(request, collection_id, [file])
         if int(response["code"]) != HTTPStatus.OK:
-            raise CommandError('Failed to add document %s to collection: %s' % (path, response["message"]))
+            raise CommandError("Failed to add document %s to collection: %s" % (path, response["message"]))
         elif len(response["data"]) == 0:
-            raise CommandError('Failed to add document %s to collection, maybe unsupported suffix' % path)
+            raise CommandError("Failed to add document %s to collection, maybe unsupported suffix" % path)
         else:
             self.stdout.write(
-                self.style.SUCCESS('Successfully added document %s with id %s to collection %s'
-                                   % (path, response["data"][0]["id"], collection_id))
+                self.style.SUCCESS(
+                    "Successfully added document %s with id %s to collection %s"
+                    % (path, response["data"][0]["id"], collection_id)
+                )
             )

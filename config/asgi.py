@@ -25,15 +25,17 @@ import os
 
 from channels.routing import ProtocolTypeRouter, URLRouter
 from django.core.asgi import get_asgi_application
-from django.urls import path, re_path
+from django.urls import re_path
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
 django_asgi_app = get_asgi_application()
 
-from aperag.chat.websocket.routing import websocket_urlpatterns  # noqa: E402
-from channels.security.websocket import AllowedHostsOriginValidator
+# ruff: noqa: E402
 from channels.auth import AuthMiddlewareStack
+from channels.security.websocket import AllowedHostsOriginValidator
+
+from aperag.chat.websocket.routing import websocket_urlpatterns
 
 application = ProtocolTypeRouter(
     {

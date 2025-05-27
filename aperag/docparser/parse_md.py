@@ -74,6 +74,7 @@ class PartConverter:
         def __exit__(self, exc_type, exc_val, exc_tb):
             self.ctx.nesting -= 1
             return False
+
     class OrderedListNester:
         def __init__(self, ctx: "PartConverter.Context"):
             self.ctx = ctx
@@ -189,7 +190,13 @@ class PartConverter:
 
         token = tokens[idx]
         for part in parts:
-            if not isinstance(part, (TextPart, TitlePart,)):
+            if not isinstance(
+                part,
+                (
+                    TextPart,
+                    TitlePart,
+                ),
+            ):
                 continue
             if part.content is not None:
                 lines = part.content.split("\n")
@@ -379,7 +386,7 @@ class PartConverter:
         with self.Nester(ctx):
             with self.PauseExtraction(ctx):
                 parts, pos = self.convert_until_close(ctx, "table_close", tokens, idx + 1, metadata)
-        img_parts = self._extract_image_parts(ctx, tokens[idx : pos], metadata)
+        img_parts = self._extract_image_parts(ctx, tokens[idx:pos], metadata)
         # Parts should contain two items, thead and tbody
         text = "\n".join([part.content for part in parts if part.content is not None])
         metadata["md_source_map"] = tokens[idx].map

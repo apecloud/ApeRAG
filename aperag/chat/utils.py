@@ -19,61 +19,53 @@ from aperag.utils.utils import now_unix_milliseconds
 
 
 def success_response(message_id, data):
-    return json.dumps(
-        {
-            "type": "message",
-            "id": message_id,
-            "data": data,
-            "timestamp": now_unix_milliseconds(),
-        }
-    )
+    return json.dumps({
+        "type": "message",
+        "id": message_id,
+        "data": data,
+        "timestamp": now_unix_milliseconds(),
+    })
+
 
 def welcome_response(message_id, welcome_message):
-    return json.dumps(
-        {
-            "type": "welcome",
-            "id": message_id,
-            "data": welcome_message,
-            "timestamp": now_unix_milliseconds()
-        }
-    )
-    
+    return json.dumps({
+        "type": "welcome",
+        "id": message_id,
+        "data": welcome_message,
+        "timestamp": now_unix_milliseconds(),
+    })
+
+
 def fail_response(message_id, error):
-    return json.dumps(
-        {
-            "type": "error",
-            "id": message_id,
-            "data": error,
-            "timestamp": now_unix_milliseconds(),
-        }
-    )
+    return json.dumps({
+        "type": "error",
+        "id": message_id,
+        "data": error,
+        "timestamp": now_unix_milliseconds(),
+    })
 
 
 def start_response(message_id):
-    return json.dumps(
-        {
-            "type": "start",
-            "id": message_id,
-            "timestamp": now_unix_milliseconds(),
-        }
-    )
+    return json.dumps({
+        "type": "start",
+        "id": message_id,
+        "timestamp": now_unix_milliseconds(),
+    })
 
-  
-def stop_response(message_id, references, related_question=[], related_question_prompt='', memory_count=0, urls=[]):
+
+def stop_response(message_id, references, related_question=[], related_question_prompt="", memory_count=0, urls=[]):
     if references is None:
         references = []
-    return json.dumps(
-        {
-            "type": "stop",
-            "id": message_id,
-            "data": references,
-            "memoryCount": memory_count,
-            "related_question_prompt": related_question_prompt,
-            "related_question": related_question,
-            "urls": urls,
-            "timestamp": now_unix_milliseconds()
-        }
-    )
+    return json.dumps({
+        "type": "stop",
+        "id": message_id,
+        "data": references,
+        "memoryCount": memory_count,
+        "related_question_prompt": related_question_prompt,
+        "related_question": related_question,
+        "urls": urls,
+        "timestamp": now_unix_milliseconds(),
+    })
 
 
 async def check_quota_usage(user, conversation_limit):
@@ -112,6 +104,7 @@ def get_async_redis_client():
         import redis.asyncio as redis
 
         from config.settings import MEMORY_REDIS_URL
+
         async_redis_client = redis.Redis.from_url(MEMORY_REDIS_URL)
     return async_redis_client
 
@@ -122,5 +115,6 @@ def get_sync_redis_client():
         import redis
 
         from config.settings import MEMORY_REDIS_URL
+
         sync_redis_client = redis.Redis.from_url(MEMORY_REDIS_URL)
     return sync_redis_client

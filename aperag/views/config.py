@@ -14,9 +14,9 @@
 
 from ninja import Router
 
-from aperag.db.ops import query_config, query_first_user_exists
+from aperag.db.ops import query_first_user_exists
+from aperag.schema.view_models import Auth, Auth0, Authing, Config, Logto
 from aperag.views.utils import success
-from aperag.schema.view_models import Config, Auth, Auth0, Authing, Logto
 from config import settings
 
 router = Router()

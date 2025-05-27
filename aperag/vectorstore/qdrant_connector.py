@@ -71,17 +71,11 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
             results=results,
         )
 
-    def _convert_scored_point_to_document_with_score(
-        self, scored_point: ScoredPoint
-    ) -> DocumentWithScore | None:
+    def _convert_scored_point_to_document_with_score(self, scored_point: ScoredPoint) -> DocumentWithScore | None:
         try:
             payload = scored_point.payload or {}
-            text = scored_point.payload.get("text") or json.loads(
-                payload["_node_content"]
-            ).get("text")
-            metadata = payload.get("metadata") or json.loads(
-                payload["_node_content"]
-            ).get("metadata")
+            text = scored_point.payload.get("text") or json.loads(payload["_node_content"]).get("text")
+            metadata = payload.get("metadata") or json.loads(payload["_node_content"]).get("metadata")
             # todo source phrase
             relationships = json.loads(payload["_node_content"]).get("relationships")
             if relationships is not None and metadata.get("source") is None:

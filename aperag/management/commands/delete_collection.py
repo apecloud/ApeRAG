@@ -18,9 +18,9 @@ from asgiref.sync import async_to_sync
 from django.core.management.base import BaseCommand, CommandError
 from django.http import HttpRequest
 
-from config import settings
 from aperag.utils.constant import KEY_USER_ID
 from aperag.views.main import delete_collection
+from config import settings
 
 
 class Command(BaseCommand):
@@ -39,8 +39,6 @@ class Command(BaseCommand):
         }
         response = async_to_sync(delete_collection)(request, collection_id)
         if int(response["code"]) != HTTPStatus.OK:
-            raise CommandError('Failed to delete collection %s: %s' % (collection_id, response["message"]))
+            raise CommandError("Failed to delete collection %s: %s" % (collection_id, response["message"]))
         else:
-            self.stdout.write(
-                self.style.SUCCESS('Successfully deleted collection %s' % response["data"]["id"])
-            )
+            self.stdout.write(self.style.SUCCESS("Successfully deleted collection %s" % response["data"]["id"]))

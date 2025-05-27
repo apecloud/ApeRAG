@@ -15,9 +15,9 @@
 import tempfile
 from typing import Any, Dict, Iterator
 
+from aperag.schema.view_models import CollectionConfig
 from aperag.source.base import LocalDocument, RemoteDocument, Source
 from aperag.utils.spider.base_spider import WebCannotBeCrawledException, url_selector
-from aperag.schema.view_models import CollectionConfig
 
 
 def download_web_text_to_temp_file(url, name):
@@ -46,9 +46,7 @@ class URLSource(Source):
 
     def prepare_document(self, name: str, metadata: Dict[str, Any]) -> LocalDocument:
         url = metadata["url"]
-        result_url = url.replace('"', '')
-        temp_file_path = download_web_text_to_temp_file(
-            result_url, name
-        ).name
+        result_url = url.replace('"', "")
+        temp_file_path = download_web_text_to_temp_file(result_url, name).name
         metadata["name"] = name
         return LocalDocument(name=name, path=temp_file_path, metadata=metadata)

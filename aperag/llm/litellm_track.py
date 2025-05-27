@@ -1,10 +1,8 @@
 import logging
-import time
+from datetime import datetime
 
 import litellm
-from datetime import datetime
 from litellm.integrations.custom_logger import CustomLogger
-
 
 logger = logging.getLogger(__name__)
 

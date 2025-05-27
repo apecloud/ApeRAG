@@ -1,8 +1,9 @@
 import os
+
 import pytest
+
 from aperag.query.query import DocumentWithScore
 from aperag.rank.reranker import rerank
-
 
 # ---------- Constants and Skip Markers ----------
 API_BASE   = os.getenv("RERANK_SERVICE_URL")

@@ -25,13 +25,14 @@ from aperag.utils.spider.zhihu import get_zhihu
 class WebCannotBeCrawledException(BaseException):
     pass
 
+
 def get_default(url: str, max_retries: int = 3, retry_delay: int = 3):
     retries = 0
     while retries < max_retries:
         try:
             response = requests.get(url, timeout=5)
             response.raise_for_status()
-            soup = BeautifulSoup(response.content, 'html.parser')
+            soup = BeautifulSoup(response.content, "html.parser")
             return soup
         except Exception as e:
             print(f"Error crawling {url}: {e}")

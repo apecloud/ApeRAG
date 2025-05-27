@@ -19,10 +19,10 @@ from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
 
-from config.celery import app
 from aperag.chat.utils import get_sync_redis_client
 from aperag.db.models import Collection, Document
 from aperag.tasks.index import add_index_for_local_document
+from config.celery import app
 
 
 @app.task(bind=True, max_retries=3)
@@ -33,7 +33,11 @@ def crawl_domain(self, root_url, url, collection_id, user, max_pages):
 
     collection = Collection.objects.get(id=collection_id)
     redis_set_key = f"crawled_urls:{collection_id}:{root_url}"
-    if redis_conn.sismember(redis_set_key, redis_key) or redis_conn.scard(redis_set_key) >= max_pages or collection.status == Collection.Status.DELETED:
+    if (
+        redis_conn.sismember(redis_set_key, redis_key)
+        or redis_conn.scard(redis_set_key) >= max_pages
+        or collection.status == Collection.Status.DELETED
+    ):
         return
 
     try:
@@ -42,10 +46,10 @@ def crawl_domain(self, root_url, url, collection_id, user, max_pages):
         redis_conn.sadd(redis_set_key, redis_key)
         root_parts = urlparse(root_url)
 
-        soup = BeautifulSoup(response.content, 'html.parser')
+        soup = BeautifulSoup(response.content, "html.parser")
         if root_url != url:
-            if '.html' not in url:
-                document_name = url + '.html'
+            if ".html" not in url:
+                document_name = url + ".html"
             else:
                 document_name = url
             document_instance = Document(
@@ -62,15 +66,19 @@ def crawl_domain(self, root_url, url, collection_id, user, max_pages):
             })
             document_instance.save()
             add_index_for_local_document.delay(document_instance.id)
-        for link in soup.find_all('a', href=True):
-            sub_url = urljoin(url, link['href']).split("#")[0]
+        for link in soup.find_all("a", href=True):
+            sub_url = urljoin(url, link["href"]).split("#")[0]
             sub_parts = urlparse(sub_url)
             sub_redis_key = f"{sub_url}"
             if root_parts.scheme != sub_parts.scheme or root_parts.netloc != sub_parts.netloc:
                 continue
-            if sub_url == url or redis_conn.sismember(redis_set_key, sub_redis_key) or not sub_parts.path.startswith(root_parts.path):
+            if (
+                sub_url == url
+                or redis_conn.sismember(redis_set_key, sub_redis_key)
+                or not sub_parts.path.startswith(root_parts.path)
+            ):
                 continue
-            if re.match(r'https?://[\w.]+', sub_url):
+            if re.match(r"https?://[\w.]+", sub_url):
                 crawl_domain.delay(root_url, sub_url, collection_id, user, max_pages)
 
     except Exception as e:

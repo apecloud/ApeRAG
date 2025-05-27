@@ -1,13 +1,16 @@
-
 import logging
-from aperag.flow.base.models import NodeInstance, register_node_runner, BaseNodeRunner 
+from typing import Any, Dict, List
+
+from asgiref.sync import sync_to_async
+
+from aperag.db.models import Collection
+from aperag.flow.base.models import BaseNodeRunner, NodeInstance, register_node_runner
 from aperag.query.query import DocumentWithScore
 from aperag.utils.utils import generate_vector_db_collection_name
 from config import settings
-from typing import Any, Dict, List
-from aperag.db.models import Collection
-from asgiref.sync import sync_to_async
+
 logger = logging.getLogger(__name__)
+
 
 @register_node_runner("keyword_search")
 class KeywordSearchNodeRunner(BaseNodeRunner):
@@ -26,8 +29,9 @@ class KeywordSearchNodeRunner(BaseNodeRunner):
         if not collection:
             return {"docs": []}
 
-        from aperag.pipeline.keyword_extractor import IKExtractor
         from aperag.context.full_text import search_document
+        from aperag.pipeline.keyword_extractor import IKExtractor
+
         index = generate_vector_db_collection_name(collection.id)
         async with IKExtractor({"index_name": index, "es_host": settings.ES_HOST}) as extractor:
             keywords = await extractor.extract(query)

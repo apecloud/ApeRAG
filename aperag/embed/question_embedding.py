@@ -18,7 +18,6 @@ logger.setLevel(logging.INFO)
 
 
 class QuestionEmbedding(LocalPathEmbedding):
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         llm_model = kwargs.get("llm_model")
@@ -89,19 +88,18 @@ class QuestionEmbedding(LocalPathEmbedding):
 
 
 class QuestionEmbeddingWithoutDocument(DocumentBaseEmbedding):
-
     def __init__(
-            self,
-            vector_store_adaptor: VectorStoreConnectorAdaptor,
-            embedding_model: Embeddings = None,
-            vector_size: int = 0,
-            **kwargs: Any,
+        self,
+        vector_store_adaptor: VectorStoreConnectorAdaptor,
+        embedding_model: Embeddings = None,
+        vector_size: int = 0,
+        **kwargs: Any,
     ) -> None:
         super().__init__(vector_store_adaptor, embedding_model, vector_size)
         self.questions = []
 
     def load_data(self, **kwargs) -> list[str]:
-        faq = kwargs.get('faq', [])
+        faq = kwargs.get("faq", [])
 
         nodes: List[TextNode] = []
         for qa in faq:

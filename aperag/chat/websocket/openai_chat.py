@@ -26,8 +26,8 @@ def openai_generate_stream(params):
     stop = params.get("stop", "###")
 
     headers = {
-        "Authorization": "Bearer " + params.get('proxy_api_key'),
-        "Token": params.get('proxy_api_key'),
+        "Authorization": "Bearer " + params.get("proxy_api_key"),
+        "Token": params.get("proxy_api_key"),
     }
 
     messages = prompt.split(stop)
@@ -35,12 +35,10 @@ def openai_generate_stream(params):
     for message in messages:
         if len(message) <= 0:
             continue
-        history.append(
-            {
-                "role": "system",
-                "content": message,
-            }
-        )
+        history.append({
+            "role": "system",
+            "content": message,
+        })
 
     payloads = {
         "model": "gpt-3.5-turbo",
@@ -50,9 +48,7 @@ def openai_generate_stream(params):
         "stream": True,
     }
 
-    res = requests.post(
-        params.get('proxy_server_url'), headers=headers, json=payloads, stream=True
-    )
+    res = requests.post(params.get("proxy_server_url"), headers=headers, json=payloads, stream=True)
 
     text = ""
     for line in res.iter_lines():

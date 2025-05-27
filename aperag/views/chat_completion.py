@@ -1,14 +1,17 @@
-import logging
 import json
+import logging
+
 from django.http import HttpRequest, StreamingHttpResponse
 from ninja import Router
-from aperag.utils.request import get_user
-from aperag.service.chat_completion_service import stream_openai_sse_response, openai_chat_completions
+
 from aperag.chat.sse.openai_consumer import OpenAIFormatter
+from aperag.service.chat_completion_service import openai_chat_completions, stream_openai_sse_response
+from aperag.utils.request import get_user
 
 logger = logging.getLogger(__name__)
 
 router = Router()
+
 
 @router.post("/chat/completions")
 async def openai_chat_completions_view(request: HttpRequest):
@@ -22,11 +25,7 @@ async def openai_chat_completions_view(request: HttpRequest):
         api_request, formatter, async_generator = result
         if api_request.stream:
             return StreamingHttpResponse(
-                stream_openai_sse_response(
-                    async_generator(),
-                    formatter,
-                    api_request.msg_id
-                ),
+                stream_openai_sse_response(async_generator(), formatter, api_request.msg_id),
                 content_type="text/event-stream",
             )
         else:
@@ -35,13 +34,8 @@ async def openai_chat_completions_view(request: HttpRequest):
                 full_content += chunk
             return StreamingHttpResponse(
                 json.dumps(formatter.format_complete_response(api_request.msg_id, full_content)),
-                content_type="application/json"
+                content_type="application/json",
             )
     except Exception as e:
         logger.exception(e)
-        return StreamingHttpResponse(
-            json.dumps(OpenAIFormatter.format_error(str(e))),
-            content_type="application/json"
-        )
-
-
+        return StreamingHttpResponse(json.dumps(OpenAIFormatter.format_error(str(e))), content_type="application/json")

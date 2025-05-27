@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import json
+import logging
 from abc import ABC, abstractmethod
 from threading import Lock
 from typing import Any
-import logging
 
 from langchain_core.embeddings import Embeddings
-
-from aperag.embed.embedding_service import EmbeddingService
 
 from aperag.db.ops import (
     query_msp_dict,
 )
+from aperag.embed.embedding_service import EmbeddingService
 from aperag.schema.utils import parseCollectionConfig
-
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
 from config.settings import (
     EMBEDDING_MAX_CHUNKS_IN_BATCH,
@@ -22,12 +19,14 @@ from config.settings import (
 
 mutex = Lock()
 
+
 def synchronized(func):
     def wrapper(*args, **kwargs):
         with mutex:
             return func(*args, **kwargs)
 
     return wrapper
+
 
 _dimension_cache: dict[tuple[str, str], int] = {}
 
@@ -48,14 +47,20 @@ def _get_embedding_dimension(embedding_svc: EmbeddingService, embedding_provider
 
 @synchronized
 def get_embedding_model(
-        embedding_provider: str,
-        embedding_model: str,
-        embedding_service_url: str,
-        embedding_service_api_key: str,
-        embedding_max_chunks_in_batch: int = EMBEDDING_MAX_CHUNKS_IN_BATCH,
-        **kwargs) -> tuple[Embeddings | None, int]:
-    embedding_svc = EmbeddingService(embedding_provider, embedding_model,
-                                     embedding_service_url, embedding_service_api_key, embedding_max_chunks_in_batch)
+    embedding_provider: str,
+    embedding_model: str,
+    embedding_service_url: str,
+    embedding_service_api_key: str,
+    embedding_max_chunks_in_batch: int = EMBEDDING_MAX_CHUNKS_IN_BATCH,
+    **kwargs,
+) -> tuple[Embeddings | None, int]:
+    embedding_svc = EmbeddingService(
+        embedding_provider,
+        embedding_model,
+        embedding_service_url,
+        embedding_service_api_key,
+        embedding_max_chunks_in_batch,
+    )
     embedding_dim = _get_embedding_dimension(embedding_svc, embedding_provider, embedding_model)
     return embedding_svc, embedding_dim
 
@@ -81,24 +86,24 @@ async def get_collection_embedding_service(collection) -> tuple[Embeddings | Non
             embedding_service_api_key=embedding_service_api_key,
             embedding_max_chunks_in_batch=EMBEDDING_MAX_CHUNKS_IN_BATCH,
         )
-    
+
     logging.warning("get_collection_embedding_model cannot find model service provider %s", embedding_msp)
     return None, 0
 
 
 class DocumentBaseEmbedding(ABC):
     def __init__(
-            self,
-            vector_store_adaptor: VectorStoreConnectorAdaptor,
-            embedding_model: Embeddings = None,
-            vector_size: int = None,
-            **kwargs: Any,
+        self,
+        vector_store_adaptor: VectorStoreConnectorAdaptor,
+        embedding_model: Embeddings = None,
+        vector_size: int = None,
+        **kwargs: Any,
     ) -> None:
         self.connector = vector_store_adaptor.connector
         # Improved logic to handle optional embedding_model/vector_size
         if embedding_model is None or vector_size is None:
             raise ValueError("lacks embedding model or vector size")
-        
+
         self.embedding, self.vector_size = embedding_model, vector_size
         self.client = vector_store_adaptor.connector.client
 

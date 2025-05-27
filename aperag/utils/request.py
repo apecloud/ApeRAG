@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+
 from aperag.utils.constant import KEY_USER_ID
 
 
@@ -21,12 +22,10 @@ def get_user(request):
 
 
 def get_urls(request):
-    body_str = request.body.decode('utf-8')
+    body_str = request.body.decode("utf-8")
 
     data = json.loads(body_str)
 
-    urls = [item['url'] for item in data['urls']]
+    urls = [item["url"] for item in data["urls"]]
 
     return urls
-
-

@@ -1,4 +1,5 @@
 import json
+
 from aperag.schema.view_models import CollectionConfig
 
 

@@ -31,6 +31,7 @@ async def async_run(f, *args, **kwargs):
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, functools.partial(f, *args, **kwargs))
 
+
 def find_duplicate_paths(paths):
     """
     Find if there are any duplicate paths in terms of parent-child relationships.
@@ -45,7 +46,7 @@ def find_duplicate_paths(paths):
     duplicate_paths = []
 
     for i, path in enumerate(sorted_paths):
-        for other_path in sorted_paths[i + 1:]:
+        for other_path in sorted_paths[i + 1 :]:
             if other_path.startswith(path + os.sep):  # Check for parent-child relationship
                 duplicate_paths.append((path, other_path))
 

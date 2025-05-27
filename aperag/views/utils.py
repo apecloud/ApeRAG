@@ -14,27 +14,25 @@
 
 import json
 from http import HTTPStatus
-from typing import Dict, Any, Generic, TypeVar, Tuple
+from typing import Dict, Tuple
 
+from django.conf import settings
 from django.http import HttpRequest, HttpResponse
 from langchain_core.prompts import PromptTemplate
-from ninja.main import Exc
 from ninja.errors import HttpError
-
+from ninja.main import Exc
 from pydantic import ValidationError
-from asgiref.sync import sync_to_async
+
+from aperag.auth.authentication import GlobalAuth
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
 from aperag.db.models import Bot
 from aperag.db.ops import PagedResult, logger, query_chat_feedbacks
-from aperag.llm.base import Predictor 
-from aperag.source.base import CustomSourceInitializationError, get_source
-from aperag.utils.utils import AVAILABLE_SOURCE
-from django.conf import settings
-from aperag.auth.authentication import GlobalAuth
-from aperag.utils import constant
+from aperag.llm.base import Predictor
 from aperag.schema import view_models
 from aperag.schema.view_models import CollectionConfig
+from aperag.source.base import CustomSourceInitializationError, get_source
+from aperag.utils.utils import AVAILABLE_SOURCE
 
 
 async def query_chat_messages(user: str, chat_id: str) -> list[view_models.ChatMessage]:
@@ -66,19 +64,13 @@ async def query_chat_messages(user: str, chat_id: str) -> list[view_models.ChatM
             msg.data = item["response"]
             msg.references = []
             for ref in item.get("references", []):
-                msg.references.append(view_models.Reference(
-                    score=ref["score"],
-                    text=ref["text"],
-                    metadata=ref["metadata"]
-                ))
+                msg.references.append(
+                    view_models.Reference(score=ref["score"], text=ref["text"], metadata=ref["metadata"])
+                )
             msg.urls = item.get("urls", [])
         feedback = feedback_map.get(item.get("id", ""), None)
         if role == "ai" and feedback:
-            msg.feedback = view_models.Feedback(
-                type=feedback.type,
-                tag=feedback.tag,
-                message=feedback.message
-            )
+            msg.feedback = view_models.Feedback(type=feedback.type, tag=feedback.tag, message=feedback.message)
         messages.append(msg)
     return messages
 
@@ -95,7 +87,9 @@ def validate_source_connect_config(config: CollectionConfig) -> Tuple[bool, str]
     return True, ""
 
 
-def validate_bot_config(model_service_provider, model_name, base_url, api_key, config: Dict, type, memory) -> Tuple[bool, str]:
+def validate_bot_config(
+    model_service_provider, model_name, base_url, api_key, config: Dict, type, memory
+) -> Tuple[bool, str]:
     try:
         Predictor.get_completion_service(model_service_provider, model_name, base_url, api_key, **config)
     except Exception as e:
@@ -135,10 +129,11 @@ def validate_bot_config(model_service_provider, model_name, base_url, api_key, c
 
 def validate_url(url):
     from urllib.parse import urlparse
+
     try:
         parsed_url = urlparse(url)
 
-        if parsed_url.scheme not in ['http', 'https']:
+        if parsed_url.scheme not in ["http", "https"]:
             return False
 
         if not parsed_url.netloc:
@@ -148,10 +143,11 @@ def validate_url(url):
     except Exception:
         return False
 
+
 def success(data, pr: PagedResult = None):
     if not hasattr(data, "pageResult") or pr is None:
         return data
-    
+
     data.pageResult = view_models.PageResult(
         count=pr.count,
         page_number=pr.page_number,
@@ -165,10 +161,12 @@ def fail(status: HTTPStatus, message: str, raise_exception: bool = True):
         raise HttpError(status, message)
     return status, view_models.FailResponse(code=status.name, message=message)
 
+
 if not settings.AUTH_TYPE:
     auth_middleware = None
 else:
     auth_middleware = GlobalAuth()
+
 
 def validation_errors(request: HttpRequest, exc: Exc) -> HttpResponse:
     msgs = []
@@ -182,4 +180,3 @@ def validation_errors(request: HttpRequest, exc: Exc) -> HttpResponse:
 def auth_errors(request: HttpRequest, exc: Exc) -> HttpResponse:
     status, content = fail(HTTPStatus.UNAUTHORIZED, "Unauthorized", raise_exception=False)
     return HttpResponse(status=status, content=content.model_dump_json())
-

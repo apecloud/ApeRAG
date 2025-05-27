@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import httpx
 import litellm
 
 from aperag.llm.base import LLMConfigError, Predictor
@@ -27,7 +26,6 @@ class CompletionService(Predictor):
         if not self.kwargs.get("model"):
             raise LLMConfigError("Please specify the MODEL")
 
-
     @staticmethod
     def provide_default_token():
         return False
@@ -36,8 +34,9 @@ class CompletionService(Predictor):
         try:
             response = await litellm.acompletion(
                 **self.kwargs,
-                messages=history + [{"role": "user", "content": prompt}] if memory else [
-                    {"role": "user", "content": prompt}],
+                messages=history + [{"role": "user", "content": prompt}]
+                if memory
+                else [{"role": "user", "content": prompt}],
                 stream=True,
             )
             async for chunk in response:
@@ -54,7 +53,9 @@ class CompletionService(Predictor):
         try:
             response = litellm.completion(
                 **self.kwargs,
-                messages=history + [{"role": "user", "content": prompt}] if memory else [{"role": "user", "content": prompt}],
+                messages=history + [{"role": "user", "content": prompt}]
+                if memory
+                else [{"role": "user", "content": prompt}],
                 stream=True,
             )
             for chunk in response:
@@ -71,7 +72,7 @@ class CompletionService(Predictor):
         async for tokens in self._agenerate_stream(history, prompt, memory):
             yield tokens
 
-    async def agenerate_by_tools(self, prompt,tools):
+    async def agenerate_by_tools(self, prompt, tools):
         try:
             response = await litellm.acompletion(
                 **self.kwargs,

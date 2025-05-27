@@ -24,8 +24,6 @@ import redis.asyncio as aredis
 from ninja import Router
 
 import aperag.chat.message
-from config import settings
-from config.settings import MAX_CONVERSATION_COUNT
 from aperag.apps import QuotaType
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import check_quota_usage, get_async_redis_client, get_sync_redis_client, manage_quota_usage
@@ -34,6 +32,8 @@ from aperag.db.ops import query_bot, query_chat_by_peer, query_user_quota
 from aperag.pipeline.knowledge_pipeline import create_knowledge_pipeline
 from aperag.utils.weixin.client import WeixinClient
 from aperag.utils.weixin.WXBizMsgCrypt import WXBizMsgCrypt
+from config import settings
+from config.settings import MAX_CONVERSATION_COUNT
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ async def weixin_text_response(client, user, bot, query, msg_id):
 
         max_length = 2048
         for i in range(0, len(response), max_length):
-            message = response[i:i + max_length]
+            message = response[i : i + max_length]
             await client.send_message(message, user)
     except Exception as e:
         logger.exception(e)
@@ -109,7 +109,9 @@ async def weixin_card_response(client, user, bot, query, msg_id):
         task_id = int(time.time())
         _, response_code = await client.send_card("ApeRAG 正在解答中，请稍候......", user, task_id)
 
-        async for msg in await create_knowledge_pipeline(bot=bot, collection=collection, history=history).run(query, message_id=msg_id):
+        async for msg in await create_knowledge_pipeline(bot=bot, collection=collection, history=history).run(
+            query, message_id=msg_id
+        ):
             response += msg
 
         await client.redis_client.set(f"{task_id}2message", response)
@@ -158,9 +160,7 @@ async def verify_callback_view(request, user, bot_id, msg_signature, timestamp, 
     echostr = unquote(echostr)
     logger.info(f"receive echostr: {echostr}")
 
-    wxcpt = WXBizMsgCrypt(api_token,
-                          api_encoding_aes_key,
-                          corp_id)
+    wxcpt = WXBizMsgCrypt(api_token, api_encoding_aes_key, corp_id)
     ret, sEchoStr = wxcpt.VerifyURL(msg_signature, timestamp, nonce, echostr)
     if ret != 0:
         raise Exception(f"decrypt_messgae failed: {ret}")
@@ -259,7 +259,7 @@ async def officaccount_callback_view(request, user, bot_id, signature, timestamp
 
 
 def generate_xml_response(to_user_name, from_user_name, create_time, msg_type, response):
-    response = response.replace('\n', '&#xA;')
+    response = response.replace("\n", "&#xA;")
 
     resp = f"""<xml>\
                 <ToUserName><![CDATA[{to_user_name}]]></ToUserName>\
@@ -312,7 +312,9 @@ async def weixin_officaccount_response(query, msg_id, to_user_name, bot):
 
 
 @router.post("/officialaccount/webhook/event")
-async def officialaccount_callback_view(request, user, bot_id, signature, timestamp, nonce, openid, encrypt_type, msg_signature):
+async def officialaccount_callback_view(
+    request, user, bot_id, signature, timestamp, nonce, openid, encrypt_type, msg_signature
+):
     bot = await query_bot(user, bot_id)
     if bot is None:
         logger.warning("bot not found: %s", bot_id)

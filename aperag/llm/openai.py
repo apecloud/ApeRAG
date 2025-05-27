@@ -12,12 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-import os
 
 import httpx
 import litellm
-import openai
 
 from aperag.llm.base import LLMConfigError, Predictor
 
@@ -35,13 +32,11 @@ class OpenAIPredictor(Predictor):
         self.api_key = self.api_key.strip()
         self.base_url = self.base_url.strip()
 
-
     def validate_params(self):
         if not self.kwargs.get("model"):
             raise LLMConfigError("Please specify the MODEL")
         if not self.kwargs.get("api_key"):
             raise LLMConfigError("Please specify the API_KEY")
-
 
     @staticmethod
     def provide_default_token():
@@ -53,7 +48,9 @@ class OpenAIPredictor(Predictor):
             api_key=self.api_key,
             base_url=self.base_url,
             temperature=self.temperature,
-            messages=history + [{"role": "user", "content": prompt}] if memory else [{"role": "user", "content": prompt}],
+            messages=history + [{"role": "user", "content": prompt}]
+            if memory
+            else [{"role": "user", "content": prompt}],
             stream=True,
             timeout=httpx.Timeout(None, connect=3),
         )
@@ -71,8 +68,9 @@ class OpenAIPredictor(Predictor):
             api_key=self.api_key,
             base_url=self.base_url,
             temperature=self.temperature,
-            messages=history + [{"role": "user", "content": prompt}] if memory else [
-                {"role": "user", "content": prompt}],
+            messages=history + [{"role": "user", "content": prompt}]
+            if memory
+            else [{"role": "user", "content": prompt}],
             stream=True,
             timeout=httpx.Timeout(None, connect=3),
         )
@@ -88,7 +86,7 @@ class OpenAIPredictor(Predictor):
         async for tokens in self._agenerate_stream(history, prompt, memory):
             yield tokens
 
-    async def agenerate_by_tools(self, prompt,tools):
+    async def agenerate_by_tools(self, prompt, tools):
         response = litellm.completion(
             model=self.model,
             api_key=self.api_key,

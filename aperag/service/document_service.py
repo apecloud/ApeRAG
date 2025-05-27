@@ -1,33 +1,36 @@
-from http import HTTPStatus
-from django.utils import timezone
-import os
 import json
+import logging
+import os
+from http import HTTPStatus
 from typing import List
+
 from asgiref.sync import sync_to_async
 from django.db import IntegrityError
+from django.utils import timezone
 from ninja.files import UploadedFile
+
+from aperag.apps import QuotaType
 from aperag.db import models as db_models
-from aperag.schema.view_models import Document, DocumentList
-from aperag.views.utils import fail, success, validate_url
 from aperag.db.ops import (
-    query_user_quota,
     PagedQuery,
     query_collection,
     query_document,
     query_documents,
-    query_documents_count
+    query_documents_count,
+    query_user_quota,
 )
 from aperag.docparser.doc_parser import DocParser
-from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
 from aperag.objectstore.base import get_object_store
-from aperag.tasks.index import add_index_for_local_document, remove_index, update_index_for_document
-from aperag.tasks.crawl_web import crawl_domain
-from aperag.apps import QuotaType
-from config import settings
-import logging
 from aperag.schema import view_models
+from aperag.schema.view_models import Document, DocumentList
+from aperag.tasks.crawl_web import crawl_domain
+from aperag.tasks.index import add_index_for_local_document, remove_index, update_index_for_document
+from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
+from aperag.views.utils import fail, success, validate_url
+from config import settings
 
 logger = logging.getLogger(__name__)
+
 
 def build_document_response(document: db_models.Document) -> view_models.Document:
     """Build Document response object for API return."""
@@ -42,6 +45,7 @@ def build_document_response(document: db_models.Document) -> view_models.Documen
         created=document.gmt_created,
         updated=document.gmt_updated,
     )
+
 
 async def create_document(user: str, collection_id: str, files: List[UploadedFile]) -> view_models.DocumentList:
     if len(files) > 500:
@@ -88,6 +92,7 @@ async def create_document(user: str, collection_id: str, files: List[UploadedFil
             return fail(HTTPStatus.INTERNAL_SERVER_ERROR, "add document failed")
     return success(response)
 
+
 async def create_url_document(user: str, collection_id: str, urls: List[str]) -> view_models.DocumentList:
     response = {"failed_urls": []}
     collection = await query_collection(user, collection_id)
@@ -104,8 +109,8 @@ async def create_url_document(user: str, collection_id: str, urls: List[str]) ->
         if not validate_url(url):
             failed_urls.append(url)
             continue
-        if '.html' not in url:
-            document_name = url + '.html'
+        if ".html" not in url:
+            document_name = url + ".html"
         else:
             document_name = url
         document_instance = db_models.Document(
@@ -128,6 +133,7 @@ async def create_url_document(user: str, collection_id: str, urls: List[str]) ->
         response["failed_urls"] = failed_urls
     return success(response)
 
+
 async def list_documents(user: str, collection_id: str, pq: PagedQuery) -> view_models.DocumentList:
     pr = await query_documents([user, settings.ADMIN_USER], collection_id, pq)
     response = []
@@ -135,13 +141,17 @@ async def list_documents(user: str, collection_id: str, pq: PagedQuery) -> view_
         response.append(build_document_response(document))
     return success(DocumentList(items=response), pr=pr)
 
+
 async def get_document(user: str, collection_id: str, document_id: str) -> view_models.Document:
     document = await query_document(user, collection_id, document_id)
     if document is None:
         return fail(HTTPStatus.NOT_FOUND, "Document not found")
     return success(build_document_response(document))
 
-async def update_document(user: str, collection_id: str, document_id: str, document_in: view_models.DocumentUpdate) -> view_models.Document:
+
+async def update_document(
+    user: str, collection_id: str, document_id: str, document_in: view_models.DocumentUpdate
+) -> view_models.Document:
     instance = await query_document(user, collection_id, document_id)
     if instance is None:
         return fail(HTTPStatus.NOT_FOUND, "Document not found")
@@ -162,6 +172,7 @@ async def update_document(user: str, collection_id: str, document_id: str, docum
         question.status = db_models.Question.Status.WARNING
         await question.asave()
     return success(build_document_response(instance))
+
 
 async def delete_document(user: str, collection_id: str, document_id: str) -> view_models.Document:
     document = await query_document(user, collection_id, document_id)
@@ -184,6 +195,7 @@ async def delete_document(user: str, collection_id: str, document_id: str) -> vi
         await question.asave()
     return success(build_document_response(document))
 
+
 async def delete_documents(user: str, collection_id: str, document_ids: List[str]):
     documents = await query_documents([user], collection_id, None)
     ok = []
@@ -196,7 +208,9 @@ async def delete_documents(user: str, collection_id: str, document_ids: List[str
             document.gmt_deleted = timezone.now()
             await document.asave()
             remove_index.delay(document.id)
-            related_questions = await sync_to_async(document.question_set.exclude)(status=db_models.Question.Status.DELETED)
+            related_questions = await sync_to_async(document.question_set.exclude)(
+                status=db_models.Question.Status.DELETED
+            )
             async for question in related_questions:
                 question.documents.remove(document)
                 question.status = db_models.Question.Status.WARNING
@@ -205,4 +219,4 @@ async def delete_documents(user: str, collection_id: str, document_ids: List[str
         except Exception as e:
             logger.exception(e)
             failed.append(document.id)
-    return success({"success": ok, "failed": failed}) 
+    return success({"success": ok, "failed": failed})

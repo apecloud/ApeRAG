@@ -18,15 +18,14 @@ from typing import Any, Dict, Iterator
 
 import oss2
 
+from aperag.schema.view_models import CollectionConfig
 from aperag.source.base import CustomSourceInitializationError, LocalDocument, RemoteDocument, Source
 from aperag.source.utils import find_duplicate_paths, gen_temporary_file
-from aperag.schema.view_models import CollectionConfig
 
 logger = logging.getLogger(__name__)
 
 
 class OSSSource(Source):
-
     def __init__(self, ctx: CollectionConfig):
         super().__init__(ctx)
         self.access_key_id = ctx.access_key_id
@@ -38,21 +37,23 @@ class OSSSource(Source):
         self.buckets = self._connect_buckets()
 
     def _connect_buckets(self):
-        if self.bucket_name != '':
+        if self.bucket_name != "":
             new_bucket_obj = {}
-            new_bucket_obj['bucket'] = self.bucket_name
-            new_bucket_obj['dir'] = self.dir
+            new_bucket_obj["bucket"] = self.bucket_name
+            new_bucket_obj["dir"] = self.dir
             self.bucket_objs.append(new_bucket_obj)
         bucket_dirs = []
         for bucket_obj in self.bucket_objs:
-            bucket_dirs.append('/' + bucket_obj['dir'])
+            bucket_dirs.append("/" + bucket_obj["dir"])
         duplicates = find_duplicate_paths(bucket_dirs)
         if len(duplicates) != 0:
-            raise CustomSourceInitializationError(f"There is duplicate dir in bucket dirs eg.({duplicates[0][0]},{duplicates[0][1]})")
+            raise CustomSourceInitializationError(
+                f"There is duplicate dir in bucket dirs eg.({duplicates[0][0]},{duplicates[0][1]})"
+            )
         buckets = {}
         for bucket_obj in self.bucket_objs:
             try:
-                bucket_name = bucket_obj['bucket']
+                bucket_name = bucket_obj["bucket"]
                 auth = oss2.Auth(self.access_key_id, self.access_key_secret)
                 bucket = oss2.Bucket(auth, endpoint=self.endpoint, bucket_name=bucket_name, connect_timeout=3)
                 bucket.get_bucket_info()
@@ -71,8 +72,8 @@ class OSSSource(Source):
 
     def scan_documents(self) -> Iterator[RemoteDocument]:
         for bucket_obj in self.bucket_objs:
-            bucket_name = bucket_obj['bucket']
-            file_path = bucket_obj['dir']
+            bucket_name = bucket_obj["bucket"]
+            file_path = bucket_obj["dir"]
             for obj in oss2.ObjectIterator(self.buckets[bucket_name], prefix=file_path):  # get file in given directory
                 try:
                     doc = RemoteDocument(
@@ -81,7 +82,7 @@ class OSSSource(Source):
                         metadata={
                             "modified_time": datetime.utcfromtimestamp(int(obj.last_modified)),
                             "bucket_name": bucket_name,
-                        }
+                        },
                     )
                     yield doc
                 except Exception as e:

@@ -68,12 +68,7 @@ class WeixinClient(ABC):
         """
         url = "https://qyapi.weixin.qq.com/cgi-bin/message/send"
         template_card = await self.build_template_card(message, task_id)
-        data = {
-            "touser": user,
-            "msgtype": "template_card",
-            "agentid": self.agentid,
-            "template_card": template_card
-        }
+        data = {"touser": user, "msgtype": "template_card", "agentid": self.agentid, "template_card": template_card}
 
         return await self.post(url, data)
 
@@ -89,7 +84,7 @@ class WeixinClient(ABC):
             "agentid": self.agentid,
             "response_code": response_code,
             "enable_id_trans": 1,
-            "template_card": template_card
+            "template_card": template_card,
         }
 
         return await self.post(url, data)
@@ -99,12 +94,7 @@ class WeixinClient(ABC):
         https://developer.work.weixin.qq.com/document/path/90245
         """
         url = "https://qyapi.weixin.qq.com/cgi-bin/appchat/create"
-        data = {
-            "name": name,
-            "owner": owner,
-            "userlist": userlist,
-            "chatid": chat_id
-        }
+        data = {"name": name, "owner": owner, "userlist": userlist, "chatid": chat_id}
 
         return await self.post(url, data)
 
@@ -118,7 +108,7 @@ class WeixinClient(ABC):
             "owner": owner,
             "add_user_list": add_userlist,
             "del_user_list": del_userlist,
-            "chatid": chat_id
+            "chatid": chat_id,
         }
 
         return await self.post(url, data)
@@ -128,12 +118,7 @@ class WeixinClient(ABC):
         https://developer.work.weixin.qq.com/document/path/90248
         """
         url = "https://qyapi.weixin.qq.com/cgi-bin/appchat/send"
-        data = {
-            "chatid": chat_id,
-            "msgtype": "text",
-            "text": {"content": messgae},
-            "safe": 0
-        }
+        data = {"chatid": chat_id, "msgtype": "text", "text": {"content": messgae}, "safe": 0}
 
         return await self.post(url, data)
 
@@ -161,51 +146,34 @@ class WeixinClient(ABC):
             "source": {
                 "icon_url": "https://cdn.kubeblocks.com/img/apecloud/favicon.png",
                 "desc": "ApeRAG",
-                "desc_color": 1
+                "desc_color": 1,
             },
             "action_menu": {
                 "desc": "对此回答是否满意",
-                "action_list": [
-                    {"text": "满意", "key": "1"},
-                    {"text": "不满意", "key": "0"}
-                ]
+                "action_list": [{"text": "满意", "key": "1"}, {"text": "不满意", "key": "0"}],
             },
-            "main_title": {
-                "title": "欢迎使用 ApeRAG",
-                "desc": "ApeRAG 是一款企业级智能知识库"
-            },
+            "main_title": {"title": "欢迎使用 ApeRAG", "desc": "ApeRAG 是一款企业级智能知识库"},
             "sub_title_text": message,
             "horizontal_content_list": [],
             "jump_list": [],
-            "card_action": {
-                "type": 1,
-                "url": "https://chat.kubeblocks.io"
-            }
+            "card_action": {"type": 1, "url": "https://chat.kubeblocks.io"},
         }
         if not update:
             template_card.update({"task_id": task_id})
         else:
             if vote is None:
-                template_card.update(
-                    {
-                        "horizontal_content_list":
-                            [{
-                                "keyname": "评价",
-                                "value": "点击右上角可对本次回答进行评价"
-                            }]
-                    }
-                )
+                template_card.update({
+                    "horizontal_content_list": [{"keyname": "评价", "value": "点击右上角可对本次回答进行评价"}]
+                })
             else:
-                template_card.update(
-                    {
-                        "horizontal_content_list":
-                            [{
-                                "keyname": "评价",
-                                "value": "感谢您对本次回答的认可" if vote == 1
-                                else "感谢您的反馈，我们会努力改进的"
-                            }]
-                    }
-                )
+                template_card.update({
+                    "horizontal_content_list": [
+                        {
+                            "keyname": "评价",
+                            "value": "感谢您对本次回答的认可" if vote == 1 else "感谢您的反馈，我们会努力改进的",
+                        }
+                    ]
+                })
 
         return template_card
 

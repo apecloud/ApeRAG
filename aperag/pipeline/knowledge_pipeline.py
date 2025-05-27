@@ -16,22 +16,21 @@ import asyncio
 import json
 import logging
 import random
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 
 from langchain_core.prompts import PromptTemplate
 
 from aperag.context.context import ContextManager
 from aperag.context.full_text import search_document
+from aperag.embed.base_embedding import get_collection_embedding_service
 from aperag.llm.prompts import (
     DEFAULT_CHINESE_PROMPT_TEMPLATE_V3,
-    DEFAULT_MODEL_MEMOTY_PROMPT_TEMPLATES,
     DEFAULT_KG_VECTOR_MIX_ENGLISH_PROMPT_TEMPLATE,
+    DEFAULT_MODEL_MEMOTY_PROMPT_TEMPLATES,
 )
-from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES, RELATED_QUESTIONS, \
-    Message, Pipeline, DOCUMENT_URLS
+from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES, DOCUMENT_URLS, RELATED_QUESTIONS, Message, Pipeline
 from aperag.pipeline.keyword_extractor import IKExtractor
 from aperag.query.query import DocumentWithScore, get_packed_answer
-from aperag.embed.base_embedding import get_collection_embedding_service
 from aperag.rank.reranker import rerank
 from aperag.schema.utils import parseCollectionConfig
 from aperag.source.utils import async_run
@@ -41,14 +40,12 @@ from aperag.utils.utils import (
     generate_vector_db_collection_name,
     now_unix_milliseconds,
 )
-from aperag.db.ops import query_msp_dict
 from config import settings
 
 logger = logging.getLogger(__name__)
 
 
 class KnowledgePipeline(Pipeline):
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -69,7 +66,9 @@ class KnowledgePipeline(Pipeline):
 
         if not self.prompt_template:
             if settings.RETRIEVE_MODE == "classic":
-                self.prompt_template = DEFAULT_MODEL_MEMOTY_PROMPT_TEMPLATES.get(self.model, DEFAULT_CHINESE_PROMPT_TEMPLATE_V3)
+                self.prompt_template = DEFAULT_MODEL_MEMOTY_PROMPT_TEMPLATES.get(
+                    self.model, DEFAULT_CHINESE_PROMPT_TEMPLATE_V3
+                )
             else:
                 self.prompt_template = DEFAULT_KG_VECTOR_MIX_ENGLISH_PROMPT_TEMPLATE
         self.prompt = PromptTemplate(template=self.prompt_template, input_variables=["query", "context"])
@@ -78,10 +77,12 @@ class KnowledgePipeline(Pipeline):
         await super().ainit()
         self.embedding_model, self.vector_size = await get_collection_embedding_service(self.collection)
 
-        self.context_manager = ContextManager(self.collection_name, self.embedding_model, settings.VECTOR_DB_TYPE,
-                                              self.vectordb_ctx)
-        self.qa_context_manager = ContextManager(self.qa_collection_name, self.embedding_model, settings.VECTOR_DB_TYPE,
-                                                 self.qa_vectordb_ctx)
+        self.context_manager = ContextManager(
+            self.collection_name, self.embedding_model, settings.VECTOR_DB_TYPE, self.vectordb_ctx
+        )
+        self.qa_context_manager = ContextManager(
+            self.qa_collection_name, self.embedding_model, settings.VECTOR_DB_TYPE, self.qa_vectordb_ctx
+        )
 
     async def new_ai_message(self, message, message_id, response, references, urls):
         return Message(
@@ -125,7 +126,9 @@ class KnowledgePipeline(Pipeline):
             result.append(item)
         return result
 
-    async def build_context(self, query_with_history: str, vector: List[float], log_prefix: str) -> Tuple[str, List[DocumentWithScore]]:
+    async def build_context(
+        self, query_with_history: str, vector: List[float], log_prefix: str
+    ) -> Tuple[str, List[DocumentWithScore]]:
         vector_context = None
         kg_context = None
         candidates = []
@@ -148,34 +151,43 @@ class KnowledgePipeline(Pipeline):
             """.strip()
             return context, candidates
 
-    async def _run_classic_rag(self, query_with_history: str, vector: List[float], log_prefix: str) -> Tuple[str, List[DocumentWithScore]]:
+    async def _run_classic_rag(
+        self, query_with_history: str, vector: List[float], log_prefix: str
+    ) -> Tuple[str, List[DocumentWithScore]]:
         """
         Executes the standard RAG pipeline: vector search, rerank, keyword filtering, context packing.
         Returns the packed context string and the list of candidate documents.
         """
         logger.info("[%s] Running standard RAG pipeline", log_prefix)
-        results = await async_run(self.context_manager.query, query_with_history,
-                                  score_threshold=self.score_threshold, topk=self.topk * 6, vector=vector)
+        results = await async_run(
+            self.context_manager.query,
+            query_with_history,
+            score_threshold=self.score_threshold,
+            topk=self.topk * 6,
+            vector=vector,
+        )
         logger.info("[%s] Found %d relevant documents in vector db", log_prefix, len(results))
 
         if self.bot_context != "":
             bot_context_result = DocumentWithScore(
                 text=self.bot_context,  # type: ignore
                 score=0,  # Use score 0 to easily identify and filter later if needed
-                metadata={} # Add empty metadata
+                metadata={},  # Add empty metadata
             )
             results.append(bot_context_result)
 
         if len(results) > 1:
-            results = await rerank(query_with_history, results) # Use query_with_history for reranking
+            results = await rerank(query_with_history, results)  # Use query_with_history for reranking
             logger.info("[%s] Reranked %d candidates", log_prefix, len(results))
         else:
             logger.info("[%s] No need to rerank (candidates <= 1)", log_prefix)
 
-        candidates = results[:self.topk]
+        candidates = results[: self.topk]
 
         if self.enable_keyword_recall:
-            candidates = await self.filter_by_keywords(query_with_history.split('\n')[-1], candidates) # Use original message for keywords
+            candidates = await self.filter_by_keywords(
+                query_with_history.split("\n")[-1], candidates
+            )  # Use original message for keywords
             logger.info("[%s] Filtered candidates by keyword, %d remaining", log_prefix, len(candidates))
         else:
             logger.info("[%s] Keyword filtering disabled", log_prefix)
@@ -193,12 +205,13 @@ class KnowledgePipeline(Pipeline):
 
     async def _run_light_rag(self, query_with_history: str, log_prefix: str) -> Optional[str]:
         logger.info("[%s] Running LightRAG pipeline", log_prefix)
-        from aperag.graph import lightrag_holder
         from lightrag import QueryParam
+
+        from aperag.graph import lightrag_holder
         from aperag.graph.lightrag_holder import LightRagHolder
 
         rag: LightRagHolder = await lightrag_holder.get_lightrag_holder(self.collection)
-        param : QueryParam = QueryParam(
+        param: QueryParam = QueryParam(
             mode="hybrid",
             only_need_context=True,
             top_k=self.topk,
@@ -216,7 +229,7 @@ class KnowledgePipeline(Pipeline):
         document_url_list = []
         document_url_set = set()
         context = ""
-        candidates = [] # Keep track of candidates for references/URLs
+        candidates = []  # Keep track of candidates for references/URLs
         related_question_task = None
         need_generate_answer = True
         need_related_question = True
@@ -225,34 +238,37 @@ class KnowledgePipeline(Pipeline):
             messages = await self.history.messages
         else:
             messages = []
-        history_querys = [json.loads(msg.content)["query"] for msg in messages if msg.additional_kwargs.get("role") == "human"]
-        tot_history_querys = '\n'.join(history_querys[-self.memory_limit_count:]) + '\n' if self.memory else ''
+        history_querys = [
+            json.loads(msg.content)["query"] for msg in messages if msg.additional_kwargs.get("role") == "human"
+        ]
+        tot_history_querys = "\n".join(history_querys[-self.memory_limit_count :]) + "\n" if self.memory else ""
         query_with_history = tot_history_querys + message
 
         # --- 2. QA Cache Check (Optional Shortcut) ---
         logger.info("[%s] Checking QA cache", log_prefix)
-        vector = self.embedding_model.embed_query(query_with_history) # Embedding needed for QA cache and standard RAG
+        vector = self.embedding_model.embed_query(query_with_history)  # Embedding needed for QA cache and standard RAG
         logger.info("[%s] Query embedded", log_prefix)
-        qa_results = await async_run(self.qa_context_manager.query, query_with_history, score_threshold=0.5, topk=6, vector=vector)
+        qa_results = await async_run(
+            self.qa_context_manager.query, query_with_history, score_threshold=0.5, topk=6, vector=vector
+        )
         logger.info("[%s] QA cache query returned %d results", log_prefix, len(qa_results))
 
         cached_answer_found = False
         for result in qa_results:
             try:
                 result_text = json.loads(result.text)
-                if result_text.get("answer") and result.score > 0.9: # High confidence match
+                if result_text.get("answer") and result.score > 0.9:  # High confidence match
                     response = result_text["answer"]
-                    context = response # Use cached answer as context for related questions
+                    context = response  # Use cached answer as context for related questions
                     cached_answer_found = True
-                    need_generate_answer = False # No need to call LLM
+                    need_generate_answer = False  # No need to call LLM
                     logger.info("[%s] Found high-confidence answer in QA cache.", log_prefix)
-                    yield response # Start yielding cached answer
-                    break # Stop after finding one good answer
-                elif result.score >= 0.8: # Add potential related questions from cache
-                     related_questions.add(result_text["question"])
+                    yield response  # Start yielding cached answer
+                    break  # Stop after finding one good answer
+                elif result.score >= 0.8:  # Add potential related questions from cache
+                    related_questions.add(result_text["question"])
             except (json.JSONDecodeError, KeyError) as e:
-                 logger.warning("[%s] Failed to parse QA cache result: %s, error: %s", log_prefix, result.text, e)
-
+                logger.warning("[%s] Failed to parse QA cache result: %s, error: %s", log_prefix, result.text, e)
 
         # --- 3. Main RAG Processing (if no QA cache hit) ---
         if not cached_answer_found:
@@ -272,39 +288,52 @@ class KnowledgePipeline(Pipeline):
                     related_questions.update(self.welcome_question)
                     logger.info("[%s] Adding welcome questions as related questions.", log_prefix)
 
-
         # --- 4. Generate Related Questions (if enabled) ---
         if self.use_related_question and need_related_question:
             # Only start the task if we have some context (either from cache or RAG) or no context but welcome questions
             if context or (not context and self.welcome_question):
-                 # Check if we already have enough related questions from QA cache or welcome questions
-                 if len(related_questions) < 3:
-                    related_question_prompt_context = context if context else "No context found." # Provide some context even if empty
-                    related_question_prompt = self.related_question_prompt.format(query=message, context=related_question_prompt_context)
+                # Check if we already have enough related questions from QA cache or welcome questions
+                if len(related_questions) < 3:
+                    related_question_prompt_context = (
+                        context if context else "No context found."
+                    )  # Provide some context even if empty
+                    related_question_prompt = self.related_question_prompt.format(
+                        query=message, context=related_question_prompt_context
+                    )
                     related_question_task = asyncio.create_task(self.generate_related_question(related_question_prompt))
                     logger.info("[%s] Created related question generation task.", log_prefix)
-                 else:
-                    logger.info("[%s] Skipping related question generation task (already have %d).", log_prefix, len(related_questions))
+                else:
+                    logger.info(
+                        "[%s] Skipping related question generation task (already have %d).",
+                        log_prefix,
+                        len(related_questions),
+                    )
             else:
-                logger.info("[%s] Skipping related question generation task (no context and no welcome questions).", log_prefix)
-
+                logger.info(
+                    "[%s] Skipping related question generation task (no context and no welcome questions).", log_prefix
+                )
 
         # --- 5. Generate LLM Answer (if needed) ---
         if need_generate_answer:
             logger.info("[%s] Generating LLM answer.", log_prefix)
             history = []
             if self.memory and len(messages) > 0:
-                history_context_allowance = max(min(self.context_window - 500 - len(context), self.memory_limit_length), 0)
+                history_context_allowance = max(
+                    min(self.context_window - 500 - len(context), self.memory_limit_length), 0
+                )
                 history = self.predictor.get_latest_history(
                     messages=messages,
                     limit_length=history_context_allowance,
                     limit_count=self.memory_limit_count,
-                    use_ai_memory=self.use_ai_memory)
+                    use_ai_memory=self.use_ai_memory,
+                )
                 self.memory_count = len(history)
                 logger.info("[%s] Prepared %d history entries for LLM.", log_prefix, len(history))
 
             prompt = self.prompt.format(query=message, context=context)
-            logger.debug("[%s] Final prompt for LLM:\n%s", log_prefix, prompt) # Use debug level for potentially long prompts
+            logger.debug(
+                "[%s] Final prompt for LLM:\n%s", log_prefix, prompt
+            )  # Use debug level for potentially long prompts
 
             async for msg_chunk in self.predictor.agenerate_stream(history, prompt, self.memory):
                 yield msg_chunk
@@ -316,11 +345,7 @@ class KnowledgePipeline(Pipeline):
                 # Filter out bot_context placeholder if it exists and wasn't filtered earlier
                 if result.score == 0 and result.text == self.bot_context:
                     continue
-                references.append({
-                    "score": result.score,
-                    "text": result.text,
-                    "metadata": result.metadata
-                })
+                references.append({"score": result.score, "text": result.text, "metadata": result.metadata})
                 url = result.metadata.get("url")
                 if url and url not in document_url_set:
                     document_url_set.add(url)
@@ -343,7 +368,7 @@ class KnowledgePipeline(Pipeline):
                     generated_questions = await related_question_task
                     logger.info("[%s] Related question generation task finished.", log_prefix)
                     # Avoid duplicates and filter out recent history
-                    history_querys.append(message) # Add current message to history for filtering
+                    history_querys.append(message)  # Add current message to history for filtering
                     recent_queries = set(history_querys[-5:])
                     for q in generated_questions:
                         if q not in final_related_questions and q not in recent_queries:

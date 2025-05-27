@@ -1,10 +1,10 @@
-import asyncio
 import base64
 import hashlib
 import hmac
-import json
 import logging
+
 import requests
+
 from aperag.apps import QuotaType
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import check_quota_usage, get_async_redis_client, manage_quota_usage
@@ -14,13 +14,15 @@ from aperag.pipeline.knowledge_pipeline import create_knowledge_pipeline
 
 logger = logging.getLogger(__name__)
 
+
 def validate_sign(timestamp, client_secret, request_sign):
-    client_secret_enc = client_secret.encode('utf-8')
-    string_to_sign = '{}\n{}'.format(timestamp, client_secret)
-    string_to_sign_enc = string_to_sign.encode('utf-8')
+    client_secret_enc = client_secret.encode("utf-8")
+    string_to_sign = "{}\n{}".format(timestamp, client_secret)
+    string_to_sign_enc = string_to_sign.encode("utf-8")
     hmac_code = hmac.new(client_secret_enc, string_to_sign_enc, digestmod=hashlib.sha256).digest()
-    sign = base64.b64encode(hmac_code).decode('utf-8')
+    sign = base64.b64encode(hmac_code).decode("utf-8")
     return sign == request_sign
+
 
 async def dingtalk_text_response(user, bot, query, msg_id, sender_id, session_webhook):
     chat_id = user
@@ -44,7 +46,7 @@ async def dingtalk_text_response(user, bot, query, msg_id, sender_id, session_we
             response += msg
         max_length = 2048
         for i in range(0, len(response), max_length):
-            message = response[i:i + max_length]
+            message = response[i : i + max_length]
             await notify_dingding(query, message, webhook=session_webhook, sender_id=sender_id)
     except Exception as e:
         logger.exception(e)
@@ -52,16 +54,12 @@ async def dingtalk_text_response(user, bot, query, msg_id, sender_id, session_we
         if trial and conversation_limit:
             await manage_quota_usage(bot.user, conversation_limit)
 
+
 async def notify_dingding(question, answer, webhook, sender_id):
     data = {
         "msgtype": "text",
-        "at": {
-            "atUserIds": [f"{sender_id}"],
-            "isAtAll": False
-        },
-        "text": {
-            "content": f"Q:{question}\nA:{answer}"
-        }
+        "at": {"atUserIds": [f"{sender_id}"], "isAtAll": False},
+        "text": {"content": f"Q:{question}\nA:{answer}"},
     }
     try:
         r = requests.post(webhook, json=data)
@@ -70,15 +68,12 @@ async def notify_dingding(question, answer, webhook, sender_id):
     except Exception as e:
         logger.error(e)
 
+
 async def send_message(msg, webhook, sender_id):
-    data = {
-        "msgtype": "text",
-        "text": {"content": f"{msg}"},
-        "at": {"atUserIds": [sender_id], "isAtAll": False}
-    }
+    data = {"msgtype": "text", "text": {"content": f"{msg}"}, "at": {"atUserIds": [sender_id], "isAtAll": False}}
     try:
         r = requests.post(webhook, json=data)
         reply = r.json()
         logger.info("dingding: " + str(reply))
     except Exception as e:
-        logger.error(e) 
+        logger.error(e)

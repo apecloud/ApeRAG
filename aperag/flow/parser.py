@@ -1,9 +1,11 @@
+from typing import Any, Dict
+
 import yaml
-from typing import Dict, Any
-from aperag.flow.base.models import (
-    FlowInstance, NodeInstance, Edge
-)
+
+from aperag.flow.base.models import Edge, FlowInstance, NodeInstance
+
 from .base.exceptions import ValidationError
+
 
 class FlowParser:
     """Parser for flow configuration in YAML format"""
@@ -59,19 +61,16 @@ class FlowParser:
     @staticmethod
     def _parse_edge(edge_data: Dict[str, Any]) -> Edge:
         """Parse an edge definition"""
-        return Edge(
-            source=edge_data["source"],
-            target=edge_data["target"]
-        )
+        return Edge(source=edge_data["source"], target=edge_data["target"])
 
     @staticmethod
     def load_from_file(file_path: str) -> FlowInstance:
         """Load flow configuration from a file"""
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 yaml_content = f.read()
             return FlowParser.parse_yaml(yaml_content)
         except FileNotFoundError:
             raise ValidationError(f"Flow configuration file not found: {file_path}")
         except Exception as e:
-            raise ValidationError(f"Error loading flow configuration: {str(e)}") 
+            raise ValidationError(f"Error loading flow configuration: {str(e)}")

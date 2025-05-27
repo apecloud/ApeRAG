@@ -23,7 +23,7 @@ from django.utils import timezone
 
 def random_id():
     """Generate a random ID string"""
-    return ''.join(random.sample(uuid.uuid4().hex, 16))
+    return "".join(random.sample(uuid.uuid4().hex, 16))
 
 
 class Collection(models.Model):
@@ -60,8 +60,11 @@ class Collection(models.Model):
     async def bots(self, only_ids=False):
         """Get all active bots related to this collection"""
         from aperag.db import models as db_models
+
         result = []
-        async for rel in db_models.BotCollectionRelation.objects.filter(collection_id=self.id, gmt_deleted__isnull=True).all():
+        async for rel in db_models.BotCollectionRelation.objects.filter(
+            collection_id=self.id, gmt_deleted__isnull=True
+        ).all():
             if only_ids:
                 result.append(rel.bot_id)
             else:
@@ -97,12 +100,12 @@ class Document(models.Model):
     config = models.TextField(null=True)
     collection_id = models.CharField(max_length=24, null=True)
     status = models.CharField(max_length=16, choices=Status.choices)
-    
+
     # Independent index status fields for different index types
     vector_index_status = models.CharField(max_length=16, choices=IndexStatus.choices, default=IndexStatus.PENDING)
     fulltext_index_status = models.CharField(max_length=16, choices=IndexStatus.choices, default=IndexStatus.PENDING)
     graph_index_status = models.CharField(max_length=16, choices=IndexStatus.choices, default=IndexStatus.PENDING)
-    
+
     size = models.BigIntegerField()
     object_path = models.CharField(max_length=1024, null=True)
     relate_ids = models.TextField()
@@ -112,18 +115,16 @@ class Document(models.Model):
     gmt_deleted = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        unique_together = ('collection_id', 'name')
+        unique_together = ("collection_id", "name")
 
     def object_store_base_path(self) -> str:
         user = self.user.replace("|", "-")
-        return "user-{0}/{1}/{2}".format(
-            user, self.collection_id, self.id
-        )
+        return "user-{0}/{1}/{2}".format(user, self.collection_id, self.id)
 
     def get_overall_status(self):
         """Calculate overall status based on individual index statuses"""
         index_statuses = [self.vector_index_status, self.fulltext_index_status, self.graph_index_status]
-        
+
         # If any index failed, overall status is failed
         if any(status == self.IndexStatus.FAILED for status in index_statuses):
             return self.Status.FAILED
@@ -190,6 +191,7 @@ class Bot(models.Model):
     async def collections(self, only_ids=False):
         """Get all active collections related to this bot"""
         from aperag.db import models as db_models
+
         result = []
         async for rel in db_models.BotCollectionRelation.objects.filter(bot_id=self.id, gmt_deleted__isnull=True).all():
             if only_ids:
@@ -211,7 +213,7 @@ class BotCollectionRelation(models.Model):
             models.UniqueConstraint(
                 fields=["bot_id", "collection_id"],
                 condition=models.Q(gmt_deleted__isnull=True),
-                name="unique_active_bot_collection"
+                name="unique_active_bot_collection",
             )
         ]
 
@@ -263,7 +265,7 @@ class Chat(models.Model):
     gmt_deleted = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        unique_together = ('bot_id', 'peer_type', 'peer_id')
+        unique_together = ("bot_id", "peer_type", "peer_id")
 
     async def get_bot(self):
         """Get the associated bot object"""
@@ -321,7 +323,7 @@ class MessageFeedback(models.Model):
     gmt_deleted = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        unique_together = ('chat_id', 'message_id')
+        unique_together = ("chat_id", "message_id")
 
     async def get_collection(self):
         """Get the associated collection object"""
@@ -417,7 +419,7 @@ class ApiKey(models.Model):
     @staticmethod
     def generate_id():
         """Generate a random ID for API key"""
-        return ''.join(random.sample(uuid.uuid4().hex, 12))
+        return "".join(random.sample(uuid.uuid4().hex, 12))
 
     @staticmethod
     def generate_key():
@@ -464,7 +466,9 @@ class CollectionSyncHistory(models.Model):
     execution_time = models.DurationField(null=True)
     start_time = models.DateTimeField()
     task_context = models.JSONField(default=dict)
-    status = models.CharField(max_length=16, choices=Collection.SyncStatus.choices, default=Collection.SyncStatus.RUNNING)
+    status = models.CharField(
+        max_length=16, choices=Collection.SyncStatus.choices, default=Collection.SyncStatus.RUNNING
+    )
     gmt_created = models.DateTimeField(auto_now_add=True, null=True)
     gmt_updated = models.DateTimeField(auto_now=True, null=True)
     gmt_deleted = models.DateTimeField(null=True, blank=True)
@@ -534,15 +538,17 @@ class Role(models.TextChoices):
 
 class User(AbstractUser):
     """Custom user model that extends AbstractUser"""
+
     email = models.EmailField(unique=True, blank=True, null=True)
     role = models.CharField(max_length=16, choices=Role.choices, default=Role.RO)
 
     class Meta:
-        app_label = 'aperag'  # Set app_label to 'aperag' since we're using AUTH_USER_MODEL = 'aperag.User'
+        app_label = "aperag"  # Set app_label to 'aperag' since we're using AUTH_USER_MODEL = 'aperag.User'
 
 
 class Invitation(models.Model):
     """Invitation model for user registration"""
+
     @staticmethod
     def generate_id():
         """Generate a random ID for invitation"""
@@ -559,7 +565,7 @@ class Invitation(models.Model):
     role = models.CharField(max_length=16, choices=Role.choices, default=Role.RO)
 
     class Meta:
-        app_label = 'aperag'
+        app_label = "aperag"
 
     async def asave(self, *args, **kwargs):
         if not self.expires_at:

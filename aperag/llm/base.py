@@ -15,13 +15,9 @@
 import json
 import logging
 from abc import ABC, abstractmethod
-from enum import Enum
-
-import yaml
-
-from config import settings
 
 logger = logging.getLogger(__name__)
+
 
 class LLMConfigError(Exception):
     """
@@ -36,7 +32,6 @@ class LLMAPIError(Exception):
 
 
 class Predictor(ABC):
-
     def __init__(self, **kwargs):
         self.max_tokens = kwargs.get("max_tokens", 4096)
         self.temperature = kwargs.get("temperature", 0.1)
@@ -58,9 +53,11 @@ class Predictor(ABC):
 
         if model_service_provider == "alibabacloud":
             from aperag.llm.qianwen import QianWenPredictor
+
             return QianWenPredictor
 
         from aperag.llm.completion_service import CompletionService
+
         return CompletionService
 
     @staticmethod
@@ -92,4 +89,3 @@ class Predictor(ABC):
             latest_history = latest_history[:-1]
 
         return latest_history[::-1]
-

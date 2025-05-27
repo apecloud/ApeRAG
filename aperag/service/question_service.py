@@ -1,13 +1,16 @@
 from http import HTTPStatus
+
 from asgiref.sync import sync_to_async
-from django.utils import timezone
-from aperag.db import models as db_models
-from aperag.schema.view_models import Question, QuestionList
-from aperag.views.utils import fail, success
-from aperag.db.ops import PagedQuery, query_collection, query_question, query_questions, query_document
-from aperag.tasks.index import generate_questions, update_collection_status, update_index_for_question
 from celery import chain, group
+from django.utils import timezone
+
+from aperag.db import models as db_models
+from aperag.db.ops import PagedQuery, query_collection, query_document, query_question, query_questions
 from aperag.schema import view_models
+from aperag.schema.view_models import Question, QuestionList
+from aperag.tasks.index import generate_questions, update_collection_status, update_index_for_question
+from aperag.views.utils import fail, success
+
 
 async def create_questions(user: str, collection_id: str) -> view_models.Question:
     collection = await query_collection(user, collection_id)
@@ -26,7 +29,10 @@ async def create_questions(user: str, collection_id: str) -> view_models.Questio
     callback_chain.delay()
     return success({})
 
-async def update_question(user: str, collection_id: str, question_in: view_models.QuestionUpdate) -> view_models.Question:
+
+async def update_question(
+    user: str, collection_id: str, question_in: view_models.QuestionUpdate
+) -> view_models.Question:
     collection = await query_collection(user, collection_id)
     if collection is None:
         return fail(HTTPStatus.NOT_FOUND, "Collection not found")
@@ -55,12 +61,15 @@ async def update_question(user: str, collection_id: str, question_in: view_model
         question_in.relate_documents = []
     await question_instance.asave()
     update_index_for_question.delay(question_instance.id)
-    return success(Question(
-        id=question_instance.id,
-        question=question_instance.question,
-        answer=question_instance.answer,
-        relate_documents=question_in.relate_documents,
-    ))
+    return success(
+        Question(
+            id=question_instance.id,
+            question=question_instance.question,
+            answer=question_instance.answer,
+            relate_documents=question_in.relate_documents,
+        )
+    )
+
 
 async def delete_question(user: str, collection_id: str, question_id: str) -> view_models.Question:
     question = await query_question(user, question_id)
@@ -74,24 +83,30 @@ async def delete_question(user: str, collection_id: str, question_id: str) -> vi
     doc_ids = []
     async for doc in docs:
         doc_ids.append(doc.id)
-    return success(Question(
-        id=question.id,
-        question=question.question,
-        answer=question.answer,
-        relate_documents=doc_ids,
-    ))
+    return success(
+        Question(
+            id=question.id,
+            question=question.question,
+            answer=question.answer,
+            relate_documents=doc_ids,
+        )
+    )
+
 
 async def list_questions(user: str, collection_id: str, pq: PagedQuery) -> view_models.QuestionList:
     pr = await query_questions(user, collection_id, pq)
     response = []
     async for question in pr.data:
-        response.append(Question(
-            id=question.id,
-            question=question.question,
-            answer=question.answer,
-            relate_documents=question.documents,
-        ))
+        response.append(
+            Question(
+                id=question.id,
+                question=question.question,
+                answer=question.answer,
+                relate_documents=question.documents,
+            )
+        )
     return success(QuestionList(items=response), pr=pr)
+
 
 async def get_question(user: str, collection_id: str, question_id: str) -> view_models.Question:
     question = await query_question(user, question_id)
@@ -99,9 +114,11 @@ async def get_question(user: str, collection_id: str, question_id: str) -> view_
     doc_ids = []
     async for doc in docs:
         doc_ids.append(doc.id)
-    return success(Question(
-        id=question.id,
-        question=question.question,
-        answer=question.answer,
-        relate_documents=doc_ids,
-    )) 
+    return success(
+        Question(
+            id=question.id,
+            question=question.question,
+            answer=question.answer,
+            relate_documents=doc_ids,
+        )
+    )

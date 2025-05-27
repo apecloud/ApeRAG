@@ -26,6 +26,4 @@ class MilvusVectorStoreConnector(VectorStoreConnector):
         # be careful that connections is a single instance in pymilvus
         self.client = connections
         self.embedding = ctx.get("embedding", google.GoogleUnivSentEncoderEmbedding)
-        self.store = MilvusVectorStore(
-            client=self.client, collection_name=self.collection_name
-        )
+        self.store = MilvusVectorStore(client=self.client, collection_name=self.collection_name)

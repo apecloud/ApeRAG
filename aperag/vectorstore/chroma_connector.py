@@ -43,6 +43,4 @@ class ChromaVectorStoreConnector(VectorStoreConnector):
             )
 
         self.embedding = ctx.get("embedding", google.GoogleUnivSentEncoderEmbedding)
-        self.store = ChromaVectorStore(
-            client=self.client, chroma_collection=self.collection_name
-        )
+        self.store = ChromaVectorStore(client=self.client, chroma_collection=self.collection_name)

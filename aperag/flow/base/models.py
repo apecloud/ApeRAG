@@ -1,13 +1,15 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Dict, List, Set, Any, Optional
-from datetime import datetime
 from collections import deque
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
+
 from aperag.flow.base.exceptions import CycleError
+
 
 @dataclass
 class NodeInstance:
-    """Instance of a node in the flow """
+    """Instance of a node in the flow"""
+
     id: str
     type: str  # NodeDefinition.type
     input_schema: dict = field(default_factory=dict)
@@ -15,15 +17,19 @@ class NodeInstance:
     output_schema: dict = field(default_factory=dict)
     title: Optional[str] = None
 
+
 @dataclass
 class Edge:
     """Connection between nodes in the flow"""
+
     source: str
     target: str
+
 
 @dataclass
 class FlowInstance:
     """Instance of a flow with nodes and edges"""
+
     name: str
     title: str
     nodes: Dict[str, NodeInstance]
@@ -39,7 +45,7 @@ class FlowInstance:
         in_degree = {node_id: 0 for node_id in self.nodes}
         for edge in self.edges:
             in_degree[edge.target] += 1
-        
+
         # Topological sort
         queue = deque([node_id for node_id, degree in in_degree.items() if degree == 0])
         if len(queue) == 0:
@@ -50,7 +56,7 @@ class FlowInstance:
         while queue:
             node_id = queue.popleft()
             sorted_nodes.append(node_id)
-            
+
             # Update in-degree of successor nodes
             for edge in self.edges:
                 if edge.source == node_id:
@@ -63,9 +69,11 @@ class FlowInstance:
 
         return sorted_nodes
 
+
 @dataclass
 class ExecutionContext:
     """Context for flow execution, storing outputs and global state"""
+
     outputs: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     global_variables: Dict[str, Any] = field(default_factory=dict)
 
@@ -85,16 +93,19 @@ class ExecutionContext:
         """Set global variable value"""
         self.global_variables[name] = value
 
+
 NODE_RUNNER_REGISTRY = {}
 
-class BaseNodeRunner(ABC):
 
+class BaseNodeRunner(ABC):
     @abstractmethod
     async def run(self, node: NodeInstance, inputs: Dict[str, Any]):
         raise NotImplementedError
+
 
 def register_node_runner(node_type: str):
     def decorator(cls):
         NODE_RUNNER_REGISTRY[node_type] = cls()
         return cls
+
     return decorator

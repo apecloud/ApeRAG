@@ -19,10 +19,10 @@ from asgiref.sync import async_to_sync
 from django.core.management.base import BaseCommand, CommandError
 from django.http import HttpRequest
 
-from config import settings
+from aperag.schema.view_models import CollectionCreate
 from aperag.utils.constant import KEY_USER_ID
 from aperag.views.main import create_collection
-from aperag.schema.view_models import CollectionCreate
+from config import settings
 
 
 class Command(BaseCommand):
@@ -41,14 +41,10 @@ class Command(BaseCommand):
         request.META = {
             KEY_USER_ID: settings.ADMIN_USER,
         }
-        config = {
-            "source": "system"
-        }
+        config = {"source": "system"}
         data = CollectionCreate(type="document", title=title, description=description, config=json.dumps(config))
         response = async_to_sync(create_collection)(request, data)
         if int(response["code"]) != HTTPStatus.OK:
-            raise CommandError('Failed to create collection: %s' % response.get("message", "unknown error"))
+            raise CommandError("Failed to create collection: %s" % response.get("message", "unknown error"))
         else:
-            self.stdout.write(
-                self.style.SUCCESS('Successfully created collection %s' % response["data"]["id"])
-            )
+            self.stdout.write(self.style.SUCCESS("Successfully created collection %s" % response["data"]["id"]))

@@ -19,7 +19,6 @@ from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
 
 
 class ContextManager(ABC):
-
     def __init__(self, collection_name, embedding_model, vectordb_type, vectordb_ctx):
         self.collection_name = collection_name
         self.embedding_model = embedding_model

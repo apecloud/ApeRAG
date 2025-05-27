@@ -37,8 +37,7 @@ from aperag.chat.utils import (
     welcome_response,
 )
 from aperag.db.ops import query_bot, query_user_quota
-from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES, RELATED_QUESTIONS, \
-    DOCUMENT_URLS
+from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES, DOCUMENT_URLS, RELATED_QUESTIONS
 from aperag.utils.constant import KEY_BOT_ID, KEY_CHAT_ID, KEY_USER_ID, KEY_WEBSOCKET_PROTOCOL
 from aperag.utils.utils import now_unix_milliseconds
 
@@ -88,7 +87,7 @@ class BaseConsumer(AsyncWebsocketConsumer):
         message_id = f"{now_unix_milliseconds()}"
         bot_config = json.loads(self.bot.config)
         self.related_question_prompt = bot_config.get("related_question_prompt", "")
-        
+
         welcome = bot_config.get("welcome", {})
         faq = welcome.get("faq", [])
         questions = []
@@ -114,7 +113,7 @@ class BaseConsumer(AsyncWebsocketConsumer):
         if self.msg_type == "bot_context":
             await self.pipeline.update_bot_context(data["data"])
             return
-        
+
         self.response_type = "message"
 
         message = ""
@@ -135,13 +134,13 @@ class BaseConsumer(AsyncWebsocketConsumer):
 
             async for tokens in self.predict(data["data"], message_id=message_id):
                 if tokens.startswith(DOC_QA_REFERENCES):
-                    references = json.loads(tokens[len(DOC_QA_REFERENCES):])
+                    references = json.loads(tokens[len(DOC_QA_REFERENCES) :])
                     continue
                 if tokens.startswith(RELATED_QUESTIONS):
-                    related_question = ast.literal_eval(tokens[len(RELATED_QUESTIONS):])
+                    related_question = ast.literal_eval(tokens[len(RELATED_QUESTIONS) :])
                     continue
                 if tokens.startswith(DOCUMENT_URLS):
-                    urls = ast.literal_eval(tokens[len(DOCUMENT_URLS):])
+                    urls = ast.literal_eval(tokens[len(DOCUMENT_URLS) :])
                     continue
 
                 # streaming response
@@ -160,7 +159,13 @@ class BaseConsumer(AsyncWebsocketConsumer):
             if self.free_tier and self.conversation_limit:
                 await manage_quota_usage(self.user, self.conversation_limit)
             # send stop message
-            await self.send(text_data=stop_response(message_id, references, related_question,
-                                                    self.related_question_prompt, self.pipeline.memory_count if self.pipeline else 0, urls=urls))
-
-
+            await self.send(
+                text_data=stop_response(
+                    message_id,
+                    references,
+                    related_question,
+                    self.related_question_prompt,
+                    self.pipeline.memory_count if self.pipeline else 0,
+                    urls=urls,
+                )
+            )

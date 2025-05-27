@@ -1,16 +1,13 @@
 import asyncio
 import logging
-import os
 from datetime import datetime
-from typing import Optional, List, Dict, Callable, Awaitable, Tuple, AsyncIterator, Any
+from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional, Tuple
 
-import json
 import numpy
 from lightrag import LightRAG, QueryParam
-from lightrag.kg.shared_storage import initialize_pipeline_status
-from lightrag.llm.openai import openai_complete_if_cache
-from lightrag.utils import EmbeddingFunc
 from lightrag.base import DocStatus
+from lightrag.kg.shared_storage import initialize_pipeline_status
+from lightrag.utils import EmbeddingFunc
 
 from aperag.db.models import Collection
 from aperag.db.ops import (
@@ -26,32 +23,36 @@ logger = logging.getLogger(__name__)
 # Configuration constants
 class LightRAGConfig:
     """Centralized configuration for LightRAG"""
+
     # Storage Configuration
     WORKING_DIR = "./documents"
     ENABLE_LLM_CACHE = False
-    
+
     # Performance Configuration
     MAX_PARALLEL_INSERT = 2
     LLM_MODEL_MAX_ASYNC = 20
     ENTITY_EXTRACT_MAX_GLEANING = 0
     EMBEDDING_MAX_TOKEN_SIZE = 8192
-    
+
     # Logging Configuration
     DEFAULT_LANGUAGE = "Simplified Chinese"
 
 
 class LightRAGError(Exception):
     """Base exception for LightRAG operations"""
+
     pass
 
 
 class LightRAGInitializationError(LightRAGError):
     """Exception raised during LightRAG initialization"""
+
     pass
 
 
 class LightRAGServiceError(LightRAGError):
     """Exception raised during LightRAG service operations"""
+
     pass
 
 
@@ -79,12 +80,12 @@ class LightRagHolder:
         return self._creation_time
 
     async def ainsert(
-            self,
-            input: str | list[str],
-            split_by_character: str | None = None,
-            split_by_character_only: bool = False,
-            ids: str | list[str] | None = None,
-            file_paths: str | list[str] | None = None,
+        self,
+        input: str | list[str],
+        split_by_character: str | None = None,
+        split_by_character_only: bool = False,
+        ids: str | list[str] | None = None,
+        file_paths: str | list[str] | None = None,
     ) -> None:
         """Insert documents into LightRAG with error handling"""
         try:
@@ -110,7 +111,9 @@ class LightRagHolder:
             logger.error(f"Failed to get docs by IDs from LightRAG namespace {self.namespace_prefix}: {str(e)}")
             raise LightRAGServiceError(f"Failed to get docs by IDs: {str(e)}") from e
 
-    async def aquery(self, query: str, param: QueryParam = QueryParam(), system_prompt: str | None = None) -> str | AsyncIterator[str]:
+    async def aquery(
+        self, query: str, param: QueryParam = QueryParam(), system_prompt: str | None = None
+    ) -> str | AsyncIterator[str]:
         """Query LightRAG with error handling"""
         try:
             logger.info(f"Querying LightRAG namespace {self.namespace_prefix} with query: {query[:100]}...")
@@ -125,7 +128,9 @@ class LightRagHolder:
             logger.info(f"Deleting document {doc_id} from LightRAG namespace: {self.namespace_prefix}")
             return await self.rag.adelete_by_doc_id(doc_id)
         except Exception as e:
-            logger.error(f"Failed to delete document {doc_id} from LightRAG namespace {self.namespace_prefix}: {str(e)}")
+            logger.error(
+                f"Failed to delete document {doc_id} from LightRAG namespace {self.namespace_prefix}: {str(e)}"
+            )
             raise LightRAGServiceError(f"Document deletion failed: {str(e)}") from e
 
 
@@ -137,42 +142,38 @@ def log_llm_performance(start_time: datetime, end_time: datetime, prompt: str, r
     logger.debug(f"LLM RESPONSE: {response[:200]}..." if len(response) > 200 else f"LLM RESPONSE: {response}")
 
 
-async def create_lightrag_llm_func(
-    collection: Collection,
-    msp_dict: Dict[str, Any]
-) -> Callable[..., Awaitable[str]]:
+async def create_lightrag_llm_func(collection: Collection, msp_dict: Dict[str, Any]) -> Callable[..., Awaitable[str]]:
     """Create LightRAG LLM function with proper error handling"""
     config = parseCollectionConfig(collection.config)
     lightrag_msp = config.completion.model_service_provider
     lightrag_model_name = config.completion.model
-    
+
     logger.info(f"Creating LightRAG LLM function with MSP: {lightrag_msp}, Model: {lightrag_model_name}")
 
     if lightrag_msp not in msp_dict:
-        raise LightRAGInitializationError(f"Model service provider '{lightrag_msp}' not found in user's MSP configuration")
+        raise LightRAGInitializationError(
+            f"Model service provider '{lightrag_msp}' not found in user's MSP configuration"
+        )
 
     msp = msp_dict[lightrag_msp]
     base_url = msp.base_url
     api_key = msp.api_key
-    
+
     logger.info(f"Using base URL: {base_url}")
 
     async def lightrag_llm_func(
-            prompt: str,
-            system_prompt: Optional[str] = None,
-            history_messages: List = [],
-            **kwargs,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        history_messages: List = [],
+        **kwargs,
     ) -> str:
         start_time = datetime.now()
-        
+
         try:
-            merged_kwargs = {
-                "api_key": api_key,
-                "base_url": base_url,
-                **config.completion.dict()
-            }
+            merged_kwargs = {"api_key": api_key, "base_url": base_url, **config.completion.dict()}
 
             from aperag.llm.completion_service import CompletionService
+
             completion_service = CompletionService(**merged_kwargs)
 
             messages = []
@@ -185,9 +186,7 @@ async def create_lightrag_llm_func(
             # 使用 CompletionService 的公共 agenerate_stream 方法
             full_response = ""
             async for chunk in completion_service.agenerate_stream(
-                    history=messages,
-                    prompt=prompt,
-                    memory=True if messages else False
+                history=messages, prompt=prompt, memory=True if messages else False
             ):
                 if chunk:
                     full_response += chunk
@@ -195,7 +194,7 @@ async def create_lightrag_llm_func(
             end_time = datetime.now()
             log_llm_performance(start_time, end_time, prompt, full_response)
             return full_response
-            
+
         except Exception as e:
             end_time = datetime.now()
             logger.error(f"LLM function failed after {(end_time - start_time).total_seconds():.2f}s: {str(e)}")
@@ -214,15 +213,14 @@ async def gen_lightrag_llm_func(collection: Collection) -> Callable[..., Awaitab
         raise LightRAGInitializationError(f"Failed to create LLM function: {str(e)}") from e
 
 
-async def gen_lightrag_embed_func(collection: Collection) -> Tuple[
-    Callable[[list[str]], Awaitable[numpy.ndarray]],
-    int
-]:
+async def gen_lightrag_embed_func(
+    collection: Collection,
+) -> Tuple[Callable[[list[str]], Awaitable[numpy.ndarray]], int]:
     """Generate LightRAG embedding function with proper error handling"""
     try:
         logger.info(f"Creating LightRAG embedding function for collection {collection.id}")
         embedding_svc, dim = await get_collection_embedding_service(collection)
-        
+
         async def lightrag_embed_func(texts: list[str]) -> numpy.ndarray:
             try:
                 embeddings = await embedding_svc.aembed_documents(texts)
@@ -233,7 +231,7 @@ async def gen_lightrag_embed_func(collection: Collection) -> Tuple[
 
         logger.info(f"Successfully created embedding function with dimension: {dim}")
         return lightrag_embed_func, dim
-        
+
     except Exception as e:
         logger.error(f"Failed to generate LightRAG embedding function for collection {collection.id}: {str(e)}")
         raise LightRAGInitializationError(f"Failed to create embedding function: {str(e)}") from e
@@ -243,7 +241,7 @@ async def create_and_initialize_lightrag(
     namespace_prefix: str,
     llm_func: Callable[..., Awaitable[str]],
     embed_impl: Callable[[List[str]], Awaitable[numpy.ndarray]],
-    embed_dim: int
+    embed_dim: int,
 ) -> LightRagHolder:
     """
     Creates the LightRAG dependencies, instantiates the object for a specific namespace,
@@ -282,13 +280,8 @@ async def create_and_initialize_lightrag(
         await initialize_pipeline_status()
 
         logger.info(f"LightRAG object for namespace '{namespace_prefix}' successfully initialized")
-        return LightRagHolder(
-            rag=rag, 
-            llm_func=llm_func, 
-            embed_impl=embed_impl,
-            namespace_prefix=namespace_prefix
-        )
-        
+        return LightRagHolder(rag=rag, llm_func=llm_func, embed_impl=embed_impl, namespace_prefix=namespace_prefix)
+
     except Exception as e:
         logger.error(f"Failed to create and initialize LightRAG for namespace '{namespace_prefix}': {str(e)}")
         raise LightRAGInitializationError(f"LightRAG initialization failed: {str(e)}") from e
@@ -297,22 +290,22 @@ async def create_and_initialize_lightrag(
 # Module-level cache management
 class LightRAGCache:
     """Thread-safe cache for LightRAG instances"""
-    
+
     def __init__(self):
         self._instances: Dict[str, LightRagHolder] = {}
         self._lock = asyncio.Lock()
-    
+
     async def get(self, namespace_prefix: str) -> Optional[LightRagHolder]:
         """Get cached instance"""
         async with self._lock:
             return self._instances.get(namespace_prefix)
-    
+
     async def set(self, namespace_prefix: str, holder: LightRagHolder) -> None:
         """Set cached instance"""
         async with self._lock:
             self._instances[namespace_prefix] = holder
             logger.info(f"Cached LightRAG instance for namespace '{namespace_prefix}'")
-    
+
     async def remove(self, namespace_prefix: str) -> bool:
         """Remove cached instance"""
         async with self._lock:
@@ -321,24 +314,21 @@ class LightRAGCache:
                 logger.info(f"Removed LightRAG instance from cache for namespace '{namespace_prefix}'")
                 return True
             return False
-    
+
     async def clear(self) -> None:
         """Clear all cached instances"""
         async with self._lock:
             count = len(self._instances)
             self._instances.clear()
             logger.info(f"Cleared {count} LightRAG instances from cache")
-    
+
     async def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics"""
         async with self._lock:
             return {
                 "total_instances": len(self._instances),
                 "namespaces": list(self._instances.keys()),
-                "creation_times": {
-                    ns: holder.creation_time.isoformat() 
-                    for ns, holder in self._instances.items()
-                }
+                "creation_times": {ns: holder.creation_time.isoformat() for ns, holder in self._instances.items()},
             }
 
 
@@ -352,7 +342,7 @@ async def get_lightrag_holder(collection: Collection) -> LightRagHolder:
     Uses caching to avoid repeated initialization.
     """
     namespace_prefix: str = generate_lightrag_namespace_prefix(collection.id)
-    
+
     if not namespace_prefix or not isinstance(namespace_prefix, str):
         raise ValueError("A valid namespace_prefix string must be provided.")
 
@@ -363,25 +353,23 @@ async def get_lightrag_holder(collection: Collection) -> LightRagHolder:
         return cached_holder
 
     logger.info(f"Initializing new LightRAG instance for namespace '{namespace_prefix}' (cache miss)")
-    
+
     try:
         # Create new instance
         embed_func, dim = await gen_lightrag_embed_func(collection=collection)
         llm_func = await gen_lightrag_llm_func(collection=collection)
-        
+
         if not llm_func:
             raise LightRAGInitializationError("Failed to create LLM function - no suitable MSP found")
-        
-        holder = await create_and_initialize_lightrag(
-            namespace_prefix, llm_func, embed_func, embed_dim=dim
-        )
-        
+
+        holder = await create_and_initialize_lightrag(namespace_prefix, llm_func, embed_func, embed_dim=dim)
+
         # Cache the new instance
         await _cache.set(namespace_prefix, holder)
-        
+
         logger.info(f"LightRAG instance for namespace '{namespace_prefix}' initialized and cached successfully")
         return holder
-        
+
     except Exception as e:
         # Clean up any partial cache entries
         await _cache.remove(namespace_prefix)
@@ -397,7 +385,7 @@ async def reload_lightrag_holder(collection: Collection) -> LightRagHolder:
     """
     namespace_prefix: str = generate_lightrag_namespace_prefix(collection.id)
     logger.info(f"Reloading LightRAG holder for namespace '{namespace_prefix}'")
-    
+
     await _cache.remove(namespace_prefix)
     return await get_lightrag_holder(collection)
 
@@ -410,7 +398,7 @@ async def delete_lightrag_holder(collection: Collection) -> bool:
     namespace_prefix: str = generate_lightrag_namespace_prefix(collection.id)
     if not namespace_prefix or not isinstance(namespace_prefix, str):
         return False
-    
+
     return await _cache.remove(namespace_prefix)
 
 

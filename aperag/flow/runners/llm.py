@@ -1,20 +1,20 @@
 import json
-from typing import Any, Dict, List, Optional
 import uuid
-
-from litellm import BaseModel
+from typing import Any, Dict, List, Optional
 
 from langchain.schema import AIMessage, HumanMessage
+from litellm import BaseModel
+
 from aperag.chat.history.base import BaseChatMessageHistory
-from aperag.db.models import Bot
 from aperag.db.ops import query_msp_dict
-from aperag.flow.base.models import BaseNodeRunner, register_node_runner, NodeInstance
+from aperag.flow.base.models import BaseNodeRunner, NodeInstance, register_node_runner
 from aperag.llm.base import Predictor
 from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES
 from aperag.query.query import DocumentWithScore
 from aperag.utils.utils import now_unix_milliseconds
 
 MAX_CONTEXT_LENGTH = 100000
+
 
 class Message(BaseModel):
     id: str
@@ -23,6 +23,7 @@ class Message(BaseModel):
     response: Optional[str] = None
     urls: Optional[List[str]] = None
     references: Optional[List[Dict]] = None
+
 
 def new_ai_message(message, message_id, response, references, urls):
     return Message(
@@ -34,6 +35,7 @@ def new_ai_message(message, message_id, response, references, urls):
         urls=urls,
     )
 
+
 def new_human_message(message, message_id):
     return Message(
         id=message_id,
@@ -41,28 +43,21 @@ def new_human_message(message, message_id):
         timestamp=now_unix_milliseconds(),
     )
 
+
 async def add_human_message(history: BaseChatMessageHistory, message, message_id):
     if not message_id:
         message_id = str(uuid.uuid4())
 
     human_msg = new_human_message(message, message_id)
     human_msg = human_msg.json(exclude_none=True)
-    await history.add_message(
-        HumanMessage(
-            content=human_msg,
-            additional_kwargs={"role": "human"}
-        )
-    )
+    await history.add_message(HumanMessage(content=human_msg, additional_kwargs={"role": "human"}))
+
 
 async def add_ai_message(history: BaseChatMessageHistory, message, message_id, response, references, urls):
     ai_msg = new_ai_message(message, message_id, response, references, urls)
     ai_msg = ai_msg.json(exclude_none=True)
-    await history.add_message(
-        AIMessage(
-            content=ai_msg,
-            additional_kwargs={"role": "ai"}
-        )
-    )
+    await history.add_message(AIMessage(content=ai_msg, additional_kwargs={"role": "ai"}))
+
 
 @register_node_runner("llm")
 class LLMNodeRunner(BaseNodeRunner):
@@ -93,18 +88,17 @@ class LLMNodeRunner(BaseNodeRunner):
                 if len(context) + len(doc.text) > MAX_CONTEXT_LENGTH:
                     break
                 context += doc.text
-                references.append({
-                    "text": doc.text,
-                    "metadata": doc.metadata,
-                    "score": doc.score
-                })
+                references.append({"text": doc.text, "metadata": doc.metadata, "score": doc.score})
         prompt = prompt_template.format(query=query, context=context)
         llm_kwargs = {
             "custom_llm_provider": custom_llm_provider,
             "temperature": temperature,
             "max_tokens": max_tokens - len(prompt),
         }
-        predictor = Predictor.get_completion_service(model_service_provider, model_name, base_url, api_key, **llm_kwargs)
+        predictor = Predictor.get_completion_service(
+            model_service_provider, model_name, base_url, api_key, **llm_kwargs
+        )
+
         async def async_generator():
             response = ""
             async for chunk in predictor.agenerate_stream([], prompt, False):
@@ -116,4 +110,5 @@ class LLMNodeRunner(BaseNodeRunner):
             if history:
                 await add_human_message(history, query, message_id)
                 await add_ai_message(history, query, message_id, response, references, [])
-        return {"async_generator": async_generator} 
+
+        return {"async_generator": async_generator}

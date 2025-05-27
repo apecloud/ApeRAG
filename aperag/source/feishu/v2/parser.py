@@ -93,7 +93,7 @@ feishu_lang_code_mapping = {
     72: "opengl shading language",
     73: "properties",
     74: "solidity",
-    75: "toml"
+    75: "toml",
 }
 
 
@@ -240,7 +240,6 @@ class FeishuBlockParser(ABC):
 
 
 class Feishu2Markdown(FeishuBlockParser):
-
     # https://open.feishu.cn/document/ukTMukTMukTM/uUDN04SN0QjL1QDN/document-docx/docx-v1/data-structure/block#e8ce4e8e
     def handle_block(self, block, indent=0):
         text = "\t" * indent
@@ -348,7 +347,6 @@ class Feishu2Markdown(FeishuBlockParser):
 
 
 class Feishu2PlainText(FeishuBlockParser):
-
     # https://open.feishu.cn/document/ukTMukTMukTM/uUDN04SN0QjL1QDN/document-docx/docx-v1/data-structure/block#e8ce4e8e
     def handle_block(self, block, indent=0):
         text = "\t" * indent
@@ -434,4 +432,3 @@ class Feishu2PlainText(FeishuBlockParser):
                 print(f"Unhandled block type {block_type}")
                 print(block)
         return text
-

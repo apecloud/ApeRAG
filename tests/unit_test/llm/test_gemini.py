@@ -1,8 +1,8 @@
 import os
+
 import pytest
 
 from aperag.llm.completion_service import CompletionService
-
 
 MODEL = "gemini/gemini-2.0-flash"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")

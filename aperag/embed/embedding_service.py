@@ -1,21 +1,21 @@
 from __future__ import annotations
 
-from typing import List, Sequence, Tuple, Dict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, List, Sequence, Tuple
 
 import litellm
 from langchain.embeddings.base import Embeddings
-from tenacity import retry, wait_exponential, stop_after_attempt
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 
 class EmbeddingService(Embeddings):
     def __init__(
-            self,
-            embedding_provider: str,
-            embedding_model: str,
-            embedding_service_url: str,
-            embedding_service_api_key: str,
-            embedding_max_chunks_in_batch: int,
+        self,
+        embedding_provider: str,
+        embedding_model: str,
+        embedding_service_url: str,
+        embedding_service_api_key: str,
+        embedding_max_chunks_in_batch: int,
     ):
         self.embedding_provider = embedding_provider
         self.model = f"{embedding_model}"
@@ -47,7 +47,7 @@ class EmbeddingService(Embeddings):
 
             # Submit batches for processing with their starting indices
             for start in range(0, len(clean_texts), chunk_size):
-                batch = clean_texts[start:start + chunk_size]
+                batch = clean_texts[start : start + chunk_size]
                 # Pass both the batch and starting index to track position
                 future = pool.submit(self._embed_batch_with_indices, batch, start)
                 futures.append(future)

@@ -59,10 +59,10 @@ class CommonConsumer(BaseConsumer):
 
         # bytes_data: [file_name_length, file_name, file_content]
         if bytes_data:
-            file_name_length = int.from_bytes(bytes_data[:4], byteorder='big')
-            file_name_bytes = bytes_data[4:4 + file_name_length]
-            self.file_name = file_name_bytes.decode('utf-8')
-            file_content = bytes_data[4 + file_name_length:]
+            file_name_length = int.from_bytes(bytes_data[:4], byteorder="big")
+            file_name_bytes = bytes_data[4 : 4 + file_name_length]
+            self.file_name = file_name_bytes.decode("utf-8")
+            file_content = bytes_data[4 + file_name_length :]
 
             doc_parser = get_fast_doc_parser()
             supported_file_extensions = doc_parser.supported_extensions()
@@ -111,7 +111,7 @@ class CommonConsumer(BaseConsumer):
 
             async for tokens in self.predict(data["data"], message_id=message_id, file=self.file):
                 if tokens.startswith(RELATED_QUESTIONS):
-                    related_question = ast.literal_eval(tokens[len(RELATED_QUESTIONS):])
+                    related_question = ast.literal_eval(tokens[len(RELATED_QUESTIONS) :])
                     continue
 
                 # streaming response
@@ -132,4 +132,8 @@ class CommonConsumer(BaseConsumer):
             if self.free_tier and self.conversation_limit:
                 await manage_quota_usage(self.user, self.conversation_limit)
             # send stop message
-            await self.send(text_data=stop_response(message_id, [], related_question, self.related_question_prompt, self.pipeline.memory_count, urls=[]))
+            await self.send(
+                text_data=stop_response(
+                    message_id, [], related_question, self.related_question_prompt, self.pipeline.memory_count, urls=[]
+                )
+            )

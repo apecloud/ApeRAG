@@ -19,7 +19,7 @@ from typing import Tuple
 
 from aperag.db.models import Collection, Document
 from aperag.db.ops import query_collection, query_documents
-from aperag.docparser.doc_parser import DocParser, get_default_config
+from aperag.docparser.doc_parser import DocParser
 from aperag.schema.utils import parseCollectionConfig
 from aperag.tasks.index import add_index_for_document, remove_index, update_index_for_document
 from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
@@ -45,7 +45,9 @@ def update_local_directory_index(user, collection_id):
     # documents_in_db = dict[str:int]
     supported_file_extensions = DocParser().supported_extensions()  # TODO: apply collection config
     supported_file_extensions += SUPPORTED_COMPRESSED_EXTENSIONS
-    _, docments_in_direct = scan_local_direct(collectionConfig.path, supported_file_extensions)  # full_filename to file info
+    _, docments_in_direct = scan_local_direct(
+        collectionConfig.path, supported_file_extensions
+    )  # full_filename to file info
     # scan the db
     documents = query_documents([collection.user], collection.id)
     documents_in_db = {}
@@ -62,9 +64,7 @@ def update_local_directory_index(user, collection_id):
                 status=Document.Status.PENDING,
                 size=file_stat.st_size,
                 collection_id=collection.id,
-                metadata=time.strftime(
-                    "%Y-%m-%d %H:%M:%S", time.localtime(file_stat.st_mtime)
-                ),
+                metadata=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(file_stat.st_mtime)),
             )
             document_instance.save()
             add_index_for_document.delay(document_instance.id)
@@ -74,9 +74,7 @@ def update_local_directory_index(user, collection_id):
             document_in_db = documents[documents_in_db[filename]]
             if update_strategies(
                 docments_in_direct[filename],
-                filestat(
-                    latest_time=document_in_db.metadata, file_size=document_in_db.size
-                ),
+                filestat(latest_time=document_in_db.metadata, file_size=document_in_db.size),
             ):
                 update_index_for_document.delay(document_in_db.id)
     # for delete
@@ -97,10 +95,7 @@ def update_strategies(stat_in_direct: filestat, stat_in_db: filestat) -> bool:
     if stat_in_direct.latest_time == stat_in_db.latest_time:
         logger.debug("update_strategies : no need update")
         return False
-    if (
-        abs(stat_in_direct.file_size - stat_in_db.file_size)
-        < stat_in_db.file_size * 0.2
-    ):  # only size, need more check
+    if abs(stat_in_direct.file_size - stat_in_db.file_size) < stat_in_db.file_size * 0.2:  # only size, need more check
         logger.debug("update_strategies : no need update")
         return False
     logger.debug("update_strategies : need update")
@@ -118,15 +113,10 @@ def scan_local_direct(directory, supported_file_extensions: list[str]) -> Tuple[
         for root, dirs, files in os.walk(directory):
             for file in files:
                 file_path = os.path.join(root, file)
-                if (
-                    os.path.splitext(file_path)[1].lower()
-                    in supported_file_extensions
-                ):
+                if os.path.splitext(file_path)[1].lower() in supported_file_extensions:
                     file_stat = os.stat(file_path)
                     temp = filestat(
-                        latest_time=time.strftime(
-                            "%Y-%m-%d %H:%M:%S", time.localtime(file_stat.st_mtime)
-                        ),
+                        latest_time=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(file_stat.st_mtime)),
                         file_size=file_stat.st_size,
                     )
                     result[file_path] = temp

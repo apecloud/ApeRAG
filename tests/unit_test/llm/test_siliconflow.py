@@ -1,8 +1,8 @@
 import os
+
 import pytest
 
 from aperag.llm.completion_service import CompletionService
-
 
 MODEL = "Qwen/Qwen2.5-7B-Instruct"
 SILICONFLOW_API_BASE = os.getenv("SILICONFLOW_API_BASE")

@@ -113,14 +113,14 @@ test = [
 ]
 
 [tool.ruff]
-select = [
+lint.select = [
     "E",  # pycodestyle
     "F",  # pyflakes
     "I",  # isort
 ]
 
-ignore = [
-    "E501",
+lint.ignore = [
+    "E501", # line too long
 ]
 
 # Exclude a variety of commonly ignored directories.
@@ -150,6 +150,7 @@ exclude = [
     "models",
     "playground",
     "aperag/migrations",
+    "aperag/schema/view_models.py",
     "vectorstore/test_connector.py",
     "readers/test_local_path_embedding.py",
 ]

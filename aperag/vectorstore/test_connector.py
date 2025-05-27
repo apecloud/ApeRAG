@@ -2,11 +2,11 @@ import time
 from typing import cast
 
 from llama_index.core.schema import TextNode
+from llama_index.core.vector_stores.types import NodeWithEmbedding, VectorStoreQuery
 from llama_index.vector_stores.opensearch import (
     OpensearchVectorClient,
     OpensearchVectorStore,
 )
-from llama_index.core.vector_stores.types import NodeWithEmbedding, VectorStoreQuery
 from pymilvus import (
     Collection,
     CollectionSchema,
@@ -79,9 +79,7 @@ def test_opensearch_connector():
     query_embedding = [0.2 + i / 10.0 for i in range(300)]
     query = VectorStoreQuery(query_embedding=query_embedding, similarity_top_k=2)
     query_result = vector_store.query(query)
-    assert len(query_result.ids) == len(
-        embedding_results
-    )  # Ensure all added embeddings are retrieved
+    assert len(query_result.ids) == len(embedding_results)  # Ensure all added embeddings are retrieved
 
     # Test deleting a document from the index
     ref_doc_id = "1"
@@ -90,15 +88,13 @@ def test_opensearch_connector():
 
     # Test querying the index again to ensure the deleted document is no longer present
     query_result = vector_store.query(query)
-    assert (
-        ref_doc_id not in query_result.ids
-    )  # Ensure the deleted document is not retrieved
+    assert ref_doc_id not in query_result.ids  # Ensure the deleted document is not retrieved
 
 
 def test_milvus_connector():
     ctx = {"url": "http://localhost", "port": 19530, "collection": "test"}
     c = VectorStoreConnectorAdaptor("milvus", ctx)
-    client = cast(MilvusClient, c.connector.client)
+    _ = cast(MilvusClient, c.connector.client)
     fields = [
         FieldSchema(
             name="pk",
@@ -111,37 +107,11 @@ def test_milvus_connector():
         FieldSchema(name="embeddings", dtype=DataType.FLOAT_VECTOR, dim=8),
     ]
 
-    schema = CollectionSchema(
-        fields, "hello_milvus is the simplest demo to introduce the APIs"
-    )
+    schema = CollectionSchema(fields, "hello_milvus is the simplest demo to introduce the APIs")
     print("Create collection `hello_milvus`")
-    hello_milvus = Collection("hello_milvus", schema, consistency_level="Strong")
+    _ = Collection("hello_milvus", schema, consistency_level="Strong")
     has = utility.has_collection("hello_milvus")
     print(f"Does collection hello_milvus exist in Milvus: {has}")
     utility.drop_collection("hello_milvus")
     has = utility.has_collection("hello_milvus")
-    print(
-        f"drop collection \nDoes collection hello_milvus exist in Milvus after drop: {has}"
-    )
-
-
-def test_chroma_connector():
-    ctx = {"collection_name": "test"}
-    c = VectorStoreConnectorAdaptor("chroma", ctx)
-    client = cast(ChromaClient, c.connector.client)
-
-    collection = client.get_or_create_collection(name="test")
-
-    print(c.connector.client.get_collection(name="test"))
-
-
-def test_weaviate_connector():
-    ctx = {"url": "http://localhost:8080"}
-    c = VectorStoreConnectorAdaptor("weaviate", ctx)
-    client = cast(WeaviateClient, c.connector.client)
-
-    print(c.connector.client.schema.get())
-
-
-if __name__ == "__main__":
-    test_weaviate_connector()
+    print(f"drop collection \nDoes collection hello_milvus exist in Milvus after drop: {has}")

@@ -1,14 +1,24 @@
-from http import HTTPStatus
-from django.utils import timezone
-from aperag.db import models as db_models
-from aperag.views.utils import fail, success
-from aperag.db.ops import PagedQuery, query_collection, query_running_sync_histories, query_sync_histories, query_sync_history, query_user_quota
-from aperag.source.base import get_source
-from aperag.schema.utils import parseCollectionConfig
-from aperag.tasks.sync_documents_task import sync_documents, get_sync_progress
-from celery.result import GroupResult
-from config.celery import app
 from datetime import datetime
+from http import HTTPStatus
+
+from celery.result import GroupResult
+from django.utils import timezone
+
+from aperag.db import models as db_models
+from aperag.db.ops import (
+    PagedQuery,
+    query_collection,
+    query_running_sync_histories,
+    query_sync_histories,
+    query_sync_history,
+    query_user_quota,
+)
+from aperag.schema.utils import parseCollectionConfig
+from aperag.source.base import get_source
+from aperag.tasks.sync_documents_task import get_sync_progress, sync_documents
+from aperag.views.utils import fail, success
+from config.celery import app
+
 
 async def sync_immediately(user: str, collection_id: str):
     collection = await query_collection(user, collection_id)
@@ -28,10 +38,11 @@ async def sync_immediately(user: str, collection_id: str):
     )
     await instance.asave()
     document_user_quota = await query_user_quota(user, db_models.QuotaType.MAX_DOCUMENT_COUNT)
-    sync_documents.delay(collection_id=collection_id,
-                         sync_history_id=instance.id,
-                         document_user_quota=document_user_quota)
+    sync_documents.delay(
+        collection_id=collection_id, sync_history_id=instance.id, document_user_quota=document_user_quota
+    )
     return success(instance.view())
+
 
 async def cancel_sync(user: str, collection_id: str, collection_sync_id: str):
     sync_history = await query_sync_history(user, collection_id, collection_sync_id)
@@ -54,6 +65,7 @@ async def cancel_sync(user: str, collection_id: str, collection_sync_id: str):
     await sync_history.asave()
     return success({})
 
+
 async def list_sync_histories(user: str, collection_id: str, pq: PagedQuery):
     pr = await query_sync_histories(user, collection_id, pq)
     response = []
@@ -67,6 +79,7 @@ async def list_sync_histories(user: str, collection_id: str, pq: PagedQuery):
         response.append(sync_history.view())
     return success(response, pr)
 
+
 async def get_sync_history(user: str, collection_id: str, sync_history_id: str):
     sync_history = await query_sync_history(user, collection_id, sync_history_id)
     if sync_history is None:
@@ -77,4 +90,4 @@ async def get_sync_history(user: str, collection_id: str, sync_history_id: str):
         sync_history.successful_documents = progress.successful_documents
         sync_history.processing_documents = progress.processing_documents
         sync_history.pending_documents = progress.pending_documents
-    return success(sync_history.view()) 
+    return success(sync_history.view())

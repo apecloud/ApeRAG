@@ -24,8 +24,8 @@ from typing import Any, Dict, Iterator
 
 from bs4 import BeautifulSoup
 
-from aperag.source.base import CustomSourceInitializationError, LocalDocument, RemoteDocument, Source
 from aperag.schema.view_models import CollectionConfig
+from aperag.source.base import CustomSourceInitializationError, LocalDocument, RemoteDocument, Source
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 def download_email_body_to_temp_file(mail_conn, email_index, name, protocol):
     if protocol.upper() == "IMAP":
         mail_conn.select("INBOX")
-        _, data = mail_conn.fetch(email_index, '(RFC822)')
+        _, data = mail_conn.fetch(email_index, "(RFC822)")
         message_content = data[0][1]
     else:
         _, message_lines, _ = mail_conn.retr(email_index)
@@ -56,14 +56,14 @@ def get_email_plain_text(message_content, name):
     body = ""
     for part in message.walk():
         content_type = part.get_content_type()
-        if content_type == 'text/plain' or content_type == 'text/html':
+        if content_type == "text/plain" or content_type == "text/html":
             content = part.get_payload(decode=True)
             charset = part.get_charset()
             if charset is None:
-                content_type = part.get('Content-Type', '').lower()
-                position = content_type.find('charset=')
+                content_type = part.get("Content-Type", "").lower()
+                position = content_type.find("charset=")
                 if position >= 0:
-                    charset = content_type[position + 8:].strip()
+                    charset = content_type[position + 8 :].strip()
                     if charset.find("utf-8") != -1:
                         charset = '"utf-8"'
             if charset:
@@ -73,7 +73,7 @@ def get_email_plain_text(message_content, name):
     prefix = name.strip("/").replace("/", "--")
 
     # when all email context is pure html without text, fill with its title
-    if plain_text == '':
+    if plain_text == "":
         plain_text = name
     return prefix, plain_text
 
@@ -101,7 +101,7 @@ def decode_msg_header(header):
 
 # check if text contain chinese character
 def contains_chinese(text):
-    pattern = re.compile(r'[\u4e00-\u9fa5]')  # search chinese character
+    pattern = re.compile(r"[\u4e00-\u9fa5]")  # search chinese character
     result = re.search(pattern, text)
     return result is not None
 
@@ -110,6 +110,7 @@ def contains_chinese(text):
 def check_spam(title: str, body: str):
     import torch
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
     chinese = contains_chinese(title)
     if chinese:
         model_name = "paulkm/chinese_spam_detect"
@@ -127,8 +128,6 @@ def check_spam(title: str, body: str):
 
 
 class EmailSource(Source):
-
-
     def __init__(self, ctx: CollectionConfig):
         super().__init__(ctx)
         self.server = ctx.pop_server
@@ -168,7 +167,8 @@ class EmailSource(Source):
                 return conn
             except Exception as pop_error:
                 raise CustomSourceInitializationError(
-                    f"Failed to connect to mail server,IMAP for: {imap_error}, then POP for: {pop_error}")
+                    f"Failed to connect to mail server,IMAP for: {imap_error}, then POP for: {pop_error}"
+                )
 
     def scan_documents(self) -> Iterator[RemoteDocument]:
         try:
@@ -183,7 +183,7 @@ class EmailSource(Source):
             for i in range(self.email_num):
                 try:
                     if self.protocol.upper() == "IMAP":
-                        _, data = self.conn.fetch(email_nums[i], '(RFC822)')
+                        _, data = self.conn.fetch(email_nums[i], "(RFC822)")
                         msg_lines = data[0][1]
                         octets = len(msg_lines)
                     else:
@@ -196,7 +196,7 @@ class EmailSource(Source):
 
                     msg_header = message_object["Subject"]
                     decoded_subject = decode_msg_header(msg_header)
-                    order_and_name = str(i + 1) + '_' + decoded_subject + ".txt"
+                    order_and_name = str(i + 1) + "_" + decoded_subject + ".txt"
 
                     # check if spam,if it is spam, jump to next email
                     if self.detect_spam:
@@ -213,7 +213,7 @@ class EmailSource(Source):
                         metadata={
                             # TODO: use the email received time as the modified time
                             "modified_time": datetime.datetime.now(),
-                        }
+                        },
                     )
                     yield document
                 except Exception as e:
@@ -224,11 +224,9 @@ class EmailSource(Source):
             raise e
 
     def prepare_document(self, name: str, metadata: Dict[str, Any]) -> LocalDocument:
-        under_line = name.find('_')
+        under_line = name.find("_")
         order = name[:under_line]
-        temp_file_path = download_email_body_to_temp_file(
-            self.conn, order, name, self.protocol
-        )
+        temp_file_path = download_email_body_to_temp_file(self.conn, order, name, self.protocol)
         metadata["name"] = name
         return LocalDocument(name=name, path=temp_file_path, metadata=metadata)
 

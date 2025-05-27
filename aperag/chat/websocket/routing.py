@@ -14,17 +14,16 @@
 
 import logging
 
-from asgiref.sync import sync_to_async
 from django.urls import re_path
 
-from config import settings
 from aperag.utils.constant import KEY_BOT_ID, KEY_CHAT_ID, KEY_USER_ID
 from aperag.utils.utils import extract_bot_and_chat_id
+from config import settings
 
 
 async def bot_consumer_router(scope, receive, send):
     logging.info("bot_consumer_router begin")
-    
+
     from aperag.db.models import Bot, Collection
     from aperag.db.ops import query_bot, query_chat
 
@@ -50,18 +49,23 @@ async def bot_consumer_router(scope, receive, send):
             raise Exception("Invalid collection type")
         if settings.CHAT_CONSUMER_IMPLEMENTATION == "document-qa":
             from aperag.chat.websocket.document_qa_consumer import DocumentQAConsumer
+
             return await DocumentQAConsumer.as_asgi()(scope, receive, send)
         elif settings.CHAT_CONSUMER_IMPLEMENTATION == "fake":
             from aperag.chat.websocket.fake_consumer import FakeConsumer
+
             return await FakeConsumer.as_asgi()(scope, receive, send)
         elif settings.CHAT_CONSUMER_IMPLEMENTATION == "flow":
             from aperag.chat.websocket.flow_consumer import FlowConsumer
+
             return await FlowConsumer.as_asgi()(scope, receive, send)
         else:
             from aperag.chat.websocket.embedding_consumer import EmbeddingConsumer
+
             return await EmbeddingConsumer.as_asgi()(scope, receive, send)
     elif bot.type == Bot.Type.COMMON:
         from aperag.chat.websocket.common_consumer import CommonConsumer
+
         return await CommonConsumer.as_asgi()(scope, receive, send)
     else:
         raise Exception("Invalid bot type")

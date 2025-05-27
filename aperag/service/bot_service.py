@@ -1,13 +1,24 @@
-from http import HTTPStatus
-from django.utils import timezone
 import json
+from http import HTTPStatus
+
+from django.utils import timezone
+
+from aperag.apps import QuotaType
 from aperag.db import models as db_models
+from aperag.db.ops import (
+    PagedQuery,
+    query_bot,
+    query_bots,
+    query_bots_count,
+    query_collection,
+    query_msp_dict,
+    query_user_quota,
+)
+from aperag.schema import view_models
 from aperag.schema.view_models import Bot, BotList
 from aperag.views.utils import fail, success, validate_bot_config
-from aperag.db.ops import PagedQuery, query_bot, query_bots, query_bots_count, query_collection, query_msp_dict, query_user_quota
-from aperag.apps import QuotaType
 from config import settings
-from aperag.schema import view_models
+
 
 def build_bot_response(bot: db_models.Bot, collection_ids: list[str]) -> view_models.Bot:
     """Build Bot response object for API return."""
@@ -21,6 +32,7 @@ def build_bot_response(bot: db_models.Bot, collection_ids: list[str]) -> view_mo
         created=bot.gmt_created.isoformat(),
         updated=bot.gmt_updated.isoformat(),
     )
+
 
 async def create_bot(user, bot_in: view_models.BotCreate) -> view_models.Bot:
     # there is quota limit on bot
@@ -50,7 +62,9 @@ async def create_bot(user, bot_in: view_models.BotCreate) -> view_models.Bot:
         msp = msp_dict[model_service_provider]
         base_url = msp.base_url
         api_key = msp.api_key
-        valid, msg = validate_bot_config(model_service_provider, model_name, base_url, api_key, llm_config, bot_in.type, memory)
+        valid, msg = validate_bot_config(
+            model_service_provider, model_name, base_url, api_key, llm_config, bot_in.type, memory
+        )
         if not valid:
             return fail(HTTPStatus.BAD_REQUEST, msg)
     else:
@@ -68,7 +82,8 @@ async def create_bot(user, bot_in: view_models.BotCreate) -> view_models.Bot:
             await db_models.BotCollectionRelation.objects.acreate(bot_id=bot.id, collection_id=cid)
             collection_ids.append(cid)
     await bot.asave()
-    return success(build_bot_response( bot, collection_ids=collection_ids))
+    return success(build_bot_response(bot, collection_ids=collection_ids))
+
 
 async def list_bots(user, pq: PagedQuery) -> view_models.BotList:
     pr = await query_bots([user, settings.ADMIN_USER], pq)
@@ -85,8 +100,9 @@ async def list_bots(user, pq: PagedQuery) -> view_models.BotList:
             bot_config["model"] = "gpt-4-1106-preview"
         bot.config = json.dumps(bot_config)
         collection_ids = await bot.collections(only_ids=True)
-        response.append(build_bot_response( bot, collection_ids=collection_ids))
+        response.append(build_bot_response(bot, collection_ids=collection_ids))
     return success(BotList(items=response), pr=pr)
+
 
 async def get_bot(user, bot_id) -> view_models.Bot:
     bot = await query_bot(user, bot_id)
@@ -94,6 +110,7 @@ async def get_bot(user, bot_id) -> view_models.Bot:
         return fail(HTTPStatus.NOT_FOUND, "Bot not found")
     collection_ids = await bot.collections(only_ids=True)
     return success(build_bot_response(bot, collection_ids=collection_ids))
+
 
 async def update_bot(user, bot_id, bot_in: view_models.BotUpdate) -> view_models.Bot:
     bot = await query_bot(user, bot_id)
@@ -110,7 +127,9 @@ async def update_bot(user, bot_id, bot_in: view_models.BotUpdate) -> view_models
         msp = msp_dict[model_service_provider]
         base_url = msp.base_url
         api_key = msp.api_key
-        valid, msg = validate_bot_config(model_service_provider, model_name, base_url, api_key, llm_config, bot_in.type, memory)
+        valid, msg = validate_bot_config(
+            model_service_provider, model_name, base_url, api_key, llm_config, bot_in.type, memory
+        )
         if not valid:
             return fail(HTTPStatus.BAD_REQUEST, msg)
     else:
@@ -123,7 +142,9 @@ async def update_bot(user, bot_id, bot_in: view_models.BotUpdate) -> view_models
     bot.type = bot_in.type
     bot.description = bot_in.description
     if bot_in.collection_ids is not None:
-        await db_models.BotCollectionRelation.objects.filter(bot_id=bot.id, gmt_deleted__isnull=True).aupdate(gmt_deleted=timezone.now())
+        await db_models.BotCollectionRelation.objects.filter(bot_id=bot.id, gmt_deleted__isnull=True).aupdate(
+            gmt_deleted=timezone.now()
+        )
         for cid in bot_in.collection_ids:
             collection = await query_collection(user, cid)
             if not collection:
@@ -135,6 +156,7 @@ async def update_bot(user, bot_id, bot_in: view_models.BotUpdate) -> view_models
     collection_ids = await bot.collections(only_ids=True)
     return success(build_bot_response(bot, collection_ids=collection_ids))
 
+
 async def delete_bot(user, bot_id) -> view_models.Bot:
     bot = await query_bot(user, bot_id)
     if bot is None:
@@ -142,6 +164,8 @@ async def delete_bot(user, bot_id) -> view_models.Bot:
     bot.status = db_models.Bot.Status.DELETED
     bot.gmt_deleted = timezone.now()
     await bot.asave()
-    await db_models.BotCollectionRelation.objects.filter(bot_id=bot.id, gmt_deleted__isnull=True).aupdate(gmt_deleted=timezone.now())
+    await db_models.BotCollectionRelation.objects.filter(bot_id=bot.id, gmt_deleted__isnull=True).aupdate(
+        gmt_deleted=timezone.now()
+    )
     collection_ids = await bot.collections(only_ids=True)
-    return success(build_bot_response(bot, collection_ids=collection_ids)) 
+    return success(build_bot_response(bot, collection_ids=collection_ids))

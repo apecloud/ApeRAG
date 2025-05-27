@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 
 
 class CommonPipeline(Pipeline):
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -65,13 +64,12 @@ class CommonPipeline(Pipeline):
             if len(self.welcome_question) >= 3:
                 need_related_question = False
 
-
         # TODO: divide file_content into several parts and call API separately.
         context = file if file else ""
         context += self.bot_context
 
         if len(context) > self.context_window - 500:
-            context = context[:self.context_window - 500]
+            context = context[: self.context_window - 500]
 
         if self.use_related_question and need_related_question:
             related_question_prompt = self.related_question_prompt.format(query=message, context=context)
@@ -82,11 +80,16 @@ class CommonPipeline(Pipeline):
             if self.memory and self.history:
                 messages = await self.history.messages
                 if len(messages) > 0:
-                    history.extend(self.predictor.get_latest_history(
-                        messages=messages,
-                        limit_length=max(min(self.context_window - 500 - len(context), self.memory_limit_length), 0),
-                        limit_count=self.memory_limit_count,
-                        use_ai_memory=self.use_ai_memory))
+                    history.extend(
+                        self.predictor.get_latest_history(
+                            messages=messages,
+                            limit_length=max(
+                                min(self.context_window - 500 - len(context), self.memory_limit_length), 0
+                            ),
+                            limit_count=self.memory_limit_count,
+                            use_ai_memory=self.use_ai_memory,
+                        )
+                    )
                     self.memory_count = len(history)
 
             if context:
@@ -113,6 +116,7 @@ class CommonPipeline(Pipeline):
                 related_questions = list(related_questions)
                 random.shuffle(related_questions)
                 yield RELATED_QUESTIONS + str(related_questions[:3])
+
 
 async def create_common_pipeline(**kwargs) -> CommonPipeline:
     pipeline = CommonPipeline(**kwargs)

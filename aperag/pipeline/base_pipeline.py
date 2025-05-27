@@ -23,10 +23,11 @@ from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel
 
 from aperag.chat.history.base import BaseChatMessageHistory
+from aperag.db.ops import query_msp_dict
 from aperag.llm.base import Predictor
 from aperag.llm.prompts import RELATED_QUESTIONS_TEMPLATE_V2
 from aperag.utils.utils import now_unix_milliseconds
-from aperag.db.ops import query_msp_dict
+
 
 class Message(BaseModel):
     id: str
@@ -51,11 +52,12 @@ DOCUMENT_URLS = "|DOCUMENT_URLS|"
 
 
 class Pipeline(ABC):
-    def __init__(self,
-                 bot,
-                 collection,
-                 history: BaseChatMessageHistory,
-                 ):
+    def __init__(
+        self,
+        bot,
+        collection,
+        history: BaseChatMessageHistory,
+    ):
         self.bot = bot
         self.collection = collection
         self.history = history
@@ -91,14 +93,20 @@ class Pipeline(ABC):
             msp = msp_dict[self.model_service_provider]
             base_url = msp.base_url
             api_key = msp.api_key
-            self.predictor = Predictor.get_completion_service(self.model_service_provider, self.model_name, base_url, api_key, **self.llm_config)
+            self.predictor = Predictor.get_completion_service(
+                self.model_service_provider, self.model_name, base_url, api_key, **self.llm_config
+            )
 
             if self.use_related_question:
-                self.related_prompt_template = self.llm_config.get("related_prompt_template", RELATED_QUESTIONS_TEMPLATE_V2)
-                self.related_question_prompt = PromptTemplate(template=self.related_prompt_template,
-                                                          input_variables=["query", "context"])
-                self.related_question_predictor = Predictor.get_completion_service(self.model_service_provider, self.model_name, 
-                                                                       base_url, api_key, **self.llm_config)
+                self.related_prompt_template = self.llm_config.get(
+                    "related_prompt_template", RELATED_QUESTIONS_TEMPLATE_V2
+                )
+                self.related_question_prompt = PromptTemplate(
+                    template=self.related_prompt_template, input_variables=["query", "context"]
+                )
+                self.related_question_predictor = Predictor.get_completion_service(
+                    self.model_service_provider, self.model_name, base_url, api_key, **self.llm_config
+                )
 
         else:
             raise Exception("Model service provider not found")
@@ -124,7 +132,9 @@ class Pipeline(ABC):
             }
         ]
         related_questions = []
-        tool_responses, content = await self.related_question_predictor.agenerate_by_tools(related_question_prompt, tools)
+        tool_responses, content = await self.related_question_predictor.agenerate_by_tools(
+            related_question_prompt, tools
+        )
         if tool_responses:
             for tool_response in tool_responses:
                 if tool_response.function.name == "ask_related_questions":
@@ -134,9 +144,9 @@ class Pipeline(ABC):
                         related_questions.append(question)
         else:
             related_questions = []
-            if content=='':
+            if content == "":
                 return related_questions
-            questions = re.sub(r'\n+', '\n', content).split('\n')
+            questions = re.sub(r"\n+", "\n", content).split("\n")
             for question in questions:
                 match = re.match(r"\s*-\s*(.*)", question)
                 if match:
@@ -162,24 +172,14 @@ class Pipeline(ABC):
         if not message_id:
             message_id = str(uuid.uuid4())
 
-        human_msg = await (self.new_human_message(message, message_id))
+        human_msg = await self.new_human_message(message, message_id)
         human_msg = human_msg.json(exclude_none=True)
-        await self.history.add_message(
-            HumanMessage(
-                content=human_msg,
-                additional_kwargs={"role": "human"}
-            )
-        )
+        await self.history.add_message(HumanMessage(content=human_msg, additional_kwargs={"role": "human"}))
 
     async def add_ai_message(self, message, message_id, response, references, urls):
-        ai_msg = await (self.new_ai_message(message, message_id, response, references, urls))
+        ai_msg = await self.new_ai_message(message, message_id, response, references, urls)
         ai_msg = ai_msg.json(exclude_none=True)
-        await self.history.add_message(
-            AIMessage(
-                content=ai_msg,
-                additional_kwargs={"role": "ai"}
-            )
-        )
+        await self.history.add_message(AIMessage(content=ai_msg, additional_kwargs={"role": "ai"}))
 
     @abstractmethod
     async def run(self, query, gen_references=False, message_id=""):

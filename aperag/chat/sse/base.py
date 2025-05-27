@@ -14,11 +14,9 @@
 
 import json
 import logging
-import uuid
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, AsyncGenerator, List
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
-from asgiref.sync import sync_to_async
 from channels.generic.http import AsyncHttpConsumer
 
 from aperag.chat.history.redis import RedisChatMessageHistory
@@ -32,6 +30,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ChatRequest:
     """Chat request parameters for frontend chat"""
+
     user: str
     bot_id: str
     chat_id: str
@@ -43,6 +42,7 @@ class ChatRequest:
 @dataclass
 class APIRequest:
     """API request parameters for direct API calls"""
+
     user: str
     bot_id: str
     msg_id: str
@@ -52,7 +52,7 @@ class APIRequest:
 
 class BaseFormatter:
     """Base class for response formatters"""
-    
+
     @staticmethod
     def format_error(error: str) -> Dict[str, Any]:
         """Format an error response"""
@@ -61,7 +61,7 @@ class BaseFormatter:
 
 class MessageProcessor:
     """Handle message processing for different bot types"""
-    
+
     def __init__(self, bot: Bot, history: Optional[RedisChatMessageHistory] = None):
         self.bot = bot
         self.history = history
@@ -74,30 +74,22 @@ class MessageProcessor:
                 collection = collections[0]
             else:
                 raise ValueError("No collection found for bot")
-            pipeline = await create_knowledge_pipeline(
-                bot=self.bot, 
-                collection=collection, 
-                history=self.history
-            )
+            pipeline = await create_knowledge_pipeline(bot=self.bot, collection=collection, history=self.history)
             async for msg in pipeline.run(message, message_id=msg_id):
                 yield msg
-                
+
         elif self.bot.type == Bot.Type.COMMON:
-            pipeline = CommonPipeline(
-                bot=self.bot, 
-                collection=None, 
-                history=self.history
-            )
+            pipeline = CommonPipeline(bot=self.bot, collection=None, history=self.history)
             async for msg in pipeline.run(message, message_id=msg_id):
                 yield msg
-                
+
         else:
             raise ValueError("Unsupported bot type")
 
 
 class BaseConsumer(AsyncHttpConsumer):
     """Base class for SSE consumers"""
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.formatter = None  # To be set by subclasses

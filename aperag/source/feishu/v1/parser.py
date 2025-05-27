@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 
 
 class FeishuDocParser:
-
     def __init__(self, data):
         self.data = data
 
@@ -103,7 +102,7 @@ class FeishuDocParser:
                 post_write += "`"
             elif link:
                 text += "["
-                url = unquote(link['url'])
+                url = unquote(link["url"])
                 post_write += f"]({url})"
         text += text_run.get("text", "")
         text += post_write

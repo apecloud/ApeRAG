@@ -1,7 +1,8 @@
 import os
-import pytest
-from aperag.llm.qianwen import QianWenPredictor
 
+import pytest
+
+from aperag.llm.qianwen import QianWenPredictor
 
 QIANWEN_API_KEY = os.getenv("QIANWEN_API_KEY")
 

@@ -37,8 +37,7 @@ async def feedback_message(user, chat_id, message_id, feedback_type=None, feedba
     # If feedback_type is None, delete the feedback record
     if feedback_type is None:
         try:
-            feedback = await MessageFeedback.objects.aget(
-                user=user, chat_id=chat_id, message_id=message_id)
+            feedback = await MessageFeedback.objects.aget(user=user, chat_id=chat_id, message_id=message_id)
             await feedback.adelete()
             return None
         except MessageFeedback.DoesNotExist:
@@ -56,7 +55,6 @@ async def feedback_message(user, chat_id, message_id, feedback_type=None, feedba
     data["status"] = MessageFeedback.Status.PENDING
     collection_id = msg.get("collection_id", None)
     feedback, _ = await MessageFeedback.objects.aupdate_or_create(
-        user=user, chat_id=chat_id, message_id=message_id, collection_id=collection_id,
-        defaults=data
+        user=user, chat_id=chat_id, message_id=message_id, collection_id=collection_id, defaults=data
     )
     return feedback

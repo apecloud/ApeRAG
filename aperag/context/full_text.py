@@ -90,13 +90,7 @@ def delete_index(index):
 def create_index(index):
     if not es.indices.exists(index=index).body:
         mapping = {
-            "properties": {
-                "content": {
-                    "type": "text",
-                    "analyzer": "ik_max_word",
-                    "search_analyzer": "ik_smart"
-                }
-            }
+            "properties": {"content": {"type": "text", "analyzer": "ik_max_word", "search_analyzer": "ik_smart"}}
         }
         es.indices.create(index=index, body={"mappings": mapping})
     else:
@@ -107,8 +101,8 @@ def create_index(index):
 def insert_document(index, doc_id, doc_name, content):
     if es.indices.exists(index=index).body:
         doc = {
-            'name': doc_name,
-            'content': content,
+            "name": doc_name,
+            "content": content,
         }
         es.index(index=index, id=f"{doc_id}", document=doc)
     else:
@@ -135,20 +129,12 @@ async def search_document(index: str, keywords: List[str], topk=3):
 
     query = {
         "bool": {
-            "should": [
-                {"match": {"content": keyword}} for keyword in keywords
-            ],
+            "should": [{"match": {"content": keyword}} for keyword in keywords],
             "minimum_should_match": "80%",
             # "minimum_should_match": "-1",
         },
     }
-    sort = [
-        {
-            "_score": {
-                "order": "desc"
-            }
-        }
-    ]
+    sort = [{"_score": {"order": "desc"}}]
     resp = await async_es.search(index=index, query=query, sort=sort, size=topk)
     hits = resp.body["hits"]
     result = []

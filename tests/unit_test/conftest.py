@@ -1,6 +1,6 @@
-import sys
 import os
-import pytest
+import sys
+
 from dotenv import load_dotenv
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))

@@ -1,7 +1,8 @@
-from aperag.flow.base.models import BaseNodeRunner, register_node_runner, NodeInstance
+from typing import Any, Dict, List
+
+from aperag.flow.base.models import BaseNodeRunner, NodeInstance, register_node_runner
 from aperag.query.query import DocumentWithScore
 from aperag.rank.reranker import rerank
-from typing import Any, Dict, List
 
 
 @register_node_runner("rerank")
@@ -13,4 +14,4 @@ class RerankNodeRunner(BaseNodeRunner):
         result = []
         if docs:
             result = await rerank(query, docs)
-        return {"docs": result} 
+        return {"docs": result}

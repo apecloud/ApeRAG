@@ -1,12 +1,14 @@
 import json
 from typing import Any, Dict, List
+
+from asgiref.sync import sync_to_async
+
+from aperag.context.context import ContextManager
 from aperag.db.models import Collection
 from aperag.embed.base_embedding import get_collection_embedding_service
-from aperag.flow.base.models import BaseNodeRunner, register_node_runner, NodeInstance
-from aperag.context.context import ContextManager
+from aperag.flow.base.models import BaseNodeRunner, NodeInstance, register_node_runner
 from aperag.utils.utils import generate_vector_db_collection_name
 from config import settings
-from asgiref.sync import sync_to_async
 
 
 @register_node_runner("vector_search")
@@ -33,4 +35,4 @@ class VectorSearchNodeRunner(BaseNodeRunner):
 
         vector = embedding_model.embed_query(query)
         results = context_manager.query(query, score_threshold=score_threshold, topk=topk, vector=vector)
-        return {"docs": results} 
+        return {"docs": results}

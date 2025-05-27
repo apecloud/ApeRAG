@@ -12,17 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 
 from asgiref.sync import async_to_sync
 
-from aperag.schema.utils import parseCollectionConfig
-from config import settings
-from config.celery import app
-from config.vector_db import get_vector_db_connector
 from aperag.context.full_text import create_index, delete_index
 from aperag.db.models import Collection
 from aperag.embed.base_embedding import get_collection_embedding_service
+from aperag.schema.utils import parseCollectionConfig
 from aperag.source.base import get_source
 from aperag.tasks.sync_documents_task import sync_documents
 from aperag.utils.utils import (
@@ -30,6 +26,9 @@ from aperag.utils.utils import (
     generate_qa_vector_db_collection_name,
     generate_vector_db_collection_name,
 )
+from config.celery import app
+from config.vector_db import get_vector_db_connector
+
 
 @app.task
 def init_collection_task(collection_id, document_user_quota):
@@ -37,13 +36,11 @@ def init_collection_task(collection_id, document_user_quota):
     if collection.status == Collection.Status.DELETED:
         return
 
-    vector_db_conn = get_vector_db_connector(
-        collection=generate_vector_db_collection_name(collection_id=collection_id)
-    )
+    vector_db_conn = get_vector_db_connector(collection=generate_vector_db_collection_name(collection_id=collection_id))
     _, vector_size = async_to_sync(get_collection_embedding_service)(collection)
     # pre-create collection in vector db
     vector_db_conn.connector.create_collection(vector_size=vector_size)
-    
+
     qa_vector_db_conn = get_vector_db_connector(
         collection=generate_qa_vector_db_collection_name(collection=collection_id)
     )
@@ -68,9 +65,7 @@ def delete_collection_task(collection_id):
     index_name = generate_fulltext_index_name(collection.id)
     delete_index(index_name)
 
-    vector_db_conn = get_vector_db_connector(
-        collection=generate_vector_db_collection_name(collection_id=collection_id)
-    )
+    vector_db_conn = get_vector_db_connector(collection=generate_vector_db_collection_name(collection_id=collection_id))
     vector_db_conn.connector.delete_collection()
 
     qa_vector_db_conn = get_vector_db_connector(

@@ -14,8 +14,6 @@
 
 import logging
 
-from asgiref.sync import sync_to_async
-
 from aperag.pipeline.knowledge_pipeline import create_knowledge_pipeline
 
 from .base_consumer import BaseConsumer

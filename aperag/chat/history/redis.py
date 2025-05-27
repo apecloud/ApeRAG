@@ -24,17 +24,20 @@ logger = logging.getLogger(__name__)
 class RedisChatMessageHistory:
     """Chat message history stored in a Redis database."""
 
-    def __init__(self,
-                 session_id: str,
-                 url: str = "redis://localhost:6379/0",
-                 key_prefix: str = "message_store:",
-                 ttl: Optional[int] = None,
-                 redis_client=None,):
+    def __init__(
+        self,
+        session_id: str,
+        url: str = "redis://localhost:6379/0",
+        key_prefix: str = "message_store:",
+        ttl: Optional[int] = None,
+        redis_client=None,
+    ):
         try:
             import redis.asyncio as redis
         except ImportError:
-            raise ImportError("Could not import redis.asyncio python package. "
-                              "Please make sure that redis version >= 4.0.0")
+            raise ImportError(
+                "Could not import redis.asyncio python package. Please make sure that redis version >= 4.0.0"
+            )
         try:
             self.redis_client = redis_client or redis.Redis.from_url(url)
         except Exception as e:

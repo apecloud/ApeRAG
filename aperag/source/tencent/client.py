@@ -14,15 +14,12 @@
 
 import time
 from abc import ABC
-from threading import Lock
 from typing import Any, Dict, Iterator
 
-import redis
 import requests
 
 from aperag.schema.view_models import CollectionConfig
-from config import settings
-from aperag.source.base import CustomSourceInitializationError, LocalDocument, RemoteDocument
+from aperag.source.base import LocalDocument, RemoteDocument
 from aperag.source.utils import gen_temporary_file
 
 
@@ -85,16 +82,10 @@ class TencentClient(ABC):
             raise Exception(f"request failed: {resp.get('msg')}")
 
         data = resp.get("data")
-        metadata = {
-            "ID": data["ID"],
-            "url": data["url"],
-            "modified_time": data["lastModifyTime"]
-        }
+        metadata = {"ID": data["ID"], "url": data["url"], "modified_time": data["lastModifyTime"]}
 
         doc = RemoteDocument(
-            name=data['title'] + ".pdf" if source == "download" else data['title'] + ".txt",
-            size=0,
-            metadata=metadata
+            name=data["title"] + ".pdf" if source == "download" else data["title"] + ".txt", size=0, metadata=metadata
         )
         return doc
 
@@ -197,16 +188,9 @@ class TencentClient(ABC):
             else:
                 self.access_token, self.open_id = self.get_access_token()
 
-        headers = {
-                "Access-Token": self.access_token,
-                "Client-Id": self.client_id,
-                "Open-Id": self.open_id
-            }
+        headers = {"Access-Token": self.access_token, "Client-Id": self.client_id, "Open-Id": self.open_id}
         if method.lower() == "post":
-            headers.update({
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Content-Length": "14"
-            })
+            headers.update({"Content-Type": "application/x-www-form-urlencoded", "Content-Length": "14"})
 
         r = requests.request(method=method, url=url, headers=headers, **kwargs)
         if r.status_code != 200:
@@ -223,7 +207,7 @@ class TencentClient(ABC):
             "client_secret": self.client_secret,
             "redirect_uri": self.redirect_uri,
             "grant_type": "authorization_code",
-            "code": self.code
+            "code": self.code,
         }
         url = "https://docs.qq.com/oauth/v2/token"
 

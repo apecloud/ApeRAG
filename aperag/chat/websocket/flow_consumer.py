@@ -14,10 +14,10 @@
 
 import json
 import logging
-import os
 
 from aperag.flow.engine import FlowEngine
 from aperag.flow.parser import FlowParser
+
 from .base_consumer import BaseConsumer
 
 logger = logging.getLogger(__name__)
@@ -32,11 +32,11 @@ class FlowConsumer(BaseConsumer):
 
         # FIXME: get flow from the bot config when the frontend is ready
         # Load flow configuration
-        from django.conf import settings
+
         config = json.loads(self.bot.config)
         flow = config.get("flow")
         self.flow = FlowParser.parse_yaml(flow)
-        
+
     async def predict(self, query, **kwargs):
         engine = FlowEngine()
         initial_data = {
@@ -44,7 +44,7 @@ class FlowConsumer(BaseConsumer):
             "bot": self.bot,
             "user": self.user,
             "history": self.history,
-            "message_id": kwargs.get("message_id")
+            "message_id": kwargs.get("message_id"),
         }
         try:
             result = await engine.execute_flow(self.flow, initial_data)
@@ -52,7 +52,7 @@ class FlowConsumer(BaseConsumer):
         except Exception as e:
             logger.exception(e)
             raise e
-        
+
         if result is None:
             raise ValueError("No output node found")
 

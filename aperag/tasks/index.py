@@ -17,7 +17,6 @@ import os
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Tuple, Dict, Any, Optional
 
 from asgiref.sync import async_to_sync
 from celery import Task
@@ -25,13 +24,12 @@ from django.utils import timezone
 
 from aperag.context.full_text import insert_document, remove_document
 from aperag.db.models import Collection, Document, MessageFeedback, Question
-from aperag.docparser.doc_parser import DocParser, get_default_config
+from aperag.docparser.doc_parser import DocParser
 from aperag.embed.base_embedding import get_collection_embedding_service
 from aperag.embed.local_path_embedding import LocalPathEmbedding
 from aperag.embed.qa_embedding import QAEmbedding
 from aperag.embed.question_embedding import QuestionEmbedding, QuestionEmbeddingWithoutDocument
 from aperag.graph import lightrag_holder
-from aperag.graph.lightrag_holder import LightRagHolder
 from aperag.objectstore.base import get_object_store
 from aperag.schema.utils import parseCollectionConfig
 from aperag.source.base import get_source
@@ -40,15 +38,16 @@ from aperag.utils.tokenizer import get_default_tokenizer
 from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS, uncompress
 from aperag.utils.utils import (
     generate_fulltext_index_name,
+    generate_lightrag_namespace_prefix,
     generate_qa_vector_db_collection_name,
     generate_vector_db_collection_name,
-    generate_lightrag_namespace_prefix,
 )
 from config import settings
 from config.celery import app
 from config.vector_db import get_vector_db_connector
 
 logger = logging.getLogger(__name__)
+
 
 # Configuration constants
 class IndexTaskConfig:
@@ -110,10 +109,11 @@ def create_local_path_embedding_loader(local_doc, document, collection, embeddin
         embedding_model=embedding_model,
         vector_size=vector_size,
         vector_store_adaptor=get_vector_db_connector(
-            collection=generate_vector_db_collection_name(collection_id=collection.id)),
+            collection=generate_vector_db_collection_name(collection_id=collection.id)
+        ),
         chunk_size=settings.CHUNK_SIZE,
         chunk_overlap=settings.CHUNK_OVERLAP_SIZE,
-        tokenizer=get_default_tokenizer()
+        tokenizer=get_default_tokenizer(),
     )
 
 
@@ -165,10 +165,7 @@ def uncompress_file(document: Document, supported_file_extensions: list[str]):
                 obj_store.put(upload_path, extracted_file)
 
                 document_instance.object_path = upload_path
-                document_instance.metadata = json.dumps({
-                    "object_path": upload_path,
-                    "uncompressed": "true"
-                })
+                document_instance.metadata = json.dumps({"object_path": upload_path, "uncompressed": "true"})
                 document_instance.save()
                 add_index_for_local_document.delay(document_instance.id)
 
@@ -180,18 +177,23 @@ def add_index_for_local_document(self, document_id):
     try:
         add_index_for_document(document_id)
     except Exception as e:
-        raise self.retry(exc=e, countdown=IndexTaskConfig.RETRY_COUNTDOWN_ADD_INDEX, max_retries=IndexTaskConfig.RETRY_MAX_RETRIES_ADD_INDEX)
+        raise self.retry(
+            exc=e,
+            countdown=IndexTaskConfig.RETRY_COUNTDOWN_ADD_INDEX,
+            max_retries=IndexTaskConfig.RETRY_MAX_RETRIES_ADD_INDEX,
+        )
+
 
 @app.task(base=CustomLoadDocumentTask, bind=True, track_started=True)
 def add_index_for_document(self, document_id):
     """
     Main task function for creating document indexes
-    
+
     Handles the creation of vector index, fulltext index and knowledge graph index
-    
+
     Args:
         document_id: ID of the Django Document model
-        
+
     Raises:
         Exception: Various document processing exceptions (permissions, etc.)
     """
@@ -292,10 +294,10 @@ def add_index_for_document(self, document_id):
 def remove_index(self, document_id):
     """
     Remove the document embedding index from vector store database
-    
+
     Args:
         document_id: ID of the Django Document model
-        
+
     Raises:
         Exception: Various database operation exceptions
     """
@@ -309,9 +311,7 @@ def remove_index(self, document_id):
             return
 
         relate_ids = json.loads(document.relate_ids)
-        vector_db = get_vector_db_connector(
-            collection=generate_vector_db_collection_name(collection_id=collection.id)
-        )
+        vector_db = get_vector_db_connector(collection=generate_vector_db_collection_name(collection_id=collection.id))
         ctx_relate_ids = relate_ids.get("ctx", [])
         vector_db.connector.delete(ids=ctx_relate_ids)
         logger.info(f"remove ctx qdrant points: {ctx_relate_ids} for document {document.name}")
@@ -332,19 +332,23 @@ def update_index_for_local_document(self, document_id):
     try:
         update_index_for_document(document_id)
     except Exception as e:
-        raise self.retry(exc=e, countdown=IndexTaskConfig.RETRY_COUNTDOWN_UPDATE_INDEX, max_retries=IndexTaskConfig.RETRY_MAX_RETRIES_UPDATE_INDEX)
+        raise self.retry(
+            exc=e,
+            countdown=IndexTaskConfig.RETRY_COUNTDOWN_UPDATE_INDEX,
+            max_retries=IndexTaskConfig.RETRY_MAX_RETRIES_UPDATE_INDEX,
+        )
 
 
 @app.task(base=CustomLoadDocumentTask, bind=True, track_started=True)
 def update_index_for_document(self, document_id):
     """
     Task function for updating document indexes
-    
+
     Deletes old index data and creates new indexes
-    
+
     Args:
         document_id: ID of the Django Document model
-        
+
     Raises:
         Exception: Various document processing exceptions (permissions, etc.)
     """
@@ -361,9 +365,7 @@ def update_index_for_document(self, document_id):
         local_doc = source.prepare_document(name=document.name, metadata=metadata)
 
         embedding_model, vector_size = async_to_sync(get_collection_embedding_service)(collection)
-        loader = create_local_path_embedding_loader(
-            local_doc, document, collection, embedding_model, vector_size
-        )
+        loader = create_local_path_embedding_loader(local_doc, document, collection, embedding_model, vector_size)
         loader.connector.delete(ids=relate_ids.get("ctx", []))
 
         config, enable_knowledge_graph = get_collection_config_settings(collection)
@@ -404,7 +406,7 @@ def add_lightrag_index_task(self, content, document_id, file_path):
     Create new LightRAG instance each time to avoid event loop conflicts in this task
     """
     logger.info(f"Begin LightRAG indexing task for document (ID: {document_id})")
-    
+
     # Get document object and update status
     document = Document.objects.get(id=document_id)
     document.graph_index_status = Document.IndexStatus.RUNNING
@@ -426,11 +428,7 @@ def add_lightrag_index_task(self, content, document_id, file_path):
             namespace_prefix, llm_func, embed_func, embed_dim=dim
         )
 
-        await rag_holder.ainsert(
-            input=content,
-            ids=document_id,
-            file_paths=file_path
-        )
+        await rag_holder.ainsert(input=content, ids=document_id, file_paths=file_path)
 
         lightrag_docs = await rag_holder.get_processed_docs()
         if not lightrag_docs or str(document_id) not in lightrag_docs:
@@ -455,7 +453,11 @@ def add_lightrag_index_task(self, content, document_id, file_path):
         document.graph_index_status = Document.IndexStatus.FAILED
         document.update_overall_status()
         document.save()
-        raise self.retry(exc=e, countdown=IndexTaskConfig.RETRY_COUNTDOWN_LIGHTRAG, max_retries=IndexTaskConfig.RETRY_MAX_RETRIES_LIGHTRAG)
+        raise self.retry(
+            exc=e,
+            countdown=IndexTaskConfig.RETRY_COUNTDOWN_LIGHTRAG,
+            max_retries=IndexTaskConfig.RETRY_MAX_RETRIES_LIGHTRAG,
+        )
 
 
 @app.task
@@ -468,7 +470,7 @@ def message_feedback(**kwargs):
     qa_collection_name = generate_qa_vector_db_collection_name(collection=feedback.collection.id)
     vector_store_adaptor = get_vector_db_connector(collection=qa_collection_name)
     embedding_model, _ = async_to_sync(get_collection_embedding_service)(feedback.collection)
-    ids = [i for i in str(feedback.relate_ids or "").split(',') if i]
+    ids = [i for i in str(feedback.relate_ids or "").split(",") if i]
     if ids:
         vector_store_adaptor.connector.delete(ids=ids)
     ids = QAEmbedding(feedback.question, feedback.revised_answer, vector_store_adaptor, embedding_model).load_data()
@@ -478,6 +480,7 @@ def message_feedback(**kwargs):
 
     feedback.status = MessageFeedback.Status.COMPLETE
     feedback.save()
+
 
 @app.task
 def generate_questions(document_id):
@@ -490,22 +493,24 @@ def generate_questions(document_id):
         metadata = json.loads(document.metadata)
         metadata["doc_id"] = document_id
         local_doc = source.prepare_document(name=document.name, metadata=metadata)
-        q_loaders = QuestionEmbedding(filepath=local_doc.path,
-                                file_metadata=local_doc.metadata,
-                                embedding_model=embedding_model,
-                                llm_model=None, #todo Fixme
-                                vector_store_adaptor=get_vector_db_connector(
-                                    collection=generate_qa_vector_db_collection_name(
-                                        collection=collection.id)))
+        q_loaders = QuestionEmbedding(
+            filepath=local_doc.path,
+            file_metadata=local_doc.metadata,
+            embedding_model=embedding_model,
+            llm_model=None,  # todo Fixme
+            vector_store_adaptor=get_vector_db_connector(
+                collection=generate_qa_vector_db_collection_name(collection=collection.id)
+            ),
+        )
         ids, questions = q_loaders.load_data()
         for relate_id, question in zip(ids, questions):
             question_instance = Question(
                 user=document.user,
                 question=question,
-                answer='',
+                answer="",
                 status=Question.Status.ACTIVE,
                 collection_id=collection.id,
-                relate_id=relate_id
+                relate_id=relate_id,
             )
             question_instance.save()
             question_instance.documents.add(document)
@@ -513,16 +518,19 @@ def generate_questions(document_id):
         logger.error(e)
         raise Exception("an error occur %s" % e)
 
+
 @app.task
 def update_index_for_question(question_id):
     try:
         question = Question.objects.get(id=question_id)
         embedding_model, _ = async_to_sync(get_collection_embedding_service)(question.collection)
 
-        q_loaders = QuestionEmbeddingWithoutDocument(embedding_model=embedding_model,
-                                vector_store_adaptor=get_vector_db_connector(
-                                    collection=generate_qa_vector_db_collection_name(
-                                        collection=question.collection.id)))
+        q_loaders = QuestionEmbeddingWithoutDocument(
+            embedding_model=embedding_model,
+            vector_store_adaptor=get_vector_db_connector(
+                collection=generate_qa_vector_db_collection_name(collection=question.collection.id)
+            ),
+        )
         if question.relate_id is not None:
             q_loaders.delete(ids=[question.relate_id])
         if question.status != Question.Status.DELETED:
@@ -537,10 +545,9 @@ def update_index_for_question(question_id):
 
 @app.task
 def update_collection_status(status, collection_id):
-    Collection.objects.filter(
-        id=collection_id,
-        status=Collection.Status.QUESTION_PENDING
-    ).update(status=Collection.Status.ACTIVE)
+    Collection.objects.filter(id=collection_id, status=Collection.Status.QUESTION_PENDING).update(
+        status=Collection.Status.ACTIVE
+    )
 
 
 @app.task(bind=True, track_started=True)
@@ -550,7 +557,7 @@ def remove_lightrag_index_task(self, document_id, collection_id):
     Create new LightRAG instance each time to avoid event loop conflicts in this task
     """
     logger.info(f"Begin LightRAG deletion task for document (ID: {document_id})")
-    
+
     async def _async_delete_lightrag():
         from aperag.db.models import Collection
 
@@ -572,4 +579,8 @@ def remove_lightrag_index_task(self, document_id, collection_id):
         async_to_sync(_async_delete_lightrag)()
     except Exception as e:
         logger.error(f"LightRAG deletion failed for document (ID: {document_id}): {str(e)}")
-        raise self.retry(exc=e, countdown=IndexTaskConfig.RETRY_COUNTDOWN_LIGHTRAG, max_retries=IndexTaskConfig.RETRY_MAX_RETRIES_LIGHTRAG)
+        raise self.retry(
+            exc=e,
+            countdown=IndexTaskConfig.RETRY_COUNTDOWN_LIGHTRAG,
+            max_retries=IndexTaskConfig.RETRY_MAX_RETRIES_LIGHTRAG,
+        )

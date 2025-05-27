@@ -21,7 +21,6 @@ from typing import Any, Dict
 from elasticsearch import AsyncElasticsearch
 from langchain_core.prompts import PromptTemplate
 
-from aperag.llm.base import Predictor
 from aperag.llm.prompts import KEYWORD_PROMPT_TEMPLATE
 
 logger = logging.getLogger(__name__)

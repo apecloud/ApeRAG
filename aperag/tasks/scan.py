@@ -59,7 +59,7 @@ async def update_sync_documents_cron_job(collection_id):
             name="collection-" + str(collection.id) + "-sync-documents",
             kwargs=json.dumps({"collection_id": str(collection.id)}),
             task="aperag.tasks.sync_documents_task.sync_documents",
-            crontab=crontab
+            crontab=crontab,
         )
     logger.info(f"update sync documents cronjob for collection{collection_id}")
 
@@ -74,5 +74,3 @@ async def delete_sync_documents_cron_job(collection_id):
 
 async def get_schedule_task(collection_id):
     return PeriodicTask.objects.filter(name="collection-" + str(collection_id) + "-sync-documents")
-
-

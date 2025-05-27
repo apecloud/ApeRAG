@@ -13,15 +13,14 @@
 # limitations under the License.
 
 
-from aperag.chat.sse.base import APIRequest, BaseConsumer, MessageProcessor, BaseFormatter, logger
-from aperag.db.models import Bot
-
-
 import json
-import uuid
 import time
+import uuid
 from typing import Any, AsyncGenerator, Dict, Optional
 from urllib.parse import parse_qsl
+
+from aperag.chat.sse.base import APIRequest, BaseConsumer, BaseFormatter, MessageProcessor, logger
+from aperag.db.models import Bot
 
 
 class OpenAIFormatter(BaseFormatter):
@@ -35,11 +34,7 @@ class OpenAIFormatter(BaseFormatter):
             "object": "chat.completion.chunk",
             "created": int(time.time()),
             "model": "aperag",
-            "choices": [{
-                "index": 0,
-                "delta": {"role": "assistant"},
-                "finish_reason": None
-            }]
+            "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}],
         }
 
     @staticmethod
@@ -50,11 +45,7 @@ class OpenAIFormatter(BaseFormatter):
             "object": "chat.completion.chunk",
             "created": int(time.time()),
             "model": "aperag",
-            "choices": [{
-                "index": 0,
-                "delta": {"content": content},
-                "finish_reason": None
-            }]
+            "choices": [{"index": 0, "delta": {"content": content}, "finish_reason": None}],
         }
 
     @staticmethod
@@ -65,11 +56,7 @@ class OpenAIFormatter(BaseFormatter):
             "object": "chat.completion.chunk",
             "created": int(time.time()),
             "model": "aperag",
-            "choices": [{
-                "index": 0,
-                "delta": {},
-                "finish_reason": "stop"
-            }]
+            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
         }
 
     @staticmethod
@@ -80,40 +67,27 @@ class OpenAIFormatter(BaseFormatter):
             "object": "chat.completion",
             "created": int(time.time()),
             "model": "aperag",
-            "choices": [{
-                "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": content
-                },
-                "finish_reason": "stop"
-            }],
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": content}, "finish_reason": "stop"}],
             "usage": {
                 "prompt_tokens": 0,  # TODO: Implement token counting
                 "completion_tokens": 0,
-                "total_tokens": 0
-            }
+                "total_tokens": 0,
+            },
         }
 
     @staticmethod
     def format_error(error: str) -> Dict[str, Any]:
         """Format an error response"""
-        return {
-            "error": {
-                "message": error,
-                "type": "server_error",
-                "code": "internal_error"
-            }
-        }
+        return {"error": {"message": error, "type": "server_error", "code": "internal_error"}}
 
 
 class OpenAIConsumer(BaseConsumer):
     """Handle direct API calls following OpenAI API format"""
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.formatter = OpenAIFormatter()
-    
+
     async def handle(self, body):
         try:
             await self._handle(body)
@@ -124,7 +98,7 @@ class OpenAIConsumer(BaseConsumer):
     async def _handle(self, body):
         # Parse request parameters
         request = await self._parse_request(body)
-        
+
         # Get bot
         bot = await self._get_bot(request)
         if not bot:
@@ -134,13 +108,17 @@ class OpenAIConsumer(BaseConsumer):
         try:
             # Initialize message processor without chat history
             processor = MessageProcessor(bot)
-            
+
             # Process message and send response based on stream mode
             if request.stream:
-                await self._send_streaming_response(request.msg_id, processor.process_message(request.messages[-1]["content"], request.msg_id))
+                await self._send_streaming_response(
+                    request.msg_id, processor.process_message(request.messages[-1]["content"], request.msg_id)
+                )
             else:
-                await self._send_complete_response(request.msg_id, processor.process_message(request.messages[-1]["content"], request.msg_id))
-                
+                await self._send_complete_response(
+                    request.msg_id, processor.process_message(request.messages[-1]["content"], request.msg_id)
+                )
+
         except ValueError as e:
             await self.send_error(str(e))
         except Exception as e:
@@ -149,31 +127,34 @@ class OpenAIConsumer(BaseConsumer):
 
     async def _parse_request(self, body) -> APIRequest:
         """Parse request parameters from body and query string"""
-        query_params = dict(parse_qsl(self.scope['query_string'].decode('utf-8')))
+        query_params = dict(parse_qsl(self.scope["query_string"].decode("utf-8")))
         body_data = json.loads(body.decode("utf-8"))
         return APIRequest(
             user=query_params.get("user", ""),
             bot_id=query_params.get("bot_id", ""),
             msg_id=str(uuid.uuid4()),
             stream=body_data.get("stream", False),
-            messages=body_data.get("messages", [])
+            messages=body_data.get("messages", []),
         )
 
     async def _get_bot(self, request: APIRequest) -> Optional[Bot]:
         """Get bot by ID"""
         from aperag.db.ops import query_bot
+
         return await query_bot(request.user, request.bot_id)
 
     async def _send_streaming_response(self, msg_id: str, content_generator: AsyncGenerator[str, None]):
         """Send streaming response using SSE"""
         # Set SSE headers
-        await self.send_headers(headers=[
-            (b"Cache-Control", b"no-cache"),
-            (b"Content-Type", b"text/event-stream"),
-            (b"Transfer-Encoding", b"chunked"),
-            (b"Connection", b"keep-alive"),
-            (b"X-Accel-Buffering", b"no"),
-        ])
+        await self.send_headers(
+            headers=[
+                (b"Cache-Control", b"no-cache"),
+                (b"Content-Type", b"text/event-stream"),
+                (b"Transfer-Encoding", b"chunked"),
+                (b"Connection", b"keep-alive"),
+                (b"X-Accel-Buffering", b"no"),
+            ]
+        )
 
         # Send start event
         await self.send_event(self.formatter.format_stream_start(msg_id))
@@ -187,14 +168,16 @@ class OpenAIConsumer(BaseConsumer):
 
     async def _send_complete_response(self, msg_id: str, content_generator: AsyncGenerator[str, None]):
         """Send complete response as JSON"""
-        await self.send_headers(headers=[
-            (b"Content-Type", b"application/json"),
-        ])
-        
+        await self.send_headers(
+            headers=[
+                (b"Content-Type", b"application/json"),
+            ]
+        )
+
         # Collect all content
         full_content = ""
         async for chunk in content_generator:
             full_content += chunk
-        
+
         response = self.formatter.format_complete_response(msg_id, full_content)
-        await self.send_body(json.dumps(response).encode("utf-8"), more_body=False) 
+        await self.send_body(json.dumps(response).encode("utf-8"), more_body=False)

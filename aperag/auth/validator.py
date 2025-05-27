@@ -17,18 +17,16 @@ import logging
 from typing import Any, Optional
 
 from channels.middleware import BaseMiddleware
+from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest
-from ninja.security import HttpBearer
 from ninja.security.http import HttpAuthBase
 
 import config.settings as settings
 from aperag.auth import tv
-from aperag.utils.constant import KEY_USER_ID
 from aperag.db.models import ApiKey
-from django.core.cache import cache
-from asgiref.sync import sync_to_async
-from ninja.security import APIKeyCookie
+from aperag.utils.constant import KEY_USER_ID
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_USER = "aperag"
@@ -44,6 +42,7 @@ def get_user_from_token(token):
         case _:
             user = DEFAULT_USER
     return user
+
 
 async def get_user_from_api_key(key):
     cache_key = f"api_key:{key}"
@@ -96,7 +95,7 @@ class HTTPAuthMiddleware(BaseMiddleware):
         self.inner = inner
 
     async def __call__(self, scope, receive, send):
-        path = scope['path']
+        path = scope["path"]
         if path == "/api/v1/config" or path.startswith("/api/v1/feishu"):
             return await self.inner(scope, receive, send)
 
@@ -109,5 +108,3 @@ class HTTPAuthMiddleware(BaseMiddleware):
         user = get_user_from_token(token)
         scope[KEY_USER_ID] = user
         return await self.inner(scope, receive, send)
-
-

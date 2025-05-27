@@ -22,19 +22,43 @@ from ninja import File, Router
 from ninja.files import UploadedFile
 
 from aperag.db.ops import build_pq
-from aperag.utils.request import get_urls, get_user
 from aperag.schema import view_models
-from aperag.service.collection_service import create_collection, create_search_test, list_search_tests, delete_search_test
 from aperag.service.bot_service import create_bot
 from aperag.service.chat_service import create_chat, frontend_chat_completions
-from aperag.service.document_service import create_document, create_url_document, list_documents, get_document, update_document, delete_document, delete_documents
-from aperag.service.model_service import list_model_service_providers, delete_model_service_provider, list_available_models, list_supported_model_service_providers, update_model_service_provider
-from aperag.service.sync_service import sync_immediately, cancel_sync, list_sync_histories, get_sync_history
-from aperag.service.question_service import create_questions, update_question, delete_question, list_questions, get_question
-from aperag.service.flow_service import debug_flow_stream
-from aperag.service.prompt_template_service import list_prompt_templates
+from aperag.service.collection_service import (
+    create_collection,
+    create_search_test,
+    delete_search_test,
+    list_search_tests,
+)
 from aperag.service.dashboard_service import dashboard_service
-from aperag.views.utils import success
+from aperag.service.document_service import (
+    create_document,
+    create_url_document,
+    delete_document,
+    delete_documents,
+    get_document,
+    list_documents,
+    update_document,
+)
+from aperag.service.flow_service import debug_flow_stream
+from aperag.service.model_service import (
+    delete_model_service_provider,
+    list_available_models,
+    list_model_service_providers,
+    list_supported_model_service_providers,
+    update_model_service_provider,
+)
+from aperag.service.prompt_template_service import list_prompt_templates
+from aperag.service.question_service import (
+    create_questions,
+    delete_question,
+    get_question,
+    list_questions,
+    update_question,
+)
+from aperag.service.sync_service import cancel_sync, get_sync_history, list_sync_histories, sync_immediately
+from aperag.utils.request import get_urls, get_user
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -44,7 +68,7 @@ router = Router()
 
 @router.get("/prompt-templates")
 async def list_prompt_templates_view(request) -> view_models.PromptTemplateList:
-    language = request.headers.get('Lang', "zh-CN")
+    language = request.headers.get("Lang", "zh-CN")
     return list_prompt_templates(language)
 
 
@@ -81,6 +105,7 @@ async def create_collection_view(request, collection: view_models.CollectionCrea
 @router.get("/collections")
 async def list_collections_view(request) -> view_models.CollectionList:
     from aperag.service.collection_service import list_collections
+
     user = get_user(request)
     return await list_collections(user, build_pq(request))
 
@@ -88,13 +113,17 @@ async def list_collections_view(request) -> view_models.CollectionList:
 @router.get("/collections/{collection_id}")
 async def get_collection_view(request, collection_id: str) -> view_models.Collection:
     from aperag.service.collection_service import get_collection
+
     user = get_user(request)
     return await get_collection(user, collection_id)
 
 
 @router.put("/collections/{collection_id}")
-async def update_collection_view(request, collection_id: str, collection: view_models.CollectionUpdate) -> view_models.Collection:
+async def update_collection_view(
+    request, collection_id: str, collection: view_models.CollectionUpdate
+) -> view_models.Collection:
     from aperag.service.collection_service import update_collection
+
     user = get_user(request)
     return await update_collection(user, collection_id, collection)
 
@@ -102,6 +131,7 @@ async def update_collection_view(request, collection_id: str, collection: view_m
 @router.delete("/collections/{collection_id}")
 async def delete_collection_view(request, collection_id: str) -> view_models.Collection:
     from aperag.service.collection_service import delete_collection
+
     user = get_user(request)
     return await delete_collection(user, collection_id)
 
@@ -113,7 +143,9 @@ async def create_questions_view(request, collection_id: str):
 
 
 @router.put("/collections/{collection_id}/questions")
-async def update_question_view(request, collection_id: str, question_in: view_models.QuestionUpdate) -> view_models.Question:
+async def update_question_view(
+    request, collection_id: str, question_in: view_models.QuestionUpdate
+) -> view_models.Question:
     user = get_user(request)
     return await update_question(user, collection_id, question_in)
 
@@ -137,7 +169,9 @@ async def get_question_view(request, collection_id: str, question_id: str) -> vi
 
 
 @router.post("/collections/{collection_id}/documents")
-async def create_document_view(request, collection_id: str, file: List[UploadedFile] = File(...)) -> List[view_models.Document]:
+async def create_document_view(
+    request, collection_id: str, file: List[UploadedFile] = File(...)
+) -> List[view_models.Document]:
     user = get_user(request)
     return await create_document(user, collection_id, file)
 
@@ -162,7 +196,9 @@ async def get_document_view(request, collection_id: str, document_id: str) -> vi
 
 
 @router.put("/collections/{collection_id}/documents/{document_id}")
-async def update_document_view(request, collection_id: str, document_id: str, document: view_models.Document) -> view_models.Document:
+async def update_document_view(
+    request, collection_id: str, document_id: str, document: view_models.Document
+) -> view_models.Document:
     user = get_user(request)
     return await update_document(user, collection_id, document_id, document)
 
@@ -188,6 +224,7 @@ async def create_chat_view(request, bot_id: str) -> view_models.Chat:
 @router.get("/bots/{bot_id}/chats")
 async def list_chats_view(request, bot_id: str) -> view_models.ChatList:
     from aperag.service.chat_service import list_chats
+
     user = get_user(request)
     return await list_chats(user, bot_id, build_pq(request))
 
@@ -195,6 +232,7 @@ async def list_chats_view(request, bot_id: str) -> view_models.ChatList:
 @router.get("/bots/{bot_id}/chats/{chat_id}")
 async def get_chat_view(request, bot_id: str, chat_id: str) -> view_models.Chat:
     from aperag.service.chat_service import get_chat
+
     user = get_user(request)
     return await get_chat(user, bot_id, chat_id)
 
@@ -202,6 +240,7 @@ async def get_chat_view(request, bot_id: str, chat_id: str) -> view_models.Chat:
 @router.put("/bots/{bot_id}/chats/{chat_id}")
 async def update_chat_view(request, bot_id: str, chat_id: str, chat_in: view_models.ChatUpdate) -> view_models.Chat:
     from aperag.service.chat_service import update_chat
+
     user = get_user(request)
     return await update_chat(user, bot_id, chat_id, chat_in)
 
@@ -209,6 +248,7 @@ async def update_chat_view(request, bot_id: str, chat_id: str, chat_in: view_mod
 @router.delete("/bots/{bot_id}/chats/{chat_id}")
 async def delete_chat_view(request, bot_id: str, chat_id: str) -> view_models.Chat:
     from aperag.service.chat_service import delete_chat
+
     user = get_user(request)
     return await delete_chat(user, bot_id, chat_id)
 
@@ -222,6 +262,7 @@ async def create_bot_view(request, bot_in: view_models.BotCreate) -> view_models
 @router.get("/bots")
 async def list_bots_view(request) -> view_models.BotList:
     from aperag.service.bot_service import list_bots
+
     user = get_user(request)
     return await list_bots(user, build_pq(request))
 
@@ -229,6 +270,7 @@ async def list_bots_view(request) -> view_models.BotList:
 @router.get("/bots/{bot_id}")
 async def get_bot_view(request, bot_id: str) -> view_models.Bot:
     from aperag.service.bot_service import get_bot
+
     user = get_user(request)
     return await get_bot(user, bot_id)
 
@@ -236,6 +278,7 @@ async def get_bot_view(request, bot_id: str) -> view_models.Bot:
 @router.put("/bots/{bot_id}")
 async def update_bot_view(request, bot_id: str, bot_in: view_models.BotUpdate) -> view_models.Bot:
     from aperag.service.bot_service import update_bot
+
     user = get_user(request)
     return await update_bot(user, bot_id, bot_in)
 
@@ -243,6 +286,7 @@ async def update_bot_view(request, bot_id: str, bot_in: view_models.BotUpdate) -
 @router.delete("/bots/{bot_id}")
 async def delete_bot_view(request, bot_id: str) -> view_models.Bot:
     from aperag.service.bot_service import delete_bot
+
     user = get_user(request)
     return await delete_bot(user, bot_id)
 
@@ -261,6 +305,7 @@ async def list_model_service_providers_view(request) -> view_models.ModelService
 @router.put("/model_service_providers/{provider}")
 async def update_model_service_provider_view(request, provider: str, mspIn: view_models.ModelServiceProviderUpdate):
     from aperag.schema.view_models import ModelConfig
+
     user = get_user(request)
     supported_providers = [ModelConfig(**item) for item in settings.MODEL_CONFIGS]
     return await update_model_service_provider(user, provider, mspIn, supported_providers)
@@ -279,7 +324,7 @@ async def list_available_models_view(request) -> view_models.ModelConfigList:
 
 
 def default_page(request, exception):
-    return render(request, '404.html')
+    return render(request, "404.html")
 
 
 def dashboard(request):
@@ -299,7 +344,9 @@ async def frontend_chat_completions_view(request: HttpRequest):
 
 
 @router.post("/collections/{collection_id}/searchTests")
-async def create_search_test_view(request, collection_id: str, data: view_models.SearchTestRequest) -> view_models.SearchTestResult:
+async def create_search_test_view(
+    request, collection_id: str, data: view_models.SearchTestRequest
+) -> view_models.SearchTestResult:
     user = get_user(request)
     return await create_search_test(user, collection_id, data)
 

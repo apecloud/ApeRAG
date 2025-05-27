@@ -132,10 +132,11 @@ compose-logs:
 	docker-compose -f compose.yml logs -f
 
 format:
-	uvx ruff --preview --fix .
+	uvx ruff check --fix ./aperag
+	uvx ruff format --preview ./aperag
 
 lint:
-	uvx ruff check --preview .
+	uvx ruff check --preview ./aperag
 
 static-check:
 	uvx mypy .

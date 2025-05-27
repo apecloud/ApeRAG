@@ -1,24 +1,19 @@
-import asyncio
-import hashlib
-import json
 import logging
-import time
-import xml.etree.cElementTree as ET
-from urllib.parse import unquote
+
 import redis.asyncio as aredis
-from config import settings
-from config.settings import MAX_CONVERSATION_COUNT
+
+import aperag.chat.message
 from aperag.apps import QuotaType
 from aperag.chat.history.redis import RedisChatMessageHistory
-from aperag.chat.utils import check_quota_usage, get_async_redis_client, get_sync_redis_client, manage_quota_usage
+from aperag.chat.utils import check_quota_usage, get_async_redis_client, manage_quota_usage
 from aperag.db.models import Chat
-from aperag.db.ops import query_bot, query_chat_by_peer, query_user_quota
+from aperag.db.ops import query_chat_by_peer, query_user_quota
 from aperag.pipeline.knowledge_pipeline import create_knowledge_pipeline
-from aperag.utils.weixin.client import WeixinClient
-from aperag.utils.weixin.WXBizMsgCrypt import WXBizMsgCrypt
-import aperag.chat.message
+from config import settings
+from config.settings import MAX_CONVERSATION_COUNT
 
 logger = logging.getLogger(__name__)
+
 
 async def weixin_text_response(client, user, bot, query, msg_id):
     chat_id = user
@@ -45,13 +40,14 @@ async def weixin_text_response(client, user, bot, query, msg_id):
             response += msg
         max_length = 2048
         for i in range(0, len(response), max_length):
-            message = response[i:i + max_length]
+            message = response[i : i + max_length]
             await client.send_message(message, user)
     except Exception as e:
         logger.exception(e)
     finally:
         if trial and conversation_limit:
             await manage_quota_usage(bot.user, conversation_limit)
+
 
 async def weixin_feedback_response(client, user, bot, key, response_code, task_id):
     upvote = 1 if key == 1 else None
@@ -66,8 +62,9 @@ async def weixin_feedback_response(client, user, bot, key, response_code, task_i
     message = await client.redis_client.get(f"{task_id}2message")
     await client.update_card(message.decode(), user, response_code, vote=key)
 
+
 def generate_xml_response(to_user_name, from_user_name, create_time, msg_type, response):
-    response = response.replace('\n', '&#xA;')
+    response = response.replace("\n", "&#xA;")
     resp = f"""<xml>\
                 <ToUserName><![CDATA[{to_user_name}]]></ToUserName>\
                 <FromUserName><![CDATA[{from_user_name}]]></FromUserName>\
@@ -76,6 +73,7 @@ def generate_xml_response(to_user_name, from_user_name, create_time, msg_type, r
                 <Content>{response}</Content>\
             </xml>"""
     return resp
+
 
 async def weixin_officaccount_response(query, msg_id, to_user_name, bot):
     chat_id = to_user_name
@@ -108,4 +106,4 @@ async def weixin_officaccount_response(query, msg_id, to_user_name, bot):
         logger.exception(e)
     finally:
         if trial and conversation_limit:
-            await manage_quota_usage(bot.user, conversation_limit) 
+            await manage_quota_usage(bot.user, conversation_limit)

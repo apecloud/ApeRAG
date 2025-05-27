@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from typing import List
+
 import litellm
 
 from aperag.query.query import DocumentWithScore
@@ -14,8 +15,8 @@ from config.settings import (
 
 class RankerService:
     def __init__(self):
-        self.dialect = f'{RERANK_BACKEND}'
-        self.model = f'{RERANK_SERVICE_MODEL}'
+        self.dialect = f"{RERANK_BACKEND}"
+        self.model = f"{RERANK_SERVICE_MODEL}"
         self.api_base = RERANK_SERVICE_URL
         self.api_key = RERANK_SERVICE_TOKEN_API_KEY
 

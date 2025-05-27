@@ -1,8 +1,9 @@
-from aperag.flow.base.models import BaseNodeRunner, register_node_runner, NodeInstance
-from aperag.flow.base.exceptions import ValidationError
 from typing import Any, Dict, List
 
+from aperag.flow.base.exceptions import ValidationError
+from aperag.flow.base.models import BaseNodeRunner, NodeInstance, register_node_runner
 from aperag.query.query import DocumentWithScore
+
 
 @register_node_runner("merge")
 class MergeNodeRunner(BaseNodeRunner):
@@ -24,5 +25,4 @@ class MergeNodeRunner(BaseNodeRunner):
                 return {"docs": unique_docs}
             return {"docs": all_docs}
         else:
-            raise ValidationError(f"Unknown merge strategy: {merge_strategy}") 
-        
+            raise ValidationError(f"Unknown merge strategy: {merge_strategy}")

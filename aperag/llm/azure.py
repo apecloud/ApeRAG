@@ -12,12 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-import os
 
 import httpx
 import litellm
-import openai
 
 from aperag.llm.base import LLMConfigError, Predictor
 
@@ -58,7 +55,9 @@ class AzureOpenAIPredictor(Predictor):
             model=self.deployment_id,
             stream=True,
             temperature=self.temperature,
-            messages=history + [{"role": "user", "content": prompt}] if memory else [{"role": "user", "content": prompt}],
+            messages=history + [{"role": "user", "content": prompt}]
+            if memory
+            else [{"role": "user", "content": prompt}],
             timeout=httpx.Timeout(None, connect=3),
             api_key=self.api_key,
             api_version=self.api_version,
@@ -81,8 +80,9 @@ class AzureOpenAIPredictor(Predictor):
             model=self.deployment_id,
             stream=True,
             temperature=self.temperature,
-            messages=history + [{"role": "user", "content": prompt}] if memory else [
-                {"role": "user", "content": prompt}],
+            messages=history + [{"role": "user", "content": prompt}]
+            if memory
+            else [{"role": "user", "content": prompt}],
             timeout=httpx.Timeout(None, connect=3),
             api_key=self.api_key,
             api_version=self.api_version,

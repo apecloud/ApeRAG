@@ -51,9 +51,7 @@ from config import settings
 
 def get_jwt_token_verifier(jwks_url, issuer, client_id):
     sv = AsymmetricSignatureVerifier(jwks_url)
-    return TokenVerifier(
-        signature_verifier=sv, issuer=issuer, audience=client_id
-    )
+    return TokenVerifier(signature_verifier=sv, issuer=issuer, audience=client_id)
 
 
 match settings.AUTH_TYPE:
@@ -71,4 +69,3 @@ match settings.AUTH_TYPE:
         tv = get_jwt_token_verifier(jwks_url, issuer, settings.LOGTO_APP_ID)
     case _:
         tv = None
-

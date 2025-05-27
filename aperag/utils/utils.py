@@ -19,7 +19,7 @@ from datetime import datetime
 
 from Crypto.Cipher import AES
 
-AVAILABLE_SOURCE = ["system", "local", "s3", "oss", "ftp", "email", "feishu", "url","git"]
+AVAILABLE_SOURCE = ["system", "local", "s3", "oss", "ftp", "email", "feishu", "url", "git"]
 
 
 def extract_bot_and_chat_id(path: str):
@@ -44,8 +44,10 @@ def generate_fulltext_index_name(collection_id) -> str:
 def generate_vector_db_collection_name(collection_id) -> str:
     return str(collection_id)
 
+
 def generate_qa_vector_db_collection_name(collection) -> str:
     return str(collection) + "-qa"
+
 
 def generate_lightrag_namespace_prefix(collection_id) -> str:
     return str(collection_id)
@@ -58,23 +60,23 @@ class AESCipher(object):
 
     @staticmethod
     def str_to_bytes(data):
-        u_type = type(b"".decode('utf8'))
+        u_type = type(b"".decode("utf8"))
         if isinstance(data, u_type):
-            return data.encode('utf8')
+            return data.encode("utf8")
         return data
 
     @staticmethod
     def _unpadding(s):
-        return s[:-ord(s[len(s) - 1:])]
+        return s[: -ord(s[len(s) - 1 :])]
 
     def decrypt(self, enc):
-        iv = enc[:AES.block_size]
+        iv = enc[: AES.block_size]
         cipher = AES.new(self.key, AES.MODE_CBC, iv)
-        return self._unpadding(cipher.decrypt(enc[AES.block_size:]))
+        return self._unpadding(cipher.decrypt(enc[AES.block_size :]))
 
     def decrypt_string(self, enc):
         enc = base64.b64decode(enc)
-        return self.decrypt(enc).decode('utf8')
+        return self.decrypt(enc).decode("utf8")
 
 
 class Stacks:
@@ -119,7 +121,7 @@ class Stacks:
         for i in range(0, level + 1):
             for j in range(0, len(self.stacks[i])):
                 if j == 0:
-                    res += "\n"      # add "\n" for different level title
+                    res += "\n"  # add "\n" for different level title
                 res += self.stacks[i][j]
 
         return res

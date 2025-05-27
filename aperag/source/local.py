@@ -17,14 +17,13 @@ import os
 from datetime import datetime
 from typing import Any, Dict, Iterator
 
-from aperag.source.base import CustomSourceInitializationError, LocalDocument, RemoteDocument, Source
 from aperag.schema.view_models import CollectionConfig
+from aperag.source.base import CustomSourceInitializationError, LocalDocument, RemoteDocument, Source
 
 logger = logging.getLogger(__name__)
 
 
 class LocalSource(Source):
-
     def __init__(self, ctx: CollectionConfig):
         super().__init__(ctx)
         self.path = ctx.path
@@ -51,7 +50,7 @@ class LocalSource(Source):
                         modified_time=modified_time,
                         metadata={
                             "path": file_path,
-                        }
+                        },
                     )
                     documents.append(doc)
                 except Exception as e:

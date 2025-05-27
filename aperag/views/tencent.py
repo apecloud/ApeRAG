@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 
 from ninja import Router
+
 from aperag.service.tencent_service import save_tencent_code_and_uri
 
 router = Router()
+
 
 @router.get("/webhook/event")
 async def callback_view(request, code, state):
     redirect_uri = str(request.url)
     await save_tencent_code_and_uri(state, code, redirect_uri)
-

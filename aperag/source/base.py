@@ -29,8 +29,9 @@ class RemoteDocument(BaseModel):
     size: int - size of the document in bytes
     metadata: Dict[str, Any] - metadata of the document
     """
+
     name: str
-    size: Optional[int]= None
+    size: Optional[int] = None
     metadata: Dict[str, Any] = {}
 
 
@@ -43,9 +44,10 @@ class LocalDocument(BaseModel):
     size: int - size of the document in bytes
     metadata: Dict[str, Any] - metadata of the document
     """
+
     name: str
     path: str
-    size: Optional[int]= None
+    size: Optional[int] = None
     metadata: Dict[str, Any] = {}
 
 
@@ -81,32 +83,42 @@ def get_source(collectionConfig: CollectionConfig) -> Source:
     match collectionConfig.source:
         case "system":
             from aperag.source.upload import UploadSource
+
             source = UploadSource(collectionConfig)
         case "local":
             from aperag.source.local import LocalSource
+
             source = LocalSource(collectionConfig)
         case "s3":
             from aperag.source.s3 import S3Source
+
             source = S3Source(collectionConfig)
         case "oss":
             from aperag.source.oss import OSSSource
+
             source = OSSSource(collectionConfig)
         case "feishu":
             from aperag.source.feishu.feishu import FeishuSource
+
             source = FeishuSource(collectionConfig)
         case "ftp":
             from aperag.source.ftp import FTPSource
+
             source = FTPSource(collectionConfig)
         case "email":
             from aperag.source.Email import EmailSource
+
             source = EmailSource(collectionConfig)
         case "url":
             from aperag.source.url import URLSource
+
             source = URLSource(collectionConfig)
         case "tencent":
             from aperag.source.tencent.tencent import TencentSource
+
             source = TencentSource(collectionConfig)
         case "git":
             from aperag.source.github import GitHubSource
+
             source = GitHubSource(collectionConfig)
     return source

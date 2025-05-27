@@ -16,20 +16,19 @@ from django.urls import path
 from ninja import NinjaAPI
 from ninja.errors import AuthenticationError, ValidationError
 
-from aperag.auth.authentication import AdminAuth
 from aperag.utils.weixin.renderer import MyJSONRenderer
 from aperag.views import main
+from aperag.views.api_key import router as api_key_router
+from aperag.views.auth import router as auth_router
+from aperag.views.chat_completion import router as chat_completion_router
 from aperag.views.config import router as config_router
 from aperag.views.dingtalk import router as dingtalk_router
 from aperag.views.feishu import router as feishu_router
+from aperag.views.flow import router as flow_router
 from aperag.views.main import router as main_router
 from aperag.views.tencent import router as tencent_router
-from aperag.views.utils import auth_errors, validation_errors, auth_middleware
+from aperag.views.utils import auth_errors, auth_middleware, validation_errors
 from aperag.views.weixin import router as weixin_router
-from aperag.views.auth import router as auth_router
-from aperag.views.api_key import router as api_key_router
-from aperag.views.chat_completion import router as chat_completion_router
-from aperag.views.flow import router as flow_router
 
 api = NinjaAPI(renderer=MyJSONRenderer)
 api.add_exception_handler(ValidationError, validation_errors)
@@ -52,5 +51,5 @@ chat_completion_api.add_router("/", chat_completion_router, auth=auth_middleware
 urlpatterns = [
     path("v1/", chat_completion_api.urls),
     path("api/v1/", api.urls),
-    path('aperag/dashboard/', main.dashboard, name='dashboard'),
+    path("aperag/dashboard/", main.dashboard, name="dashboard"),
 ]

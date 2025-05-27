@@ -15,14 +15,17 @@
 import asyncio
 import json
 import logging
+
 from ninja import Router
+
 from aperag.db.ops import query_bot
+from aperag.service.dingtalk_service import dingtalk_text_response, send_message, validate_sign
 from aperag.views.utils import fail, success
-from aperag.service.dingtalk_service import validate_sign, dingtalk_text_response, send_message
 
 logger = logging.getLogger(__name__)
 
 router = Router()
+
 
 @router.post("/webhook/event")
 async def post_view(request, user, bot_id):
@@ -31,14 +34,16 @@ async def post_view(request, user, bot_id):
         logger.warning("bot not found: %s", bot_id)
         return fail(400, "bot not found")
     bot_config = json.loads(bot.config)
-    secret = bot_config['dingtalk']['client_secret']
-    if validate_sign(request.headers['Timestamp'], client_secret=secret, request_sign=request.headers['Sign']):
-        data = json.loads(request.body.decode('utf-8'))
-        message_content = data.get('text', {}).get('content')
-        sender_id = data.get('senderStaffId')
-        session_webhook = data.get('sessionWebhook')
-        msg_id = data.get('msgId')
-        asyncio.create_task(send_message(f"我已经收到问题\"{message_content}\"啦，正在飞速生成回答中", session_webhook, sender_id))
+    secret = bot_config["dingtalk"]["client_secret"]
+    if validate_sign(request.headers["Timestamp"], client_secret=secret, request_sign=request.headers["Sign"]):
+        data = json.loads(request.body.decode("utf-8"))
+        message_content = data.get("text", {}).get("content")
+        sender_id = data.get("senderStaffId")
+        session_webhook = data.get("sessionWebhook")
+        msg_id = data.get("msgId")
+        asyncio.create_task(
+            send_message(f'我已经收到问题"{message_content}"啦，正在飞速生成回答中', session_webhook, sender_id)
+        )
         asyncio.create_task(dingtalk_text_response(user, bot, message_content, msg_id, sender_id, session_webhook))
         return success("")
     return fail(400, "validate dingtalk sign failed")

@@ -1,21 +1,20 @@
-from typing import Dict, Any
-
-import pandas as pd
-from langchain_openai import ChatOpenAI
-from ragas import evaluate
-from ragas.metrics import (
-    context_precision,  # 上下文精确度衡量检索到的上下文是否与问题高度相关，评估检索系统是否将最相关的文档或片段排在前面。
-    context_recall,  # 上下文召回率评估检索到的上下文是否涵盖了回答问题所需的所有必要信息，通常与人工标注的“地面真相”（ground truth）答案比较。
-    answer_relevancy,  # 答案相关性评估生成答案对输入问题的相关程度，关注答案是否直接回答问题，避免冗余或无关信息。
-    faithfulness,  # 忠实度衡量生成答案的事实准确性，即生成的答案是否忠实于检索到的上下文内容。它主要用于评估生成阶段，避免生成模型产生“幻觉”（hallucination），即生成未被上下文支持的信息。
-    answer_correctness,  # 用LLM评估答案正确性
-    answer_similarity,  # 用Embedding评估答案相似性
-)
 import csv
 import json
 import os
 from datetime import datetime
+from typing import Any, Dict
+
+import pandas as pd
 from datasets import Dataset
+from langchain_openai import ChatOpenAI
+from ragas import evaluate
+from ragas.metrics import (
+    answer_correctness,  # 用LLM评估答案正确性
+    answer_relevancy,  # 答案相关性评估生成答案对输入问题的相关程度，关注答案是否直接回答问题，避免冗余或无关信息。
+    context_precision,  # 上下文精确度衡量检索到的上下文是否与问题高度相关，评估检索系统是否将最相关的文档或片段排在前面。
+    context_recall,  # 上下文召回率评估检索到的上下文是否涵盖了回答问题所需的所有必要信息，通常与人工标注的“地面真相”（ground truth）答案比较。
+    faithfulness,  # 忠实度衡量生成答案的事实准确性，即生成的答案是否忠实于检索到的上下文内容。它主要用于评估生成阶段，避免生成模型产生“幻觉”（hallucination），即生成未被上下文支持的信息。
+)
 
 # ---------------------------------------------
 # Context Precision

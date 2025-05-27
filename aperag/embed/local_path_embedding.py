@@ -21,17 +21,18 @@ logger = logging.getLogger(__name__)
 
 faulthandler.enable()
 
+
 class LocalPathEmbedding(DocumentBaseEmbedding):
     def __init__(
-            self,
-            *,
-            filepath: str,
-            file_metadata: Dict[str, Any],
-            object_store_base_path: str | None = None,
-            vector_store_adaptor: VectorStoreConnectorAdaptor,
-            embedding_model: Embeddings = None,
-            vector_size: int = None,
-            **kwargs: Any,
+        self,
+        *,
+        filepath: str,
+        file_metadata: Dict[str, Any],
+        object_store_base_path: str | None = None,
+        vector_store_adaptor: VectorStoreConnectorAdaptor,
+        embedding_model: Embeddings = None,
+        vector_size: int = None,
+        **kwargs: Any,
     ) -> None:
         super().__init__(vector_store_adaptor, embedding_model, vector_size)
 
@@ -39,11 +40,13 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
         self.file_metadata = file_metadata or {}
         self.object_store_base_path = object_store_base_path
         self.parser = DocParser()  # TODO: use the parser config from the collection
-        self.chunk_size = kwargs.get('chunk_size', settings.CHUNK_SIZE)
-        self.chunk_overlap = kwargs.get('chunk_overlap', settings.CHUNK_OVERLAP_SIZE)
+        self.chunk_size = kwargs.get("chunk_size", settings.CHUNK_SIZE)
+        self.chunk_overlap = kwargs.get("chunk_overlap", settings.CHUNK_OVERLAP_SIZE)
         self.tokenizer = get_default_tokenizer()
 
-    def parse_doc(self, ) -> list[Part]:
+    def parse_doc(
+        self,
+    ) -> list[Part]:
         filepath = Path(self.filepath)
         if not self.parser.accept(filepath.suffix):
             raise ValueError(f"unsupported file type: {filepath.suffix}")
@@ -89,8 +92,7 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
             prefix = ""
             if len(paddings) > 0:
                 prefix = "\n\n".join(paddings)
-                logger.debug("add extra prefix for document %s before embedding: %s",
-                             self.filepath, prefix)
+                logger.debug("add extra prefix for document %s before embedding: %s", self.filepath, prefix)
 
             # embedding without the prefix #, which is usually used for padding in the LLM
             # lines = []

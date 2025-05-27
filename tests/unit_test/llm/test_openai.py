@@ -1,7 +1,8 @@
 import os
-import pytest
-from aperag.llm.openai import OpenAIPredictor
 
+import pytest
+
+from aperag.llm.openai import OpenAIPredictor
 
 MODEL = "gpt-4o-mini"
 API_BASE = os.getenv("OPENAI_API_BASE")

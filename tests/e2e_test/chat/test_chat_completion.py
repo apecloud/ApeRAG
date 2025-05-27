@@ -1,7 +1,8 @@
-import pytest
-from openai import OpenAI
 import asyncio
 import json
+
+import pytest
+from openai import OpenAI
 
 
 @pytest.mark.asyncio
@@ -67,7 +68,7 @@ async def test_openai_chat_completions_error_handling():
     
     # Test with invalid bot_id
     try:
-        response = client.chat.completions.create(
+        client.chat.completions.create(
             model="aperag",
             messages=[
                 {"role": "user", "content": "Hello"}
@@ -83,7 +84,7 @@ async def test_openai_chat_completions_error_handling():
     
     # Test with invalid messages format
     try:
-        response = client.chat.completions.create(
+        client.chat.completions.create(
             model="aperag",
             messages="invalid_messages",  # Should be a list
             stream=False,

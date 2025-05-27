@@ -20,10 +20,10 @@ from typing import Any, Dict, Iterator
 
 import aperag.source.feishu.v1.parser as v1
 import aperag.source.feishu.v2.parser as v2
+from aperag.schema.view_models import CollectionConfig
 from aperag.source.base import CustomSourceInitializationError, LocalDocument, RemoteDocument, Source
 from aperag.source.feishu.client import FeishuClient
 from aperag.source.utils import gen_temporary_file
-from aperag.schema.view_models import CollectionConfig
 
 logger = logging.getLogger(__name__)
 
@@ -73,11 +73,7 @@ class FeishuSource(Source):
                 "obj_type": node["obj_type"],
                 "modified_time": datetime.datetime.utcfromtimestamp(int(node["obj_edit_time"])),
             }
-            doc = RemoteDocument(
-                name=node["title"] + f".{self.target_format}",
-                size=0,
-                metadata=metadata
-            )
+            doc = RemoteDocument(name=node["title"] + f".{self.target_format}", size=0, metadata=metadata)
             yield doc
 
     def scan_documents(self) -> Iterator[RemoteDocument]:

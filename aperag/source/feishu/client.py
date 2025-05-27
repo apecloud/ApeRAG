@@ -17,13 +17,12 @@ import json
 import logging
 from abc import ABC
 from threading import Lock
-from typing import Any, Dict
 
 import requests
 from pydantic import BaseModel
 
-from aperag.source.base import CustomSourceInitializationError
 from aperag.schema.view_models import CollectionConfig
+from aperag.source.base import CustomSourceInitializationError
 
 logger = logging.getLogger(__name__)
 
@@ -95,15 +94,13 @@ class FeishuClient(ABC):
         return self.request("PATCH", path, **kwargs)
 
     def get_user_access_token(self, code, redirect_uri):
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded"
-        }
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
         params = {
             "code": f"{code}",
             "client_id": self.app_id,
             "client_secret": self.app_secret,
             "redirect_uri": redirect_uri,
-            "grant_type": "authorization_code"
+            "grant_type": "authorization_code",
         }
         resp = requests.post("https://passport.feishu.cn/suite/passport/oauth/token", params=params, headers=headers)
         if resp.status_code != 200:
@@ -153,15 +150,13 @@ class FeishuClient(ABC):
         """
         params = {"receive_id_type": "chat_id"}
         content = {
-            "config": {
-                "wide_screen_mode": True
-            },
+            "config": {"wide_screen_mode": True},
             "elements": [
                 {
                     "tag": "markdown",
                     "content": message,
                 }
-            ]
+            ],
         }
         data = {
             "receive_id": f"{chat_id}",
@@ -178,12 +173,14 @@ class FeishuClient(ABC):
         spaces = []
         resp = self.get("wiki/v2/spaces")
         for item in resp["data"]["items"]:
-            spaces.append(Space(
-                description=item["description"],
-                name=item["name"],
-                id=item["space_id"],
-                visibility=item["visibility"],
-            ))
+            spaces.append(
+                Space(
+                    description=item["description"],
+                    name=item["name"],
+                    id=item["space_id"],
+                    visibility=item["visibility"],
+                )
+            )
         return spaces
 
     def get_space_nodes(self, space_id, parent_node_token=""):

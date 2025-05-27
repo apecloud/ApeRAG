@@ -27,7 +27,7 @@ from pydantic import BaseModel
 
 from aperag.db.models import Collection, CollectionSyncHistory, Document
 from aperag.db.ops import query_documents
-from aperag.docparser.doc_parser import DocParser, get_default_config
+from aperag.docparser.doc_parser import DocParser
 from aperag.schema.utils import parseCollectionConfig
 from aperag.source.base import get_source
 from aperag.tasks.index import (
@@ -77,7 +77,7 @@ def sync_documents(self, **kwargs):
     collection_sync_history.task_context = task_context
     collection_sync_history.save()
     # echo the id out of the task by self.update_state().
-    self.update_state(state='SYNCHRONIZING', meta={'id': collection_sync_history.id})
+    self.update_state(state="SYNCHRONIZING", meta={"id": collection_sync_history.id})
     logger.debug(f"sync_documents_cron_job() : sync collection{collection_id} start ")
     collection_sync_history.update_execution_time()
     collection_sync_history.save()
@@ -220,7 +220,9 @@ def monitor_sync_tasks(self, collection_sync_history_id):
     progress = get_sync_progress(collection_sync_history)
 
     if progress.processing_documents == 0 and progress.pending_documents == 0:
-        CollectionSyncHistory.objects.filter(id=collection_sync_history_id, status=Collection.SyncStatus.RUNNING).update(
+        CollectionSyncHistory.objects.filter(
+            id=collection_sync_history_id, status=Collection.SyncStatus.RUNNING
+        ).update(
             status=Collection.SyncStatus.COMPLETED,
             pending_documents=progress.pending_documents,
             processing_documents=progress.processing_documents,
@@ -228,7 +230,9 @@ def monitor_sync_tasks(self, collection_sync_history_id):
             failed_documents=progress.failed_documents,
         )
     elif collection_sync_history.status == Collection.SyncStatus.CANCELED:
-        CollectionSyncHistory.objects.filter(id=collection_sync_history_id, status=Collection.SyncStatus.CANCELED).update(
+        CollectionSyncHistory.objects.filter(
+            id=collection_sync_history_id, status=Collection.SyncStatus.CANCELED
+        ).update(
             pending_documents=progress.pending_documents,
             processing_documents=progress.processing_documents,
             successful_documents=progress.successful_documents,
