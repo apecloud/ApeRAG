@@ -104,34 +104,30 @@ async def debug_flow_stream(user: str, bot_id: str, debug: view_models.DebugFlow
             content_type="application/json"
         )
 
-def get_flow(user, bot_id):
+async def get_flow(user, bot_id):
     """Get flow config for a bot"""
-    async def inner():
-        bot = await query_bot(user, bot_id)
-        if not bot:
-            return None, fail(HTTPStatus.NOT_FOUND, message="Bot not found")
-        try:
-            config = json.loads(bot.config or '{}')
-            flow = config.get('flow')
-            if not flow:
-                return None, fail(HTTPStatus.NOT_FOUND, message="Flow config not found")
-            return flow, None
-        except Exception as e:
-            return None, fail(HTTPStatus.INTERNAL_SERVER_ERROR, message=str(e))
-    return inner
+    bot = await query_bot(user, bot_id)
+    if not bot:
+        return fail(HTTPStatus.NOT_FOUND, message="Bot not found")
+    try:
+        config = json.loads(bot.config or '{}')
+        flow = config.get('flow')
+        if not flow:
+            return success({})
+        return success(flow)
+    except Exception as e:
+        return fail(HTTPStatus.INTERNAL_SERVER_ERROR, message=str(e))
 
-def update_flow(user, bot_id, data):
+async def update_flow(user, bot_id, data):
     """Update flow config for a bot"""
-    async def inner():
-        bot = await query_bot(user, bot_id)
-        if not bot:
-            return None, fail(HTTPStatus.NOT_FOUND, message="Bot not found")
-        try:
-            config = json.loads(bot.config or '{}')
-            config['flow'] = data.dict(exclude_unset=True)
-            bot.config = json.dumps(config, ensure_ascii=False)
-            await bot.asave()
-            return data, None
-        except Exception as e:
-            return None, fail(HTTPStatus.INTERNAL_SERVER_ERROR, message=str(e))
-    return inner 
+    bot = await query_bot(user, bot_id)
+    if not bot:
+        return fail(HTTPStatus.NOT_FOUND, message="Bot not found")
+    try:
+        config = json.loads(bot.config or '{}')
+        config['flow'] = data.dict(exclude_unset=True)
+        bot.config = json.dumps(config, ensure_ascii=False)
+        await bot.asave()
+        return success(data)
+    except Exception as e:
+        return fail(HTTPStatus.INTERNAL_SERVER_ERROR, message=str(e))

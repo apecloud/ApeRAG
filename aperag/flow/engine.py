@@ -265,10 +265,12 @@ class FlowEngine:
             return value
 
         value_strip = value.strip()
-        # Only handle variable reference like ${{ ... }}
-        if value_strip.startswith('$') and value_strip.startswith('${{') and value_strip.endswith('}}'):
-            expr = value_strip[3:-2].strip()
+        # Only handle variable reference like {{ ... }}
+        # This is a workaround for the fact that the rendered output of jinja2 is a string, but we want to get the original value of the variable
+        if value_strip.startswith('{{') and value_strip.endswith('}}'):
+            expr = value_strip[2:-2].strip()
             return self._resolve_variable(expr, nodes_ctx)
+
         # Otherwise, use jinja2 template rendering
         try:
             template = self.jinja_env.from_string(value)

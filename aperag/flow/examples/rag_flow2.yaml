@@ -88,7 +88,7 @@ nodes:
         values:
           top_k: 5
           similarity_threshold: 0.7
-          query: ${{ nodes.start.output.query }}
+          query: {{ nodes.start.output.query }}
           collection_ids: []
       output:
         schema:
@@ -127,7 +127,7 @@ nodes:
               default: []
           required: [query, top_k]
         values:
-          query: ${{ nodes.start.output.query }}
+          query: {{ nodes.start.output.query }}
           top_k: 5
           collection_ids: []
       output:
@@ -173,8 +173,8 @@ nodes:
         values:
           merge_strategy: union
           deduplicate: true
-          vector_search_docs: ${{ nodes.vector_search_3f8e2c1a.output.docs }}
-          keyword_search_docs: ${{ nodes.keyword_search_7b2d4e9f.output.docs }}
+          vector_search_docs: {{ nodes.vector_search_3f8e2c1a.output.docs }}
+          keyword_search_docs: {{ nodes.keyword_search_7b2d4e9f.output.docs }}
       output:
         schema:
           type: object
@@ -211,7 +211,7 @@ nodes:
         values:
           model: bge-reranker
           model_service_provider: openai
-          docs: ${{ nodes.merge_1a9c5d8e.output.docs }}
+          docs: {{ nodes.merge_1a9c5d8e.output.docs }}
       output:
         schema:
           type: object
@@ -276,8 +276,8 @@ nodes:
           prompt_template: "{context}\n{query}"
           temperature: 0.7
           max_tokens: 1000
-          query: ${{ nodes.start.output.query }}
-          docs: ${{ nodes.rerank_5c7e1b2a.output.docs }}
+          query: {{ nodes.start.output.query }}
+          docs: {{ nodes.rerank_5c7e1b2a.output.docs }}
       output:
         schema:
           type: object

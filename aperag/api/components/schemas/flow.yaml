@@ -95,8 +95,6 @@ components:
           enum: [object, array, string, number, integer, boolean, null]
         properties:
           type: object
-          additionalProperties:
-            $ref: '#/components/schemas/SchemaProperty'
         required:
           type: array
           items:
@@ -105,62 +103,11 @@ components:
           type: boolean
       additionalProperties: true
 
-    SchemaProperty:
-      type: object
-      properties:
-        type:
-          type: string
-          enum: [object, array, string, number, integer, boolean, null]
-        description:
-          type: string
-        default:
-          oneOf:
-            - type: string
-            - type: number
-            - type: boolean
-            - type: object
-            - type: array
-        enum:
-          type: array
-        format:
-          type: string
-        minimum:
-          type: number
-        maximum:
-          type: number
-        minLength:
-          type: integer
-        maxLength:
-          type: integer
-        pattern:
-          type: string
-        items:
-          oneOf:
-            - $ref: '#/components/schemas/SchemaProperty'
-            - type: object
-              properties:
-                $ref:
-                  type: string
-        properties:
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/SchemaProperty'
-        additionalProperties:
-          oneOf:
-            - type: boolean
-            - $ref: '#/components/schemas/SchemaProperty'
-        required:
-          type: array
-          items:
-            type: string
-      additionalProperties: true
-
     Node:
       type: object
       required:
         - id
         - type
-        - title
         - data
       properties:
         id:

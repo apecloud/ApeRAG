@@ -6,20 +6,12 @@ from aperag.service.flow_service import get_flow, update_flow
 
 router = Router()
 
-@router.get("/bots/{bot_id}/flow", response=WorkflowDefinition)
-async def get_flow_view(request: HttpRequest, bot_id: str):
+@router.get("/bots/{bot_id}/flow")
+async def get_flow_view(request: HttpRequest, bot_id: str) -> WorkflowDefinition:
     user = get_user(request)
-    logic = get_flow(user, bot_id)
-    flow, error = await logic()
-    if error:
-        return error
-    return flow
+    return await get_flow(user, bot_id)
 
-@router.put("/bots/{bot_id}/flow", response=WorkflowDefinition)
+@router.put("/bots/{bot_id}/flow")
 async def update_flow_view(request: HttpRequest, bot_id: str, data: WorkflowDefinition):
     user = get_user(request)
-    logic = update_flow(user, bot_id, data)
-    result, error = await logic()
-    if error:
-        return error
-    return result
+    return await update_flow(user, bot_id, data)

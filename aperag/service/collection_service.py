@@ -174,8 +174,8 @@ async def create_search_test(user: str, collection_id: str, data: view_models.Se
             input_values={
                 "merge_strategy": "union",
                 "deduplicate": True,
-                "vector_search_docs": "${{ nodes.vector_search.output.docs }}",
-                "keyword_search_docs": "${{ nodes.keyword_search.output.docs }}",
+                "vector_search_docs": "{{ nodes.vector_search.output.docs }}",
+                "keyword_search_docs": "{{ nodes.keyword_search.output.docs }}",
             },
         )
         edges = [
