@@ -61,9 +61,11 @@ def crawl_domain(self, root_url, url, collection_id, user, max_pages):
             )
             document_instance.save()
             string_data = json.dumps(url)
-            document_instance.metadata = json.dumps({
-                "url": string_data,
-            })
+            document_instance.metadata = json.dumps(
+                {
+                    "url": string_data,
+                }
+            )
             document_instance.save()
             add_index_for_local_document.delay(document_instance.id)
         for link in soup.find_all("a", href=True):

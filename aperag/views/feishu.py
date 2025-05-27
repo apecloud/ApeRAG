@@ -46,11 +46,13 @@ async def feishu_get_spaces_view(request, app_id, app_secret):
     result = []
     try:
         for space in FeishuClient(ctx).get_spaces():
-            result.append({
-                "space_id": space["id"],
-                "description": space["description"],
-                "name": space["name"],
-            })
+            result.append(
+                {
+                    "space_id": space["id"],
+                    "description": space["description"],
+                    "name": space["name"],
+                }
+            )
     except Exception as e:
         logger.exception(e)
         return fail(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))

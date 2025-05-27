@@ -52,11 +52,13 @@ class FakePipeline(Pipeline):
                 if random.sample([True, False], 1):
                     sentence += "\n\n"
                 ref += sentence
-            references.append({
-                "score": round(random.uniform(0.5, 0.6), 2),
-                "text": ref,
-                "metadata": {"source": ref[:20]},
-            })
+            references.append(
+                {
+                    "score": round(random.uniform(0.5, 0.6), 2),
+                    "text": ref,
+                    "metadata": {"source": ref[:20]},
+                }
+            )
 
         await self.add_ai_message(message, message_id, response, references, urls=[])
 

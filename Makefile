@@ -133,7 +133,11 @@ compose-logs:
 
 format:
 	uvx ruff check --fix ./aperag
-	uvx ruff format --preview ./aperag
+	uvx ruff format --exit-non-zero-on-format ./aperag
+
+lint:
+	uvx ruff check --no-fix ./aperag
+	uvx ruff format --exit-non-zero-on-format --diff ./aperag
 
 static-check:
 	uvx mypy ./aperag

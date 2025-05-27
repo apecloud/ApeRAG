@@ -35,10 +35,12 @@ def openai_generate_stream(params):
     for message in messages:
         if len(message) <= 0:
             continue
-        history.append({
-            "role": "system",
-            "content": message,
-        })
+        history.append(
+            {
+                "role": "system",
+                "content": message,
+            }
+        )
 
     payloads = {
         "model": "gpt-3.5-turbo",

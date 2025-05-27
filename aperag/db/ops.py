@@ -262,10 +262,12 @@ async def query_chats(user, bot_id: str, pq: PagedQuery = None):
 
 async def query_web_chats(bot_id: str, peer_id: str, pq: PagedQuery = None):
     filters = build_filters(pq)
-    filters.update({
-        "peer_type": Chat.PeerType.WEB,
-        "peer_id": peer_id,
-    })
+    filters.update(
+        {
+            "peer_type": Chat.PeerType.WEB,
+            "peer_id": peer_id,
+        }
+    )
     query_set = Chat.objects.exclude(status=Chat.Status.DELETED).filter(bot_id=bot_id, **filters)
     return await build_pr(pq, query_set)
 

@@ -191,15 +191,17 @@ def convert_para(
 ) -> list[Part]:
     para_type = para_block["type"]
     bbox = para_block.get("bbox", (0, 0, 0, 0))
-    metadata.update({
-        "pdf_source_map": [
-            {
-                "page_idx": page_idx,
-                "bbox": tuple(bbox),
-            }
-        ],
-        "para_type": str(para_type),
-    })
+    metadata.update(
+        {
+            "pdf_source_map": [
+                {
+                    "page_idx": page_idx,
+                    "bbox": tuple(bbox),
+                }
+            ],
+            "para_type": str(para_type),
+        }
+    )
 
     if para_type in [BlockType.Text, BlockType.List, BlockType.Index]:
         return [

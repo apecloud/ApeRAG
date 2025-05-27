@@ -79,9 +79,11 @@ async def create_document(user: str, collection_id: str, files: List[UploadedFil
             upload_path = f"{document_instance.object_store_base_path()}/original{file_suffix}"
             await sync_to_async(obj_store.put)(upload_path, item)
             document_instance.object_path = upload_path
-            document_instance.metadata = json.dumps({
-                "object_path": upload_path,
-            })
+            document_instance.metadata = json.dumps(
+                {
+                    "object_path": upload_path,
+                }
+            )
             await document_instance.asave()
             response.append(build_document_response(document_instance))
             add_index_for_local_document.delay(document_instance.id)
@@ -122,9 +124,11 @@ async def create_url_document(user: str, collection_id: str, urls: List[str]) ->
         )
         await document_instance.asave()
         string_data = json.dumps(url)
-        document_instance.metadata = json.dumps({
-            "url": string_data,
-        })
+        document_instance.metadata = json.dumps(
+            {
+                "url": string_data,
+            }
+        )
         await document_instance.asave()
         add_index_for_local_document.delay(document_instance.id)
         crawl_domain.delay(url, url, collection_id, user, max_pages=2)

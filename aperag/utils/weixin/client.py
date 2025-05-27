@@ -162,18 +162,20 @@ class WeixinClient(ABC):
             template_card.update({"task_id": task_id})
         else:
             if vote is None:
-                template_card.update({
-                    "horizontal_content_list": [{"keyname": "评价", "value": "点击右上角可对本次回答进行评价"}]
-                })
+                template_card.update(
+                    {"horizontal_content_list": [{"keyname": "评价", "value": "点击右上角可对本次回答进行评价"}]}
+                )
             else:
-                template_card.update({
-                    "horizontal_content_list": [
-                        {
-                            "keyname": "评价",
-                            "value": "感谢您对本次回答的认可" if vote == 1 else "感谢您的反馈，我们会努力改进的",
-                        }
-                    ]
-                })
+                template_card.update(
+                    {
+                        "horizontal_content_list": [
+                            {
+                                "keyname": "评价",
+                                "value": "感谢您对本次回答的认可" if vote == 1 else "感谢您的反馈，我们会努力改进的",
+                            }
+                        ]
+                    }
+                )
 
         return template_card
 
