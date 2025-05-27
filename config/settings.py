@@ -329,8 +329,6 @@ BAICHUAN_SECRET_KEY = env.str("BAICHUAN_SECRET_KEY", default="")
 QIANFAN_API_KEY = env.str("QIANFAN_API_KEY", default="")
 QIANFAN_SECRET_KEY = env.str("QIANFAN_SECRET_KEY", default="")
 
-OPENAI_API_PROXY = env.str("OPENAI_API_PROXY", default="{}")
-
 WHISPER_HOST = env.str("WHISPER_HOST", default="")
 PADDLEOCR_HOST = env.str("PADDLEOCR_HOST", default="")
 

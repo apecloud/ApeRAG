@@ -134,19 +134,6 @@ django:
   # Rerank settings
   rerankServiceModel: "jina-reranker-v2-base-multilingual"
   rerankServiceTokenApiKey: ""
-  openaiAPIKey: ""
-  openaiProxy: ""
-  openaiAPIBase: ""
-  azureOpenAIDeploymentName: ""
-  azureOpenAIAPIKey: ""
-  azureOpenAIAPIBase: ""
-  azureOpenAIAPIVersion: ""
-  embeddingModel: "bge"
-  embeddingDevice: "cpu"
-  embeddingBackend: "xinference"
-  embeddingServiceUrl: http://xinference-xinference:9997
-  embeddingServiceModel: "bge-large-zh-v1.5"
-  embeddingServiceModelUid: ""
   rerankBackend: "jina_ai"
   rerankServiceUrl: https://api.jina.ai/v1/rerank
   rerankServiceModelUid: ""
@@ -166,104 +153,6 @@ django:
               matchLabels:
                 app.aperag.io/component: django
             topologyKey: kubernetes.io/hostname
-  modelFamilies:
-    - name: "qianwen"
-      label: "QianWen"
-      enabled: "true"
-      temperature: 0.01
-      models:
-        - name: "qwen-turbo"
-          label: "QianWen Turbo"
-          enabled: "true"
-          memory: "enabled"
-          # https://help.aliyun.com/zh/dashscope/developer-reference/api-details?spm=a2c4g.11186623.0.i54
-          context_window: 8096
-        - name: "qwen-plus"
-          label: "QianWen Plus"
-          enabled: "true"
-          memory: "enabled"
-          # https://help.aliyun.com/zh/dashscope/developer-reference/api-details?spm=a2c4g.11186623.0.i54
-          context_window: 8096
-        - name: "qwen-max"
-          label: "QianWen Max"
-          enabled: "true"
-          memory: "enabled"
-          # https://help.aliyun.com/zh/dashscope/developer-reference/api-details?spm=a2c4g.11186623.0.i54
-          context_window: 8096
-    - name: "azure-openai"
-      label: "Azure OpenAI"
-      enabled: "true"
-      temperature: 0
-      models:
-        - name: "azure-openai"
-          label: "Azure OpenAI"
-          enabled: "true"
-          memory: "enabled"
-          # https://learn.microsoft.com/zh-cn/azure/ai-services/openai/reference
-          context_window: 4096
-          free_tier: true
-    - name: "chatgpt"
-      label: "ChatGPT"
-      enabled: "true"
-      temperature: 0
-      models:
-        - name: "gpt-4"
-          label: "ChatGPT-4"
-          enabled: "true"
-          memory: "enabled"
-          # https://platform.openai.com/docs/models/gpt-4-and-gpt-4-turbo
-          context_window: 8192
-    - name: "deepseek"
-      label: "DeepSeek"
-      enabled: "true"
-      models:
-      - name: "deepseek-chat"
-        label: "DeepSeek Chat"
-        enabled: "true"
-        memory: "disabled"
-        free_tier: true
-        context_window: 128000
-        similarity_topk: 10
-    - name: "glm-4"
-      label: "GLM-4"
-      enabled: "true"
-      models:
-        - name: "glm-4-plus"
-          label: "GLM-4-Plus"
-          enabled: "true"
-          memory: "enabled"
-          context_window: 128000
-          similarity_topk: 10
-          endpoint: "https://open.bigmodel.cn/api/paas/v4/"
-        - name: "glm-4-air"
-          label: "GLM-4-Air"
-          enabled: "true"
-          memory: "enabled"
-          context_window: 128000
-          similarity_topk: 10
-          endpoint: "https://open.bigmodel.cn/api/paas/v4/"
-        - name: "glm-4-long"
-          label: "GLM-4-Long"
-          enabled: "true"
-          memory: "enabled"
-          context_window: 1000000
-          similarity_topk: 20
-          endpoint: "https://open.bigmodel.cn/api/paas/v4/"
-        - name: "glm-4-flashx"
-          label: "GLM-4-FlashX"
-          enabled: "true"
-          memory: "enabled"
-          context_window: 128000
-          similarity_topk: 10
-          endpoint: "https://open.bigmodel.cn/api/paas/v4/"
-        - name: "glm-4-flash"
-          label: "GLM-4-Flash"
-          enabled: "true"
-          memory: "enabled"
-          context_window: 128000
-          similarity_topk: 10
-          endpoint: "https://open.bigmodel.cn/api/paas/v4/"
-          free_tier: true
 
 celery-worker:
   replicaCount: 1
