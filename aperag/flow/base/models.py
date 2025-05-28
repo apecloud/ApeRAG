@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from aperag.flow.base.exceptions import CycleError
 
@@ -75,6 +75,7 @@ class ExecutionContext:
     """Context for flow execution, storing outputs and global state"""
 
     outputs: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    system_outputs: Dict[str, Any] = field(default_factory=dict)
     global_variables: Dict[str, Any] = field(default_factory=dict)
 
     def get_input(self, node_id: str, field: str) -> Any:
@@ -93,19 +94,35 @@ class ExecutionContext:
         """Set global variable value"""
         self.global_variables[name] = value
 
+    def set_system_output(self, node_id: str, system_output: Any) -> None:
+        """Set system output for a node"""
+        self.system_outputs[node_id] = system_output
+
+    def get_system_output(self, node_id: str) -> Any:
+        """Get system output for a node"""
+        return self.system_outputs.get(node_id)
+
 
 NODE_RUNNER_REGISTRY = {}
 
 
 class BaseNodeRunner(ABC):
     @abstractmethod
-    async def run(self, node: NodeInstance, inputs: Dict[str, Any]):
+    async def run(self, ui: Any, si: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]:
         raise NotImplementedError
 
 
-def register_node_runner(node_type: str):
+def register_node_runner(
+    node_type: str,
+    input_model,
+    output_model,
+):
     def decorator(cls):
-        NODE_RUNNER_REGISTRY[node_type] = cls()
+        NODE_RUNNER_REGISTRY[node_type] = {
+            "runner": cls(),
+            "input_model": input_model,
+            "output_model": output_model,
+        }
         return cls
 
     return decorator

@@ -148,7 +148,7 @@ async def create_search_test(
                 "collection_ids": [collection_id],
             },
         )
-        output_node = node_id
+        end_node = node_id
     elif data.search_type == "fulltext":
         node_id = "keyword_search"
         nodes[node_id] = NodeInstance(
@@ -160,7 +160,7 @@ async def create_search_test(
                 "collection_ids": [collection_id],
             },
         )
-        output_node = node_id
+        end_node = node_id
     elif data.search_type == "hybrid":
         nodes["vector_search"] = NodeInstance(
             id="vector_search",
@@ -195,7 +195,7 @@ async def create_search_test(
             Edge(source="vector_search", target="merge"),
             Edge(source="keyword_search", target="merge"),
         ]
-        output_node = "merge"
+        end_node = "merge"
     else:
         return fail(400, "Invalid search_type")
     flow = FlowInstance(
@@ -206,14 +206,14 @@ async def create_search_test(
     )
     engine = FlowEngine()
     initial_data = {"query": query, "collection": collection}
-    result = await engine.execute_flow(flow, initial_data)
+    result, _ = await engine.execute_flow(flow, initial_data)
     if not result:
         return fail(400, "Failed to execute flow")
-    output_nodes = engine.find_output_nodes(flow)
-    if not output_nodes:
+    end_nodes = engine.find_end_nodes(flow)
+    if not end_nodes:
         return fail(400, "No output node found")
-    output_node = output_nodes[0]
-    docs = result.get(output_node, {}).get("docs", [])
+    end_node = end_nodes[0]
+    docs = result.get(end_node, {}).docs
     items = []
     for idx, doc in enumerate(docs):
         items.append(

@@ -1,18 +1,33 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
+from pydantic import BaseModel, Field
 
 from aperag.flow.base.models import BaseNodeRunner, NodeInstance, register_node_runner
 from aperag.query.query import DocumentWithScore
 from aperag.rank.reranker import rerank
 
 
-@register_node_runner("rerank")
-class RerankNodeRunner(BaseNodeRunner):
-    async def run(self, node: NodeInstance, inputs: Dict[str, Any]):
-        query: str = inputs.get("query")
-        docs: List = inputs.get("docs", [])
+class RerankInput(BaseModel):
+    model: str = Field(..., description="Rerank model name")
+    model_service_provider: str = Field(..., description="Model service provider")
+    docs: List[DocumentWithScore]
 
+class RerankOutput(BaseModel):
+    docs: List[DocumentWithScore]
+
+@register_node_runner(
+    "rerank",
+    input_model=RerankInput,
+    output_model=RerankOutput,
+)
+class RerankNodeRunner(BaseNodeRunner):
+    async def run(self, ui: RerankInput, si: Dict[str, any]) -> Tuple[RerankOutput, dict]:
+        """
+        Run rerank node. ui: user input; si: system input (dict).
+        Returns (output, system_output)
+        """
+        query = si["query"]
+        docs = ui.docs
         result = []
         if docs:
-            docs = [DocumentWithScore(**doc) for doc in docs]
             result = await rerank(query, docs)
-        return {"docs": [item.model_dump(exclude_none=True, include={"text", "score"}) for item in result]}
+        return RerankOutput(docs=result), {}

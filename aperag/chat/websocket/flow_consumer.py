@@ -47,19 +47,19 @@ class FlowConsumer(BaseConsumer):
             "message_id": kwargs.get("message_id"),
         }
         try:
-            result = await engine.execute_flow(self.flow, initial_data)
+            _, system_outputs = await engine.execute_flow(self.flow, initial_data)
             logger.info("Flow executed successfully!")
         except Exception as e:
             logger.exception(e)
             raise e
 
-        if result is None:
+        if system_outputs is None:
             raise ValueError("No output node found")
 
         async_generator = None
-        nodes = engine.find_output_nodes(self.flow)
+        nodes = engine.find_end_nodes(self.flow)
         for node in nodes:
-            async_generator = result[node].get("async_generator")
+            async_generator = system_outputs[node].get("async_generator")
             if async_generator:
                 break
         if not async_generator:

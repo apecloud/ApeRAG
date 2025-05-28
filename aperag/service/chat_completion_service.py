@@ -50,15 +50,15 @@ async def openai_chat_completions(user, body_data, query_params):
         "message_id": api_request.msg_id,
     }
     try:
-        result = await engine.execute_flow(flow, initial_data)
+        _, system_outputs = await engine.execute_flow(flow, initial_data)
         logger.info("Flow executed successfully!")
     except Exception as e:
         logger.exception(e)
         return None, OpenAIFormatter.format_error(str(e))
     async_generator = None
-    nodes = engine.find_output_nodes(flow)
+    nodes = engine.find_end_nodes(flow)
     for node in nodes:
-        async_generator = result[node].get("async_generator")
+        async_generator = system_outputs[node].get("async_generator")
         if async_generator:
             break
     if not async_generator:

@@ -1,9 +1,24 @@
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
+from pydantic import BaseModel, Field
 
 from aperag.flow.base.models import BaseNodeRunner, NodeInstance, register_node_runner
 
 
-@register_node_runner("start")
+class StartInput(BaseModel):
+    query: str = Field(..., description="User's question or query")
+
+class StartOutput(BaseModel):
+    query: str
+
+@register_node_runner(
+    "start",
+    input_model=StartInput,
+    output_model=StartOutput,
+)
 class StartNodeRunner(BaseNodeRunner):
-    async def run(self, node: NodeInstance, inputs: Dict[str, Any]):
-        return {"query": inputs.get("query")}
+    async def run(self, ui: StartInput, si: Dict[str, any]) -> Tuple[StartOutput, dict]:
+        """
+        Run start node. ui: user input; si: system input (dict).
+        Returns (output, system_output)
+        """
+        return StartOutput(query=ui.query), {}

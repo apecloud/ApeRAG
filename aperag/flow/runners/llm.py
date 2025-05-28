@@ -1,9 +1,10 @@
 import json
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from langchain.schema import AIMessage, HumanMessage
 from litellm import BaseModel
+from pydantic import Field
 
 from aperag.chat.history.base import BaseChatMessageHistory
 from aperag.db.ops import query_msp_dict
@@ -11,6 +12,7 @@ from aperag.flow.base.models import BaseNodeRunner, NodeInstance, register_node_
 from aperag.llm.base import Predictor
 from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES
 from aperag.utils.utils import now_unix_milliseconds
+from aperag.query.query import DocumentWithScore
 
 MAX_CONTEXT_LENGTH = 100000
 
@@ -58,21 +60,44 @@ async def add_ai_message(history: BaseChatMessageHistory, message, message_id, r
     await history.add_message(AIMessage(content=ai_msg, additional_kwargs={"role": "ai"}))
 
 
-@register_node_runner("llm")
-class LLMNodeRunner(BaseNodeRunner):
-    async def run(self, node: NodeInstance, inputs: Dict[str, Any]):
-        user = inputs.get("user")
-        message_id: str = inputs["message_id"]
-        query: str = inputs["query"]
-        temperature: float = inputs.get("temperature", 0.2)
-        max_tokens: int = inputs.get("max_tokens", 32768)
-        model_service_provider = inputs.get("model_service_provider")
-        model_name = inputs.get("model_name")
-        custom_llm_provider = inputs.get("custom_llm_provider")
-        prompt_template = inputs.get("prompt_template", "{context}\n{query}")
-        docs: List = inputs.get("docs", [])
+class LLMInput(BaseModel):
+    model_service_provider: str = Field(..., description="Model service provider")
+    model_name: str = Field(..., description="Model name")
+    custom_llm_provider: str = Field(..., description="Custom LLM provider")
+    prompt_template: str = Field(..., description="Prompt template")
+    temperature: float = Field(..., description="Sampling temperature")
+    max_tokens: int = Field(..., description="Max tokens for generation")
+    docs: List[DocumentWithScore]
 
-        history: BaseChatMessageHistory = inputs.get("history")
+
+class LLMOutput(BaseModel):
+    text: str
+
+
+@register_node_runner(
+    "llm",
+    input_model=LLMInput,
+    output_model=LLMOutput,
+)
+class LLMNodeRunner(BaseNodeRunner):
+    async def run(self, ui: LLMInput, si: Dict[str, any]) -> Tuple[LLMOutput, dict]:
+        """
+        Run LLM node. ui: user input; si: system input (dict).
+        Returns (output, system_output)
+        """
+        user = si["user"]
+        query: str = si["query"]
+        message_id: str = si["message_id"]
+        history: BaseChatMessageHistory = si["history"]
+
+        temperature: float = ui.temperature
+        max_tokens: int = ui.max_tokens
+        model_service_provider = ui.model_service_provider
+        model_name = ui.model_name
+        custom_llm_provider = ui.custom_llm_provider
+        prompt_template = ui.prompt_template
+        docs: List[DocumentWithScore] = ui.docs
+
         msp_dict = await query_msp_dict(user)
         if model_service_provider in msp_dict:
             msp = msp_dict[model_service_provider]
@@ -84,10 +109,10 @@ class LLMNodeRunner(BaseNodeRunner):
         references = []
         if docs:
             for doc in docs:
-                if len(context) + len(doc["text"]) > MAX_CONTEXT_LENGTH:
+                if len(context) + len(doc.text) > MAX_CONTEXT_LENGTH:
                     break
-                context += doc["text"]
-                references.append({"text": doc["text"], "metadata": doc.get("metadata", {}), "score": doc["score"]})
+                context += doc.text
+                references.append({"text": doc.text, "metadata": doc.metadata, "score": doc.score})
         prompt = prompt_template.format(query=query, context=context)
         output_max_tokens = max_tokens - len(prompt)
         if output_max_tokens < 0:
@@ -116,4 +141,4 @@ class LLMNodeRunner(BaseNodeRunner):
                 await add_human_message(history, query, message_id)
                 await add_ai_message(history, query, message_id, response, references, [])
 
-        return {"async_generator": async_generator}
+        return LLMOutput(text=""), {"async_generator": async_generator}

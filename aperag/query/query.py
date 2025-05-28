@@ -12,29 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from enum import Enum
 from typing import List, Optional
 
 from pydantic import BaseModel
 
 
-class Source(str, Enum):
-    EMAIL = "email"
-    FILE = "file"
-    CHAT = "chat"
-    WEB = "web"
-    APP = "app"
-
 
 class DocumentWithScore(BaseModel):
-    source: Source = Source.FILE
-    doc_id: Optional[str] = None
     text: Optional[str] = None
     score: float
     metadata: Optional[dict] = None
-
-    def get_source_file(self) -> str:
-        return self.metadata["source"]
 
 
 class Query(BaseModel):

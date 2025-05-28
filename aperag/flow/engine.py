@@ -5,7 +5,6 @@ from collections import deque
 from datetime import datetime
 from typing import Any, AsyncGenerator, Dict, List, Set
 
-import jsonschema
 from jinja2 import Environment, StrictUndefined
 
 import aperag.flow.runners  # noqa: F401
@@ -136,7 +135,7 @@ class FlowEngine:
             )
 
             logger.info(f"Completed flow execution {self.execution_id}", extra={"execution_id": self.execution_id})
-            return self.context.outputs
+            return self.context.outputs, self.context.system_outputs
 
         except Exception as e:
             # Emit flow error event
@@ -256,6 +255,8 @@ class FlowEngine:
             for key in field_path:
                 if isinstance(value, dict) and key in value:
                     value = value[key]
+                elif isinstance(value, object) and hasattr(value, key):
+                    value = getattr(value, key)
                 else:
                     raise ValidationError(f"Cannot resolve variable: ${{{{ {expr} }}}}")
             return value
@@ -351,99 +352,75 @@ class FlowEngine:
             raise ValueError(f"Cannot convert '{value}' to object")
         return value
 
-    def _bind_node_inputs(self, node: NodeInstance) -> dict:
-        """Bind input variables for a node
-
-        Args:
-            node: The node instance
-        Returns:
-            Dictionary of input values for the node
-        Raises:
-            ValidationError: If required input is missing
+    def _bind_node_inputs(self, node: NodeInstance, runner_info: dict) -> tuple:
         """
-        # Use input_values as the raw input
+        Bind input variables for a node using Pydantic model from runner_info.
+        Returns (user_input, sys_input)
+        """
         raw_inputs = getattr(node, "input_values", {})
-        # Recursively resolve expressions
         resolved_inputs = self.resolve_expression(raw_inputs, node.id)
-        # Use input_schema (already jsonschema) for validation and type conversion
-        json_schema = getattr(node, "input_schema", {})
-        if not json_schema or "properties" not in json_schema:
-            return resolved_inputs
-
-        inputs = {}
-        for key, field_schema in json_schema["properties"].items():
-            value = resolved_inputs.get(key)
-            try:
-                value = self.convert_type_by_schema(value, field_schema)
-            except Exception as e:
-                raise ValidationError(f"Type conversion error for field '{key}' in node {node.id}: {e}")
-            inputs[key] = value
+        input_model = runner_info["input_model"]
         try:
-            jsonschema.validate(instance=inputs, schema=json_schema)
-        except jsonschema.ValidationError as e:
-            raise ValidationError(f"Input validation error for node {node.id}: {e.message}")
-        return inputs
+            user_input = input_model.parse_obj(resolved_inputs)
+        except Exception as e:
+            raise ValidationError(f"Input validation error for node {node.id}: {e}")
+        sys_input = dict(self.context.global_variables)
+        return user_input, sys_input
 
     async def _execute_node(self, node: NodeInstance) -> None:
-        """Execute a single node using the provided context"""
+        """
+        Execute a single node using the provided context, using runner_info from registry.
+        """
+        runner_info = NODE_RUNNER_REGISTRY.get(node.type)
+        if not runner_info:
+            raise ValidationError(f"Unknown node type: {node.type}")
+        runner = runner_info["runner"]
         try:
-            # Bind inputs using the helper method
-            inputs = self._bind_node_inputs(node)
-            # Use input_schema (already jsonschema) for validation
-            input_json_schema = getattr(node, "input_schema", {})
-            try:
-                jsonschema.validate(instance=inputs, schema=input_json_schema)
-            except jsonschema.ValidationError as e:
-                raise ValidationError(f"Input validation error for node {node.id}: {e.message}")
-
-            # Emit node start event with inputs
+            user_input, sys_input = self._bind_node_inputs(node, runner_info)
             await self.emit_event(
                 FlowEvent(
                     FlowEventType.NODE_START,
                     node.id,
                     self.execution_id,
-                    {"node_type": node.type, "inputs": inputs.copy()},
+                    {"node_type": node.type, "inputs": user_input.dict()},
                 )
             )
-            inputs.update(self.context.global_variables)
-
-            # Execute node logic
-            outputs = await self._execute_node_logic(node, inputs)
-
-            # Validate outputs
-            output_json_schema = getattr(node, "output_schema", {})
-            try:
-                jsonschema.validate(instance=outputs, schema=output_json_schema)
-            except jsonschema.ValidationError as e:
-                raise ValidationError(f"Output validation error for node {node.id}: {e.message}")
-
-            # Store outputs in context
-            self.context.set_output(node.id, outputs)
-
-            # Emit node end event
+            outputs = await runner.run(user_input, sys_input)
+            if isinstance(outputs, tuple) and len(outputs) == 2:
+                output_data, system_output = outputs
+            else:
+                output_data, system_output = outputs, None
+            self.context.set_output(node.id, output_data)
+            if system_output is not None:
+                self.context.set_system_output(node.id, system_output)
             await self.emit_event(
                 FlowEvent(
-                    FlowEventType.NODE_END, node.id, self.execution_id, {"node_type": node.type, "outputs": outputs}
+                    FlowEventType.NODE_END, node.id, self.execution_id, {"node_type": node.type, "outputs": output_data}
                 )
             )
-
         except Exception as e:
-            # Emit node error event
             await self.emit_event(
                 FlowEvent(
                     FlowEventType.NODE_ERROR, node.id, self.execution_id, {"node_type": node.type, "error": str(e)}
                 )
             )
             raise e
+    
+    def update_node_input(self, flow: FlowInstance, node_id: str, value: Any):
+        """Update the input values for a node"""
+        flow.nodes[node_id].input_values.update(value)
+    
+    def find_start_nodes(self, flow: FlowInstance) -> str:
+        """Find all start nodes (nodes with in-degree == 0) in the flow"""
+        in_degree = {node_id: 0 for node_id in flow.nodes}
+        for edge in flow.edges:
+            in_degree[edge.target] += 1
+        start_nodes = [node_id for node_id in flow.nodes if in_degree[node_id] == 0]
+        if len(start_nodes) != 1:
+            raise ValidationError("Flow must have exactly one start node")
+        return start_nodes[0]
 
-    async def _execute_node_logic(self, node: NodeInstance, inputs: Dict[str, Any]) -> Dict[str, Any]:
-        """Dispatch node execution to the registered NodeRunner class"""
-        runner = NODE_RUNNER_REGISTRY.get(node.type)
-        if not runner:
-            raise ValidationError(f"Unknown node type: {node.type}")
-        return await runner.run(node, inputs)
-
-    def find_output_nodes(self, flow: FlowInstance) -> List[str]:
+    def find_end_nodes(self, flow: FlowInstance) -> List[str]:
         """Find all output nodes (nodes with in-degree > 0 and out-degree 0) in the flow"""
         out_degree = {node_id: 0 for node_id in flow.nodes}
         for edge in flow.edges:

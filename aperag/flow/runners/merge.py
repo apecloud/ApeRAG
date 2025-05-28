@@ -1,16 +1,35 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
+from pydantic import BaseModel, Field
 
 from aperag.flow.base.exceptions import ValidationError
 from aperag.flow.base.models import BaseNodeRunner, NodeInstance, register_node_runner
+from aperag.query.query import DocumentWithScore
 
 
-@register_node_runner("merge")
+class MergeInput(BaseModel):
+    merge_strategy: str = Field("union", description="How to merge results")
+    deduplicate: bool = Field(True, description="Whether to deduplicate merged results")
+    vector_search_docs: List[DocumentWithScore]
+    keyword_search_docs: List[DocumentWithScore]
+
+class MergeOutput(BaseModel):
+    docs: List[DocumentWithScore]
+
+@register_node_runner(
+    "merge",
+    input_model=MergeInput,
+    output_model=MergeOutput,
+)
 class MergeNodeRunner(BaseNodeRunner):
-    async def run(self, node: NodeInstance, inputs: Dict[str, Any]):
-        docs_a: List = inputs.get("vector_search_docs", [])
-        docs_b: List = inputs.get("keyword_search_docs", [])
-        merge_strategy: str = inputs.get("merge_strategy", "union")
-        deduplicate: bool = inputs.get("deduplicate", True)
+    async def run(self, ui: MergeInput, si: Dict[str, any]) -> Tuple[MergeOutput, dict]:
+        """
+        Run merge node. ui: user input; si: system input (dict).
+        Returns (output, system_output)
+        """
+        docs_a: List[DocumentWithScore] = ui.vector_search_docs
+        docs_b: List[DocumentWithScore] = ui.keyword_search_docs
+        merge_strategy: str = ui.merge_strategy
+        deduplicate: bool = ui.deduplicate
 
         if merge_strategy == "union":
             all_docs = docs_a + docs_b
@@ -18,10 +37,10 @@ class MergeNodeRunner(BaseNodeRunner):
                 seen = set()
                 unique_docs = []
                 for doc in all_docs:
-                    if doc["text"] not in seen:
-                        seen.add(doc["text"])
+                    if doc.text not in seen:
+                        seen.add(doc.text)
                         unique_docs.append(doc)
-                return {"docs": unique_docs}
-            return {"docs": all_docs}
+                return MergeOutput(docs=unique_docs), {}
+            return MergeOutput(docs=all_docs), {}
         else:
             raise ValidationError(f"Unknown merge strategy: {merge_strategy}")
