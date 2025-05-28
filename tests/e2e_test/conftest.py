@@ -8,6 +8,8 @@ from tests.e2e_test.config import (
 
 @pytest.fixture(scope="module")
 def client():
+    assert len(API_KEY) > 0
+    assert len(API_BASE_URL) > 0
     headers = {"Authorization": f"Bearer {API_KEY}"} if API_KEY else {}
     with httpx.Client(base_url=API_BASE_URL, headers=headers) as c:
         yield c

@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Please set the API base URL to the Aperag backend API endpoint
 API_BASE_URL = "http://localhost:8000"
-API_KEY = "sk-40e23724fff1459f8e8ab67aac4f9de1"
+# Please create an API key in the Aperag UI and set it here
+API_KEY = ""
 
+# Please setup the related model service provider key in the Aperag UI
 EMBEDDING_MODEL_PROVIDER = "siliconflow"
 EMBEDDING_MODEL_NAME = "BAAI/bge-large-zh-v1.5"
 EMBEDDING_MODEL_CUSTOM_PROVIDER = "openai"
