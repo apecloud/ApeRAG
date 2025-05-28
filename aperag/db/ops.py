@@ -106,7 +106,7 @@ async def get_count(collection) -> int:
     return await collection.acount()
 
 
-async def query_collection(user, collection_id: str):
+async def query_collection(user: str, collection_id: str):
     try:
         return await Collection.objects.exclude(status=Collection.Status.DELETED).aget(user=user, pk=collection_id)
     except Collection.DoesNotExist:
