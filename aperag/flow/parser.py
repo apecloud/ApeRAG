@@ -20,6 +20,7 @@ class FlowParser:
         except yaml.YAMLError as e:
             raise ValidationError(f"Invalid YAML format: {str(e)}")
 
+        # Dereference $ref in flow configuration
         data = jsonref.replace_refs(data)
 
         # Parse nodes
