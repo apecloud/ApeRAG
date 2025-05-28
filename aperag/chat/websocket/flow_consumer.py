@@ -30,6 +30,7 @@ class FlowConsumer(BaseConsumer):
         self.collection = (await self.bot.collections())[0]
         self.collection_id = self.collection.id
 
+        # Load flow configuration
         config = json.loads(self.bot.config)
         flow = config.get("flow")
         self.flow = FlowParser.parse(flow)

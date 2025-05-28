@@ -21,6 +21,7 @@ from django.shortcuts import render
 from ninja import File, Router
 from ninja.files import UploadedFile
 
+from aperag.chat.message import feedback_message
 from aperag.db.ops import build_pq
 from aperag.schema import view_models
 from aperag.service.bot_service import create_bot
@@ -59,6 +60,7 @@ from aperag.service.question_service import (
 )
 from aperag.service.sync_service import cancel_sync, get_sync_history, list_sync_histories, sync_immediately
 from aperag.utils.request import get_urls, get_user
+from aperag.views.utils import success
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -243,6 +245,13 @@ async def update_chat_view(request, bot_id: str, chat_id: str, chat_in: view_mod
 
     user = get_user(request)
     return await update_chat(user, bot_id, chat_id, chat_in)
+
+
+@router.post("/bots/{bot_id}/chats/{chat_id}/messages/{message_id}")
+async def feedback_message_view(request, bot_id: str, chat_id: str, message_id: str, feedback: view_models.Feedback):
+    user = get_user(request)
+    await feedback_message(user, chat_id, message_id, feedback.type, feedback.tag, feedback.message)
+    return success({})
 
 
 @router.delete("/bots/{bot_id}/chats/{chat_id}")
