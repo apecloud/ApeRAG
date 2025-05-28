@@ -92,7 +92,7 @@ async def create_document(user: str, collection_id: str, files: List[UploadedFil
         except Exception:
             logger.exception("add document failed")
             return fail(HTTPStatus.INTERNAL_SERVER_ERROR, "add document failed")
-    return success(response)
+    return success(DocumentList(items=response))
 
 
 async def create_url_document(user: str, collection_id: str, urls: List[str]) -> view_models.DocumentList:
@@ -135,7 +135,7 @@ async def create_url_document(user: str, collection_id: str, urls: List[str]) ->
     if len(failed_urls) != 0:
         response["message"] = "Some URLs failed validation,eg. https://example.com/path?query=123#fragment"
         response["failed_urls"] = failed_urls
-    return success(response)
+    return success(DocumentList(items=response))
 
 
 async def list_documents(user: str, collection_id: str, pq: PagedQuery) -> view_models.DocumentList:

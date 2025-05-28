@@ -80,10 +80,9 @@ modelSpec:
       example: 4096
       # Only for completion API
     timeout:
-      type: number
+      type: integer
       description: Maximum execution time in seconds for the API request
-      minimum: 1000
-      example: 3000
+      minimum: 1
       # Common parameter for all APIs
     top_n:
       type: integer
