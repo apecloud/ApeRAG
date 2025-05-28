@@ -30,9 +30,6 @@ class FlowConsumer(BaseConsumer):
         self.collection = (await self.bot.collections())[0]
         self.collection_id = self.collection.id
 
-        # FIXME: get flow from the bot config when the frontend is ready
-        # Load flow configuration
-
         config = json.loads(self.bot.config)
         flow = config.get("flow")
         self.flow = FlowParser.parse(flow)
@@ -41,20 +38,14 @@ class FlowConsumer(BaseConsumer):
         engine = FlowEngine()
         initial_data = {
             "query": query,
-            "bot": self.bot,
             "user": self.user,
             "history": self.history,
             "message_id": kwargs.get("message_id"),
         }
-        try:
-            _, system_outputs = await engine.execute_flow(self.flow, initial_data)
-            logger.info("Flow executed successfully!")
-        except Exception as e:
-            logger.exception(e)
-            raise e
 
+        _, system_outputs = await engine.execute_flow(self.flow, initial_data)
         if system_outputs is None:
-            raise ValueError("No output node found")
+            raise ValueError("No system outputs found")
 
         async_generator = None
         nodes = engine.find_end_nodes(self.flow)
@@ -63,6 +54,6 @@ class FlowConsumer(BaseConsumer):
             if async_generator:
                 break
         if not async_generator:
-            raise ValueError("No output node found")
+            raise ValueError("No generator found on the end node")
         async for chunk in async_generator():
             yield chunk

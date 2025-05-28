@@ -1,6 +1,6 @@
 import json
 import uuid
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from langchain.schema import AIMessage, HumanMessage
 from litellm import BaseModel
@@ -8,11 +8,11 @@ from pydantic import Field
 
 from aperag.chat.history.base import BaseChatMessageHistory
 from aperag.db.ops import query_msp_dict
-from aperag.flow.base.models import BaseNodeRunner, NodeInstance, register_node_runner
+from aperag.flow.base.models import BaseNodeRunner, SystemInput, register_node_runner
 from aperag.llm.base import Predictor
 from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES
-from aperag.utils.utils import now_unix_milliseconds
 from aperag.query.query import DocumentWithScore
+from aperag.utils.utils import now_unix_milliseconds
 
 MAX_CONTEXT_LENGTH = 100000
 
@@ -80,15 +80,15 @@ class LLMOutput(BaseModel):
     output_model=LLMOutput,
 )
 class LLMNodeRunner(BaseNodeRunner):
-    async def run(self, ui: LLMInput, si: Dict[str, any]) -> Tuple[LLMOutput, dict]:
+    async def run(self, ui: LLMInput, si: SystemInput) -> Tuple[LLMOutput, dict]:
         """
-        Run LLM node. ui: user input; si: system input (dict).
+        Run LLM node. ui: user input; si: system input (SystemInput).
         Returns (output, system_output)
         """
-        user = si["user"]
-        query: str = si["query"]
-        message_id: str = si["message_id"]
-        history: BaseChatMessageHistory = si["history"]
+        user = si.user
+        query: str = si.query
+        message_id: str = si.message_id
+        history: BaseChatMessageHistory = si.history
 
         temperature: float = ui.temperature
         max_tokens: int = ui.max_tokens

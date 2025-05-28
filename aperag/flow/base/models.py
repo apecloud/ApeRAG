@@ -3,6 +3,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
+from aperag.chat.history.base import BaseChatMessageHistory
 from aperag.flow.base.exceptions import CycleError
 
 
@@ -126,3 +127,18 @@ def register_node_runner(
         return cls
 
     return decorator
+
+
+class SystemInput:
+    query: str
+    user: str
+    history: Optional[BaseChatMessageHistory] = None
+    message_id: Optional[str] = None
+
+    def __init__(
+        self, query: str, user: str, history: Optional[BaseChatMessageHistory] = None, message_id: Optional[str] = None
+    ):
+        self.query = query
+        self.user = user
+        self.history = history
+        self.message_id = message_id

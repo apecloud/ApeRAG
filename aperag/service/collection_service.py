@@ -205,7 +205,7 @@ async def create_search_test(
         edges=edges,
     )
     engine = FlowEngine()
-    initial_data = {"query": query, "collection": collection}
+    initial_data = {"query": query, "user": user}
     result, _ = await engine.execute_flow(flow, initial_data)
     if not result:
         return fail(400, "Failed to execute flow")

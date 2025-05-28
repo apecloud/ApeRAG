@@ -27,7 +27,7 @@ def _convert_to_serializable(obj):
     return obj
 
 
-async def stream_flow_events(flow_generator, flow_task, execution_id):
+async def stream_flow_events(flow_generator, flow_task, engine, flow):
     try:
         async for event in flow_generator:
             try:
@@ -42,36 +42,38 @@ async def stream_flow_events(flow_generator, flow_task, execution_id):
             if event_type == "flow_error":
                 raise Exception(str(event))
         try:
-            flow_result = await flow_task
-            if not flow_result:
+            _, system_outputs = await flow_task
+            if not system_outputs:
                 raise Exception("Flow execution failed")
-            output_nodes = []
-            for node_id, node_result in flow_result.items():
-                if "async_generator" in node_result:
-                    output_nodes.append((node_id, node_result["async_generator"]))
-            if not output_nodes:
-                raise Exception("No output nodes found")
-            for node_id, output_gen in output_nodes:
-                try:
-                    async for chunk in output_gen():
-                        data = {
-                            "event_type": "output_chunk",
-                            "node_id": node_id,
-                            "execution_id": execution_id,
-                            "timestamp": datetime.now().isoformat(),
-                            "data": {"chunk": _convert_to_serializable(chunk)},
-                        }
-                        yield f"data: {json.dumps(data)}\n\n"
-                except Exception as e:
-                    logger.exception(f"Error streaming output from node {node_id}")
-                    raise e
+            node_id = ""
+            nodes = engine.find_end_nodes(flow)
+            for node in nodes:
+                async_generator = system_outputs[node].get("async_generator")
+                if async_generator:
+                    node_id = node
+                    break
+            if not async_generator:
+                raise Exception("No generator found on the end node")
+            try:
+                async for chunk in async_generator():
+                    data = {
+                        "event_type": "output_chunk",
+                        "node_id": node_id,
+                        "execution_id": engine.execution_id,
+                        "timestamp": datetime.now().isoformat(),
+                        "data": {"chunk": _convert_to_serializable(chunk)},
+                    }
+                    yield f"data: {json.dumps(data)}\n\n"
+            except Exception as e:
+                logger.exception(f"Error streaming output from node {node_id}")
+                raise e
         except Exception as e:
-            logger.exception(f"Error waiting for flow execution {execution_id}")
+            logger.exception(f"Error waiting for flow execution {engine.execution_id}")
             raise e
     except asyncio.CancelledError:
-        logger.info(f"Flow event stream cancelled for execution {execution_id}")
+        logger.info(f"Flow event stream cancelled for execution {engine.execution_id}")
     except Exception as e:
-        logger.exception(f"Error in flow event stream for execution {execution_id}")
+        logger.exception(f"Error in flow event stream for execution {engine.execution_id}")
         raise e
 
 
@@ -85,10 +87,10 @@ async def debug_flow_stream(user: str, bot_id: str, debug: view_models.DebugFlow
             flow_config = json.loads(bot.config)["flow"]
         flow = FlowParser.parse(flow_config)
         engine = FlowEngine()
-        initial_data = {"query": debug.query, "bot": bot, "user": user, "history": [], "message_id": ""}
+        initial_data = {"query": debug.query, "user": user}
         task = asyncio.create_task(engine.execute_flow(flow, initial_data))
         return StreamingHttpResponse(
-            stream_flow_events(engine.get_events(), task, engine.execution_id), content_type="text/event-stream"
+            stream_flow_events(engine.get_events(), task, engine, flow), content_type="text/event-stream"
         )
     except Exception as e:
         logger.exception("Error in debug flow stream")

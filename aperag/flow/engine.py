@@ -9,7 +9,7 @@ from jinja2 import Environment, StrictUndefined
 
 import aperag.flow.runners  # noqa: F401
 from aperag.flow.base.exceptions import CycleError, ValidationError
-from aperag.flow.base.models import NODE_RUNNER_REGISTRY, ExecutionContext, FlowInstance, NodeInstance
+from aperag.flow.base.models import NODE_RUNNER_REGISTRY, ExecutionContext, FlowInstance, NodeInstance, SystemInput
 
 # Configure logging
 logging.basicConfig(
@@ -364,7 +364,7 @@ class FlowEngine:
             user_input = input_model.parse_obj(resolved_inputs)
         except Exception as e:
             raise ValidationError(f"Input validation error for node {node.id}: {e}")
-        sys_input = dict(self.context.global_variables)
+        sys_input = SystemInput(**self.context.global_variables)
         return user_input, sys_input
 
     async def _execute_node(self, node: NodeInstance) -> None:
@@ -405,11 +405,11 @@ class FlowEngine:
                 )
             )
             raise e
-    
+
     def update_node_input(self, flow: FlowInstance, node_id: str, value: Any):
         """Update the input values for a node"""
         flow.nodes[node_id].input_values.update(value)
-    
+
     def find_start_nodes(self, flow: FlowInstance) -> str:
         """Find all start nodes (nodes with in-degree == 0) in the flow"""
         in_degree = {node_id: 0 for node_id in flow.nodes}

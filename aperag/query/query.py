@@ -17,7 +17,6 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 
-
 class DocumentWithScore(BaseModel):
     text: Optional[str] = None
     score: float
