@@ -1,32 +1,9 @@
 import json
 from pathlib import Path
 
-import pytest
 import yaml
 
 from tests.e2e_test.config import COMPLETION_MODEL_NAME, COMPLETION_MODEL_PROVIDER
-
-
-@pytest.fixture
-def bot(client, document, collection):
-    config = {
-        "model_name": f"{COMPLETION_MODEL_NAME}",
-        "model_service_provider": COMPLETION_MODEL_PROVIDER,
-        "llm": {"context_window": 3500, "similarity_score_threshold": 0.5, "similarity_topk": 3, "temperature": 0.1},
-    }
-    create_data = {
-        "title": "E2E Test Bot",
-        "description": "E2E Bot Description",
-        "type": "knowledge",
-        "config": json.dumps(config),
-        "collection_ids": [collection["id"]],
-    }
-    resp = client.post("/api/v1/bots", json=create_data)
-    assert resp.status_code == 200
-    bot = resp.json()
-    yield bot
-    resp = client.delete(f"/api/v1/bots/{bot['id']}")
-    assert resp.status_code in (200, 204)
 
 
 def test_list_bots(client, bot):

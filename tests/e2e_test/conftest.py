@@ -1,3 +1,4 @@
+import json
 import time
 
 import httpx
@@ -6,6 +7,8 @@ import pytest
 from tests.e2e_test.config import (
     API_BASE_URL,
     API_KEY,
+    COMPLETION_MODEL_NAME,
+    COMPLETION_MODEL_PROVIDER,
     EMBEDDING_MODEL_CUSTOM_PROVIDER,
     EMBEDDING_MODEL_NAME,
     EMBEDDING_MODEL_PROVIDER,
@@ -99,3 +102,25 @@ def document(client, collection):
     for item in data["items"]:
         if item["id"] == doc_id:
             assert item["status"] in ["DELETED", "DELETING"]
+
+
+@pytest.fixture
+def bot(client, document, collection):
+    config = {
+        "model_name": f"{COMPLETION_MODEL_NAME}",
+        "model_service_provider": COMPLETION_MODEL_PROVIDER,
+        "llm": {"context_window": 3500, "similarity_score_threshold": 0.5, "similarity_topk": 3, "temperature": 0.1},
+    }
+    create_data = {
+        "title": "E2E Test Bot",
+        "description": "E2E Bot Description",
+        "type": "knowledge",
+        "config": json.dumps(config),
+        "collection_ids": [collection["id"]],
+    }
+    resp = client.post("/api/v1/bots", json=create_data)
+    assert resp.status_code == 200
+    bot = resp.json()
+    yield bot
+    resp = client.delete(f"/api/v1/bots/{bot['id']}")
+    assert resp.status_code in (200, 204)
