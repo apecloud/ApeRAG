@@ -43,32 +43,8 @@ async def bot_consumer_router(scope, receive, send):
         raise Exception("Chat not found")
     scope[KEY_CHAT_ID] = chat_id
 
-    if bot.type == Bot.Type.KNOWLEDGE:
-        collection = (await bot.collections())[0]
-        if collection.type != Collection.Type.DOCUMENT:
-            raise Exception("Invalid collection type")
-        if settings.CHAT_CONSUMER_IMPLEMENTATION == "document-qa":
-            from aperag.chat.websocket.document_qa_consumer import DocumentQAConsumer
-
-            return await DocumentQAConsumer.as_asgi()(scope, receive, send)
-        elif settings.CHAT_CONSUMER_IMPLEMENTATION == "fake":
-            from aperag.chat.websocket.fake_consumer import FakeConsumer
-
-            return await FakeConsumer.as_asgi()(scope, receive, send)
-        elif settings.CHAT_CONSUMER_IMPLEMENTATION == "flow":
-            from aperag.chat.websocket.flow_consumer import FlowConsumer
-
-            return await FlowConsumer.as_asgi()(scope, receive, send)
-        else:
-            from aperag.chat.websocket.embedding_consumer import EmbeddingConsumer
-
-            return await EmbeddingConsumer.as_asgi()(scope, receive, send)
-    elif bot.type == Bot.Type.COMMON:
-        from aperag.chat.websocket.common_consumer import CommonConsumer
-
-        return await CommonConsumer.as_asgi()(scope, receive, send)
-    else:
-        raise Exception("Invalid bot type")
+    from aperag.chat.websocket.flow_consumer import FlowConsumer
+    return await FlowConsumer.as_asgi()(scope, receive, send)
 
 
 websocket_urlpatterns = [

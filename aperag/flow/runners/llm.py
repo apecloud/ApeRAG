@@ -67,7 +67,7 @@ class LLMInput(BaseModel):
     prompt_template: str = Field(..., description="Prompt template")
     temperature: float = Field(..., description="Sampling temperature")
     max_tokens: int = Field(..., description="Max tokens for generation")
-    docs: List[DocumentWithScore]
+    docs: Optional[List[DocumentWithScore]] = Field(None, description="Documents")
 
 
 class LLMOutput(BaseModel):

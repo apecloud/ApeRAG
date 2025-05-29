@@ -27,8 +27,13 @@ class FlowConsumer(BaseConsumer):
     async def connect(self):
         logging.info("FlowConsumer connect")
         await super().connect()
-        self.collection = (await self.bot.collections())[0]
-        self.collection_id = self.collection.id
+        collections = await self.bot.collections()
+        if collections:
+            self.collection = collections[0]
+            self.collection_id = self.collection.id
+        else:
+            self.collection = None
+            self.collection_id = None
 
         # Load flow configuration
         config = json.loads(self.bot.config)
