@@ -49,27 +49,8 @@ async def create_bot(user, bot_in: view_models.BotCreate) -> view_models.Bot:
         type=bot_in.type,
         status=db_models.Bot.Status.ACTIVE,
         description=bot_in.description,
-        config=bot_in.config,
+        config="{}",
     )
-    config = json.loads(bot_in.config)
-    memory = config.get("memory", False)
-    model_service_provider = config.get("model_service_provider")
-    model_name = config.get("model_name")
-    llm_config = config.get("llm")
-
-    msp_dict = await query_msp_dict(user)
-    if model_service_provider in msp_dict:
-        msp = msp_dict[model_service_provider]
-        base_url = msp.base_url
-        api_key = msp.api_key
-        valid, msg = validate_bot_config(
-            model_service_provider, model_name, base_url, api_key, llm_config, bot_in.type, memory
-        )
-        if not valid:
-            return fail(HTTPStatus.BAD_REQUEST, msg)
-    else:
-        return fail(HTTPStatus.BAD_REQUEST, "Model service provider not found")
-
     await bot.asave()
     collection_ids = []
     if bot_in.collection_ids is not None:
