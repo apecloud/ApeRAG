@@ -1,4 +1,4 @@
-name: rag_flow
+name: test_rag_flow
 title: "RAG Knowledge Base Flow"
 description: "A typical RAG flow with parallel retrieval and reranking"
 version: "1.0.0"
