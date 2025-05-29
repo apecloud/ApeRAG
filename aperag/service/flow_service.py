@@ -36,12 +36,9 @@ async def stream_flow_events(flow_generator, flow_task, engine, flow):
         if event_type == "flow_end":
             break
         if event_type == "flow_error":
-            raise Exception(str(event))
+            return
 
-    # llm message chunk stream
     _, system_outputs = await flow_task
-    if not system_outputs:
-        raise Exception("Flow execution failed")
     node_id = ""
     nodes = engine.find_end_nodes(flow)
     async_generator = None
@@ -51,7 +48,10 @@ async def stream_flow_events(flow_generator, flow_task, engine, flow):
             node_id = node
             break
     if not async_generator:
-        raise Exception("No generator found on the end node")
+        yield "data: {'event_type': 'flow_error', 'error': 'No generator found on the end node'}\n\n"
+        return
+
+    # llm message chunk stream
     async for chunk in async_generator():
         data = {
             "event_type": "output_chunk",
@@ -68,9 +68,12 @@ async def debug_flow_stream(user: str, bot_id: str, debug: view_models.DebugFlow
         bot = await query_bot(user, bot_id)
         if not bot:
             return StreamingHttpResponse(json.dumps({"error": "Bot not found"}), content_type="application/json")
-        flow_config = debug.flow
+        bot_config = json.loads(bot.config)
+        flow_config = bot_config.get("flow")
         if not flow_config:
-            flow_config = json.loads(bot.config)["flow"]
+            return StreamingHttpResponse(
+                json.dumps({"error": "Bot flow config not found"}), content_type="application/json"
+            )
         flow = FlowParser.parse(flow_config)
         engine = FlowEngine()
         initial_data = {"query": debug.query, "user": user}
@@ -79,7 +82,7 @@ async def debug_flow_stream(user: str, bot_id: str, debug: view_models.DebugFlow
             stream_flow_events(engine.get_events(), task, engine, flow), content_type="text/event-stream"
         )
     except Exception as e:
-        logger.exception("Error in debug flow stream")
+        logger.exception("Error in debug flow stream: %s", e)
         return StreamingHttpResponse(json.dumps({"error": str(e)}), content_type="application/json")
 
 

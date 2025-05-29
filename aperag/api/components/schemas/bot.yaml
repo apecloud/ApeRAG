@@ -95,8 +95,6 @@ botList:
 debugFlowRequest:
   type: object
   properties:
-    flow:
-      type: string
     query:
       type: string
   required:
