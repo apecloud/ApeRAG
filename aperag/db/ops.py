@@ -33,7 +33,6 @@ from aperag.db.models import (
     Invitation,
     MessageFeedback,
     ModelServiceProvider,
-    Question,
     Role,
     User,
     UserQuota,
@@ -159,21 +158,6 @@ async def query_documents_count(user, collection_id: str, pq: PagedQuery = None)
         .count
     )()
     return count
-
-
-async def query_questions(user, collection_id: str, pq: PagedQuery = None):
-    filters = build_filters(pq)
-    query_set = Question.objects.exclude(status=Question.Status.DELETED).filter(
-        user=user, collection_id=collection_id, **filters
-    )
-    return await build_pr(pq, query_set)
-
-
-async def query_question(user, question_id: str):
-    try:
-        return await Question.objects.exclude(status=Question.Status.DELETED).aget(user=user, pk=question_id)
-    except Question.DoesNotExist:
-        return None
 
 
 async def query_apikeys(user, pq: PagedQuery = None):

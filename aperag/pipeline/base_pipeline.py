@@ -13,19 +13,16 @@
 # limitations under the License.
 
 import json
-import re
 import uuid
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional
 
 from langchain.schema import AIMessage, HumanMessage
-from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel
 
 from aperag.chat.history.base import BaseChatMessageHistory
 from aperag.db.ops import query_msp_dict
 from aperag.llm.base import Predictor
-from aperag.llm.prompts import RELATED_QUESTIONS_TEMPLATE_V2
 from aperag.utils.utils import now_unix_milliseconds
 
 
@@ -47,7 +44,6 @@ class Message(BaseModel):
 
 
 DOC_QA_REFERENCES = "|DOC_QA_REFERENCES|"
-RELATED_QUESTIONS = "|RELATED_QUESTIONS|"
 DOCUMENT_URLS = "|DOCUMENT_URLS|"
 
 
@@ -75,15 +71,7 @@ class Pipeline(ABC):
         self.enable_keyword_recall = self.llm_config.get("enable_keyword_recall", False)
         self.score_threshold = self.llm_config.get("similarity_score_threshold", 0.5)
         self.context_window = self.llm_config.get("context_window", 4096)
-        self.use_related_question = bot_config.get("use_related_question", False)
         self.bot_context = ""
-
-        welcome = bot_config.get("welcome", {})
-        faq = welcome.get("faq", [])
-        self.welcome_question = []
-        for qa in faq:
-            self.welcome_question.append(qa["question"])
-        self.oops = welcome.get("oops", "")
 
         self.prompt_template = self.llm_config.get("prompt_template", None)
 
@@ -96,66 +84,8 @@ class Pipeline(ABC):
             self.predictor = Predictor.get_completion_service(
                 self.model_service_provider, self.model_name, base_url, api_key, **self.llm_config
             )
-
-            if self.use_related_question:
-                self.related_prompt_template = self.llm_config.get(
-                    "related_prompt_template", RELATED_QUESTIONS_TEMPLATE_V2
-                )
-                self.related_question_prompt = PromptTemplate(
-                    template=self.related_prompt_template, input_variables=["query", "context"]
-                )
-                self.related_question_predictor = Predictor.get_completion_service(
-                    self.model_service_provider, self.model_name, base_url, api_key, **self.llm_config
-                )
-
         else:
             raise Exception("Model service provider not found")
-
-    async def generate_related_question(self, related_question_prompt):
-        tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "ask_related_questions",
-                    "description": "ask further questions that are related to the input and output.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "question": {
-                                "type": "string",
-                                "description": "related question to the original question and context.",
-                            },
-                        },
-                        "required": ["question"],
-                    },
-                },
-            }
-        ]
-        related_questions = []
-        tool_responses, content = await self.related_question_predictor.agenerate_by_tools(
-            related_question_prompt, tools
-        )
-        if tool_responses:
-            for tool_response in tool_responses:
-                if tool_response.function.name == "ask_related_questions":
-                    function_args = json.loads(tool_response.function.arguments)
-                    question = function_args.get("question")
-                    if question:
-                        related_questions.append(question)
-        else:
-            related_questions = []
-            if content == "":
-                return related_questions
-            questions = re.sub(r"\n+", "\n", content).split("\n")
-            for question in questions:
-                match = re.match(r"\s*-\s*(.*)", question)
-                if match:
-                    question = match.group(1)
-                match = re.match(r"\s*\d+\.\s*(.*)", question)
-                if match:
-                    question = match.group(1)
-                related_questions.append(question)
-        return related_questions
 
     @staticmethod
     async def new_human_message(message, message_id):

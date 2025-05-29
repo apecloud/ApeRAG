@@ -31,7 +31,6 @@ class Collection(models.Model):
         INACTIVE = "INACTIVE"
         ACTIVE = "ACTIVE"
         DELETED = "DELETED"
-        QUESTION_PENDING = "QUESTION_PENDING"
 
     class SyncStatus(models.TextChoices):
         RUNNING = "RUNNING"
@@ -313,7 +312,6 @@ class MessageFeedback(models.Model):
     type = models.CharField(max_length=16, choices=Type.choices, null=True)
     tag = models.CharField(max_length=16, choices=Tag.choices, null=True)
     message = models.TextField(null=True, blank=True)
-    relate_ids = models.TextField(null=True)
     question = models.TextField(null=True, blank=True)
     status = models.CharField(max_length=16, choices=Status.choices, null=True)
     original_answer = models.TextField(null=True, blank=True)
@@ -364,51 +362,6 @@ class MessageFeedback(models.Model):
             self.chat_id = chat.id
         elif isinstance(chat, str):
             self.chat_id = chat
-
-
-class Question(models.Model):
-    class Status(models.TextChoices):
-        ACTIVE = "ACTIVE"
-        WARNING = "WARNING"
-        DELETED = "DELETED"
-        PENDING = "PENDING"
-
-    @staticmethod
-    def generate_id():
-        """Generate a random ID for question"""
-        return "que" + random_id()
-
-    id = models.CharField(primary_key=True, default=generate_id.__func__, editable=False, max_length=24)
-    user = models.CharField(max_length=256)
-    collection_id = models.CharField(max_length=24)
-    documents = models.ManyToManyField(Document, blank=True)
-    question = models.TextField()
-    answer = models.TextField(null=True, blank=True)
-    status = models.CharField(max_length=16, choices=Status.choices, null=True)
-    gmt_created = models.DateTimeField(auto_now_add=True)
-    gmt_updated = models.DateTimeField(auto_now=True)
-    gmt_deleted = models.DateTimeField(null=True, blank=True)
-    relate_id = models.CharField(null=True, max_length=256)
-
-    async def get_collection(self):
-        """Get the associated collection object"""
-        try:
-            return await Collection.objects.aget(id=self.collection_id)
-        except Collection.DoesNotExist:
-            return None
-
-    @property
-    async def collection(self):
-        """Property to maintain backwards compatibility"""
-        return await self.get_collection()
-
-    @collection.setter
-    async def collection(self, collection):
-        """Setter to maintain backwards compatibility"""
-        if isinstance(collection, Collection):
-            self.collection_id = collection.id
-        elif isinstance(collection, str):
-            self.collection_id = collection
 
 
 class ApiKey(models.Model):

@@ -50,16 +50,12 @@ class FrontendFormatter(BaseFormatter):
     def format_stream_end(
         msg_id: str,
         references: List[str] = None,
-        related_question: List[str] = None,
-        related_question_prompt: str = "",
         memory_count: int = 0,
         urls: List[str] = None,
     ) -> Dict[str, Any]:
         """Format the end event for streaming"""
         if references is None:
             references = []
-        if related_question is None:
-            related_question = []
         if urls is None:
             urls = []
 
@@ -68,8 +64,6 @@ class FrontendFormatter(BaseFormatter):
             "id": msg_id,
             "data": references,
             "memoryCount": memory_count,
-            "related_question_prompt": related_question_prompt,
-            "related_question": related_question,
             "urls": urls,
             "timestamp": now_unix_milliseconds(),
         }

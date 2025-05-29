@@ -171,10 +171,6 @@ async def update_document(
             return fail(HTTPStatus.BAD_REQUEST, "invalid document config")
     await instance.asave()
     update_index_for_document.delay(instance.id)
-    related_questions = await sync_to_async(instance.question_set.exclude)(status=db_models.Question.Status.DELETED)
-    async for question in related_questions:
-        question.status = db_models.Question.Status.WARNING
-        await question.asave()
     return success(build_document_response(instance))
 
 
@@ -192,11 +188,6 @@ async def delete_document(user: str, collection_id: str, document_id: str) -> vi
     document.gmt_deleted = timezone.now()
     await document.asave()
     remove_index.delay(document.id)
-    related_questions = await sync_to_async(document.question_set.exclude)(status=db_models.Question.Status.DELETED)
-    async for question in related_questions:
-        question.documents.remove(document)
-        question.status = db_models.Question.Status.WARNING
-        await question.asave()
     return success(build_document_response(document))
 
 
@@ -212,13 +203,6 @@ async def delete_documents(user: str, collection_id: str, document_ids: List[str
             document.gmt_deleted = timezone.now()
             await document.asave()
             remove_index.delay(document.id)
-            related_questions = await sync_to_async(document.question_set.exclude)(
-                status=db_models.Question.Status.DELETED
-            )
-            async for question in related_questions:
-                question.documents.remove(document)
-                question.status = db_models.Question.Status.WARNING
-                await question.asave()
             ok.append(document.id)
         except Exception as e:
             logger.exception(e)

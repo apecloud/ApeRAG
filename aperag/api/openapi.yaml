@@ -47,10 +47,6 @@ paths:
     $ref: './paths/collections.yaml#/documents'
   /collections/{collection_id}/documents/{document_id}:
     $ref: './paths/collections.yaml#/document'
-  /collections/{collection_id}/questions:
-    $ref: './paths/collections.yaml#/questions'
-  /collections/{collection_id}/questions/{question_id}:
-    $ref: './paths/collections.yaml#/question'
   /collections/{collection_id}/searchTests:
     $ref: './paths/collections.yaml#/searchTests'
   /collections/{collection_id}/searchTests/{search_test_id}:

@@ -1,10 +1,10 @@
+from .graph_search import GraphSearchNodeRunner
 from .keyword_search import KeywordSearchNodeRunner
 from .llm import LLMNodeRunner
 from .merge import MergeNodeRunner
 from .rerank import RerankNodeRunner
 from .start import StartNodeRunner
 from .vector_search import VectorSearchNodeRunner
-from .graph_search import GraphSearchNodeRunner
 
 __all__ = [
     "KeywordSearchNodeRunner",

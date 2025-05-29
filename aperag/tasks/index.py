@@ -23,12 +23,10 @@ from celery import Task
 from django.utils import timezone
 
 from aperag.context.full_text import insert_document, remove_document
-from aperag.db.models import Collection, Document, MessageFeedback, Question
+from aperag.db.models import Collection, Document
 from aperag.docparser.doc_parser import DocParser
 from aperag.embed.base_embedding import get_collection_embedding_service
 from aperag.embed.local_path_embedding import LocalPathEmbedding
-from aperag.embed.qa_embedding import QAEmbedding
-from aperag.embed.question_embedding import QuestionEmbedding, QuestionEmbeddingWithoutDocument
 from aperag.graph import lightrag_holder
 from aperag.objectstore.base import get_object_store
 from aperag.schema.utils import parseCollectionConfig
@@ -39,7 +37,6 @@ from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS, uncompress
 from aperag.utils.utils import (
     generate_fulltext_index_name,
     generate_lightrag_namespace_prefix,
-    generate_qa_vector_db_collection_name,
     generate_vector_db_collection_name,
 )
 from config import settings
@@ -460,96 +457,6 @@ def add_lightrag_index_task(self, content, document_id, file_path):
         )
 
 
-@app.task
-def message_feedback(**kwargs):
-    feedback_id = kwargs["feedback_id"]
-    feedback = MessageFeedback.objects.get(id=feedback_id)
-    feedback.status = MessageFeedback.Status.RUNNING
-    feedback.save()
-
-    qa_collection_name = generate_qa_vector_db_collection_name(collection=feedback.collection.id)
-    vector_store_adaptor = get_vector_db_connector(collection=qa_collection_name)
-    embedding_model, _ = async_to_sync(get_collection_embedding_service)(feedback.collection)
-    ids = [i for i in str(feedback.relate_ids or "").split(",") if i]
-    if ids:
-        vector_store_adaptor.connector.delete(ids=ids)
-    ids = QAEmbedding(feedback.question, feedback.revised_answer, vector_store_adaptor, embedding_model).load_data()
-    if ids:
-        feedback.relate_ids = ",".join(ids)
-        feedback.save()
-
-    feedback.status = MessageFeedback.Status.COMPLETE
-    feedback.save()
-
-
-@app.task
-def generate_questions(document_id):
-    try:
-        document = Document.objects.get(id=document_id)
-        collection = async_to_sync(document.get_collection)()
-        embedding_model, _ = async_to_sync(get_collection_embedding_service)(collection)
-
-        source = get_source(parseCollectionConfig(collection.config))
-        metadata = json.loads(document.metadata)
-        metadata["doc_id"] = document_id
-        local_doc = source.prepare_document(name=document.name, metadata=metadata)
-        q_loaders = QuestionEmbedding(
-            filepath=local_doc.path,
-            file_metadata=local_doc.metadata,
-            embedding_model=embedding_model,
-            llm_model=None,  # todo Fixme
-            vector_store_adaptor=get_vector_db_connector(
-                collection=generate_qa_vector_db_collection_name(collection=collection.id)
-            ),
-        )
-        ids, questions = q_loaders.load_data()
-        for relate_id, question in zip(ids, questions):
-            question_instance = Question(
-                user=document.user,
-                question=question,
-                answer="",
-                status=Question.Status.ACTIVE,
-                collection_id=collection.id,
-                relate_id=relate_id,
-            )
-            question_instance.save()
-            question_instance.documents.add(document)
-    except Exception as e:
-        logger.error(e)
-        raise Exception("an error occur %s" % e)
-
-
-@app.task
-def update_index_for_question(question_id):
-    try:
-        question = Question.objects.get(id=question_id)
-        embedding_model, _ = async_to_sync(get_collection_embedding_service)(question.collection)
-
-        q_loaders = QuestionEmbeddingWithoutDocument(
-            embedding_model=embedding_model,
-            vector_store_adaptor=get_vector_db_connector(
-                collection=generate_qa_vector_db_collection_name(collection=question.collection.id)
-            ),
-        )
-        if question.relate_id is not None:
-            q_loaders.delete(ids=[question.relate_id])
-        if question.status != Question.Status.DELETED:
-            ids = q_loaders.load_data(faq=[{"question": question.question, "answer": question.answer}])
-            question.relate_id = ids[0]
-            question.status = Question.Status.ACTIVE
-            question.save()
-    except Exception as e:
-        logger.error(e)
-        raise Exception("an error occur %s" % e)
-
-
-@app.task
-def update_collection_status(status, collection_id):
-    Collection.objects.filter(id=collection_id, status=Collection.Status.QUESTION_PENDING).update(
-        status=Collection.Status.ACTIVE
-    )
-
-
 @app.task(bind=True, track_started=True)
 def remove_lightrag_index_task(self, document_id, collection_id):
     """
@@ -559,8 +466,6 @@ def remove_lightrag_index_task(self, document_id, collection_id):
     logger.info(f"Begin LightRAG deletion task for document (ID: {document_id})")
 
     async def _async_delete_lightrag():
-        from aperag.db.models import Collection
-
         collection = await Collection.objects.aget(id=collection_id)
 
         # Avoid using cached instances in Celery tasks, create new ones each time

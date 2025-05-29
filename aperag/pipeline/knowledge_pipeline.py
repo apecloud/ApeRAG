@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 import json
 import logging
-import random
 from typing import List, Optional, Tuple
 
 from langchain_core.prompts import PromptTemplate
@@ -28,7 +26,7 @@ from aperag.llm.prompts import (
     DEFAULT_KG_VECTOR_MIX_ENGLISH_PROMPT_TEMPLATE,
     DEFAULT_MODEL_MEMOTY_PROMPT_TEMPLATES,
 )
-from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES, DOCUMENT_URLS, RELATED_QUESTIONS, Message, Pipeline
+from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES, DOCUMENT_URLS, Message, Pipeline
 from aperag.pipeline.keyword_extractor import IKExtractor
 from aperag.query.query import DocumentWithScore, get_packed_answer
 from aperag.rank.reranker import rerank
@@ -79,9 +77,6 @@ class KnowledgePipeline(Pipeline):
 
         self.context_manager = ContextManager(
             self.collection_name, self.embedding_model, settings.VECTOR_DB_TYPE, self.vectordb_ctx
-        )
-        self.qa_context_manager = ContextManager(
-            self.qa_collection_name, self.embedding_model, settings.VECTOR_DB_TYPE, self.qa_vectordb_ctx
         )
 
     async def new_ai_message(self, message, message_id, response, references, urls):
@@ -225,14 +220,10 @@ class KnowledgePipeline(Pipeline):
         # --- 1. Common Setup & History Processing ---
         response = ""
         references = []
-        related_questions = set()
         document_url_list = []
         document_url_set = set()
         context = ""
         candidates = []  # Keep track of candidates for references/URLs
-        related_question_task = None
-        need_generate_answer = True
-        need_related_question = True
 
         if self.history:
             messages = await self.history.messages
@@ -243,78 +234,13 @@ class KnowledgePipeline(Pipeline):
         ]
         tot_history_querys = "\n".join(history_querys[-self.memory_limit_count :]) + "\n" if self.memory else ""
         query_with_history = tot_history_querys + message
+        vector = self.embedding_model.embed_query(query_with_history)  # Embedding needed for standard RAG
 
-        # --- 2. QA Cache Check (Optional Shortcut) ---
-        logger.info("[%s] Checking QA cache", log_prefix)
-        vector = self.embedding_model.embed_query(query_with_history)  # Embedding needed for QA cache and standard RAG
-        logger.info("[%s] Query embedded", log_prefix)
-        qa_results = await async_run(
-            self.qa_context_manager.query, query_with_history, score_threshold=0.5, topk=6, vector=vector
-        )
-        logger.info("[%s] QA cache query returned %d results", log_prefix, len(qa_results))
+        # --- 2. Main RAG Processing ---
+        context, candidates = await self.build_context(query_with_history, vector, log_prefix)
 
-        cached_answer_found = False
-        for result in qa_results:
-            try:
-                result_text = json.loads(result.text)
-                if result_text.get("answer") and result.score > 0.9:  # High confidence match
-                    response = result_text["answer"]
-                    context = response  # Use cached answer as context for related questions
-                    cached_answer_found = True
-                    need_generate_answer = False  # No need to call LLM
-                    logger.info("[%s] Found high-confidence answer in QA cache.", log_prefix)
-                    yield response  # Start yielding cached answer
-                    break  # Stop after finding one good answer
-                elif result.score >= 0.8:  # Add potential related questions from cache
-                    related_questions.add(result_text["question"])
-            except (json.JSONDecodeError, KeyError) as e:
-                logger.warning("[%s] Failed to parse QA cache result: %s, error: %s", log_prefix, result.text, e)
-
-        # --- 3. Main RAG Processing (if no QA cache hit) ---
-        if not cached_answer_found:
-            logger.info("[%s] No high-confidence answer in QA cache, proceeding with RAG pipeline", log_prefix)
-
-            # --- 3a. Choose and Run RAG method(s) ---
-            context, candidates = await self.build_context(query_with_history, vector, log_prefix)
-
-            # --- 3b. Handle No Context Found ---
-            if not context:
-                if self.oops != "":
-                    response = self.oops
-                    yield self.oops
-                    need_generate_answer = False
-                    logger.info("[%s] No context found, yielding 'oops' message.", log_prefix)
-                if self.welcome_question:
-                    related_questions.update(self.welcome_question)
-                    logger.info("[%s] Adding welcome questions as related questions.", log_prefix)
-
-        # --- 4. Generate Related Questions (if enabled) ---
-        if self.use_related_question and need_related_question:
-            # Only start the task if we have some context (either from cache or RAG) or no context but welcome questions
-            if context or (not context and self.welcome_question):
-                # Check if we already have enough related questions from QA cache or welcome questions
-                if len(related_questions) < 3:
-                    related_question_prompt_context = (
-                        context if context else "No context found."
-                    )  # Provide some context even if empty
-                    related_question_prompt = self.related_question_prompt.format(
-                        query=message, context=related_question_prompt_context
-                    )
-                    related_question_task = asyncio.create_task(self.generate_related_question(related_question_prompt))
-                    logger.info("[%s] Created related question generation task.", log_prefix)
-                else:
-                    logger.info(
-                        "[%s] Skipping related question generation task (already have %d).",
-                        log_prefix,
-                        len(related_questions),
-                    )
-            else:
-                logger.info(
-                    "[%s] Skipping related question generation task (no context and no welcome questions).", log_prefix
-                )
-
-        # --- 5. Generate LLM Answer (if needed) ---
-        if need_generate_answer:
+        # --- 3. Generate LLM Answer (if needed) ---
+        if context:
             logger.info("[%s] Generating LLM answer.", log_prefix)
             history = []
             if self.memory and len(messages) > 0:
@@ -351,7 +277,7 @@ class KnowledgePipeline(Pipeline):
                     document_url_set.add(url)
                     document_url_list.append(url)
 
-        # --- 6. Finalization: Save Messages & Yield Metadata ---
+        # --- 4. Finalization: Save Messages & Yield Metadata ---
         if self.history:
             await self.add_human_message(message, message_id)
             logger.info("[%s] Human message saved.", log_prefix)
@@ -359,27 +285,6 @@ class KnowledgePipeline(Pipeline):
             # Ensure AI message includes references/URLs derived from the context used
             await self.add_ai_message(message, message_id, response, references, document_url_list)
             logger.info("[%s] AI message saved.", log_prefix)
-
-        # Yield related questions if generated/collected
-        if self.use_related_question:
-            final_related_questions = list(related_questions)
-            if related_question_task:
-                try:
-                    generated_questions = await related_question_task
-                    logger.info("[%s] Related question generation task finished.", log_prefix)
-                    # Avoid duplicates and filter out recent history
-                    history_querys.append(message)  # Add current message to history for filtering
-                    recent_queries = set(history_querys[-5:])
-                    for q in generated_questions:
-                        if q not in final_related_questions and q not in recent_queries:
-                            final_related_questions.append(q)
-                except Exception as e:
-                    logger.error("[%s] Related question generation failed: %s", log_prefix, e)
-
-            if final_related_questions:
-                random.shuffle(final_related_questions)
-                yield RELATED_QUESTIONS + json.dumps(final_related_questions[:3])
-                logger.info("[%s] Yielded related questions.", log_prefix)
 
         # Yield references if requested
         if gen_references and references:

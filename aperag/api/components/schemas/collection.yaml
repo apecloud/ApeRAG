@@ -319,7 +319,7 @@ searchTestRequest:
   properties:
     query:
       type: string
-      description: The user input question
+      description: The user input query
     vector_search:
       $ref: '#/vectorSearchParams'
     fulltext_search:

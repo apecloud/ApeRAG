@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ast
 import json
 import logging
 import os
@@ -32,7 +31,6 @@ from aperag.chat.utils import (
 from aperag.chat.websocket.base_consumer import BaseConsumer
 from aperag.docparser.base import MarkdownPart
 from aperag.docparser.doc_parser import get_fast_doc_parser
-from aperag.pipeline.base_pipeline import RELATED_QUESTIONS
 from aperag.pipeline.common_pipeline import create_common_pipeline
 from aperag.source.utils import gen_temporary_file
 from aperag.utils.utils import now_unix_milliseconds
@@ -55,7 +53,6 @@ class CommonConsumer(BaseConsumer):
     async def receive(self, text_data=None, bytes_data=None):
         message = ""
         message_id = f"{now_unix_milliseconds()}"
-        related_question = []
 
         # bytes_data: [file_name_length, file_name, file_content]
         if bytes_data:
@@ -110,10 +107,6 @@ class CommonConsumer(BaseConsumer):
                     return
 
             async for tokens in self.predict(data["data"], message_id=message_id, file=self.file):
-                if tokens.startswith(RELATED_QUESTIONS):
-                    related_question = ast.literal_eval(tokens[len(RELATED_QUESTIONS) :])
-                    continue
-
                 # streaming response
                 response = success_response(message_id, tokens)
                 await self.send(text_data=response)
@@ -132,8 +125,4 @@ class CommonConsumer(BaseConsumer):
             if self.free_tier and self.conversation_limit:
                 await manage_quota_usage(self.user, self.conversation_limit)
             # send stop message
-            await self.send(
-                text_data=stop_response(
-                    message_id, [], related_question, self.related_question_prompt, self.pipeline.memory_count, urls=[]
-                )
-            )
+            await self.send(text_data=stop_response(message_id, [], self.pipeline.memory_count, urls=[]))

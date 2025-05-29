@@ -15,7 +15,6 @@
 import ast
 import json
 import logging
-import random
 import traceback
 from abc import abstractmethod
 
@@ -34,10 +33,9 @@ from aperag.chat.utils import (
     start_response,
     stop_response,
     success_response,
-    welcome_response,
 )
 from aperag.db.ops import query_bot, query_user_quota
-from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES, DOCUMENT_URLS, RELATED_QUESTIONS
+from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES, DOCUMENT_URLS
 from aperag.utils.constant import KEY_BOT_ID, KEY_CHAT_ID, KEY_USER_ID, KEY_WEBSOCKET_PROTOCOL
 from aperag.utils.utils import now_unix_milliseconds
 
@@ -84,22 +82,6 @@ class BaseConsumer(AsyncWebsocketConsumer):
             headers.append((KEY_WEBSOCKET_PROTOCOL.encode("ascii"), token.encode("ascii")))
         await super(AsyncWebsocketConsumer, self).send({"type": "websocket.accept", "headers": headers})
 
-        message_id = f"{now_unix_milliseconds()}"
-        bot_config = json.loads(self.bot.config)
-        self.related_question_prompt = bot_config.get("related_question_prompt", "")
-
-        welcome = bot_config.get("welcome", {})
-        faq = welcome.get("faq", [])
-        questions = []
-        for qa in faq:
-            questions.append(qa["question"])
-        if len(questions) < 3:
-            random_questions = questions
-        else:
-            random_questions = random.sample(questions, 3)
-        welcome_message = {"hello": welcome.get("hello", ""), "faq": random_questions}
-        await self.send(text_data=welcome_response(message_id, welcome_message))
-
     async def disconnect(self, close_code):
         pass
 
@@ -118,7 +100,6 @@ class BaseConsumer(AsyncWebsocketConsumer):
 
         message = ""
         references = []
-        related_question = []
         urls = []
         message_id = f"{now_unix_milliseconds()}"
 
@@ -135,9 +116,6 @@ class BaseConsumer(AsyncWebsocketConsumer):
             async for tokens in self.predict(data["data"], message_id=message_id):
                 if tokens.startswith(DOC_QA_REFERENCES):
                     references = json.loads(tokens[len(DOC_QA_REFERENCES) :])
-                    continue
-                if tokens.startswith(RELATED_QUESTIONS):
-                    related_question = ast.literal_eval(tokens[len(RELATED_QUESTIONS) :])
                     continue
                 if tokens.startswith(DOCUMENT_URLS):
                     urls = ast.literal_eval(tokens[len(DOCUMENT_URLS) :])
@@ -163,8 +141,6 @@ class BaseConsumer(AsyncWebsocketConsumer):
                 text_data=stop_response(
                     message_id,
                     references,
-                    related_question,
-                    self.related_question_prompt,
                     self.pipeline.memory_count if self.pipeline else 0,
                     urls=urls,
                 )

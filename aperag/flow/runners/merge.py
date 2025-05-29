@@ -10,8 +10,12 @@ from aperag.query.query import DocumentWithScore
 class MergeInput(BaseModel):
     merge_strategy: str = Field("union", description="How to merge results")
     deduplicate: bool = Field(True, description="Whether to deduplicate merged results")
-    vector_search_docs: Optional[List[DocumentWithScore]] = Field(default_factory=list, description="Vector search docs")
-    keyword_search_docs: Optional[List[DocumentWithScore]] = Field(default_factory=list, description="Keyword search docs")
+    vector_search_docs: Optional[List[DocumentWithScore]] = Field(
+        default_factory=list, description="Vector search docs"
+    )
+    keyword_search_docs: Optional[List[DocumentWithScore]] = Field(
+        default_factory=list, description="Keyword search docs"
+    )
     graph_search_docs: Optional[List[DocumentWithScore]] = Field(default_factory=list, description="Graph search docs")
 
 
@@ -38,7 +42,6 @@ class MergeNodeRunner(BaseNodeRunner):
 
         if merge_strategy not in ["union"]:
             raise ValidationError(f"Unknown merge strategy: {merge_strategy}")
-
 
         all_docs = docs_a + docs_b + docs_c
         if deduplicate:

@@ -51,13 +51,6 @@ from aperag.service.model_service import (
     update_model_service_provider,
 )
 from aperag.service.prompt_template_service import list_prompt_templates
-from aperag.service.question_service import (
-    create_questions,
-    delete_question,
-    get_question,
-    list_questions,
-    update_question,
-)
 from aperag.service.sync_service import cancel_sync, get_sync_history, list_sync_histories, sync_immediately
 from aperag.utils.request import get_urls, get_user
 from aperag.views.utils import success
@@ -136,38 +129,6 @@ async def delete_collection_view(request, collection_id: str) -> view_models.Col
 
     user = get_user(request)
     return await delete_collection(user, collection_id)
-
-
-@router.post("/collections/{collection_id}/questions")
-async def create_questions_view(request, collection_id: str):
-    user = get_user(request)
-    return await create_questions(user, collection_id)
-
-
-@router.put("/collections/{collection_id}/questions")
-async def update_question_view(
-    request, collection_id: str, question_in: view_models.QuestionUpdate
-) -> view_models.Question:
-    user = get_user(request)
-    return await update_question(user, collection_id, question_in)
-
-
-@router.delete("/collections/{collection_id}/questions/{question_id}")
-async def delete_question_view(request, collection_id: str, question_id: str) -> view_models.Question:
-    user = get_user(request)
-    return await delete_question(user, collection_id, question_id)
-
-
-@router.get("/collections/{collection_id}/questions")
-async def list_questions_view(request, collection_id: str) -> view_models.QuestionList:
-    user = get_user(request)
-    return await list_questions(user, collection_id, build_pq(request))
-
-
-@router.get("/collections/{collection_id}/questions/{question_id}")
-async def get_question_view(request, collection_id: str, question_id: str) -> view_models.Question:
-    user = get_user(request)
-    return await get_question(user, collection_id, question_id)
 
 
 @router.post("/collections/{collection_id}/documents")
