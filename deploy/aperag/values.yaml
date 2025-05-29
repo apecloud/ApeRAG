@@ -143,7 +143,6 @@ django:
     # Chunking
     CHUNK_SIZE: 400
     CHUNK_OVERLAP_SIZE: 20
-    CHAT_CONSUMER_IMPLEMENTATION: document-qa
     TIKTOKEN_CACHE_DIR: /root/.cache/tiktoken
     DEFAULT_ENCODING_MODEL: cl100k_base
     TOKENIZERS_PARALLELISM: "false"

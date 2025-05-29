@@ -306,7 +306,6 @@ MAX_COLLECTION_COUNT = env.int("MAX_COLLECTION_COUNT", default=50)
 MAX_DOCUMENT_COUNT = env.int("MAX_DOCUMENT_COUNT", default=1000)
 MAX_CONVERSATION_COUNT = env.int("MAX_CONVERSATION_COUNT", default=100)
 
-CHAT_CONSUMER_IMPLEMENTATION = env.str("CHAT_CONSUMER_IMPLEMENTATION", default="document-qa")
 RETRIEVE_MODE = "classic" # todo delete me
 
 # Chunking Settings
