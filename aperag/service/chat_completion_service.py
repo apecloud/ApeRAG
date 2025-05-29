@@ -44,9 +44,7 @@ async def openai_chat_completions(user, body_data, query_params):
     engine = FlowEngine()
     initial_data = {
         "query": api_request.messages[-1]["content"],
-        "bot": bot,
         "user": api_request.user,
-        "formatter": formatter,
         "message_id": api_request.msg_id,
     }
     try:
