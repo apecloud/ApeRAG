@@ -307,6 +307,12 @@ fulltextSearchParams:
       type: integer
       description: Top K results
 
+graphSearchParams:
+  type: object
+  properties:
+    topk:
+      type: integer
+      description: Top K results
 
 searchTestRequest:
   type: object
@@ -314,14 +320,12 @@ searchTestRequest:
     query:
       type: string
       description: The user input question
-    search_type:
-      type: string
-      enum: [vector, fulltext, hybrid]
-      description: Search type
     vector_search:
       $ref: '#/vectorSearchParams'
     fulltext_search:
       $ref: '#/fulltextSearchParams'
+    graph_search:
+      $ref: '#/graphSearchParams'
 
 searchTestResultItem:
   type: object

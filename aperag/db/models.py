@@ -594,6 +594,7 @@ class SearchTestHistory(models.Model):
     search_type = models.CharField(max_length=16)
     vector_search = models.JSONField(null=True, blank=True)
     fulltext_search = models.JSONField(null=True, blank=True)
+    graph_search = models.JSONField(null=True, blank=True)
     items = models.JSONField(default=list)
     gmt_created = models.DateTimeField(auto_now_add=True)
     gmt_deleted = models.DateTimeField(null=True, blank=True)

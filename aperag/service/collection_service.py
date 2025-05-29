@@ -135,8 +135,13 @@ async def create_search_test(
         return fail(404, "Collection not found")
     nodes = {}
     edges = []
+    end_node = "merge"
+    end_node_values = {
+        "merge_strategy": "union",
+        "deduplicate": True,
+    }
     query = data.query
-    if data.search_type == "vector":
+    if data.vector_search:
         node_id = "vector_search"
         nodes[node_id] = NodeInstance(
             id=node_id,
@@ -148,8 +153,9 @@ async def create_search_test(
                 "collection_ids": [collection_id],
             },
         )
-        end_node = node_id
-    elif data.search_type == "fulltext":
+        end_node_values["vector_search_docs"] = "{{ nodes.vector_search.output.docs }}"
+        edges.append(Edge(source=node_id, target=end_node))
+    if data.fulltext_search:
         node_id = "keyword_search"
         nodes[node_id] = NodeInstance(
             id=node_id,
@@ -160,50 +166,26 @@ async def create_search_test(
                 "collection_ids": [collection_id],
             },
         )
-        end_node = node_id
-    elif data.search_type == "hybrid":
-        nodes["vector_search"] = NodeInstance(
-            id="vector_search",
-            type="vector_search",
+        end_node_values["keyword_search_docs"] = "{{ nodes.keyword_search.output.docs }}"
+        edges.append(Edge(source=node_id, target=end_node))
+    if data.graph_search:
+        nodes["graph_search"] = NodeInstance(
+            id="graph_search",
+            type="graph_search",
             input_values={
                 "query": query,
-                "top_k": data.vector_search.topk if data.vector_search else 5,
-                "similarity_threshold": data.vector_search.similarity if data.vector_search else 0.7,
+                "top_k": data.graph_search.topk if data.graph_search else 5,
                 "collection_ids": [collection_id],
             },
         )
-        nodes["keyword_search"] = NodeInstance(
-            id="keyword_search",
-            type="keyword_search",
-            input_values={
-                "query": query,
-                "top_k": data.vector_search.topk if data.vector_search else 5,
-                "collection_ids": [collection_id],
-            },
-        )
-        nodes["merge"] = NodeInstance(
-            id="merge",
-            type="merge",
-            input_values={
-                "merge_strategy": "union",
-                "deduplicate": True,
-                "vector_search_docs": "{{ nodes.vector_search.output.docs }}",
-                "keyword_search_docs": "{{ nodes.keyword_search.output.docs }}",
-            },
-        )
-        edges = [
-            Edge(source="vector_search", target="merge"),
-            Edge(source="keyword_search", target="merge"),
-        ]
-        end_node = "merge"
-    else:
-        return fail(400, "Invalid search_type")
-    flow = FlowInstance(
-        name=f"search_test_{data.search_type}",
-        title=f"Search Test {data.search_type}",
-        nodes=nodes,
-        edges=edges,
+        end_node_values["graph_search_docs"] = "{{ nodes.graph_search.output.docs }}"
+        edges.append(Edge(source="graph_search", target=end_node))
+    nodes["merge"] = NodeInstance(
+        id="merge",
+        type="merge",
+        input_values=end_node_values,
     )
+    flow = FlowInstance( name=f"search_test", title=f"Search Test", nodes=nodes, edges=edges,)
     engine = FlowEngine()
     initial_data = {"query": query, "user": user}
     result, _ = await engine.execute_flow(flow, initial_data)
@@ -232,6 +214,7 @@ async def create_search_test(
         search_type=data.search_type,
         vector_search=data.vector_search.dict() if data.vector_search else None,
         fulltext_search=data.fulltext_search.dict() if data.fulltext_search else None,
+        graph_search=data.graph_search.dict() if data.graph_search else None,
         items=[item.dict() for item in items],
     )
     result = SearchTestResult(
@@ -240,6 +223,7 @@ async def create_search_test(
         search_type=record.search_type,
         vector_search=record.vector_search,
         fulltext_search=record.fulltext_search,
+        graph_search=record.graph_search,
         items=items,
         created=record.gmt_created.isoformat(),
     )
@@ -268,6 +252,7 @@ async def list_search_tests(user: str, collection_id: str) -> view_models.Search
             search_type=record.search_type,
             vector_search=record.vector_search,
             fulltext_search=record.fulltext_search,
+            graph_search=record.graph_search,
             items=items,
             created=record.gmt_created.isoformat(),
         )
