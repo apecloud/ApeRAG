@@ -1,22 +1,22 @@
-import json
 from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
-from aperag.context.context import ContextManager
 from aperag.db.ops import query_collection
 from aperag.flow.base.models import BaseNodeRunner, SystemInput, register_node_runner
 from aperag.query.query import DocumentWithScore
-from config import settings
+
 
 # User input model for graph search node
 class GraphSearchInput(BaseModel):
     top_k: int = Field(5, description="Number of top results to return")
     collection_ids: Optional[list[str]] = Field(default_factory=list, description="Collection IDs")
 
+
 # User output model for graph search node
 class GraphSearchOutput(BaseModel):
     docs: List[DocumentWithScore]
+
 
 @register_node_runner(
     "graph_search",
@@ -40,6 +40,7 @@ class GraphSearchNodeRunner(BaseNodeRunner):
 
         # Import LightRAG and run as in _run_light_rag
         from lightrag import QueryParam
+
         from aperag.graph import lightrag_holder
         from aperag.graph.lightrag_holder import LightRagHolder
 
@@ -50,4 +51,4 @@ class GraphSearchNodeRunner(BaseNodeRunner):
             top_k=topk,
         )
         context = await rag.aquery(query=query, param=param)
-        return GraphSearchOutput(docs=[DocumentWithScore(text=context)]), {}
+        return GraphSearchOutput(docs=[DocumentWithScore(text=context, metadata={"recall_type": "graph_search"})]), {}

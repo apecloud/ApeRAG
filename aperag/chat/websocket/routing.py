@@ -18,13 +18,11 @@ from django.urls import re_path
 
 from aperag.utils.constant import KEY_BOT_ID, KEY_CHAT_ID, KEY_USER_ID
 from aperag.utils.utils import extract_bot_and_chat_id
-from config import settings
 
 
 async def bot_consumer_router(scope, receive, send):
     logging.info("bot_consumer_router begin")
 
-    from aperag.db.models import Bot, Collection
     from aperag.db.ops import query_bot, query_chat
 
     user = scope["user"].id
@@ -44,6 +42,7 @@ async def bot_consumer_router(scope, receive, send):
     scope[KEY_CHAT_ID] = chat_id
 
     from aperag.chat.websocket.flow_consumer import FlowConsumer
+
     return await FlowConsumer.as_asgi()(scope, receive, send)
 
 

@@ -217,7 +217,13 @@ async def create_search_test(
     items = []
     for idx, doc in enumerate(docs):
         items.append(
-            SearchTestResultItem(rank=idx + 1, score=doc.score, content=doc.text, source=doc.metadata.get("source", ""))
+            SearchTestResultItem(
+                rank=idx + 1,
+                score=doc.score,
+                content=doc.text,
+                source=doc.metadata.get("source", ""),
+                recall_type=doc.metadata.get("recall_type", ""),
+            )
         )
     record = await SearchTestHistory.objects.acreate(
         user=user,

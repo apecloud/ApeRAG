@@ -338,6 +338,13 @@ searchTestResultItem:
     source:
       type: string
       description: Source document or metadata
+    recall_type:
+      type: string
+      description: Recall type
+      enum:
+        - vector_search
+        - graph_search
+        - keyword_search
 
 searchTestResult:
   type: object

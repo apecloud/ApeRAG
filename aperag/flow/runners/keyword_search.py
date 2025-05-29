@@ -53,5 +53,11 @@ class KeywordSearchNodeRunner(BaseNodeRunner):
         docs = await search_document(index, keywords, topk * 3)
         result = []
         if docs:
-            result = [DocumentWithScore(text=doc["content"], score=doc.get("score", 0.5), metadata=doc) for doc in docs]
+            result = [
+                DocumentWithScore(
+                    text=doc["content"],
+                    metadata={"recall_type": "keyword_search"},
+                )
+                for doc in docs
+            ]
         return KeywordSearchOutput(docs=result), {}
