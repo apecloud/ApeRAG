@@ -180,21 +180,22 @@ async def create_search_test(
         )
         end_node_values["graph_search_docs"] = "{{ nodes.graph_search.output.docs }}"
         edges.append(Edge(source="graph_search", target=end_node))
-    nodes["merge"] = NodeInstance(
-        id="merge",
+    nodes[end_node] = NodeInstance(
+        id=end_node,
         type="merge",
         input_values=end_node_values,
     )
-    flow = FlowInstance( name=f"search_test", title=f"Search Test", nodes=nodes, edges=edges,)
+    flow = FlowInstance(
+        name="search_test",
+        title="Search Test",
+        nodes=nodes,
+        edges=edges,
+    )
     engine = FlowEngine()
     initial_data = {"query": query, "user": user}
     result, _ = await engine.execute_flow(flow, initial_data)
     if not result:
         return fail(400, "Failed to execute flow")
-    end_nodes = engine.find_end_nodes(flow)
-    if not end_nodes:
-        return fail(400, "No output node found")
-    end_node = end_nodes[0]
     docs = result.get(end_node, {}).docs
     items = []
     for idx, doc in enumerate(docs):
