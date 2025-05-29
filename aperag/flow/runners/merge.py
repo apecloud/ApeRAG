@@ -36,16 +36,16 @@ class MergeNodeRunner(BaseNodeRunner):
         merge_strategy: str = ui.merge_strategy
         deduplicate: bool = ui.deduplicate
 
-        if merge_strategy == "union":
-            all_docs = docs_a + docs_b + docs_c
-            if deduplicate:
-                seen = set()
-                unique_docs = []
-                for doc in all_docs:
-                    if doc.text not in seen:
-                        seen.add(doc.text)
-                        unique_docs.append(doc)
-                return MergeOutput(docs=unique_docs), {}
-            return MergeOutput(docs=all_docs), {}
-        else:
+        if merge_strategy not in ["union"]:
             raise ValidationError(f"Unknown merge strategy: {merge_strategy}")
+
+        all_docs = docs_a + docs_b + docs_c
+        if deduplicate:
+            seen = set()
+            unique_docs = []
+            for doc in all_docs:
+                if doc.text not in seen:
+                    seen.add(doc.text)
+                    unique_docs.append(doc)
+            return MergeOutput(docs=unique_docs), {}
+        return MergeOutput(docs=all_docs), {}
