@@ -132,8 +132,8 @@ compose-logs:
 	docker-compose -f compose.yml logs -f
 
 format:
-	uvx ruff check --fix ./aperag
-	uvx ruff format --exit-non-zero-on-format ./aperag
+	uvx ruff check --fix ./aperag ./tests
+	uvx ruff format --exit-non-zero-on-format ./aperag ./tests
 
 lint:
 	uvx ruff check --no-fix ./aperag

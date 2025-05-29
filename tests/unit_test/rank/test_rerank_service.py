@@ -6,9 +6,9 @@ from aperag.query.query import DocumentWithScore
 from aperag.rank.reranker import rerank
 
 # ---------- Constants and Skip Markers ----------
-API_BASE   = os.getenv("RERANK_SERVICE_URL")
-API_KEY    = os.getenv("RERANK_SERVICE_TOKEN_API_KEY")
-BACKEND    = os.getenv("RERANK_BACKEND")
+API_BASE = os.getenv("RERANK_SERVICE_URL")
+API_KEY = os.getenv("RERANK_SERVICE_TOKEN_API_KEY")
+BACKEND = os.getenv("RERANK_BACKEND")
 MODEL_NAME = os.getenv("RERANK_SERVICE_MODEL")
 
 SKIP = pytest.mark.skipif(
@@ -20,18 +20,19 @@ SKIP = pytest.mark.skipif(
 # ---------- Basic Test Data ----------
 QUERY = "hello world"
 
-DOC_MATCH        = "hello world"                       # Highly relevant to query
-DOC_PARTIAL      = "hello there, beautiful world!"     # Moderately relevant
-DOC_UNRELATED    = "lorem ipsum dolor sit amet"        # Mostly irrelevant
+DOC_MATCH = "hello world"  # Highly relevant to query
+DOC_PARTIAL = "hello there, beautiful world!"  # Moderately relevant
+DOC_UNRELATED = "lorem ipsum dolor sit amet"  # Mostly irrelevant
 
 BASE_RESULTS = [
     DocumentWithScore(text=DOC_UNRELATED, score=0.1),
-    DocumentWithScore(text=DOC_MATCH,     score=0.1),
-    DocumentWithScore(text=DOC_PARTIAL,   score=0.1),
+    DocumentWithScore(text=DOC_MATCH, score=0.1),
+    DocumentWithScore(text=DOC_PARTIAL, score=0.1),
 ]
 
 
 # ---------- Test Cases ----------
+
 
 @pytest.mark.asyncio
 @SKIP

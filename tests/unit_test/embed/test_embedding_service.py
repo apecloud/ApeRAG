@@ -92,7 +92,7 @@ def assert_vectors_equal(vec1, vec2, tolerance=1e-3):
     assert max_diff < tolerance, f"Max difference {max_diff:.2e} exceeds tolerance {tolerance:.0e}"
 
     dot_product = sum(a * b for a, b in zip(vec1, vec2))
-    norm1 = sum(a ** 2 for a in vec1) ** 0.5
-    norm2 = sum(b ** 2 for b in vec2) ** 0.5
+    norm1 = sum(a**2 for a in vec1) ** 0.5
+    norm2 = sum(b**2 for b in vec2) ** 0.5
     cosine_sim = dot_product / (norm1 * norm2)
     assert cosine_sim > 0.999, f"Cosine similarity {cosine_sim:.4f} below threshold"

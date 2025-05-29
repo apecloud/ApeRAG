@@ -153,7 +153,10 @@ def test_parse_md_blockquote_with_image():
 
     assert isinstance(actual_parts[2], TextPart)
     # The text part should now contain the asset URL
-    assert actual_parts[2].content == f'> An image: ![the image alt text](asset://{asset_id}?mime_type=image%2Fpng "the title")'
+    assert (
+        actual_parts[2].content
+        == f'> An image: ![the image alt text](asset://{asset_id}?mime_type=image%2Fpng "the title")'
+    )
 
     assert isinstance(actual_parts[3], ImagePart)
     assert actual_parts[3].url == f"asset://{asset_id}?mime_type=image%2Fpng"

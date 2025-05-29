@@ -45,10 +45,7 @@ from ragas.metrics import (
 
 
 llm_for_eval = ChatOpenAI(
-    base_url=os.environ["OPENAI_API_BASE"],
-    api_key=os.environ["OPENAI_API_KEY"],
-    model="gpt-3.5-turbo",
-    temperature=0
+    base_url=os.environ["OPENAI_API_BASE"], api_key=os.environ["OPENAI_API_KEY"], model="gpt-3.5-turbo", temperature=0
 )
 
 
@@ -95,23 +92,25 @@ def prepare_evaluation_data(ds: Dataset) -> Dataset:
         contexts_list.append(rag_output["contexts"])
         ground_truth_list.append(ground_truth)
 
-    return Dataset.from_dict({
-        "question": question_list,
-        "answer": answer_list,
-        "contexts": contexts_list,
-        "ground_truth": ground_truth_list,
-    })
+    return Dataset.from_dict(
+        {
+            "question": question_list,
+            "answer": answer_list,
+            "contexts": contexts_list,
+            "ground_truth": ground_truth_list,
+        }
+    )
 
 
 def print_evaluation_output(ds: Dataset, output_dir: str = "."):
     def preprocess_row(row):
         # 处理 contexts 列表，转换为 JSON 字符串格式
-        if 'contexts' in row and isinstance(row['contexts'], list):
-            row['contexts'] = json.dumps(row['contexts'], ensure_ascii=False)
+        if "contexts" in row and isinstance(row["contexts"], list):
+            row["contexts"] = json.dumps(row["contexts"], ensure_ascii=False)
         # 处理其他字段中的换行符
         for k, v in row.items():
             if isinstance(v, str):
-                row[k] = v.replace('\n', '\\n')
+                row[k] = v.replace("\n", "\\n")
         return row
 
     # 确保输出目录存在
@@ -127,12 +126,7 @@ def print_evaluation_output(ds: Dataset, output_dir: str = "."):
 
     # 导出CSV
     processed_ds.to_csv(
-        output_path,
-        index=False,
-        quoting=csv.QUOTE_ALL,
-        escapechar='\\',
-        doublequote=True,
-        encoding='utf-8'
+        output_path, index=False, quoting=csv.QUOTE_ALL, escapechar="\\", doublequote=True, encoding="utf-8"
     )
 
     print(f"评估结果已导出到: {output_path}")
@@ -141,12 +135,7 @@ def print_evaluation_output(ds: Dataset, output_dir: str = "."):
 # --- Step 5: Run Ragas Evaluation ---
 def evaluate_rag_with_ragas(dataset: Dataset):
     metrics = [faithfulness, answer_relevancy, context_precision, context_recall, answer_correctness]
-    results = evaluate(
-        dataset=dataset,
-        metrics=metrics,
-        llm=llm_for_eval,
-        raise_exceptions=False
-    )
+    results = evaluate(dataset=dataset, metrics=metrics, llm=llm_for_eval, raise_exceptions=False)
     return results
 
 

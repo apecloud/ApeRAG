@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 
-import httpx
-import pytest
-
-from tests.e2e_test.config import API_BASE_URL, API_KEY, COMPLETION_MODEL_CUSTOM_PROVIDER, COMPLETION_MODEL_NAME, COMPLETION_MODEL_PROVIDER, EMBEDDING_MODEL_CUSTOM_PROVIDER, EMBEDDING_MODEL_NAME, EMBEDDING_MODEL_PROVIDER
-
+from tests.e2e_test.config import (
+    COMPLETION_MODEL_CUSTOM_PROVIDER,
+    COMPLETION_MODEL_NAME,
+    COMPLETION_MODEL_PROVIDER,
+    EMBEDDING_MODEL_CUSTOM_PROVIDER,
+    EMBEDDING_MODEL_NAME,
+    EMBEDDING_MODEL_PROVIDER,
+)
 
 
 def test_list_collections(client, collection):
@@ -30,6 +32,7 @@ def test_list_collections(client, collection):
     assert isinstance(collections, list)
     assert len(collections) > 0
     assert any(c["id"] == collection["id"] for c in collections)
+
 
 def test_update_collection(client, collection):
     # Update collection config
@@ -43,15 +46,15 @@ def test_update_collection(client, collection):
                 "model": EMBEDDING_MODEL_NAME,
                 "model_service_provider": EMBEDDING_MODEL_PROVIDER,
                 "custom_llm_provider": EMBEDDING_MODEL_CUSTOM_PROVIDER,
-                "timeout": 2000
+                "timeout": 2000,
             },
             "completion": {
                 "model": COMPLETION_MODEL_NAME,
                 "model_service_provider": COMPLETION_MODEL_PROVIDER,
                 "custom_llm_provider": COMPLETION_MODEL_CUSTOM_PROVIDER,
-                "timeout": 2000
-            }
-        }
+                "timeout": 2000,
+            },
+        },
     }
     resp = client.put(f"/api/v1/collections/{collection['id']}", json=update_data)
     assert resp.status_code == 200
@@ -67,15 +70,9 @@ def test_update_collection(client, collection):
     assert completion_config["model"] == COMPLETION_MODEL_NAME
     assert completion_config["model_service_provider"] == COMPLETION_MODEL_PROVIDER
 
+
 def test_vector_search(client, collection, document):
-    search_data = {
-        "query": "test document",
-        "search_type": "vector",
-        "vector_search": {
-            "topk": 10,
-            "similarity": 0.1
-        }
-    }
+    search_data = {"query": "test document", "search_type": "vector", "vector_search": {"topk": 10, "similarity": 0.1}}
     resp = client.post(f"/api/v1/collections/{collection['id']}/searchTests", json=search_data)
     assert resp.status_code == 200
     results = resp.json()
@@ -85,14 +82,9 @@ def test_vector_search(client, collection, document):
         assert "content" in item
         assert "rank" in item
 
+
 def test_full_text_search(client, collection, document):
-    search_data = {
-        "query": "unique test",
-        "search_type": "fulltext",
-        "fulltext_search": {
-            "topk": 10
-        }
-    }
+    search_data = {"query": "unique test", "search_type": "fulltext", "fulltext_search": {"topk": 10}}
     resp = client.post(f"/api/v1/collections/{collection['id']}/searchTests", json=search_data)
     assert resp.status_code == 200
     results = resp.json()
@@ -101,18 +93,14 @@ def test_full_text_search(client, collection, document):
         assert "score" in item
         assert "content" in item
         assert "rank" in item
+
 
 def test_hybrid_search(client, collection, document):
     search_data = {
         "query": "specialized test",
         "search_type": "hybrid",
-        "vector_search": {
-            "topk": 10,
-            "similarity": 0.1
-        },
-        "fulltext_search": {
-            "topk": 10
-        }
+        "vector_search": {"topk": 10, "similarity": 0.1},
+        "fulltext_search": {"topk": 10},
     }
     resp = client.post(f"/api/v1/collections/{collection['id']}/searchTests", json=search_data)
     assert resp.status_code == 200

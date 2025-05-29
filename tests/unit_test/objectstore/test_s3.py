@@ -462,11 +462,9 @@ def test_delete_object_from_non_existent_bucket(s3_target_config: S3Config, s3_c
     # This service instance will use the provided s3_client_real_or_moto if its conn is set,
     # but it will operate on the non_existent_bucket_name.
     s3_service_for_non_existent_bucket = S3(temp_config)
-    s3_service_for_non_existent_bucket.conn = s3_client_real_or_moto # Use the same client connection
+    s3_service_for_non_existent_bucket.conn = s3_client_real_or_moto  # Use the same client connection
 
     try:
         s3_service_for_non_existent_bucket.delete("some_object_in_non_existent_bucket.txt")
     except Exception as e:
-        pytest.fail(
-            f"S3.delete() raised an unexpected exception for a non-existent bucket: {type(e).__name__} - {e}"
-        )
+        pytest.fail(f"S3.delete() raised an unexpected exception for a non-existent bucket: {type(e).__name__} - {e}")

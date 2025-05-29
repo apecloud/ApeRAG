@@ -15,7 +15,7 @@
 # Please set the API base URL to the Aperag backend API endpoint
 API_BASE_URL = "http://localhost:8000"
 # Please create an API key in the Aperag UI and set it here
-API_KEY = ""
+API_KEY = "sk-aa5229cc5e0a4fa59e075c9f1183885a"
 
 # Please setup the related model service provider key in the Aperag UI
 EMBEDDING_MODEL_PROVIDER = "siliconflow"
