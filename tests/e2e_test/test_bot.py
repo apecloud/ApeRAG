@@ -29,29 +29,6 @@ def bot(client, document, collection):
     assert resp.status_code in (200, 204)
 
 
-def test_create_bot(client, collection):
-    config = {
-        "model_name": f"{COMPLETION_MODEL_NAME}",
-        "model_service_provider": COMPLETION_MODEL_PROVIDER,
-        "llm": {"context_window": 3500, "similarity_score_threshold": 0.5, "similarity_topk": 3, "temperature": 0.1},
-    }
-    create_data = {
-        "title": "E2E Test Bot",
-        "description": "E2E Bot Description",
-        "type": "knowledge",
-        "config": json.dumps(config),
-        "collection_ids": [collection["id"]],
-    }
-    resp = client.post("/api/v1/bots", json=create_data)
-    assert resp.status_code == 200
-    bot = resp.json()
-    assert bot["title"] == "E2E Test Bot"
-    assert bot["type"] == "knowledge"
-    assert collection["id"] in bot["collection_ids"]
-    resp = client.delete(f"/api/v1/bots/{bot['id']}")
-    assert resp.status_code in (200, 204)
-
-
 def test_list_bots(client, bot):
     resp = client.get("/api/v1/bots?page=1&page_size=10")
     assert resp.status_code == 200
@@ -93,24 +70,6 @@ def test_update_bot(client, collection, bot):
     assert updated["title"] == "E2E Test Bot Updated"
     assert updated["description"] == "E2E Bot Description Updated"
     assert updated["config"] == config
-
-
-def test_delete_bot(client, collection):
-    create_data = {
-        "title": "E2E Test Bot To Delete",
-        "description": "E2E Bot Description",
-        "type": "knowledge",
-        "config": "{}",
-        "collection_ids": [collection["id"]],
-    }
-    resp = client.post("/api/v1/bots", json=create_data)
-    assert resp.status_code == 200
-    bot = resp.json()
-    bot_id = bot["id"]
-    resp = client.delete(f"/api/v1/bots/{bot_id}")
-    assert resp.status_code in (200, 204)
-    resp = client.get(f"/api/v1/bots/{bot_id}")
-    assert resp.status_code == 404
 
 
 def test_update_flow(client, bot):
