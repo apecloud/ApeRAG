@@ -19,7 +19,7 @@ from pydantic import BaseModel
 
 class DocumentWithScore(BaseModel):
     text: Optional[str] = None
-    score: float
+    score: Optional[float] = None
     metadata: Optional[dict] = None
 
 
