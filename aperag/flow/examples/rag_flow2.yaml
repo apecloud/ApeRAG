@@ -140,6 +140,41 @@ nodes:
                 $ref: '#/schema/document_with_score'
           required: [docs]
 
+  - id: graph_search_1a9c5d8e
+    type: graph_search
+    title: Graph Search
+    data:
+      input:
+        schema:
+          type: object
+          properties:
+            top_k:
+              type: integer
+              default: 5
+              minimum: 1
+              maximum: 10
+              description: Number of top results to return
+            collection_ids:
+              type: array
+              description: Collection IDs
+              items:
+                type: string
+              default: []
+          required: [top_k, collection_ids]
+        values:
+          top_k: 5
+          collection_ids: []
+      output:
+        schema:
+          type: object
+          properties:
+            docs:
+              type: array
+              description: Docs from graph search
+              items:
+                $ref: '#/schema/document_with_score'
+          required: [docs]
+
   # Merge node
   - id: merge_1a9c5d8e
     type: merge
@@ -293,11 +328,17 @@ edges:
   # Start to keyword search
   - source: start
     target: keyword_search_7b2d4e9f
+  # Start to graph search
+  - source: start
+    target: graph_search_1a9c5d8e
   # Vector search to merge
   - source: vector_search_3f8e2c1a
     target: merge_1a9c5d8e
   # Keyword search to merge
   - source: keyword_search_7b2d4e9f
+    target: merge_1a9c5d8e
+  # Graph search to merge
+  - source: graph_search_1a9c5d8e
     target: merge_1a9c5d8e
   # Merge to rerank
   - source: merge_1a9c5d8e
