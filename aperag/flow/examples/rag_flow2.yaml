@@ -203,12 +203,18 @@ nodes:
               description: Docs from keyword search
               items:
                 $ref: '#/schema/document_with_score'
-          required: [merge_strategy, deduplicate, vector_search_docs, keyword_search_docs]
+            graph_search_docs:
+              type: array
+              description: Docs from graph search
+              items:
+                $ref: '#/schema/document_with_score'
+          required: [merge_strategy, deduplicate, vector_search_docs, keyword_search_docs, graph_search_docs]
         values:
           merge_strategy: union
           deduplicate: true
           vector_search_docs: "{{ nodes.vector_search_3f8e2c1a.output.docs }}"
           keyword_search_docs: "{{ nodes.keyword_search_7b2d4e9f.output.docs }}"
+          graph_search_docs: "{{ nodes.graph_search_1a9c5d8e.output.docs }}"
       output:
         schema:
           type: object

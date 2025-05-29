@@ -12,6 +12,7 @@ class MergeInput(BaseModel):
     deduplicate: bool = Field(True, description="Whether to deduplicate merged results")
     vector_search_docs: List[DocumentWithScore]
     keyword_search_docs: List[DocumentWithScore]
+    graph_search_docs: List[DocumentWithScore]
 
 
 class MergeOutput(BaseModel):
@@ -31,11 +32,12 @@ class MergeNodeRunner(BaseNodeRunner):
         """
         docs_a: List[DocumentWithScore] = ui.vector_search_docs
         docs_b: List[DocumentWithScore] = ui.keyword_search_docs
+        docs_c: List[DocumentWithScore] = ui.graph_search_docs
         merge_strategy: str = ui.merge_strategy
         deduplicate: bool = ui.deduplicate
 
         if merge_strategy == "union":
-            all_docs = docs_a + docs_b
+            all_docs = docs_a + docs_b + docs_c
             if deduplicate:
                 seen = set()
                 unique_docs = []
