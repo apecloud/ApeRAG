@@ -52,19 +52,12 @@ async def weixin_text_response(client, user, bot, query, msg_id):
     response = ""
 
     pipeline = await create_knowledge_pipeline(bot=bot, collection=collection, history=history)
-    trial = pipeline.predictor.trial
 
     conversation_limit = await query_user_quota(user, QuotaType.MAX_CONVERSATION_COUNT)
     if conversation_limit is None:
         conversation_limit = MAX_CONVERSATION_COUNT
 
     try:
-        if trial and conversation_limit:
-            if not await check_quota_usage(bot.user, conversation_limit):
-                error = f"conversation rounds have reached to the limit of {conversation_limit}"
-                await client.send_message(error, user)
-                return
-
         await client.send_message("ApeRAG 正在解答中，请稍候......", user)
 
         async for msg in pipeline.run(query, message_id=msg_id):
@@ -76,9 +69,6 @@ async def weixin_text_response(client, user, bot, query, msg_id):
             await client.send_message(message, user)
     except Exception as e:
         logger.exception(e)
-    finally:
-        if trial and conversation_limit:
-            await manage_quota_usage(bot.user, conversation_limit)
 
 
 async def weixin_card_response(client, user, bot, query, msg_id):
@@ -93,19 +83,12 @@ async def weixin_card_response(client, user, bot, query, msg_id):
     response = ""
 
     pipeline = await create_knowledge_pipeline(bot=bot, collection=collection, history=history)
-    trial = pipeline.predictor.trial
 
     conversation_limit = await query_user_quota(user, QuotaType.MAX_CONVERSATION_COUNT)
     if conversation_limit is None:
         conversation_limit = MAX_CONVERSATION_COUNT
 
     try:
-        if trial and conversation_limit:
-            if not await check_quota_usage(bot.user, conversation_limit):
-                error = f"conversation rounds have reached to the limit of {conversation_limit}"
-                await client.send_message(error, user)
-                return
-
         task_id = int(time.time())
         _, response_code = await client.send_card("ApeRAG 正在解答中，请稍候......", user, task_id)
 
@@ -119,9 +102,6 @@ async def weixin_card_response(client, user, bot, query, msg_id):
         await client.update_card(response, user, response_code)
     except Exception as e:
         logger.exception(e)
-    finally:
-        if trial and conversation_limit:
-            await manage_quota_usage(bot.user, conversation_limit)
 
 
 async def weixin_feedback_response(client, user, bot, key, response_code, task_id):
@@ -282,7 +262,6 @@ async def weixin_officaccount_response(query, msg_id, to_user_name, bot):
     history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())
     collection = (await bot.collections())[0]
     pipeline = await create_knowledge_pipeline(bot=bot, collection=collection, history=history)
-    trial = pipeline.predictor.trial
     redis_client = aredis.Redis.from_url(settings.MEMORY_REDIS_URL)
     response = ""
 
@@ -291,13 +270,6 @@ async def weixin_officaccount_response(query, msg_id, to_user_name, bot):
         conversation_limit = MAX_CONVERSATION_COUNT
 
     try:
-        if trial and conversation_limit:
-            if not await check_quota_usage(bot.user, conversation_limit):
-                error = f"conversation rounds have reached to the limit of {conversation_limit}"
-                logger.info("generate response failed, conversation rounds have reached to the limit")
-                await redis_client.set(to_user_name + msg_id, error)
-                return
-
         async for msg in pipeline.run(query, message_id=msg_id):
             response += msg
         logger.info(f"response:{response}")
@@ -306,9 +278,6 @@ async def weixin_officaccount_response(query, msg_id, to_user_name, bot):
         logger.info(f"generate response success, restored in redis, key:{to_user_name + msg_id}")
     except Exception as e:
         logger.exception(e)
-    finally:
-        if trial and conversation_limit:
-            await manage_quota_usage(bot.user, conversation_limit)
 
 
 @router.post("/officialaccount/webhook/event")

@@ -35,7 +35,6 @@ class Predictor(ABC):
     def __init__(self, **kwargs):
         self.max_tokens = kwargs.get("max_tokens", 4096)
         self.temperature = kwargs.get("temperature", 0.1)
-        self.trial = False
 
     @abstractmethod
     async def agenerate_stream(self, history, prompt, memory):

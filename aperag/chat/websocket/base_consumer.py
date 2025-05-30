@@ -53,7 +53,6 @@ class BaseConsumer(AsyncWebsocketConsumer):
         self.vector_size = 0
         self.history = None
         self.pipeline = None
-        self.free_tier = False
 
     async def connect(self):
         self.user = self.scope[KEY_USER_ID]
@@ -107,12 +106,6 @@ class BaseConsumer(AsyncWebsocketConsumer):
             # send start message
             await self.send(text_data=start_response(message_id))
 
-            if self.free_tier and self.conversation_limit:
-                if not await check_quota_usage(self.user, self.conversation_limit):
-                    error = f"conversation rounds have reached to the limit of {self.conversation_limit}"
-                    await self.send(text_data=fail_response(message_id, error=error))
-                    return
-
             async for tokens in self.predict(data["data"], message_id=message_id):
                 if tokens.startswith(DOC_QA_REFERENCES):
                     references = json.loads(tokens[len(DOC_QA_REFERENCES) :])
@@ -134,8 +127,6 @@ class BaseConsumer(AsyncWebsocketConsumer):
             logger.warning("[Oops] %s: %s", str(e), traceback.format_exc())
             await self.send(text_data=fail_response(message_id, str(e)))
         finally:
-            if self.free_tier and self.conversation_limit:
-                await manage_quota_usage(self.user, self.conversation_limit)
             # send stop message
             await self.send(
                 text_data=stop_response(

@@ -28,7 +28,6 @@ class DocumentQAConsumer(BaseConsumer):
         self.collection = (await self.bot.collections())[0]
         self.collection_id = self.collection.id
         self.pipeline = await create_knowledge_pipeline(bot=self.bot, collection=self.collection, history=self.history)
-        self.free_tier = self.pipeline.predictor.trial
 
     async def predict(self, query, **kwargs):
         async for msg in self.pipeline.run(query, gen_references=True, **kwargs):
