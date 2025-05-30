@@ -1,73 +1,165 @@
-name: E2E Test aperag
+name: E2E ApeRAG
 
 on:
+  workflow_call:
+    inputs:
+      VERSION:
+        description: 'aperag release version'
+        required: false
+        type: string
+        default: ''
   workflow_dispatch:
     inputs:
       VERSION:
         description: 'aperag release version'
-        required: true
-        default: ''
-      KUBEBLOCKS_VERSION:
-        description: 'kubeblocks release version'
-        required: true
-        default: 'latest'
-      CLOUD_PROVIDER:
-        description: 'cloud provider'
-        required: true
-        default: 'gke'
-        type: choice
-        options:
-          - gke
-      CLUSTER_VERSION:
-        description: 'k8s cluster version'
         required: false
-        default: '1.26'
-        type: choice
-        options:
-          - 1.27
-          - 1.26
-          - 1.25
-          - 1.24
-      NODE_TYPE:
-        description: 'node instance types'
-        required: false
-        default: 'g2-standard-4'
-        type: choice
-        options:
-          - g2-standard-4
-          - g2-standard-8
-          - g2-standard-16
-          - g2-standard-32
-      NODE_SIZE:
-        description: 'node size'
         type: string
-        required: false
-        default: '1'
+        default: ''
 
 
-run-name: aperag:${{ inputs.VERSION }} ${{ inputs.CLOUD_PROVIDER }}:${{ inputs.CLUSTER_VERSION }}:${{ inputs.NODE_TYPE }}
+run-name: ApeRAG:${{ inputs.VERSION }}
 
 env:
   GH_TOKEN: ${{ github.token }}
+  REGISTRY: ghcr.io
+  REGION: us-west-2
 
 jobs:
-  check-version:
-    if: ${{ always() }}
+  check-release-version:
+    if: ${{ inputs.VERSION != '' }}
     uses: apecloud/apecloud-cd/.github/workflows/check-release-version.yml@v0.1.41
     with:
       VERSION: "${{ inputs.VERSION }}"
       APECD_REF: "v0.1.41"
     secrets: inherit
 
-  e2e:
-    name: ${{ inputs.CLOUD_PROVIDER }}
+  build-images:
+    if: ${{ inputs.VERSION == '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+    strategy:
+      matrix:
+        image: [ aperag, aperag-frontend ]
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Free up disk space for build
+      if: ${{ matrix.image == 'aperag' }}
+      run: |
+        echo "Initial disk usage:"
+        df -h
+        
+        # Remove unnecessary software to free up space for Docker builds
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache/CodeQL
+        sudo rm -rf /usr/local/share/boost
+        sudo rm -rf /usr/lib/jvm
+        sudo rm -rf /usr/share/swift
+        
+        # Clean up docker images and containers
+        docker system prune -af --volumes
+        
+        # Clean apt cache
+        sudo apt-get clean
+        sudo apt-get autoremove -y
+        
+        echo "Disk usage after cleanup:"
+        df -h
+
+    - name: Log in to the Container registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata for ${{ matrix.image }}
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.image }}
+        tags: |
+          type=ref,event=pr
+
+    - name: get Dockerfile path
+      id: get_dockerfile_path
+      run: |
+        DOCKERFILE_PATH="./Dockerfile"
+        if [[ "${{ matrix.image }}" == "aperag-frontend" ]]; then
+          DOCKERFILE_PATH="./frontend/Dockerfile.prod"
+        fi
+        echo "dockerfile_path=${DOCKERFILE_PATH}" >> $GITHUB_OUTPUT
+
+    - name: Build and push ${{ matrix.image }} image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        file: ${{ steps.get_dockerfile_path.dockerfile_path }}
+
+  check-version:
+    if: ${{ always() }}
+    needs: [ check-release-version, build-images ]
+    runs-on: ubuntu-latest
+    outputs:
+      test-version: ${{ steps.check_version.outputs.check_version }}
+    steps:
+      - name: check version
+        id: check_version
+        run: |
+          CHECK_VERSION="${{ needs.check-release-version.outputs.release-version }}"
+          if [[ -n "${{ inputs.VERSION }}" && ("${{ needs.check-release-version.result }}" == "failure" || "${{ needs.check-release-version.result }}" == "cancelled") ]]; then
+              echo "check release version error: ${CHECK_VERSION}"
+              exit 1
+          fi
+          
+          if [[ -z "${{ inputs.VERSION }}" ]]; then
+              CHECK_VERSION="${{ needs.build-images.outputs.image-tag }}"
+          fi
+          
+          if [[ -z "${{ inputs.VERSION }}" && ("${{ needs.build-images.result }}" == "failure" || "${{ needs.build-images.result }}" == "cancelled") ]]; then
+              echo "build aperag images error: ${CHECK_VERSION}"
+              exit 1
+          fi
+          
+          echo "check_version=${CHECK_VERSION}" >> $GITHUB_OUTPUT
+
+  terraform-init-eks:
     needs: [ check-version ]
-    uses: apecloud/apecloud-cd/.github/workflows/aperag-test-k8s.yml@main
+    uses: apecloud/apecloud-cd/.github/workflows/terraform-init.yml@v0.1.93
     with:
-      APERAG_VERSION: "${{ needs.check-version.outputs.release-version }}"
-      KUBEBLOCKS_VERSION: "${{ inputs.KUBEBLOCKS_VERSION }}"
-      CLOUD_PROVIDER: "${{ inputs.CLOUD_PROVIDER }}"
-      CLUSTER_VERSION: "${{ inputs.CLUSTER_VERSION }}"
-      NODE_TYPE: "${{ inputs.NODE_TYPE }}"
-      NODE_SIZE: "${{ inputs.NODE_SIZE }}"
+      artifact-name: "aperag-cd-eks-${{ github.sha }}"
+      cloud-provider: "eks"
+      cluster-version: "1.32"
+      region: "${{ env.REGION }}"
+      node-type: "t3a.xlarge"
+      node-size: "3"
+    secrets: inherit
+
+  e2e-test:
+    needs: [ terraform-init-eks, check-version ]
+    if: ${{ needs.terraform-init-eks.result == 'success' }}
+    uses: ./.github/workflows/e2e-aperag-test.yml
+    with:
+      eks-cluster-name: ${{ needs.terraform-init-eks.outputs.k8s-cluster-name }}
+      region: "${{ env.REGION }}"
+      test-version: "${{ needs.check-version.outputs.test-version }}"
+      check-version: "${{ inputs.VERSION }}"
+    secrets: inherit
+
+  terraform-destroy-eks:
+    if: ${{ always() }}
+    needs: [ terraform-init-eks, e2e-test ]
+    uses: apecloud/apecloud-cd/.github/workflows/terraform-destroy.yml@v0.1.93
+    with:
+      artifact-name: "aperag-cd-eks-${{ github.sha }}"
+      region: "${{ env.REGION }}"
     secrets: inherit

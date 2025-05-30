@@ -101,9 +101,13 @@ jobs:
       APECD_REF: "v0.1.48"
     secrets: inherit
 
+  e2e-test:
+    uses: ./.github/workflows/e2e-aperag.yml
+    secrets: inherit
+
   pr-check:
     name: make test
-    needs: [ trigger-mode, make-test, check-image, check-frontend-image, check-helm ]
+    needs: [ trigger-mode, make-test, check-image, check-frontend-image, check-helm, e2e-test ]
     if: ${{ github.event.review.state == 'approved' && always() }}
     runs-on: ubuntu-latest
     steps:
@@ -132,6 +136,13 @@ jobs:
       - name: release helm check
         run: |
           if [[ "${{ needs.check-helm.result }}" == "failure" || "${{ needs.check-helm.result }}" == "cancelled" ]]; then
+              echo "release helm fail"
+              exit 1
+          fi
+
+      - name: e2e test check
+        run: |
+          if [[ "${{ needs.e2e-test.result }}" == "failure" || "${{ needs.e2e-test.result }}" == "cancelled" ]]; then
               echo "release helm fail"
               exit 1
           fi

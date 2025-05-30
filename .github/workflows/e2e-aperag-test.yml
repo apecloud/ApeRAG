@@ -1,0 +1,147 @@
+name: E2E ApeRAG Test
+
+on:
+  workflow_call:
+    inputs:
+      region:
+        description: 'k8s region name'
+        type: string
+        required: false
+        default: 'us-west-2'
+      eks-cluster-name:
+        description: 'eks cluster name'
+        type: string
+        required: false
+        default: ''
+      test-version:
+        description: "The test version of ApeRAG"
+        type: string
+        required: false
+        default: ''
+      check-version:
+        description: "Whether to build a version"
+        type: string
+        required: false
+        default: ''
+
+env:
+  GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  HELM_VERSION: "v3.12.0"
+  DOCKER_REGISTRY: docker.io
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  e2e-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+
+      - uses: aws-actions/configure-aws-credentials@v2.2.0
+        with:
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: "${{ inputs.region }}"
+
+      - name: get eks credential
+        if: ${{ inputs.eks-cluster-name != '' && inputs.region != '' }}
+        run: |
+          aws eks update-kubeconfig --region ${{ inputs.region }} --name ${{ inputs.eks-cluster-name }}
+
+      - name: Install KubeBlocks
+        run: |
+          chmod +x ./deploy/databases/01-prepare.sh
+          ./deploy/databases/01-prepare.sh
+
+      - name: Install Databases
+        run: |
+          chmod +x ./deploy/databases/02-install-database.sh
+          ./deploy/databases/02-install-database.sh
+          kubectl get pods -o wide
+
+      - name: Install ApeRAG application with Repo
+        if: ${{ inputs.check-version != '' }}
+        run: |
+          APERAG_REPO="${{ env.DOCKER_REGISTRY }}"
+          APERAG_TAG="${{ inputs.test-version }}"
+          
+          helm repo add helm-charts https://apecloud.github.io/helm-charts
+          
+          helm install aperag helm-charts/aperag \
+            --version "${APERAG_TAG}"
+            --set image.repository="$APERAG_REPO" \
+            --set image.tag=$APERAG_TAG \
+            --set frontend.image.repository=$APERAG_REPO \
+            --set frontend.image.tag=$APERAG_TAG \
+            --wait --timeout=10m
+
+      - name: Install ApeRAG application with Code
+        if: ${{ inputs.check-version == '' }}
+        run: |
+          APERAG_IMAGE=$(echo "${{ inputs.test-version }}" | head -n1)
+          
+          # Extract repository and tag from full image names
+          APERAG_REPO=$(echo $APERAG_IMAGE | cut -d: -f1)
+          APERAG_TAG=$(echo $APERAG_IMAGE | cut -d: -f2)
+          
+          helm install aperag ./deploy/aperag \
+            --set image.repository=$APERAG_REPO \
+            --set image.tag=$APERAG_TAG \
+            --set frontend.image.repository=$APERAG_REPO \
+            --set frontend.image.tag=$APERAG_TAG \
+            --wait --timeout=10m
+
+      - name: Wait for ApeRAG pods to be ready
+        run: |
+          echo "Waiting for ApeRAG pods to be ready..."
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=aperag --timeout=600s
+          kubectl get pods -o wide
+          kubectl get svc
+
+      - name: Port forward services
+        run: |
+          echo "Starting port forwarding..."
+          kubectl port-forward svc/aperag 8000:8000 &
+          kubectl port-forward svc/aperag-frontend 3000:3000 &
+          sleep 15
+          echo "Verifying services are accessible..."
+          curl -f http://localhost:8000/health || echo "Backend health check failed"
+          curl -f http://localhost:3000 || echo "Frontend check failed"
+
+      - name: Run E2E tests
+        run: |
+          make e2e-test
+
+      - name: Debug information on failure
+        if: failure()
+        run: |
+          echo "=== Pods ==="
+          kubectl get pods --all-namespaces -o wide
+          echo "=== Services ==="
+          kubectl get svc --all-namespaces
+          echo "=== Events ==="
+          kubectl get events --sort-by=.metadata.creationTimestamp --all-namespaces
+          echo "=== Pod Logs ==="
+          for pod in $(kubectl get pods -o jsonpath='{.items[*].metadata.name}'); do
+            echo "--- Logs for $pod ---"
+            kubectl logs $pod --tail=100 || true
+          done
+
+      - name: Setup SSH access for debugging
+        if: failure()
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true
+        timeout-minutes: 30
