@@ -7,8 +7,8 @@ source "$DATABASE_SCRIPT_DIR/scripts/common.sh"
 # Namespace configuration
 NAMESPACE="default"
 # version
-KB_VERSION="1.0.0-beta.48"
-ADDON_CLUSTER_CHART_VERSION="1.0.0-alpha.0"
+KB_VERSION="1.0.0"
+ADDON_CLUSTER_CHART_VERSION="1.0.0"
 # Helm repository
 HELM_REPO="https://apecloud.github.io/helm-charts"
 
