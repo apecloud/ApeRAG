@@ -22,7 +22,6 @@ run-name: ApeRAG:${{ inputs.VERSION }}
 env:
   GH_TOKEN: ${{ github.token }}
   REGISTRY: ghcr.io
-  REGION: us-west-2
 
 jobs:
   check-release-version:
@@ -139,7 +138,7 @@ jobs:
       artifact-name: "aperag-cd-eks-${{ github.sha }}"
       cloud-provider: "eks"
       cluster-version: "1.32"
-      region: "${{ env.REGION }}"
+      region: "us-west-2"
       node-type: "t3a.xlarge"
       node-size: "3"
     secrets: inherit
@@ -150,7 +149,7 @@ jobs:
     uses: ./.github/workflows/e2e-aperag-test.yml
     with:
       eks-cluster-name: ${{ needs.terraform-init-eks.outputs.k8s-cluster-name }}
-      region: "${{ env.REGION }}"
+      region: "us-west-2"
       test-version: "${{ needs.check-version.outputs.test-version }}"
       check-version: "${{ inputs.VERSION }}"
     secrets: inherit
@@ -161,5 +160,5 @@ jobs:
     uses: apecloud/apecloud-cd/.github/workflows/terraform-destroy.yml@v0.1.93
     with:
       artifact-name: "aperag-cd-eks-${{ github.sha }}"
-      region: "${{ env.REGION }}"
+      region: "us-west-2"
     secrets: inherit
