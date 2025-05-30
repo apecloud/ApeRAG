@@ -20,6 +20,7 @@ def build_service() -> CompletionService:
         "model": MODEL,
         "base_url": SILICONFLOW_API_BASE,
         "api_key": SILICONFLOW_API_KEY,
+        "custom_llm_provider": "openai",
     }
     return CompletionService(**kwargs)
 

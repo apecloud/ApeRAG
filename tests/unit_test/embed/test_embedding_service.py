@@ -7,13 +7,6 @@ from aperag.llm.litellm_track import register_llm_track
 
 PROVIDERS = [
     {
-        "test_name": "openai",
-        "dialect": "openai",
-        "model": "text-embedding-3-small",
-        "api_base_env": "OPENAI_API_BASE",
-        "api_key_env": "OPENAI_API_KEY",
-    },
-    {
         "test_name": "alibabacloud",
         "dialect": "openai",
         "model": "text-embedding-v3",

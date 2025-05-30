@@ -99,7 +99,7 @@ clean:
 
 # Development tools installation
 .PHONY: dev
-dev: install-uv
+dev: install-uv install-addlicense
 	@echo "Installing development tools..."
 	@command -v redocly >/dev/null || npm install @redocly/cli -g
 	@command -v openapi-generator-cli >/dev/null || npm install @openapitools/openapi-generator-cli -g
@@ -151,19 +151,56 @@ generate_model_configs:
 	python ./scripts/generate_model_configs.py
 
 # Version management and licensing
-.PHONY: version addlicense
+.PHONY: version
 version:
 	@git rev-parse HEAD | cut -c1-7 > commit_id.txt
 	@echo "VERSION = \"$(VERSION)\"" > $(VERSION_FILE)
 	@echo "GIT_COMMIT_ID = \"$$(cat commit_id.txt)\"" >> $(VERSION_FILE)
 	@rm commit_id.txt
 
-addlicense:
-	addlicense -c "ApeCloud, Inc." -y 2025 -l apache \
-		-ignore "**/*.{md,sh,yml,yaml,toml}" \
-		-ignore "**/Makefile" -ignore "**/Dockerfile" \
-		-ignore "**/{__pycache__,migrations,templates}/**" \
-		-ignore "aperag/{readers,vectorstore}/**" .
+.PHONY: add-license
+add-license: install-addlicense
+	./downloads/addlicense -c "ApeCloud, Inc." -y 2025 -l apache \
+		-ignore "aperag/readers/**" \
+		-ignore "aperag/vectorstore/**" \
+		aperag/**/*.py
+
+.PHONY: check-license
+check-license: install-addlicense
+	./downloads/addlicense -check \
+		-c "ApeCloud, Inc." -y 2025 -l apache \
+		-ignore "aperag/readers/**" \
+		-ignore "aperag/vectorstore/**" \
+		aperag/**/*.py
+
+.PHONY: install-addlicense
+install-addlicense:
+	@mkdir -p ./downloads
+	@if [ ! -f ./downloads/addlicense ]; then \
+		echo "Installing addlicense..."; \
+		OS=$$(uname -s); \
+		ARCH=$$(uname -m); \
+		case $$OS in \
+			Darwin) OS=macOS ;; \
+			Linux) OS=Linux ;; \
+			MINGW*|CYGWIN*) OS=Windows ;; \
+		esac; \
+		case $$ARCH in \
+			x86_64) ARCH=x86_64 ;; \
+			aarch64) ARCH=arm64 ;; \
+			arm64) ARCH=arm64 ;; \
+		esac; \
+		echo "Detected platform: $$OS/$$ARCH"; \
+		if [ "$$OS" = "Windows" ]; then \
+			curl -L https://github.com/google/addlicense/releases/download/v1.1.1/addlicense_1.1.1_$${OS}_$${ARCH}.zip -o /tmp/addlicense.zip; \
+			unzip -j /tmp/addlicense.zip -d ./downloads; \
+			rm /tmp/addlicense.zip; \
+		else \
+			curl -L https://github.com/google/addlicense/releases/download/v1.1.1/addlicense_1.1.1_$${OS}_$${ARCH}.tar.gz | tar -xz -C ./downloads; \
+		fi; \
+		chmod +x ./downloads/addlicense; \
+		echo "addlicense installed to ./downloads/addlicense"; \
+	fi
 
 ##################################################
 # Build and CI/CD
