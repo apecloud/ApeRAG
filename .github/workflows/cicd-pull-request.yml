@@ -115,7 +115,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: make test check
-        if: github.event.pull_request.head.repo.full_name != github.repository
         run: |
           if [[ "${{ needs.make-test.result }}" == "failure" || "${{ needs.make-test.result }}" == "cancelled" ]]; then
               echo "make test fail"

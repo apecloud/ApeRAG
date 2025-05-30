@@ -17,7 +17,7 @@ on:
         default: ''
 
 
-run-name: ApeRAG Version:${{ inputs.VERSION }}
+run-name: E2E Test ApeRAG Version:${{ inputs.VERSION }}
 
 env:
   GH_TOKEN: ${{ github.token }}
@@ -116,7 +116,7 @@ jobs:
         run: |
           CHECK_VERSION="${{ needs.check-release-version.outputs.release-version }}"
           if [[ -n "${{ inputs.VERSION }}" && ("${{ needs.check-release-version.result }}" == "failure" || "${{ needs.check-release-version.result }}" == "cancelled") ]]; then
-              echo "check release version error: ${CHECK_VERSION}"
+              echo "release version not found: ${CHECK_VERSION}"
               exit 1
           fi
           
