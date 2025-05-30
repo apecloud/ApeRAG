@@ -80,7 +80,7 @@ jobs:
           helm repo add helm-charts https://apecloud.github.io/helm-charts
           
           helm install aperag helm-charts/aperag \
-            --version "${APERAG_TAG}"
+            --version "${APERAG_TAG}" \
             --set image.repository="$APERAG_REPO" \
             --set image.tag=$APERAG_TAG \
             --set frontend.image.repository=$APERAG_REPO \
