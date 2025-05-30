@@ -26,7 +26,7 @@ from ninja import Router
 import aperag.chat.message
 from aperag.apps import QuotaType
 from aperag.chat.history.redis import RedisChatMessageHistory
-from aperag.chat.utils import check_quota_usage, get_async_redis_client, get_sync_redis_client, manage_quota_usage
+from aperag.chat.utils import get_async_redis_client, get_sync_redis_client
 from aperag.db.models import Chat
 from aperag.db.ops import query_bot, query_chat_by_peer, query_user_quota
 from aperag.pipeline.knowledge_pipeline import create_knowledge_pipeline
@@ -81,12 +81,6 @@ async def weixin_card_response(client, user, bot, query, msg_id):
     history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())
     collection = (await bot.collections())[0]
     response = ""
-
-    pipeline = await create_knowledge_pipeline(bot=bot, collection=collection, history=history)
-
-    conversation_limit = await query_user_quota(user, QuotaType.MAX_CONVERSATION_COUNT)
-    if conversation_limit is None:
-        conversation_limit = MAX_CONVERSATION_COUNT
 
     try:
         task_id = int(time.time())

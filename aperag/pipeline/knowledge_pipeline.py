@@ -243,9 +243,7 @@ class KnowledgePipeline(Pipeline):
         logger.info("[%s] Generating LLM answer.", log_prefix)
         history = []
         if self.memory and len(messages) > 0:
-            history_context_allowance = max(
-                min(self.context_window - 500 - len(context), self.memory_limit_length), 0
-            )
+            history_context_allowance = max(min(self.context_window - 500 - len(context), self.memory_limit_length), 0)
             history = self.predictor.get_latest_history(
                 messages=messages,
                 limit_length=history_context_allowance,

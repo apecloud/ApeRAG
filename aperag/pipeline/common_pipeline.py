@@ -63,9 +63,7 @@ class CommonPipeline(Pipeline):
                 history.extend(
                     self.predictor.get_latest_history(
                         messages=messages,
-                        limit_length=max(
-                            min(self.context_window - 500 - len(context), self.memory_limit_length), 0
-                        ),
+                        limit_length=max(min(self.context_window - 500 - len(context), self.memory_limit_length), 0),
                         limit_count=self.memory_limit_count,
                         use_ai_memory=self.use_ai_memory,
                     )

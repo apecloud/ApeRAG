@@ -26,10 +26,8 @@ from aperag.apps import QuotaType
 from aperag.auth.validator import DEFAULT_USER
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import (
-    check_quota_usage,
     fail_response,
     get_async_redis_client,
-    manage_quota_usage,
     start_response,
     stop_response,
     success_response,

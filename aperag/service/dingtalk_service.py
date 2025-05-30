@@ -19,11 +19,10 @@ import logging
 
 import requests
 
-from aperag.apps import QuotaType
 from aperag.chat.history.redis import RedisChatMessageHistory
-from aperag.chat.utils import check_quota_usage, get_async_redis_client, manage_quota_usage
+from aperag.chat.utils import get_async_redis_client
 from aperag.db.models import Chat
-from aperag.db.ops import query_chat_by_peer, query_user_quota
+from aperag.db.ops import query_chat_by_peer
 from aperag.pipeline.knowledge_pipeline import create_knowledge_pipeline
 
 logger = logging.getLogger(__name__)
@@ -48,7 +47,6 @@ async def dingtalk_text_response(user, bot, query, msg_id, sender_id, session_we
     collection = (await bot.collections())[0]
     response = ""
     pipeline = await create_knowledge_pipeline(bot=bot, collection=collection, history=history)
-    conversation_limit = await query_user_quota(user, QuotaType.MAX_CONVERSATION_COUNT)
     try:
         async for msg in pipeline.run(query, message_id=msg_id):
             response += msg

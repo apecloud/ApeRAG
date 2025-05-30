@@ -21,9 +21,7 @@ from pathlib import Path
 import websockets
 
 from aperag.chat.utils import (
-    check_quota_usage,
     fail_response,
-    manage_quota_usage,
     start_response,
     stop_response,
     success_response,

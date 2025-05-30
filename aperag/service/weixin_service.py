@@ -19,7 +19,7 @@ import redis.asyncio as aredis
 import aperag.chat.message
 from aperag.apps import QuotaType
 from aperag.chat.history.redis import RedisChatMessageHistory
-from aperag.chat.utils import check_quota_usage, get_async_redis_client, manage_quota_usage
+from aperag.chat.utils import get_async_redis_client
 from aperag.db.models import Chat
 from aperag.db.ops import query_chat_by_peer, query_user_quota
 from aperag.pipeline.knowledge_pipeline import create_knowledge_pipeline
