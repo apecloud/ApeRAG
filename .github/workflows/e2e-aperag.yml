@@ -17,7 +17,7 @@ on:
         default: ''
 
 
-run-name: ApeRAG:${{ inputs.VERSION }}
+run-name: ApeRAG Version:${{ inputs.VERSION }}
 
 env:
   GH_TOKEN: ${{ github.token }}
@@ -128,10 +128,11 @@ jobs:
               echo "build aperag images error: ${CHECK_VERSION}"
               exit 1
           fi
-          
+          echo "CHECK_VERSION:${CHECK_VERSION}"
           echo "check_version=${CHECK_VERSION}" >> $GITHUB_OUTPUT
 
   terraform-init-eks:
+    if: ${{ needs.check-version.result == 'success' }}
     needs: [ check-version ]
     uses: apecloud/apecloud-cd/.github/workflows/terraform-init.yml@v0.1.93
     with:
