@@ -85,6 +85,7 @@ jobs:
         images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.image }}
         tags: |
           type=ref,event=pr
+          type=ref,event=branch
 
     - name: get Dockerfile path
       id: get_dockerfile_path
