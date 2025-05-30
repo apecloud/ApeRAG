@@ -269,7 +269,6 @@ collection:
         - ACTIVE
         - INACTIVE
         - DELETED
-        - QUESTION_PENDING
     created:
       type: string
       format: date-time
