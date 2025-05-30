@@ -132,7 +132,7 @@ jobs:
           echo "check_version=${CHECK_VERSION}" >> $GITHUB_OUTPUT
 
   terraform-init-eks:
-    if: ${{ needs.check-version.result == 'success' }}
+    if: ${{ always() && needs.check-version.result == 'success' }}
     needs: [ check-version ]
     uses: apecloud/apecloud-cd/.github/workflows/terraform-init.yml@v0.1.93
     with:
@@ -146,7 +146,7 @@ jobs:
 
   e2e-test:
     needs: [ terraform-init-eks, check-version ]
-    if: ${{ needs.terraform-init-eks.result == 'success' }}
+    if: ${{ always() && needs.terraform-init-eks.result == 'success' }}
     uses: ./.github/workflows/e2e-aperag-test.yml
     with:
       eks-cluster-name: ${{ needs.terraform-init-eks.outputs.k8s-cluster-name }}
