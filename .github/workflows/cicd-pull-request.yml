@@ -41,6 +41,7 @@ jobs:
   make-test:
     needs: trigger-mode
     runs-on: ubuntu-latest
+    if: contains(needs.trigger-mode.outputs.trigger-mode, '[test]')
     steps:
       - uses: actions/checkout@v4
       - name: Setup Python
@@ -102,11 +103,13 @@ jobs:
     secrets: inherit
 
   e2e-test:
+    if: contains(needs.trigger-mode.outputs.trigger-mode, '[test]')
+    needs: trigger-mode
     uses: ./.github/workflows/e2e-aperag.yml
     secrets: inherit
 
   pr-check:
-    name: make test
+    name: PR Check
     needs: [ trigger-mode, make-test, check-image, check-frontend-image, check-helm, e2e-test ]
     if: ${{ github.event.review.state == 'approved' && always() }}
     runs-on: ubuntu-latest
