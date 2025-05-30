@@ -27,15 +27,6 @@ env:
 run-name: Release Image:${{ inputs.image_name }}:${{ inputs.image_tag }} ${{ github.ref_name }}
 
 jobs:
-  enable-gke-runner:
-    if: ${{ github.event.action == 'published' || inputs.image_name == '' || inputs.image_name == 'aperag' }}
-    uses: apecloud/apecloud-cd/.github/workflows/enable-self-runner.yml@v0.1.76
-    with:
-      CLOUD_PROVIDER: "eks"
-      GITHUB_REPO: "apecloud/ApeRAG"
-      RUNNER_LABEL: "aperag-image-runner"
-    secrets: inherit
-
   image-tag:
     runs-on: ubuntu-latest
     outputs:
@@ -56,41 +47,15 @@ jobs:
   release-aperag-image:
     if: ${{ github.event.action == 'published' || inputs.image_name == '' || inputs.image_name == 'aperag' }}
     name: release-aperag
-    needs: [ image-tag, enable-gke-runner ]
-    uses: apecloud/apecloud-cd/.github/workflows/release-image-cache-amd-sync.yml@v0.1.36
+    needs: [ image-tag ]
+    uses: apecloud/apecloud-cd/.github/workflows/release-image-cache-sync.yml@v0.1.93
     with:
       IMG: "apecloud/aperag"
       VERSION: "${{ needs.image-tag.outputs.tag-name }}"
       DOCKERFILE_PATH: "./Dockerfile"
       REMOVE_PREFIX: false
-      APECD_REF: "v0.1.36"
+      APECD_REF: "v0.1.93"
       ENABLE_SUBMODULE: true
-    secrets: inherit
-
-  release-aperag-frontend-image:
-    if: ${{ github.event.action == 'published' || inputs.image_name == '' || inputs.image_name == 'aperag-frontend' }}
-    name: release-aperag-frontend
-    needs: [ image-tag ]
-    uses: apecloud/apecloud-cd/.github/workflows/release-image-cache.yml@v0.1.36
-    with:
-      IMG: "apecloud/aperag-frontend"
-      VERSION: "${{ needs.image-tag.outputs.tag-name }}"
-      DOCKERFILE_PATH: "./frontend/Dockerfile.prod"
-      CONTEXT: "./frontend"
-      REMOVE_PREFIX: false
-      APECD_REF: "v0.1.36"
-      ENABLE_SUBMODULE: true
-    secrets: inherit
-
-  disable-gke-runner:
-    if: ${{ always() }}
-    needs: [ release-aperag-image ]
-    uses: apecloud/apecloud-cd/.github/workflows/enable-self-runner.yml@v0.1.76
-    with:
-      CLOUD_PROVIDER: "eks"
-      GITHUB_REPO: "apecloud/ApeRAG"
-      RUNNER_LABEL: "aperag-image-runner"
-      ENABLE: "disable"
     secrets: inherit
 
   release-result:
@@ -179,4 +144,45 @@ jobs:
       WORKFLOW_ID: "e2e-aperag.yml"
       VERSION: "${{ needs.image-tag.outputs.tag-name }}"
       APECD_REF: "v0.1.41"
+    secrets: inherit
+
+  release-aperag-frontend-image:
+    if: ${{ github.event.action == 'published' || inputs.image_name == '' || inputs.image_name == 'aperag-frontend' }}
+    name: release-aperag-frontend
+    needs: [ image-tag ]
+    uses: apecloud/apecloud-cd/.github/workflows/release-image-cache-sync.yml@v0.1.93
+    with:
+      IMG: "apecloud/aperag-frontend"
+      VERSION: "${{ needs.image-tag.outputs.tag-name }}"
+      DOCKERFILE_PATH: "./frontend/Dockerfile.prod"
+      CONTEXT: "./frontend"
+      REMOVE_PREFIX: false
+      APECD_REF: "v0.1.93"
+      ENABLE_SUBMODULE: true
+    secrets: inherit
+
+  release-aperag-frontend-result:
+    runs-on: ubuntu-latest
+    needs: [ release-aperag-frontend-image ]
+    if: ${{ always() && github.event.action == 'published' }}
+    outputs:
+      release-result: ${{ steps.get_release_result.outputs.release_result }}
+    steps:
+      - name: get release result
+        id: get_release_result
+        run: |
+          RELEASE_RESULT="error"
+          if [[ "${{ needs.release-aperag-frontend-image.result }}" == "success" ]]; then
+              RELEASE_RESULT="success"
+          fi
+          echo 'release_result='$RELEASE_RESULT >> $GITHUB_OUTPUT
+
+  send-aperag-frontend-message:
+    needs: [ image-tag, release-aperag-frontend-result ]
+    if: ${{ always() && github.event.action == 'published' }}
+    uses: apecloud/apecloud-cd/.github/workflows/feishui-message.yml@v0.1.36
+    with:
+      TYPE: "2"
+      CONTENT: "release aperag-frontend image ${{ needs.image-tag.outputs.tag-name }} ${{ needs.release-aperag-frontend-result.outputs.release-result }}"
+      APECD_REF: "v0.1.36"
     secrets: inherit
