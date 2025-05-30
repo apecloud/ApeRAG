@@ -83,7 +83,7 @@ def test_update_flow(client, bot):
     assert resp.status_code == 200
     result = resp.json()
     assert result is not None
-    assert result.get("name") == "test_rag_flow"
+    assert result.get("name") == "rag_flow"
     assert result.get("version") == "1.0.0"
     assert result.get("schema") is not None
     assert result.get("nodes") is not None

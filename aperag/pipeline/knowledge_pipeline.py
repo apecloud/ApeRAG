@@ -240,42 +240,41 @@ class KnowledgePipeline(Pipeline):
         context, candidates = await self.build_context(query_with_history, vector, log_prefix)
 
         # --- 3. Generate LLM Answer (if needed) ---
-        if context:
-            logger.info("[%s] Generating LLM answer.", log_prefix)
-            history = []
-            if self.memory and len(messages) > 0:
-                history_context_allowance = max(
-                    min(self.context_window - 500 - len(context), self.memory_limit_length), 0
-                )
-                history = self.predictor.get_latest_history(
-                    messages=messages,
-                    limit_length=history_context_allowance,
-                    limit_count=self.memory_limit_count,
-                    use_ai_memory=self.use_ai_memory,
-                )
-                self.memory_count = len(history)
-                logger.info("[%s] Prepared %d history entries for LLM.", log_prefix, len(history))
+        logger.info("[%s] Generating LLM answer.", log_prefix)
+        history = []
+        if self.memory and len(messages) > 0:
+            history_context_allowance = max(
+                min(self.context_window - 500 - len(context), self.memory_limit_length), 0
+            )
+            history = self.predictor.get_latest_history(
+                messages=messages,
+                limit_length=history_context_allowance,
+                limit_count=self.memory_limit_count,
+                use_ai_memory=self.use_ai_memory,
+            )
+            self.memory_count = len(history)
+            logger.info("[%s] Prepared %d history entries for LLM.", log_prefix, len(history))
 
-            prompt = self.prompt.format(query=message, context=context)
-            logger.debug(
-                "[%s] Final prompt for LLM:\n%s", log_prefix, prompt
-            )  # Use debug level for potentially long prompts
+        prompt = self.prompt.format(query=message, context=context)
+        logger.debug(
+            "[%s] Final prompt for LLM:\n%s", log_prefix, prompt
+        )  # Use debug level for potentially long prompts
 
-            async for msg_chunk in self.predictor.agenerate_stream(history, prompt, self.memory):
-                yield msg_chunk
-                response += msg_chunk
-            logger.info("[%s] LLM stream finished.", log_prefix)
+        async for msg_chunk in self.predictor.agenerate_stream(history, prompt, self.memory):
+            yield msg_chunk
+            response += msg_chunk
+        logger.info("[%s] LLM stream finished.", log_prefix)
 
-            # Populate references and URLs from the candidates used for the context
-            for result in candidates:
-                # Filter out bot_context placeholder if it exists and wasn't filtered earlier
-                if result.score == 0 and result.text == self.bot_context:
-                    continue
-                references.append({"score": result.score, "text": result.text, "metadata": result.metadata})
-                url = result.metadata.get("url")
-                if url and url not in document_url_set:
-                    document_url_set.add(url)
-                    document_url_list.append(url)
+        # Populate references and URLs from the candidates used for the context
+        for result in candidates:
+            # Filter out bot_context placeholder if it exists and wasn't filtered earlier
+            if result.score == 0 and result.text == self.bot_context:
+                continue
+            references.append({"score": result.score, "text": result.text, "metadata": result.metadata})
+            url = result.metadata.get("url")
+            if url and url not in document_url_set:
+                document_url_set.add(url)
+                document_url_list.append(url)
 
         # --- 4. Finalization: Save Messages & Yield Metadata ---
         if self.history:
