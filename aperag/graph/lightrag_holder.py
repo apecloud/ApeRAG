@@ -154,16 +154,18 @@ class LightRagHolder:
     async def adelete_by_collection(self, collection_id: str) -> None:
         """Delete all documents for a collection with error handling"""
         try:
-            logger.info(f"Deleting all documents for collection {collection_id} from LightRAG namespace: {self.namespace_prefix}")
-            
+            logger.info(
+                f"Deleting all documents for collection {collection_id} from LightRAG namespace: {self.namespace_prefix}"
+            )
+
             # Get all document IDs in this collection
-            document_ids = await Document.objects.filter(collection_id=collection_id).values_list('id', flat=True)
+            document_ids = await Document.objects.filter(collection_id=collection_id).values_list("id", flat=True)
             document_ids = [str(doc_id) async for doc_id in document_ids]
-            
+
             if not document_ids:
                 logger.info(f"No documents found for collection {collection_id}, skipping deletion")
                 return
-            
+
             # Delete each document from lightrag
             deleted_count = 0
             failed_count = 0
@@ -175,13 +177,15 @@ class LightRagHolder:
                 except Exception as e:
                     failed_count += 1
                     logger.warning(f"Failed to delete lightrag document for document ID {document_id}: {str(e)}")
-            
-            logger.info(f"Completed lightrag document deletion for collection {collection_id}: {deleted_count} deleted, {failed_count} failed")
-            
+
+            logger.info(
+                f"Completed lightrag document deletion for collection {collection_id}: {deleted_count} deleted, {failed_count} failed"
+            )
+
         except Exception as e:
             # Log error but don't raise - let the deletion task continue with other cleanup
             logger.error(f"Error during lightrag collection deletion for collection {collection_id}: {str(e)}")
-            logger.warning(f"Continuing with other cleanup tasks despite lightrag deletion failure")
+            logger.warning("Continuing with other cleanup tasks despite lightrag deletion failure")
 
 
 def log_llm_performance(start_time: datetime, end_time: datetime, prompt: str, response: str) -> None:
@@ -392,7 +396,7 @@ async def get_lightrag_holder(collection: Collection, use_cache: bool = True) ->
     """
     Get or create a LightRAG holder for the given collection.
     Uses caching to avoid repeated initialization when use_cache=True.
-    
+
     Args:
         collection: The collection to create LightRAG holder for
         use_cache: Whether to use cache. If False, always creates a new instance.

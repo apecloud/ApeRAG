@@ -36,7 +36,6 @@ from aperag.utils.tokenizer import get_default_tokenizer
 from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS, uncompress
 from aperag.utils.utils import (
     generate_fulltext_index_name,
-    generate_lightrag_namespace_prefix,
     generate_vector_db_collection_name,
 )
 from config import settings
@@ -410,11 +409,11 @@ def add_lightrag_index_task(self, content, document_id, file_path):
     except Document.DoesNotExist:
         logger.info(f"Document {document_id} not found, skipping LightRAG indexing")
         return
-    
+
     if document.status == Document.Status.DELETED:
         logger.info(f"Document {document_id} is deleted, skipping LightRAG indexing")
         return
-    
+
     # Check if collection is deleted
     try:
         collection = async_to_sync(document.get_collection)()

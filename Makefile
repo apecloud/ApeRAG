@@ -98,8 +98,8 @@ clean:
 ##################################################
 
 # Development tools installation
-.PHONY: dev
-dev: install-uv install-addlicense
+.PHONY: dev install-hooks
+dev: install-uv install-addlicense install-hooks
 	@echo "Installing development tools..."
 	@command -v redocly >/dev/null || npm install @redocly/cli -g
 	@command -v openapi-generator-cli >/dev/null || npm install @openapitools/openapi-generator-cli -g
@@ -201,6 +201,10 @@ install-addlicense:
 		chmod +x ./downloads/addlicense; \
 		echo "addlicense installed to ./downloads/addlicense"; \
 	fi
+
+install-hooks:
+	@echo "Installing git hooks..."
+	@./scripts/install-hooks.sh
 
 ##################################################
 # Build and CI/CD

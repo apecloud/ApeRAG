@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# Pre-commit hook to run make lint and make add-license
+# This script will be executed before each git commit
+
+set -e  # Exit on any error
+
+echo "🔍 Pre-commit: Running code quality checks..."
+
+# Change to the repository root directory
+cd "$(git rev-parse --show-toplevel)"
+
+# Run make lint
+echo "  → make lint"
+if ! make lint >/dev/null 2>&1; then
+    echo "❌ Lint check failed!"
+    echo "💡 Run 'make format' to auto-fix issues, then commit again."
+    echo ""
+    echo "Detailed errors:"
+    make lint
+    exit 1
+fi
+
+# Run make add-license
+echo "  → make add-license"
+if ! make add-license >/dev/null 2>&1; then
+    echo "❌ License addition failed!"
+    echo "💡 Please check the error and try again."
+    make add-license
+    exit 1
+fi
+
+# Check if there are any changes after adding licenses
+if ! git diff --quiet; then
+    echo "📝 License headers were added to files."
+    echo "💡 Please review changes and commit again."
+    exit 1
+fi
+
+echo "✅ Pre-commit checks passed!"
+exit 0 
