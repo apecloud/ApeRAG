@@ -84,7 +84,7 @@ export type ApeFlowDebugInfo = {
     inputs?: any;
     outputs?: {
       docs: ApeFlowNodeOutput[];
-      keyword_search_docs: ApeFlowNodeOutput[];
+      fulltext_search_docs: ApeFlowNodeOutput[];
       vector_search_docs: ApeFlowNodeOutput[];
     };
   };

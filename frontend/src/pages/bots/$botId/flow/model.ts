@@ -19,7 +19,7 @@ import {
 import { NodeTypeEnum, WorkflowStyle } from '@/api';
 import { theme } from 'antd';
 import React, { useEffect, useState } from 'react';
-import { ApeNodeKeywordSearch } from '../flow/_nodes/_node_keyword_search';
+import { ApeNodeFulltextSearch } from '../flow/_nodes/_node_fulltext_search';
 import { ApeNodeLlm } from '../flow/_nodes/_node_llm';
 import { ApeNodeMerge } from '../flow/_nodes/_node_merge';
 import { ApeNodeRerank } from '../flow/_nodes/_node_rerank';
@@ -61,10 +61,10 @@ export default () => {
         content: ApeNodeVectorSearch,
         width: 360,
       },
-      keyword_search: {
+      fulltext_search: {
         color: token.volcano,
         icon: React.createElement(ReadOutlined),
-        content: ApeNodeKeywordSearch,
+        content: ApeNodeFulltextSearch,
         width: 360,
       },
       graph_search: {

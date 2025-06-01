@@ -100,10 +100,10 @@ nodes:
                 $ref: '#/schema/document_with_score'
           required: [docs]
 
-  # Keyword search node
-  - id: keyword_search_7b2d4e9f
-    type: keyword_search
-    title: Keyword Search
+  # Fulltext search node
+  - id: fulltext_search_7b2d4e9f
+    type: fulltext_search
+    title: Fulltext Search
     data:
       input:
         schema:
@@ -135,7 +135,7 @@ nodes:
           properties:
             docs:
               type: array
-              description: Docs from keyword search
+              description: Docs from fulltext search
               items:
                 $ref: '#/schema/document_with_score'
           required: [docs]
@@ -198,9 +198,9 @@ nodes:
               description: Docs from vector search
               items:
                 $ref: '#/schema/document_with_score'
-            keyword_search_docs:
+            fulltext_search_docs:
               type: array
-              description: Docs from keyword search
+              description: Docs from fulltext search
               items:
                 $ref: '#/schema/document_with_score'
             graph_search_docs:
@@ -208,12 +208,12 @@ nodes:
               description: Docs from graph search
               items:
                 $ref: '#/schema/document_with_score'
-          required: [merge_strategy, deduplicate, vector_search_docs, keyword_search_docs, graph_search_docs]
+          required: [merge_strategy, deduplicate, vector_search_docs, fulltext_search_docs, graph_search_docs]
         values:
           merge_strategy: union
           deduplicate: true
           vector_search_docs: "{{ nodes.vector_search_3f8e2c1a.output.docs }}"
-          keyword_search_docs: "{{ nodes.keyword_search_7b2d4e9f.output.docs }}"
+          fulltext_search_docs: "{{ nodes.fulltext_search_7b2d4e9f.output.docs }}"
           graph_search_docs: "{{ nodes.graph_search_1a9c5d8e.output.docs }}"
       output:
         schema:
@@ -331,17 +331,17 @@ edges:
   # Start to vector search
   - source: start
     target: vector_search_3f8e2c1a
-  # Start to keyword search
+  # Start to fulltext search
   - source: start
-    target: keyword_search_7b2d4e9f
+    target: fulltext_search_7b2d4e9f
   # Start to graph search
   - source: start
     target: graph_search_1a9c5d8e
   # Vector search to merge
   - source: vector_search_3f8e2c1a
     target: merge_1a9c5d8e
-  # Keyword search to merge
-  - source: keyword_search_7b2d4e9f
+  # Fulltext search to merge
+  - source: fulltext_search_7b2d4e9f
     target: merge_1a9c5d8e
   # Graph search to merge
   - source: graph_search_1a9c5d8e

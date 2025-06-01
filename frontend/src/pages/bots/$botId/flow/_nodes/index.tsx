@@ -283,7 +283,7 @@ const ApeBasicNode = (node: ApeNode) => {
 export const NodeTypes: { [key in NodeTypeEnum]: any } = {
   start: ApeBasicNode,
   vector_search: ApeBasicNode,
-  keyword_search: ApeBasicNode,
+  fulltext_search: ApeBasicNode,
   graph_search: ApeBasicNode,
   merge: ApeBasicNode,
   rerank: ApeBasicNode,

@@ -34,9 +34,9 @@ def test_valid_flow():
             },
             output_values={"docs": "docs"},
         ),
-        "keyword_search": NodeInstance(
-            id="keyword_search",
-            type="keyword_search",
+        "fulltext_search": NodeInstance(
+            id="fulltext_search",
+            type="fulltext_search",
             input_values={
                 "query": "{{ .nodes.start.output.query }}",
                 "top_k": 5,
@@ -47,7 +47,7 @@ def test_valid_flow():
             id="merge",
             type="merge",
             input_values={
-                "keyword_search_docs": "{{ .nodes.keyword_search.output.docs }}",
+                "fulltext_search_docs": "{{ .nodes.fulltext_search.output.docs }}",
                 "vector_search_docs": "{{ .nodes.vector_search.output.docs }}",
             },
             output_values={"docs": "docs"},
@@ -62,7 +62,7 @@ def test_valid_flow():
     }
 
     # Create edges
-    edges = [Edge(source="vector_search", target="rerank"), Edge(source="keyword_search", target="rerank")]
+    edges = [Edge(source="vector_search", target="rerank"), Edge(source="fulltext_search", target="rerank")]
 
     # Create flow instance
     flow = FlowInstance(

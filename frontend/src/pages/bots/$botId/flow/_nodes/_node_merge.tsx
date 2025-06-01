@@ -25,7 +25,7 @@ export const ApeNodeMerge = ({ node }: { node: ApeNode }) => {
     });
   }, [node]);
 
-  const { refVectorSearchNode, refKeywordSearchNode, refGraphSearchNode } =
+  const { refVectorSearchNode, refFulltextSearchNode, refGraphSearchNode } =
     useMemo(() => {
       const nid = node?.id;
       const connects = edges.filter((edg) => edg.target === nid);
@@ -36,8 +36,8 @@ export const ApeNodeMerge = ({ node }: { node: ApeNode }) => {
         refVectorSearchNode: sourceNodes?.find(
           (nod) => nod?.type === 'vector_search',
         ),
-        refKeywordSearchNode: sourceNodes?.find(
-          (nod) => nod?.type === 'keyword_search',
+        refFulltextSearchNode: sourceNodes?.find(
+          (nod) => nod?.type === 'fulltext_search',
         ),
         refGraphSearchNode: sourceNodes?.find(
           (nod) => nod?.type === 'graph_search',
@@ -48,7 +48,7 @@ export const ApeNodeMerge = ({ node }: { node: ApeNode }) => {
   const debouncedRefVectorSearchNode = useDebounce(refVectorSearchNode, {
     wait: 300,
   });
-  const debouncedRefKeywordSearchNode = useDebounce(refKeywordSearchNode, {
+  const debouncedRefFulltextSearchNode = useDebounce(refFulltextSearchNode, {
     wait: 300,
   });
   const debouncedRefGraphSearchNode = useDebounce(refGraphSearchNode, {
@@ -69,13 +69,13 @@ export const ApeNodeMerge = ({ node }: { node: ApeNode }) => {
   useEffect(() => {
     _.set(
       values,
-      'keyword_search_docs',
-      refKeywordSearchNode?.id
-        ? `{{ nodes.${refKeywordSearchNode.id}.output.docs }}`
+      'fulltext_search_docs',
+      refFulltextSearchNode?.id
+        ? `{{ nodes.${refFulltextSearchNode.id}.output.docs }}`
         : [],
     );
     applyChanges();
-  }, [debouncedRefKeywordSearchNode]);
+  }, [debouncedRefFulltextSearchNode]);
 
   useEffect(() => {
     _.set(
@@ -158,7 +158,7 @@ export const ApeNodeMerge = ({ node }: { node: ApeNode }) => {
                 </Form.Item>
                 <Form.Item
                   required
-                  label={formatMessage({ id: 'flow.keyword_search.source' })}
+                  label={formatMessage({ id: 'flow.fulltext_search.source' })}
                 >
                   <NodeInput
                     disabled
@@ -166,11 +166,11 @@ export const ApeNodeMerge = ({ node }: { node: ApeNode }) => {
                     placeholder={formatMessage({
                       id: 'flow.connection.required',
                     })}
-                    value={_.get(values, 'keyword_search_docs')}
+                    value={_.get(values, 'fulltext_search_docs')}
                     onChange={(e) => {
                       _.set(
                         values,
-                        'keyword_search_docs',
+                        'fulltext_search_docs',
                         e.currentTarget.value,
                       );
                       applyChanges();

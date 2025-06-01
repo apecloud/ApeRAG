@@ -84,10 +84,10 @@ nodes:
               $ref: '#/schema/document_with_score'
         required:
           - docs
-  # Keyword search node
-  - id: keyword_search_7b2d4e9f
-    type: keyword_search
-    title: Keyword Search
+  # Fulltext search node
+  - id: fulltext_search_7b2d4e9f
+    type: fulltext_search
+    title: Fulltext Search
     data:
       input:
         properties:
@@ -109,7 +109,7 @@ nodes:
         properties:
           docs:
             type: array
-            description: Docs from keyword search
+            description: Docs from fulltext search
             items:
               $ref: '#/schema/document_with_score'
         required:
@@ -138,17 +138,17 @@ nodes:
             description: Docs from vector search
             items:
               $ref: '#/schema/document_with_score'
-          keyword_search_docs:
-            value: {{ .nodes.keyword_search_7b2d4e9f.output.docs }}
+          fulltext_search_docs:
+            value: {{ .nodes.fulltext_search_7b2d4e9f.output.docs }}
             type: array
-            description: Docs from keyword search
+            description: Docs from fulltext search
             items:
               $ref: '#/schema/document_with_score'
         required:
           - merge_strategy
           - deduplicate
           - vector_search_docs
-          - keyword_search_docs
+          - fulltext_search_docs
       output:
         properties:
           docs:
@@ -259,14 +259,14 @@ edges:
   # Start to vector search
   - source: start
     target: vector_search_3f8e2c1a
-  # Start to keyword search
+  # Start to fulltext search
   - source: start
-    target: keyword_search_7b2d4e9f
+    target: fulltext_search_7b2d4e9f
   # Vector search to merge
   - source: vector_search_3f8e2c1a
     target: merge_1a9c5d8e
-  # Keyword search to merge
-  - source: keyword_search_7b2d4e9f
+  # Fulltext search to merge
+  - source: fulltext_search_7b2d4e9f
     target: merge_1a9c5d8e
   # Merge to rerank
   - source: merge_1a9c5d8e

@@ -27,8 +27,8 @@ class MergeInput(BaseModel):
     vector_search_docs: Optional[List[DocumentWithScore]] = Field(
         default_factory=list, description="Vector search docs"
     )
-    keyword_search_docs: Optional[List[DocumentWithScore]] = Field(
-        default_factory=list, description="Keyword search docs"
+    fulltext_search_docs: Optional[List[DocumentWithScore]] = Field(
+        default_factory=list, description="Fulltext search docs"
     )
     graph_search_docs: Optional[List[DocumentWithScore]] = Field(default_factory=list, description="Graph search docs")
 
@@ -49,7 +49,7 @@ class MergeNodeRunner(BaseNodeRunner):
         Returns (output, system_output)
         """
         docs_a: List[DocumentWithScore] = ui.vector_search_docs or []
-        docs_b: List[DocumentWithScore] = ui.keyword_search_docs or []
+        docs_b: List[DocumentWithScore] = ui.fulltext_search_docs or []
         docs_c: List[DocumentWithScore] = ui.graph_search_docs or []
         merge_strategy: str = ui.merge_strategy
         deduplicate: bool = ui.deduplicate

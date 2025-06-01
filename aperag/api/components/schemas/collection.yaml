@@ -347,7 +347,7 @@ searchTestResultItem:
       enum:
         - vector_search
         - graph_search
-        - keyword_search
+        - fulltext_search
 
 searchTestResult:
   type: object

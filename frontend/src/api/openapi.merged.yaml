@@ -1340,7 +1340,7 @@ components:
           enum:
             - start
             - vector_search
-            - keyword_search
+            - fulltext_search
             - graph_search
             - merge
             - rerank
@@ -2091,7 +2091,7 @@ components:
           enum:
             - vector_search
             - graph_search
-            - keyword_search
+            - fulltext_search
     searchTestResult:
       type: object
       properties:

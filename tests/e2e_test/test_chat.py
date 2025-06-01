@@ -1,9 +1,9 @@
-import pytest
-import time
-import json
-import httpx
 import asyncio
+import json
+
+import pytest
 import websockets
+
 
 @pytest.fixture
 def chat(client, bot):
@@ -60,16 +60,19 @@ def test_chat_message_and_feedback(client, bot, collection, chat):
 
 def test_websocket_chat_and_feedback(client, bot, chat):
     # Test websocket chat and feedback, wait for stop message, feedback via HTTP API, and check chat history
-    import websockets
-    import os
     import json
+    import os
+
     ws_url = f"ws://localhost:8000/api/v1/bots/{bot['id']}/chats/{chat['id']}/connect"
     message = {"content": "What is ApeRAG?", "role": "user"}
     received_stop = False
     received_message_id = None
+
     async def ws_chat():
         nonlocal received_stop, received_message_id
-        async with websockets.connect(ws_url, extra_headers={"Authorization": f"Bearer {os.environ.get('API_KEY', '')}"}) as ws:
+        async with websockets.connect(
+            ws_url, extra_headers={"Authorization": f"Bearer {os.environ.get('API_KEY', '')}"}
+        ) as ws:
             await ws.send(json.dumps(message))
             while True:
                 reply = await ws.recv()
@@ -78,7 +81,7 @@ def test_websocket_chat_and_feedback(client, bot, chat):
                     received_stop = True
                     received_message_id = data.get("id")
                     break
-    import asyncio
+
     asyncio.get_event_loop().run_until_complete(ws_chat())
     assert received_stop
     # Feedback via HTTP API after stop
@@ -104,7 +107,7 @@ def test_openai_sse_chat(client, bot):
         "model": "aperag",
         "messages": [{"role": "user", "content": "What is ApeRAG?"}],
         "stream": False,
-        "bot_id": bot["id"]
+        "bot_id": bot["id"],
     }
     resp = client.post(url, headers=headers, json=data)
     assert resp.status_code == 200
@@ -116,6 +119,7 @@ def test_openai_sse_chat(client, bot):
 def test_frontend_sse_chat_and_feedback(client, bot, chat):
     # Test frontend custom SSE chat and feedback, wait for stop message, and check chat history
     import sseclient
+
     url = f"/api/v1/chat/completions/frontend?bot_id={bot['id']}&chat_id={chat['id']}"
     headers = {"Content-Type": "text/plain"}
     message = "What is ApeRAG?"

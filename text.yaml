@@ -115,7 +115,7 @@ nodes:
       width: 362
       height: 663
   - id: mb4smym8
-    type: keyword_search
+    type: fulltext_search
     data:
       input:
         schema:
@@ -142,7 +142,7 @@ nodes:
           properties:
             docs:
               type: array
-              description: Docs from keyword search
+              description: Docs from fulltext search
               items:
                 $ref: "#/schema/document_with_score"
           required:
@@ -183,21 +183,21 @@ nodes:
               description: Docs from vector search
               items:
                 $ref: "#/schema/document_with_score"
-            keyword_search_docs:
+            fulltext_search_docs:
               type: array
-              description: Docs from keyword search
+              description: Docs from fulltext search
               items:
                 $ref: "#/schema/document_with_score"
           required:
             - merge_strategy
             - deduplicate
             - vector_search_docs
-            - keyword_search_docs
+            - fulltext_search_docs
           values:
             merge_strategy: union
             deduplicate: true
             vector_search_docs: "{{ nodes.mb4smym7.output.docs }}"
-            keyword_search_docs: "{{ nodes.mb4smym8.output.docs }}"
+            fulltext_search_docs: "{{ nodes.mb4smym8.output.docs }}"
       output:
         schema:
           type: object
@@ -217,10 +217,10 @@ nodes:
           source_type: dynamic
           ref_node: mb4smym7
           ref_field: vector_search_docs
-        - name: keyword_search_docs
+        - name: fulltext_search_docs
           source_type: dynamic
           ref_node: mb4smym8
-          ref_field: keyword_search_docs
+          ref_field: fulltext_search_docs
     position:
       x: 884
       y: 212

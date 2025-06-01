@@ -10,7 +10,7 @@ import { NodeInput } from './_node-input';
 import { OutputParams } from './_outputs_params';
 import { getCollapsePanelStyle } from './_styles';
 
-export const ApeNodeKeywordSearch = ({ node }: { node: ApeNode }) => {
+export const ApeNodeFulltextSearch = ({ node }: { node: ApeNode }) => {
   const { token } = theme.useToken();
   const { collections } = useModel('collection');
   const { setNodes } = useModel('bots.$botId.flow.model');

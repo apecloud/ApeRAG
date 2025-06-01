@@ -132,7 +132,7 @@ components:
           description: label for the node
         type:
           type: string
-          enum: [start, vector_search, keyword_search, graph_search, merge, rerank, llm]
+          enum: [start, vector_search, fulltext_search, graph_search, merge, rerank, llm]
           description: Type of node
           example: vector_search
         title:

@@ -162,8 +162,8 @@ export const nodeVectorSearchDefinition = (params?: {
   },
 });
 
-// keyword_search schema
-export const nodeKeywordSearchDefinition = (params?: {
+// fulltext_search schema
+export const nodeFulltextSearchDefinition = (params?: {
   startId?: string;
 }): NodeData => ({
   input: {
@@ -203,7 +203,7 @@ export const nodeKeywordSearchDefinition = (params?: {
       properties: {
         docs: {
           type: 'array',
-          description: 'Docs from keyword search',
+          description: 'Docs from fulltext search',
           items: {
             $ref: '#/schema/document_with_score',
           },
@@ -263,7 +263,7 @@ export const nodeGraphSearchDefinition = (): NodeData => ({
 // merge schema
 export const nodeMergeDefinition = (params?: {
   vectorSearchId: string;
-  keywordSearchId: string;
+  fulltextSearchId: string;
   graphSearchId?: string;
 }): NodeData => ({
   input: {
@@ -288,9 +288,9 @@ export const nodeMergeDefinition = (params?: {
             $ref: '#/schema/document_with_score',
           },
         },
-        keyword_search_docs: {
+        fulltext_search_docs: {
           type: 'array',
-          description: 'Docs from keyword search',
+          description: 'Docs from fulltext search',
           items: {
             $ref: '#/schema/document_with_score',
           },
@@ -307,7 +307,7 @@ export const nodeMergeDefinition = (params?: {
         'merge_strategy',
         'deduplicate',
         'vector_search_docs',
-        'keyword_search_docs',
+        'fulltext_search_docs',
         'graph_search_docs',
       ],
     },
@@ -317,8 +317,8 @@ export const nodeMergeDefinition = (params?: {
       vector_search_docs: params?.vectorSearchId
         ? `{{ nodes.${params.vectorSearchId}.output.docs }}`
         : [],
-      keyword_search_docs: params?.keywordSearchId
-        ? `{{ nodes.${params.keywordSearchId}.output.docs }}`
+      fulltext_search_docs: params?.fulltextSearchId
+        ? `{{ nodes.${params.fulltextSearchId}.output.docs }}`
         : [],
       graph_search_docs: params?.graphSearchId
         ? `{{ nodes.${params.graphSearchId}.output.docs }}`
@@ -574,7 +574,7 @@ export const getBotKnowledgeWorkflow = (
 ): WorkflowDefinition => {
   const startId = uniqid();
   const vectorSearchId = uniqid();
-  const keywordSearchId = uniqid();
+  const fulltextSearchId = uniqid();
   const graphSearchId = uniqid();
   const mergeId = uniqid();
   const rerankId = uniqid();
@@ -600,9 +600,9 @@ export const getBotKnowledgeWorkflow = (
         deletable: false,
       },
       {
-        id: keywordSearchId,
-        type: 'keyword_search',
-        data: nodeKeywordSearchDefinition({ startId }),
+        id: fulltextSearchId,
+        type: 'fulltext_search',
+        data: nodeFulltextSearchDefinition({ startId }),
         position: { x: 422, y: 610 },
         dragHandle: '.drag-handle',
         deletable: false,
@@ -620,7 +620,7 @@ export const getBotKnowledgeWorkflow = (
         type: 'merge',
         data: nodeMergeDefinition({
           vectorSearchId,
-          keywordSearchId,
+          fulltextSearchId,
           graphSearchId,
         }),
         position: { x: 884, y: 524 },
@@ -654,7 +654,7 @@ export const getBotKnowledgeWorkflow = (
       {
         id: uniqid(),
         source: startId,
-        target: keywordSearchId,
+        target: fulltextSearchId,
         type: 'default',
       },
       {
@@ -671,7 +671,7 @@ export const getBotKnowledgeWorkflow = (
       },
       {
         id: uniqid(),
-        source: keywordSearchId,
+        source: fulltextSearchId,
         target: mergeId,
         type: 'default',
       },

@@ -23,7 +23,7 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 
-if settings.ENABLE_KEYWORD_SEARCH:
+if settings.ENABLE_FULLTEXT_SEARCH:
     es = Elasticsearch(settings.ES_HOST)
     async_es = AsyncElasticsearch(settings.ES_HOST)
 

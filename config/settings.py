@@ -324,7 +324,7 @@ REDIS_PORT = env.str("REDIS_PORT", default="6379")
 REDIS_USERNAME = env.str("REDIS_USERNAME", default="")
 REDIS_PASSWORD = env.str("REDIS_PASSWORD", default="")
 
-ENABLE_KEYWORD_SEARCH = env.bool("ENABLE_KEYWORD_SEARCH", default=True)
+ENABLE_FULLTEXT_SEARCH = env.bool("ENABLE_FULLTEXT_SEARCH", default=True)
 ES_HOST = env.str("ES_HOST", "http://localhost:9200")
 
 BAICHUAN_API_KEY = env.str("BAICHUAN_API_KEY", default="")

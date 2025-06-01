@@ -94,7 +94,7 @@ export interface Node {
 export const NodeTypeEnum = {
     start: 'start',
     vector_search: 'vector_search',
-    keyword_search: 'keyword_search',
+    fulltext_search: 'fulltext_search',
     graph_search: 'graph_search',
     merge: 'merge',
     rerank: 'rerank',

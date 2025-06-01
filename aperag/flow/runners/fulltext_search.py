@@ -26,25 +26,25 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 
-class KeywordSearchInput(BaseModel):
+class FulltextSearchInput(BaseModel):
     query: str = Field(..., description="User's question or query")
     top_k: int = Field(5, description="Number of top results to return")
     collection_ids: Optional[List[str]] = Field(default_factory=list, description="Collection IDs")
 
 
-class KeywordSearchOutput(BaseModel):
+class FulltextSearchOutput(BaseModel):
     docs: List[DocumentWithScore]
 
 
 @register_node_runner(
-    "keyword_search",
-    input_model=KeywordSearchInput,
-    output_model=KeywordSearchOutput,
+    "fulltext_search",
+    input_model=FulltextSearchInput,
+    output_model=FulltextSearchOutput,
 )
-class KeywordSearchNodeRunner(BaseNodeRunner):
-    async def run(self, ui: KeywordSearchInput, si: SystemInput) -> Tuple[KeywordSearchOutput, dict]:
+class FulltextSearchNodeRunner(BaseNodeRunner):
+    async def run(self, ui: FulltextSearchInput, si: SystemInput) -> Tuple[FulltextSearchOutput, dict]:
         """
-        Run keyword search node. ui: user input; si: system input (SystemInput).
+        Run fulltext search node. ui: user input; si: system input (SystemInput).
         Returns (output, system_output)
         """
         query = si.query
@@ -54,7 +54,7 @@ class KeywordSearchNodeRunner(BaseNodeRunner):
         if collection_ids:
             collection = await query_collection(si.user, collection_ids[0])
         if not collection:
-            return KeywordSearchOutput(docs=[]), {}
+            return FulltextSearchOutput(docs=[]), {}
 
         from aperag.context.full_text import search_document
         from aperag.pipeline.keyword_extractor import IKExtractor
@@ -66,5 +66,5 @@ class KeywordSearchNodeRunner(BaseNodeRunner):
         # find the related documents using keywords
         docs = await search_document(index, keywords, topk * 3)
         for doc in docs:
-            doc.metadata["recall_type"] = "keyword_search"
-        return KeywordSearchOutput(docs=docs), {}
+            doc.metadata["recall_type"] = "fulltext_search"
+        return FulltextSearchOutput(docs=docs), {}

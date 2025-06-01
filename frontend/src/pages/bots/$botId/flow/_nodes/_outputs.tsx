@@ -29,7 +29,7 @@ export const NodeOutputs = ({ node }: OutputProps) => {
   const outputs = useMemo(() => {
     let outputKey: 'docs' | undefined;
     switch (node.type) {
-      case 'keyword_search':
+      case 'fulltext_search':
       case 'vector_search':
       case 'merge':
       case 'rerank':

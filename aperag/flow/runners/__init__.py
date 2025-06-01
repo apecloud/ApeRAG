@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .fulltext_search import FulltextSearchNodeRunner
 from .graph_search import GraphSearchNodeRunner
-from .keyword_search import KeywordSearchNodeRunner
 from .llm import LLMNodeRunner
 from .merge import MergeNodeRunner
 from .rerank import RerankNodeRunner
@@ -21,7 +21,7 @@ from .start import StartNodeRunner
 from .vector_search import VectorSearchNodeRunner
 
 __all__ = [
-    "KeywordSearchNodeRunner",
+    "FulltextSearchNodeRunner",
     "LLMNodeRunner",
     "MergeNodeRunner",
     "RerankNodeRunner",

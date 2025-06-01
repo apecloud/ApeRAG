@@ -26,6 +26,7 @@ def assert_dict_subset(subset, superset):
         else:
             assert superset[k] == v, f"Value for key '{k}' does not match: {superset[k]} != {v}"
 
+
 def assert_collection_config(expected, actual):
     """
     Assert that collection_data contains all the expected values from update_data, key by key.
@@ -44,6 +45,7 @@ def assert_collection_config(expected, actual):
         for key in ["model", "model_service_provider", "custom_llm_provider", "timeout"]:
             assert expected["config"]["completion"][key] == actual["config"]["completion"][key]
 
+
 def assert_search_test_result(expected, actual):
     """
     Assert that result contains all the expected values from search_data, key by key.
@@ -52,8 +54,8 @@ def assert_search_test_result(expected, actual):
 
     if "vector_search" not in expected and "fulltext_search" not in expected and "graph_search" not in expected:
         pytest.fail("No search type specified")
-    
-    def assert_search_test_result_item(search_type,items):
+
+    def assert_search_test_result_item(search_type, items):
         for item in items:
             if search_type != "graph_search":
                 assert isinstance(item["score"], float)
@@ -77,4 +79,3 @@ def assert_search_test_result(expected, actual):
         for key in ["topk"]:
             assert expected["graph_search"][key] == actual["graph_search"][key]
         assert_search_test_result_item("graph_search", actual["items"])
-

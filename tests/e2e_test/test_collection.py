@@ -13,6 +13,8 @@
 # limitations under the License.
 
 
+import pytest
+
 from tests.e2e_test.config import (
     COMPLETION_MODEL_CUSTOM_PROVIDER,
     COMPLETION_MODEL_NAME,
@@ -22,7 +24,6 @@ from tests.e2e_test.config import (
     EMBEDDING_MODEL_PROVIDER,
 )
 from tests.e2e_test.utils import assert_collection_config, assert_search_test_result
-import pytest
 
 
 def test_list_collections(client, collection):
@@ -99,7 +100,7 @@ def run_search_test(client, collection, document, search_data):
             "graph_search": {"topk": 10},
         },
     ],
-    ids=["vector", "fulltext", "graph", "hybrid"]
+    ids=["vector", "fulltext", "graph", "hybrid"],
 )
 def test_search_types(client, collection, document, search_data):
     run_search_test(client, collection, document, search_data)

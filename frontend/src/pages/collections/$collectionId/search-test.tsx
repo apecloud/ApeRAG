@@ -284,7 +284,7 @@ export default () => {
                   },
                   {
                     label: formatMessage({
-                      id: 'searchTest.type.keyword_search',
+                      id: 'searchTest.type.fulltext_search',
                     }),
                     value: 'fulltext_search',
                   },

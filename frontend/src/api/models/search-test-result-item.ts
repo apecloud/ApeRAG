@@ -55,7 +55,7 @@ export interface SearchTestResultItem {
 export const SearchTestResultItemRecallTypeEnum = {
     vector_search: 'vector_search',
     graph_search: 'graph_search',
-    keyword_search: 'keyword_search'
+    fulltext_search: 'fulltext_search'
 } as const;
 
 export type SearchTestResultItemRecallTypeEnum = typeof SearchTestResultItemRecallTypeEnum[keyof typeof SearchTestResultItemRecallTypeEnum];

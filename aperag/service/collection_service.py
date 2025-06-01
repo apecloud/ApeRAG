@@ -170,17 +170,17 @@ async def create_search_test(
         end_node_values["vector_search_docs"] = "{{ nodes.vector_search.output.docs }}"
         edges.append(Edge(source=node_id, target=end_node_id))
     if data.fulltext_search:
-        node_id = "keyword_search"
+        node_id = "fulltext_search"
         nodes[node_id] = NodeInstance(
             id=node_id,
-            type="keyword_search",
+            type="fulltext_search",
             input_values={
                 "query": query,
                 "top_k": data.vector_search.topk if data.vector_search else 5,
                 "collection_ids": [collection_id],
             },
         )
-        end_node_values["keyword_search_docs"] = "{{ nodes.keyword_search.output.docs }}"
+        end_node_values["fulltext_search_docs"] = "{{ nodes.fulltext_search.output.docs }}"
         edges.append(Edge(source=node_id, target=end_node_id))
     if data.graph_search:
         nodes["graph_search"] = NodeInstance(

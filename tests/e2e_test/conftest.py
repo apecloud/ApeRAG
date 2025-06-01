@@ -13,8 +13,8 @@ from tests.e2e_test.config import (
     EMBEDDING_MODEL_NAME,
     EMBEDDING_MODEL_PROVIDER,
 )
-
 from tests.e2e_test.utils import assert_dict_subset
+
 
 @pytest.fixture(scope="module")
 def client():
