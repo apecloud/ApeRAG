@@ -227,7 +227,7 @@ export default () => {
 
   const uploadProps = useMemo(
     (): UploadProps => ({
-      name: 'file',
+      name: 'files',
       multiple: true,
       // disabled: readonly,
       action: `/api/v1/collections/${collectionId}/documents`,

@@ -34,7 +34,7 @@ from aperag.service.collection_service import (
 )
 from aperag.service.dashboard_service import dashboard_service
 from aperag.service.document_service import (
-    create_document,
+    create_documents,
     create_url_document,
     delete_document,
     delete_documents,
@@ -132,11 +132,11 @@ async def delete_collection_view(request, collection_id: str) -> view_models.Col
 
 
 @router.post("/collections/{collection_id}/documents")
-async def create_document_view(
-    request, collection_id: str, file: List[UploadedFile] = File(...)
+async def create_documents_view(
+    request, collection_id: str, files: List[UploadedFile] = File(...)
 ) -> List[view_models.Document]:
     user = get_user(request)
-    return await create_document(user, collection_id, file)
+    return await create_documents(user, collection_id, files)
 
 
 @router.post("/collections/{collection_id}/urls")

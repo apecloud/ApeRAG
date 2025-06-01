@@ -311,6 +311,7 @@ FEISHU_ENCRYPT_KEY = env.str("FEISHU_ENCRYPT_KEY", default="")
 MAX_BOT_COUNT = env.int("MAX_BOT_COUNT", default=10)
 MAX_COLLECTION_COUNT = env.int("MAX_COLLECTION_COUNT", default=50)
 MAX_DOCUMENT_COUNT = env.int("MAX_DOCUMENT_COUNT", default=1000)
+MAX_DOCUMENT_SIZE = env.int('MAX_DOCUMENT_SIZE', default=100 * 1024 * 1024)
 MAX_CONVERSATION_COUNT = env.int("MAX_CONVERSATION_COUNT", default=100)
 
 RETRIEVE_MODE = "classic" # todo delete me
@@ -351,4 +352,3 @@ DEFAULT_FROM_EMAIL = env.str('DEFAULT_FROM_EMAIL', default='noreply@aperag.com')
 SITE_URL = env.str('SITE_URL', default='http://localhost:8000')
 
 REGISTER_MODE = env.str('REGISTER_MODE', default='unlimited')
-

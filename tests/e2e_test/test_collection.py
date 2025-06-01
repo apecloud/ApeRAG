@@ -13,6 +13,8 @@
 # limitations under the License.
 
 
+from http import HTTPStatus
+
 import pytest
 
 from tests.e2e_test.config import (
@@ -29,7 +31,7 @@ from tests.e2e_test.utils import assert_collection_config, assert_search_test_re
 def test_list_collections(client, collection):
     # Get collections list
     resp = client.get("/api/v1/collections")
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
     data = resp.json()
     collections = data["items"]
     assert isinstance(collections, list)
@@ -60,31 +62,31 @@ def test_update_collection(client, collection):
         },
     }
     resp = client.put(f"/api/v1/collections/{collection['id']}", json=update_data)
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
     updated = resp.json()
     assert_collection_config(update_data, updated)
 
     resp = client.get(f"/api/v1/collections/{collection['id']}")
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
     got = resp.json()
     assert_collection_config(update_data, got)
 
 
 def run_search_test(client, collection, document, search_data):
     resp = client.post(f"/api/v1/collections/{collection['id']}/searchTests", json=search_data)
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
     result = resp.json()
     assert_search_test_result(search_data, result)
 
     resp = client.get(f"/api/v1/collections/{collection['id']}/searchTests")
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
     data = resp.json()
     assert len(data["items"]) == 1
     assert data["items"][0]["id"] == result["id"]
 
     test_id = result["id"]
     resp = client.delete(f"/api/v1/collections/{collection['id']}/searchTests/{test_id}")
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
 
 
 @pytest.mark.parametrize(

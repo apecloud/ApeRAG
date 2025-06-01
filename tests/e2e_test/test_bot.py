@@ -1,4 +1,5 @@
 import json
+from http import HTTPStatus
 from pathlib import Path
 
 import yaml
@@ -8,14 +9,14 @@ from tests.e2e_test.config import COMPLETION_MODEL_NAME, COMPLETION_MODEL_PROVID
 
 def test_list_bots(client, bot):
     resp = client.get("/api/v1/bots?page=1&page_size=10")
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
     bots = resp.json()["items"]
     assert any(b["id"] == bot["id"] for b in bots)
 
 
 def test_get_bot_detail(client, bot):
     resp = client.get(f"/api/v1/bots/{bot['id']}")
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
     detail = resp.json()
     assert detail["id"] == bot["id"]
     assert detail["title"] == bot["title"]
@@ -42,7 +43,7 @@ def test_update_bot(client, collection, bot):
         "collection_ids": [collection["id"]],
     }
     resp = client.put(f"/api/v1/bots/{bot['id']}", json=update_data)
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
     updated = resp.json()
     assert updated["title"] == "E2E Test Bot Updated"
     assert updated["description"] == "E2E Bot Description Updated"
@@ -55,9 +56,9 @@ def test_update_flow(client, bot):
         flow = yaml.safe_load(f)
     flow_json = json.dumps(flow)
     resp = client.put(f"/api/v1/bots/{bot['id']}/flow", data=flow_json, headers={"Content-Type": "application/json"})
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
     resp = client.get(f"/api/v1/bots/{bot['id']}/flow")
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
     result = resp.json()
     assert result is not None
     assert result.get("name") == "rag_flow"
@@ -70,6 +71,6 @@ def test_update_flow(client, bot):
 
 def test_get_flow(client, bot):
     resp = client.get(f"/api/v1/bots/{bot['id']}/flow")
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
     flow = resp.json()
     assert not flow

@@ -61,8 +61,8 @@ def build_document_response(document: db_models.Document) -> view_models.Documen
     )
 
 
-async def create_document(user: str, collection_id: str, files: List[UploadedFile]) -> view_models.DocumentList:
-    if len(files) > 500:
+async def create_documents(user: str, collection_id: str, files: List[UploadedFile]) -> view_models.DocumentList:
+    if len(files) > 50:
         return fail(HTTPStatus.BAD_REQUEST, "documents are too many,add document failed")
     collection = await query_collection(user, collection_id)
     if collection is None:
@@ -82,6 +82,8 @@ async def create_document(user: str, collection_id: str, files: List[UploadedFil
         file_suffix = os.path.splitext(item.name)[1].lower()
         if file_suffix not in supported_file_extensions:
             return fail(HTTPStatus.BAD_REQUEST, f"unsupported file type {file_suffix}")
+        if item.size > settings.MAX_DOCUMENT_SIZE:
+            return fail(HTTPStatus.BAD_REQUEST, "file size is too large")
         try:
             document_instance = db_models.Document(
                 user=user,

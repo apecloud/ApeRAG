@@ -1545,8 +1545,6 @@ components:
       properties:
         title:
           type: string
-        bot_id:
-          type: string
     reference:
       type: object
       properties:

@@ -1,5 +1,6 @@
 import asyncio
 import json
+from http import HTTPStatus
 
 import pytest
 import websockets
@@ -8,22 +9,22 @@ import websockets
 @pytest.fixture
 def chat(client, bot):
     # Create a chat for testing
-    data = {"title": "E2E Test Chat", "bot_id": bot["id"]}
+    data = {"title": "E2E Test Chat"}
     resp = client.post(f"/api/v1/bots/{bot['id']}/chats", json=data)
-    assert resp.status_code in (200, 201)
+    assert resp.status_code == HTTPStatus.OK
     chat = resp.json()
     yield chat
     # Cleanup: delete chat after test
     client.delete(f"/api/v1/bots/{bot['id']}/chats/{chat['id']}")
     # Ensure chat is deleted
     resp = client.get(f"/api/v1/bots/{bot['id']}/chats/{chat['id']}")
-    assert resp.status_code == 404
+    assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
 def test_get_chat_detail(client, bot, chat):
     # Test getting chat details
     resp = client.get(f"/api/v1/bots/{bot['id']}/chats/{chat['id']}")
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
     detail = resp.json()
     assert detail["id"] == chat["id"]
     assert detail["title"] == chat["title"]
@@ -33,7 +34,7 @@ def test_update_chat(client, bot, chat):
     # Test updating chat title
     update_data = {"title": "E2E Test Chat Updated"}
     resp = client.put(f"/api/v1/bots/{bot['id']}/chats/{chat['id']}", json=update_data)
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
     updated = resp.json()
     assert updated["title"] == "E2E Test Chat Updated"
 
@@ -49,13 +50,13 @@ def test_chat_message_and_feedback(client, bot, collection, chat):
     assert message["role"] == "user"
     # Test getting message list
     resp = client.get(f"/api/v1/collections/{collection['id']}/chats/{chat['id']}/messages")
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
     msg_list = resp.json()["items"]
     assert any(m["id"] == message["id"] for m in msg_list)
     # Test feedback for a message
     feedback_data = {"type": "good", "tag": "Other", "message": "Great answer"}
     resp = client.post(f"/api/v1/bots/{bot['id']}/chats/{chat['id']}/messages/{message['id']}", json=feedback_data)
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
 
 
 def test_websocket_chat_and_feedback(client, bot, chat):
@@ -89,11 +90,11 @@ def test_websocket_chat_and_feedback(client, bot, chat):
     message_id = received_message_id or "1"
     feedback_url = f"/api/v1/bots/{bot['id']}/chats/{chat['id']}/messages/{message_id}"
     resp = client.post(feedback_url, json=feedback_data)
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
     # Check chat history contains the sent message
     history_url = f"/api/v1/bots/{bot['id']}/chats/{chat['id']}"
     resp = client.get(history_url)
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
     detail = resp.json()
     assert "history" in detail
     assert any(m.get("data", "").find("ApeRAG") != -1 for m in detail["history"] if m.get("type") == "message")
@@ -110,7 +111,7 @@ def test_openai_sse_chat(client, bot):
         "bot_id": bot["id"],
     }
     resp = client.post(url, headers=headers, json=data)
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
     result = resp.json()
     assert "choices" in result
     assert result["choices"][0]["message"]["content"]
@@ -127,7 +128,7 @@ def test_frontend_sse_chat_and_feedback(client, bot, chat):
     received_message_id = None
     # Send SSE request
     resp = client.post(url, headers=headers, content=message, stream=True)
-    assert resp.status_code == 200 or resp.status_code == 206
+    assert resp.status_code == HTTPStatus.OK or resp.status_code == 206
     sse = sseclient.SSEClient(resp)
     for event in sse.events():
         if event.data:
@@ -142,11 +143,11 @@ def test_frontend_sse_chat_and_feedback(client, bot, chat):
     message_id = received_message_id or "1"
     feedback_url = f"/api/v1/bots/{bot['id']}/chats/{chat['id']}/messages/{message_id}"
     resp = client.post(feedback_url, json=feedback_data)
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
     # Check chat history contains the sent message
     history_url = f"/api/v1/bots/{bot['id']}/chats/{chat['id']}"
     resp = client.get(history_url)
-    assert resp.status_code == 200
+    assert resp.status_code == HTTPStatus.OK
     detail = resp.json()
     assert "history" in detail
     assert any(m.get("data", "").find("ApeRAG") != -1 for m in detail["history"] if m.get("type") == "message")

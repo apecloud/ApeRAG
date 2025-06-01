@@ -102,8 +102,6 @@ chatCreate:
   properties:
     title:
       type: string
-    bot_id:
-      type: string
 
 chatUpdate:
   type: object

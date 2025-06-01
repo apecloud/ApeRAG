@@ -20,7 +20,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.http import HttpRequest
 
 from aperag.utils.constant import KEY_USER_ID
-from aperag.views.main import create_document
+from aperag.views.main import create_documents
 from config import settings
 
 
@@ -45,7 +45,7 @@ class Command(BaseCommand):
         with open(path, "rb") as fd:
             content = fd.read()
         file = SimpleUploadedFile(name=path, content=content, content_type=content_type)
-        response = async_to_sync(create_document)(request, collection_id, [file])
+        response = async_to_sync(create_documents)(request, collection_id, [file])
         if int(response["code"]) != HTTPStatus.OK:
             raise CommandError("Failed to add document %s to collection: %s" % (path, response["message"]))
         elif len(response["data"]) == 0:

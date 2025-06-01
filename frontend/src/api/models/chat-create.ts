@@ -26,11 +26,5 @@ export interface ChatCreate {
      * @memberof ChatCreate
      */
     'title'?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof ChatCreate
-     */
-    'bot_id'?: string;
 }
 
