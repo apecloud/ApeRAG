@@ -21,6 +21,8 @@ from tests.e2e_test.config import (
     EMBEDDING_MODEL_NAME,
     EMBEDDING_MODEL_PROVIDER,
 )
+from tests.e2e_test.utils import assert_dict_subset, assert_search_test_result
+import pytest
 
 
 def test_list_collections(client, collection):
@@ -52,60 +54,52 @@ def test_update_collection(client, collection):
                 "model": COMPLETION_MODEL_NAME,
                 "model_service_provider": COMPLETION_MODEL_PROVIDER,
                 "custom_llm_provider": COMPLETION_MODEL_CUSTOM_PROVIDER,
-                "timeout": 2000,
+                "timeout": 3000,
             },
         },
     }
     resp = client.put(f"/api/v1/collections/{collection['id']}", json=update_data)
     assert resp.status_code == 200
     updated = resp.json()
-    assert updated["title"] == "Updated E2E Test Collection"
-    assert updated["description"] == "Updated E2E Test Collection Description"
-    embedding_config = updated["config"]["embedding"]
-    assert embedding_config["model"] == EMBEDDING_MODEL_NAME
-    assert embedding_config["model_service_provider"] == EMBEDDING_MODEL_PROVIDER
-    assert embedding_config["custom_llm_provider"] == EMBEDDING_MODEL_CUSTOM_PROVIDER
-    assert embedding_config["timeout"] == 2000
-    completion_config = updated["config"]["completion"]
-    assert completion_config["model"] == COMPLETION_MODEL_NAME
-    assert completion_config["model_service_provider"] == COMPLETION_MODEL_PROVIDER
+    assert_dict_subset(update_data, updated)
+
+    resp = client.get(f"/api/v1/collections/{collection['id']}")
+    assert resp.status_code == 200
+    got = resp.json()
+    assert_dict_subset(update_data, got)
 
 
-def test_vector_search(client, collection, document):
-    search_data = {"query": "test document", "vector_search": {"topk": 10, "similarity": 0.1}}
+def run_search_test(client, collection, document, search_data):
     resp = client.post(f"/api/v1/collections/{collection['id']}/searchTests", json=search_data)
     assert resp.status_code == 200
-    results = resp.json()
-    assert len(results["items"]) > 0
-    for item in results["items"]:
-        assert "score" in item
-        assert "content" in item
-        assert "rank" in item
+    result = resp.json()
+    assert_search_test_result(search_data, result)
 
-
-def test_full_text_search(client, collection, document):
-    search_data = {"query": "unique test", "fulltext_search": {"topk": 10}}
-    resp = client.post(f"/api/v1/collections/{collection['id']}/searchTests", json=search_data)
+    resp = client.get(f"/api/v1/collections/{collection['id']}/searchTests")
     assert resp.status_code == 200
-    results = resp.json()
-    assert len(results["items"]) > 0
-    for item in results["items"]:
-        assert "score" in item
-        assert "content" in item
-        assert "rank" in item
+    data = resp.json()
+    assert len(data["items"]) == 1
+    assert data["items"][0]["id"] == result["id"]
 
-
-def test_hybrid_search(client, collection, document):
-    search_data = {
-        "query": "specialized test",
-        "vector_search": {"topk": 10, "similarity": 0.1},
-        "fulltext_search": {"topk": 10},
-    }
-    resp = client.post(f"/api/v1/collections/{collection['id']}/searchTests", json=search_data)
+    test_id = result["id"]
+    resp = client.delete(f"/api/v1/collections/{collection['id']}/searchTests/{test_id}")
     assert resp.status_code == 200
-    results = resp.json()
-    assert len(results["items"]) > 0
-    for item in results["items"]:
-        assert "score" in item
-        assert "content" in item
-        assert "rank" in item
+
+
+@pytest.mark.parametrize(
+    "search_data",
+    [
+        {"query": "test", "vector_search": {"topk": 10, "similarity": 0.1}},
+        {"query": "test", "fulltext_search": {"topk": 10}},
+        {"query": "test", "graph_search": {"topk": 10}},
+        {
+            "query": "test",
+            "vector_search": {"topk": 10, "similarity": 0.1},
+            "fulltext_search": {"topk": 10},
+            "graph_search": {"topk": 10},
+        },
+    ],
+    ids=["vector", "fulltext", "graph", "hybrid"]
+)
+def test_search_types(client, collection, document, search_data):
+    run_search_test(client, collection, document, search_data)

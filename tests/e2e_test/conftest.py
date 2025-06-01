@@ -14,6 +14,7 @@ from tests.e2e_test.config import (
     EMBEDDING_MODEL_PROVIDER,
 )
 
+from tests.e2e_test.utils import assert_dict_subset
 
 @pytest.fixture(scope="module")
 def client():
@@ -44,6 +45,8 @@ def collection(client):
     assert resp.status_code == 200, f"status_code={resp.status_code}, resp={resp.text}"
     collection_data = resp.json()
     collection_id = collection_data["id"]
+    assert collection_id is not None
+    assert_dict_subset(data, collection_data)
 
     # Wait for collection to be active
     max_wait = 10
@@ -51,7 +54,9 @@ def collection(client):
     for _ in range(max_wait // interval):
         get_resp = client.get(f"/api/v1/collections/{collection_id}")
         assert get_resp.status_code == 200
-        if get_resp.json().get("status") == "ACTIVE":
+        got = get_resp.json()
+        assert_dict_subset(data, got)
+        if got.get("status") == "ACTIVE":
             break
         time.sleep(interval)
     else:

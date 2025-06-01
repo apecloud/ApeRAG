@@ -70,6 +70,7 @@ class KeywordSearchNodeRunner(BaseNodeRunner):
             result = [
                 DocumentWithScore(
                     text=doc["content"],
+                    score=doc["score"],
                     metadata={"recall_type": "keyword_search"},
                 )
                 for doc in docs

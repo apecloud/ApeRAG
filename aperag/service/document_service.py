@@ -67,6 +67,8 @@ async def create_document(user: str, collection_id: str, files: List[UploadedFil
     collection = await query_collection(user, collection_id)
     if collection is None:
         return fail(HTTPStatus.NOT_FOUND, "Collection not found")
+    if collection.status != db_models.Collection.Status.ACTIVE:
+        return fail(HTTPStatus.BAD_REQUEST, "Collection is not active")
     if settings.MAX_DOCUMENT_COUNT:
         document_limit = await query_user_quota(user, QuotaType.MAX_DOCUMENT_COUNT)
         if document_limit is None:
