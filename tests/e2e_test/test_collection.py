@@ -21,7 +21,7 @@ from tests.e2e_test.config import (
     EMBEDDING_MODEL_NAME,
     EMBEDDING_MODEL_PROVIDER,
 )
-from tests.e2e_test.utils import assert_dict_subset, assert_search_test_result
+from tests.e2e_test.utils import assert_collection_config, assert_search_test_result
 import pytest
 
 
@@ -61,12 +61,12 @@ def test_update_collection(client, collection):
     resp = client.put(f"/api/v1/collections/{collection['id']}", json=update_data)
     assert resp.status_code == 200
     updated = resp.json()
-    assert_dict_subset(update_data, updated)
+    assert_collection_config(update_data, updated)
 
     resp = client.get(f"/api/v1/collections/{collection['id']}")
     assert resp.status_code == 200
     got = resp.json()
-    assert_dict_subset(update_data, got)
+    assert_collection_config(update_data, got)
 
 
 def run_search_test(client, collection, document, search_data):
