@@ -17,6 +17,7 @@ from typing import List
 
 from elasticsearch import AsyncElasticsearch, Elasticsearch, NotFoundError
 
+from aperag.query.query import DocumentWithScore
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -119,7 +120,7 @@ def remove_document(index, doc_id):
         logger.warning("index %s not exists", index)
 
 
-async def search_document(index: str, keywords: List[str], topk=3):
+async def search_document(index: str, keywords: List[str], topk=3) -> List[DocumentWithScore]:
     resp = await async_es.indices.exists(index=index)
     if not resp.body:
         return []
@@ -140,10 +141,12 @@ async def search_document(index: str, keywords: List[str], topk=3):
     result = []
     for hit in hits["hits"]:
         result.append(
-            {
-                "content": hit["_source"]["content"],
-                "name": hit["_source"]["name"],
-                "score": hit["_score"],
-            }
+            DocumentWithScore(
+                text=hit["_source"]["content"],
+                score=hit["_score"],
+                metadata={
+                    "source": hit["_source"]["name"],
+                },
+            )
         )
     return result

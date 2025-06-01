@@ -110,13 +110,13 @@ class KnowledgePipeline(Pipeline):
 
         doc_names = {}
         for doc in docs:
-            doc_names[doc["name"]] = doc["content"]
-            logger.info("[%s] found keyword in document %s", message, doc["name"])
+            doc_names[doc.metadata["source"]] = doc.text
+            logger.info("[%s] found keyword in document %s", message, doc.metadata["source"])
 
         result = []
         for item in candidates:
-            if item.metadata["name"] not in doc_names:
-                logger.info("[%s] ignore doc %s not match keywords", message, item.metadata["name"])
+            if item.metadata["source"] not in doc_names:
+                logger.info("[%s] ignore doc %s not match keywords", message, item.metadata["source"])
                 continue
             result.append(item)
         return result

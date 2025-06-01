@@ -65,14 +65,6 @@ class KeywordSearchNodeRunner(BaseNodeRunner):
 
         # find the related documents using keywords
         docs = await search_document(index, keywords, topk * 3)
-        result = []
-        if docs:
-            result = [
-                DocumentWithScore(
-                    text=doc["content"],
-                    score=doc["score"],
-                    metadata={"recall_type": "keyword_search"},
-                )
-                for doc in docs
-            ]
-        return KeywordSearchOutput(docs=result), {}
+        for doc in docs:
+            doc.metadata["recall_type"] = "keyword_search"
+        return KeywordSearchOutput(docs=docs), {}
