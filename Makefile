@@ -125,7 +125,10 @@ unit-test:
 	uv run pytest tests/unit_test/ -v
 
 e2e-test:
-	uv run pytest tests/e2e_test/ -v
+	uv run pytest --benchmark-disable tests/e2e_test/ -v
+
+performance-test:
+	uv run pytest --benchmark-enable --benchmark-max-time 10 --benchmark-min-rounds 100 tests/e2e_test/ -v
 
 # Code generation
 .PHONY: merge-openapi generate-models generate-frontend-sdk generate_model_configs

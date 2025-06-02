@@ -14,6 +14,7 @@
 
 
 from http import HTTPStatus
+import time
 
 import pytest
 
@@ -27,10 +28,9 @@ from tests.e2e_test.config import (
 )
 from tests.e2e_test.utils import assert_collection_config, assert_search_test_result
 
-
-def test_list_collections(client, collection):
+def test_list_collections(benchmark, client, collection):
     # Get collections list
-    resp = client.get("/api/v1/collections")
+    resp = benchmark(client.get, "/api/v1/collections")
     assert resp.status_code == HTTPStatus.OK
     data = resp.json()
     collections = data["items"]
@@ -39,7 +39,7 @@ def test_list_collections(client, collection):
     assert any(c["id"] == collection["id"] for c in collections)
 
 
-def test_update_collection(client, collection):
+def test_update_collection(benchmark, client, collection):
     # Update collection config
     update_data = {
         "title": "Updated E2E Test Collection",
@@ -61,7 +61,7 @@ def test_update_collection(client, collection):
             },
         },
     }
-    resp = client.put(f"/api/v1/collections/{collection['id']}", json=update_data)
+    resp = benchmark(client.put, f"/api/v1/collections/{collection['id']}", json=update_data)
     assert resp.status_code == HTTPStatus.OK
     updated = resp.json()
     assert_collection_config(update_data, updated)
