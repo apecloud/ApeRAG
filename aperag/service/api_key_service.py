@@ -14,6 +14,9 @@
 
 from typing import Optional
 
+from django.core.cache import cache
+
+from aperag.auth.authentication import build_api_key_cache_key
 from aperag.db import ops
 from aperag.db.models import ApiKey
 from aperag.schema.view_models import ApiKey as ApiKeyModel
@@ -59,6 +62,7 @@ async def delete_api_key(user, apikey_id: str):
     if not api_key:
         return None
     await ops.delete_api_key(user, apikey_id)
+    cache.delete(build_api_key_cache_key(api_key.key))
     return True
 
 

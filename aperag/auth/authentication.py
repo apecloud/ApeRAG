@@ -33,6 +33,10 @@ logger = logging.getLogger(__name__)
 DEFAULT_USER = "aperag"
 
 
+def build_api_key_cache_key(key: str) -> str:
+    return f"api_key:{key}"
+
+
 def get_user_from_token(token: str) -> str:
     """Extract user ID from authentication token
 
@@ -62,7 +66,7 @@ async def get_user_from_api_key(key: str) -> Optional[str]:
 
     Uses Redis cache to optimize performance and avoid frequent database queries
     """
-    cache_key = f"api_key:{key}"
+    cache_key = build_api_key_cache_key(key)
     user = cache.get(cache_key)
     if user is not None:
         return user
