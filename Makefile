@@ -128,7 +128,15 @@ e2e-test:
 	uv run pytest --benchmark-disable tests/e2e_test/ -v
 
 e2e-performance-test:
-	uv run pytest --benchmark-enable --benchmark-max-time 10 --benchmark-min-rounds 100 tests/e2e_test/ -v
+	@echo "Running E2E performance test..."
+	@timestamp=$(date +%Y%m%d%H%M%S)
+	@uv run pytest -v \
+		--benchmark-enable \
+		--benchmark-max-time=10 \
+		--benchmark-min-rounds=100 \
+		--benchmark-storage=tests/report \
+		--benchmark-save=benchmark-result-$(timestamp).json \
+		tests/e2e_test/
 
 # Code generation
 .PHONY: merge-openapi generate-models generate-frontend-sdk generate_model_configs
