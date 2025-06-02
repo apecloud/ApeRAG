@@ -3,6 +3,8 @@ from http import HTTPStatus
 import httpx
 import pytest
 
+from tests.e2e_test.config import API_BASE_URL
+
 
 def test_register_user(register_user):
     """Test user registration"""
@@ -55,7 +57,7 @@ def test_change_password(cookie_client, login_user):
 
 def test_logout_user(login_user):
     """Test user logout with cookie authentication (use isolated client)"""
-    with httpx.Client(base_url="http://localhost:8000") as c:
+    with httpx.Client(base_url=API_BASE_URL) as c:
         c.cookies.update(login_user["cookies"])
         resp = c.post("/api/v1/logout")
         assert resp.status_code == HTTPStatus.OK
