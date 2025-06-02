@@ -292,7 +292,6 @@ dev = [
     { name = "datamodel-code-generator" },
     { name = "deptry" },
     { name = "mypy" },
-    { name = "pytest-benchmark" },
     { name = "ruff" },
     { name = "types-chardet" },
     { name = "types-redis" },
@@ -312,6 +311,7 @@ test = [
     { name = "pytablewriter" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "pytest-benchmark" },
     { name = "tabulate" },
 ]
 
@@ -380,7 +380,6 @@ dev = [
     { name = "datamodel-code-generator", specifier = ">=0.30.0" },
     { name = "deptry", specifier = ">=0.23.0,<1.0.0" },
     { name = "mypy", specifier = ">=1.4.1,<2.0.0" },
-    { name = "pytest-benchmark", specifier = ">=5.1.0" },
     { name = "ruff", specifier = ">=0.11.2,<1.0.0" },
     { name = "types-chardet", specifier = ">=5.0.4.6,<6.0.0.0" },
     { name = "types-redis", specifier = ">=4.3.21.6,<5.0.0.0" },
@@ -400,6 +399,7 @@ test = [
     { name = "pytablewriter", specifier = ">=1.0.0,<2.0.0" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "pytest-benchmark", specifier = ">=5.1.0" },
     { name = "tabulate", specifier = ">=0.9.0,<1.0.0" },
 ]
 

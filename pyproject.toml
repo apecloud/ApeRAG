@@ -99,13 +99,13 @@ dev = [
     "deptry<1.0.0,>=0.23.0",
     "mypy<2.0.0,>=1.4.1",
     "datamodel-code-generator>=0.30.0",
-    "pytest-benchmark>=5.1.0",
 ]
 test = [
     "tabulate<1.0.0,>=0.9.0",
     "pytablewriter<2.0.0,>=1.0.0",
     "pytest",
     "pytest_asyncio",
+    "pytest-benchmark>=5.1.0",
     "moto",
 ]
 
