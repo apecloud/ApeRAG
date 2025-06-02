@@ -129,13 +129,12 @@ e2e-test:
 
 e2e-performance-test:
 	@echo "Running E2E performance test..."
-	@timestamp=$(date +%Y%m%d%H%M%S)
 	@uv run pytest -v \
 		--benchmark-enable \
 		--benchmark-max-time=10 \
 		--benchmark-min-rounds=100 \
 		--benchmark-storage=tests/report \
-		--benchmark-save=benchmark-result-$(timestamp).json \
+		--benchmark-save=benchmark-result-$$(date +%Y%m%d%H%M%S) \
 		tests/e2e_test/
 
 # Code generation
