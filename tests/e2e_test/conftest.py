@@ -130,3 +130,36 @@ def bot(client, document, collection):
     yield bot
     resp = client.delete(f"/api/v1/bots/{bot['id']}")
     assert resp.status_code in (200, 204)
+
+
+@pytest.fixture
+def register_user():
+    """Register a new user and return user info and password"""
+    import random, string
+    username = f"e2euser_{''.join(random.choices(string.ascii_lowercase, k=6))}"
+    email = f"{username}@example.com"
+    password = f"TestPwd!{random.randint(1000,9999)}"
+    data = {"username": username, "email": email, "password": password}
+    resp = httpx.post(f"{API_BASE_URL}/api/v1/register", json=data)
+    assert resp.status_code == HTTPStatus.OK, f"register failed: {resp.text}"
+    user = resp.json()
+    return {"username": username, "email": email, "password": password, "user": user}
+
+@pytest.fixture
+def login_user(register_user):
+    """Login with the registered user and return cookies and user info"""
+    data = {"username": register_user["username"], "password": register_user["password"]}
+    with httpx.Client(base_url=API_BASE_URL) as c:
+        resp = c.post("/api/v1/login", json=data)
+        assert resp.status_code == HTTPStatus.OK, f"login failed: {resp.text}"
+        cookies = c.cookies  # use httpx.Cookies directly
+        user = resp.json()
+        yield {"cookies": cookies, "user": user, "username": register_user["username"], "password": register_user["password"]}
+
+@pytest.fixture
+def cookie_client(login_user):
+    """Return a httpx.Client with cookie-based authentication"""
+    c = httpx.Client(base_url=API_BASE_URL)
+    c.cookies.update(login_user["cookies"])
+    yield c
+    c.close()

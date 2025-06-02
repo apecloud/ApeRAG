@@ -83,3 +83,5 @@ def test_delete_api_key(client, new_api_key):
     with httpx.Client(base_url=API_BASE_URL, headers=get_auth_headers(api_key_value)) as c:
         config_resp = c.get(CONFIG_ENDPOINT)
         assert config_resp.status_code == HTTPStatus.UNAUTHORIZED
+
+
