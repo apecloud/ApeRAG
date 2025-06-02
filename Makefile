@@ -133,6 +133,7 @@ e2e-performance-test:
 		--benchmark-enable \
 		--benchmark-max-time=10 \
 		--benchmark-min-rounds=100 \
+		--benchmark-save-data \
 		--benchmark-storage=tests/report \
 		--benchmark-save=benchmark-result-$$(date +%Y%m%d%H%M%S) \
 		tests/e2e_test/
