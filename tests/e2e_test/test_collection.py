@@ -104,5 +104,5 @@ def run_search_test(client, collection, document, search_data):
     ],
     ids=["vector", "fulltext", "graph", "hybrid"],
 )
-def test_search_types(client, collection, document, search_data):
-    run_search_test(client, collection, document, search_data)
+def test_search_types(benchmark, client, collection, document, search_data):
+    benchmark(run_search_test, client, collection, document, search_data)

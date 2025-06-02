@@ -127,7 +127,7 @@ unit-test:
 e2e-test:
 	uv run pytest --benchmark-disable tests/e2e_test/ -v
 
-performance-test:
+e2e-performance-test:
 	uv run pytest --benchmark-enable --benchmark-max-time 10 --benchmark-min-rounds 100 tests/e2e_test/ -v
 
 # Code generation

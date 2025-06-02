@@ -26,9 +26,9 @@ def test_login_user(login_user):
     assert user["date_joined"]
 
 
-def test_get_user_detail(cookie_client):
+def test_get_user_detail(benchmark, cookie_client):
     """Test get user detail with cookie authentication"""
-    resp = cookie_client.get("/api/v1/user")
+    resp = benchmark(cookie_client.get, "/api/v1/user")
     assert resp.status_code == HTTPStatus.OK
     user = resp.json()
     assert user["username"]
@@ -38,14 +38,14 @@ def test_get_user_detail(cookie_client):
     assert user["date_joined"]
 
 
-def test_change_password(cookie_client, login_user):
+def test_change_password(benchmark, cookie_client, login_user):
     """Test change password for user"""
     data = {
         "username": login_user["username"],
         "old_password": login_user["password"],
         "new_password": login_user["password"] + "_new"
     }
-    resp = cookie_client.post("/api/v1/change-password", json=data)
+    resp = benchmark(cookie_client.post, "/api/v1/change-password", json=data)
     assert resp.status_code == HTTPStatus.OK
     user = resp.json()
     assert user["username"] == login_user["username"]
@@ -66,9 +66,9 @@ def test_logout_user(login_user):
         assert resp2.status_code in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN)
 
 
-def test_get_user_list(cookie_client):
+def test_get_user_list(benchmark, cookie_client):
     """Test get user list (should be empty or only self if not admin)"""
-    resp = cookie_client.get("/api/v1/users")
+    resp = benchmark(cookie_client.get, "/api/v1/users")
     assert resp.status_code == HTTPStatus.OK
     data = resp.json()
     assert "items" in data
