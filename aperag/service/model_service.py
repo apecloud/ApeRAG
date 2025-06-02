@@ -12,17 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import datetime
 from http import HTTPStatus
 from typing import List
 
-from django.utils import timezone
-
+from aperag.config import SessionDep, settings
 from aperag.db import models as db_models
 from aperag.db.ops import query_msp, query_msp_list
 from aperag.schema import view_models
 from aperag.schema.view_models import ModelServiceProvider, ModelServiceProviderList
 from aperag.views.utils import fail, success
-from config import settings
 
 
 def build_model_service_provider_response(
@@ -39,9 +38,9 @@ def build_model_service_provider_response(
     )
 
 
-async def list_model_service_providers(user: str) -> view_models.ModelServiceProviderList:
-    supported_msp_dict = {msp["name"]: ModelServiceProvider(**msp) for msp in settings.MODEL_CONFIGS}
-    msp_list = await query_msp_list(user)
+async def list_model_service_providers(session: SessionDep, user: str) -> view_models.ModelServiceProviderList:
+    supported_msp_dict = {msp["name"]: ModelServiceProvider(**msp) for msp in settings.model_configs}
+    msp_list = await query_msp_list(session, user)
     response = []
     for msp in msp_list:
         if msp.name in supported_msp_dict:
@@ -51,6 +50,7 @@ async def list_model_service_providers(user: str) -> view_models.ModelServicePro
 
 
 async def update_model_service_provider(
+    session: SessionDep,
     user: str,
     provider: str,
     mspIn: view_models.ModelServiceProviderUpdate,
@@ -62,7 +62,7 @@ async def update_model_service_provider(
     msp_config = next(item for item in supported_providers if item.name == provider)
     if not msp_config.allow_custom_base_url and mspIn.base_url is not None:
         return fail(HTTPStatus.BAD_REQUEST, f"model service provider {provider} does not support setting base_url")
-    msp = await query_msp(user, provider, filterDeletion=False)
+    msp = await query_msp(session, user, provider, filterDeletion=False)
     if msp is None:
         msp = db_models.ModelServiceProvider(
             user=user,
@@ -82,29 +82,33 @@ async def update_model_service_provider(
         if msp_config.allow_custom_base_url and mspIn.base_url is not None:
             msp.base_url = mspIn.base_url
         msp.extra = mspIn.extra
-    await msp.asave()
+    session.add(msp)
+    await session.commit()
+    await session.refresh(msp)
     return success({})
 
 
-async def delete_model_service_provider(user: str, provider: str):
-    supported_msp_names = {item["name"] for item in settings.MODEL_CONFIGS}
+async def delete_model_service_provider(session: SessionDep, user: str, provider: str):
+    supported_msp_names = {item["name"] for item in settings.model_configs}
     if provider not in supported_msp_names:
         return fail(HTTPStatus.BAD_REQUEST, f"unsupported model service provider {provider}")
-    msp = await query_msp(user, provider)
+    msp = await query_msp(session, user, provider)
     if msp is None:
         return fail(HTTPStatus.NOT_FOUND, f"model service provider {provider} not found")
     msp.status = db_models.ModelServiceProvider.Status.DELETED
-    msp.gmt_deleted = timezone.now()
-    await msp.asave()
+    msp.gmt_deleted = datetime.utcnow()
+    session.add(msp)
+    await session.commit()
+    await session.refresh(msp)
     return success({})
 
 
-async def list_available_models(user: str) -> view_models.ModelConfigList:
+async def list_available_models(session: SessionDep, user: str) -> view_models.ModelConfigList:
     from aperag.schema.view_models import ModelConfig, ModelConfigList
 
-    supported_providers = [ModelConfig(**msp) for msp in settings.MODEL_CONFIGS]
+    supported_providers = [ModelConfig(**msp) for msp in settings.model_configs]
     supported_msp_dict = {provider.name: provider for provider in supported_providers}
-    msp_list = await query_msp_list(user)
+    msp_list = await query_msp_list(session, user)
     available_providers = []
     for msp in msp_list:
         if msp.name in supported_msp_dict:
@@ -114,7 +118,7 @@ async def list_available_models(user: str) -> view_models.ModelConfigList:
 
 async def list_supported_model_service_providers() -> view_models.ModelServiceProviderList:
     response = []
-    for supported_msp in settings.MODEL_CONFIGS:
+    for supported_msp in settings.model_configs:
         provider = ModelServiceProvider(
             name=supported_msp["name"],
             dialect=supported_msp["dialect"],

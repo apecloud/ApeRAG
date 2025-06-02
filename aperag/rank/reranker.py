@@ -18,21 +18,16 @@ from typing import List
 
 import litellm
 
+from aperag.config import settings
 from aperag.query.query import DocumentWithScore
-from config.settings import (
-    RERANK_BACKEND,
-    RERANK_SERVICE_MODEL,
-    RERANK_SERVICE_TOKEN_API_KEY,
-    RERANK_SERVICE_URL,
-)
 
 
 class RankerService:
     def __init__(self):
-        self.dialect = f"{RERANK_BACKEND}"
-        self.model = f"{RERANK_SERVICE_MODEL}"
-        self.api_base = RERANK_SERVICE_URL
-        self.api_key = RERANK_SERVICE_TOKEN_API_KEY
+        self.dialect = f"{settings.rerank_backend}"
+        self.model = f"{settings.rerank_service_model}"
+        self.api_base = settings.rerank_service_url
+        self.api_key = settings.rerank_service_token_api_key
 
     async def rank(self, query: str, results: List[DocumentWithScore]):
         documents = [d.text for d in results]

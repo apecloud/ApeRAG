@@ -57,6 +57,10 @@ dependencies = [
     "markdown-it-py[linkify]>=3.0.0",
     "nano-vectordb>=0.0.4.3",
     "jsonref>=1.1.0",
+    "fastapi[standard]>=0.115.12",
+    "pydantic-settings>=2.9.1",
+    "fastapi-users>=14.0.1",
+    "sqlmodel>=0.0.24",
 ]
 name = "aperag"
 version = "0.1.0"

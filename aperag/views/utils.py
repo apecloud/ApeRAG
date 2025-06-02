@@ -16,16 +16,13 @@ import json
 from http import HTTPStatus
 from typing import Dict, Tuple
 
-from django.conf import settings
-from django.http import HttpRequest, HttpResponse
+from fastapi import HTTPException, Request, Response
 from langchain_core.prompts import PromptTemplate
-from ninja.errors import HttpError
-from ninja.main import Exc
 from pydantic import ValidationError
 
-from aperag.auth.authentication import GlobalAuth
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
+from aperag.config import SessionDep
 from aperag.db.models import Bot
 from aperag.db.ops import PagedResult, logger, query_chat_feedbacks
 from aperag.llm.base import Predictor
@@ -35,8 +32,8 @@ from aperag.source.base import CustomSourceInitializationError, get_source
 from aperag.utils.utils import AVAILABLE_SOURCE
 
 
-async def query_chat_messages(user: str, chat_id: str) -> list[view_models.ChatMessage]:
-    pr = await query_chat_feedbacks(user, chat_id)
+async def query_chat_messages(session: SessionDep, user: str, chat_id: str) -> list[view_models.ChatMessage]:
+    pr = await query_chat_feedbacks(session, user, chat_id)
     feedback_map = {}
     async for feedback in pr.data:
         feedback_map[feedback.message_id] = feedback
@@ -158,25 +155,19 @@ def success(data, pr: PagedResult = None):
 
 def fail(status: HTTPStatus, message: str, raise_exception: bool = True):
     if raise_exception:
-        raise HttpError(status, message)
+        raise HTTPException(status_code=status, detail=message)
     return status, view_models.FailResponse(code=status.name, message=message)
 
 
-if not settings.AUTH_TYPE:
-    auth_middleware = None
-else:
-    auth_middleware = GlobalAuth()
-
-
-def validation_errors(request: HttpRequest, exc: Exc) -> HttpResponse:
+def validation_errors(request: Request, exc: ValidationError) -> Response:
     msgs = []
     for err in exc.errors:
         for field in err["loc"]:
             msgs.append(f"{err['msg']}: {field}")
     status, content = fail(HTTPStatus.UNPROCESSABLE_ENTITY, ", ".join(msgs), raise_exception=False)
-    return HttpResponse(status=status, content=content.model_dump_json())
+    return Response(status_code=status, content=content.model_dump_json())
 
 
-def auth_errors(request: HttpRequest, exc: Exc) -> HttpResponse:
+def auth_errors(request: Request, exc: HTTPException) -> Response:
     status, content = fail(HTTPStatus.UNAUTHORIZED, "Unauthorized", raise_exception=False)
-    return HttpResponse(status=status, content=content.model_dump_json())
+    return Response(status_code=status, content=content.model_dump_json())

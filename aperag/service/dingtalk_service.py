@@ -21,6 +21,7 @@ import requests
 
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
+from aperag.config import SessionDep
 from aperag.db.models import Chat
 from aperag.db.ops import query_chat_by_peer
 from aperag.pipeline.knowledge_pipeline import create_knowledge_pipeline
@@ -37,12 +38,14 @@ def validate_sign(timestamp, client_secret, request_sign):
     return sign == request_sign
 
 
-async def dingtalk_text_response(user, bot, query, msg_id, sender_id, session_webhook):
+async def dingtalk_text_response(session: SessionDep, user, bot, query, msg_id, sender_id, session_webhook):
     chat_id = user
-    chat = await query_chat_by_peer(bot.user, Chat.PeerType.DINGTALK, chat_id)
+    chat = await query_chat_by_peer(session, bot.user, Chat.PeerType.DINGTALK, chat_id)
     if chat is None:
         chat = Chat(user=bot.user, bot_id=bot.id, peer_type=Chat.PeerType.DINGTALK, peer_id=chat_id)
-        await chat.asave()
+        session.add(chat)
+        await session.commit()
+        await session.refresh(chat)
     history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())
     collection = (await bot.collections())[0]
     response = ""

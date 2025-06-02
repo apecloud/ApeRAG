@@ -12,44 +12,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ninja import Router
+from fastapi import APIRouter
 
+from aperag.config import SessionDep, settings
 from aperag.db.ops import query_first_user_exists
 from aperag.schema.view_models import Auth, Auth0, Authing, Config, Logto
 from aperag.views.utils import success
-from config import settings
 
-router = Router()
+router = APIRouter()
 
 
 @router.get("")
-async def config_view(request) -> Config:
+async def config_view(session: SessionDep) -> Config:
     auth = Auth(
-        type=settings.AUTH_TYPE,
+        type=settings.auth_type,
     )
-    match settings.AUTH_TYPE:
+    match settings.auth_type:
         case "auth0":
             auth.auth0 = Auth0(
-                auth_domain=settings.AUTH0_DOMAIN,
-                auth_app_id=settings.AUTH0_CLIENT_ID,
+                auth_domain=settings.auth0_domain,
+                auth_app_id=settings.auth0_client_id,
             )
         case "authing":
             auth.authing = Authing(
-                auth_domain=settings.AUTHING_DOMAIN,
-                auth_app_id=settings.AUTHING_APP_ID,
+                auth_domain=settings.authing_domain,
+                auth_app_id=settings.authing_app_id,
             )
         case "logto":
             auth.logto = Logto(
-                auth_domain="http://" + settings.LOGTO_DOMAIN,
-                auth_app_id=settings.LOGTO_APP_ID,
+                auth_domain="http://" + settings.logto_domain,
+                auth_app_id=settings.logto_app_id,
             )
         case "cookie":
             pass
         case _:
-            raise ValueError(f"Unsupported auth type: {settings.AUTH_TYPE}")
+            raise ValueError(f"Unsupported auth type: {settings.auth_type}")
 
     result = Config(
         auth=auth,
-        admin_user_exists=await query_first_user_exists(),
+        admin_user_exists=await query_first_user_exists(session),
     )
     return success(result)

@@ -14,7 +14,7 @@
 
 from auth0.authentication.token_verifier import AsymmetricSignatureVerifier, TokenVerifier
 
-from config import settings
+from aperag.config import settings
 
 # https://aperag.jp.auth0.com/.well-known/jwks.json
 """
@@ -54,18 +54,18 @@ def get_jwt_token_verifier(jwks_url, issuer, client_id):
     return TokenVerifier(signature_verifier=sv, issuer=issuer, audience=client_id)
 
 
-match settings.AUTH_TYPE:
+match settings.auth_type:
     case "auth0":
-        issuer = f"https://{settings.AUTH0_DOMAIN}/"
-        jwks_url = f"https://{settings.AUTH0_DOMAIN}/.well-known/jwks.json"
-        tv = get_jwt_token_verifier(jwks_url, issuer, settings.AUTH0_CLIENT_ID)
+        issuer = f"https://{settings.auth0_domain}/"
+        jwks_url = f"https://{settings.auth0_domain}/.well-known/jwks.json"
+        tv = get_jwt_token_verifier(jwks_url, issuer, settings.auth0_client_id)
     case "authing":
-        issuer = f"https://{settings.AUTHING_DOMAIN}/oidc"
-        jwks_url = f"https://{settings.AUTHING_DOMAIN}/oidc/.well-known/jwks.json"
-        tv = get_jwt_token_verifier(jwks_url, issuer, settings.AUTHING_APP_ID)
+        issuer = f"https://{settings.authing_domain}/oidc"
+        jwks_url = f"https://{settings.authing_domain}/oidc/.well-known/jwks.json"
+        tv = get_jwt_token_verifier(jwks_url, issuer, settings.authing_app_id)
     case "logto":
-        issuer = f"http://{settings.LOGTO_DOMAIN}/oidc"
-        jwks_url = f"http://{settings.LOGTO_DOMAIN}/oidc/jwks"
-        tv = get_jwt_token_verifier(jwks_url, issuer, settings.LOGTO_APP_ID)
+        issuer = f"http://{settings.logto_domain}/oidc"
+        jwks_url = f"http://{settings.logto_domain}/oidc/jwks"
+        tv = get_jwt_token_verifier(jwks_url, issuer, settings.logto_app_id)
     case _:
         tv = None

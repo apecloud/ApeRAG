@@ -1,7 +1,6 @@
 from http import HTTPStatus
 
 import httpx
-import pytest
 
 from tests.e2e_test.config import API_BASE_URL
 
@@ -43,7 +42,7 @@ def test_change_password(benchmark, cookie_client, login_user):
     data = {
         "username": login_user["username"],
         "old_password": login_user["password"],
-        "new_password": login_user["password"] + "_new"
+        "new_password": login_user["password"] + "_new",
     }
     resp = benchmark(cookie_client.post, "/api/v1/change-password", json=data)
     assert resp.status_code == HTTPStatus.OK

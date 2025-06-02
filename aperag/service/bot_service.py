@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import json
+from datetime import datetime
 from http import HTTPStatus
 
-from django.utils import timezone
+from sqlmodel import select
 
 from aperag.apps import QuotaType
+from aperag.config import SessionDep, settings
 from aperag.db import models as db_models
 from aperag.db.ops import (
     PagedQuery,
@@ -31,7 +33,6 @@ from aperag.db.ops import (
 from aperag.schema import view_models
 from aperag.schema.view_models import Bot, BotList
 from aperag.views.utils import fail, success, validate_bot_config
-from config import settings
 
 
 def build_bot_response(bot: db_models.Bot, collection_ids: list[str]) -> view_models.Bot:
@@ -48,45 +49,45 @@ def build_bot_response(bot: db_models.Bot, collection_ids: list[str]) -> view_mo
     )
 
 
-async def create_bot(user, bot_in: view_models.BotCreate) -> view_models.Bot:
-    # there is quota limit on bot
-    if settings.MAX_BOT_COUNT:
-        bot_limit = await query_user_quota(user, QuotaType.MAX_BOT_COUNT)
+async def create_bot(session: SessionDep, user, bot_in: view_models.BotCreate) -> view_models.Bot:
+    if settings.max_bot_count:
+        bot_limit = await query_user_quota(session, user, QuotaType.MAX_BOT_COUNT)
         if bot_limit is None:
-            bot_limit = settings.MAX_BOT_COUNT
-        if await query_bots_count(user) >= bot_limit:
+            bot_limit = settings.max_bot_count
+        if await query_bots_count(session, user) >= bot_limit:
             return fail(HTTPStatus.FORBIDDEN, f"bot number has reached the limit of {bot_limit}")
-
     bot = db_models.Bot(
         user=user,
         title=bot_in.title,
         type=bot_in.type,
-        status=db_models.Bot.Status.ACTIVE,
+        status=db_models.BotStatus.ACTIVE,
         description=bot_in.description,
         config="{}",
     )
-    await bot.asave()
+    session.add(bot)
+    await session.commit()
+    await session.refresh(bot)
     collection_ids = []
     if bot_in.collection_ids is not None:
         for cid in bot_in.collection_ids:
-            collection = await query_collection(user, cid)
+            collection = await query_collection(session, user, cid)
             if not collection:
                 return fail(HTTPStatus.NOT_FOUND, f"Collection {cid} not found")
-            if collection.status == db_models.Collection.Status.INACTIVE:
+            if collection.status == db_models.CollectionStatus.INACTIVE:
                 return fail(HTTPStatus.BAD_REQUEST, f"Collection {cid} is inactive")
-            await db_models.BotCollectionRelation.objects.acreate(bot_id=bot.id, collection_id=cid)
+            relation = db_models.BotCollectionRelation(bot_id=bot.id, collection_id=cid)
+            session.add(relation)
+            await session.commit()
             collection_ids.append(cid)
-    await bot.asave()
     return success(build_bot_response(bot, collection_ids=collection_ids))
 
 
-async def list_bots(user, pq: PagedQuery) -> view_models.BotList:
-    pr = await query_bots([user, settings.ADMIN_USER], pq)
+async def list_bots(session: SessionDep, user, pq: PagedQuery) -> view_models.BotList:
+    pr = await query_bots(session, [user, settings.admin_user], pq)
     response = []
-    async for bot in pr.data:
+    for bot in pr.data:
         bot_config = json.loads(bot.config)
         model = bot_config.get("model", None)
-        # This is a temporary solution to solve the problem of model name changes
         if model in ["chatgpt-3.5", "gpt-3.5-turbo-instruct"]:
             bot_config["model"] = "gpt-3.5-turbo"
         elif model == "chatgpt-4":
@@ -94,21 +95,21 @@ async def list_bots(user, pq: PagedQuery) -> view_models.BotList:
         elif model in ["gpt-4-vision-preview", "gpt-4-32k", "gpt-4-32k-0613"]:
             bot_config["model"] = "gpt-4-1106-preview"
         bot.config = json.dumps(bot_config)
-        collection_ids = await bot.collections(only_ids=True)
+        collection_ids = await bot.collections(session, only_ids=True)
         response.append(build_bot_response(bot, collection_ids=collection_ids))
     return success(BotList(items=response), pr=pr)
 
 
-async def get_bot(user, bot_id) -> view_models.Bot:
-    bot = await query_bot(user, bot_id)
+async def get_bot(session: SessionDep, user, bot_id) -> view_models.Bot:
+    bot = await query_bot(session, user, bot_id)
     if bot is None:
         return fail(HTTPStatus.NOT_FOUND, "Bot not found")
-    collection_ids = await bot.collections(only_ids=True)
+    collection_ids = await bot.collections(session, only_ids=True)
     return success(build_bot_response(bot, collection_ids=collection_ids))
 
 
-async def update_bot(user, bot_id, bot_in: view_models.BotUpdate) -> view_models.Bot:
-    bot = await query_bot(user, bot_id)
+async def update_bot(session: SessionDep, user, bot_id, bot_in: view_models.BotUpdate) -> view_models.Bot:
+    bot = await query_bot(session, user, bot_id)
     if bot is None:
         return fail(HTTPStatus.NOT_FOUND, "Bot not found")
     new_config = json.loads(bot_in.config)
@@ -116,8 +117,7 @@ async def update_bot(user, bot_id, bot_in: view_models.BotUpdate) -> view_models
     model_name = new_config.get("model_name")
     memory = new_config.get("memory", False)
     llm_config = new_config.get("llm")
-
-    msp_dict = await query_msp_dict(user)
+    msp_dict = await query_msp_dict(session, user)
     if model_service_provider in msp_dict:
         msp = msp_dict[model_service_provider]
         base_url = msp.base_url
@@ -129,7 +129,6 @@ async def update_bot(user, bot_id, bot_in: view_models.BotUpdate) -> view_models
             return fail(HTTPStatus.BAD_REQUEST, msg)
     else:
         return fail(HTTPStatus.BAD_REQUEST, "Model service provider not found")
-
     old_config = json.loads(bot.config)
     old_config.update(new_config)
     bot.config = json.dumps(old_config)
@@ -137,30 +136,50 @@ async def update_bot(user, bot_id, bot_in: view_models.BotUpdate) -> view_models
     bot.type = bot_in.type
     bot.description = bot_in.description
     if bot_in.collection_ids is not None:
-        await db_models.BotCollectionRelation.objects.filter(bot_id=bot.id, gmt_deleted__isnull=True).aupdate(
-            gmt_deleted=timezone.now()
+        # Soft delete old relations
+        stmt = select(db_models.BotCollectionRelation).where(
+            db_models.BotCollectionRelation.bot_id == bot.id, db_models.BotCollectionRelation.gmt_deleted is None
         )
+        result = await session.exec(stmt)
+        relations = result.all()
+        for rel in relations:
+            rel.gmt_deleted = datetime.utcnow()
+            session.add(rel)
+        await session.commit()
+        # Add new relations
         for cid in bot_in.collection_ids:
-            collection = await query_collection(user, cid)
+            collection = await query_collection(session, user, cid)
             if not collection:
                 return fail(HTTPStatus.NOT_FOUND, f"Collection {cid} not found")
-            if collection.status == db_models.Collection.Status.INACTIVE:
+            if collection.status == db_models.CollectionStatus.INACTIVE:
                 return fail(HTTPStatus.BAD_REQUEST, f"Collection {cid} is inactive")
-            await db_models.BotCollectionRelation.objects.acreate(bot_id=bot.id, collection_id=cid)
-    await bot.asave()
-    collection_ids = await bot.collections(only_ids=True)
+            relation = db_models.BotCollectionRelation(bot_id=bot.id, collection_id=cid)
+            session.add(relation)
+            await session.commit()
+    session.add(bot)
+    await session.commit()
+    await session.refresh(bot)
+    collection_ids = await bot.collections(session, only_ids=True)
     return success(build_bot_response(bot, collection_ids=collection_ids))
 
 
-async def delete_bot(user, bot_id) -> view_models.Bot:
-    bot = await query_bot(user, bot_id)
+async def delete_bot(session: SessionDep, user, bot_id) -> view_models.Bot:
+    bot = await query_bot(session, user, bot_id)
     if bot is None:
         return fail(HTTPStatus.NOT_FOUND, "Bot not found")
-    bot.status = db_models.Bot.Status.DELETED
-    bot.gmt_deleted = timezone.now()
-    await bot.asave()
-    await db_models.BotCollectionRelation.objects.filter(bot_id=bot.id, gmt_deleted__isnull=True).aupdate(
-        gmt_deleted=timezone.now()
+    bot.status = db_models.BotStatus.DELETED
+    bot.gmt_deleted = datetime.utcnow()
+    session.add(bot)
+    await session.commit()
+    # Soft delete all relations
+    stmt = select(db_models.BotCollectionRelation).where(
+        db_models.BotCollectionRelation.bot_id == bot.id, db_models.BotCollectionRelation.gmt_deleted is None
     )
-    collection_ids = await bot.collections(only_ids=True)
+    result = await session.exec(stmt)
+    relations = result.all()
+    for rel in relations:
+        rel.gmt_deleted = datetime.utcnow()
+        session.add(rel)
+    await session.commit()
+    collection_ids = await bot.collections(session, only_ids=True)
     return success(build_bot_response(bot, collection_ids=collection_ids))

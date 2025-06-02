@@ -14,7 +14,7 @@
 
 from http import HTTPStatus
 
-from ninja import Router
+from fastapi import APIRouter
 
 from aperag.db.models import ApiKey
 from aperag.schema.view_models import ApiKey as ApiKeyModel
@@ -28,7 +28,7 @@ from aperag.service.api_key_service import (
 from aperag.utils.request import get_user
 from aperag.views.utils import fail, success
 
-router = Router()
+router = APIRouter()
 
 
 def to_api_key_model(apikey: ApiKey) -> ApiKeyModel:

@@ -16,8 +16,8 @@ from datetime import datetime
 from http import HTTPStatus
 
 from celery.result import GroupResult
-from django.utils import timezone
 
+from aperag.config import SessionDep
 from aperag.db import models as db_models
 from aperag.db.ops import (
     PagedQuery,
@@ -34,32 +34,34 @@ from aperag.views.utils import fail, success
 from config.celery import app
 
 
-async def sync_immediately(user: str, collection_id: str):
-    collection = await query_collection(user, collection_id)
+async def sync_immediately(session: SessionDep, user: str, collection_id: str):
+    collection = await query_collection(session, user, collection_id)
     source = get_source(parseCollectionConfig(collection.config))
     if not source.sync_enabled():
         return fail(HTTPStatus.BAD_REQUEST, "source type not supports sync")
-    pr = await query_running_sync_histories(user, collection_id)
+    pr = await query_running_sync_histories(session, user, collection_id)
     async for task in pr.data:
         return fail(HTTPStatus.BAD_REQUEST, f"have running sync task {task.id}, please cancel it first")
     instance = db_models.CollectionSyncHistory(
         user=collection.user,
-        start_time=timezone.now(),
+        start_time=datetime.utcnow(),
         collection_id=collection_id,
         execution_time=datetime.timedelta(seconds=0),
         total_documents_to_sync=0,
         status=db_models.Collection.SyncStatus.RUNNING,
     )
-    await instance.asave()
-    document_user_quota = await query_user_quota(user, db_models.QuotaType.MAX_DOCUMENT_COUNT)
+    session.add(instance)
+    await session.commit()
+    await session.refresh(instance)
+    document_user_quota = await query_user_quota(session, user, db_models.QuotaType.MAX_DOCUMENT_COUNT)
     sync_documents.delay(
         collection_id=collection_id, sync_history_id=instance.id, document_user_quota=document_user_quota
     )
     return success(instance.view())
 
 
-async def cancel_sync(user: str, collection_id: str, collection_sync_id: str):
-    sync_history = await query_sync_history(user, collection_id, collection_sync_id)
+async def cancel_sync(session: SessionDep, user: str, collection_id: str, collection_sync_id: str):
+    sync_history = await query_sync_history(session, user, collection_id, collection_sync_id)
     if sync_history is None:
         return fail(HTTPStatus.NOT_FOUND, "sync history not found")
     task_context = sync_history.task_context
@@ -76,12 +78,14 @@ async def cancel_sync(user: str, collection_id: str, collection_sync_id: str):
             task = app.AsyncResult(task.id)
             task.revoke(terminate=True)
     sync_history.status = db_models.CollectionSyncStatus.CANCELED
-    await sync_history.asave()
+    session.add(sync_history)
+    await session.commit()
+    await session.refresh(sync_history)
     return success({})
 
 
-async def list_sync_histories(user: str, collection_id: str, pq: PagedQuery):
-    pr = await query_sync_histories(user, collection_id, pq)
+async def list_sync_histories(session: SessionDep, user: str, collection_id: str, pq: PagedQuery):
+    pr = await query_sync_histories(session, user, collection_id, pq)
     response = []
     async for sync_history in pr.data:
         if sync_history.status == db_models.CollectionSyncStatus.RUNNING:
@@ -94,8 +98,8 @@ async def list_sync_histories(user: str, collection_id: str, pq: PagedQuery):
     return success(response, pr)
 
 
-async def get_sync_history(user: str, collection_id: str, sync_history_id: str):
-    sync_history = await query_sync_history(user, collection_id, sync_history_id)
+async def get_sync_history(session: SessionDep, user: str, collection_id: str, sync_history_id: str):
+    sync_history = await query_sync_history(session, user, collection_id, sync_history_id)
     if sync_history is None:
         return fail(HTTPStatus.NOT_FOUND, "sync history not found")
     if sync_history.status == db_models.CollectionSyncStatus.RUNNING:

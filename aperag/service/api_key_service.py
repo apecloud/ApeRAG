@@ -14,9 +14,7 @@
 
 from typing import Optional
 
-from django.core.cache import cache
-
-from aperag.auth.authentication import build_api_key_cache_key
+from aperag.config import SessionDep
 from aperag.db import ops
 from aperag.db.models import ApiKey
 from aperag.schema.view_models import ApiKey as ApiKeyModel
@@ -35,44 +33,47 @@ def to_api_key_model(apikey: ApiKey) -> ApiKeyModel:
     )
 
 
-async def list_api_keys(user) -> ApiKeyList:
+async def list_api_keys(session: SessionDep, user) -> ApiKeyList:
     """
     List all API keys for the current user
     """
-    tokens = await ops.list_user_api_keys(user)
+    tokens = await ops.list_user_api_keys(session, user)
     items = []
-    async for token in tokens:
+    for token in tokens:
         items.append(to_api_key_model(token))
     return ApiKeyList(items=items)
 
 
-async def create_api_key(user, api_key_create: ApiKeyCreate) -> ApiKeyModel:
+async def create_api_key(session: SessionDep, user, api_key_create: ApiKeyCreate) -> ApiKeyModel:
     """
     Create a new API key
     """
-    token = await ops.create_api_key(user, api_key_create.description)
+    token = await ops.create_api_key(session, user, api_key_create.description)
     return to_api_key_model(token)
 
 
-async def delete_api_key(user, apikey_id: str):
+async def delete_api_key(session: SessionDep, user, apikey_id: str):
     """
     Delete an API key
     """
-    api_key = await ops.get_api_key_by_id(user, apikey_id)
+    api_key = await ops.get_api_key_by_id(session, user, apikey_id)
     if not api_key:
         return None
-    await ops.delete_api_key(user, apikey_id)
-    cache.delete(build_api_key_cache_key(api_key.key))
+    await ops.delete_api_key(session, user, apikey_id)
     return True
 
 
-async def update_api_key(user, apikey_id: str, api_key_update: ApiKeyUpdate) -> Optional[ApiKeyModel]:
+async def update_api_key(
+    session: SessionDep, user, apikey_id: str, api_key_update: ApiKeyUpdate
+) -> Optional[ApiKeyModel]:
     """
     Update an API key
     """
-    api_key = await ops.get_api_key_by_id(user, apikey_id)
+    api_key = await ops.get_api_key_by_id(session, user, apikey_id)
     if not api_key:
         return None
     api_key.description = api_key_update.description
-    await api_key.asave()
+    session.add(api_key)
+    await session.commit()
+    await session.refresh(api_key)
     return to_api_key_model(api_key)

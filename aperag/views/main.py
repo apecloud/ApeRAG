@@ -16,12 +16,10 @@ import logging
 from typing import List
 from urllib.parse import parse_qsl
 
-from django.http import HttpRequest
-from django.shortcuts import render
-from ninja import File, Router
-from ninja.files import UploadedFile
+from fastapi import APIRouter, File, Request, UploadFile
 
 from aperag.chat.message import feedback_message
+from aperag.config import settings
 from aperag.db.ops import build_pq
 from aperag.schema import view_models
 from aperag.service.bot_service import create_bot
@@ -32,7 +30,6 @@ from aperag.service.collection_service import (
     delete_search_test,
     list_search_tests,
 )
-from aperag.service.dashboard_service import dashboard_service
 from aperag.service.document_service import (
     create_documents,
     create_url_document,
@@ -54,11 +51,10 @@ from aperag.service.prompt_template_service import list_prompt_templates
 from aperag.service.sync_service import cancel_sync, get_sync_history, list_sync_histories, sync_immediately
 from aperag.utils.request import get_urls, get_user
 from aperag.views.utils import success
-from config import settings
 
 logger = logging.getLogger(__name__)
 
-router = Router()
+router = APIRouter()
 
 
 @router.get("/prompt-templates")
@@ -133,7 +129,7 @@ async def delete_collection_view(request, collection_id: str) -> view_models.Col
 
 @router.post("/collections/{collection_id}/documents")
 async def create_documents_view(
-    request, collection_id: str, files: List[UploadedFile] = File(...)
+    request: Request, collection_id: str, files: List[UploadFile] = File(...)
 ) -> List[view_models.Document]:
     user = get_user(request)
     return await create_documents(user, collection_id, files)
@@ -277,7 +273,7 @@ async def update_model_service_provider_view(request, provider: str, mspIn: view
     from aperag.schema.view_models import ModelConfig
 
     user = get_user(request)
-    supported_providers = [ModelConfig(**item) for item in settings.MODEL_CONFIGS]
+    supported_providers = [ModelConfig(**item) for item in settings.model_configs]
     return await update_model_service_provider(user, provider, mspIn, supported_providers)
 
 
@@ -293,16 +289,8 @@ async def list_available_models_view(request) -> view_models.ModelConfigList:
     return await list_available_models(user)
 
 
-def default_page(request, exception):
-    return render(request, "404.html")
-
-
-def dashboard(request):
-    return dashboard_service(request)
-
-
 @router.post("/chat/completions/frontend")
-async def frontend_chat_completions_view(request: HttpRequest):
+async def frontend_chat_completions_view(request: Request):
     user = get_user(request)
     message = request.body.decode("utf-8")
     query_params = dict(parse_qsl(request.GET.urlencode()))
@@ -334,6 +322,6 @@ async def list_search_tests_view(request, collection_id: str) -> view_models.Sea
 
 
 @router.post("/bots/{bot_id}/flow/debug")
-async def debug_flow_stream_view(request: HttpRequest, bot_id: str, debug: view_models.DebugFlowRequest):
+async def debug_flow_stream_view(request: Request, bot_id: str, debug: view_models.DebugFlowRequest):
     user = get_user(request)
     return await debug_flow_stream(user, bot_id, debug)

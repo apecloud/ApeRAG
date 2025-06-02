@@ -12,19 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
 import json
 import logging
 import os
 import sys
+from datetime import datetime
 
 from asgiref.sync import async_to_sync
 from celery import group
 from celery.result import GroupResult
-from django.core.serializers.json import DjangoJSONEncoder
-from django.utils import timezone
 from pydantic import BaseModel
 
+from aperag.config import settings
 from aperag.db.models import Collection, CollectionSyncHistory, Document
 from aperag.db.ops import query_documents
 from aperag.docparser.doc_parser import DocParser
@@ -39,7 +38,6 @@ from aperag.tasks.index import (
 )
 from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
 from config.celery import app
-from config.settings import MAX_DOCUMENT_COUNT
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +56,7 @@ def sync_documents(self, **kwargs):
     else:
         collection_sync_history = CollectionSyncHistory(
             user=collection.user,
-            start_time=timezone.now(),
+            start_time=datetime.utcnow(),
             collection_id=collection.id,
             execution_time=datetime.timedelta(seconds=0),
             total_documents_to_sync=0,
@@ -84,7 +82,7 @@ def sync_documents(self, **kwargs):
 
     document_limit = kwargs.get("document_user_quota")
     if document_limit is None:
-        document_limit = MAX_DOCUMENT_COUNT
+        document_limit = settings.max_document_count
 
     src_docs = {}
     tasks = []
@@ -101,7 +99,7 @@ def sync_documents(self, **kwargs):
             status=Document.Status.PENDING,
             size=document.size,
             collection_id=collection.id,
-            metadata=json.dumps(document.metadata, cls=DjangoJSONEncoder),
+            metadata=json.dumps(document.metadata),
         )
         doc.save()
         collection_sync_history.save()

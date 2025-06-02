@@ -17,13 +17,13 @@ from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
+from aperag.config import settings
 from aperag.context.context import ContextManager
 from aperag.db.ops import query_collection
 from aperag.embed.base_embedding import get_collection_embedding_service
 from aperag.flow.base.models import BaseNodeRunner, SystemInput, register_node_runner
 from aperag.query.query import DocumentWithScore
 from aperag.utils.utils import generate_vector_db_collection_name
-from config import settings
 
 
 # User input model for vector search node
@@ -61,9 +61,9 @@ class VectorSearchNodeRunner(BaseNodeRunner):
 
         collection_name = generate_vector_db_collection_name(collection.id)
         embedding_model, vector_size = await get_collection_embedding_service(collection)
-        vectordb_ctx = json.loads(settings.VECTOR_DB_CONTEXT)
+        vectordb_ctx = json.loads(settings.vector_db_context)
         vectordb_ctx["collection"] = collection_name
-        context_manager = ContextManager(collection_name, embedding_model, settings.VECTOR_DB_TYPE, vectordb_ctx)
+        context_manager = ContextManager(collection_name, embedding_model, settings.vector_db_type, vectordb_ctx)
 
         vector = embedding_model.embed_query(query)
         results = context_manager.query(query, score_threshold=score_threshold, topk=topk, vector=vector)

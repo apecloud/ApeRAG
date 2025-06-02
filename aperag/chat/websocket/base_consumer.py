@@ -21,7 +21,6 @@ from abc import abstractmethod
 import websockets
 from channels.generic.websocket import AsyncWebsocketConsumer
 
-import config.settings as settings
 from aperag.apps import QuotaType
 from aperag.auth.validator import DEFAULT_USER
 from aperag.chat.history.redis import RedisChatMessageHistory
@@ -32,6 +31,7 @@ from aperag.chat.utils import (
     stop_response,
     success_response,
 )
+from aperag.config import settings
 from aperag.db.ops import query_bot, query_user_quota
 from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES, DOCUMENT_URLS
 from aperag.utils.constant import KEY_BOT_ID, KEY_CHAT_ID, KEY_USER_ID, KEY_WEBSOCKET_PROTOCOL
@@ -61,7 +61,7 @@ class BaseConsumer(AsyncWebsocketConsumer):
         self.history = RedisChatMessageHistory(session_id=chat_id, redis_client=get_async_redis_client())
         self.conversation_limit = await query_user_quota(self.user, QuotaType.MAX_CONVERSATION_COUNT)
         if self.conversation_limit is None:
-            self.conversation_limit = settings.MAX_CONVERSATION_COUNT
+            self.conversation_limit = settings.max_conversation_count
 
         # If using daphne, we need to put the token in the headers and include the headers in the subprotocol.
         # headers = {}

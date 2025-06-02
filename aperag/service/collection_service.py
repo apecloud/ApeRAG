@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import datetime
 from http import HTTPStatus
 
-from django.utils import timezone
+from sqlalchemy import desc, select
 
 from aperag.apps import QuotaType
+from aperag.config import SessionDep, settings
 from aperag.db import models as db_models
 from aperag.db.models import SearchTestHistory
 from aperag.db.ops import PagedQuery, query_collection, query_collections, query_collections_count, query_user_quota
@@ -36,7 +38,6 @@ from aperag.source.base import get_source
 from aperag.tasks.collection import delete_collection_task, init_collection_task
 from aperag.tasks.scan import delete_sync_documents_cron_job, update_sync_documents_cron_job
 from aperag.views.utils import fail, success, validate_source_connect_config
-from config import settings
 
 
 def build_collection_response(instance: db_models.Collection) -> view_models.Collection:
@@ -53,7 +54,9 @@ def build_collection_response(instance: db_models.Collection) -> view_models.Col
     )
 
 
-async def create_collection(user: str, collection: view_models.CollectionCreate) -> view_models.Collection:
+async def create_collection(
+    session: SessionDep, user: str, collection: view_models.CollectionCreate
+) -> view_models.Collection:
     collection_config = collection.config
     if collection.type == db_models.Collection.Type.DOCUMENT:
         is_validate, error_msg = validate_source_connect_config(collection_config)
@@ -61,11 +64,11 @@ async def create_collection(user: str, collection: view_models.CollectionCreate)
             return fail(HTTPStatus.BAD_REQUEST, error_msg)
 
     # there is quota limit on collection
-    if settings.MAX_COLLECTION_COUNT:
-        collection_limit = await query_user_quota(user, QuotaType.MAX_COLLECTION_COUNT)
+    if settings.max_collection_count:
+        collection_limit = await query_user_quota(session, user, QuotaType.MAX_COLLECTION_COUNT)
         if collection_limit is None:
-            collection_limit = settings.MAX_COLLECTION_COUNT
-        if collection_limit and await query_collections_count(user) >= collection_limit:
+            collection_limit = settings.max_collection_count
+        if collection_limit and await query_collections_count(session, user) >= collection_limit:
             return fail(HTTPStatus.FORBIDDEN, f"collection number has reached the limit of {collection_limit}")
 
     instance = db_models.Collection(
@@ -78,12 +81,14 @@ async def create_collection(user: str, collection: view_models.CollectionCreate)
 
     if collection.config is not None:
         instance.config = dumpCollectionConfig(collection_config)
-    await instance.asave()
+    session.add(instance)
+    await session.commit()
+    await session.refresh(instance)
     if getattr(collection_config, "enable_knowledge_graph", False):
         await reload_lightrag_holder(instance)
 
     if instance.type == db_models.Collection.Type.DOCUMENT:
-        document_user_quota = await query_user_quota(user, QuotaType.MAX_DOCUMENT_COUNT)
+        document_user_quota = await query_user_quota(session, user, QuotaType.MAX_DOCUMENT_COUNT)
         init_collection_task.delay(instance.id, document_user_quota)
     else:
         return fail(HTTPStatus.BAD_REQUEST, "unknown collection type")
@@ -91,31 +96,33 @@ async def create_collection(user: str, collection: view_models.CollectionCreate)
     return success(build_collection_response(instance))
 
 
-async def list_collections(user: str, pq: PagedQuery) -> view_models.CollectionList:
-    pr = await query_collections([user, settings.ADMIN_USER], pq)
+async def list_collections(session: SessionDep, user: str, pq: PagedQuery) -> view_models.CollectionList:
+    pr = await query_collections(session, [user, settings.admin_user], pq)
     response = []
     async for collection in pr.data:
         response.append(build_collection_response(collection))
     return success(CollectionList(items=response), pr=pr)
 
 
-async def get_collection(user: str, collection_id: str) -> view_models.Collection:
-    collection = await query_collection(user, collection_id)
+async def get_collection(session: SessionDep, user: str, collection_id: str) -> view_models.Collection:
+    collection = await query_collection(session, user, collection_id)
     if collection is None:
         return fail(HTTPStatus.NOT_FOUND, "Collection not found")
     return success(build_collection_response(collection))
 
 
 async def update_collection(
-    user: str, collection_id: str, collection: view_models.CollectionUpdate
+    session: SessionDep, user: str, collection_id: str, collection: view_models.CollectionUpdate
 ) -> view_models.Collection:
-    instance = await query_collection(user, collection_id)
+    instance = await query_collection(session, user, collection_id)
     if instance is None:
         return fail(HTTPStatus.NOT_FOUND, "Collection not found")
     instance.title = collection.title
     instance.description = collection.description
     instance.config = dumpCollectionConfig(collection.config)
-    await instance.asave()
+    session.add(instance)
+    await session.commit()
+    await session.refresh(instance)
     await reload_lightrag_holder(instance)
     source = get_source(collection.config)
     if source.sync_enabled():
@@ -123,28 +130,29 @@ async def update_collection(
     return success(build_collection_response(instance))
 
 
-async def delete_collection(user: str, collection_id: str) -> view_models.Collection:
-    collection = await query_collection(user, collection_id)
+async def delete_collection(session: SessionDep, user: str, collection_id: str) -> view_models.Collection:
+    collection = await query_collection(session, user, collection_id)
     if collection is None:
         return fail(HTTPStatus.NOT_FOUND, "Collection not found")
-    collection_bots = await collection.bots(only_ids=True)
+    collection_bots = await collection.bots(session, only_ids=True)
     if len(collection_bots) > 0:
         return fail(
             HTTPStatus.BAD_REQUEST, f"Collection has related to bots {','.join(collection_bots)}, can not be deleted"
         )
     await delete_sync_documents_cron_job(collection.id)
     collection.status = db_models.Collection.Status.DELETED
-    collection.gmt_deleted = timezone.now()
-    await collection.asave()
+    collection.gmt_deleted = datetime.utcnow()
+    session.add(collection)
+    await session.commit()
     await delete_lightrag_holder(collection)
     delete_collection_task.delay(collection_id)
     return success(build_collection_response(collection))
 
 
 async def create_search_test(
-    user: str, collection_id: str, data: view_models.SearchTestRequest
+    session: SessionDep, user: str, collection_id: str, data: view_models.SearchTestRequest
 ) -> view_models.SearchTestResult:
-    collection = await query_collection(user, collection_id)
+    collection = await query_collection(session, user, collection_id)
     if not collection:
         return fail(404, "Collection not found")
     nodes = {}
@@ -222,7 +230,7 @@ async def create_search_test(
                 recall_type=doc.metadata.get("recall_type", ""),
             )
         )
-    record = await SearchTestHistory.objects.acreate(
+    record = SearchTestHistory(
         user=user,
         query=data.query,
         collection_id=collection_id,
@@ -231,6 +239,9 @@ async def create_search_test(
         graph_search=data.graph_search.dict() if data.graph_search else None,
         items=[item.dict() for item in items],
     )
+    session.add(record)
+    await session.commit()
+    await session.refresh(record)
     result = SearchTestResult(
         id=record.id,
         query=record.query,
@@ -243,12 +254,21 @@ async def create_search_test(
     return success(result)
 
 
-async def list_search_tests(user: str, collection_id: str) -> view_models.SearchTestResultList:
-    qs = SearchTestHistory.objects.filter(user=user, collection_id=collection_id, gmt_deleted__isnull=True).order_by(
-        "-gmt_created"
-    )[:50]
+async def list_search_tests(session: SessionDep, user: str, collection_id: str) -> view_models.SearchTestResultList:
+    stmt = (
+        select(SearchTestHistory)
+        .where(
+            SearchTestHistory.user == user,
+            SearchTestHistory.collection_id == collection_id,
+            SearchTestHistory.gmt_deleted is None,
+        )
+        .order_by(desc(SearchTestHistory.gmt_created))
+        .limit(50)
+    )
+    result = await session.exec(stmt)
+    records = result.all()
     resultList = []
-    async for record in qs:
+    for record in records:
         items = []
         for item in record.items:
             items.append(
@@ -273,8 +293,17 @@ async def list_search_tests(user: str, collection_id: str) -> view_models.Search
     return success(SearchTestResultList(items=resultList))
 
 
-async def delete_search_test(user: str, collection_id: str, search_test_id: str):
-    await SearchTestHistory.objects.filter(
-        user=user, id=search_test_id, collection_id=collection_id, gmt_deleted__isnull=True
-    ).aupdate(gmt_deleted=timezone.now())
+async def delete_search_test(session: SessionDep, user: str, collection_id: str, search_test_id: str):
+    stmt = select(SearchTestHistory).where(
+        SearchTestHistory.user == user,
+        SearchTestHistory.id == search_test_id,
+        SearchTestHistory.collection_id == collection_id,
+        SearchTestHistory.gmt_deleted is None,
+    )
+    result = await session.exec(stmt)
+    record = result.first()
+    if record:
+        record.gmt_deleted = datetime.utcnow()
+        session.add(record)
+        await session.commit()
     return success({})

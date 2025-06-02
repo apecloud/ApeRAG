@@ -17,8 +17,8 @@ from typing import Any
 
 import requests
 
+from aperag.config import settings
 from aperag.docparser.base import BaseParser, FallbackError, Part, TextPart
-from config import settings
 
 SUPPORTED_EXTENSIONS = [
     ".mp3",
@@ -40,7 +40,7 @@ class AudioParser(BaseParser):
         return SUPPORTED_EXTENSIONS
 
     def parse_file(self, path: Path, metadata: dict[str, Any] = {}, **kwargs) -> list[Part]:
-        if not settings.WHISPER_HOST:
+        if not settings.whisper_host:
             raise FallbackError("WHISPER_HOST is not set")
 
         content = self.recognize_speech(path)
@@ -66,5 +66,5 @@ class AudioParser(BaseParser):
         # TODO: extract media metadata by using exiftool
 
         # Server: https://github.com/ahmetoner/whisper-asr-webservice
-        response = requests.post(settings.WHISPER_HOST + "/asr", params=params, files=files, headers=headers)
+        response = requests.post(settings.whisper_host + "/asr", params=params, files=files, headers=headers)
         return response.text

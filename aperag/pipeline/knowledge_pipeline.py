@@ -18,6 +18,7 @@ from typing import List, Optional, Tuple
 
 from langchain_core.prompts import PromptTemplate
 
+from aperag.config import settings
 from aperag.context.context import ContextManager
 from aperag.context.full_text import search_document
 from aperag.embed.base_embedding import get_collection_embedding_service
@@ -38,7 +39,6 @@ from aperag.utils.utils import (
     generate_vector_db_collection_name,
     now_unix_milliseconds,
 )
-from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class KnowledgePipeline(Pipeline):
 
         self.collection_id = self.collection.id
         self.collection_name = generate_vector_db_collection_name(self.collection_id)
-        self.vectordb_ctx = json.loads(settings.VECTOR_DB_CONTEXT)
+        self.vectordb_ctx = json.loads(settings.vector_db_context)
         self.vectordb_ctx["collection"] = self.collection_name
 
         config = parseCollectionConfig(self.collection.config)
@@ -59,11 +59,11 @@ class KnowledgePipeline(Pipeline):
         logging.info("KnowledgePipeline embedding model: %s, %s", self.embedding_msp, self.embedding_model_name)
 
         self.qa_collection_name = generate_qa_vector_db_collection_name(self.collection_id)
-        self.qa_vectordb_ctx = json.loads(settings.VECTOR_DB_CONTEXT)
+        self.qa_vectordb_ctx = json.loads(config.vector_db_context)
         self.qa_vectordb_ctx["collection"] = self.qa_collection_name
 
         if not self.prompt_template:
-            if settings.RETRIEVE_MODE == "classic":
+            if config.retrieve_mode == "classic":
                 self.prompt_template = DEFAULT_MODEL_MEMOTY_PROMPT_TEMPLATES.get(
                     self.model, DEFAULT_CHINESE_PROMPT_TEMPLATE_V3
                 )
@@ -76,7 +76,7 @@ class KnowledgePipeline(Pipeline):
         self.embedding_model, self.vector_size = await get_collection_embedding_service(self.collection)
 
         self.context_manager = ContextManager(
-            self.collection_name, self.embedding_model, settings.VECTOR_DB_TYPE, self.vectordb_ctx
+            self.collection_name, self.embedding_model, settings.vector_db_type, self.vectordb_ctx
         )
 
     async def new_ai_message(self, message, message_id, response, references, urls):
@@ -99,7 +99,7 @@ class KnowledgePipeline(Pipeline):
 
     async def filter_by_keywords(self, message, candidates):
         index = generate_fulltext_index_name(self.collection_id)
-        async with IKExtractor({"index_name": index, "es_host": settings.ES_HOST}) as extractor:
+        async with IKExtractor({"index_name": index, "es_host": settings.es_host}) as extractor:
             keywords = await extractor.extract(message)
             logger.info("[%s] extract keywords: %s", message, " | ".join(keywords))
 
@@ -127,14 +127,14 @@ class KnowledgePipeline(Pipeline):
         vector_context = None
         kg_context = None
         candidates = []
-        if settings.RETRIEVE_MODE in ["classic", "mix"]:
+        if settings.retrieve_mode in ["classic", "mix"]:
             vector_context, candidates = await self._run_classic_rag(query_with_history, vector, log_prefix)
-        if settings.RETRIEVE_MODE in ["local", "global", "hybrid", "graph", "mix"]:
+        if settings.retrieve_mode in ["local", "global", "hybrid", "graph", "mix"]:
             kg_context = await self._run_light_rag(query_with_history, log_prefix)
 
-        if settings.RETRIEVE_MODE in ["classic"] or kg_context is None:
+        if settings.retrieve_mode in ["classic"] or kg_context is None:
             return vector_context, candidates
-        elif settings.RETRIEVE_MODE in ["local", "global", "hybrid", "graph"] or vector_context is None:
+        elif settings.retrieve_mode in ["local", "global", "hybrid", "graph"] or vector_context is None:
             return kg_context, candidates
         else:
             context = f"""

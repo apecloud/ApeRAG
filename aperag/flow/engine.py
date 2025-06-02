@@ -26,9 +26,6 @@ from aperag.flow.base.exceptions import CycleError, ValidationError
 from aperag.flow.base.models import NODE_RUNNER_REGISTRY, ExecutionContext, FlowInstance, NodeInstance, SystemInput
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - [%(execution_id)s] - %(message)s"
-)
 logger = logging.getLogger(__name__)
 
 

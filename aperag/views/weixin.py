@@ -21,48 +21,43 @@ import xml.etree.cElementTree as ET
 from urllib.parse import unquote
 
 import redis.asyncio as aredis
-from ninja import Router
+from fastapi import APIRouter
 
 import aperag.chat.message
 from aperag.apps import QuotaType
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client, get_sync_redis_client
+from aperag.config import SessionDep, settings
 from aperag.db.models import Chat
 from aperag.db.ops import query_bot, query_chat_by_peer, query_user_quota
 from aperag.pipeline.knowledge_pipeline import create_knowledge_pipeline
 from aperag.utils.weixin.client import WeixinClient
 from aperag.utils.weixin.WXBizMsgCrypt import WXBizMsgCrypt
-from config import settings
-from config.settings import MAX_CONVERSATION_COUNT
 
 logger = logging.getLogger(__name__)
 
-router = Router()
+router = APIRouter()
 
 
-async def weixin_text_response(client, user, bot, query, msg_id):
+async def weixin_text_response(session: SessionDep, client, user, bot, query, msg_id):
     chat_id = user
-    chat = await query_chat_by_peer(bot.user, Chat.PeerType.WEIXIN, chat_id)
+    chat = await query_chat_by_peer(session, bot.user, Chat.PeerType.WEIXIN, chat_id)
     if chat is None:
         chat = Chat(user=bot.user, bot_id=bot.id, peer_type=Chat.PeerType.WEIXIN, peer_id=chat_id)
-        await chat.asave()
-
+        session.add(chat)
+        await session.commit()
+        await session.refresh(chat)
     history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())
     collection = (await bot.collections())[0]
     response = ""
-
     pipeline = await create_knowledge_pipeline(bot=bot, collection=collection, history=history)
-
-    conversation_limit = await query_user_quota(user, QuotaType.MAX_CONVERSATION_COUNT)
+    conversation_limit = await query_user_quota(session, user, QuotaType.MAX_CONVERSATION_COUNT)
     if conversation_limit is None:
-        conversation_limit = MAX_CONVERSATION_COUNT
-
+        conversation_limit = settings.max_conversation_count
     try:
         await client.send_message("ApeRAG 正在解答中，请稍候......", user)
-
         async for msg in pipeline.run(query, message_id=msg_id):
             response += msg
-
         max_length = 2048
         for i in range(0, len(response), max_length):
             message = response[i : i + max_length]
@@ -71,26 +66,24 @@ async def weixin_text_response(client, user, bot, query, msg_id):
         logger.exception(e)
 
 
-async def weixin_card_response(client, user, bot, query, msg_id):
+async def weixin_card_response(session: SessionDep, client, user, bot, query, msg_id):
     chat_id = user
-    chat = await query_chat_by_peer(bot.user, Chat.PeerType.WEIXIN, chat_id)
+    chat = await query_chat_by_peer(session, bot.user, Chat.PeerType.WEIXIN, chat_id)
     if chat is None:
         chat = Chat(user=bot.user, bot_id=bot.id, peer_type=Chat.PeerType.WEIXIN, peer_id=chat_id)
-        await chat.asave()
-
+        session.add(chat)
+        await session.commit()
+        await session.refresh(chat)
     history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())
     collection = (await bot.collections())[0]
     response = ""
-
     try:
         task_id = int(time.time())
         _, response_code = await client.send_card("ApeRAG 正在解答中，请稍候......", user, task_id)
-
         async for msg in await create_knowledge_pipeline(bot=bot, collection=collection, history=history).run(
             query, message_id=msg_id
         ):
             response += msg
-
         await client.redis_client.set(f"{task_id}2message", response)
         await client.redis_client.set(f"{task_id}2msg_id", msg_id)
         await client.update_card(response, user, response_code)
@@ -98,19 +91,18 @@ async def weixin_card_response(client, user, bot, query, msg_id):
         logger.exception(e)
 
 
-async def weixin_feedback_response(client, user, bot, key, response_code, task_id):
+async def weixin_feedback_response(session: SessionDep, client, user, bot, key, response_code, task_id):
     upvote = 1 if key == 1 else None
     downvote = 0 if key == 0 else None
-
     chat_id = user
-    chat = await query_chat_by_peer(bot.user, Chat.PeerType.WEIXIN, chat_id)
+    chat = await query_chat_by_peer(session, bot.user, Chat.PeerType.WEIXIN, chat_id)
     if chat is None:
         chat = Chat(user=bot.user, bot_id=bot.id, peer_type=Chat.PeerType.WEIXIN, peer_id=chat_id)
-        await chat.asave()
-
+        session.add(chat)
+        await session.commit()
+        await session.refresh(chat)
     msg_id = await client.redis_client.get(f"{task_id}2msg_id")
     await aperag.chat.message.feedback_message(bot.user, chat.id, msg_id.decode(), upvote, downvote, "")
-
     message = await client.redis_client.get(f"{task_id}2message")
     await client.update_card(message.decode(), user, response_code, vote=key)
 
@@ -246,28 +238,26 @@ def generate_xml_response(to_user_name, from_user_name, create_time, msg_type, r
     return resp
 
 
-async def weixin_officaccount_response(query, msg_id, to_user_name, bot):
+async def weixin_officaccount_response(session: SessionDep, query, msg_id, to_user_name, bot):
     chat_id = to_user_name
-    chat = await query_chat_by_peer(bot.user, Chat.PeerType.WEIXIN_OFFICIAL, chat_id)
+    chat = await query_chat_by_peer(session, bot.user, Chat.PeerType.WEIXIN_OFFICIAL, chat_id)
     if chat is None:
         chat = Chat(user=bot.user, bot_id=bot.id, peer_type=Chat.PeerType.WEIXIN_OFFICIAL, peer_id=chat_id)
-        await chat.asave()
-
+        session.add(chat)
+        await session.commit()
+        await session.refresh(chat)
     history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())
     collection = (await bot.collections())[0]
     pipeline = await create_knowledge_pipeline(bot=bot, collection=collection, history=history)
-    redis_client = aredis.Redis.from_url(settings.MEMORY_REDIS_URL)
+    redis_client = aredis.Redis.from_url(settings.memory_redis_url)
     response = ""
-
-    conversation_limit = await query_user_quota(to_user_name, QuotaType.MAX_CONVERSATION_COUNT)
+    conversation_limit = await query_user_quota(session, to_user_name, QuotaType.MAX_CONVERSATION_COUNT)
     if conversation_limit is None:
-        conversation_limit = MAX_CONVERSATION_COUNT
-
+        conversation_limit = settings.max_conversation_count
     try:
         async for msg in pipeline.run(query, message_id=msg_id):
             response += msg
         logger.info(f"response:{response}")
-
         await redis_client.set(to_user_name + msg_id, response)
         logger.info(f"generate response success, restored in redis, key:{to_user_name + msg_id}")
     except Exception as e:
@@ -299,7 +289,6 @@ async def officialaccount_callback_view(
 
     xml_tree = ET.fromstring(decrypted_messgae)
     user = xml_tree.find("FromUserName").text
-    # redis_client = redis.from_url(settings.MEMORY_REDIS_URL)
     redis_client = get_sync_redis_client()
 
     # answer the question from user
@@ -324,7 +313,7 @@ async def officialaccount_callback_view(
             else:
                 response = "正在解答中，请稍后重新发送"
         else:
-            asyncio.create_task(weixin_officaccount_response(query, msg_id, to_user_name, bot))
+            asyncio.create_task(weixin_officaccount_response(redis_client, query, msg_id, to_user_name, bot))
             redis_client.set(f"{to_user_name + msg_id}_query", 1)
             response = f"ApeRAG 已收到问题，请发送{msg_id}获取答案"
 

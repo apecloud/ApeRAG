@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Tuple
 from langchain.embeddings.base import Embeddings
 from llama_index.core.schema import BaseNode, TextNode
 
+from aperag.config import settings
 from aperag.docparser.base import AssetBinPart, MarkdownPart, Part
 from aperag.docparser.chunking import rechunk
 from aperag.docparser.doc_parser import DocParser
@@ -29,7 +30,6 @@ from aperag.embed.base_embedding import DocumentBaseEmbedding
 from aperag.objectstore.base import get_object_store
 from aperag.utils.tokenizer import get_default_tokenizer
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
-from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +54,8 @@ class LocalPathEmbedding(DocumentBaseEmbedding):
         self.file_metadata = file_metadata or {}
         self.object_store_base_path = object_store_base_path
         self.parser = DocParser()  # TODO: use the parser config from the collection
-        self.chunk_size = kwargs.get("chunk_size", settings.CHUNK_SIZE)
-        self.chunk_overlap = kwargs.get("chunk_overlap", settings.CHUNK_OVERLAP_SIZE)
+        self.chunk_size = kwargs.get("chunk_size", settings.chunk_size)
+        self.chunk_overlap = kwargs.get("chunk_overlap", settings.chunk_overlap_size)
         self.tokenizer = get_default_tokenizer()
 
     def parse_doc(

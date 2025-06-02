@@ -28,7 +28,6 @@ from config.celery import app
 @app.task(bind=True, max_retries=3)
 def crawl_domain(self, root_url, url, collection_id, user, max_pages):
     redis_key = f"{url}"
-    # redis_conn = redis.from_url(settings.MEMORY_REDIS_URL)
     redis_conn = get_sync_redis_client()
 
     collection = Collection.objects.get(id=collection_id)

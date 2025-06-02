@@ -17,11 +17,11 @@ from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
+from aperag.config import settings
 from aperag.db.ops import query_collection
 from aperag.flow.base.models import BaseNodeRunner, SystemInput, register_node_runner
 from aperag.query.query import DocumentWithScore
 from aperag.utils.utils import generate_vector_db_collection_name
-from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class FulltextSearchNodeRunner(BaseNodeRunner):
         from aperag.pipeline.keyword_extractor import IKExtractor
 
         index = generate_vector_db_collection_name(collection.id)
-        async with IKExtractor({"index_name": index, "es_host": settings.ES_HOST}) as extractor:
+        async with IKExtractor({"index_name": index, "es_host": settings.es_host}) as extractor:
             keywords = await extractor.extract(query)
 
         # find the related documents using keywords

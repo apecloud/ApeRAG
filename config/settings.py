@@ -273,8 +273,6 @@ VECTOR_DB_CONTEXT = env.str(
     "VECTOR_DB_CONTEXT", '{"url":"http://localhost", "port":6333, "distance":"Cosine"}'
 )
 
-CODE_STORAGE_DIR = env.str("CODE_STORAGE_DIR", default=str(BASE_DIR))
-
 OBJECT_STORE_TYPE = env.str("OBJECT_STORE_TYPE", default="local")
 OBJECT_STORE_LOCAL_CONFIG = None
 OBJECT_STORE_S3_CONFIG = None
@@ -327,9 +325,6 @@ REDIS_PASSWORD = env.str("REDIS_PASSWORD", default="")
 
 ENABLE_FULLTEXT_SEARCH = env.bool("ENABLE_FULLTEXT_SEARCH", default=True)
 ES_HOST = env.str("ES_HOST", "http://localhost:9200")
-
-BAICHUAN_API_KEY = env.str("BAICHUAN_API_KEY", default="")
-BAICHUAN_SECRET_KEY = env.str("BAICHUAN_SECRET_KEY", default="")
 
 QIANFAN_API_KEY = env.str("QIANFAN_API_KEY", default="")
 QIANFAN_SECRET_KEY = env.str("QIANFAN_SECRET_KEY", default="")
