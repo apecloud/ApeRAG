@@ -15,15 +15,13 @@
 import random
 import uuid
 from datetime import datetime
-from enum import Enum as PyEnum
+from enum import Enum
+from typing import Optional
 
-from sqlalchemy import JSON as SAJSON
-from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, String, UniqueConstraint, select
-from sqlalchemy.orm import declarative_base
+from sqlalchemy import JSON, Column
+from sqlmodel import Field, SQLModel, UniqueConstraint, select
 
 from aperag.config import SessionDep
-
-Base = declarative_base()
 
 
 # Helper function for random id generation
@@ -33,23 +31,17 @@ def random_id():
 
 
 # Enums for choices
-class CollectionStatus(PyEnum):
+class CollectionStatus(str, Enum):
     INACTIVE = "INACTIVE"
     ACTIVE = "ACTIVE"
     DELETED = "DELETED"
 
 
-class CollectionSyncStatus(PyEnum):
-    RUNNING = "RUNNING"
-    CANCELED = "CANCELED"
-    COMPLETED = "COMPLETED"
-
-
-class CollectionType(PyEnum):
+class CollectionType(str, Enum):
     DOCUMENT = "document"
 
 
-class DocumentStatus(PyEnum):
+class DocumentStatus(str, Enum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"
     COMPLETE = "COMPLETE"
@@ -58,7 +50,7 @@ class DocumentStatus(PyEnum):
     DELETED = "DELETED"
 
 
-class IndexStatus(PyEnum):
+class IndexStatus(str, Enum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"
     COMPLETE = "COMPLETE"
@@ -66,28 +58,28 @@ class IndexStatus(PyEnum):
     SKIPPED = "SKIPPED"
 
 
-class BotStatus(PyEnum):
+class BotStatus(str, Enum):
     ACTIVE = "ACTIVE"
     DELETED = "DELETED"
 
 
-class BotType(PyEnum):
+class BotType(str, Enum):
     KNOWLEDGE = "knowledge"
     COMMON = "common"
 
 
-class Role(PyEnum):
+class Role(str, Enum):
     ADMIN = "admin"
     RW = "rw"
     RO = "ro"
 
 
-class ChatStatus(PyEnum):
+class ChatStatus(str, Enum):
     ACTIVE = "ACTIVE"
     DELETED = "DELETED"
 
 
-class ChatPeerType(PyEnum):
+class ChatPeerType(str, Enum):
     SYSTEM = "system"
     FEISHU = "feishu"
     WEIXIN = "weixin"
@@ -96,19 +88,19 @@ class ChatPeerType(PyEnum):
     DINGTALK = "dingtalk"
 
 
-class MessageFeedbackStatus(PyEnum):
+class MessageFeedbackStatus(str, Enum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"
     COMPLETE = "COMPLETE"
     FAILED = "FAILED"
 
 
-class MessageFeedbackType(PyEnum):
+class MessageFeedbackType(str, Enum):
     GOOD = "good"
     BAD = "bad"
 
 
-class MessageFeedbackTag(PyEnum):
+class MessageFeedbackTag(str, Enum):
     HARMFUL = "Harmful"
     UNSAFE = "Unsafe"
     FAKE = "Fake"
@@ -116,37 +108,37 @@ class MessageFeedbackTag(PyEnum):
     OTHER = "Other"
 
 
-class ModelServiceProviderStatus(PyEnum):
+class ModelServiceProviderStatus(str, Enum):
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
     DELETED = "DELETED"
 
 
 # Models
-class Collection(Base):
+class Collection(SQLModel, table=True):
     __tablename__ = "collection"
     __table_args__ = (UniqueConstraint("id", name="uq_collection_id"),)
 
-    id = Column(String(24), primary_key=True, default=lambda: "col" + random_id())
-    title = Column(String(256), nullable=False)
-    description = Column(String, nullable=True)
-    user = Column(String(256), nullable=False)
-    status = Column(Enum(CollectionStatus), nullable=False)
-    type = Column(Enum(CollectionType), nullable=False)
-    config = Column(String, nullable=False)
-    gmt_created = Column(DateTime, default=datetime.utcnow)
-    gmt_updated = Column(DateTime, default=datetime.utcnow)
-    gmt_deleted = Column(DateTime, nullable=True)
+    id: str = Field(default_factory=lambda: "col" + random_id(), primary_key=True, max_length=24)
+    title: str = Field(max_length=256)
+    description: Optional[str] = Field(default=None)
+    user: str = Field(max_length=256)
+    status: CollectionStatus
+    type: CollectionType
+    config: str
+    gmt_created: datetime = Field(default_factory=datetime.utcnow)
+    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
+    gmt_deleted: Optional[datetime] = None
 
-    async def bots(self, session, only_ids: bool = False):
+    async def bots(self, session: SessionDep, only_ids: bool = False):
         """Get all active bots related to this collection"""
         from aperag.db.models import Bot, BotCollectionRelation
 
         stmt = select(BotCollectionRelation).where(
-            BotCollectionRelation.collection_id == self.id, BotCollectionRelation.gmt_deleted.is_(None)
+            BotCollectionRelation.collection_id == self.id, BotCollectionRelation.gmt_deleted is None
         )
         result = await session.execute(stmt)
-        rels = result.scalars().all()
+        rels = result.all()
         if only_ids:
             return [rel.bot_id for rel in rels]
         else:
@@ -158,25 +150,25 @@ class Collection(Base):
             return bots
 
 
-class Document(Base):
+class Document(SQLModel, table=True):
     __tablename__ = "document"
     __table_args__ = (UniqueConstraint("collection_id", "name", name="uq_document_collection_name"),)
 
-    id = Column(String(24), primary_key=True, default=lambda: "doc" + random_id())
-    name = Column(String(1024), nullable=False)
-    user = Column(String(256), nullable=False)
-    config = Column(String, nullable=True)
-    collection_id = Column(String(24), ForeignKey("collection.id"), nullable=True)
-    status = Column(Enum(DocumentStatus), nullable=False)
-    vector_index_status = Column(Enum(IndexStatus), default=IndexStatus.PENDING, nullable=False)
-    fulltext_index_status = Column(Enum(IndexStatus), default=IndexStatus.PENDING, nullable=False)
-    graph_index_status = Column(Enum(IndexStatus), default=IndexStatus.PENDING, nullable=False)
-    size = Column(Integer, nullable=False)
-    object_path = Column(String, nullable=True)
-    relate_ids = Column(String, nullable=False)
-    gmt_created = Column(DateTime, default=datetime.utcnow)
-    gmt_updated = Column(DateTime, default=datetime.utcnow)
-    gmt_deleted = Column(DateTime, nullable=True)
+    id: str = Field(default_factory=lambda: "doc" + random_id(), primary_key=True, max_length=24)
+    name: str = Field(max_length=1024)
+    user: str = Field(max_length=256)
+    config: Optional[str] = None
+    collection_id: Optional[str] = Field(default=None, foreign_key="collection.id", max_length=24)
+    status: DocumentStatus
+    vector_index_status: IndexStatus = IndexStatus.PENDING
+    fulltext_index_status: IndexStatus = IndexStatus.PENDING
+    graph_index_status: IndexStatus = IndexStatus.PENDING
+    size: int
+    object_path: Optional[str] = None
+    relate_ids: str
+    gmt_created: datetime = Field(default_factory=datetime.utcnow)
+    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
+    gmt_deleted: Optional[datetime] = None
 
     def get_overall_status(self) -> "DocumentStatus":
         """Calculate overall status based on individual index statuses"""
@@ -199,7 +191,7 @@ class Document(Base):
         user = self.user.replace("|", "-")
         return f"user-{user}/{self.collection_id}/{self.id}"
 
-    async def get_collection(self, session):
+    async def get_collection(self, session: SessionDep):
         """Get the associated collection object"""
         from aperag.db.models import Collection
 
@@ -213,28 +205,28 @@ class Document(Base):
             self.collection_id = collection
 
 
-class Bot(Base):
+class Bot(SQLModel, table=True):
     __tablename__ = "bot"
-    id = Column(String(24), primary_key=True, default=lambda: "bot" + random_id())
-    user = Column(String(256), nullable=False)
-    title = Column(String(256), nullable=False)
-    type = Column(Enum(BotType), default=BotType.KNOWLEDGE, nullable=False)
-    description = Column(String, nullable=True)
-    status = Column(Enum(BotStatus), nullable=False)
-    config = Column(String, nullable=False)
-    gmt_created = Column(DateTime, default=datetime.utcnow)
-    gmt_updated = Column(DateTime, default=datetime.utcnow)
-    gmt_deleted = Column(DateTime, nullable=True)
+    id: str = Field(default_factory=lambda: "bot" + random_id(), primary_key=True, max_length=24)
+    user: str = Field(max_length=256)
+    title: str = Field(max_length=256)
+    type: BotType = BotType.KNOWLEDGE
+    description: Optional[str] = None
+    status: BotStatus
+    config: str
+    gmt_created: datetime = Field(default_factory=datetime.utcnow)
+    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
+    gmt_deleted: Optional[datetime] = None
 
-    async def collections(self, session, only_ids: bool = False):
+    async def collections(self, session: SessionDep, only_ids: bool = False):
         """Get all active collections related to this bot"""
         from aperag.db.models import BotCollectionRelation, Collection
 
         stmt = select(BotCollectionRelation).where(
-            BotCollectionRelation.bot_id == self.id, BotCollectionRelation.gmt_deleted.is_(None)
+            BotCollectionRelation.bot_id == self.id, BotCollectionRelation.gmt_deleted is None
         )
         result = await session.execute(stmt)
-        rels = result.scalars().all()
+        rels = result.all()
         if only_ids:
             return [rel.collection_id for rel in rels]
         else:
@@ -246,49 +238,49 @@ class Bot(Base):
             return collections
 
 
-class BotCollectionRelation(Base):
+class BotCollectionRelation(SQLModel, table=True):
     __tablename__ = "bot_collection_relation"
     __table_args__ = (UniqueConstraint("bot_id", "collection_id", name="unique_active_bot_collection"),)
 
-    bot_id = Column(String(24), ForeignKey("bot.id"), primary_key=True)
-    collection_id = Column(String(24), ForeignKey("collection.id"), primary_key=True)
-    gmt_created = Column(DateTime, default=datetime.utcnow)
-    gmt_deleted = Column(DateTime, nullable=True)
+    bot_id: str = Field(foreign_key="bot.id", max_length=24, primary_key=True)
+    collection_id: str = Field(foreign_key="collection.id", max_length=24, primary_key=True)
+    gmt_created: datetime = Field(default_factory=datetime.utcnow)
+    gmt_deleted: Optional[datetime] = None
 
 
-class ConfigModel(Base):
+class ConfigModel(SQLModel, table=True):
     __tablename__ = "config"
-    key = Column(String(256), primary_key=True)
-    value = Column(String, nullable=False)
-    gmt_created = Column(DateTime, default=datetime.utcnow)
-    gmt_updated = Column(DateTime, default=datetime.utcnow)
-    gmt_deleted = Column(DateTime, nullable=True)
+    key: str = Field(primary_key=True, max_length=256)
+    value: str
+    gmt_created: datetime = Field(default_factory=datetime.utcnow)
+    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
+    gmt_deleted: Optional[datetime] = None
 
 
-class UserQuota(Base):
+class UserQuota(SQLModel, table=True):
     __tablename__ = "user_quota"
-    user = Column(String(256), primary_key=True)
-    key = Column(String(256), primary_key=True)
-    value = Column(Integer, default=0)
-    gmt_created = Column(DateTime, default=datetime.utcnow)
-    gmt_updated = Column(DateTime, default=datetime.utcnow)
-    gmt_deleted = Column(DateTime, nullable=True)
+    user: str = Field(max_length=256, primary_key=True)
+    key: str = Field(max_length=256, primary_key=True)
+    value: int = 0
+    gmt_created: datetime = Field(default_factory=datetime.utcnow)
+    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
+    gmt_deleted: Optional[datetime] = None
 
 
-class Chat(Base):
+class Chat(SQLModel, table=True):
     __tablename__ = "chat"
     __table_args__ = (UniqueConstraint("bot_id", "peer_type", "peer_id", name="uq_chat_bot_peer"),)
 
-    id = Column(String(24), primary_key=True, default=lambda: "chat" + random_id())
-    user = Column(String(256), nullable=False)
-    peer_type = Column(Enum(ChatPeerType), default=ChatPeerType.SYSTEM, nullable=False)
-    peer_id = Column(String(256), nullable=True)
-    status = Column(Enum(ChatStatus), nullable=False)
-    bot_id = Column(String(24), ForeignKey("bot.id"), nullable=False)
-    title = Column(String, nullable=False)
-    gmt_created = Column(DateTime, default=datetime.utcnow)
-    gmt_updated = Column(DateTime, default=datetime.utcnow)
-    gmt_deleted = Column(DateTime, nullable=True)
+    id: str = Field(default_factory=lambda: "chat" + random_id(), primary_key=True, max_length=24)
+    user: str = Field(max_length=256)
+    peer_type: ChatPeerType = ChatPeerType.SYSTEM
+    peer_id: Optional[str] = Field(default=None, max_length=256)
+    status: ChatStatus
+    bot_id: str = Field(foreign_key="bot.id", max_length=24)
+    title: str
+    gmt_created: datetime = Field(default_factory=datetime.utcnow)
+    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
+    gmt_deleted: Optional[datetime] = None
 
     async def get_bot(self, session: SessionDep):
         """Get the associated bot object"""
@@ -304,26 +296,26 @@ class Chat(Base):
             self.bot_id = bot
 
 
-class MessageFeedback(Base):
+class MessageFeedback(SQLModel, table=True):
     __tablename__ = "message_feedback"
     __table_args__ = (UniqueConstraint("chat_id", "message_id", name="uq_messagefeedback_chat_message"),)
 
-    user = Column(String(256), primary_key=True)
-    collection_id = Column(String(24), ForeignKey("collection.id"), nullable=True)
-    chat_id = Column(String(24), ForeignKey("chat.id"), primary_key=True)
-    message_id = Column(String(256), primary_key=True)
-    type = Column(Enum(MessageFeedbackType), nullable=True)
-    tag = Column(Enum(MessageFeedbackTag), nullable=True)
-    message = Column(String, nullable=True)
-    question = Column(String, nullable=True)
-    status = Column(Enum(MessageFeedbackStatus), nullable=True)
-    original_answer = Column(String, nullable=True)
-    revised_answer = Column(String, nullable=True)
-    gmt_created = Column(DateTime, default=datetime.utcnow)
-    gmt_updated = Column(DateTime, default=datetime.utcnow)
-    gmt_deleted = Column(DateTime, nullable=True)
+    user: str = Field(max_length=256)
+    collection_id: Optional[str] = Field(default=None, foreign_key="collection.id", max_length=24)
+    chat_id: str = Field(foreign_key="chat.id", max_length=24, primary_key=True)
+    message_id: str = Field(max_length=256, primary_key=True)
+    type: Optional[MessageFeedbackType] = None
+    tag: Optional[MessageFeedbackTag] = None
+    message: Optional[str] = None
+    question: Optional[str] = None
+    status: Optional[MessageFeedbackStatus] = None
+    original_answer: Optional[str] = None
+    revised_answer: Optional[str] = None
+    gmt_created: datetime = Field(default_factory=datetime.utcnow)
+    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
+    gmt_deleted: Optional[datetime] = None
 
-    async def get_collection(self, session):
+    async def get_collection(self, session: SessionDep):
         """Get the associated collection object"""
         from aperag.db.models import Collection
 
@@ -336,7 +328,7 @@ class MessageFeedback(Base):
         elif isinstance(collection, str):
             self.collection_id = collection
 
-    async def get_chat(self, session):
+    async def get_chat(self, session: SessionDep):
         """Get the associated chat object"""
         from aperag.db.models import Chat
 
@@ -350,24 +342,26 @@ class MessageFeedback(Base):
             self.chat_id = chat
 
 
-class ApiKey(Base):
+class ApiKey(SQLModel, table=True):
     __tablename__ = "api_key"
-    id = Column(String(24), primary_key=True, default=lambda: "".join(random.sample(uuid.uuid4().hex, 12)))
-    key = Column(String(40), default=lambda: f"sk-{uuid.uuid4().hex}")
-    user = Column(String(256), nullable=False)
-    description = Column(String(256), nullable=True)
-    status = Column(Enum(BotStatus), default=BotStatus.ACTIVE, nullable=False)
-    last_used_at = Column(DateTime, nullable=True)
-    gmt_updated = Column(DateTime, default=datetime.utcnow)
-    gmt_created = Column(DateTime, default=datetime.utcnow)
-    gmt_deleted = Column(DateTime, nullable=True)
+    id: str = Field(
+        default_factory=lambda: "".join(random.sample(uuid.uuid4().hex, 12)), primary_key=True, max_length=24
+    )
+    key: str = Field(default_factory=lambda: f"sk-{uuid.uuid4().hex}", max_length=40)
+    user: str = Field(max_length=256)
+    description: Optional[str] = Field(default=None, max_length=256)
+    status: BotStatus = BotStatus.ACTIVE
+    last_used_at: Optional[datetime] = None
+    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
+    gmt_created: datetime = Field(default_factory=datetime.utcnow)
+    gmt_deleted: Optional[datetime] = None
 
     @staticmethod
     def generate_key() -> str:
         """Generate a random API key with sk- prefix"""
         return f"sk-{uuid.uuid4().hex}"
 
-    async def update_last_used(self, session):
+    async def update_last_used(self, session: SessionDep):
         """Update the last used timestamp"""
         from datetime import datetime as dt
 
@@ -376,70 +370,47 @@ class ApiKey(Base):
         await session.commit()
 
 
-class CollectionSyncHistory(Base):
-    __tablename__ = "collection_sync_history"
-    id = Column(String(24), primary_key=True, default=lambda: "colhist" + random_id())
-    user = Column(String(256), nullable=False)
-    collection_id = Column(String(24), ForeignKey("collection.id"), nullable=False)
-    total_documents = Column(Integer, default=0)
-    new_documents = Column(Integer, default=0)
-    deleted_documents = Column(Integer, default=0)
-    modified_documents = Column(Integer, default=0)
-    processing_documents = Column(Integer, default=0)
-    pending_documents = Column(Integer, default=0)
-    failed_documents = Column(Integer, default=0)
-    successful_documents = Column(Integer, default=0)
-    total_documents_to_sync = Column(Integer, default=0)
-    execution_time = Column(Integer, nullable=True)  # store as seconds
-    start_time = Column(DateTime, default=datetime.utcnow)
-    task_context = Column(SAJSON, default=dict)
-    status = Column(Enum(CollectionSyncStatus), default=CollectionSyncStatus.RUNNING, nullable=False)
-    gmt_created = Column(DateTime, default=datetime.utcnow)
-    gmt_updated = Column(DateTime, default=datetime.utcnow)
-    gmt_deleted = Column(DateTime, nullable=True)
-
-
-class ModelServiceProvider(Base):
+class ModelServiceProvider(SQLModel, table=True):
     __tablename__ = "model_service_provider"
-    name = Column(String(24), primary_key=True, default=lambda: "int" + random_id())
-    user = Column(String(256), nullable=False)
-    status = Column(Enum(ModelServiceProviderStatus), nullable=False)
-    dialect = Column(String(32), default="openai", nullable=False)
-    base_url = Column(String(256), nullable=True)
-    api_key = Column(String(256), nullable=False)
-    extra = Column(String, nullable=True)
-    gmt_created = Column(DateTime, default=datetime.utcnow)
-    gmt_updated = Column(DateTime, default=datetime.utcnow)
-    gmt_deleted = Column(DateTime, nullable=True)
+    name: str = Field(default_factory=lambda: "int" + random_id(), primary_key=True, max_length=24)
+    user: str = Field(max_length=256)
+    status: ModelServiceProviderStatus
+    dialect: str = Field(default="openai", max_length=32)
+    base_url: Optional[str] = Field(default=None, max_length=256)
+    api_key: str = Field(max_length=256)
+    extra: Optional[str] = None
+    gmt_created: datetime = Field(default_factory=datetime.utcnow)
+    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
+    gmt_deleted: Optional[datetime] = None
 
 
-class User(Base):
+class User(SQLModel, table=True):
     __tablename__ = "user"
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    username = Column(String(150), unique=True, nullable=False)
-    email = Column(String(254), unique=True, nullable=True)
-    role = Column(Enum(Role), default=Role.RO, nullable=False)
-    password = Column(String(128), nullable=False)
-    is_active = Column(Boolean, default=True)
-    is_superuser = Column(Boolean, default=False)
-    is_staff = Column(Boolean, default=False)
-    date_joined = Column(DateTime, default=datetime.utcnow)
-    gmt_created = Column(DateTime, default=datetime.utcnow)
-    gmt_updated = Column(DateTime, default=datetime.utcnow)
-    gmt_deleted = Column(DateTime, nullable=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(max_length=150, unique=True)
+    email: Optional[str] = Field(default=None, unique=True, max_length=254)
+    role: Role = Role.RO
+    password: str = Field(max_length=128)
+    is_active: bool = True
+    is_superuser: bool = False
+    is_staff: bool = False
+    date_joined: datetime = Field(default_factory=datetime.utcnow)
+    gmt_created: datetime = Field(default_factory=datetime.utcnow)
+    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
+    gmt_deleted: Optional[datetime] = None
 
 
-class Invitation(Base):
+class Invitation(SQLModel, table=True):
     __tablename__ = "invitation"
-    id = Column(String(24), primary_key=True, default=lambda: "invite" + random_id())
-    email = Column(String(254), nullable=False)
-    token = Column(String(64), unique=True, nullable=False)
-    created_by = Column(String(256), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    expires_at = Column(DateTime, nullable=False)
-    is_used = Column(Boolean, default=False)
-    used_at = Column(DateTime, nullable=True)
-    role = Column(Enum(Role), default=Role.RO, nullable=False)
+    id: str = Field(default_factory=lambda: "invite" + random_id(), primary_key=True, max_length=24)
+    email: str = Field(max_length=254)
+    token: str = Field(max_length=64, unique=True)
+    created_by: str = Field(max_length=256)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    expires_at: datetime
+    is_used: bool = False
+    used_at: Optional[datetime] = None
+    role: Role = Role.RO
 
     def is_valid(self) -> bool:
         """Check if the invitation is valid (not used and not expired)"""
@@ -447,7 +418,7 @@ class Invitation(Base):
 
         return not self.is_used and self.expires_at > dt.utcnow()
 
-    async def use(self, session):
+    async def use(self, session: SessionDep):
         """Mark invitation as used and set used_at"""
         from datetime import datetime as dt
 
@@ -457,15 +428,15 @@ class Invitation(Base):
         await session.commit()
 
 
-class SearchTestHistory(Base):
+class SearchTestHistory(SQLModel, table=True):
     __tablename__ = "searchtesthistory"
-    id = Column(String(24), primary_key=True, default=lambda: "sth" + random_id())
-    user = Column(String(256), nullable=False)
-    collection_id = Column(String(24), ForeignKey("collection.id"), nullable=True)
-    query = Column(String, nullable=False)
-    vector_search = Column(SAJSON, default=dict)
-    fulltext_search = Column(SAJSON, default=dict)
-    graph_search = Column(SAJSON, default=dict)
-    items = Column(SAJSON, default=list)
-    gmt_created = Column(DateTime, default=datetime.utcnow)
-    gmt_deleted = Column(DateTime, nullable=True)
+    id: str = Field(default_factory=lambda: "sth" + random_id(), primary_key=True, max_length=24)
+    user: str = Field(max_length=256)
+    collection_id: Optional[str] = Field(default=None, foreign_key="collection.id", max_length=24)
+    query: str
+    vector_search: Optional[dict] = Field(default_factory=dict, sa_column=Column(JSON))
+    fulltext_search: Optional[dict] = Field(default_factory=dict, sa_column=Column(JSON))
+    graph_search: Optional[dict] = Field(default_factory=dict, sa_column=Column(JSON))
+    items: Optional[list] = Field(default_factory=list, sa_column=Column(JSON))
+    gmt_created: datetime = Field(default_factory=datetime.utcnow)
+    gmt_deleted: Optional[datetime] = None

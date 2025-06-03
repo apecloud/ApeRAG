@@ -140,7 +140,7 @@ async def update_bot(session: SessionDep, user, bot_id, bot_in: view_models.BotU
         stmt = select(db_models.BotCollectionRelation).where(
             db_models.BotCollectionRelation.bot_id == bot.id, db_models.BotCollectionRelation.gmt_deleted is None
         )
-        result = await session.exec(stmt)
+        result = await session.execute(stmt)
         relations = result.all()
         for rel in relations:
             rel.gmt_deleted = datetime.utcnow()
@@ -175,7 +175,7 @@ async def delete_bot(session: SessionDep, user, bot_id) -> view_models.Bot:
     stmt = select(db_models.BotCollectionRelation).where(
         db_models.BotCollectionRelation.bot_id == bot.id, db_models.BotCollectionRelation.gmt_deleted is None
     )
-    result = await session.exec(stmt)
+    result = await session.execute(stmt)
     relations = result.all()
     for rel in relations:
         rel.gmt_deleted = datetime.utcnow()

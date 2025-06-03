@@ -19,8 +19,9 @@ app = FastAPI()
 
 
 @app.on_event("startup")
-def on_startup():
-    SQLModel.metadata.create_all(engine)
+async def on_startup():
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
 
 
 app.include_router(main_router, prefix="/api/v1")

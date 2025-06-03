@@ -265,7 +265,7 @@ async def list_search_tests(session: SessionDep, user: str, collection_id: str) 
         .order_by(desc(SearchTestHistory.gmt_created))
         .limit(50)
     )
-    result = await session.exec(stmt)
+    result = await session.execute(stmt)
     records = result.all()
     resultList = []
     for record in records:
@@ -300,7 +300,7 @@ async def delete_search_test(session: SessionDep, user: str, collection_id: str,
         SearchTestHistory.collection_id == collection_id,
         SearchTestHistory.gmt_deleted is None,
     )
-    result = await session.exec(stmt)
+    result = await session.execute(stmt)
     record = result.first()
     if record:
         record.gmt_deleted = datetime.utcnow()

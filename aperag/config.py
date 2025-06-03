@@ -1,10 +1,11 @@
 from pathlib import Path
-from typing import Annotated, Any, Dict, Optional
+from typing import Annotated, Any, AsyncGenerator, Dict, Optional
 
 from fastapi import Depends
 from pydantic import Field
 from pydantic_settings import BaseSettings
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -154,11 +155,12 @@ class Config(BaseSettings):
 
 settings = Config()
 
-engine = create_async_engine(settings.database_url)
+engine = create_async_engine(settings.database_url, echo=True)
 
 
-def get_session():
-    with AsyncSession(engine) as session:
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
         yield session
 
 
