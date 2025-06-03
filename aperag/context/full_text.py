@@ -17,15 +17,15 @@ from typing import List
 
 from elasticsearch import AsyncElasticsearch, Elasticsearch, NotFoundError
 
+from aperag.config import settings
 from aperag.query.query import DocumentWithScore
-from config import settings
 
 logger = logging.getLogger(__name__)
 
 
-if settings.ENABLE_FULLTEXT_SEARCH:
-    es = Elasticsearch(settings.ES_HOST)
-    async_es = AsyncElasticsearch(settings.ES_HOST)
+if settings.enable_fulltext_search:
+    es = Elasticsearch(settings.es_host)
+    async_es = AsyncElasticsearch(settings.es_host)
 
 
 # import redis

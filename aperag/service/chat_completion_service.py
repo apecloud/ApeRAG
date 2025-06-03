@@ -21,10 +21,10 @@ from typing import AsyncGenerator
 
 from aperag.chat.sse.base import APIRequest
 from aperag.chat.sse.openai_consumer import OpenAIFormatter
+from aperag.config import SessionDep, settings
 from aperag.db.ops import query_bot
 from aperag.flow.engine import FlowEngine
 from aperag.flow.parser import FlowParser
-from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ async def stream_openai_sse_response(generator: AsyncGenerator[str, None], forma
     yield f"data: {json.dumps(formatter.format_stream_end(msg_id))}\n\n"
 
 
-async def openai_chat_completions(user, body_data, query_params):
+async def openai_chat_completions(session: SessionDep, user, body_data, query_params):
     bot_id = query_params.get("bot_id") or query_params.get("app_id")
     if not bot_id:
         return None, OpenAIFormatter.format_error("bot_id is required")
@@ -49,11 +49,11 @@ async def openai_chat_completions(user, body_data, query_params):
         stream=body_data.get("stream", False),
         messages=body_data.get("messages", []),
     )
-    bot = await query_bot(api_request.user, api_request.bot_id)
+    bot = await query_bot(session, api_request.user, api_request.bot_id)
     if not bot:
         return None, OpenAIFormatter.format_error("Bot not found")
     formatter = OpenAIFormatter()
-    yaml_path = os.path.join(settings.BASE_DIR, "aperag/flow/examples/rag_flow2.yaml")
+    yaml_path = os.path.join(settings.base_dir, "aperag/flow/examples/rag_flow2.yaml")
     flow = FlowParser.load_from_file(yaml_path)
     engine = FlowEngine()
     initial_data = {

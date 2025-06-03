@@ -21,8 +21,8 @@ from typing import Any
 import requests
 from PIL import Image
 
+from aperag.config import settings
 from aperag.docparser.base import BaseParser, FallbackError, Part, TextPart
-from config import settings
 
 SUPPORTED_EXTENSIONS = [
     ".jpg",
@@ -41,7 +41,7 @@ class ImageParser(BaseParser):
         return SUPPORTED_EXTENSIONS
 
     def parse_file(self, path: Path, metadata: dict[str, Any] = {}, **kwargs) -> list[Part]:
-        if not settings.PADDLEOCR_HOST:
+        if not settings.paddleocr_host:
             raise FallbackError("PADDLEOCR_HOST is not set")
 
         content = self.read_image_text(path)
@@ -62,7 +62,7 @@ class ImageParser(BaseParser):
 
         data = {"images": [image_to_base64(str(path))]}
         headers = {"Content-type": "application/json"}
-        url = settings.PADDLEOCR_HOST + "/predict/ocr_system"
+        url = settings.paddleocr_host + "/predict/ocr_system"
         r = requests.post(url=url, headers=headers, data=json.dumps(data))
         data = json.loads(r.text)
 

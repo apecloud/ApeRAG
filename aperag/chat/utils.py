@@ -111,9 +111,9 @@ def get_async_redis_client():
     if not async_redis_client:
         import redis.asyncio as redis
 
-        from config.settings import MEMORY_REDIS_URL
+        from aperag.config import settings
 
-        async_redis_client = redis.Redis.from_url(MEMORY_REDIS_URL)
+        async_redis_client = redis.Redis.from_url(settings.memory_redis_url)
     return async_redis_client
 
 
@@ -122,7 +122,7 @@ def get_sync_redis_client():
     if not sync_redis_client:
         import redis
 
-        from config.settings import MEMORY_REDIS_URL
+        from aperag.config import settings
 
-        sync_redis_client = redis.Redis.from_url(MEMORY_REDIS_URL)
+        sync_redis_client = redis.Redis.from_url(settings.memory_redis_url)
     return sync_redis_client

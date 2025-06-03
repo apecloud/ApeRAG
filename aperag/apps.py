@@ -12,52 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-
-import requests
-from django.apps import AppConfig
-
-
-class AperagConfig(AppConfig):
-    default_auto_field = "django.db.models.BigAutoField"
-    name = "aperag"
-    verbose_name = "ApeRAG"
-
-    def ready(self):
-        # if asyncio.get_event_loop().is_running():
-        #     asyncio.create_task(sync_to_async(get_ip_config)())
-        # # Set the default model name for this app
-        # from django.apps import apps
-        # from django.conf import settings
-
-        # settings.AUTH_USER_MODEL = "aperag.User"
-
-        from aperag.llm.litellm_track import register_llm_track
-
-        register_llm_track()
-
-
-def get_ip_config():
-    from django.db import transaction
-
-    from aperag.db.models import Config
-
-    try:
-        public_ip = requests.get("https://ifconfig.me", timeout=5).text.strip()
-    except Exception as e:
-        print(e)
-        return
-
-    with transaction.atomic():
-        Config.objects.get_or_create(key="public_ips", defaults={"value": "[]"})
-        config = Config.objects.select_for_update().get(key="public_ips")
-
-        public_ips = json.loads(config.value)
-        if public_ip not in public_ips:
-            public_ips.append(public_ip)
-            config.value = json.dumps(public_ips)
-            config.save()
-
 
 class QuotaType:
     MAX_BOT_COUNT = "max_bot_count"

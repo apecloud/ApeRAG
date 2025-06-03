@@ -21,10 +21,7 @@ from aperag.context.full_text import create_index, delete_index
 from aperag.db.models import Collection
 from aperag.embed.base_embedding import get_collection_embedding_service
 from aperag.graph import lightrag_holder
-from aperag.schema.utils import parseCollectionConfig
-from aperag.source.base import get_source
 from aperag.tasks.index import get_collection_config_settings
-from aperag.tasks.sync_documents_task import sync_documents
 from aperag.utils.utils import (
     generate_fulltext_index_name,
     generate_qa_vector_db_collection_name,
@@ -57,10 +54,6 @@ def init_collection_task(collection_id, document_user_quota):
 
     collection.status = Collection.Status.ACTIVE
     collection.save()
-
-    source = get_source(parseCollectionConfig(collection.config))
-    if source.sync_enabled():
-        sync_documents.delay(collection_id=collection_id, document_user_quota=document_user_quota)
 
 
 @app.task

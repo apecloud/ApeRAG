@@ -12,23 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from django.http import HttpRequest
-from ninja import Router
+from fastapi import APIRouter, Depends, Request
 
+from aperag.config import SessionDep
+from aperag.db.models import User
 from aperag.schema.view_models import WorkflowDefinition
 from aperag.service.flow_service import get_flow, update_flow
-from aperag.utils.request import get_user
+from aperag.views.auth import get_current_user_with_state
 
-router = Router()
+router = APIRouter()
 
 
 @router.get("/bots/{bot_id}/flow")
-async def get_flow_view(request: HttpRequest, bot_id: str) -> WorkflowDefinition:
-    user = get_user(request)
-    return await get_flow(user, bot_id)
+async def get_flow_view(
+    request: Request, bot_id: str, session: SessionDep, user: User = Depends(get_current_user_with_state)
+) -> WorkflowDefinition:
+    return await get_flow(session, str(user.id), bot_id)
 
 
 @router.put("/bots/{bot_id}/flow")
-async def update_flow_view(request: HttpRequest, bot_id: str, data: WorkflowDefinition):
-    user = get_user(request)
-    return await update_flow(user, bot_id, data)
+async def update_flow_view(
+    request: Request,
+    bot_id: str,
+    data: WorkflowDefinition,
+    session: SessionDep,
+    user: User = Depends(get_current_user_with_state),
+):
+    return await update_flow(session, str(user.id), bot_id, data)

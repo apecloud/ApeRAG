@@ -13,11 +13,11 @@
 # limitations under the License.
 
 
-from ninja import Router
+from fastapi import APIRouter
 
 from aperag.service.tencent_service import save_tencent_code_and_uri
 
-router = Router()
+router = APIRouter()
 
 
 @router.get("/webhook/event")

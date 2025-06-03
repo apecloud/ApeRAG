@@ -16,7 +16,7 @@ import asyncio
 import json
 import logging
 
-from ninja import Router
+from fastapi import APIRouter
 
 from aperag.db.ops import query_bot
 from aperag.service.dingtalk_service import dingtalk_text_response, send_message, validate_sign
@@ -24,7 +24,7 @@ from aperag.views.utils import fail, success
 
 logger = logging.getLogger(__name__)
 
-router = Router()
+router = APIRouter()
 
 
 @router.post("/webhook/event")

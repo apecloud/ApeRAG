@@ -18,8 +18,9 @@ import logging
 from datetime import datetime
 from http import HTTPStatus
 
-from django.http import StreamingHttpResponse
+from fastapi.responses import StreamingResponse
 
+from aperag.config import SessionDep
 from aperag.db.ops import query_bot
 from aperag.flow.engine import FlowEngine
 from aperag.flow.parser import FlowParser
@@ -77,32 +78,32 @@ async def stream_flow_events(flow_generator, flow_task, engine, flow):
         yield f"data: {json.dumps(data)}\n\n"
 
 
-async def debug_flow_stream(user: str, bot_id: str, debug: view_models.DebugFlowRequest) -> StreamingHttpResponse:
+async def debug_flow_stream(session: SessionDep, user: str, bot_id: str, debug: view_models.DebugFlowRequest):
+    """Stream debug flow events as SSE using FastAPI StreamingResponse."""
     try:
-        bot = await query_bot(user, bot_id)
+        bot = await query_bot(session, user, bot_id)
         if not bot:
-            return StreamingHttpResponse(json.dumps({"error": "Bot not found"}), content_type="application/json")
+            return {"error": "Bot not found"}
         bot_config = json.loads(bot.config)
         flow_config = bot_config.get("flow")
         if not flow_config:
-            return StreamingHttpResponse(
-                json.dumps({"error": "Bot flow config not found"}), content_type="application/json"
-            )
+            return {"error": "Bot flow config not found"}
         flow = FlowParser.parse(flow_config)
         engine = FlowEngine()
         initial_data = {"query": debug.query, "user": user}
         task = asyncio.create_task(engine.execute_flow(flow, initial_data))
-        return StreamingHttpResponse(
-            stream_flow_events(engine.get_events(), task, engine, flow), content_type="text/event-stream"
+        return StreamingResponse(
+            stream_flow_events(engine.get_events(), task, engine, flow),
+            media_type="text/event-stream",
         )
     except Exception as e:
         logger.exception("Error in debug flow stream: %s", e)
-        return StreamingHttpResponse(json.dumps({"error": str(e)}), content_type="application/json")
+        return {"error": str(e)}
 
 
-async def get_flow(user: str, bot_id: str) -> view_models.WorkflowDefinition:
+async def get_flow(session: SessionDep, user: str, bot_id: str) -> view_models.WorkflowDefinition:
     """Get flow config for a bot"""
-    bot = await query_bot(user, bot_id)
+    bot = await query_bot(session, user, bot_id)
     if not bot:
         return fail(HTTPStatus.NOT_FOUND, message="Bot not found")
     try:
@@ -115,9 +116,9 @@ async def get_flow(user: str, bot_id: str) -> view_models.WorkflowDefinition:
         return fail(HTTPStatus.INTERNAL_SERVER_ERROR, message=str(e))
 
 
-async def update_flow(user: str, bot_id: str, data: view_models.WorkflowDefinition):
+async def update_flow(session: SessionDep, user: str, bot_id: str, data: view_models.WorkflowDefinition):
     """Update flow config for a bot"""
-    bot = await query_bot(user, bot_id)
+    bot = await query_bot(session, user, bot_id)
     if not bot:
         return fail(HTTPStatus.NOT_FOUND, message="Bot not found")
     try:
@@ -125,7 +126,9 @@ async def update_flow(user: str, bot_id: str, data: view_models.WorkflowDefiniti
         flow = data.model_dump(exclude_unset=True, by_alias=True)
         config["flow"] = flow
         bot.config = json.dumps(config, ensure_ascii=False)
-        await bot.asave()
+        session.add(bot)
+        await session.commit()
+        await session.refresh(bot)
         return success(flow)
     except Exception as e:
         return fail(HTTPStatus.INTERNAL_SERVER_ERROR, message=str(e))

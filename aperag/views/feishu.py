@@ -18,23 +18,23 @@ import logging
 import time
 from http import HTTPStatus
 
-from ninja import Router
+from fastapi import APIRouter
 
 import aperag.chat.message
 from aperag.auth.authentication import FeishuEventVerification
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
+from aperag.config import settings
 from aperag.db.models import Chat
 from aperag.db.ops import query_bot, query_chat_by_peer
 from aperag.pipeline.knowledge_pipeline import create_knowledge_pipeline
 from aperag.source.feishu.feishu import FeishuClient
 from aperag.utils.utils import AESCipher
 from aperag.views.utils import fail, success
-from config import settings
 
 logger = logging.getLogger(__name__)
 
-router = Router()
+router = APIRouter()
 
 
 @router.get("/spaces")
@@ -75,8 +75,8 @@ def message_handled(msg_id, msg):
 @router.get("/user_access_token")
 def get_user_access_token(request, code, redirect_uri):
     ctx = {
-        "app_id": settings.FEISHU_APP_ID,
-        "app_secret": settings.FEISHU_APP_SECRET,
+        "app_id": settings.feishu_app_id,
+        "app_secret": settings.feishu_app_secret,
     }
     client = FeishuClient(ctx)
     token = client.get_user_access_token(code, redirect_uri)

@@ -7,7 +7,7 @@ import pytest
 
 from tests.e2e_test.config import (
     API_BASE_URL,
-    API_KEY,
+    AUTH_TYPE,
     COMPLETION_MODEL_NAME,
     COMPLETION_MODEL_PROVIDER,
     EMBEDDING_MODEL_CUSTOM_PROVIDER,
@@ -18,12 +18,37 @@ from tests.e2e_test.utils import assert_dict_subset
 
 
 @pytest.fixture(scope="module")
-def client():
-    assert len(API_KEY) > 0
-    assert len(API_BASE_URL) > 0
-    headers = {"Authorization": f"Bearer {API_KEY}"} if API_KEY else {}
-    with httpx.Client(base_url=API_BASE_URL, headers=headers) as c:
+def api_key(register_user, login_user):
+    """Dynamically create an API key for testing and yield its value, then delete it after tests. Requires login first."""
+    if AUTH_TYPE != "api_key":
+        yield None
+        return
+    with httpx.Client(base_url=API_BASE_URL) as c:
+        c.cookies.update(login_user["cookies"])
+        resp = c.post("/api/v1/apikeys", json={"description": "e2e dynamic key"})
+        assert resp.status_code == HTTPStatus.OK, f"Failed to create API key: {resp.text}"
+        key_info = resp.json()
+        api_key_value = key_info["key"]
+        yield api_key_value
+        # Cleanup
+        c.delete(f"/api/v1/apikeys/{key_info['id']}")
+
+
+@pytest.fixture(scope="module")
+def client(api_key, login_user):
+    """Return a httpx.Client using either API key or cookie authentication, depending on AUTH_TYPE."""
+    if AUTH_TYPE == "api_key":
+        headers = {"Authorization": f"Bearer {api_key}"}
+        c = httpx.Client(base_url=API_BASE_URL, headers=headers)
         yield c
+        c.close()
+    elif AUTH_TYPE == "cookie":
+        c = httpx.Client(base_url=API_BASE_URL)
+        c.cookies.update(login_user["cookies"])
+        yield c
+        c.close()
+    else:
+        raise ValueError(f"Unsupported AUTH_TYPE: {AUTH_TYPE}")
 
 
 @pytest.fixture
@@ -132,20 +157,23 @@ def bot(client, document, collection):
     assert resp.status_code in (200, 204)
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def register_user():
     """Register a new user and return user info and password"""
-    import random, string
+    import random
+    import string
+
     username = f"e2euser_{''.join(random.choices(string.ascii_lowercase, k=6))}"
     email = f"{username}@example.com"
-    password = f"TestPwd!{random.randint(1000,9999)}"
+    password = f"TestPwd!{random.randint(1000, 9999)}"
     data = {"username": username, "email": email, "password": password}
     resp = httpx.post(f"{API_BASE_URL}/api/v1/register", json=data)
     assert resp.status_code == HTTPStatus.OK, f"register failed: {resp.text}"
     user = resp.json()
     return {"username": username, "email": email, "password": password, "user": user}
 
-@pytest.fixture
+
+@pytest.fixture(scope="module")
 def login_user(register_user):
     """Login with the registered user and return cookies and user info"""
     data = {"username": register_user["username"], "password": register_user["password"]}
@@ -154,9 +182,15 @@ def login_user(register_user):
         assert resp.status_code == HTTPStatus.OK, f"login failed: {resp.text}"
         cookies = c.cookies  # use httpx.Cookies directly
         user = resp.json()
-        yield {"cookies": cookies, "user": user, "username": register_user["username"], "password": register_user["password"]}
+        yield {
+            "cookies": cookies,
+            "user": user,
+            "username": register_user["username"],
+            "password": register_user["password"],
+        }
 
-@pytest.fixture
+
+@pytest.fixture(scope="module")
 def cookie_client(login_user):
     """Return a httpx.Client with cookie-based authentication"""
     c = httpx.Client(base_url=API_BASE_URL)

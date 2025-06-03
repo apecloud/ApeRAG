@@ -16,12 +16,13 @@ import logging
 import os
 import tempfile
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 from asgiref.sync import async_to_sync
 from celery import Task
-from django.utils import timezone
 
+from aperag.config import settings
 from aperag.context.full_text import insert_document, remove_document
 from aperag.db.models import Collection, Document
 from aperag.docparser.doc_parser import DocParser
@@ -38,7 +39,6 @@ from aperag.utils.utils import (
     generate_fulltext_index_name,
     generate_vector_db_collection_name,
 )
-from config import settings
 from config.celery import app
 from config.vector_db import get_vector_db_connector
 
@@ -83,7 +83,7 @@ class CustomDeleteDocumentTask(Task):
         document = Document.objects.get(id=document_id)
         logger.info(f"remove qdrant points for document {document.name} success")
         document.status = Document.Status.DELETED
-        document.gmt_deleted = timezone.now()
+        document.gmt_deleted = datetime.utcnow()
         document.name = document.name + "-" + str(uuid.uuid4())
         document.save()
 
@@ -107,8 +107,8 @@ def create_local_path_embedding_loader(local_doc, document, collection, embeddin
         vector_store_adaptor=get_vector_db_connector(
             collection=generate_vector_db_collection_name(collection_id=collection.id)
         ),
-        chunk_size=settings.CHUNK_SIZE,
-        chunk_overlap=settings.CHUNK_OVERLAP_SIZE,
+        chunk_size=settings.chunk_size,
+        chunk_overlap=settings.chunk_overlap_size,
         tokenizer=get_default_tokenizer(),
     )
 

@@ -23,6 +23,7 @@ from typing import Any
 
 import requests
 
+from aperag.config import settings
 from aperag.docparser.base import (
     AssetBinPart,
     BaseParser,
@@ -34,7 +35,6 @@ from aperag.docparser.base import (
     TitlePart,
 )
 from aperag.docparser.utils import asset_bin_part_to_url, extension_to_mime_type
-from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class DocRayParser(BaseParser):
         return SUPPORTED_EXTENSIONS
 
     def parse_file(self, path: Path, metadata: dict[str, Any], **kwargs) -> list[Part]:
-        if not settings.DOCRAY_HOST:
+        if not settings.docray_host:
             raise FallbackError("DOCRAY_HOST is not set")
 
         job_id = None
@@ -66,7 +66,7 @@ class DocRayParser(BaseParser):
             # Submit file to doc-ray
             with open(path, "rb") as f:
                 files = {"file": (path.name, f)}
-                response = requests.post(f"{settings.DOCRAY_HOST}/submit", files=files)
+                response = requests.post(f"{settings.docray_host}/submit", files=files)
                 response.raise_for_status()
                 submit_response = response.json()
                 job_id = submit_response["job_id"]
@@ -75,7 +75,7 @@ class DocRayParser(BaseParser):
             # Polling the processing status
             while True:
                 time.sleep(5)  # Poll every 5 second
-                status_response: dict = requests.get(f"{settings.DOCRAY_HOST}/status/{job_id}").json()
+                status_response: dict = requests.get(f"{settings.docray_host}/status/{job_id}").json()
                 status = status_response["status"]
                 logger.info(f"DocRay job {job_id} status: {status}")
 
@@ -88,7 +88,7 @@ class DocRayParser(BaseParser):
                     raise RuntimeError(f"Unexpected DocRay job status for {job_id}: {status}")
 
             # Get the result
-            result_response = requests.get(f"{settings.DOCRAY_HOST}/result/{job_id}").json()
+            result_response = requests.get(f"{settings.docray_host}/result/{job_id}").json()
             result = result_response["result"]
             middle_json = result["middle_json"]
             images_data = result.get("images", {})
@@ -132,7 +132,7 @@ class DocRayParser(BaseParser):
             # Delete the job in doc-ray to release resources
             if job_id:
                 try:
-                    requests.delete(f"{settings.DOCRAY_HOST}/result/{job_id}")
+                    requests.delete(f"{settings.docray_host}/result/{job_id}")
                     logger.info(f"Deleted DocRay job {job_id}")
                 except requests.exceptions.RequestException as e:
                     logger.warning(f"Failed to delete DocRay job {job_id}: {e}")

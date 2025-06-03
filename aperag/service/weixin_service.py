@@ -20,11 +20,10 @@ import aperag.chat.message
 from aperag.apps import QuotaType
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
+from aperag.config import settings
 from aperag.db.models import Chat
 from aperag.db.ops import query_chat_by_peer, query_user_quota
 from aperag.pipeline.knowledge_pipeline import create_knowledge_pipeline
-from config import settings
-from config.settings import MAX_CONVERSATION_COUNT
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +40,7 @@ async def weixin_text_response(client, user, bot, query, msg_id):
     pipeline = await create_knowledge_pipeline(bot=bot, collection=collection, history=history)
     conversation_limit = await query_user_quota(user, QuotaType.MAX_CONVERSATION_COUNT)
     if conversation_limit is None:
-        conversation_limit = MAX_CONVERSATION_COUNT
+        conversation_limit = settings.max_conversation_count
     try:
         await client.send_message("ApeRAG 正在解答中，请稍候......", user)
         async for msg in pipeline.run(query, message_id=msg_id):
@@ -89,11 +88,11 @@ async def weixin_officaccount_response(query, msg_id, to_user_name, bot):
     history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())
     collection = (await bot.collections())[0]
     pipeline = await create_knowledge_pipeline(bot=bot, collection=collection, history=history)
-    redis_client = aredis.Redis.from_url(settings.MEMORY_REDIS_URL)
+    redis_client = aredis.Redis.from_url(settings.memory_redis_url)
     response = ""
     conversation_limit = await query_user_quota(to_user_name, QuotaType.MAX_CONVERSATION_COUNT)
     if conversation_limit is None:
-        conversation_limit = MAX_CONVERSATION_COUNT
+        conversation_limit = settings.max_conversation_count
     try:
         async for msg in pipeline.run(query, message_id=msg_id):
             response += msg

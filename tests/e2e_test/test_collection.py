@@ -14,7 +14,6 @@
 
 
 from http import HTTPStatus
-import time
 
 import pytest
 
@@ -27,6 +26,7 @@ from tests.e2e_test.config import (
     EMBEDDING_MODEL_PROVIDER,
 )
 from tests.e2e_test.utils import assert_collection_config, assert_search_test_result
+
 
 def test_list_collections(benchmark, client, collection):
     # Get collections list

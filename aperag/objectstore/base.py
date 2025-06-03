@@ -16,7 +16,7 @@
 from abc import ABC, abstractmethod
 from typing import IO
 
-from config import settings
+from aperag.config import settings
 
 
 class ObjectStore(ABC):
@@ -37,12 +37,12 @@ class ObjectStore(ABC):
 
 
 def get_object_store() -> ObjectStore:
-    match settings.OBJECT_STORE_TYPE:
+    match settings.object_store_type:
         case "local":
             from aperag.objectstore.local import Local, LocalConfig
 
-            return Local(LocalConfig(**settings.OBJECT_STORE_LOCAL_CONFIG))
+            return Local(LocalConfig(**settings.object_store_local_config))
         case "s3":
             from aperag.objectstore.s3 import S3, S3Config
 
-            return S3(S3Config(**settings.OBJECT_STORE_S3_CONFIG))
+            return S3(S3Config(**settings.object_store_s3_config))
