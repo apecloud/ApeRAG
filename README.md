@@ -19,31 +19,32 @@ cp frontend/deploy/env.local.template frontend/.env
 
 **Edit the `.env` file to configure your AI service settings.**
 
-### 2. Optional: Enhanced Document Parsing
-
-For improved PDF and MS Office document parsing, set up [doc-ray](https://github.com/apecloud/doc-ray):
-
-```bash
-# Deploy doc-ray (GPU recommended for optimal performance)
-docker run -d -p 8639:8639 -p 8265:8265 --gpus=all --name doc-ray apecloud/doc-ray
-```
-
-Then update your `.env` file:
-```bash
-DOCRAY_HOST=http://localhost:8639
-```
-
-### 3. Start Services
+### 2. Start Services
 
 ```bash
 # Optional: Use Aliyun registry if in China
 export REGISTRY=apecloud-registry.cn-zhangjiakou.cr.aliyuncs.com
 
-# Start all services
+# Start ApeRAG services
 make compose-up
+
+# Alternatively, start ApeRAG with the doc-ray parsing service
+make compose-up WITH_DOCRAY=1
+
+# Additionally, if your environment has GPUs, you can also enable GPU support by adding `WITH_GPU=1` to the command:
+make compose-up WITH_DOCRAY=1 WITH_GPU=1
 ```
 
-### 4. Access
+> **About the doc-ray parsing service**
+>
+> ApeRAG includes a basic built-in parser for extracting text from documents like PDFs and DOCX files for RAG indexing. However, this parser may not optimally handle complex document structures, tables, or formulas.
+>
+> For enhanced document parsing capabilities and more accurate content extraction, we recommend deploying the [doc-ray](https://github.com/apecloud/doc-ray) service. `doc-ray` leverages **MinerU** for advanced document analysis.
+>
+> * When `WITH_GPU=1` is not specified, `doc-ray` will run using only the CPU. In this case, it is recommended to allocate at least 4 CPU cores and 8GB+ of RAM for it.
+> * When `WITH_GPU=1` is specified, `doc-ray` will run using the GPU. It requires approximately 6GB of VRAM, along with 2 CPU cores and 8GB of RAM.
+
+### 3. Access
 
 Open your browser: http://localhost:3000/web/
 

@@ -82,10 +82,13 @@ run-db:
 #   make compose-up
 #   make compose-up WITH_DOCRAY=1
 #   make compose-up WITH_DOCRAY=1 WITH_GPU=1
+#   make compose-down
+#   make compose-down REMOVE_VOLUMES=1
 _PROFILES_TO_ACTIVATE :=
 _EXTRA_ENVS :=
+_COMPOSE_DOWN_FLAGS :=
 
-# Determine which docray profile to use based on WITH_DOCRAY and WITH_GPU.
+# Determine which docray profile to use for 'compose-up'
 ifeq ($(WITH_DOCRAY),1)
     ifeq ($(WITH_GPU),1)
         _PROFILES_TO_ACTIVATE += --profile docray-gpu
@@ -96,12 +99,17 @@ ifeq ($(WITH_DOCRAY),1)
     endif
 endif
 
+# Determine flags for 'compose-down'
+ifeq ($(REMOVE_VOLUMES),1)
+    _COMPOSE_DOWN_FLAGS += -v
+endif
+
 .PHONY: compose-up compose-down compose-logs
 compose-up:
 	$(_EXTRA_ENVS) docker-compose $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d
 
 compose-down:
-	docker-compose --profile docray,docray-gpu -f docker-compose.yml down
+	docker-compose --profile docray --profile docray-gpu -f docker-compose.yml down $(_COMPOSE_DOWN_FLAGS)
 
 compose-logs:
 	docker-compose -f docker-compose.yml logs -f
