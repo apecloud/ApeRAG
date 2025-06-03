@@ -104,7 +104,7 @@ async def query_collection(session: SessionDep, user: str, collection_id: str):
         Collection.id == collection_id, Collection.user == user, Collection.status != CollectionStatus.DELETED
     )
     result = await session.execute(stmt)
-    return result.first()
+    return result.scalars().first()
 
 
 async def query_collections(session: SessionDep, users: List[str], pq: PagedQuery = None):
@@ -125,7 +125,7 @@ async def query_collections_count(session: SessionDep, user: str, pq: PagedQuery
 async def query_collection_without_user(session: SessionDep, collection_id: str):
     stmt = select(Collection).where(Collection.id == collection_id, Collection.status != CollectionStatus.DELETED)
     result = await session.execute(stmt)
-    return result.first()
+    return result.scalars().first()
 
 
 async def query_document(session: SessionDep, user: str, collection_id: str, document_id: str):
@@ -136,7 +136,7 @@ async def query_document(session: SessionDep, user: str, collection_id: str, doc
         Document.status != CollectionStatus.DELETED,
     )
     result = await session.execute(stmt)
-    return result.first()
+    return result.scalars().first()
 
 
 async def query_documents(session: SessionDep, users: List[str], collection_id: str, pq: PagedQuery = None):
@@ -172,7 +172,7 @@ async def query_apikeys(session: SessionDep, user: str, pq: PagedQuery = None):
 async def query_apikey(session: SessionDep, user: str, apikey_id: str):
     stmt = select(ApiKey).where(ApiKey.id == apikey_id, ApiKey.user == user, ApiKey.status != BotStatus.DELETED)
     result = await session.execute(stmt)
-    return result.first()
+    return result.scalars().first()
 
 
 async def query_chat(session: SessionDep, user: str, bot_id: str, chat_id: str):
@@ -180,7 +180,7 @@ async def query_chat(session: SessionDep, user: str, bot_id: str, chat_id: str):
         Chat.id == chat_id, Chat.bot_id == bot_id, Chat.user == user, Chat.status != CollectionStatus.DELETED
     )
     result = await session.execute(stmt)
-    return result.first()
+    return result.scalars().first()
 
 
 async def query_chat_by_peer(session: SessionDep, user: str, peer_type, peer_id: str):
@@ -188,7 +188,7 @@ async def query_chat_by_peer(session: SessionDep, user: str, peer_type, peer_id:
         Chat.user == user, Chat.peer_type == peer_type, Chat.peer_id == peer_id, Chat.status != CollectionStatus.DELETED
     )
     result = await session.execute(stmt)
-    return result.first()
+    return result.scalars().first()
 
 
 async def query_chats(session: SessionDep, user: str, bot_id: str, pq: PagedQuery = None):
@@ -201,7 +201,7 @@ async def query_chats(session: SessionDep, user: str, bot_id: str, pq: PagedQuer
 async def query_bot(session: SessionDep, user: str, bot_id: str):
     stmt = select(Bot).where(Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED)
     result = await session.execute(stmt)
-    return result.first()
+    return result.scalars().first()
 
 
 async def query_bots(session: SessionDep, users: List[str], pq: PagedQuery = None):
@@ -222,14 +222,14 @@ async def query_bots_count(session: SessionDep, user: str, pq: PagedQuery = None
 async def query_config(session: SessionDep, key):
     stmt = select(ConfigModel).where(ConfigModel.key == key)
     result = await session.execute(stmt)
-    results = result.first()
+    results = result.scalars().first()
     return results
 
 
 async def query_user_quota(session: SessionDep, user: str, key: str):
     stmt = select(UserQuota).where(UserQuota.user == user, UserQuota.key == key)
     result = await session.execute(stmt)
-    uq = result.first()
+    uq = result.scalars().first()
     return uq.value if uq else None
 
 
@@ -238,7 +238,7 @@ async def query_msp_list(session: SessionDep, user: str):
         ModelServiceProvider.user == user, ModelServiceProvider.status != ModelServiceProviderStatus.DELETED
     )
     result = await session.execute(stmt)
-    return result.all()
+    return result.scalars().all()
 
 
 async def query_msp_dict(session: SessionDep, user: str):
@@ -246,7 +246,7 @@ async def query_msp_dict(session: SessionDep, user: str):
         ModelServiceProvider.user == user, ModelServiceProvider.status != ModelServiceProviderStatus.DELETED
     )
     result = await session.execute(stmt)
-    return {msp.name: msp for msp in result.all()}
+    return {msp.name: msp for msp in result.scalars().all()}
 
 
 async def query_msp(session: SessionDep, user: str, provider: str, filterDeletion: bool = True):
@@ -254,19 +254,19 @@ async def query_msp(session: SessionDep, user: str, provider: str, filterDeletio
     if filterDeletion:
         stmt = stmt.where(ModelServiceProvider.status != ModelServiceProviderStatus.DELETED)
     result = await session.execute(stmt)
-    return result.first()
+    return result.scalars().first()
 
 
 async def query_user_by_username(session: SessionDep, username: str):
     stmt = select(User).where(User.username == username)
     result = await session.execute(stmt)
-    return result.first()
+    return result.scalars().first()
 
 
 async def query_user_by_email(session: SessionDep, email: str):
     stmt = select(User).where(User.email == email)
     result = await session.execute(stmt)
-    return result.first()
+    return result.scalars().first()
 
 
 async def query_user_exists(session: SessionDep, username: str = None, email: str = None):
@@ -276,7 +276,7 @@ async def query_user_exists(session: SessionDep, username: str = None, email: st
     if email:
         stmt = stmt.where(User.email == email)
     result = await session.execute(stmt)
-    return result.first() is not None
+    return result.scalars().first() is not None
 
 
 async def create_user(session: SessionDep, username: str, email: str, password: str, role: Role):
@@ -301,7 +301,7 @@ async def delete_user(session: SessionDep, user: User):
 async def query_invitation_by_token(session: SessionDep, token: str):
     stmt = select(Invitation).where(Invitation.token == token)
     result = await session.execute(stmt)
-    return result.first()
+    return result.scalars().first()
 
 
 async def create_invitation(session: SessionDep, email: str, token: str, created_by: str, role: Role):
@@ -325,14 +325,14 @@ async def query_invitations(session: SessionDep):
     """Query all valid invitations (not used), ordered by created_at descending."""
     stmt = select(Invitation).where(not Invitation.is_used).order_by(desc(Invitation.created_at))
     result = await session.execute(stmt)
-    return result.all()
+    return result.scalars().all()
 
 
 async def list_user_api_keys(session: SessionDep, username: str) -> List[ApiKey]:
     """List all active API keys for a user"""
     stmt = select(ApiKey).where(ApiKey.user == username, ApiKey.status == BotStatus.ACTIVE, ApiKey.gmt_deleted is None)
     result = await session.execute(stmt)
-    return result.all()
+    return result.scalars().all()
 
 
 async def create_api_key(session: SessionDep, user: str, description: Optional[str] = None) -> ApiKey:
@@ -350,7 +350,7 @@ async def delete_api_key(session: SessionDep, username: str, key_id: str) -> boo
         ApiKey.id == key_id, ApiKey.user == username, ApiKey.status == BotStatus.ACTIVE, ApiKey.gmt_deleted is None
     )
     result = await session.execute(stmt)
-    api_key = result.first()
+    api_key = result.scalars().first()
     if api_key:
         api_key.status = BotStatus.DELETED
         from datetime import datetime as dt
@@ -368,14 +368,14 @@ async def get_api_key_by_id(session: SessionDep, user: str, id: str) -> Optional
         ApiKey.user == user, ApiKey.id == id, ApiKey.status == BotStatus.ACTIVE, ApiKey.gmt_deleted is None
     )
     result = await session.execute(stmt)
-    return result.first()
+    return result.scalars().first()
 
 
 async def get_api_key_by_key(session: SessionDep, key: str) -> Optional[ApiKey]:
     """Get API key by key string"""
     stmt = select(ApiKey).where(ApiKey.key == key, ApiKey.status == BotStatus.ACTIVE, ApiKey.gmt_deleted is None)
     result = await session.execute(stmt)
-    return result.first()
+    return result.scalars().first()
 
 
 async def query_chat_feedbacks(session: SessionDep, user: str, chat_id: str, pq: PagedQuery = None):
@@ -393,10 +393,16 @@ async def query_message_feedback(session: SessionDep, user: str, chat_id: str, m
         MessageFeedback.user == user,
     )
     result = await session.execute(stmt)
-    return result.first()
+    return result.scalars().first()
 
 
 async def query_first_user_exists(session: SessionDep):
     stmt = select(User).where(User.gmt_deleted is None)
     result = await session.execute(stmt)
-    return result.first() is not None
+    return result.scalars().first() is not None
+
+
+async def query_admin_count(session: SessionDep):
+    stmt = select(func.count()).select_from(User).where(User.role == Role.ADMIN, User.gmt_deleted is None)
+    count = await session.scalar(stmt)
+    return count

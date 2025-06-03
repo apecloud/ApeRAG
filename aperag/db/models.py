@@ -209,7 +209,7 @@ class Bot(SQLModel, table=True):
     __tablename__ = "bot"
     id: str = Field(default_factory=lambda: "bot" + random_id(), primary_key=True, max_length=24)
     user: str = Field(max_length=256)
-    title: str = Field(max_length=256)
+    title: Optional[str] = Field(default=None, max_length=256)
     type: BotType = BotType.KNOWLEDGE
     description: Optional[str] = None
     status: BotStatus
@@ -277,7 +277,7 @@ class Chat(SQLModel, table=True):
     peer_id: Optional[str] = Field(default=None, max_length=256)
     status: ChatStatus
     bot_id: str = Field(foreign_key="bot.id", max_length=24)
-    title: str
+    title: Optional[str] = Field(default=None, max_length=256)
     gmt_created: datetime = Field(default_factory=datetime.utcnow)
     gmt_updated: datetime = Field(default_factory=datetime.utcnow)
     gmt_deleted: Optional[datetime] = None
@@ -390,14 +390,24 @@ class User(SQLModel, table=True):
     username: str = Field(max_length=150, unique=True)
     email: Optional[str] = Field(default=None, unique=True, max_length=254)
     role: Role = Role.RO
-    password: str = Field(max_length=128)
+    hashed_password: str = Field(max_length=128)  # fastapi-users expects hashed_password
     is_active: bool = True
     is_superuser: bool = False
+    is_verified: bool = True  # fastapi-users requires is_verified
     is_staff: bool = False
     date_joined: datetime = Field(default_factory=datetime.utcnow)
     gmt_created: datetime = Field(default_factory=datetime.utcnow)
     gmt_updated: datetime = Field(default_factory=datetime.utcnow)
     gmt_deleted: Optional[datetime] = None
+
+    # For backward compatibility with existing code
+    @property
+    def password(self):
+        return self.hashed_password
+
+    @password.setter
+    def password(self, value):
+        self.hashed_password = value
 
 
 class Invitation(SQLModel, table=True):

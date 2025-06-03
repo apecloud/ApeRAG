@@ -14,12 +14,13 @@
 
 import logging
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
 from aperag.chat.sse.openai_consumer import OpenAIFormatter
+from aperag.db.models import User
 from aperag.service.chat_completion_service import openai_chat_completions, stream_openai_sse_response
-from aperag.utils.request import get_user
+from aperag.views.auth import get_current_user_with_state
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +28,11 @@ router = APIRouter()
 
 
 @router.post("/chat/completions")
-async def openai_chat_completions_view(request: Request):
+async def openai_chat_completions_view(request: Request, user: User = Depends(get_current_user_with_state)):
     try:
-        user = get_user(request)
         body_data = await request.json()
         query_params = dict(request.query_params)
-        result, error = await openai_chat_completions(user, body_data, query_params)
+        result, error = await openai_chat_completions(str(user.id), body_data, query_params)
         if error:
             return error
         api_request, formatter, async_generator = result

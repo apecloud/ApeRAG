@@ -165,7 +165,6 @@ SESSION_COOKIE_NAME = env.str("SESSION_COOKIE_NAME", default="sessionid")
 
 # Auth
 AUTH_TYPE = env.str("AUTH_TYPE", default="none")
-AUTH_USER_MODEL = 'aperag.User'
 
 # Load Auth0 application settings into memory
 AUTH0_DOMAIN = env.str("AUTH0_DOMAIN", default="aperag-dev.auting.cn")

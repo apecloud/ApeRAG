@@ -58,7 +58,7 @@ async def create_collection(
     session: SessionDep, user: str, collection: view_models.CollectionCreate
 ) -> view_models.Collection:
     collection_config = collection.config
-    if collection.type == db_models.Collection.Type.DOCUMENT:
+    if collection.type == db_models.CollectionType.DOCUMENT:
         is_validate, error_msg = validate_source_connect_config(collection_config)
         if not is_validate:
             return fail(HTTPStatus.BAD_REQUEST, error_msg)
@@ -74,7 +74,7 @@ async def create_collection(
     instance = db_models.Collection(
         user=user,
         type=collection.type,
-        status=db_models.Collection.Status.INACTIVE,
+        status=db_models.CollectionStatus.INACTIVE,
         title=collection.title,
         description=collection.description,
     )
@@ -87,7 +87,7 @@ async def create_collection(
     if getattr(collection_config, "enable_knowledge_graph", False):
         await reload_lightrag_holder(instance)
 
-    if instance.type == db_models.Collection.Type.DOCUMENT:
+    if instance.type == db_models.CollectionType.DOCUMENT:
         document_user_quota = await query_user_quota(session, user, QuotaType.MAX_DOCUMENT_COUNT)
         init_collection_task.delay(instance.id, document_user_quota)
     else:
@@ -99,7 +99,7 @@ async def create_collection(
 async def list_collections(session: SessionDep, user: str, pq: PagedQuery) -> view_models.CollectionList:
     pr = await query_collections(session, [user, settings.admin_user], pq)
     response = []
-    async for collection in pr.data:
+    for collection in pr.data:
         response.append(build_collection_response(collection))
     return success(CollectionList(items=response), pr=pr)
 
@@ -140,7 +140,7 @@ async def delete_collection(session: SessionDep, user: str, collection_id: str) 
             HTTPStatus.BAD_REQUEST, f"Collection has related to bots {','.join(collection_bots)}, can not be deleted"
         )
     await delete_sync_documents_cron_job(collection.id)
-    collection.status = db_models.Collection.Status.DELETED
+    collection.status = db_models.CollectionStatus.DELETED
     collection.gmt_deleted = datetime.utcnow()
     session.add(collection)
     await session.commit()
@@ -266,7 +266,7 @@ async def list_search_tests(session: SessionDep, user: str, collection_id: str) 
         .limit(50)
     )
     result = await session.execute(stmt)
-    records = result.all()
+    records = result.scalars().all()
     resultList = []
     for record in records:
         items = []
@@ -301,7 +301,7 @@ async def delete_search_test(session: SessionDep, user: str, collection_id: str,
         SearchTestHistory.gmt_deleted is None,
     )
     result = await session.execute(stmt)
-    record = result.first()
+    record = result.scalars().first()
     if record:
         record.gmt_deleted = datetime.utcnow()
         session.add(record)

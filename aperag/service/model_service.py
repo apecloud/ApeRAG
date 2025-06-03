@@ -71,11 +71,11 @@ async def update_model_service_provider(
             api_key=mspIn.api_key,
             base_url=mspIn.base_url if msp_config.allow_custom_base_url else msp_config.base_url,
             extra=mspIn.extra,
-            status=db_models.ModelServiceProvider.Status.ACTIVE,
+            status=db_models.ModelServiceProviderStatus.ACTIVE,
         )
     else:
-        if msp.status == db_models.ModelServiceProvider.Status.DELETED:
-            msp.status = db_models.ModelServiceProvider.Status.ACTIVE
+        if msp.status == db_models.ModelServiceProviderStatus.DELETED:
+            msp.status = db_models.ModelServiceProviderStatus.ACTIVE
             msp.gmt_deleted = None
         msp.dialect = msp.dialect
         msp.api_key = mspIn.api_key
@@ -95,7 +95,7 @@ async def delete_model_service_provider(session: SessionDep, user: str, provider
     msp = await query_msp(session, user, provider)
     if msp is None:
         return fail(HTTPStatus.NOT_FOUND, f"model service provider {provider} not found")
-    msp.status = db_models.ModelServiceProvider.Status.DELETED
+    msp.status = db_models.ModelServiceProviderStatus.DELETED
     msp.gmt_deleted = datetime.utcnow()
     session.add(msp)
     await session.commit()
