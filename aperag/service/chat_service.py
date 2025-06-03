@@ -26,7 +26,7 @@ from aperag.chat.sse.frontend_consumer import BaseFormatter, FrontendFormatter
 from aperag.chat.utils import get_async_redis_client
 from aperag.config import SessionDep
 from aperag.db import models as db_models
-from aperag.db.ops import PagedQuery, query_bot, query_chat, query_chat_by_peer, query_chats
+from aperag.db.ops import query_bot, query_chat, query_chat_by_peer, query_chats
 from aperag.schema import view_models
 from aperag.schema.view_models import Chat, ChatDetails, ChatList
 from aperag.views.utils import fail, success
@@ -60,12 +60,12 @@ async def create_chat(session: SessionDep, user: str, bot_id: str) -> view_model
     return success(build_chat_response(instance))
 
 
-async def list_chats(session: SessionDep, user: str, bot_id: str, pq: PagedQuery) -> view_models.ChatList:
-    pr = await query_chats(session, user, bot_id, pq)
+async def list_chats(session: SessionDep, user: str, bot_id: str) -> view_models.ChatList:
+    chats = await query_chats(session, user, bot_id)
     response = []
-    async for chat in pr.data:
+    for chat in chats:
         response.append(build_chat_response(chat))
-    return success(ChatList(items=response), pr=pr)
+    return success(ChatList(items=response))
 
 
 async def get_chat(session: SessionDep, user: str, bot_id: str, chat_id: str) -> view_models.ChatDetails:

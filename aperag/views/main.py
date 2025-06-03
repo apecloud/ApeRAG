@@ -21,8 +21,12 @@ from fastapi import APIRouter, Depends, File, Request, UploadFile
 from aperag.chat.message import feedback_message
 from aperag.config import SessionDep, settings
 from aperag.db.models import User
-from aperag.db.ops import build_pq
 from aperag.schema import view_models
+from aperag.service import (
+    bot_service,
+    chat_service,
+    collection_service,
+)
 from aperag.service.bot_service import create_bot
 from aperag.service.chat_service import create_chat, frontend_chat_completions
 from aperag.service.collection_service import (
@@ -82,18 +86,14 @@ async def create_collection_view(
 async def list_collections_view(
     session: SessionDep, request: Request, user: User = Depends(get_current_user_with_state)
 ) -> view_models.CollectionList:
-    from aperag.service.collection_service import list_collections
-
-    return await list_collections(session, str(user.id), build_pq(request))
+    return await collection_service.list_collections(session, str(user.id))
 
 
 @router.get("/collections/{collection_id}")
 async def get_collection_view(
     request: Request, collection_id: str, session: SessionDep, user: User = Depends(get_current_user_with_state)
 ) -> view_models.Collection:
-    from aperag.service.collection_service import get_collection
-
-    return await get_collection(session, str(user.id), collection_id)
+    return await collection_service.get_collection(session, str(user.id), collection_id)
 
 
 @router.put("/collections/{collection_id}")
@@ -104,18 +104,14 @@ async def update_collection_view(
     session: SessionDep,
     user: User = Depends(get_current_user_with_state),
 ) -> view_models.Collection:
-    from aperag.service.collection_service import update_collection
-
-    return await update_collection(session, str(user.id), collection_id, collection)
+    return await collection_service.update_collection(session, str(user.id), collection_id, collection)
 
 
 @router.delete("/collections/{collection_id}")
 async def delete_collection_view(
     request: Request, collection_id: str, session: SessionDep, user: User = Depends(get_current_user_with_state)
 ) -> view_models.Collection:
-    from aperag.service.collection_service import delete_collection
-
-    return await delete_collection(session, str(user.id), collection_id)
+    return await collection_service.delete_collection(session, str(user.id), collection_id)
 
 
 @router.post("/collections/{collection_id}/documents")
@@ -141,7 +137,7 @@ async def create_url_document_view(
 async def list_documents_view(
     request: Request, collection_id: str, session: SessionDep, user: User = Depends(get_current_user_with_state)
 ) -> view_models.DocumentList:
-    return await list_documents(session, str(user.id), collection_id, build_pq(request))
+    return await list_documents(session, str(user.id), collection_id)
 
 
 @router.get("/collections/{collection_id}/documents/{document_id}")
@@ -200,18 +196,14 @@ async def create_chat_view(
 async def list_chats_view(
     request: Request, bot_id: str, session: SessionDep, user: User = Depends(get_current_user_with_state)
 ) -> view_models.ChatList:
-    from aperag.service.chat_service import list_chats
-
-    return await list_chats(session, str(user.id), bot_id, build_pq(request))
+    return await chat_service.list_chats(session, str(user.id), bot_id)
 
 
 @router.get("/bots/{bot_id}/chats/{chat_id}")
 async def get_chat_view(
     request: Request, bot_id: str, chat_id: str, session: SessionDep, user: User = Depends(get_current_user_with_state)
 ) -> view_models.Chat:
-    from aperag.service.chat_service import get_chat
-
-    return await get_chat(session, str(user.id), bot_id, chat_id)
+    return await chat_service.get_chat(session, str(user.id), bot_id, chat_id)
 
 
 @router.put("/bots/{bot_id}/chats/{chat_id}")
@@ -223,9 +215,7 @@ async def update_chat_view(
     session: SessionDep,
     user: User = Depends(get_current_user_with_state),
 ) -> view_models.Chat:
-    from aperag.service.chat_service import update_chat
-
-    return await update_chat(session, str(user.id), bot_id, chat_id, chat_in)
+    return await chat_service.update_chat(session, str(user.id), bot_id, chat_id, chat_in)
 
 
 @router.post("/bots/{bot_id}/chats/{chat_id}/messages/{message_id}")
@@ -246,9 +236,7 @@ async def feedback_message_view(
 async def delete_chat_view(
     request: Request, bot_id: str, chat_id: str, session: SessionDep, user: User = Depends(get_current_user_with_state)
 ) -> view_models.Chat:
-    from aperag.service.chat_service import delete_chat
-
-    return await delete_chat(session, str(user.id), bot_id, chat_id)
+    return await chat_service.delete_chat(session, str(user.id), bot_id, chat_id)
 
 
 @router.post("/bots")
@@ -265,18 +253,14 @@ async def create_bot_view(
 async def list_bots_view(
     request: Request, session: SessionDep, user: User = Depends(get_current_user_with_state)
 ) -> view_models.BotList:
-    from aperag.service.bot_service import list_bots
-
-    return await list_bots(session, str(user.id), build_pq(request))
+    return await bot_service.list_bots(session, str(user.id))
 
 
 @router.get("/bots/{bot_id}")
 async def get_bot_view(
     request: Request, bot_id: str, session: SessionDep, user: User = Depends(get_current_user_with_state)
 ) -> view_models.Bot:
-    from aperag.service.bot_service import get_bot
-
-    return await get_bot(session, str(user.id), bot_id)
+    return await bot_service.get_bot(session, str(user.id), bot_id)
 
 
 @router.put("/bots/{bot_id}")
@@ -287,18 +271,14 @@ async def update_bot_view(
     session: SessionDep,
     user: User = Depends(get_current_user_with_state),
 ) -> view_models.Bot:
-    from aperag.service.bot_service import update_bot
-
-    return await update_bot(session, str(user.id), bot_id, bot_in)
+    return await bot_service.update_bot(session, str(user.id), bot_id, bot_in)
 
 
 @router.delete("/bots/{bot_id}")
 async def delete_bot_view(
     request: Request, bot_id: str, session: SessionDep, user: User = Depends(get_current_user_with_state)
 ) -> view_models.Bot:
-    from aperag.service.bot_service import delete_bot
-
-    return await delete_bot(session, str(user.id), bot_id)
+    return await bot_service.delete_bot(session, str(user.id), bot_id)
 
 
 @router.get("/supported_model_service_providers")

@@ -21,7 +21,7 @@ from aperag.apps import QuotaType
 from aperag.config import SessionDep, settings
 from aperag.db import models as db_models
 from aperag.db.models import SearchTestHistory
-from aperag.db.ops import PagedQuery, query_collection, query_collections, query_collections_count, query_user_quota
+from aperag.db.ops import query_collection, query_collections, query_collections_count, query_user_quota
 from aperag.flow.base.models import Edge, FlowInstance, NodeInstance
 from aperag.flow.engine import FlowEngine
 from aperag.graph.lightrag_holder import delete_lightrag_holder, reload_lightrag_holder
@@ -34,9 +34,7 @@ from aperag.schema.view_models import (
     SearchTestResultItem,
     SearchTestResultList,
 )
-from aperag.source.base import get_source
 from aperag.tasks.collection import delete_collection_task, init_collection_task
-from aperag.tasks.scan import delete_sync_documents_cron_job, update_sync_documents_cron_job
 from aperag.views.utils import fail, success, validate_source_connect_config
 
 
@@ -96,12 +94,12 @@ async def create_collection(
     return success(build_collection_response(instance))
 
 
-async def list_collections(session: SessionDep, user: str, pq: PagedQuery) -> view_models.CollectionList:
-    pr = await query_collections(session, [user, settings.admin_user], pq)
+async def list_collections(session: SessionDep, user: str) -> view_models.CollectionList:
+    collections = await query_collections(session, [user, settings.admin_user])
     response = []
-    for collection in pr.data:
+    for collection in collections:
         response.append(build_collection_response(collection))
-    return success(CollectionList(items=response), pr=pr)
+    return success(CollectionList(items=response))
 
 
 async def get_collection(session: SessionDep, user: str, collection_id: str) -> view_models.Collection:
@@ -124,9 +122,6 @@ async def update_collection(
     await session.commit()
     await session.refresh(instance)
     await reload_lightrag_holder(instance)
-    source = get_source(collection.config)
-    if source.sync_enabled():
-        await update_sync_documents_cron_job(instance.id)
     return success(build_collection_response(instance))
 
 
@@ -139,7 +134,6 @@ async def delete_collection(session: SessionDep, user: str, collection_id: str) 
         return fail(
             HTTPStatus.BAD_REQUEST, f"Collection has related to bots {','.join(collection_bots)}, can not be deleted"
         )
-    await delete_sync_documents_cron_job(collection.id)
     collection.status = db_models.CollectionStatus.DELETED
     collection.gmt_deleted = datetime.utcnow()
     session.add(collection)

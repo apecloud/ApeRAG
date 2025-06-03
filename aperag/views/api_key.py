@@ -16,6 +16,7 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, Request
 
+from aperag.config import SessionDep
 from aperag.db.models import ApiKey, User
 from aperag.schema.view_models import ApiKey as ApiKeyModel
 from aperag.schema.view_models import ApiKeyCreate, ApiKeyList, ApiKeyUpdate
@@ -46,25 +47,32 @@ def to_api_key_model(apikey: ApiKey) -> ApiKeyModel:
 
 
 @router.get("/apikeys")
-async def list_api_keys_view(request: Request, user: User = Depends(get_current_user_with_state)) -> ApiKeyList:
+async def list_api_keys_view(
+    request: Request, session: SessionDep, user: User = Depends(get_current_user_with_state)
+) -> ApiKeyList:
     """List all API keys for the current user"""
-    result = await list_api_keys(str(user.id))
+    result = await list_api_keys(session, str(user.id))
     return success(result)
 
 
 @router.post("/apikeys")
 async def create_api_key_view(
-    request: Request, api_key_create: ApiKeyCreate, user: User = Depends(get_current_user_with_state)
+    request: Request,
+    api_key_create: ApiKeyCreate,
+    session: SessionDep,
+    user: User = Depends(get_current_user_with_state),
 ):
     """Create a new API key"""
-    result = await create_api_key(str(user.id), api_key_create)
+    result = await create_api_key(session, str(user.id), api_key_create)
     return success(result)
 
 
 @router.delete("/apikeys/{apikey_id}")
-async def delete_api_key_view(request: Request, apikey_id: str, user: User = Depends(get_current_user_with_state)):
+async def delete_api_key_view(
+    request: Request, apikey_id: str, session: SessionDep, user: User = Depends(get_current_user_with_state)
+):
     """Delete an API key"""
-    ok = await delete_api_key(str(user.id), apikey_id)
+    ok = await delete_api_key(session, str(user.id), apikey_id)
     if not ok:
         return fail(HTTPStatus.NOT_FOUND, message="API key not found")
     return success({})
@@ -72,10 +80,14 @@ async def delete_api_key_view(request: Request, apikey_id: str, user: User = Dep
 
 @router.put("/apikeys/{apikey_id}")
 async def update_api_key_view(
-    request: Request, apikey_id: str, api_key_update: ApiKeyUpdate, user: User = Depends(get_current_user_with_state)
+    request: Request,
+    apikey_id: str,
+    api_key_update: ApiKeyUpdate,
+    session: SessionDep,
+    user: User = Depends(get_current_user_with_state),
 ):
     """Update an API key"""
-    result = await update_api_key(str(user.id), apikey_id, api_key_update)
+    result = await update_api_key(session, str(user.id), apikey_id, api_key_update)
     if not result:
         return fail(HTTPStatus.NOT_FOUND, message="API key not found")
     return success(result)

@@ -22,7 +22,6 @@ from aperag.apps import QuotaType
 from aperag.config import SessionDep, settings
 from aperag.db import models as db_models
 from aperag.db.ops import (
-    PagedQuery,
     query_bot,
     query_bots,
     query_bots_count,
@@ -82,10 +81,10 @@ async def create_bot(session: SessionDep, user, bot_in: view_models.BotCreate) -
     return success(build_bot_response(bot, collection_ids=collection_ids))
 
 
-async def list_bots(session: SessionDep, user, pq: PagedQuery) -> view_models.BotList:
-    pr = await query_bots(session, [user, settings.admin_user], pq)
+async def list_bots(session: SessionDep, user) -> view_models.BotList:
+    bots = await query_bots(session, [user, settings.admin_user])
     response = []
-    for bot in pr.data:
+    for bot in bots:
         bot_config = json.loads(bot.config)
         model = bot_config.get("model", None)
         if model in ["chatgpt-3.5", "gpt-3.5-turbo-instruct"]:
@@ -97,7 +96,7 @@ async def list_bots(session: SessionDep, user, pq: PagedQuery) -> view_models.Bo
         bot.config = json.dumps(bot_config)
         collection_ids = await bot.collections(session, only_ids=True)
         response.append(build_bot_response(bot, collection_ids=collection_ids))
-    return success(BotList(items=response), pr=pr)
+    return success(BotList(items=response))
 
 
 async def get_bot(session: SessionDep, user, bot_id) -> view_models.Bot:
@@ -141,7 +140,7 @@ async def update_bot(session: SessionDep, user, bot_id, bot_in: view_models.BotU
             db_models.BotCollectionRelation.bot_id == bot.id, db_models.BotCollectionRelation.gmt_deleted is None
         )
         result = await session.execute(stmt)
-        relations = result.all()
+        relations = result.scalars().all()
         for rel in relations:
             rel.gmt_deleted = datetime.utcnow()
             session.add(rel)
@@ -176,7 +175,7 @@ async def delete_bot(session: SessionDep, user, bot_id) -> view_models.Bot:
         db_models.BotCollectionRelation.bot_id == bot.id, db_models.BotCollectionRelation.gmt_deleted is None
     )
     result = await session.execute(stmt)
-    relations = result.all()
+    relations = result.scalars().all()
     for rel in relations:
         rel.gmt_deleted = datetime.utcnow()
         session.add(rel)

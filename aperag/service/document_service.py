@@ -26,7 +26,6 @@ from aperag.apps import QuotaType
 from aperag.config import SessionDep, settings
 from aperag.db import models as db_models
 from aperag.db.ops import (
-    PagedQuery,
     query_collection,
     query_document,
     query_documents,
@@ -157,14 +156,12 @@ async def create_url_document(
     return success(DocumentList(items=response))
 
 
-async def list_documents(
-    session: SessionDep, user: str, collection_id: str, pq: PagedQuery
-) -> view_models.DocumentList:
-    pr = await query_documents(session, [user, settings.admin_user], collection_id, pq)
+async def list_documents(session: SessionDep, user: str, collection_id: str) -> view_models.DocumentList:
+    documents = await query_documents(session, [user, settings.admin_user], collection_id)
     response = []
-    for document in pr.data:
+    for document in documents:
         response.append(build_document_response(document))
-    return success(DocumentList(items=response), pr=pr)
+    return success(DocumentList(items=response))
 
 
 async def get_document(session: SessionDep, user: str, collection_id: str, document_id: str) -> view_models.Document:
@@ -216,10 +213,10 @@ async def delete_document(session: SessionDep, user: str, collection_id: str, do
 
 
 async def delete_documents(session: SessionDep, user: str, collection_id: str, document_ids: List[str]):
-    documents = await query_documents(session, [user], collection_id, None)
+    documents = await query_documents(session, [user], collection_id)
     ok = []
     failed = []
-    for document in documents.data:
+    for document in documents:
         if document.id not in document_ids:
             continue
         try:

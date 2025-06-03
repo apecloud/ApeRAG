@@ -24,7 +24,7 @@ from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
 from aperag.config import SessionDep
 from aperag.db.models import Bot
-from aperag.db.ops import PagedResult, logger, query_chat_feedbacks
+from aperag.db.ops import logger, query_chat_feedbacks
 from aperag.llm.base import Predictor
 from aperag.schema import view_models
 from aperag.schema.view_models import CollectionConfig
@@ -33,9 +33,9 @@ from aperag.utils.utils import AVAILABLE_SOURCE
 
 
 async def query_chat_messages(session: SessionDep, user: str, chat_id: str) -> list[view_models.ChatMessage]:
-    pr = await query_chat_feedbacks(session, user, chat_id)
+    feedbacks = await query_chat_feedbacks(session, user, chat_id)
     feedback_map = {}
-    async for feedback in pr.data:
+    for feedback in feedbacks:
         feedback_map[feedback.message_id] = feedback
 
     history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
@@ -141,15 +141,7 @@ def validate_url(url):
         return False
 
 
-def success(data, pr: PagedResult = None):
-    if not hasattr(data, "pageResult") or pr is None:
-        return data
-
-    data.pageResult = view_models.PageResult(
-        count=pr.count,
-        page_number=pr.page_number,
-        page_size=pr.page_size,
-    )
+def success(data):
     return data
 
 

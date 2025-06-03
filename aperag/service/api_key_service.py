@@ -33,7 +33,7 @@ def to_api_key_model(apikey: ApiKey) -> ApiKeyModel:
     )
 
 
-async def list_api_keys(session: SessionDep, user) -> ApiKeyList:
+async def list_api_keys(session: SessionDep, user: str) -> ApiKeyList:
     """
     List all API keys for the current user
     """
@@ -44,7 +44,7 @@ async def list_api_keys(session: SessionDep, user) -> ApiKeyList:
     return ApiKeyList(items=items)
 
 
-async def create_api_key(session: SessionDep, user, api_key_create: ApiKeyCreate) -> ApiKeyModel:
+async def create_api_key(session: SessionDep, user: str, api_key_create: ApiKeyCreate) -> ApiKeyModel:
     """
     Create a new API key
     """
@@ -52,7 +52,7 @@ async def create_api_key(session: SessionDep, user, api_key_create: ApiKeyCreate
     return to_api_key_model(token)
 
 
-async def delete_api_key(session: SessionDep, user, apikey_id: str):
+async def delete_api_key(session: SessionDep, user: str, apikey_id: str):
     """
     Delete an API key
     """
@@ -64,7 +64,7 @@ async def delete_api_key(session: SessionDep, user, apikey_id: str):
 
 
 async def update_api_key(
-    session: SessionDep, user, apikey_id: str, api_key_update: ApiKeyUpdate
+    session: SessionDep, user: str, apikey_id: str, api_key_update: ApiKeyUpdate
 ) -> Optional[ApiKeyModel]:
     """
     Update an API key

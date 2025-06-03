@@ -114,6 +114,11 @@ class ModelServiceProviderStatus(str, Enum):
     DELETED = "DELETED"
 
 
+class ApiKeyStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    DELETED = "DELETED"
+
+
 # Models
 class Collection(SQLModel, table=True):
     __tablename__ = "collection"
@@ -350,7 +355,7 @@ class ApiKey(SQLModel, table=True):
     key: str = Field(default_factory=lambda: f"sk-{uuid.uuid4().hex}", max_length=40)
     user: str = Field(max_length=256)
     description: Optional[str] = Field(default=None, max_length=256)
-    status: BotStatus = BotStatus.ACTIVE
+    status: ApiKeyStatus = ApiKeyStatus.ACTIVE
     last_used_at: Optional[datetime] = None
     gmt_updated: datetime = Field(default_factory=datetime.utcnow)
     gmt_created: datetime = Field(default_factory=datetime.utcnow)

@@ -113,7 +113,7 @@ async def list_available_models(session: SessionDep, user: str) -> view_models.M
     for msp in msp_list:
         if msp.name in supported_msp_dict:
             available_providers.append(supported_msp_dict[msp.name])
-    return success(ModelConfigList(items=available_providers, pageResult=None).model_dump(exclude_none=True))
+    return success(ModelConfigList(items=available_providers).model_dump(exclude_none=True))
 
 
 async def list_supported_model_service_providers() -> view_models.ModelServiceProviderList:
