@@ -163,7 +163,7 @@ class Document(SQLModel, table=True):
     name: str = Field(max_length=1024)
     user: str = Field(max_length=256)
     config: Optional[str] = None
-    collection_id: Optional[str] = Field(default=None, foreign_key="collection.id", max_length=24)
+    collection_id: Optional[str] = Field(default=None, max_length=24)
     status: DocumentStatus
     vector_index_status: IndexStatus = IndexStatus.PENDING
     fulltext_index_status: IndexStatus = IndexStatus.PENDING
@@ -247,8 +247,8 @@ class BotCollectionRelation(SQLModel, table=True):
     __tablename__ = "bot_collection_relation"
     __table_args__ = (UniqueConstraint("bot_id", "collection_id", name="unique_active_bot_collection"),)
 
-    bot_id: str = Field(foreign_key="bot.id", max_length=24, primary_key=True)
-    collection_id: str = Field(foreign_key="collection.id", max_length=24, primary_key=True)
+    bot_id: str = Field(max_length=24, primary_key=True)
+    collection_id: str = Field(max_length=24, primary_key=True)
     gmt_created: datetime = Field(default_factory=datetime.utcnow)
     gmt_deleted: Optional[datetime] = None
 
@@ -281,7 +281,7 @@ class Chat(SQLModel, table=True):
     peer_type: ChatPeerType = ChatPeerType.SYSTEM
     peer_id: Optional[str] = Field(default=None, max_length=256)
     status: ChatStatus
-    bot_id: str = Field(foreign_key="bot.id", max_length=24)
+    bot_id: str = Field(max_length=24)
     title: Optional[str] = Field(default=None, max_length=256)
     gmt_created: datetime = Field(default_factory=datetime.utcnow)
     gmt_updated: datetime = Field(default_factory=datetime.utcnow)
@@ -306,8 +306,8 @@ class MessageFeedback(SQLModel, table=True):
     __table_args__ = (UniqueConstraint("chat_id", "message_id", name="uq_messagefeedback_chat_message"),)
 
     user: str = Field(max_length=256)
-    collection_id: Optional[str] = Field(default=None, foreign_key="collection.id", max_length=24)
-    chat_id: str = Field(foreign_key="chat.id", max_length=24, primary_key=True)
+    collection_id: Optional[str] = Field(default=None, max_length=24)
+    chat_id: str = Field(max_length=24, primary_key=True)
     message_id: str = Field(max_length=256, primary_key=True)
     type: Optional[MessageFeedbackType] = None
     tag: Optional[MessageFeedbackTag] = None
@@ -391,7 +391,7 @@ class ModelServiceProvider(SQLModel, table=True):
 
 class User(SQLModel, table=True):
     __tablename__ = "user"
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: str = Field(default_factory=lambda: "user" + random_id(), primary_key=True, max_length=24)
     username: str = Field(max_length=150, unique=True)
     email: Optional[str] = Field(default=None, unique=True, max_length=254)
     role: Role = Role.RO
@@ -447,7 +447,7 @@ class SearchTestHistory(SQLModel, table=True):
     __tablename__ = "searchtesthistory"
     id: str = Field(default_factory=lambda: "sth" + random_id(), primary_key=True, max_length=24)
     user: str = Field(max_length=256)
-    collection_id: Optional[str] = Field(default=None, foreign_key="collection.id", max_length=24)
+    collection_id: Optional[str] = Field(default=None, max_length=24)
     query: str
     vector_search: Optional[dict] = Field(default_factory=dict, sa_column=Column(JSON))
     fulltext_search: Optional[dict] = Field(default_factory=dict, sa_column=Column(JSON))

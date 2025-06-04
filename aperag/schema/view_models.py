@@ -775,7 +775,7 @@ class InvitationCreate(BaseModel):
 class Invitation(BaseModel):
     email: Optional[str] = Field(None, description='The email of the user')
     token: Optional[str] = Field(None, description='The token of the invitation')
-    created_by: Optional[int] = Field(
+    created_by: Optional[str] = Field(
         None, description='The ID of the user who created the invitation'
     )
     created_at: Optional[str] = Field(

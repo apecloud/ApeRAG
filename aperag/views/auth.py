@@ -17,12 +17,12 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from fastapi_users import BaseUserManager, FastAPIUsers, IntegerIDMixin
+from fastapi_users import BaseUserManager, FastAPIUsers
 from fastapi_users.authentication import AuthenticationBackend, BearerTransport, CookieTransport, JWTStrategy
 from fastapi_users.db import SQLAlchemyUserDatabase
 
 from aperag.config import SessionDep, settings
-from aperag.db.models import Invitation, Role, User
+from aperag.db.models import ApiKey, ApiKeyStatus, Invitation, Role, User
 from aperag.db.ops import delete_user as db_delete_user
 from aperag.db.ops import query_admin_count, query_first_user_exists
 from aperag.schema import view_models
@@ -30,12 +30,18 @@ from aperag.schema import view_models
 # --- fastapi-users Implementation ---
 
 
-class UserManager(IntegerIDMixin, BaseUserManager[User, int]):
+class UserManager(BaseUserManager[User, str]):
     reset_password_token_secret = "SECRET"
     verification_token_secret = "SECRET"
 
     async def on_after_register(self, user: User, request: Optional[Request] = None):
         pass
+
+    def parse_id(self, value: any) -> str:
+        """Parse ID from any type to str"""
+        if isinstance(value, str):
+            return value
+        return str(value)
 
 
 # JWT Strategy
@@ -74,24 +80,76 @@ async def get_user_manager(user_db: SQLAlchemyUserDatabase = Depends(get_user_db
 
 
 # FastAPI Users instance
-fastapi_users = FastAPIUsers[User, int](
+fastapi_users = FastAPIUsers[User, str](
     get_user_manager,
     [jwt_backend, cookie_backend],
 )
 
 
-# Authentication dependency, writes to request.state.user_id
-async def get_current_user_with_state(
-    request: Request, user: User = Depends(fastapi_users.current_user(optional=True))
-) -> Optional[User]:
-    """Get current user and write to request.state.user_id"""
+# API Key Authentication
+async def authenticate_api_key(request: Request, session: SessionDep) -> Optional[User]:
+    """Authenticate using API Key from Authorization header"""
+    from sqlmodel import select
+
+    authorization: str = request.headers.get("Authorization")
+    if not authorization:
+        return None
+
+    try:
+        scheme, credentials = authorization.split()
+        if scheme.lower() != "bearer":
+            return None
+    except ValueError:
+        return None
+
+    # Query API key
+    result = await session.execute(
+        select(ApiKey).where(
+            ApiKey.key == credentials, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted.is_(None)
+        )
+    )
+    api_key = result.scalars().first()
+
+    if not api_key:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+    # Get user by username
+    result = await session.execute(
+        select(User).where(User.id == api_key.user, User.is_active.is_(True), User.gmt_deleted.is_(None))
+    )
+    user = result.scalars().first()
+
     if user:
-        request.state.user_id = user.id
+        # Update last used timestamp
+        await api_key.update_last_used(session)
+        # Mark the authentication method for debugging purposes
+        user._auth_method = "api_key"
+        user._api_key_id = api_key.id
+
     return user
 
 
+# Authentication dependency, writes to request.state.user_id
+async def get_current_user_with_state(
+    request: Request, session: SessionDep, user: User = Depends(fastapi_users.current_user(optional=True))
+) -> Optional[User]:
+    """Get current user from JWT/Cookie or API Key and write to request.state.user_id"""
+    # First try API Key authentication
+    api_user = await authenticate_api_key(request, session)
+    if api_user:
+        request.state.user_id = api_user.id
+        return api_user
+
+    # Then try JWT/Cookie authentication
+    if user:
+        request.state.user_id = user.id
+        return user
+
+    raise HTTPException(status_code=401, detail="Unauthorized")
+
+
 async def get_current_active_user(
-    request: Request, user: Optional[User] = Depends(get_current_user_with_state)
+    request: Request, session: SessionDep, user: Optional[User] = Depends(get_current_user_with_state)
 ) -> User:
     """Get current active user, raise 401 if not authenticated"""
     if not user:
@@ -99,7 +157,7 @@ async def get_current_active_user(
     return user
 
 
-async def get_current_admin(user: User = Depends(get_current_active_user)) -> User:
+async def get_current_admin(session: SessionDep, user: User = Depends(get_current_active_user)) -> User:
     """Get current admin user"""
     if user.role != Role.ADMIN:
         raise HTTPException(status_code=403, detail="Only admin members can perform this action")
@@ -279,7 +337,9 @@ async def logout_view(response: Response):
 
 
 @router.get("/user")
-async def get_user_view(request: Request, user: Optional[User] = Depends(get_current_user_with_state)):
+async def get_user_view(
+    request: Request, session: SessionDep, user: Optional[User] = Depends(get_current_user_with_state)
+):
     """Get user info, return 401 if not authenticated"""
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
@@ -344,7 +404,7 @@ async def change_password_view(
 
 
 @router.delete("/users/{user_id}")
-async def delete_user_view(user_id: int, session: SessionDep, user: User = Depends(get_current_admin)):
+async def delete_user_view(user_id: str, session: SessionDep, user: User = Depends(get_current_admin)):
     from sqlmodel import select
 
     result = await session.execute(select(User).where(User.id == user_id))
