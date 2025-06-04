@@ -137,7 +137,7 @@ async def update_bot(session: SessionDep, user, bot_id, bot_in: view_models.BotU
     if bot_in.collection_ids is not None:
         # Soft delete old relations
         stmt = select(db_models.BotCollectionRelation).where(
-            db_models.BotCollectionRelation.bot_id == bot.id, db_models.BotCollectionRelation.gmt_deleted is None
+            db_models.BotCollectionRelation.bot_id == bot.id, db_models.BotCollectionRelation.gmt_deleted.is_(None)
         )
         result = await session.execute(stmt)
         relations = result.scalars().all()
@@ -172,7 +172,7 @@ async def delete_bot(session: SessionDep, user, bot_id) -> view_models.Bot:
     await session.commit()
     # Soft delete all relations
     stmt = select(db_models.BotCollectionRelation).where(
-        db_models.BotCollectionRelation.bot_id == bot.id, db_models.BotCollectionRelation.gmt_deleted is None
+        db_models.BotCollectionRelation.bot_id == bot.id, db_models.BotCollectionRelation.gmt_deleted.is_(None)
     )
     result = await session.execute(stmt)
     relations = result.scalars().all()

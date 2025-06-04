@@ -155,7 +155,7 @@ class Config(BaseSettings):
 
 settings = Config()
 
-engine = create_async_engine(settings.database_url, echo=False)
+engine = create_async_engine(settings.database_url, echo=True)
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:

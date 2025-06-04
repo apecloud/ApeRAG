@@ -262,9 +262,9 @@ async def query_invitations(session: SessionDep):
     return result.scalars().all()
 
 
-async def list_user_api_keys(session: SessionDep, user: str) -> List[ApiKey]:
+async def list_user_api_keys(session: SessionDep, user: str):
     """List all active API keys for a user"""
-    stmt = select(ApiKey).where(ApiKey.user == user, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted is None)
+    stmt = select(ApiKey).where(ApiKey.user == user, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted.is_(None))
     result = await session.execute(stmt)
     return result.scalars().all()
 
@@ -281,7 +281,7 @@ async def create_api_key(session: SessionDep, user: str, description: Optional[s
 async def delete_api_key(session: SessionDep, user: str, key_id: str) -> bool:
     """Delete an API key (soft delete)"""
     stmt = select(ApiKey).where(
-        ApiKey.id == key_id, ApiKey.user == user, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted is None
+        ApiKey.id == key_id, ApiKey.user == user, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted.is_(None)
     )
     result = await session.execute(stmt)
     api_key = result.scalars().first()
@@ -299,7 +299,7 @@ async def delete_api_key(session: SessionDep, user: str, key_id: str) -> bool:
 async def get_api_key_by_id(session: SessionDep, user: str, id: str) -> Optional[ApiKey]:
     """Get API key by id string"""
     stmt = select(ApiKey).where(
-        ApiKey.user == user, ApiKey.id == id, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted is None
+        ApiKey.user == user, ApiKey.id == id, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted.is_(None)
     )
     result = await session.execute(stmt)
     return result.scalars().first()
@@ -307,7 +307,7 @@ async def get_api_key_by_id(session: SessionDep, user: str, id: str) -> Optional
 
 async def get_api_key_by_key(session: SessionDep, key: str) -> Optional[ApiKey]:
     """Get API key by key string"""
-    stmt = select(ApiKey).where(ApiKey.key == key, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted is None)
+    stmt = select(ApiKey).where(ApiKey.key == key, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted.is_(None))
     result = await session.execute(stmt)
     return result.scalars().first()
 
@@ -315,7 +315,7 @@ async def get_api_key_by_key(session: SessionDep, key: str) -> Optional[ApiKey]:
 async def query_chat_feedbacks(session: SessionDep, user: str, chat_id: str):
     stmt = (
         select(MessageFeedback)
-        .where(MessageFeedback.chat_id == chat_id, MessageFeedback.gmt_deleted is None, MessageFeedback.user == user)
+        .where(MessageFeedback.chat_id == chat_id, MessageFeedback.gmt_deleted.is_(None), MessageFeedback.user == user)
         .order_by(desc(MessageFeedback.gmt_created))
     )
     result = await session.execute(stmt)
@@ -326,7 +326,7 @@ async def query_message_feedback(session: SessionDep, user: str, chat_id: str, m
     stmt = select(MessageFeedback).where(
         MessageFeedback.chat_id == chat_id,
         MessageFeedback.message_id == message_id,
-        MessageFeedback.gmt_deleted is None,
+        MessageFeedback.gmt_deleted.is_(None),
         MessageFeedback.user == user,
     )
     result = await session.execute(stmt)
@@ -334,12 +334,12 @@ async def query_message_feedback(session: SessionDep, user: str, chat_id: str, m
 
 
 async def query_first_user_exists(session: SessionDep):
-    stmt = select(User).where(User.gmt_deleted is None)
+    stmt = select(User).where(User.gmt_deleted.is_(None))
     result = await session.execute(stmt)
     return result.scalars().first() is not None
 
 
 async def query_admin_count(session: SessionDep):
-    stmt = select(func.count()).select_from(User).where(User.role == Role.ADMIN, User.gmt_deleted is None)
+    stmt = select(func.count()).select_from(User).where(User.role == Role.ADMIN, User.gmt_deleted.is_(None))
     count = await session.scalar(stmt)
     return count

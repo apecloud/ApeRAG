@@ -140,7 +140,7 @@ class Collection(SQLModel, table=True):
         from aperag.db.models import Bot, BotCollectionRelation
 
         stmt = select(BotCollectionRelation).where(
-            BotCollectionRelation.collection_id == self.id, BotCollectionRelation.gmt_deleted is None
+            BotCollectionRelation.collection_id == self.id, BotCollectionRelation.gmt_deleted.is_(None)
         )
         result = await session.execute(stmt)
         rels = result.all()
@@ -228,7 +228,7 @@ class Bot(SQLModel, table=True):
         from aperag.db.models import BotCollectionRelation, Collection
 
         stmt = select(BotCollectionRelation).where(
-            BotCollectionRelation.bot_id == self.id, BotCollectionRelation.gmt_deleted is None
+            BotCollectionRelation.bot_id == self.id, BotCollectionRelation.gmt_deleted.is_(None)
         )
         result = await session.execute(stmt)
         rels = result.all()
@@ -355,7 +355,7 @@ class ApiKey(SQLModel, table=True):
     key: str = Field(default_factory=lambda: f"sk-{uuid.uuid4().hex}", max_length=40)
     user: str = Field(max_length=256)
     description: Optional[str] = Field(default=None, max_length=256)
-    status: ApiKeyStatus = ApiKeyStatus.ACTIVE
+    status: ApiKeyStatus
     last_used_at: Optional[datetime] = None
     gmt_updated: datetime = Field(default_factory=datetime.utcnow)
     gmt_created: datetime = Field(default_factory=datetime.utcnow)

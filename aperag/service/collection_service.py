@@ -121,7 +121,8 @@ async def update_collection(
     session.add(instance)
     await session.commit()
     await session.refresh(instance)
-    await reload_lightrag_holder(instance)
+    if getattr(collection.config, "enable_knowledge_graph", False):
+        await reload_lightrag_holder(instance)
     return success(build_collection_response(instance))
 
 
@@ -254,7 +255,7 @@ async def list_search_tests(session: SessionDep, user: str, collection_id: str) 
         .where(
             SearchTestHistory.user == user,
             SearchTestHistory.collection_id == collection_id,
-            SearchTestHistory.gmt_deleted is None,
+            SearchTestHistory.gmt_deleted.is_(None),
         )
         .order_by(desc(SearchTestHistory.gmt_created))
         .limit(50)
@@ -292,7 +293,7 @@ async def delete_search_test(session: SessionDep, user: str, collection_id: str,
         SearchTestHistory.user == user,
         SearchTestHistory.id == search_test_id,
         SearchTestHistory.collection_id == collection_id,
-        SearchTestHistory.gmt_deleted is None,
+        SearchTestHistory.gmt_deleted.is_(None),
     )
     result = await session.execute(stmt)
     record = result.scalars().first()
