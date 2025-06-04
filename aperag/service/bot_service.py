@@ -109,28 +109,41 @@ class BotService:
     async def list_bots(self, user: str) -> view_models.BotList:
         bots = await self.db_ops.query_bots([user, settings.admin_user])
         response = []
-        for bot in bots:
-            # Handle legacy model names
-            bot_config = json.loads(bot.config)
-            model = bot_config.get("model", None)
-            if model in ["chatgpt-3.5", "gpt-3.5-turbo-instruct"]:
-                bot_config["model"] = "gpt-3.5-turbo"
-            elif model == "chatgpt-4":
-                bot_config["model"] = "gpt-4"
-            elif model in ["gpt-4-vision-preview", "gpt-4-32k", "gpt-4-32k-0613"]:
-                bot_config["model"] = "gpt-4-1106-preview"
-            bot.config = json.dumps(bot_config)
 
-            # Get collection IDs for this bot
-            collection_ids = await bot.collections(await self.db_ops.get_session(), only_ids=True)
-            response.append(self.build_bot_response(bot, collection_ids=collection_ids))
+        # Use _execute_query pattern to get collection IDs for all bots safely
+        async def _get_bot_collections_data(session):
+            bot_responses = []
+            for bot in bots:
+                # Handle legacy model names
+                bot_config = json.loads(bot.config)
+                model = bot_config.get("model", None)
+                if model in ["chatgpt-3.5", "gpt-3.5-turbo-instruct"]:
+                    bot_config["model"] = "gpt-3.5-turbo"
+                elif model == "chatgpt-4":
+                    bot_config["model"] = "gpt-4"
+                elif model in ["gpt-4-vision-preview", "gpt-4-32k", "gpt-4-32k-0613"]:
+                    bot_config["model"] = "gpt-4-1106-preview"
+                bot.config = json.dumps(bot_config)
+
+                # Get collection IDs for this bot using the session
+                collection_ids = await bot.collections(session, only_ids=True)
+                bot_responses.append(self.build_bot_response(bot, collection_ids=collection_ids))
+            return bot_responses
+
+        response = await self.db_ops._execute_query(_get_bot_collections_data)
         return success(BotList(items=response))
 
     async def get_bot(self, user: str, bot_id: str) -> view_models.Bot:
         bot = await self.db_ops.query_bot(user, bot_id)
         if bot is None:
             return fail(HTTPStatus.NOT_FOUND, "Bot not found")
-        collection_ids = await bot.collections(await self.db_ops.get_session(), only_ids=True)
+
+        # Use _execute_query pattern to get collection IDs safely
+        async def _get_bot_collections(session):
+            collection_ids = await bot.collections(session, only_ids=True)
+            return collection_ids
+
+        collection_ids = await self.db_ops._execute_query(_get_bot_collections)
         return success(self.build_bot_response(bot, collection_ids=collection_ids))
 
     async def update_bot(self, user: str, bot_id: str, bot_in: view_models.BotUpdate) -> view_models.Bot:

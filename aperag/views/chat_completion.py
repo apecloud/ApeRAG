@@ -19,7 +19,7 @@ from fastapi.responses import StreamingResponse
 
 from aperag.chat.sse.openai_consumer import OpenAIFormatter
 from aperag.db.models import User
-from aperag.service.chat_completion_service import openai_chat_completions, stream_openai_sse_response
+from aperag.service.chat_completion_service import chat_completion_service
 from aperag.views.auth import get_current_user_with_state
 
 logger = logging.getLogger(__name__)
@@ -32,13 +32,13 @@ async def openai_chat_completions_view(request: Request, user: User = Depends(ge
     try:
         body_data = await request.json()
         query_params = dict(request.query_params)
-        result, error = await openai_chat_completions(str(user.id), body_data, query_params)
+        result, error = await chat_completion_service.openai_chat_completions(str(user.id), body_data, query_params)
         if error:
             return error
         api_request, formatter, async_generator = result
         if api_request.stream:
             return StreamingResponse(
-                stream_openai_sse_response(async_generator(), formatter, api_request.msg_id),
+                chat_completion_service.stream_openai_sse_response(async_generator(), formatter, api_request.msg_id),
                 media_type="text/event-stream",
             )
         else:

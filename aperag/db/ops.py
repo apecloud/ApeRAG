@@ -55,9 +55,24 @@ class DatabaseOps:
         if self._session:
             return self._session
 
-        # Create new session for standalone usage
+        # For global instance usage, use the dependency injection pattern
+        # This will be managed by the caller (usually in service layer _execute_with_session)
         async for session in get_session():
             return session
+
+    async def _execute_query(self, query_func):
+        """Execute a read-only query with proper session management"""
+        if self._session:
+            # Use provided session
+            return await query_func(self._session)
+        else:
+            # Create new session and manage its lifecycle
+            async for session in get_session():
+                try:
+                    return await query_func(session)
+                finally:
+                    # Session is automatically closed by the context manager
+                    pass
 
     # Collection Operations
     async def create_collection(
@@ -177,186 +192,228 @@ class DatabaseOps:
         return False
 
     async def query_collection(self, user: str, collection_id: str):
-        session = await self.get_session()
-        stmt = select(Collection).where(
-            Collection.id == collection_id, Collection.user == user, Collection.status != CollectionStatus.DELETED
-        )
-        result = await session.execute(stmt)
-        return result.scalars().first()
+        async def _query(session):
+            stmt = select(Collection).where(
+                Collection.id == collection_id, Collection.user == user, Collection.status != CollectionStatus.DELETED
+            )
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
 
     async def query_collections(self, users: List[str]):
-        session = await self.get_session()
-        stmt = (
-            select(Collection)
-            .where(Collection.user.in_(users), Collection.status != CollectionStatus.DELETED)
-            .order_by(desc(Collection.gmt_created))
-        )
-        result = await session.execute(stmt)
-        return result.scalars().all()
+        async def _query(session):
+            stmt = (
+                select(Collection)
+                .where(Collection.user.in_(users), Collection.status != CollectionStatus.DELETED)
+                .order_by(desc(Collection.gmt_created))
+            )
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+        return await self._execute_query(_query)
 
     async def query_collections_count(self, user: str):
-        session = await self.get_session()
-        stmt = (
-            select(func.count())
-            .select_from(Collection)
-            .where(Collection.user == user, Collection.status != CollectionStatus.DELETED)
-        )
-        count = await session.scalar(stmt)
-        return count
+        async def _query(session):
+            stmt = (
+                select(func.count())
+                .select_from(Collection)
+                .where(Collection.user == user, Collection.status != CollectionStatus.DELETED)
+            )
+            return await session.scalar(stmt)
+
+        return await self._execute_query(_query)
 
     async def query_collection_without_user(self, collection_id: str):
-        session = await self.get_session()
-        stmt = select(Collection).where(Collection.id == collection_id, Collection.status != CollectionStatus.DELETED)
-        result = await session.execute(stmt)
-        return result.scalars().first()
+        async def _query(session):
+            stmt = select(Collection).where(
+                Collection.id == collection_id, Collection.status != CollectionStatus.DELETED
+            )
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
 
     async def query_document(self, user: str, collection_id: str, document_id: str):
-        session = await self.get_session()
-        stmt = select(Document).where(
-            Document.id == document_id,
-            Document.collection_id == collection_id,
-            Document.user == user,
-            Document.status != CollectionStatus.DELETED,
-        )
-        result = await session.execute(stmt)
-        return result.scalars().first()
+        async def _query(session):
+            stmt = select(Document).where(
+                Document.id == document_id,
+                Document.collection_id == collection_id,
+                Document.user == user,
+                Document.status != CollectionStatus.DELETED,
+            )
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
 
     async def query_documents(self, users: List[str], collection_id: str):
-        session = await self.get_session()
-        stmt = (
-            select(Document)
-            .where(
-                Document.user.in_(users),
-                Document.collection_id == collection_id,
-                Document.status != CollectionStatus.DELETED,
+        async def _query(session):
+            stmt = (
+                select(Document)
+                .where(
+                    Document.user.in_(users),
+                    Document.collection_id == collection_id,
+                    Document.status != CollectionStatus.DELETED,
+                )
+                .order_by(desc(Document.gmt_created))
             )
-            .order_by(desc(Document.gmt_created))
-        )
-        result = await session.execute(stmt)
-        return result.scalars().all()
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+        return await self._execute_query(_query)
 
     async def query_documents_count(self, user: str, collection_id: str):
-        session = await self.get_session()
-        stmt = (
-            select(func.count())
-            .select_from(Document)
-            .where(
-                Document.user == user,
-                Document.collection_id == collection_id,
-                Document.status != CollectionStatus.DELETED,
+        async def _query(session):
+            stmt = (
+                select(func.count())
+                .select_from(Document)
+                .where(
+                    Document.user == user,
+                    Document.collection_id == collection_id,
+                    Document.status != CollectionStatus.DELETED,
+                )
             )
-        )
-        count = await session.scalar(stmt)
-        return count
+            return await session.scalar(stmt)
+
+        return await self._execute_query(_query)
 
     async def query_chat(self, user: str, bot_id: str, chat_id: str):
-        session = await self.get_session()
-        stmt = select(Chat).where(
-            Chat.id == chat_id, Chat.bot_id == bot_id, Chat.user == user, Chat.status != CollectionStatus.DELETED
-        )
-        result = await session.execute(stmt)
-        return result.scalars().first()
+        async def _query(session):
+            stmt = select(Chat).where(
+                Chat.id == chat_id, Chat.bot_id == bot_id, Chat.user == user, Chat.status != CollectionStatus.DELETED
+            )
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
 
     async def query_chat_by_peer(self, user: str, peer_type, peer_id: str):
-        session = await self.get_session()
-        stmt = select(Chat).where(
-            Chat.user == user,
-            Chat.peer_type == peer_type,
-            Chat.peer_id == peer_id,
-            Chat.status != CollectionStatus.DELETED,
-        )
-        result = await session.execute(stmt)
-        return result.scalars().first()
+        async def _query(session):
+            stmt = select(Chat).where(
+                Chat.user == user,
+                Chat.peer_type == peer_type,
+                Chat.peer_id == peer_id,
+                Chat.status != CollectionStatus.DELETED,
+            )
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
 
     async def query_chats(self, user: str, bot_id: str):
-        session = await self.get_session()
-        stmt = (
-            select(Chat)
-            .where(Chat.user == user, Chat.bot_id == bot_id, Chat.status != CollectionStatus.DELETED)
-            .order_by(desc(Chat.gmt_created))
-        )
-        result = await session.execute(stmt)
-        return result.scalars().all()
+        async def _query(session):
+            stmt = (
+                select(Chat)
+                .where(Chat.user == user, Chat.bot_id == bot_id, Chat.status != CollectionStatus.DELETED)
+                .order_by(desc(Chat.gmt_created))
+            )
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+        return await self._execute_query(_query)
 
     async def query_bot(self, user: str, bot_id: str):
-        session = await self.get_session()
-        stmt = select(Bot).where(Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED)
-        result = await session.execute(stmt)
-        return result.scalars().first()
+        async def _query(session):
+            stmt = select(Bot).where(Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED)
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
 
     async def query_bots(self, users: List[str]):
-        session = await self.get_session()
-        stmt = select(Bot).where(Bot.user.in_(users), Bot.status != BotStatus.DELETED).order_by(desc(Bot.gmt_created))
-        result = await session.execute(stmt)
-        return result.scalars().all()
+        async def _query(session):
+            stmt = (
+                select(Bot).where(Bot.user.in_(users), Bot.status != BotStatus.DELETED).order_by(desc(Bot.gmt_created))
+            )
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+        return await self._execute_query(_query)
 
     async def query_bots_count(self, user: str):
-        session = await self.get_session()
-        stmt = select(func.count()).select_from(Bot).where(Bot.user == user, Bot.status != BotStatus.DELETED)
-        count = await session.scalar(stmt)
-        return count
+        async def _query(session):
+            stmt = select(func.count()).select_from(Bot).where(Bot.user == user, Bot.status != BotStatus.DELETED)
+            return await session.scalar(stmt)
+
+        return await self._execute_query(_query)
 
     async def query_config(self, key):
-        session = await self.get_session()
-        stmt = select(ConfigModel).where(ConfigModel.key == key)
-        result = await session.execute(stmt)
-        results = result.scalars().first()
-        return results
+        async def _query(session):
+            stmt = select(ConfigModel).where(ConfigModel.key == key)
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
 
     async def query_user_quota(self, user: str, key: str):
-        session = await self.get_session()
-        stmt = select(UserQuota).where(UserQuota.user == user, UserQuota.key == key)
-        result = await session.execute(stmt)
-        uq = result.scalars().first()
-        return uq.value if uq else None
+        async def _query(session):
+            stmt = select(UserQuota).where(UserQuota.user == user, UserQuota.key == key)
+            result = await session.execute(stmt)
+            uq = result.scalars().first()
+            return uq.value if uq else None
+
+        return await self._execute_query(_query)
 
     async def query_msp_list(self, user: str):
-        session = await self.get_session()
-        stmt = select(ModelServiceProvider).where(
-            ModelServiceProvider.user == user, ModelServiceProvider.status != ModelServiceProviderStatus.DELETED
-        )
-        result = await session.execute(stmt)
-        return result.scalars().all()
+        async def _query(session):
+            stmt = select(ModelServiceProvider).where(
+                ModelServiceProvider.user == user, ModelServiceProvider.status != ModelServiceProviderStatus.DELETED
+            )
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+        return await self._execute_query(_query)
 
     async def query_msp_dict(self, user: str):
-        session = await self.get_session()
-        stmt = select(ModelServiceProvider).where(
-            ModelServiceProvider.user == user, ModelServiceProvider.status != ModelServiceProviderStatus.DELETED
-        )
-        result = await session.execute(stmt)
-        return {msp.name: msp for msp in result.scalars().all()}
+        async def _query(session):
+            stmt = select(ModelServiceProvider).where(
+                ModelServiceProvider.user == user, ModelServiceProvider.status != ModelServiceProviderStatus.DELETED
+            )
+            result = await session.execute(stmt)
+            return {msp.name: msp for msp in result.scalars().all()}
+
+        return await self._execute_query(_query)
 
     async def query_msp(self, user: str, provider: str, filterDeletion: bool = True):
-        session = await self.get_session()
-        stmt = select(ModelServiceProvider).where(
-            ModelServiceProvider.user == user, ModelServiceProvider.name == provider
-        )
-        if filterDeletion:
-            stmt = stmt.where(ModelServiceProvider.status != ModelServiceProviderStatus.DELETED)
-        result = await session.execute(stmt)
-        return result.scalars().first()
+        async def _query(session):
+            stmt = select(ModelServiceProvider).where(
+                ModelServiceProvider.user == user, ModelServiceProvider.name == provider
+            )
+            if filterDeletion:
+                stmt = stmt.where(ModelServiceProvider.status != ModelServiceProviderStatus.DELETED)
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
 
     async def query_user_by_username(self, username: str):
-        session = await self.get_session()
-        stmt = select(User).where(User.username == username)
-        result = await session.execute(stmt)
-        return result.scalars().first()
+        async def _query(session):
+            stmt = select(User).where(User.username == username)
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
 
     async def query_user_by_email(self, email: str):
-        session = await self.get_session()
-        stmt = select(User).where(User.email == email)
-        result = await session.execute(stmt)
-        return result.scalars().first()
+        async def _query(session):
+            stmt = select(User).where(User.email == email)
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
 
     async def query_user_exists(self, username: str = None, email: str = None):
-        session = await self.get_session()
-        stmt = select(User)
-        if username:
-            stmt = stmt.where(User.username == username)
-        if email:
-            stmt = stmt.where(User.email == email)
-        result = await session.execute(stmt)
-        return result.scalars().first() is not None
+        async def _query(session):
+            stmt = select(User)
+            if username:
+                stmt = stmt.where(User.username == username)
+            if email:
+                stmt = stmt.where(User.email == email)
+            result = await session.execute(stmt)
+            return result.scalars().first() is not None
+
+        return await self._execute_query(_query)
 
     async def create_user(self, username: str, email: str, password: str, role: Role):
         session = await self.get_session()
@@ -378,10 +435,12 @@ class DatabaseOps:
         await session.commit()
 
     async def query_invitation_by_token(self, token: str):
-        session = await self.get_session()
-        stmt = select(Invitation).where(Invitation.token == token)
-        result = await session.execute(stmt)
-        return result.scalars().first()
+        async def _query(session):
+            stmt = select(Invitation).where(Invitation.token == token)
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
 
     async def create_invitation(self, email: str, token: str, created_by: str, role: Role):
         session = await self.get_session()
@@ -397,19 +456,25 @@ class DatabaseOps:
 
     async def query_invitations(self):
         """Query all valid invitations (not used), ordered by created_at descending."""
-        session = await self.get_session()
-        stmt = select(Invitation).where(not Invitation.is_used).order_by(desc(Invitation.created_at))
-        result = await session.execute(stmt)
-        return result.scalars().all()
+
+        async def _query(session):
+            stmt = select(Invitation).where(not Invitation.is_used).order_by(desc(Invitation.created_at))
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+        return await self._execute_query(_query)
 
     async def list_user_api_keys(self, user: str):
         """List all active API keys for a user"""
-        session = await self.get_session()
-        stmt = select(ApiKey).where(
-            ApiKey.user == user, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted.is_(None)
-        )
-        result = await session.execute(stmt)
-        return result.scalars().all()
+
+        async def _query(session):
+            stmt = select(ApiKey).where(
+                ApiKey.user == user, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted.is_(None)
+            )
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+        return await self._execute_query(_query)
 
     async def create_api_key(self, user: str, description: Optional[str] = None) -> ApiKey:
         """Create a new API key for a user"""
@@ -440,56 +505,71 @@ class DatabaseOps:
 
     async def get_api_key_by_id(self, user: str, id: str) -> Optional[ApiKey]:
         """Get API key by id string"""
-        session = await self.get_session()
-        stmt = select(ApiKey).where(
-            ApiKey.user == user, ApiKey.id == id, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted.is_(None)
-        )
-        result = await session.execute(stmt)
-        return result.scalars().first()
+
+        async def _query(session):
+            stmt = select(ApiKey).where(
+                ApiKey.user == user, ApiKey.id == id, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted.is_(None)
+            )
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
 
     async def get_api_key_by_key(self, key: str) -> Optional[ApiKey]:
         """Get API key by key string"""
-        session = await self.get_session()
-        stmt = select(ApiKey).where(
-            ApiKey.key == key, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted.is_(None)
-        )
-        result = await session.execute(stmt)
-        return result.scalars().first()
+
+        async def _query(session):
+            stmt = select(ApiKey).where(
+                ApiKey.key == key, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted.is_(None)
+            )
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
 
     async def query_chat_feedbacks(self, user: str, chat_id: str):
-        session = await self.get_session()
-        stmt = (
-            select(MessageFeedback)
-            .where(
-                MessageFeedback.chat_id == chat_id, MessageFeedback.gmt_deleted.is_(None), MessageFeedback.user == user
+        async def _query(session):
+            stmt = (
+                select(MessageFeedback)
+                .where(
+                    MessageFeedback.chat_id == chat_id,
+                    MessageFeedback.gmt_deleted.is_(None),
+                    MessageFeedback.user == user,
+                )
+                .order_by(desc(MessageFeedback.gmt_created))
             )
-            .order_by(desc(MessageFeedback.gmt_created))
-        )
-        result = await session.execute(stmt)
-        return result.scalars().all()
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+        return await self._execute_query(_query)
 
     async def query_message_feedback(self, user: str, chat_id: str, message_id: str):
-        session = await self.get_session()
-        stmt = select(MessageFeedback).where(
-            MessageFeedback.chat_id == chat_id,
-            MessageFeedback.message_id == message_id,
-            MessageFeedback.gmt_deleted.is_(None),
-            MessageFeedback.user == user,
-        )
-        result = await session.execute(stmt)
-        return result.scalars().first()
+        async def _query(session):
+            stmt = select(MessageFeedback).where(
+                MessageFeedback.chat_id == chat_id,
+                MessageFeedback.message_id == message_id,
+                MessageFeedback.gmt_deleted.is_(None),
+                MessageFeedback.user == user,
+            )
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
 
     async def query_first_user_exists(self):
-        session = await self.get_session()
-        stmt = select(User).where(User.gmt_deleted.is_(None))
-        result = await session.execute(stmt)
-        return result.scalars().first() is not None
+        async def _query(session):
+            stmt = select(User).where(User.gmt_deleted.is_(None))
+            result = await session.execute(stmt)
+            return result.scalars().first() is not None
+
+        return await self._execute_query(_query)
 
     async def query_admin_count(self):
-        session = await self.get_session()
-        stmt = select(func.count()).select_from(User).where(User.role == Role.ADMIN, User.gmt_deleted.is_(None))
-        count = await session.scalar(stmt)
-        return count
+        async def _query(session):
+            stmt = select(func.count()).select_from(User).where(User.role == Role.ADMIN, User.gmt_deleted.is_(None))
+            return await session.scalar(stmt)
+
+        return await self._execute_query(_query)
 
     # Bot Operations
     async def create_bot(self, user: str, title: str, description: str, bot_type, config: str = "{}") -> Bot:
