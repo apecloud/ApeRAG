@@ -179,16 +179,20 @@ class CustomDeleteDocumentTask(Task):
 
 
 # Utility functions: Extract repeated code without changing main flow
-def create_local_path_embedding_loader(local_doc, document, collection, embedding_model, vector_size):
+def create_local_path_embedding_loader(local_doc, document_id, collection_id, user_id, embedding_model, vector_size):
     """Create LocalPathEmbedding instance - extracted from repeated code"""
+    # Generate object store base path directly without using document object
+    user_safe = user_id.replace("|", "-")
+    object_store_base_path = f"user-{user_safe}/{collection_id}/{document_id}"
+
     return LocalPathEmbedding(
         filepath=local_doc.path,
         file_metadata=local_doc.metadata,
-        object_store_base_path=document.object_store_base_path(),
+        object_store_base_path=object_store_base_path,
         embedding_model=embedding_model,
         vector_size=vector_size,
         vector_store_adaptor=get_vector_db_connector(
-            collection=generate_vector_db_collection_name(collection_id=collection.id)
+            collection=generate_vector_db_collection_name(collection_id=collection_id)
         ),
         chunk_size=settings.chunk_size,
         chunk_overlap=settings.chunk_overlap_size,
@@ -282,6 +286,7 @@ def add_index_for_document(self, document_id):
     Raises:
         Exception: Various document processing exceptions (permissions, etc.)
     """
+    # Get initial document and collection info
     with get_sync_session() as session:
         document = session.get(Document, document_id)
         if not document:
@@ -300,24 +305,43 @@ def add_index_for_document(self, document_id):
         if not collection:
             raise Exception(f"Collection {document.collection_id} not found")
 
+        # Get document metadata while we have the session
+        doc_metadata = document.doc_metadata or "{}"
+        doc_name = document.name
+        doc_size = document.size
+        doc_object_path = document.object_path
+        doc_user = document.user
+        collection_id = collection.id
+
     source = None
     local_doc = None
-    metadata = json.loads(document.doc_metadata or "{}")
+    metadata = json.loads(doc_metadata)
     metadata["doc_id"] = document_id
     supported_file_extensions = DocParser().supported_extensions()  # TODO: apply collection config
     supported_file_extensions += SUPPORTED_COMPRESSED_EXTENSIONS
+
     try:
-        if document.object_path and Path(document.object_path).suffix in SUPPORTED_COMPRESSED_EXTENSIONS:
+        if doc_object_path and Path(doc_object_path).suffix in SUPPORTED_COMPRESSED_EXTENSIONS:
             config = parseCollectionConfig(collection.config)
             if config.source != "system":
                 return
-            uncompress_file(document, supported_file_extensions)
+            # Need to get document again for uncompress_file since it might update it
+            with get_sync_session() as session:
+                document = session.get(Document, document_id)
+                uncompress_file(document, supported_file_extensions)
             return
         else:
             source = get_source(parseCollectionConfig(collection.config))
-            local_doc = source.prepare_document(name=document.name, metadata=metadata)
-            if document.size == 0:
-                document.size = os.path.getsize(local_doc.path)
+            local_doc = source.prepare_document(name=doc_name, metadata=metadata)
+
+            # Update document size if needed
+            if doc_size == 0:
+                new_size = os.path.getsize(local_doc.path)
+                with get_sync_session() as session:
+                    document = session.get(Document, document_id)
+                    document.size = new_size
+                    session.add(document)
+                    session.commit()
 
             config, enable_knowledge_graph = get_collection_config_settings(collection)
 
@@ -325,7 +349,7 @@ def add_index_for_document(self, document_id):
             try:
                 embedding_model, vector_size = get_collection_embedding_service_sync(collection)
                 loader = create_local_path_embedding_loader(
-                    local_doc, document, collection, embedding_model, vector_size
+                    local_doc, document_id, collection_id, doc_user, embedding_model, vector_size
                 )
 
                 ctx_ids, content = loader.load_data()
@@ -354,7 +378,7 @@ def add_index_for_document(self, document_id):
             try:
                 if ctx_ids:  # Only create fulltext index when vector data exists
                     index = generate_fulltext_index_name(collection.id)
-                    insert_document(index, document.id, local_doc.name, content)
+                    insert_document(index, document_id, local_doc.name, content)
                     with get_sync_session() as session:
                         document = session.get(Document, document_id)
                         document.fulltext_index_status = DocumentStatus.COMPLETE
@@ -380,7 +404,7 @@ def add_index_for_document(self, document_id):
             try:
                 if enable_knowledge_graph:
                     # Start asynchronous LightRAG indexing task
-                    add_lightrag_index_task.delay(content, document.id, local_doc.path)
+                    add_lightrag_index_task.delay(content, document_id, local_doc.path)
                     with get_sync_session() as session:
                         document = session.get(Document, document_id)
                         document.graph_index_status = DocumentStatus.RUNNING
@@ -403,9 +427,9 @@ def add_index_for_document(self, document_id):
                 logger.error(f"Graph index failed for document {local_doc.path}: {str(e)}")
 
     except FeishuNoPermission:
-        raise Exception("no permission to access document %s" % document.name)
+        raise Exception("no permission to access document %s" % doc_name)
     except FeishuPermissionDenied:
-        raise Exception("permission denied to access document %s" % document.name)
+        raise Exception("permission denied to access document %s" % doc_name)
     except Exception as e:
         raise e
     finally:
@@ -502,19 +526,28 @@ def update_index_for_document(self, document_id):
         if not collection:
             raise Exception(f"Collection {document.collection_id} not found")
 
-        document.status = Document.Status.RUNNING
+        # Get document info while we have the session
+        doc_user = document.user
+        collection_id = collection.id
+        doc_name = document.name
+        doc_metadata = document.doc_metadata or "{}"
+        relate_ids_str = document.relate_ids
+
+        document.status = DocumentStatus.RUNNING
         session.add(document)
         session.commit()
 
         try:
-            relate_ids = json.loads(document.relate_ids) if document.relate_ids and document.relate_ids.strip() else {}
+            relate_ids = json.loads(relate_ids_str) if relate_ids_str and relate_ids_str.strip() else {}
             source = get_source(parseCollectionConfig(collection.config))
-            metadata = json.loads(document.doc_metadata or "{}")
+            metadata = json.loads(doc_metadata)
             metadata["doc_id"] = document_id
-            local_doc = source.prepare_document(name=document.name, metadata=metadata)
+            local_doc = source.prepare_document(name=doc_name, metadata=metadata)
 
             embedding_model, vector_size = get_collection_embedding_service_sync(collection)
-            loader = create_local_path_embedding_loader(local_doc, document, collection, embedding_model, vector_size)
+            loader = create_local_path_embedding_loader(
+                local_doc, document_id, collection_id, doc_user, embedding_model, vector_size
+            )
             loader.connector.delete(ids=relate_ids.get("ctx", []))
 
             config, enable_knowledge_graph = get_collection_config_settings(collection)
@@ -523,30 +556,37 @@ def update_index_for_document(self, document_id):
 
             # only index the document that have points in the vector database
             if ctx_ids:
-                index = generate_fulltext_index_name(collection.id)
-                insert_document(index, document.id, local_doc.name, content)
+                index = generate_fulltext_index_name(collection_id)
+                insert_document(index, document_id, local_doc.name, content)
 
             relate_ids = {
                 "ctx": ctx_ids,
             }
-            document.relate_ids = json.dumps(relate_ids)
-            session.add(document)
-            session.commit()
-            logger.info(f"update qdrant points: {document.relate_ids} for document {local_doc.path}")
+            # Update relate_ids in a new session
+            with get_sync_session() as update_session:
+                document = update_session.get(Document, document_id)
+                document.relate_ids = json.dumps(relate_ids)
+                update_session.add(document)
+                update_session.commit()
+            logger.info(f"update qdrant points: {json.dumps(relate_ids)} for document {local_doc.path}")
 
             if enable_knowledge_graph:
-                add_lightrag_index_task.delay(content, document.id, local_doc.path)
+                add_lightrag_index_task.delay(content, document_id, local_doc.path)
 
         except FeishuNoPermission:
-            raise Exception("no permission to access document %s" % document.name)
+            raise Exception("no permission to access document %s" % doc_name)
         except FeishuPermissionDenied:
-            raise Exception("permission denied to access document %s" % document.name)
+            raise Exception("permission denied to access document %s" % doc_name)
         except Exception as e:
             logger.error(e)
             raise Exception("an error occur %s" % e)
         finally:
-            session.add(document)
-            session.commit()
+            # Final status update in a new session
+            with get_sync_session() as final_session:
+                document = final_session.get(Document, document_id)
+                if document:
+                    final_session.add(document)
+                    final_session.commit()
 
         source.cleanup_document(local_doc.path)
 
