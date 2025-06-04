@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Union
+
 from fastapi import APIRouter, Depends, Request
 
 from aperag.db.models import User
@@ -25,7 +27,7 @@ router = APIRouter()
 @router.get("/bots/{bot_id}/flow")
 async def get_flow_view(
     request: Request, bot_id: str, user: User = Depends(get_current_user_with_state)
-) -> WorkflowDefinition:
+) -> Union[WorkflowDefinition, dict]:
     return await flow_service_global.get_flow(str(user.id), bot_id)
 
 

@@ -130,7 +130,7 @@ class FlowService:
             logger.exception("Error in debug flow stream: %s", e)
             return {"error": str(e)}
 
-    async def get_flow(self, user: str, bot_id: str) -> view_models.WorkflowDefinition:
+    async def get_flow(self, user: str, bot_id: str):
         """Get flow config for a bot"""
         bot = await self.db_ops.query_bot(user, bot_id)
         if not bot:
@@ -138,8 +138,11 @@ class FlowService:
         try:
             config = json.loads(bot.config or "{}")
             flow = config.get("flow")
+
+            # If no flow config exists, return an empty dict
             if not flow:
                 return success({})
+
             return success(flow)
         except Exception as e:
             return fail(HTTPStatus.INTERNAL_SERVER_ERROR, message=str(e))

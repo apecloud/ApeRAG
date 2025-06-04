@@ -100,19 +100,33 @@ class ChatService:
         return success(ChatList(items=response))
 
     async def get_chat(self, user: str, bot_id: str, chat_id: str) -> view_models.ChatDetails:
-        chat = await self.db_ops.query_chat(user, bot_id, chat_id)
-        if chat is None:
-            return fail(HTTPStatus.NOT_FOUND, "Chat not found")
-
         # Import here to avoid circular imports
         from aperag.views.utils import query_chat_messages
 
-        # Use session for message query (this might need refactoring later)
-        session = await self.db_ops.get_session()
-        messages = await query_chat_messages(session, user, chat_id)
+        async def _get_chat_operation(session):
+            # Use DatabaseOps with the same session for all database operations
+            db_ops_session = DatabaseOps(session)
 
-        chat_obj = self.build_chat_response(chat)
-        return success(ChatDetails(**chat_obj.model_dump(), history=messages))
+            # Query chat using the provided session
+            chat = await db_ops_session.query_chat(user, bot_id, chat_id)
+            if chat is None:
+                return None, None
+
+            # Query messages using the same session
+            messages = await query_chat_messages(session, user, chat_id)
+            return chat, messages
+
+        try:
+            chat, messages = await self._execute_with_session(_get_chat_operation)
+
+            if chat is None:
+                return fail(HTTPStatus.NOT_FOUND, "Chat not found")
+
+            chat_obj = self.build_chat_response(chat)
+            return success(ChatDetails(**chat_obj.model_dump(), history=messages))
+
+        except Exception as e:
+            return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to get chat: {str(e)}")
 
     async def update_chat(
         self, user: str, bot_id: str, chat_id: str, chat_in: view_models.ChatUpdate
