@@ -23,7 +23,7 @@ from pydantic import ValidationError
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
 from aperag.config import SessionDep
-from aperag.db.models import Bot
+from aperag.db.models import BotType
 from aperag.db.ops import logger, query_chat_feedbacks
 from aperag.llm.base import Predictor
 from aperag.schema import view_models
@@ -95,11 +95,11 @@ def validate_bot_config(
     try:
         # validate the prompt
         prompt_template = config.get("prompt_template", None)
-        if not prompt_template and type == Bot.Type.COMMON:
+        if not prompt_template and type == BotType.COMMON:
             return False, "prompt of common bot cannot be null"
-        if prompt_template and type == Bot.Type.KNOWLEDGE:
+        if prompt_template and type == BotType.KNOWLEDGE:
             PromptTemplate(template=prompt_template, input_variables=["query", "context"])
-        elif prompt_template and type == Bot.Type.COMMON:
+        elif prompt_template and type == BotType.COMMON:
             PromptTemplate(template=prompt_template, input_variables=["query"])
             # pass
     except ValidationError:

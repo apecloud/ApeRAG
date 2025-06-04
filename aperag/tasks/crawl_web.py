@@ -20,7 +20,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from aperag.chat.utils import get_sync_redis_client
-from aperag.db.models import Collection, Document
+from aperag.db.models import Collection, Document, DocumentStatus
 from aperag.tasks.index import add_index_for_local_document
 from config.celery import app
 
@@ -54,7 +54,7 @@ def crawl_domain(self, root_url, url, collection_id, user, max_pages):
             document_instance = Document(
                 user=user,
                 name=document_name,
-                status=Document.Status.PENDING,
+                status=DocumentStatus.PENDING,
                 collection_id=collection.id,
                 size=0,
             )

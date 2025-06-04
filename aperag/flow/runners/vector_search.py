@@ -19,7 +19,8 @@ from pydantic import BaseModel, Field
 
 from aperag.config import settings
 from aperag.context.context import ContextManager
-from aperag.db.ops import query_collection
+from aperag.db.models import Collection
+from aperag.db.ops import db_ops
 from aperag.embed.base_embedding import get_collection_embedding_service
 from aperag.flow.base.models import BaseNodeRunner, SystemInput, register_node_runner
 from aperag.query.query import DocumentWithScore
@@ -38,26 +39,32 @@ class VectorSearchOutput(BaseModel):
     docs: List[DocumentWithScore]
 
 
-@register_node_runner(
-    "vector_search",
-    input_model=VectorSearchInput,
-    output_model=VectorSearchOutput,
-)
-class VectorSearchNodeRunner(BaseNodeRunner):
-    async def run(self, ui: VectorSearchInput, si: SystemInput) -> Tuple[VectorSearchOutput, dict]:
-        """
-        Run vector search node. up: user configurable params; sp: system injected params (SystemInput).
-        Returns (uo, so)
-        """
-        query: str = si.query
-        topk: int = ui.top_k
-        score_threshold: float = ui.similarity_threshold
-        collection_ids: List[str] = ui.collection_ids or []
+# Database operations interface
+class VectorSearchRepository:
+    """Repository interface for vector search database operations"""
+
+    async def get_collection(self, user, collection_id: str) -> Optional[Collection]:
+        """Get collection by ID for the user"""
+        return await db_ops.query_collection(user, collection_id)
+
+
+# Business logic service
+class VectorSearchService:
+    """Service class containing vector search business logic"""
+
+    def __init__(self, repository: VectorSearchRepository):
+        self.repository = repository
+
+    async def execute_vector_search(
+        self, user, query: str, top_k: int, similarity_threshold: float, collection_ids: List[str]
+    ) -> List[DocumentWithScore]:
+        """Execute vector search with given parameters"""
         collection = None
         if collection_ids:
-            collection = await query_collection(si.user, collection_ids[0])
+            collection = await self.repository.get_collection(user, collection_ids[0])
+
         if not collection:
-            return VectorSearchOutput(docs=[]), {}
+            return []
 
         collection_name = generate_vector_db_collection_name(collection.id)
         embedding_model, vector_size = await get_collection_embedding_service(collection)
@@ -66,9 +73,38 @@ class VectorSearchNodeRunner(BaseNodeRunner):
         context_manager = ContextManager(collection_name, embedding_model, settings.vector_db_type, vectordb_ctx)
 
         vector = embedding_model.embed_query(query)
-        results = context_manager.query(query, score_threshold=score_threshold, topk=topk, vector=vector)
+        results = context_manager.query(query, score_threshold=similarity_threshold, topk=top_k, vector=vector)
+
+        # Add recall type metadata
         for item in results:
             if item.metadata is None:
                 item.metadata = {}
             item.metadata["recall_type"] = "vector_search"
+
+        return results
+
+
+@register_node_runner(
+    "vector_search",
+    input_model=VectorSearchInput,
+    output_model=VectorSearchOutput,
+)
+class VectorSearchNodeRunner(BaseNodeRunner):
+    def __init__(self):
+        self.repository = VectorSearchRepository()
+        self.service = VectorSearchService(self.repository)
+
+    async def run(self, ui: VectorSearchInput, si: SystemInput) -> Tuple[VectorSearchOutput, dict]:
+        """
+        Run vector search node. ui: user configurable params; si: system injected params (SystemInput).
+        Returns (uo, so)
+        """
+        results = await self.service.execute_vector_search(
+            user=si.user,
+            query=si.query,
+            top_k=ui.top_k,
+            similarity_threshold=ui.similarity_threshold,
+            collection_ids=ui.collection_ids or [],
+        )
+
         return VectorSearchOutput(docs=results), {}

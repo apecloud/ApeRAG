@@ -143,7 +143,7 @@ class Collection(SQLModel, table=True):
             BotCollectionRelation.collection_id == self.id, BotCollectionRelation.gmt_deleted.is_(None)
         )
         result = await session.execute(stmt)
-        rels = result.all()
+        rels = result.scalars().all()
         if only_ids:
             return [rel.bot_id for rel in rels]
         else:
@@ -157,7 +157,9 @@ class Collection(SQLModel, table=True):
 
 class Document(SQLModel, table=True):
     __tablename__ = "document"
-    __table_args__ = (UniqueConstraint("collection_id", "name", name="uq_document_collection_name"),)
+    __table_args__ = (
+        UniqueConstraint("collection_id", "name", "gmt_deleted", name="uq_document_collection_name_deleted"),
+    )
 
     id: str = Field(default_factory=lambda: "doc" + random_id(), primary_key=True, max_length=24)
     name: str = Field(max_length=1024)
@@ -231,7 +233,7 @@ class Bot(SQLModel, table=True):
             BotCollectionRelation.bot_id == self.id, BotCollectionRelation.gmt_deleted.is_(None)
         )
         result = await session.execute(stmt)
-        rels = result.all()
+        rels = result.scalars().all()
         if only_ids:
             return [rel.collection_id for rel in rels]
         else:
@@ -245,7 +247,7 @@ class Bot(SQLModel, table=True):
 
 class BotCollectionRelation(SQLModel, table=True):
     __tablename__ = "bot_collection_relation"
-    __table_args__ = (UniqueConstraint("bot_id", "collection_id", name="unique_active_bot_collection"),)
+    __table_args__ = (UniqueConstraint("bot_id", "collection_id", "gmt_deleted", name="uq_bot_collection_deleted"),)
 
     bot_id: str = Field(max_length=24, primary_key=True)
     collection_id: str = Field(max_length=24, primary_key=True)
@@ -274,7 +276,9 @@ class UserQuota(SQLModel, table=True):
 
 class Chat(SQLModel, table=True):
     __tablename__ = "chat"
-    __table_args__ = (UniqueConstraint("bot_id", "peer_type", "peer_id", name="uq_chat_bot_peer"),)
+    __table_args__ = (
+        UniqueConstraint("bot_id", "peer_type", "peer_id", "gmt_deleted", name="uq_chat_bot_peer_deleted"),
+    )
 
     id: str = Field(default_factory=lambda: "chat" + random_id(), primary_key=True, max_length=24)
     user: str = Field(max_length=256)
@@ -303,7 +307,9 @@ class Chat(SQLModel, table=True):
 
 class MessageFeedback(SQLModel, table=True):
     __tablename__ = "message_feedback"
-    __table_args__ = (UniqueConstraint("chat_id", "message_id", name="uq_messagefeedback_chat_message"),)
+    __table_args__ = (
+        UniqueConstraint("chat_id", "message_id", "gmt_deleted", name="uq_feedback_chat_message_deleted"),
+    )
 
     user: str = Field(max_length=256)
     collection_id: Optional[str] = Field(default=None, max_length=24)
@@ -363,14 +369,12 @@ class ApiKey(SQLModel, table=True):
 
     @staticmethod
     def generate_key() -> str:
-        """Generate a random API key with sk- prefix"""
+        """Generate a unique API key"""
         return f"sk-{uuid.uuid4().hex}"
 
     async def update_last_used(self, session: SessionDep):
-        """Update the last used timestamp"""
-        from datetime import datetime as dt
-
-        self.last_used_at = dt.utcnow()
+        """Update the last_used_at timestamp"""
+        self.last_used_at = datetime.utcnow()
         session.add(self)
         await session.commit()
 
@@ -405,10 +409,9 @@ class User(SQLModel, table=True):
     gmt_updated: datetime = Field(default_factory=datetime.utcnow)
     gmt_deleted: Optional[datetime] = None
 
-    # For backward compatibility with existing code
     @property
     def password(self):
-        return self.hashed_password
+        raise AttributeError("password is not a readable attribute")
 
     @password.setter
     def password(self, value):
@@ -428,19 +431,19 @@ class Invitation(SQLModel, table=True):
     role: Role = Role.RO
 
     def is_valid(self) -> bool:
-        """Check if the invitation is valid (not used and not expired)"""
-        from datetime import datetime as dt
-
-        return not self.is_used and self.expires_at > dt.utcnow()
+        """Check if invitation is still valid"""
+        now = datetime.utcnow()
+        return not self.is_used and now < self.expires_at
 
     async def use(self, session: SessionDep):
-        """Mark invitation as used and set used_at"""
-        from datetime import datetime as dt
-
+        """Mark invitation as used"""
         self.is_used = True
-        self.used_at = dt.utcnow()
+        self.used_at = datetime.utcnow()
         session.add(self)
         await session.commit()
+
+        # Auto-expire after use (optional)
+        # self.expires_at = datetime.utcnow()
 
 
 class SearchTestHistory(SQLModel, table=True):

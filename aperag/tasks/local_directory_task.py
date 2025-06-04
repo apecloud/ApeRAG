@@ -17,7 +17,7 @@ import os
 import time
 from typing import Tuple
 
-from aperag.db.models import Collection, Document
+from aperag.db.models import Collection, Document, DocumentStatus
 from aperag.db.ops import query_collection, query_documents
 from aperag.docparser.doc_parser import DocParser
 from aperag.schema.utils import parseCollectionConfig
@@ -61,7 +61,7 @@ def update_local_directory_index(user, collection_id):
             document_instance = Document(
                 user=collection.user,
                 name=filename,
-                status=Document.Status.PENDING,
+                status=DocumentStatus.PENDING,
                 size=file_stat.st_size,
                 collection_id=collection.id,
                 metadata=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(file_stat.st_mtime)),

@@ -21,7 +21,7 @@ from litellm import BaseModel
 from pydantic import Field
 
 from aperag.chat.history.base import BaseChatMessageHistory
-from aperag.db.ops import query_msp_dict
+from aperag.db.ops import db_ops
 from aperag.flow.base.models import BaseNodeRunner, SystemInput, register_node_runner
 from aperag.llm.base import Predictor
 from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES
@@ -88,37 +88,47 @@ class LLMOutput(BaseModel):
     text: str
 
 
-@register_node_runner(
-    "llm",
-    input_model=LLMInput,
-    output_model=LLMOutput,
-)
-class LLMNodeRunner(BaseNodeRunner):
-    async def run(self, ui: LLMInput, si: SystemInput) -> Tuple[LLMOutput, dict]:
-        """
-        Run LLM node. ui: user input; si: system input (SystemInput).
-        Returns (output, system_output)
-        """
-        user = si.user
-        query: str = si.query
-        message_id: str = si.message_id
-        history: BaseChatMessageHistory = si.history
+# Database operations interface
+class LLMRepository:
+    """Repository interface for LLM database operations"""
 
-        temperature: float = ui.temperature
-        max_tokens: int = ui.max_tokens
-        model_service_provider = ui.model_service_provider
-        model_name = ui.model_name
-        custom_llm_provider = ui.custom_llm_provider
-        prompt_template = ui.prompt_template
-        docs: List[DocumentWithScore] = ui.docs
+    async def get_msp_dict(self, user) -> Dict:
+        """Get model service provider dictionary for the user"""
+        return await db_ops.query_msp_dict(user)
 
-        msp_dict = await query_msp_dict(user)
-        if model_service_provider in msp_dict:
-            msp = msp_dict[model_service_provider]
-            base_url = msp.base_url
-            api_key = msp.api_key
-        else:
+
+# Business logic service
+class LLMService:
+    """Service class containing LLM business logic"""
+
+    def __init__(self, repository: LLMRepository):
+        self.repository = repository
+
+    async def generate_response(
+        self,
+        user,
+        query: str,
+        message_id: str,
+        history: BaseChatMessageHistory,
+        model_service_provider: str,
+        model_name: str,
+        custom_llm_provider: str,
+        prompt_template: str,
+        temperature: float,
+        max_tokens: int,
+        docs: Optional[List[DocumentWithScore]] = None,
+    ) -> Tuple[str, Dict]:
+        """Generate LLM response with given parameters"""
+        msp_dict = await self.repository.get_msp_dict(user)
+
+        if model_service_provider not in msp_dict:
             raise Exception("Model service provider not found")
+
+        msp = msp_dict[model_service_provider]
+        base_url = msp.base_url
+        api_key = msp.api_key
+
+        # Build context and references from documents
         context = ""
         references = []
         if docs:
@@ -127,17 +137,21 @@ class LLMNodeRunner(BaseNodeRunner):
                     break
                 context += doc.text
                 references.append({"text": doc.text, "metadata": doc.metadata, "score": doc.score})
+
         prompt = prompt_template.format(query=query, context=context)
         output_max_tokens = max_tokens - len(prompt)
+
         if output_max_tokens < 0:
             raise Exception(
                 "max_tokens %d is too small to hold the prompt which size is %d" % (max_tokens, len(prompt))
             )
+
         llm_kwargs = {
             "custom_llm_provider": custom_llm_provider,
             "temperature": temperature,
             "max_tokens": output_max_tokens,
         }
+
         predictor = Predictor.get_completion_service(
             model_service_provider, model_name, base_url, api_key, **llm_kwargs
         )
@@ -149,10 +163,44 @@ class LLMNodeRunner(BaseNodeRunner):
                     continue
                 yield chunk
                 response += chunk
+
             if references:
                 yield DOC_QA_REFERENCES + json.dumps(references)
+
             if history:
                 await add_human_message(history, query, message_id)
                 await add_ai_message(history, query, message_id, response, references, [])
 
-        return LLMOutput(text=""), {"async_generator": async_generator}
+        return "", {"async_generator": async_generator}
+
+
+@register_node_runner(
+    "llm",
+    input_model=LLMInput,
+    output_model=LLMOutput,
+)
+class LLMNodeRunner(BaseNodeRunner):
+    def __init__(self):
+        self.repository = LLMRepository()
+        self.service = LLMService(self.repository)
+
+    async def run(self, ui: LLMInput, si: SystemInput) -> Tuple[LLMOutput, dict]:
+        """
+        Run LLM node. ui: user input; si: system input (SystemInput).
+        Returns (output, system_output)
+        """
+        text, system_output = await self.service.generate_response(
+            user=si.user,
+            query=si.query,
+            message_id=si.message_id,
+            history=si.history,
+            model_service_provider=ui.model_service_provider,
+            model_name=ui.model_name,
+            custom_llm_provider=ui.custom_llm_provider,
+            prompt_template=ui.prompt_template,
+            temperature=ui.temperature,
+            max_tokens=ui.max_tokens,
+            docs=ui.docs,
+        )
+
+        return LLMOutput(text=text), system_output

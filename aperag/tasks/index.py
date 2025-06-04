@@ -161,7 +161,7 @@ class CustomDeleteDocumentTask(Task):
             document = session.get(Document, document_id)
             if document:
                 logger.info(f"remove qdrant points for document {document.name} success")
-                document.status = Document.Status.DELETED
+                document.status = DocumentStatus.DELETED
                 document.gmt_deleted = datetime.utcnow()
                 document.name = document.name + "-" + str(uuid.uuid4())
                 session.add(document)
@@ -172,7 +172,7 @@ class CustomDeleteDocumentTask(Task):
         with get_sync_session() as session:
             document = session.get(Document, document_id)
             if document:
-                document.status = Document.Status.FAILED
+                document.status = DocumentStatus.FAILED
                 session.add(document)
                 session.commit()
                 logger.error(f"remove_index(): index delete from vector db failed:{exc}")
@@ -239,7 +239,7 @@ def uncompress_file(document: Document, supported_file_extensions: list[str]):
                 document_instance = Document(
                     user=document.user,
                     name=document.name + "/" + extracted_file_path.name,
-                    status=Document.Status.PENDING,
+                    status=DocumentStatus.PENDING,
                     size=extracted_file_path.stat().st_size,
                     collection_id=document.collection_id,
                 )
@@ -606,7 +606,7 @@ def add_lightrag_index_task(self, content, document_id, file_path):
             logger.info(f"Document {document_id} not found, skipping LightRAG indexing")
             return
 
-        if document.status == Document.Status.DELETED:
+        if document.status == DocumentStatus.DELETED:
             logger.info(f"Document {document_id} is deleted, skipping LightRAG indexing")
             return
 

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import traceback
 from http import HTTPStatus
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -213,9 +214,11 @@ class BotService:
             result = await self._execute_with_session(_update_operation)
             return success(result)
         except ValueError as e:
+            traceback.print_exc(e)
             status_code = HTTPStatus.NOT_FOUND if "not found" in str(e) else HTTPStatus.BAD_REQUEST
             return fail(status_code, str(e))
         except Exception as e:
+            traceback.print_exc(e)
             return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to update bot: {str(e)}")
 
     async def delete_bot(self, user: str, bot_id: str) -> view_models.Bot:

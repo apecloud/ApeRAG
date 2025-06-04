@@ -20,7 +20,7 @@ from typing import Any, AsyncGenerator, Dict, List, Optional
 from channels.generic.http import AsyncHttpConsumer
 
 from aperag.chat.history.redis import RedisChatMessageHistory
-from aperag.db.models import Bot
+from aperag.db.models import Bot, BotType
 from aperag.pipeline.common_pipeline import CommonPipeline
 from aperag.pipeline.knowledge_pipeline import create_knowledge_pipeline
 
@@ -68,7 +68,7 @@ class MessageProcessor:
 
     async def process_message(self, message: str, msg_id: str) -> AsyncGenerator[str, None]:
         """Process a message and yield content chunks as they become available"""
-        if self.bot.type == Bot.Type.KNOWLEDGE:
+        if self.bot.type == BotType.KNOWLEDGE:
             collections = await self.bot.collections()
             if len(collections) > 0:
                 collection = collections[0]
@@ -78,7 +78,7 @@ class MessageProcessor:
             async for msg in pipeline.run(message, message_id=msg_id):
                 yield msg
 
-        elif self.bot.type == Bot.Type.COMMON:
+        elif self.bot.type == BotType.COMMON:
             pipeline = CommonPipeline(bot=self.bot, collection=None, history=self.history)
             async for msg in pipeline.run(message, message_id=msg_id):
                 yield msg

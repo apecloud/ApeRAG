@@ -17,7 +17,8 @@ from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
-from aperag.db.ops import query_collection
+from aperag.db.models import Collection
+from aperag.db.ops import db_ops
 from aperag.flow.base.models import BaseNodeRunner, SystemInput, register_node_runner
 from aperag.query.query import DocumentWithScore
 from aperag.schema.utils import parseCollectionConfig
@@ -36,30 +37,37 @@ class GraphSearchOutput(BaseModel):
     docs: List[DocumentWithScore]
 
 
-@register_node_runner(
-    "graph_search",
-    input_model=GraphSearchInput,
-    output_model=GraphSearchOutput,
-)
-class GraphSearchNodeRunner(BaseNodeRunner):
-    async def run(self, ui: GraphSearchInput, si: SystemInput) -> Tuple[GraphSearchOutput, dict]:
-        """
-        Run graph search node. up: user configurable params; sp: system injected params (SystemInput).
-        Returns (uo, so)
-        """
-        query: str = si.query
-        topk: int = ui.top_k
-        collection_ids = ui.collection_ids or []
+# Database operations interface
+class GraphSearchRepository:
+    """Repository interface for graph search database operations"""
+
+    async def get_collection(self, user, collection_id: str) -> Optional[Collection]:
+        """Get collection by ID for the user"""
+        return await db_ops.query_collection(user, collection_id)
+
+
+# Business logic service
+class GraphSearchService:
+    """Service class containing graph search business logic"""
+
+    def __init__(self, repository: GraphSearchRepository):
+        self.repository = repository
+
+    async def execute_graph_search(
+        self, user, query: str, top_k: int, collection_ids: List[str]
+    ) -> List[DocumentWithScore]:
+        """Execute graph search with given parameters"""
         collection = None
         if collection_ids:
-            collection = await query_collection(si.user, collection_ids[0])
+            collection = await self.repository.get_collection(user, collection_ids[0])
+
         if not collection:
-            return GraphSearchOutput(docs=[]), {}
+            return []
 
         config = parseCollectionConfig(collection.config)
         if not config.enable_knowledge_graph:
             logger.warning(f"Collection {collection.id} does not have knowledge graph enabled")
-            return GraphSearchOutput(docs=[]), {}
+            return []
 
         # Import LightRAG and run as in _run_light_rag
         from lightrag import QueryParam
@@ -71,7 +79,31 @@ class GraphSearchNodeRunner(BaseNodeRunner):
         param: QueryParam = QueryParam(
             mode="hybrid",
             only_need_context=True,
-            top_k=topk,
+            top_k=top_k,
         )
         context = await rag.aquery(query=query, param=param)
-        return GraphSearchOutput(docs=[DocumentWithScore(text=context, metadata={"recall_type": "graph_search"})]), {}
+
+        # Return documents with graph search metadata
+        return [DocumentWithScore(text=context, metadata={"recall_type": "graph_search"})]
+
+
+@register_node_runner(
+    "graph_search",
+    input_model=GraphSearchInput,
+    output_model=GraphSearchOutput,
+)
+class GraphSearchNodeRunner(BaseNodeRunner):
+    def __init__(self):
+        self.repository = GraphSearchRepository()
+        self.service = GraphSearchService(self.repository)
+
+    async def run(self, ui: GraphSearchInput, si: SystemInput) -> Tuple[GraphSearchOutput, dict]:
+        """
+        Run graph search node. ui: user configurable params; si: system injected params (SystemInput).
+        Returns (uo, so)
+        """
+        docs = await self.service.execute_graph_search(
+            user=si.user, query=si.query, top_k=ui.top_k, collection_ids=ui.collection_ids or []
+        )
+
+        return GraphSearchOutput(docs=docs), {}
