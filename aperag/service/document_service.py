@@ -123,7 +123,14 @@ class DocumentService:
 
                 obj_store = get_object_store()
                 upload_path = f"{document_instance.object_store_base_path()}/original{file_suffix}"
-                await sync_to_async(obj_store.put)(upload_path, item)
+
+                # Read file content from UploadFile
+                file_content = await item.read()
+                # Reset file pointer for potential future use
+                await item.seek(0)
+
+                # Use sync_to_async to call the synchronous put method with file content
+                await sync_to_async(obj_store.put)(upload_path, file_content)
 
                 # Update document with object path
                 metadata = json.dumps({"object_path": upload_path})
@@ -317,40 +324,3 @@ def build_document_response(document: db_models.Document) -> view_models.Documen
         created=document.gmt_created,
         updated=document.gmt_updated,
     )
-
-
-async def create_documents(session, user: str, collection_id: str, files: List[UploadFile]) -> view_models.DocumentList:
-    """Deprecated: Use DocumentService instance instead"""
-    return await DocumentService(session).create_documents(user, collection_id, files)
-
-
-async def create_url_document(session, user: str, collection_id: str, urls: List[str]) -> view_models.DocumentList:
-    """Deprecated: Use DocumentService instance instead"""
-    return await DocumentService(session).create_url_document(user, collection_id, urls)
-
-
-async def list_documents(session, user: str, collection_id: str) -> view_models.DocumentList:
-    """Deprecated: Use DocumentService instance instead"""
-    return await DocumentService(session).list_documents(user, collection_id)
-
-
-async def get_document(session, user: str, collection_id: str, document_id: str) -> view_models.Document:
-    """Deprecated: Use DocumentService instance instead"""
-    return await DocumentService(session).get_document(user, collection_id, document_id)
-
-
-async def update_document(
-    session, user: str, collection_id: str, document_id: str, document_in: view_models.DocumentUpdate
-) -> view_models.Document:
-    """Deprecated: Use DocumentService instance instead"""
-    return await DocumentService(session).update_document(user, collection_id, document_id, document_in)
-
-
-async def delete_document(session, user: str, collection_id: str, document_id: str) -> view_models.Document:
-    """Deprecated: Use DocumentService instance instead"""
-    return await DocumentService(session).delete_document(user, collection_id, document_id)
-
-
-async def delete_documents(session, user: str, collection_id: str, document_ids: List[str]):
-    """Deprecated: Use DocumentService instance instead"""
-    return await DocumentService(session).delete_documents(user, collection_id, document_ids)

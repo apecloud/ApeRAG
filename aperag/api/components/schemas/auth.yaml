@@ -60,7 +60,7 @@ invitation:
       type: string
       description: The token of the invitation
     created_by:
-      type: integer
+      type: string
       description: The ID of the user who created the invitation
     created_at:
       type: string

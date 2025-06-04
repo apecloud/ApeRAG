@@ -94,7 +94,6 @@ async def get_collection_embedding_service(collection) -> tuple[Embeddings | Non
             embedding_model=embedding_model_name,
             embedding_service_url=embedding_service_url,
             embedding_service_api_key=embedding_service_api_key,
-            embedding_max_chunks_in_batch=config.embedding_max_chunks_in_batch,
         )
 
     logging.warning("get_collection_embedding_model cannot find model service provider %s", embedding_msp)

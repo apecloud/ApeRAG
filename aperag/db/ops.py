@@ -27,10 +27,12 @@ from aperag.db.models import (
     Bot,
     BotStatus,
     Chat,
+    ChatStatus,
     Collection,
     CollectionStatus,
     ConfigModel,
     Document,
+    DocumentStatus,
     Invitation,
     MessageFeedback,
     ModelServiceProvider,
@@ -240,7 +242,7 @@ class DatabaseOps:
                 Document.id == document_id,
                 Document.collection_id == collection_id,
                 Document.user == user,
-                Document.status != CollectionStatus.DELETED,
+                Document.status != DocumentStatus.DELETED,
             )
             result = await session.execute(stmt)
             return result.scalars().first()
@@ -254,7 +256,7 @@ class DatabaseOps:
                 .where(
                     Document.user.in_(users),
                     Document.collection_id == collection_id,
-                    Document.status != CollectionStatus.DELETED,
+                    Document.status != DocumentStatus.DELETED,
                 )
                 .order_by(desc(Document.gmt_created))
             )
@@ -271,7 +273,7 @@ class DatabaseOps:
                 .where(
                     Document.user == user,
                     Document.collection_id == collection_id,
-                    Document.status != CollectionStatus.DELETED,
+                    Document.status != DocumentStatus.DELETED,
                 )
             )
             return await session.scalar(stmt)
@@ -281,7 +283,7 @@ class DatabaseOps:
     async def query_chat(self, user: str, bot_id: str, chat_id: str):
         async def _query(session):
             stmt = select(Chat).where(
-                Chat.id == chat_id, Chat.bot_id == bot_id, Chat.user == user, Chat.status != CollectionStatus.DELETED
+                Chat.id == chat_id, Chat.bot_id == bot_id, Chat.user == user, Chat.status != ChatStatus.DELETED
             )
             result = await session.execute(stmt)
             return result.scalars().first()
@@ -294,7 +296,7 @@ class DatabaseOps:
                 Chat.user == user,
                 Chat.peer_type == peer_type,
                 Chat.peer_id == peer_id,
-                Chat.status != CollectionStatus.DELETED,
+                Chat.status != ChatStatus.DELETED,
             )
             result = await session.execute(stmt)
             return result.scalars().first()
@@ -305,7 +307,7 @@ class DatabaseOps:
         async def _query(session):
             stmt = (
                 select(Chat)
-                .where(Chat.user == user, Chat.bot_id == bot_id, Chat.status != CollectionStatus.DELETED)
+                .where(Chat.user == user, Chat.bot_id == bot_id, Chat.status != ChatStatus.DELETED)
                 .order_by(desc(Chat.gmt_created))
             )
             result = await session.execute(stmt)
@@ -659,11 +661,11 @@ class DatabaseOps:
         instance = Document(
             user=user,
             name=name,
-            status=CollectionStatus.PENDING,  # Note: using CollectionStatus for DocumentStatus
+            status=DocumentStatus.PENDING,
             size=size,
             collection_id=collection_id,
             object_path=object_path,
-            metadata=metadata,
+            doc_metadata=metadata,
         )
         session.add(instance)
         await session.flush()
@@ -679,13 +681,13 @@ class DatabaseOps:
             Document.id == document_id,
             Document.collection_id == collection_id,
             Document.user == user,
-            Document.status != CollectionStatus.DELETED,
+            Document.status != DocumentStatus.DELETED,
         )
         result = await session.execute(stmt)
         instance = result.scalars().first()
 
         if instance and metadata is not None:
-            instance.metadata = metadata
+            instance.doc_metadata = metadata
             session.add(instance)
             await session.flush()
             await session.refresh(instance)
@@ -694,19 +696,19 @@ class DatabaseOps:
 
     async def delete_document_by_id(self, user: str, collection_id: str, document_id: str) -> Optional[Document]:
         """Soft delete document by ID"""
+        from aperag.db.models import DocumentStatus
+
         session = await self.get_session()
         stmt = select(Document).where(
             Document.id == document_id,
             Document.collection_id == collection_id,
             Document.user == user,
-            Document.status != CollectionStatus.DELETED,
+            Document.status != DocumentStatus.DELETED,
         )
         result = await session.execute(stmt)
         instance = result.scalars().first()
 
         if instance:
-            from aperag.db.models import DocumentStatus
-
             instance.status = DocumentStatus.DELETING
             instance.gmt_deleted = datetime.utcnow()
             session.add(instance)
@@ -717,12 +719,14 @@ class DatabaseOps:
 
     async def delete_documents_by_ids(self, user: str, collection_id: str, document_ids: List[str]) -> tuple:
         """Bulk soft delete documents by IDs"""
+        from aperag.db.models import DocumentStatus
+
         session = await self.get_session()
         stmt = select(Document).where(
             Document.id.in_(document_ids),
             Document.collection_id == collection_id,
             Document.user == user,
-            Document.status != CollectionStatus.DELETED,
+            Document.status != DocumentStatus.DELETED,
         )
         result = await session.execute(stmt)
         documents = result.scalars().all()
@@ -730,8 +734,6 @@ class DatabaseOps:
         success_ids = []
         for doc in documents:
             try:
-                from aperag.db.models import DocumentStatus
-
                 doc.status = DocumentStatus.DELETING
                 doc.gmt_deleted = datetime.utcnow()
                 session.add(doc)
@@ -751,7 +753,7 @@ class DatabaseOps:
             user=user,
             bot_id=bot_id,
             title=title,
-            status=CollectionStatus.ACTIVE,  # Note: using CollectionStatus for ChatStatus
+            status=ChatStatus.ACTIVE,
         )
         session.add(instance)
         await session.flush()
@@ -762,7 +764,7 @@ class DatabaseOps:
         """Update chat by ID"""
         session = await self.get_session()
         stmt = select(Chat).where(
-            Chat.id == chat_id, Chat.bot_id == bot_id, Chat.user == user, Chat.status != CollectionStatus.DELETED
+            Chat.id == chat_id, Chat.bot_id == bot_id, Chat.user == user, Chat.status != ChatStatus.DELETED
         )
         result = await session.execute(stmt)
         instance = result.scalars().first()
@@ -779,13 +781,13 @@ class DatabaseOps:
         """Soft delete chat by ID"""
         session = await self.get_session()
         stmt = select(Chat).where(
-            Chat.id == chat_id, Chat.bot_id == bot_id, Chat.user == user, Chat.status != CollectionStatus.DELETED
+            Chat.id == chat_id, Chat.bot_id == bot_id, Chat.user == user, Chat.status != ChatStatus.DELETED
         )
         result = await session.execute(stmt)
         instance = result.scalars().first()
 
         if instance:
-            instance.status = CollectionStatus.DELETED
+            instance.status = ChatStatus.DELETED
             instance.gmt_deleted = datetime.utcnow()
             session.add(instance)
             await session.flush()

@@ -41,8 +41,14 @@ def get_object_store() -> ObjectStore:
         case "local":
             from aperag.objectstore.local import Local, LocalConfig
 
-            return Local(LocalConfig(**settings.object_store_local_config))
+            # Convert pydantic model to dict for unpacking
+            local_config_dict = (
+                settings.object_store_local_config.model_dump() if settings.object_store_local_config else {}
+            )
+            return Local(LocalConfig(**local_config_dict))
         case "s3":
             from aperag.objectstore.s3 import S3, S3Config
 
-            return S3(S3Config(**settings.object_store_s3_config))
+            # Convert pydantic model to dict for unpacking
+            s3_config_dict = settings.object_store_s3_config.model_dump() if settings.object_store_s3_config else {}
+            return S3(S3Config(**s3_config_dict))

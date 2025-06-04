@@ -162,7 +162,6 @@ class Document(SQLModel, table=True):
     id: str = Field(default_factory=lambda: "doc" + random_id(), primary_key=True, max_length=24)
     name: str = Field(max_length=1024)
     user: str = Field(max_length=256)
-    config: Optional[str] = None
     collection_id: Optional[str] = Field(default=None, max_length=24)
     status: DocumentStatus
     vector_index_status: IndexStatus = IndexStatus.PENDING
@@ -170,7 +169,8 @@ class Document(SQLModel, table=True):
     graph_index_status: IndexStatus = IndexStatus.PENDING
     size: int
     object_path: Optional[str] = None
-    relate_ids: str
+    doc_metadata: Optional[str] = None  # Store document metadata as JSON string
+    relate_ids: Optional[str] = None
     gmt_created: datetime = Field(default_factory=datetime.utcnow)
     gmt_updated: datetime = Field(default_factory=datetime.utcnow)
     gmt_deleted: Optional[datetime] = None

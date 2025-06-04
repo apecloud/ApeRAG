@@ -46,7 +46,7 @@ def test_update_collection(benchmark, client, collection):
         "description": "Updated E2E Test Collection Description",
         "config": {
             "source": "system",
-            "enable_knowledge_graph": True,
+            "enable_knowledge_graph": False,
             "embedding": {
                 "model": EMBEDDING_MODEL_NAME,
                 "model_service_provider": EMBEDDING_MODEL_PROVIDER,

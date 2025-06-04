@@ -152,10 +152,14 @@ class Config(BaseSettings):
                 f"Unsupported OBJECT_STORE_TYPE: {self.object_store_type}. Supported types are: local, s3."
             )
 
+        parts = self.database_url.split(":", 1)
+        if parts[0] == "postgresql":
+            self.database_url = f"{parts[0]}+asyncpg:{parts[1]}"
+
 
 settings = Config()
 
-engine = create_async_engine(settings.database_url, echo=True)
+engine = create_async_engine(settings.database_url, echo=False)
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:

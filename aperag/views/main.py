@@ -91,14 +91,14 @@ async def create_documents_view(
     collection_id: str,
     files: List[UploadFile] = File(...),
     user: User = Depends(get_current_user_with_state),
-) -> List[view_models.Document]:
+) -> view_models.DocumentList:
     return await document_service.create_documents(str(user.id), collection_id, files)
 
 
 @router.post("/collections/{collection_id}/urls")
 async def create_url_document_view(
     request: Request, collection_id: str, user: User = Depends(get_current_user_with_state)
-) -> List[view_models.Document]:
+) -> view_models.DocumentList:
     from aperag.utils.request import get_urls
 
     urls = get_urls(request)

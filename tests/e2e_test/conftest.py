@@ -7,6 +7,7 @@ import pytest
 
 from tests.e2e_test.config import (
     API_BASE_URL,
+    API_KEY,
     AUTH_TYPE,
     COMPLETION_MODEL_NAME,
     COMPLETION_MODEL_PROVIDER,
@@ -35,20 +36,25 @@ def api_key(register_user, login_user):
 
 
 @pytest.fixture(scope="module")
-def client(api_key, login_user):
+def client():
     """Return a httpx.Client using either API key or cookie authentication, depending on AUTH_TYPE."""
-    if AUTH_TYPE == "api_key":
-        headers = {"Authorization": f"Bearer {api_key}"}
-        c = httpx.Client(base_url=API_BASE_URL, headers=headers)
-        yield c
-        c.close()
-    elif AUTH_TYPE == "cookie":
-        c = httpx.Client(base_url=API_BASE_URL)
-        c.cookies.update(login_user["cookies"])
-        yield c
-        c.close()
-    else:
-        raise ValueError(f"Unsupported AUTH_TYPE: {AUTH_TYPE}")
+    # if AUTH_TYPE == "api_key":
+    #     headers = {"Authorization": f"Bearer {api_key}"}
+    #     c = httpx.Client(base_url=API_BASE_URL, headers=headers)
+    #     yield c
+    #     c.close()
+    # elif AUTH_TYPE == "cookie":
+    #     c = httpx.Client(base_url=API_BASE_URL)
+    #     c.cookies.update(login_user["cookies"])
+    #     yield c
+    #     c.close()
+    # else:
+    #     raise ValueError(f"Unsupported AUTH_TYPE: {AUTH_TYPE}")
+
+    headers = {"Authorization": f"Bearer {API_KEY}"}
+    c = httpx.Client(base_url=API_BASE_URL, headers=headers)
+    yield c
+    c.close()
 
 
 @pytest.fixture
