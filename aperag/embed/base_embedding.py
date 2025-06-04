@@ -22,9 +22,7 @@ from typing import Any
 from langchain_core.embeddings import Embeddings
 
 from aperag.config import settings
-from aperag.db.ops import (
-    query_msp_dict,
-)
+from aperag.db.ops import db_ops
 from aperag.embed.embedding_service import EmbeddingService
 from aperag.schema.utils import parseCollectionConfig
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
@@ -84,7 +82,7 @@ async def get_collection_embedding_service(collection) -> tuple[Embeddings | Non
     custom_llm_provider = config.embedding.custom_llm_provider
     logging.info("get_collection_embedding_model %s %s", embedding_msp, embedding_model_name)
 
-    msp_dict = await query_msp_dict(collection.user)
+    msp_dict = await db_ops.query_msp_dict(collection.user)
     if embedding_msp in msp_dict:
         msp = msp_dict[embedding_msp]
         embedding_service_url = msp.base_url

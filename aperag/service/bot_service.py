@@ -13,172 +13,227 @@
 # limitations under the License.
 
 import json
-from datetime import datetime
 from http import HTTPStatus
 
-from sqlmodel import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.apps import QuotaType
-from aperag.config import SessionDep, settings
+from aperag.config import get_session, settings
 from aperag.db import models as db_models
-from aperag.db.ops import (
-    query_bot,
-    query_bots,
-    query_bots_count,
-    query_collection,
-    query_msp_dict,
-    query_user_quota,
-)
+from aperag.db.ops import DatabaseOps, db_ops
 from aperag.schema import view_models
 from aperag.schema.view_models import Bot, BotList
 from aperag.views.utils import fail, success, validate_bot_config
 
 
-def build_bot_response(bot: db_models.Bot, collection_ids: list[str]) -> view_models.Bot:
-    """Build Bot response object for API return."""
-    return Bot(
-        id=bot.id,
-        title=bot.title,
-        description=bot.description,
-        type=bot.type,
-        config=bot.config,
-        collection_ids=collection_ids,
-        created=bot.gmt_created.isoformat(),
-        updated=bot.gmt_updated.isoformat(),
-    )
+class BotService:
+    """Bot service that handles business logic for bots"""
 
+    def __init__(self, session: AsyncSession = None):
+        # Use global db_ops instance by default, or create custom one with provided session
+        if session is None:
+            self.db_ops = db_ops  # Use global instance
+            self._custom_session = None
+        else:
+            self.db_ops = DatabaseOps(session)  # Create custom instance for transaction control
+            self._custom_session = session
 
-async def create_bot(session: SessionDep, user, bot_in: view_models.BotCreate) -> view_models.Bot:
-    if settings.max_bot_count:
-        bot_limit = await query_user_quota(session, user, QuotaType.MAX_BOT_COUNT)
-        if bot_limit is None:
-            bot_limit = settings.max_bot_count
-        if await query_bots_count(session, user) >= bot_limit:
-            return fail(HTTPStatus.FORBIDDEN, f"bot number has reached the limit of {bot_limit}")
-    bot = db_models.Bot(
-        user=user,
-        title=bot_in.title,
-        type=bot_in.type,
-        status=db_models.BotStatus.ACTIVE,
-        description=bot_in.description,
-        config="{}",
-    )
-    session.add(bot)
-    await session.commit()
-    await session.refresh(bot)
-    collection_ids = []
-    if bot_in.collection_ids is not None:
-        for cid in bot_in.collection_ids:
-            collection = await query_collection(session, user, cid)
-            if not collection:
-                return fail(HTTPStatus.NOT_FOUND, f"Collection {cid} not found")
-            if collection.status == db_models.CollectionStatus.INACTIVE:
-                return fail(HTTPStatus.BAD_REQUEST, f"Collection {cid} is inactive")
-            relation = db_models.BotCollectionRelation(bot_id=bot.id, collection_id=cid)
-            session.add(relation)
-            await session.commit()
-            collection_ids.append(cid)
-    return success(build_bot_response(bot, collection_ids=collection_ids))
+    async def _execute_with_session(self, operation):
+        """Execute operation with proper session management for write operations"""
+        if self._custom_session:
+            # Use provided session
+            return await operation(self._custom_session)
+        else:
+            # Create new session for this operation
+            async for session in get_session():
+                try:
+                    result = await operation(session)
+                    await session.commit()
+                    return result
+                except Exception:
+                    await session.rollback()
+                    raise
 
-
-async def list_bots(session: SessionDep, user) -> view_models.BotList:
-    bots = await query_bots(session, [user, settings.admin_user])
-    response = []
-    for bot in bots:
-        bot_config = json.loads(bot.config)
-        model = bot_config.get("model", None)
-        if model in ["chatgpt-3.5", "gpt-3.5-turbo-instruct"]:
-            bot_config["model"] = "gpt-3.5-turbo"
-        elif model == "chatgpt-4":
-            bot_config["model"] = "gpt-4"
-        elif model in ["gpt-4-vision-preview", "gpt-4-32k", "gpt-4-32k-0613"]:
-            bot_config["model"] = "gpt-4-1106-preview"
-        bot.config = json.dumps(bot_config)
-        collection_ids = await bot.collections(session, only_ids=True)
-        response.append(build_bot_response(bot, collection_ids=collection_ids))
-    return success(BotList(items=response))
-
-
-async def get_bot(session: SessionDep, user, bot_id) -> view_models.Bot:
-    bot = await query_bot(session, user, bot_id)
-    if bot is None:
-        return fail(HTTPStatus.NOT_FOUND, "Bot not found")
-    collection_ids = await bot.collections(session, only_ids=True)
-    return success(build_bot_response(bot, collection_ids=collection_ids))
-
-
-async def update_bot(session: SessionDep, user, bot_id, bot_in: view_models.BotUpdate) -> view_models.Bot:
-    bot = await query_bot(session, user, bot_id)
-    if bot is None:
-        return fail(HTTPStatus.NOT_FOUND, "Bot not found")
-    new_config = json.loads(bot_in.config)
-    model_service_provider = new_config.get("model_service_provider")
-    model_name = new_config.get("model_name")
-    memory = new_config.get("memory", False)
-    llm_config = new_config.get("llm")
-    msp_dict = await query_msp_dict(session, user)
-    if model_service_provider in msp_dict:
-        msp = msp_dict[model_service_provider]
-        base_url = msp.base_url
-        api_key = msp.api_key
-        valid, msg = validate_bot_config(
-            model_service_provider, model_name, base_url, api_key, llm_config, bot_in.type, memory
+    def build_bot_response(self, bot: db_models.Bot, collection_ids: list[str]) -> view_models.Bot:
+        """Build Bot response object for API return."""
+        return Bot(
+            id=bot.id,
+            title=bot.title,
+            description=bot.description,
+            type=bot.type,
+            config=bot.config,
+            collection_ids=collection_ids,
+            created=bot.gmt_created.isoformat(),
+            updated=bot.gmt_updated.isoformat(),
         )
-        if not valid:
-            return fail(HTTPStatus.BAD_REQUEST, msg)
-    else:
-        return fail(HTTPStatus.BAD_REQUEST, "Model service provider not found")
-    old_config = json.loads(bot.config)
-    old_config.update(new_config)
-    bot.config = json.dumps(old_config)
-    bot.title = bot_in.title
-    bot.type = bot_in.type
-    bot.description = bot_in.description
-    if bot_in.collection_ids is not None:
-        # Soft delete old relations
-        stmt = select(db_models.BotCollectionRelation).where(
-            db_models.BotCollectionRelation.bot_id == bot.id, db_models.BotCollectionRelation.gmt_deleted.is_(None)
-        )
-        result = await session.execute(stmt)
-        relations = result.scalars().all()
-        for rel in relations:
-            rel.gmt_deleted = datetime.utcnow()
-            session.add(rel)
-        await session.commit()
-        # Add new relations
-        for cid in bot_in.collection_ids:
-            collection = await query_collection(session, user, cid)
-            if not collection:
-                return fail(HTTPStatus.NOT_FOUND, f"Collection {cid} not found")
-            if collection.status == db_models.CollectionStatus.INACTIVE:
-                return fail(HTTPStatus.BAD_REQUEST, f"Collection {cid} is inactive")
-            relation = db_models.BotCollectionRelation(bot_id=bot.id, collection_id=cid)
-            session.add(relation)
-            await session.commit()
-    session.add(bot)
-    await session.commit()
-    await session.refresh(bot)
-    collection_ids = await bot.collections(session, only_ids=True)
-    return success(build_bot_response(bot, collection_ids=collection_ids))
+
+    async def create_bot(self, user: str, bot_in: view_models.BotCreate) -> view_models.Bot:
+        # Check quota limit
+        if settings.max_bot_count:
+            bot_limit = await self.db_ops.query_user_quota(user, QuotaType.MAX_BOT_COUNT)
+            if bot_limit is None:
+                bot_limit = settings.max_bot_count
+            if await self.db_ops.query_bots_count(user) >= bot_limit:
+                return fail(HTTPStatus.FORBIDDEN, f"bot number has reached the limit of {bot_limit}")
+
+        async def _create_operation(session):
+            # Use DatabaseOps to create bot
+            db_ops_session = DatabaseOps(session)
+            bot = await db_ops_session.create_bot(
+                user=user, title=bot_in.title, description=bot_in.description, bot_type=bot_in.type, config="{}"
+            )
+
+            collection_ids = []
+            if bot_in.collection_ids is not None:
+                for cid in bot_in.collection_ids:
+                    collection = await self.db_ops.query_collection(user, cid)
+                    if not collection:
+                        raise ValueError(f"Collection {cid} not found")
+                    if collection.status == db_models.CollectionStatus.INACTIVE:
+                        raise ValueError(f"Collection {cid} is inactive")
+
+                    await db_ops_session.create_bot_collection_relation(bot.id, cid)
+                    collection_ids.append(cid)
+
+            return self.build_bot_response(bot, collection_ids=collection_ids)
+
+        try:
+            result = await self._execute_with_session(_create_operation)
+            return success(result)
+        except ValueError as e:
+            status_code = HTTPStatus.NOT_FOUND if "not found" in str(e) else HTTPStatus.BAD_REQUEST
+            return fail(status_code, str(e))
+        except Exception as e:
+            return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to create bot: {str(e)}")
+
+    async def list_bots(self, user: str) -> view_models.BotList:
+        bots = await self.db_ops.query_bots([user, settings.admin_user])
+        response = []
+        for bot in bots:
+            # Handle legacy model names
+            bot_config = json.loads(bot.config)
+            model = bot_config.get("model", None)
+            if model in ["chatgpt-3.5", "gpt-3.5-turbo-instruct"]:
+                bot_config["model"] = "gpt-3.5-turbo"
+            elif model == "chatgpt-4":
+                bot_config["model"] = "gpt-4"
+            elif model in ["gpt-4-vision-preview", "gpt-4-32k", "gpt-4-32k-0613"]:
+                bot_config["model"] = "gpt-4-1106-preview"
+            bot.config = json.dumps(bot_config)
+
+            # Get collection IDs for this bot
+            collection_ids = await bot.collections(await self.db_ops.get_session(), only_ids=True)
+            response.append(self.build_bot_response(bot, collection_ids=collection_ids))
+        return success(BotList(items=response))
+
+    async def get_bot(self, user: str, bot_id: str) -> view_models.Bot:
+        bot = await self.db_ops.query_bot(user, bot_id)
+        if bot is None:
+            return fail(HTTPStatus.NOT_FOUND, "Bot not found")
+        collection_ids = await bot.collections(await self.db_ops.get_session(), only_ids=True)
+        return success(self.build_bot_response(bot, collection_ids=collection_ids))
+
+    async def update_bot(self, user: str, bot_id: str, bot_in: view_models.BotUpdate) -> view_models.Bot:
+        # First check if bot exists
+        bot = await self.db_ops.query_bot(user, bot_id)
+        if bot is None:
+            return fail(HTTPStatus.NOT_FOUND, "Bot not found")
+
+        # Validate configuration
+        new_config = json.loads(bot_in.config)
+        model_service_provider = new_config.get("model_service_provider")
+        model_name = new_config.get("model_name")
+        memory = new_config.get("memory", False)
+        llm_config = new_config.get("llm")
+
+        msp_dict = await self.db_ops.query_msp_dict(user)
+        if model_service_provider in msp_dict:
+            msp = msp_dict[model_service_provider]
+            base_url = msp.base_url
+            api_key = msp.api_key
+            valid, msg = validate_bot_config(
+                model_service_provider, model_name, base_url, api_key, llm_config, bot_in.type, memory
+            )
+            if not valid:
+                return fail(HTTPStatus.BAD_REQUEST, msg)
+        else:
+            return fail(HTTPStatus.BAD_REQUEST, "Model service provider not found")
+
+        async def _update_operation(session):
+            # Use DatabaseOps to update bot
+            db_ops_session = DatabaseOps(session)
+
+            old_config = json.loads(bot.config)
+            old_config.update(new_config)
+            config_str = json.dumps(old_config)
+
+            updated_bot = await db_ops_session.update_bot_by_id(
+                user=user,
+                bot_id=bot_id,
+                title=bot_in.title,
+                description=bot_in.description,
+                bot_type=bot_in.type,
+                config=config_str,
+            )
+
+            if not updated_bot:
+                raise ValueError("Bot not found")
+
+            # Handle collection relations update
+            if bot_in.collection_ids is not None:
+                # Delete old relations
+                await db_ops_session.delete_bot_collection_relations(bot_id)
+
+                # Add new relations
+                for cid in bot_in.collection_ids:
+                    collection = await self.db_ops.query_collection(user, cid)
+                    if not collection:
+                        raise ValueError(f"Collection {cid} not found")
+                    if collection.status == db_models.CollectionStatus.INACTIVE:
+                        raise ValueError(f"Collection {cid} is inactive")
+                    await db_ops_session.create_bot_collection_relation(bot_id, cid)
+
+            collection_ids = await updated_bot.collections(session, only_ids=True)
+            return self.build_bot_response(updated_bot, collection_ids=collection_ids)
+
+        try:
+            result = await self._execute_with_session(_update_operation)
+            return success(result)
+        except ValueError as e:
+            status_code = HTTPStatus.NOT_FOUND if "not found" in str(e) else HTTPStatus.BAD_REQUEST
+            return fail(status_code, str(e))
+        except Exception as e:
+            return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to update bot: {str(e)}")
+
+    async def delete_bot(self, user: str, bot_id: str) -> view_models.Bot:
+        # First check if bot exists
+        bot = await self.db_ops.query_bot(user, bot_id)
+        if bot is None:
+            return fail(HTTPStatus.NOT_FOUND, "Bot not found")
+
+        async def _delete_operation(session):
+            # Use DatabaseOps to delete bot
+            db_ops_session = DatabaseOps(session)
+            deleted_bot = await db_ops_session.delete_bot_by_id(user, bot_id)
+
+            if not deleted_bot:
+                raise ValueError("Bot not found")
+
+            # Delete all relations
+            await db_ops_session.delete_bot_collection_relations(bot_id)
+
+            collection_ids = await deleted_bot.collections(session, only_ids=True)
+            return self.build_bot_response(deleted_bot, collection_ids=collection_ids)
+
+        try:
+            result = await self._execute_with_session(_delete_operation)
+            return success(result)
+        except ValueError as e:
+            return fail(HTTPStatus.NOT_FOUND, str(e))
+        except Exception as e:
+            return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to delete bot: {str(e)}")
 
 
-async def delete_bot(session: SessionDep, user, bot_id) -> view_models.Bot:
-    bot = await query_bot(session, user, bot_id)
-    if bot is None:
-        return fail(HTTPStatus.NOT_FOUND, "Bot not found")
-    bot.status = db_models.BotStatus.DELETED
-    bot.gmt_deleted = datetime.utcnow()
-    session.add(bot)
-    await session.commit()
-    # Soft delete all relations
-    stmt = select(db_models.BotCollectionRelation).where(
-        db_models.BotCollectionRelation.bot_id == bot.id, db_models.BotCollectionRelation.gmt_deleted.is_(None)
-    )
-    result = await session.execute(stmt)
-    relations = result.scalars().all()
-    for rel in relations:
-        rel.gmt_deleted = datetime.utcnow()
-        session.add(rel)
-    await session.commit()
-    collection_ids = await bot.collections(session, only_ids=True)
-    return success(build_bot_response(bot, collection_ids=collection_ids))
+# Create a global service instance for easy access
+# This uses the global db_ops instance and doesn't require session management in views
+bot_service = BotService()
