@@ -76,15 +76,35 @@ run-db:
 	@$(MAKE) run-redis run-postgres run-qdrant run-es run-minio run-neo4j
 
 # Docker Compose deployment
+
+# Variables for compose command based on environment flags
+# Usage examples:
+#   make compose-up
+#   make compose-up WITH_DOCRAY=1
+#   make compose-up WITH_DOCRAY=1 WITH_GPU=1
+_PROFILES_TO_ACTIVATE :=
+_EXTRA_ENVS :=
+
+# Determine which docray profile to use based on WITH_DOCRAY and WITH_GPU.
+ifeq ($(WITH_DOCRAY),1)
+    ifeq ($(WITH_GPU),1)
+        _PROFILES_TO_ACTIVATE += --profile docray-gpu
+		_EXTRA_ENVS += DOCRAY_HOST=http://aperag-docray-gpu:8639
+    else
+        _PROFILES_TO_ACTIVATE += --profile docray
+		_EXTRA_ENVS += DOCRAY_HOST=http://aperag-docray:8639
+    endif
+endif
+
 .PHONY: compose-up compose-down compose-logs
-compose-up: migrate
-	docker-compose -f compose.yml up -d
+compose-up:
+	$(_EXTRA_ENVS) docker-compose $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d
 
 compose-down:
-	docker-compose -f compose.yml down
+	docker-compose --profile docray,docray-gpu -f docker-compose.yml down
 
 compose-logs:
-	docker-compose -f compose.yml logs -f
+	docker-compose -f docker-compose.yml logs -f
 
 # Environment cleanup
 .PHONY: clean

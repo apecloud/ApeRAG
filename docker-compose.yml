@@ -3,25 +3,33 @@ volumes:
   aperag-qdrant-data: {}
   aperag-redis-data: {}
   aperag-es-data: {}
+  aperag-shared-data: {}
 
 services:
   django: &django
     build:
       context: .
       dockerfile: ./Dockerfile
-    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.1.2}
+    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-latest}
     container_name: aperag-django
     depends_on:
-      - postgres
-      - redis
-      - qdrant
-      - es
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      es:
+        condition: service_healthy
     volumes:
       - .:/app:z
       - ~/.cache:/root/.cache
+      - aperag-shared-data:/shared
     env_file:
       - .env
       - envs/docker.env.overrides
+    environment:
+      - DOCRAY_HOST=${DOCRAY_HOST}
     ports:
       - "8000:8000"
     entrypoint: /app/scripts/start-django.sh
@@ -30,7 +38,7 @@ services:
     build:
       context: ./frontend
       dockerfile: ./Dockerfile
-    image: ${REGISTRY:-docker.io}/apecloud/aperag-frontend:${VERSION:-v0.1.2}
+    image: ${REGISTRY:-docker.io}/apecloud/aperag-frontend:${VERSION:-latest}
     container_name: aperag-frontend
     depends_on:
       - django
@@ -43,7 +51,7 @@ services:
       - "3000:3000"
 
   celeryworker:
-    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.1.2}
+    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-latest}
     build:
       context: .
       dockerfile: ./Dockerfile
@@ -57,15 +65,17 @@ services:
       - .:/app:z
       - ~/.cache:/root/.cache
       - ./resources:/data/resources
+      - aperag-shared-data:/shared
     env_file:
       - .env
       - envs/docker.env.overrides
     environment:
       - NODE_IP=aperag-celeryworker
+      - DOCRAY_HOST=${DOCRAY_HOST}
     entrypoint: /app/scripts/start-celery-worker.sh
 
   celerybeat:
-    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.1.2}
+    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-latest}
     build:
       context: .
       dockerfile: ./Dockerfile
@@ -82,7 +92,7 @@ services:
 
   flower:
     <<: *django
-    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.1.2}
+    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-latest}
     build:
       context: .
       dockerfile: ./Dockerfile
@@ -97,7 +107,7 @@ services:
     entrypoint: /app/scripts/start-celery-flower.sh
 
   postgres:
-    image: postgres:14
+    image: pgvector/pgvector:pg16
     container_name: aperag-postgres
     volumes:
       - aperag-postgres-data:/var/lib/postgresql/data
@@ -136,5 +146,38 @@ services:
     volumes:
       - aperag-es-data:/usr/share/elasticsearch/data
       - ./scripts/init-es.sh:/usr/share/elasticsearch/bin/init-es.sh
+    healthcheck:
+      test: ["CMD-SHELL", "bash /usr/share/elasticsearch/bin/init-es.sh check"]
+      interval: 10s
+      timeout: 5s
+      retries: 12 # 12 * 10s = 120s (2 minutes)
+      start_period: 10s # Give ES some time to start up before first check
     command: bash /usr/share/elasticsearch/bin/init-es.sh
     restart: on-failure
+
+  docray:
+    image: ${REGISTRY:-docker.io}/apecloud/doc-ray:${DOCRAY_VERSION:-latest}
+    container_name: aperag-docray
+    ports:
+      - "8265:8265"
+      - "8639:8639"
+    profiles: ["docray"]
+    deploy:
+      resources:
+        reservations:
+          memory: "6G"
+
+  docray-gpu:
+    image: ${REGISTRY:-docker.io}/apecloud/doc-ray:${DOCRAY_VERSION:-latest}
+    container_name: aperag-docray-gpu
+    ports:
+      - "8265:8265"
+      - "8639:8639"
+    profiles: ["docray-gpu"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

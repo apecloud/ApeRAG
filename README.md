@@ -40,7 +40,7 @@ DOCRAY_HOST=http://localhost:8639
 export REGISTRY=apecloud-registry.cn-zhangjiakou.cr.aliyuncs.com
 
 # Start all services
-docker compose up --build -d
+make compose-up
 ```
 
 ### 4. Access
