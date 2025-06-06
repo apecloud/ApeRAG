@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.config import settings
 from aperag.db import models as db_models
-from aperag.db.ops import DatabaseOps, db_ops
+from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.schema import view_models
 from aperag.schema.view_models import ModelServiceProvider, ModelServiceProviderList
 from aperag.views.utils import fail, success
@@ -32,9 +32,9 @@ class ModelServiceProviderService:
     def __init__(self, session: AsyncSession = None):
         # Use global db_ops instance by default, or create custom one with provided session
         if session is None:
-            self.db_ops = db_ops  # Use global instance
+            self.db_ops = async_db_ops  # Use global instance
         else:
-            self.db_ops = DatabaseOps(session)  # Create custom instance for transaction control
+            self.db_ops = AsyncDatabaseOps(session)  # Create custom instance for transaction control
 
     def build_model_service_provider_response(
         self, msp: db_models.ModelServiceProvider, supported_msp: view_models.ModelServiceProvider
@@ -75,7 +75,7 @@ class ModelServiceProviderService:
             return fail(HTTPStatus.BAD_REQUEST, f"model service provider {provider} does not support setting base_url")
 
         async def _update_operation(session):
-            db_ops_session = DatabaseOps(session)
+            db_ops_session = AsyncDatabaseOps(session)
             msp = await db_ops_session.query_msp(user, provider, filterDeletion=False)
 
             if msp is None:
@@ -120,7 +120,7 @@ class ModelServiceProviderService:
             return fail(HTTPStatus.NOT_FOUND, f"model service provider {provider} not found")
 
         async def _delete_operation(session):
-            db_ops_session = DatabaseOps(session)
+            db_ops_session = AsyncDatabaseOps(session)
             msp = await db_ops_session.query_msp(user, provider)
             if msp is None:
                 raise ValueError(f"model service provider {provider} not found")

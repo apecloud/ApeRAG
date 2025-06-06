@@ -21,7 +21,7 @@ from litellm import BaseModel
 from pydantic import Field
 
 from aperag.chat.history.base import BaseChatMessageHistory
-from aperag.db.ops import db_ops
+from aperag.db.ops import async_db_ops
 from aperag.flow.base.models import BaseNodeRunner, SystemInput, register_node_runner
 from aperag.llm.base import Predictor
 from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES
@@ -94,7 +94,7 @@ class LLMRepository:
 
     async def get_msp_dict(self, user) -> Dict:
         """Get model service provider dictionary for the user"""
-        return await db_ops.query_msp_dict(user)
+        return await async_db_ops.query_msp_dict(user)
 
 
 # Business logic service

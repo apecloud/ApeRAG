@@ -26,8 +26,8 @@ from aperag.apps import QuotaType
 from aperag.config import settings
 from aperag.db import models as db_models
 from aperag.db.ops import (
-    DatabaseOps,
-    db_ops,
+    AsyncDatabaseOps,
+    async_db_ops,
 )
 from aperag.docparser.doc_parser import DocParser
 from aperag.objectstore.base import get_object_store
@@ -47,9 +47,9 @@ class DocumentService:
     def __init__(self, session: AsyncSession = None):
         # Use global db_ops instance by default, or create custom one with provided session
         if session is None:
-            self.db_ops = db_ops  # Use global instance
+            self.db_ops = async_db_ops  # Use global instance
         else:
-            self.db_ops = DatabaseOps(session)  # Create custom instance for transaction control
+            self.db_ops = AsyncDatabaseOps(session)  # Create custom instance for transaction control
 
     def build_document_response(self, document: db_models.Document) -> view_models.Document:
         """Build Document response object for API return."""
@@ -88,7 +88,7 @@ class DocumentService:
         supported_file_extensions += SUPPORTED_COMPRESSED_EXTENSIONS
 
         async def _create_documents_operation(session):
-            db_ops_session = DatabaseOps(session)
+            db_ops_session = AsyncDatabaseOps(session)
             response = []
 
             for item in files:
@@ -151,7 +151,7 @@ class DocumentService:
                 return fail(HTTPStatus.FORBIDDEN, f"document number has reached the limit of {document_limit}")
 
         async def _create_url_documents_operation(session):
-            db_ops_session = DatabaseOps(session)
+            db_ops_session = AsyncDatabaseOps(session)
             failed_urls = []
 
             for url in urls:
@@ -215,7 +215,7 @@ class DocumentService:
                     metadata["labels"] = config["labels"]
                     updated_metadata = json.dumps(metadata)
 
-                    db_ops_session = DatabaseOps(session)
+                    db_ops_session = AsyncDatabaseOps(session)
                     updated_doc = await db_ops_session.update_document_by_id(
                         user, collection_id, document_id, updated_metadata
                     )
@@ -252,7 +252,7 @@ class DocumentService:
             obj_store = get_object_store()
             await sync_to_async(obj_store.delete_objects_by_prefix)(f"{document.object_store_base_path()}/")
 
-            db_ops_session = DatabaseOps(session)
+            db_ops_session = AsyncDatabaseOps(session)
             deleted_doc = await db_ops_session.delete_document_by_id(user, collection_id, document_id)
 
             if deleted_doc:
@@ -271,7 +271,7 @@ class DocumentService:
 
     async def delete_documents(self, user: str, collection_id: str, document_ids: List[str]):
         async def _delete_documents_operation(session):
-            db_ops_session = DatabaseOps(session)
+            db_ops_session = AsyncDatabaseOps(session)
             success_ids, failed_ids = await db_ops_session.delete_documents_by_ids(user, collection_id, document_ids)
 
             for doc_id in success_ids:

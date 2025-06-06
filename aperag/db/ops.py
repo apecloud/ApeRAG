@@ -18,10 +18,10 @@ from typing import List, Optional
 
 from sqlalchemy import desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 from sqlmodel import select
 
-from aperag.config import async_engine, get_async_session
+from aperag.config import async_engine, get_async_session, get_sync_session, sync_engine
 from aperag.db.models import (
     ApiKey,
     ApiKeyStatus,
@@ -48,6 +48,68 @@ logger = logging.getLogger(__name__)
 
 
 class DatabaseOps:
+    def __init__(self, session: Optional[Session] = None):
+        self._session = session
+
+    def _get_session(self):
+        if self._session:
+            return self._session
+        else:
+            sync_session = sessionmaker(sync_engine, class_=Session, expire_on_commit=False)
+            with sync_session() as session:
+                return session
+
+    def _execute_query(self, query_func):
+        if self._session:
+            return query_func(self._session)
+        else:
+            sync_session = sessionmaker(sync_engine, class_=Session, expire_on_commit=False)
+            with sync_session() as session:
+                return query_func(session)
+
+    def _execute_transaction(self, operation):
+        if self._session:
+            # Use provided session, caller manages transaction
+            return operation(self._session)
+        else:
+            # Create new session and manage transaction lifecycle
+            for session in get_sync_session():
+                try:
+                    result = operation(session)
+                    session.commit()
+                    return result
+                except Exception:
+                    session.rollback()
+                    raise
+
+    def query_document_by_id(self, document_id: str) -> Document:
+        def _query(session):
+            return session.get(Document, document_id)
+
+        return self._execute_query(_query)
+
+    def query_collection_by_id(self, collection_id: str) -> Collection:
+        def _query(session):
+            return session.get(Collection, collection_id)
+
+        return self._execute_query(_query)
+
+    def update_document(self, document: Document):
+        session = self._get_session()
+        session.add(document)
+        session.commit()
+        session.refresh(document)
+        return document
+
+    def update_collection(self, collection: Collection):
+        session = self._get_session()
+        session.add(collection)
+        session.commit()
+        session.refresh(collection)
+        return collection
+
+
+class AsyncDatabaseOps:
     """Database operations manager that handles session management"""
 
     def __init__(self, session: Optional[AsyncSession] = None):
@@ -70,10 +132,11 @@ class DatabaseOps:
         if self._session:
             return self._session
 
-        # For global instance usage, use the dependency injection pattern
-        # This will be managed by the caller (usually in service layer _execute_with_session)
-        async for session in get_async_session():
-            return session
+        # This should not be used directly for global instance
+        # Instead, use execute_with_transaction for proper session management
+        raise RuntimeError(
+            "Cannot create session without explicit session management. Use execute_with_transaction instead."
+        )
 
     async def _execute_query(self, query_func):
         """Execute a read-only query with proper session management
@@ -147,63 +210,72 @@ class DatabaseOps:
         self, user: str, title: str, description: str, collection_type, config: str = None
     ) -> Collection:
         """Create a new collection in database"""
-        session = await self._get_session()
-        instance = Collection(
-            user=user,
-            type=collection_type,
-            status=CollectionStatus.INACTIVE,
-            title=title,
-            description=description,
-            config=config,
-        )
-        session.add(instance)
-        await session.flush()
-        await session.refresh(instance)
-        return instance
+
+        async def _create_operation(session):
+            instance = Collection(
+                user=user,
+                type=collection_type,
+                status=CollectionStatus.INACTIVE,
+                title=title,
+                description=description,
+                config=config,
+            )
+            session.add(instance)
+            await session.flush()
+            await session.refresh(instance)
+            return instance
+
+        return await self.execute_with_transaction(_create_operation)
 
     async def update_collection_by_id(
         self, user: str, collection_id: str, title: str, description: str, config: str
     ) -> Optional[Collection]:
         """Update collection by ID"""
-        session = await self._get_session()
-        stmt = select(Collection).where(
-            Collection.id == collection_id, Collection.user == user, Collection.status != CollectionStatus.DELETED
-        )
-        result = await session.execute(stmt)
-        instance = result.scalars().first()
 
-        if instance:
-            instance.title = title
-            instance.description = description
-            instance.config = config
-            session.add(instance)
-            await session.flush()
-            await session.refresh(instance)
+        async def _update_operation(session):
+            stmt = select(Collection).where(
+                Collection.id == collection_id, Collection.user == user, Collection.status != CollectionStatus.DELETED
+            )
+            result = await session.execute(stmt)
+            instance = result.scalars().first()
 
-        return instance
+            if instance:
+                instance.title = title
+                instance.description = description
+                instance.config = config
+                session.add(instance)
+                await session.flush()
+                await session.refresh(instance)
+
+            return instance
+
+        return await self.execute_with_transaction(_update_operation)
 
     async def delete_collection_by_id(self, user: str, collection_id: str) -> Optional[Collection]:
         """Soft delete collection by ID"""
-        session = await self._get_session()
-        stmt = select(Collection).where(
-            Collection.id == collection_id, Collection.user == user, Collection.status != CollectionStatus.DELETED
-        )
-        result = await session.execute(stmt)
-        instance = result.scalars().first()
 
-        if instance:
-            # Check if collection has related bots
-            collection_bots = await instance.bots(session, only_ids=True)
-            if len(collection_bots) > 0:
-                raise ValueError(f"Collection has related to bots {','.join(collection_bots)}, can not be deleted")
+        async def _delete_operation(session):
+            stmt = select(Collection).where(
+                Collection.id == collection_id, Collection.user == user, Collection.status != CollectionStatus.DELETED
+            )
+            result = await session.execute(stmt)
+            instance = result.scalars().first()
 
-            instance.status = CollectionStatus.DELETED
-            instance.gmt_deleted = datetime.utcnow()
-            session.add(instance)
-            await session.flush()
-            await session.refresh(instance)
+            if instance:
+                # Check if collection has related bots
+                collection_bots = await instance.bots(session, only_ids=True)
+                if len(collection_bots) > 0:
+                    raise ValueError(f"Collection has related to bots {','.join(collection_bots)}, can not be deleted")
 
-        return instance
+                instance.status = CollectionStatus.DELETED
+                instance.gmt_deleted = datetime.utcnow()
+                session.add(instance)
+                await session.flush()
+                await session.refresh(instance)
+
+            return instance
+
+        return await self.execute_with_transaction(_delete_operation)
 
     # Search Test Operations
     async def create_search_test(
@@ -217,47 +289,57 @@ class DatabaseOps:
         items: List[dict] = None,
     ) -> SearchTestHistory:
         """Create a search test record"""
-        session = await self._get_session()
-        record = SearchTestHistory(
-            user=user,
-            query=query,
-            collection_id=collection_id,
-            vector_search=vector_search,
-            fulltext_search=fulltext_search,
-            graph_search=graph_search,
-            items=items or [],
-        )
-        session.add(record)
-        await session.flush()
-        await session.refresh(record)
-        return record
+
+        async def _create_operation(session):
+            record = SearchTestHistory(
+                user=user,
+                query=query,
+                collection_id=collection_id,
+                vector_search=vector_search,
+                fulltext_search=fulltext_search,
+                graph_search=graph_search,
+                items=items or [],
+            )
+            session.add(record)
+            await session.flush()
+            await session.refresh(record)
+            return record
+
+        return await self.execute_with_transaction(_create_operation)
 
     async def query_search_tests(self, user: str, collection_id: str) -> List[SearchTestHistory]:
         """Query search tests for a collection"""
-        session = await self._get_session()
-        stmt = (
-            select(SearchTestHistory)
-            .where(SearchTestHistory.user == user, SearchTestHistory.collection_id == collection_id)
-            .order_by(desc(SearchTestHistory.gmt_created))
-        )
-        result = await session.execute(stmt)
-        return result.scalars().all()
+
+        async def _query(session):
+            stmt = (
+                select(SearchTestHistory)
+                .where(SearchTestHistory.user == user, SearchTestHistory.collection_id == collection_id)
+                .order_by(desc(SearchTestHistory.gmt_created))
+            )
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+        return await self._execute_query(_query)
 
     async def delete_search_test(self, user: str, collection_id: str, search_test_id: str) -> bool:
         """Delete a search test record"""
-        session = await self._get_session()
-        stmt = select(SearchTestHistory).where(
-            SearchTestHistory.id == search_test_id,
-            SearchTestHistory.user == user,
-            SearchTestHistory.collection_id == collection_id,
-        )
-        result = await session.execute(stmt)
-        search_test = result.scalars().first()
 
-        if search_test:
-            await session.delete(search_test)
-            return True
-        return False
+        async def _delete_operation(session):
+            stmt = select(SearchTestHistory).where(
+                SearchTestHistory.id == search_test_id,
+                SearchTestHistory.user == user,
+                SearchTestHistory.collection_id == collection_id,
+            )
+            result = await session.execute(stmt)
+            search_test = result.scalars().first()
+
+            if search_test:
+                await session.delete(search_test)
+                await session.flush()
+                return True
+            return False
+
+        return await self.execute_with_transaction(_delete_operation)
 
     async def query_collection(self, user: str, collection_id: str):
         async def _query(session):
@@ -484,17 +566,27 @@ class DatabaseOps:
         return await self._execute_query(_query)
 
     async def create_user(self, username: str, email: str, password: str, role: Role):
-        session = await self._get_session()
-        user = User(username=username, email=email, password=password, role=role, is_staff=(role == Role.ADMIN))
-        session.add(user)
-        await session.commit()
-        await session.refresh(user)
-        return user
+        async def _create_operation(session):
+            user = User(username=username, email=email, password=password, role=role, is_staff=(role == Role.ADMIN))
+            session.add(user)
+            await session.flush()
+            await session.refresh(user)
+            return user
+
+        if self._session:
+            return await _create_operation(self._session)
+        else:
+            return await self.execute_with_transaction(_create_operation)
 
     async def delete_user(self, user: User):
-        session = await self.get_session()
-        await session.delete(user)
-        await session.commit()
+        async def _delete_operation(session):
+            await session.delete(user)
+            await session.flush()
+
+        if self._session:
+            return await _delete_operation(self._session)
+        else:
+            return await self.execute_with_transaction(_delete_operation)
 
     async def query_invitation_by_token(self, token: str):
         async def _query(session):
@@ -505,16 +597,26 @@ class DatabaseOps:
         return await self._execute_query(_query)
 
     async def create_invitation(self, email: str, token: str, created_by: str, role: Role):
-        session = await self._get_session()
-        invitation = Invitation(email=email, token=token, created_by=created_by, role=role)
-        session.add(invitation)
-        await session.commit()
-        await session.refresh(invitation)
-        return invitation
+        async def _create_operation(session):
+            invitation = Invitation(email=email, token=token, created_by=created_by, role=role)
+            session.add(invitation)
+            await session.flush()
+            await session.refresh(invitation)
+            return invitation
+
+        if self._session:
+            return await _create_operation(self._session)
+        else:
+            return await self.execute_with_transaction(_create_operation)
 
     async def mark_invitation_used(self, invitation: Invitation):
-        session = await self._get_session()
-        await invitation.use(session)
+        async def _mark_used_operation(session):
+            await invitation.use(session)
+
+        if self._session:
+            return await _mark_used_operation(self._session)
+        else:
+            return await self.execute_with_transaction(_mark_used_operation)
 
     async def query_invitations(self):
         """Query all valid invitations (not used), ordered by created_at descending."""
@@ -540,30 +642,45 @@ class DatabaseOps:
 
     async def create_api_key(self, user: str, description: Optional[str] = None) -> ApiKey:
         """Create a new API key for a user"""
-        session = await self._get_session()
-        api_key = ApiKey(user=user, description=description, status=ApiKeyStatus.ACTIVE)
-        session.add(api_key)
-        await session.commit()
-        await session.refresh(api_key)
-        return api_key
+
+        async def _create_operation(session):
+            api_key = ApiKey(user=user, description=description, status=ApiKeyStatus.ACTIVE)
+            session.add(api_key)
+            await session.flush()
+            await session.refresh(api_key)
+            return api_key
+
+        if self._session:
+            return await _create_operation(self._session)
+        else:
+            return await self.execute_with_transaction(_create_operation)
 
     async def delete_api_key(self, user: str, key_id: str) -> bool:
         """Delete an API key (soft delete)"""
-        session = await self._get_session()
-        stmt = select(ApiKey).where(
-            ApiKey.id == key_id, ApiKey.user == user, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted.is_(None)
-        )
-        result = await session.execute(stmt)
-        api_key = result.scalars().first()
-        if api_key:
-            api_key.status = ApiKeyStatus.DELETED
-            from datetime import datetime as dt
 
-            api_key.gmt_deleted = dt.utcnow()
-            session.add(api_key)
-            await session.commit()
-            return True
-        return False
+        async def _delete_operation(session):
+            stmt = select(ApiKey).where(
+                ApiKey.id == key_id,
+                ApiKey.user == user,
+                ApiKey.status == ApiKeyStatus.ACTIVE,
+                ApiKey.gmt_deleted.is_(None),
+            )
+            result = await session.execute(stmt)
+            api_key = result.scalars().first()
+            if api_key:
+                api_key.status = ApiKeyStatus.DELETED
+                from datetime import datetime as dt
+
+                api_key.gmt_deleted = dt.utcnow()
+                session.add(api_key)
+                await session.flush()
+                return True
+            return False
+
+        if self._session:
+            return await _delete_operation(self._session)
+        else:
+            return await self.execute_with_transaction(_delete_operation)
 
     async def get_api_key_by_id(self, user: str, id: str) -> Optional[ApiKey]:
         """Get API key by id string"""
@@ -636,224 +753,256 @@ class DatabaseOps:
     # Bot Operations
     async def create_bot(self, user: str, title: str, description: str, bot_type, config: str = "{}") -> Bot:
         """Create a new bot in database"""
-        session = await self._get_session()
-        instance = Bot(
-            user=user,
-            title=title,
-            type=bot_type,
-            status=BotStatus.ACTIVE,
-            description=description,
-            config=config,
-        )
-        session.add(instance)
-        await session.flush()
-        await session.refresh(instance)
-        return instance
+
+        async def _create_operation(session):
+            instance = Bot(
+                user=user,
+                title=title,
+                type=bot_type,
+                status=BotStatus.ACTIVE,
+                description=description,
+                config=config,
+            )
+            session.add(instance)
+            await session.flush()
+            await session.refresh(instance)
+            return instance
+
+        return await self.execute_with_transaction(_create_operation)
 
     async def update_bot_by_id(
         self, user: str, bot_id: str, title: str, description: str, bot_type, config: str
     ) -> Optional[Bot]:
         """Update bot by ID"""
-        session = await self._get_session()
-        stmt = select(Bot).where(Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED)
-        result = await session.execute(stmt)
-        instance = result.scalars().first()
 
-        if instance:
-            instance.title = title
-            instance.description = description
-            instance.type = bot_type
-            instance.config = config
-            session.add(instance)
-            await session.flush()
-            await session.refresh(instance)
+        async def _update_operation(session):
+            stmt = select(Bot).where(Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED)
+            result = await session.execute(stmt)
+            instance = result.scalars().first()
 
-        return instance
+            if instance:
+                instance.title = title
+                instance.description = description
+                instance.type = bot_type
+                instance.config = config
+                session.add(instance)
+                await session.flush()
+                await session.refresh(instance)
+
+            return instance
+
+        return await self.execute_with_transaction(_update_operation)
 
     async def delete_bot_by_id(self, user: str, bot_id: str) -> Optional[Bot]:
         """Soft delete bot by ID"""
-        session = await self._get_session()
-        stmt = select(Bot).where(Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED)
-        result = await session.execute(stmt)
-        instance = result.scalars().first()
 
-        if instance:
-            instance.status = BotStatus.DELETED
-            instance.gmt_deleted = datetime.utcnow()
-            session.add(instance)
-            await session.flush()
-            await session.refresh(instance)
+        async def _delete_operation(session):
+            stmt = select(Bot).where(Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED)
+            result = await session.execute(stmt)
+            instance = result.scalars().first()
 
-        return instance
+            if instance:
+                instance.status = BotStatus.DELETED
+                instance.gmt_deleted = datetime.utcnow()
+                session.add(instance)
+                await session.flush()
+                await session.refresh(instance)
+
+            return instance
+
+        return await self.execute_with_transaction(_delete_operation)
 
     async def create_bot_collection_relation(self, bot_id: str, collection_id: str):
         """Create bot-collection relation"""
         from aperag.db.models import BotCollectionRelation
 
-        session = await self._get_session()
-        relation = BotCollectionRelation(bot_id=bot_id, collection_id=collection_id)
-        session.add(relation)
-        await session.flush()
-        return relation
+        async def _create_operation(session):
+            relation = BotCollectionRelation(bot_id=bot_id, collection_id=collection_id)
+            session.add(relation)
+            await session.flush()
+            return relation
+
+        return await self.execute_with_transaction(_create_operation)
 
     async def delete_bot_collection_relations(self, bot_id: str):
         """Soft delete all bot-collection relations for a bot"""
         from aperag.db.models import BotCollectionRelation
 
-        session = await self._get_session()
-        stmt = select(BotCollectionRelation).where(
-            BotCollectionRelation.bot_id == bot_id, BotCollectionRelation.gmt_deleted.is_(None)
-        )
-        result = await session.execute(stmt)
-        relations = result.scalars().all()
-        for rel in relations:
-            rel.gmt_deleted = datetime.utcnow()
-            session.add(rel)
-        await session.flush()
-        return len(relations)
+        async def _delete_operation(session):
+            stmt = select(BotCollectionRelation).where(
+                BotCollectionRelation.bot_id == bot_id, BotCollectionRelation.gmt_deleted.is_(None)
+            )
+            result = await session.execute(stmt)
+            relations = result.scalars().all()
+            for rel in relations:
+                rel.gmt_deleted = datetime.utcnow()
+                session.add(rel)
+            await session.flush()
+            return len(relations)
+
+        return await self.execute_with_transaction(_delete_operation)
 
     # Document Operations
     async def create_document(
         self, user: str, collection_id: str, name: str, size: int, object_path: str = None, metadata: str = None
     ) -> Document:
         """Create a new document in database"""
-        session = await self._get_session()
-        instance = Document(
-            user=user,
-            name=name,
-            status=DocumentStatus.PENDING,
-            size=size,
-            collection_id=collection_id,
-            object_path=object_path,
-            doc_metadata=metadata,
-        )
-        session.add(instance)
-        await session.flush()
-        await session.refresh(instance)
-        return instance
+
+        async def _create_operation(session):
+            instance = Document(
+                user=user,
+                name=name,
+                status=DocumentStatus.PENDING,
+                size=size,
+                collection_id=collection_id,
+                object_path=object_path,
+                doc_metadata=metadata,
+            )
+            session.add(instance)
+            await session.flush()
+            await session.refresh(instance)
+            return instance
+
+        return await self.execute_with_transaction(_create_operation)
 
     async def update_document_by_id(
         self, user: str, collection_id: str, document_id: str, metadata: str = None
     ) -> Optional[Document]:
         """Update document by ID"""
-        session = await self._get_session()
-        stmt = select(Document).where(
-            Document.id == document_id,
-            Document.collection_id == collection_id,
-            Document.user == user,
-            Document.status != DocumentStatus.DELETED,
-        )
-        result = await session.execute(stmt)
-        instance = result.scalars().first()
 
-        if instance and metadata is not None:
-            instance.doc_metadata = metadata
-            session.add(instance)
-            await session.flush()
-            await session.refresh(instance)
+        async def _update_operation(session):
+            stmt = select(Document).where(
+                Document.id == document_id,
+                Document.collection_id == collection_id,
+                Document.user == user,
+                Document.status != DocumentStatus.DELETED,
+            )
+            result = await session.execute(stmt)
+            instance = result.scalars().first()
 
-        return instance
+            if instance and metadata is not None:
+                instance.doc_metadata = metadata
+                session.add(instance)
+                await session.flush()
+                await session.refresh(instance)
+
+            return instance
+
+        return await self.execute_with_transaction(_update_operation)
 
     async def delete_document_by_id(self, user: str, collection_id: str, document_id: str) -> Optional[Document]:
         """Soft delete document by ID"""
         from aperag.db.models import DocumentStatus
 
-        session = await self._get_session()
-        stmt = select(Document).where(
-            Document.id == document_id,
-            Document.collection_id == collection_id,
-            Document.user == user,
-            Document.status != DocumentStatus.DELETED,
-        )
-        result = await session.execute(stmt)
-        instance = result.scalars().first()
+        async def _delete_operation(session):
+            stmt = select(Document).where(
+                Document.id == document_id,
+                Document.collection_id == collection_id,
+                Document.user == user,
+                Document.status != DocumentStatus.DELETED,
+            )
+            result = await session.execute(stmt)
+            instance = result.scalars().first()
 
-        if instance:
-            instance.status = DocumentStatus.DELETING
-            instance.gmt_deleted = datetime.utcnow()
-            session.add(instance)
-            await session.flush()
-            await session.refresh(instance)
+            if instance:
+                instance.status = DocumentStatus.DELETING
+                instance.gmt_deleted = datetime.utcnow()
+                session.add(instance)
+                await session.flush()
+                await session.refresh(instance)
 
-        return instance
+            return instance
+
+        return await self.execute_with_transaction(_delete_operation)
 
     async def delete_documents_by_ids(self, user: str, collection_id: str, document_ids: List[str]) -> tuple:
         """Bulk soft delete documents by IDs"""
         from aperag.db.models import DocumentStatus
 
-        session = await self._get_session()
-        stmt = select(Document).where(
-            Document.id.in_(document_ids),
-            Document.collection_id == collection_id,
-            Document.user == user,
-            Document.status != DocumentStatus.DELETED,
-        )
-        result = await session.execute(stmt)
-        documents = result.scalars().all()
+        async def _delete_operation(session):
+            stmt = select(Document).where(
+                Document.id.in_(document_ids),
+                Document.collection_id == collection_id,
+                Document.user == user,
+                Document.status != DocumentStatus.DELETED,
+            )
+            result = await session.execute(stmt)
+            documents = result.scalars().all()
 
-        success_ids = []
-        for doc in documents:
-            try:
-                doc.status = DocumentStatus.DELETING
-                doc.gmt_deleted = datetime.utcnow()
-                session.add(doc)
-                success_ids.append(doc.id)
-            except Exception:
-                continue
+            success_ids = []
+            for doc in documents:
+                try:
+                    doc.status = DocumentStatus.DELETING
+                    doc.gmt_deleted = datetime.utcnow()
+                    session.add(doc)
+                    success_ids.append(doc.id)
+                except Exception:
+                    continue
 
-        await session.flush()
-        failed_ids = [doc_id for doc_id in document_ids if doc_id not in success_ids]
-        return success_ids, failed_ids
+            await session.flush()
+            failed_ids = [doc_id for doc_id in document_ids if doc_id not in success_ids]
+            return success_ids, failed_ids
+
+        return await self.execute_with_transaction(_delete_operation)
 
     # Chat Operations
     async def create_chat(self, user: str, bot_id: str, title: str = "New Chat") -> Chat:
         """Create a new chat in database"""
-        session = await self._get_session()
-        instance = Chat(
-            user=user,
-            bot_id=bot_id,
-            title=title,
-            status=ChatStatus.ACTIVE,
-        )
-        session.add(instance)
-        await session.flush()
-        await session.refresh(instance)
-        return instance
+
+        async def _create_operation(session):
+            instance = Chat(
+                user=user,
+                bot_id=bot_id,
+                title=title,
+                status=ChatStatus.ACTIVE,
+            )
+            session.add(instance)
+            await session.flush()
+            await session.refresh(instance)
+            return instance
+
+        return await self.execute_with_transaction(_create_operation)
 
     async def update_chat_by_id(self, user: str, bot_id: str, chat_id: str, title: str) -> Optional[Chat]:
         """Update chat by ID"""
-        session = await self._get_session()
-        stmt = select(Chat).where(
-            Chat.id == chat_id, Chat.bot_id == bot_id, Chat.user == user, Chat.status != ChatStatus.DELETED
-        )
-        result = await session.execute(stmt)
-        instance = result.scalars().first()
 
-        if instance:
-            instance.title = title
-            session.add(instance)
-            await session.flush()
-            await session.refresh(instance)
+        async def _update_operation(session):
+            stmt = select(Chat).where(
+                Chat.id == chat_id, Chat.bot_id == bot_id, Chat.user == user, Chat.status != ChatStatus.DELETED
+            )
+            result = await session.execute(stmt)
+            instance = result.scalars().first()
 
-        return instance
+            if instance:
+                instance.title = title
+                session.add(instance)
+                await session.flush()
+                await session.refresh(instance)
+
+            return instance
+
+        return await self.execute_with_transaction(_update_operation)
 
     async def delete_chat_by_id(self, user: str, bot_id: str, chat_id: str) -> Optional[Chat]:
         """Soft delete chat by ID"""
-        session = await self._get_session()
-        stmt = select(Chat).where(
-            Chat.id == chat_id, Chat.bot_id == bot_id, Chat.user == user, Chat.status != ChatStatus.DELETED
-        )
-        result = await session.execute(stmt)
-        instance = result.scalars().first()
 
-        if instance:
-            instance.status = ChatStatus.DELETED
-            instance.gmt_deleted = datetime.utcnow()
-            session.add(instance)
-            await session.flush()
-            await session.refresh(instance)
+        async def _delete_operation(session):
+            stmt = select(Chat).where(
+                Chat.id == chat_id, Chat.bot_id == bot_id, Chat.user == user, Chat.status != ChatStatus.DELETED
+            )
+            result = await session.execute(stmt)
+            instance = result.scalars().first()
 
-        return instance
+            if instance:
+                instance.status = ChatStatus.DELETED
+                instance.gmt_deleted = datetime.utcnow()
+                session.add(instance)
+                await session.flush()
+                await session.refresh(instance)
+
+            return instance
+
+        return await self.execute_with_transaction(_delete_operation)
 
     # Message Feedback Operations
     async def create_message_feedback(
@@ -869,25 +1018,28 @@ class DatabaseOps:
         collection_id: str = None,
     ) -> MessageFeedback:
         """Create message feedback"""
-        session = await self._get_session()
-        from aperag.db.models import MessageFeedbackStatus
 
-        instance = MessageFeedback(
-            user=user,
-            chat_id=chat_id,
-            message_id=message_id,
-            type=feedback_type,
-            tag=feedback_tag,
-            message=feedback_message,
-            question=question,
-            original_answer=original_answer,
-            collection_id=collection_id,
-            status=MessageFeedbackStatus.PENDING,
-        )
-        session.add(instance)
-        await session.flush()
-        await session.refresh(instance)
-        return instance
+        async def _create_operation(session):
+            from aperag.db.models import MessageFeedbackStatus
+
+            instance = MessageFeedback(
+                user=user,
+                chat_id=chat_id,
+                message_id=message_id,
+                type=feedback_type,
+                tag=feedback_tag,
+                message=feedback_message,
+                question=question,
+                original_answer=original_answer,
+                collection_id=collection_id,
+                status=MessageFeedbackStatus.PENDING,
+            )
+            session.add(instance)
+            await session.flush()
+            await session.refresh(instance)
+            return instance
+
+        return await self.execute_with_transaction(_create_operation)
 
     async def update_message_feedback(
         self,
@@ -901,53 +1053,59 @@ class DatabaseOps:
         original_answer: str = None,
     ) -> Optional[MessageFeedback]:
         """Update existing message feedback"""
-        session = await self._get_session()
-        stmt = select(MessageFeedback).where(
-            MessageFeedback.user == user,
-            MessageFeedback.chat_id == chat_id,
-            MessageFeedback.message_id == message_id,
-            MessageFeedback.gmt_deleted.is_(None),
-        )
-        result = await session.execute(stmt)
-        feedback = result.scalars().first()
 
-        if feedback:
-            if feedback_type is not None:
-                feedback.type = feedback_type
-            if feedback_tag is not None:
-                feedback.tag = feedback_tag
-            if feedback_message is not None:
-                feedback.message = feedback_message
-            if question is not None:
-                feedback.question = question
-            if original_answer is not None:
-                feedback.original_answer = original_answer
+        async def _update_operation(session):
+            stmt = select(MessageFeedback).where(
+                MessageFeedback.user == user,
+                MessageFeedback.chat_id == chat_id,
+                MessageFeedback.message_id == message_id,
+                MessageFeedback.gmt_deleted.is_(None),
+            )
+            result = await session.execute(stmt)
+            feedback = result.scalars().first()
 
-            feedback.gmt_updated = datetime.utcnow()
-            session.add(feedback)
-            await session.flush()
-            await session.refresh(feedback)
+            if feedback:
+                if feedback_type is not None:
+                    feedback.type = feedback_type
+                if feedback_tag is not None:
+                    feedback.tag = feedback_tag
+                if feedback_message is not None:
+                    feedback.message = feedback_message
+                if question is not None:
+                    feedback.question = question
+                if original_answer is not None:
+                    feedback.original_answer = original_answer
 
-        return feedback
+                feedback.gmt_updated = datetime.utcnow()
+                session.add(feedback)
+                await session.flush()
+                await session.refresh(feedback)
+
+            return feedback
+
+        return await self.execute_with_transaction(_update_operation)
 
     async def delete_message_feedback(self, user: str, chat_id: str, message_id: str) -> bool:
         """Delete message feedback (soft delete)"""
-        session = await self._get_session()
-        stmt = select(MessageFeedback).where(
-            MessageFeedback.user == user,
-            MessageFeedback.chat_id == chat_id,
-            MessageFeedback.message_id == message_id,
-            MessageFeedback.gmt_deleted.is_(None),
-        )
-        result = await session.execute(stmt)
-        feedback = result.scalars().first()
 
-        if feedback:
-            feedback.gmt_deleted = datetime.utcnow()
-            session.add(feedback)
-            await session.flush()
-            return True
-        return False
+        async def _delete_operation(session):
+            stmt = select(MessageFeedback).where(
+                MessageFeedback.user == user,
+                MessageFeedback.chat_id == chat_id,
+                MessageFeedback.message_id == message_id,
+                MessageFeedback.gmt_deleted.is_(None),
+            )
+            result = await session.execute(stmt)
+            feedback = result.scalars().first()
+
+            if feedback:
+                feedback.gmt_deleted = datetime.utcnow()
+                session.add(feedback)
+                await session.flush()
+                return True
+            return False
+
+        return await self.execute_with_transaction(_delete_operation)
 
     async def upsert_message_feedback(
         self,
@@ -962,111 +1120,123 @@ class DatabaseOps:
         collection_id: str = None,
     ) -> MessageFeedback:
         """Create or update message feedback (upsert operation)"""
-        session = await self._get_session()
 
-        # Try to find existing feedback
-        stmt = select(MessageFeedback).where(
-            MessageFeedback.user == user,
-            MessageFeedback.chat_id == chat_id,
-            MessageFeedback.message_id == message_id,
-            MessageFeedback.gmt_deleted.is_(None),
-        )
-        result = await session.execute(stmt)
-        feedback = result.scalars().first()
-
-        if feedback:
-            # Update existing
-            if feedback_type is not None:
-                feedback.type = feedback_type
-            if feedback_tag is not None:
-                feedback.tag = feedback_tag
-            if feedback_message is not None:
-                feedback.message = feedback_message
-            if question is not None:
-                feedback.question = question
-            if original_answer is not None:
-                feedback.original_answer = original_answer
-            feedback.gmt_updated = datetime.utcnow()
-        else:
-            # Create new
-            from aperag.db.models import MessageFeedbackStatus
-
-            feedback = MessageFeedback(
-                user=user,
-                chat_id=chat_id,
-                message_id=message_id,
-                type=feedback_type,
-                tag=feedback_tag,
-                message=feedback_message,
-                question=question,
-                original_answer=original_answer,
-                collection_id=collection_id,
-                status=MessageFeedbackStatus.PENDING,
+        async def _upsert_operation(session):
+            # Try to find existing feedback
+            stmt = select(MessageFeedback).where(
+                MessageFeedback.user == user,
+                MessageFeedback.chat_id == chat_id,
+                MessageFeedback.message_id == message_id,
+                MessageFeedback.gmt_deleted.is_(None),
             )
+            result = await session.execute(stmt)
+            feedback = result.scalars().first()
 
-        session.add(feedback)
-        await session.flush()
-        await session.refresh(feedback)
-        return feedback
+            if feedback:
+                # Update existing
+                if feedback_type is not None:
+                    feedback.type = feedback_type
+                if feedback_tag is not None:
+                    feedback.tag = feedback_tag
+                if feedback_message is not None:
+                    feedback.message = feedback_message
+                if question is not None:
+                    feedback.question = question
+                if original_answer is not None:
+                    feedback.original_answer = original_answer
+                feedback.gmt_updated = datetime.utcnow()
+            else:
+                # Create new
+                from aperag.db.models import MessageFeedbackStatus
+
+                feedback = MessageFeedback(
+                    user=user,
+                    chat_id=chat_id,
+                    message_id=message_id,
+                    type=feedback_type,
+                    tag=feedback_tag,
+                    message=feedback_message,
+                    question=question,
+                    original_answer=original_answer,
+                    collection_id=collection_id,
+                    status=MessageFeedbackStatus.PENDING,
+                )
+
+            session.add(feedback)
+            await session.flush()
+            await session.refresh(feedback)
+            return feedback
+
+        return await self.execute_with_transaction(_upsert_operation)
 
     async def update_api_key_by_id(self, user: str, key_id: str, description: str) -> Optional[ApiKey]:
         """Update API key description"""
-        session = await self._get_session()
-        stmt = select(ApiKey).where(
-            ApiKey.user == user, ApiKey.id == key_id, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted.is_(None)
-        )
-        result = await session.execute(stmt)
-        api_key = result.scalars().first()
 
-        if api_key:
-            api_key.description = description
-            session.add(api_key)
-            await session.flush()
-            await session.refresh(api_key)
+        async def _update_operation(session):
+            stmt = select(ApiKey).where(
+                ApiKey.user == user,
+                ApiKey.id == key_id,
+                ApiKey.status == ApiKeyStatus.ACTIVE,
+                ApiKey.gmt_deleted.is_(None),
+            )
+            result = await session.execute(stmt)
+            api_key = result.scalars().first()
 
-        return api_key
+            if api_key:
+                api_key.description = description
+                session.add(api_key)
+                await session.flush()
+                await session.refresh(api_key)
+
+            return api_key
+
+        if self._session:
+            return await _update_operation(self._session)
+        else:
+            return await self.execute_with_transaction(_update_operation)
 
 
 # Create a global instance for backwards compatibility and easy access
 # This can be used in places where session dependency injection is not available
+async_db_ops = AsyncDatabaseOps()
 db_ops = DatabaseOps()
 
 
 async def query_msp_dict(session, user: str):
     """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_msp_dict(user)
+    return await AsyncDatabaseOps(session).query_msp_dict(user)
 
 
 async def query_collection(session, user: str, collection_id: str):
     """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_collection(user, collection_id)
+    return await AsyncDatabaseOps(session).query_collection(user, collection_id)
 
 
 async def query_documents(session, users: List[str], collection_id: str):
     """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_documents(users, collection_id)
+    return await AsyncDatabaseOps(session).query_documents(users, collection_id)
 
 
 async def query_chat_feedbacks(session, user: str, chat_id: str):
     """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_chat_feedbacks(user, chat_id)
+    return await AsyncDatabaseOps(session).query_chat_feedbacks(user, chat_id)
 
 
 async def delete_user(session, user: User):
     """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).delete_user(user)
+    return await AsyncDatabaseOps(session).delete_user(user)
 
 
 async def query_admin_count(session):
     """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_admin_count()
+    return await AsyncDatabaseOps(session).query_admin_count()
 
 
 async def query_first_user_exists(session):
     """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_first_user_exists()
+    return await AsyncDatabaseOps(session).query_first_user_exists()
 
 
 async def query_invitation_by_token(session, token: str):
     """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_invitation_by_token(token)
+    return await AsyncDatabaseOps(session).query_invitation_by_token(token)

@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 from aperag.config import settings
 from aperag.db.models import Collection
-from aperag.db.ops import db_ops
+from aperag.db.ops import async_db_ops
 from aperag.flow.base.models import BaseNodeRunner, SystemInput, register_node_runner
 from aperag.query.query import DocumentWithScore
 from aperag.utils.utils import generate_vector_db_collection_name
@@ -43,7 +43,7 @@ class FulltextSearchRepository:
 
     async def get_collection(self, user, collection_id: str) -> Optional[Collection]:
         """Get collection by ID for the user"""
-        return await db_ops.query_collection(user, collection_id)
+        return await async_db_ops.query_collection(user, collection_id)
 
 
 # Business logic service

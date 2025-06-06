@@ -17,9 +17,9 @@ import logging
 
 from asgiref.sync import async_to_sync
 
-from aperag.config import SyncSessionDep, with_sync_session
 from aperag.context.full_text import create_index, delete_index
-from aperag.db.models import Collection, CollectionStatus
+from aperag.db.models import CollectionStatus
+from aperag.db.ops import db_ops
 from aperag.embed.base_embedding import get_collection_embedding_service_sync
 from aperag.graph import lightrag_holder
 from aperag.tasks.index import get_collection_config_settings
@@ -34,11 +34,10 @@ from config.vector_db import get_vector_db_connector
 logger = logging.getLogger(__name__)
 
 
-@with_sync_session
-def _init_collection_logic(session: SyncSessionDep, collection_id: str, document_user_quota: int):
+def _init_collection_logic(collection_id: str, document_user_quota: int):
     """Internal function for collection initialization logic"""
-    # Get collection from database
-    collection = session.get(Collection, collection_id)
+    # Get collection from database using db_ops
+    collection = db_ops.query_collection_by_id(collection_id)
 
     if not collection or collection.status == CollectionStatus.DELETED:
         return
@@ -57,19 +56,17 @@ def _init_collection_logic(session: SyncSessionDep, collection_id: str, document
     index_name = generate_fulltext_index_name(collection_id)
     create_index(index_name)
 
-    # Update collection status
+    # Update collection status using db_ops
     collection.status = CollectionStatus.ACTIVE
-    session.add(collection)
-    session.commit()
+    db_ops.update_collection(collection)
 
     logger.info(f"Successfully initialized collection {collection_id}")
 
 
-@with_sync_session
-def _delete_collection_logic(session: SyncSessionDep, collection_id: str):
+def _delete_collection_logic(collection_id: str):
     """Internal function for collection deletion logic"""
-    # Get collection from database
-    collection = session.get(Collection, collection_id)
+    # Get collection from database using db_ops
+    collection = db_ops.query_collection_by_id(collection_id)
 
     if not collection:
         return

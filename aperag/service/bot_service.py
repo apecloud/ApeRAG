@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aperag.apps import QuotaType
 from aperag.config import settings
 from aperag.db import models as db_models
-from aperag.db.ops import DatabaseOps, db_ops
+from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.schema import view_models
 from aperag.schema.view_models import Bot, BotList
 from aperag.views.utils import fail, success, validate_bot_config
@@ -34,9 +34,9 @@ class BotService:
     def __init__(self, session: AsyncSession = None):
         # Use global db_ops instance by default, or create custom one with provided session
         if session is None:
-            self.db_ops = db_ops  # Use global instance
+            self.db_ops = async_db_ops  # Use global instance
         else:
-            self.db_ops = DatabaseOps(session)  # Create custom instance for transaction control
+            self.db_ops = AsyncDatabaseOps(session)  # Create custom instance for transaction control
 
     def build_bot_response(self, bot: db_models.Bot, collection_ids: List[str]) -> view_models.Bot:
         """Build Bot response object for API return."""
@@ -62,7 +62,7 @@ class BotService:
 
         async def _create_operation(session):
             # Use DatabaseOps to create bot
-            db_ops_session = DatabaseOps(session)
+            db_ops_session = AsyncDatabaseOps(session)
             bot = await db_ops_session.create_bot(
                 user=user, title=bot_in.title, description=bot_in.description, bot_type=bot_in.type, config="{}"
             )
@@ -158,7 +158,7 @@ class BotService:
 
         async def _update_operation(session):
             # Use DatabaseOps to update bot
-            db_ops_session = DatabaseOps(session)
+            db_ops_session = AsyncDatabaseOps(session)
 
             old_config = json.loads(bot.config)
             old_config.update(new_config)
@@ -212,7 +212,7 @@ class BotService:
 
         async def _delete_operation(session):
             # Use DatabaseOps to delete bot
-            db_ops_session = DatabaseOps(session)
+            db_ops_session = AsyncDatabaseOps(session)
             deleted_bot = await db_ops_session.delete_bot_by_id(user, bot_id)
 
             if not deleted_bot:

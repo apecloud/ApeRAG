@@ -20,7 +20,8 @@ import requests
 from bs4 import BeautifulSoup
 
 from aperag.chat.utils import get_sync_redis_client
-from aperag.db.models import Collection, Document, DocumentStatus
+from aperag.config import get_sync_session
+from aperag.db.models import Collection, CollectionStatus, Document, DocumentStatus
 from aperag.tasks.index import add_index_for_local_document
 from config.celery import app
 
@@ -30,12 +31,18 @@ def crawl_domain(self, root_url, url, collection_id, user, max_pages):
     redis_key = f"{url}"
     redis_conn = get_sync_redis_client()
 
-    collection = Collection.objects.get(id=collection_id)
+    # Get collection using session
+    collection = None
+    for session in get_sync_session():
+        collection = session.get(Collection, collection_id)
+        if not collection:
+            return
+
     redis_set_key = f"crawled_urls:{collection_id}:{root_url}"
     if (
         redis_conn.sismember(redis_set_key, redis_key)
         or redis_conn.scard(redis_set_key) >= max_pages
-        or collection.status == Collection.Status.DELETED
+        or collection.status == CollectionStatus.DELETED
     ):
         return
 
@@ -58,15 +65,22 @@ def crawl_domain(self, root_url, url, collection_id, user, max_pages):
                 collection_id=collection.id,
                 size=0,
             )
-            document_instance.save()
+
             string_data = json.dumps(url)
-            document_instance.metadata = json.dumps(
+            document_instance.doc_metadata = json.dumps(
                 {
                     "url": string_data,
                 }
             )
-            document_instance.save()
+
+            # Save document using session
+            for session in get_sync_session():
+                session.add(document_instance)
+                session.commit()
+                session.refresh(document_instance)  # Get the generated ID
+
             add_index_for_local_document.delay(document_instance.id)
+
         for link in soup.find_all("a", href=True):
             sub_url = urljoin(url, link["href"]).split("#")[0]
             sub_parts = urlparse(sub_url)

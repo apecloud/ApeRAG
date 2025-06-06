@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from aperag.config import settings
 from aperag.context.context import ContextManager
 from aperag.db.models import Collection
-from aperag.db.ops import db_ops
+from aperag.db.ops import async_db_ops
 from aperag.embed.base_embedding import get_collection_embedding_service
 from aperag.flow.base.models import BaseNodeRunner, SystemInput, register_node_runner
 from aperag.query.query import DocumentWithScore
@@ -45,7 +45,7 @@ class VectorSearchRepository:
 
     async def get_collection(self, user, collection_id: str) -> Optional[Collection]:
         """Get collection by ID for the user"""
-        return await db_ops.query_collection(user, collection_id)
+        return await async_db_ops.query_collection(user, collection_id)
 
 
 # Business logic service

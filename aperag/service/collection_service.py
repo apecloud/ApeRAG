@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aperag.apps import QuotaType
 from aperag.config import settings
 from aperag.db import models as db_models
-from aperag.db.ops import DatabaseOps, db_ops
+from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.flow.base.models import Edge, FlowInstance, NodeInstance
 from aperag.flow.engine import FlowEngine
 from aperag.graph.lightrag_holder import delete_lightrag_holder, reload_lightrag_holder
@@ -42,9 +42,9 @@ class CollectionService:
     def __init__(self, session: AsyncSession = None):
         # Use global db_ops instance by default, or create custom one with provided session
         if session is None:
-            self.db_ops = db_ops  # Use global instance
+            self.db_ops = async_db_ops  # Use global instance
         else:
-            self.db_ops = DatabaseOps(session)  # Create custom instance for transaction control
+            self.db_ops = AsyncDatabaseOps(session)  # Create custom instance for transaction control
 
     def build_collection_response(self, instance: db_models.Collection) -> view_models.Collection:
         """Build Collection response object for API return."""
@@ -76,7 +76,7 @@ class CollectionService:
 
         async def _create_operation(session):
             # Use DatabaseOps to create collection
-            db_ops_session = DatabaseOps(session)
+            db_ops_session = AsyncDatabaseOps(session)
             config_str = dumpCollectionConfig(collection_config) if collection.config is not None else None
 
             instance = await db_ops_session.create_collection(
@@ -131,7 +131,7 @@ class CollectionService:
 
         async def _update_operation(session):
             # Use DatabaseOps to update collection
-            db_ops_session = DatabaseOps(session)
+            db_ops_session = AsyncDatabaseOps(session)
             config_str = dumpCollectionConfig(collection.config)
 
             updated_instance = await db_ops_session.update_collection_by_id(
@@ -167,7 +167,7 @@ class CollectionService:
 
         async def _delete_operation(session):
             # Use DatabaseOps to delete collection
-            db_ops_session = DatabaseOps(session)
+            db_ops_session = AsyncDatabaseOps(session)
             deleted_instance = await db_ops_session.delete_collection_by_id(user, collection_id)
 
             if not deleted_instance:
@@ -283,7 +283,7 @@ class CollectionService:
 
         async def _create_search_test_operation(session):
             # Use DatabaseOps to create search test record
-            db_ops_session = DatabaseOps(session)
+            db_ops_session = AsyncDatabaseOps(session)
             record = await db_ops_session.create_search_test(
                 user=user,
                 collection_id=collection_id,
@@ -343,7 +343,7 @@ class CollectionService:
 
         async def _delete_search_test_operation(session):
             # Use DatabaseOps to delete search test
-            db_ops_session = DatabaseOps(session)
+            db_ops_session = AsyncDatabaseOps(session)
             deleted = await db_ops_session.delete_search_test(user, collection_id, search_test_id)
 
             if not deleted:

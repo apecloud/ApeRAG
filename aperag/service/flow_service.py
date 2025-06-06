@@ -21,7 +21,7 @@ from http import HTTPStatus
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.db.ops import DatabaseOps, db_ops
+from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.flow.engine import FlowEngine
 from aperag.flow.parser import FlowParser
 from aperag.schema import view_models
@@ -36,9 +36,9 @@ class FlowService:
     def __init__(self, session: AsyncSession = None):
         # Use global db_ops instance by default, or create custom one with provided session
         if session is None:
-            self.db_ops = db_ops  # Use global instance
+            self.db_ops = async_db_ops  # Use global instance
         else:
-            self.db_ops = DatabaseOps(session)  # Create custom instance for transaction control
+            self.db_ops = AsyncDatabaseOps(session)  # Create custom instance for transaction control
 
     def _convert_to_serializable(self, obj):
         if hasattr(obj, "model_dump"):
@@ -137,7 +137,7 @@ class FlowService:
 
         async def _update_operation(session):
             # Get latest bot data in transaction
-            db_ops_session = DatabaseOps(session)
+            db_ops_session = AsyncDatabaseOps(session)
             bot = await db_ops_session.query_bot(user, bot_id)
             if not bot:
                 raise ValueError("Bot not found")

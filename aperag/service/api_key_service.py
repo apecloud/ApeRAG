@@ -18,7 +18,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.db.models import ApiKey
-from aperag.db.ops import DatabaseOps, db_ops
+from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.schema.view_models import ApiKey as ApiKeyModel
 from aperag.schema.view_models import ApiKeyCreate, ApiKeyList, ApiKeyUpdate
 from aperag.views.utils import fail, success
@@ -30,9 +30,9 @@ class ApiKeyService:
     def __init__(self, session: AsyncSession = None):
         # Use global db_ops instance by default, or create custom one with provided session
         if session is None:
-            self.db_ops = db_ops  # Use global instance
+            self.db_ops = async_db_ops  # Use global instance
         else:
-            self.db_ops = DatabaseOps(session)  # Create custom instance for transaction control
+            self.db_ops = AsyncDatabaseOps(session)  # Create custom instance for transaction control
 
     # Convert database ApiKey model to API response model
     def to_api_key_model(self, apikey: ApiKey) -> ApiKeyModel:
@@ -64,47 +64,23 @@ class ApiKeyService:
 
     async def delete_api_key(self, user: str, apikey_id: str):
         """Delete an API key"""
-        # First check if API key exists
-        api_key = await self.db_ops.get_api_key_by_id(user, apikey_id)
-        if not api_key:
-            return fail(HTTPStatus.NOT_FOUND, "API key not found")
-
-        async def _delete_operation(session):
-            # Use DatabaseOps to delete API key
-            db_ops_session = DatabaseOps(session)
-            deleted = await db_ops_session.delete_api_key(user, apikey_id)
-            if not deleted:
-                raise ValueError("API key not found")
-            return {}
-
         try:
-            result = await self.db_ops.execute_with_transaction(_delete_operation)
-            return success(result)
-        except ValueError as e:
-            return fail(HTTPStatus.NOT_FOUND, str(e))
+            # For single operations, use DatabaseOps directly
+            deleted = await self.db_ops.delete_api_key(user, apikey_id)
+            if not deleted:
+                return fail(HTTPStatus.NOT_FOUND, "API key not found")
+            return success({})
         except Exception as e:
             return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to delete API key: {str(e)}")
 
     async def update_api_key(self, user: str, apikey_id: str, api_key_update: ApiKeyUpdate) -> Optional[ApiKeyModel]:
         """Update an API key"""
-        # First check if API key exists
-        api_key = await self.db_ops.get_api_key_by_id(user, apikey_id)
-        if not api_key:
-            return fail(HTTPStatus.NOT_FOUND, "API key not found")
-
-        async def _update_operation(session):
-            # Use DatabaseOps to update API key
-            db_ops_session = DatabaseOps(session)
-            updated_key = await db_ops_session.update_api_key_by_id(user, apikey_id, api_key_update.description)
-            if not updated_key:
-                raise ValueError("API key not found")
-            return self.to_api_key_model(updated_key)
-
         try:
-            result = await self.db_ops.execute_with_transaction(_update_operation)
-            return success(result)
-        except ValueError as e:
-            return fail(HTTPStatus.NOT_FOUND, str(e))
+            # For single operations, use DatabaseOps directly
+            updated_key = await self.db_ops.update_api_key_by_id(user, apikey_id, api_key_update.description)
+            if not updated_key:
+                return fail(HTTPStatus.NOT_FOUND, "API key not found")
+            return success(self.to_api_key_model(updated_key))
         except Exception as e:
             return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to update API key: {str(e)}")
 

@@ -25,7 +25,7 @@ from aperag.chat.sse.base import ChatRequest, MessageProcessor
 from aperag.chat.sse.frontend_consumer import BaseFormatter, FrontendFormatter
 from aperag.chat.utils import get_async_redis_client
 from aperag.db import models as db_models
-from aperag.db.ops import DatabaseOps, db_ops
+from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.schema import view_models
 from aperag.schema.view_models import Chat, ChatDetails, ChatList
 from aperag.views.utils import fail, success
@@ -39,9 +39,9 @@ class ChatService:
     def __init__(self, session: AsyncSession = None):
         # Use global db_ops instance by default, or create custom one with provided session
         if session is None:
-            self.db_ops = db_ops  # Use global instance
+            self.db_ops = async_db_ops  # Use global instance
         else:
-            self.db_ops = DatabaseOps(session)  # Create custom instance for transaction control
+            self.db_ops = AsyncDatabaseOps(session)  # Create custom instance for transaction control
 
     def build_chat_response(self, chat: db_models.Chat) -> view_models.Chat:
         """Build Chat response object for API return."""
@@ -63,7 +63,7 @@ class ChatService:
 
         async def _create_operation(session):
             # Use DatabaseOps to create chat
-            db_ops_session = DatabaseOps(session)
+            db_ops_session = AsyncDatabaseOps(session)
             chat_instance = await db_ops_session.create_chat(user=user, bot_id=bot_id, title="New Chat")
             return self.build_chat_response(chat_instance)
 
@@ -86,7 +86,7 @@ class ChatService:
 
         async def _get_chat_operation(session):
             # Use DatabaseOps with the same session for all database operations
-            db_ops_session = DatabaseOps(session)
+            db_ops_session = AsyncDatabaseOps(session)
 
             # Query chat using the provided session
             chat = await db_ops_session.query_chat(user, bot_id, chat_id)
@@ -119,7 +119,7 @@ class ChatService:
 
         async def _update_operation(session):
             # Use DatabaseOps to update chat
-            db_ops_session = DatabaseOps(session)
+            db_ops_session = AsyncDatabaseOps(session)
             updated_chat = await db_ops_session.update_chat_by_id(
                 user=user, bot_id=bot_id, chat_id=chat_id, title=chat_in.title
             )
@@ -145,7 +145,7 @@ class ChatService:
 
         async def _delete_operation(session):
             # Use DatabaseOps to delete chat
-            db_ops_session = DatabaseOps(session)
+            db_ops_session = AsyncDatabaseOps(session)
             deleted_chat = await db_ops_session.delete_chat_by_id(user, bot_id, chat_id)
 
             if not deleted_chat:
@@ -192,7 +192,7 @@ class ChatService:
 
             async def _ensure_chat_operation(session):
                 if chat is None:
-                    db_ops_session = DatabaseOps(session)
+                    db_ops_session = AsyncDatabaseOps(session)
                     new_chat = await db_ops_session.create_chat(user=bot.user, bot_id=bot.id, title="Feishu Chat")
                     # Set peer info manually since DatabaseOps doesn't support this yet
                     new_chat.peer_type = db_models.ChatPeerType.FEISHU
@@ -255,7 +255,7 @@ class ChatService:
                 return fail(HTTPStatus.NOT_FOUND, "Message not found")
 
             async def _feedback_operation(session):
-                db_ops_session = DatabaseOps(session)
+                db_ops_session = AsyncDatabaseOps(session)
 
                 # If feedback_type is None, delete the feedback record
                 if feedback_type is None:

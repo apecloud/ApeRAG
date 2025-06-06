@@ -32,7 +32,7 @@ app.conf.update(
     task_send_sent_event=settings.celery_task_send_sent_event,
     task_track_started=settings.celery_task_track_started,
     # Auto-discover tasks in the aperag.tasks package
-    include=['aperag.tasks.collection', 'aperag.tasks.index', 'aperag.tasks.crawl_web', 'aperag.tasks.local_directory_task'],
+    include=['aperag.tasks.collection', 'aperag.tasks.index', 'aperag.tasks.crawl_web'],
 )
 
 # Set up task routes if local queue is specified
