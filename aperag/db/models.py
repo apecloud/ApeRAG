@@ -21,7 +21,7 @@ from typing import Optional
 from sqlalchemy import JSON, Column
 from sqlmodel import Field, SQLModel, UniqueConstraint, select
 
-from aperag.config import SessionDep
+from aperag.config import AsyncSessionDep
 
 
 # Helper function for random id generation
@@ -50,7 +50,7 @@ class DocumentStatus(str, Enum):
     DELETED = "DELETED"
 
 
-class IndexStatus(str, Enum):
+class DocumentIndexStatus(str, Enum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"
     COMPLETE = "COMPLETE"
@@ -135,7 +135,7 @@ class Collection(SQLModel, table=True):
     gmt_updated: datetime = Field(default_factory=datetime.utcnow)
     gmt_deleted: Optional[datetime] = None
 
-    async def bots(self, session: SessionDep, only_ids: bool = False):
+    async def bots(self, session: AsyncSessionDep, only_ids: bool = False):
         """Get all active bots related to this collection"""
         from aperag.db.models import Bot, BotCollectionRelation
 
@@ -166,9 +166,9 @@ class Document(SQLModel, table=True):
     user: str = Field(max_length=256)
     collection_id: Optional[str] = Field(default=None, max_length=24)
     status: DocumentStatus
-    vector_index_status: IndexStatus = IndexStatus.PENDING
-    fulltext_index_status: IndexStatus = IndexStatus.PENDING
-    graph_index_status: IndexStatus = IndexStatus.PENDING
+    vector_index_status: DocumentIndexStatus = DocumentIndexStatus.PENDING
+    fulltext_index_status: DocumentIndexStatus = DocumentIndexStatus.PENDING
+    graph_index_status: DocumentIndexStatus = DocumentIndexStatus.PENDING
     size: int
     object_path: Optional[str] = None
     doc_metadata: Optional[str] = None  # Store document metadata as JSON string
@@ -180,11 +180,11 @@ class Document(SQLModel, table=True):
     def get_overall_status(self) -> "DocumentStatus":
         """Calculate overall status based on individual index statuses"""
         index_statuses = [self.vector_index_status, self.fulltext_index_status, self.graph_index_status]
-        if any(status == IndexStatus.FAILED for status in index_statuses):
+        if any(status == DocumentIndexStatus.FAILED for status in index_statuses):
             return DocumentStatus.FAILED
-        elif any(status == IndexStatus.RUNNING for status in index_statuses):
+        elif any(status == DocumentIndexStatus.RUNNING for status in index_statuses):
             return DocumentStatus.RUNNING
-        elif all(status in [IndexStatus.COMPLETE, IndexStatus.SKIPPED] for status in index_statuses):
+        elif all(status in [DocumentIndexStatus.COMPLETE, DocumentIndexStatus.SKIPPED] for status in index_statuses):
             return DocumentStatus.COMPLETE
         else:
             return DocumentStatus.PENDING
@@ -198,7 +198,7 @@ class Document(SQLModel, table=True):
         user = self.user.replace("|", "-")
         return f"user-{user}/{self.collection_id}/{self.id}"
 
-    async def get_collection(self, session: SessionDep):
+    async def get_collection(self, session: AsyncSessionDep):
         """Get the associated collection object"""
         from aperag.db.models import Collection
 
@@ -225,7 +225,7 @@ class Bot(SQLModel, table=True):
     gmt_updated: datetime = Field(default_factory=datetime.utcnow)
     gmt_deleted: Optional[datetime] = None
 
-    async def collections(self, session: SessionDep, only_ids: bool = False):
+    async def collections(self, session: AsyncSessionDep, only_ids: bool = False):
         """Get all active collections related to this bot"""
         from aperag.db.models import BotCollectionRelation, Collection
 
@@ -291,7 +291,7 @@ class Chat(SQLModel, table=True):
     gmt_updated: datetime = Field(default_factory=datetime.utcnow)
     gmt_deleted: Optional[datetime] = None
 
-    async def get_bot(self, session: SessionDep):
+    async def get_bot(self, session: AsyncSessionDep):
         """Get the associated bot object"""
         from aperag.db.models import Bot
 
@@ -326,7 +326,7 @@ class MessageFeedback(SQLModel, table=True):
     gmt_updated: datetime = Field(default_factory=datetime.utcnow)
     gmt_deleted: Optional[datetime] = None
 
-    async def get_collection(self, session: SessionDep):
+    async def get_collection(self, session: AsyncSessionDep):
         """Get the associated collection object"""
         from aperag.db.models import Collection
 
@@ -339,7 +339,7 @@ class MessageFeedback(SQLModel, table=True):
         elif isinstance(collection, str):
             self.collection_id = collection
 
-    async def get_chat(self, session: SessionDep):
+    async def get_chat(self, session: AsyncSessionDep):
         """Get the associated chat object"""
         from aperag.db.models import Chat
 
@@ -372,7 +372,7 @@ class ApiKey(SQLModel, table=True):
         """Generate a unique API key"""
         return f"sk-{uuid.uuid4().hex}"
 
-    async def update_last_used(self, session: SessionDep):
+    async def update_last_used(self, session: AsyncSessionDep):
         """Update the last_used_at timestamp"""
         self.last_used_at = datetime.utcnow()
         session.add(self)
@@ -435,7 +435,7 @@ class Invitation(SQLModel, table=True):
         now = datetime.utcnow()
         return not self.is_used and now < self.expires_at
 
-    async def use(self, session: SessionDep):
+    async def use(self, session: AsyncSessionDep):
         """Mark invitation as used"""
         self.is_used = True
         self.used_at = datetime.utcnow()

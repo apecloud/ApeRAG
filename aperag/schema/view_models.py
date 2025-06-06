@@ -19,10 +19,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+import logging
 from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, EmailStr, Extra, Field, confloat, conint
 
+logger = logging.getLogger(__name__)
 
 class Bot(BaseModel):
     id: Optional[str] = None
@@ -75,7 +77,6 @@ class BotUpdate(BaseModel):
     description: Optional[str] = None
     type: Optional[Literal['knowledge', 'common']] = None
     config: Optional[str] = None
-    collection_ids: Optional[list[str]] = None
 
 
 class Retry(BaseModel):

@@ -15,11 +15,12 @@
 import json
 import traceback
 from http import HTTPStatus
+from typing import List
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.apps import QuotaType
-from aperag.config import get_session, settings
+from aperag.config import settings
 from aperag.db import models as db_models
 from aperag.db.ops import DatabaseOps, db_ops
 from aperag.schema import view_models
@@ -34,28 +35,10 @@ class BotService:
         # Use global db_ops instance by default, or create custom one with provided session
         if session is None:
             self.db_ops = db_ops  # Use global instance
-            self._custom_session = None
         else:
             self.db_ops = DatabaseOps(session)  # Create custom instance for transaction control
-            self._custom_session = session
 
-    async def _execute_with_session(self, operation):
-        """Execute operation with proper session management for write operations"""
-        if self._custom_session:
-            # Use provided session
-            return await operation(self._custom_session)
-        else:
-            # Create new session for this operation
-            async for session in get_session():
-                try:
-                    result = await operation(session)
-                    await session.commit()
-                    return result
-                except Exception:
-                    await session.rollback()
-                    raise
-
-    def build_bot_response(self, bot: db_models.Bot, collection_ids: list[str]) -> view_models.Bot:
+    def build_bot_response(self, bot: db_models.Bot, collection_ids: List[str]) -> view_models.Bot:
         """Build Bot response object for API return."""
         return Bot(
             id=bot.id,
@@ -99,7 +82,7 @@ class BotService:
             return self.build_bot_response(bot, collection_ids=collection_ids)
 
         try:
-            result = await self._execute_with_session(_create_operation)
+            result = await self.db_ops.execute_with_transaction(_create_operation)
             return success(result)
         except ValueError as e:
             status_code = HTTPStatus.NOT_FOUND if "not found" in str(e) else HTTPStatus.BAD_REQUEST
@@ -211,7 +194,7 @@ class BotService:
             return self.build_bot_response(updated_bot, collection_ids=collection_ids)
 
         try:
-            result = await self._execute_with_session(_update_operation)
+            result = await self.db_ops.execute_with_transaction(_update_operation)
             return success(result)
         except ValueError as e:
             traceback.print_exc(e)
@@ -242,7 +225,7 @@ class BotService:
             return self.build_bot_response(deleted_bot, collection_ids=collection_ids)
 
         try:
-            result = await self._execute_with_session(_delete_operation)
+            result = await self.db_ops.execute_with_transaction(_delete_operation)
             return success(result)
         except ValueError as e:
             return fail(HTTPStatus.NOT_FOUND, str(e))

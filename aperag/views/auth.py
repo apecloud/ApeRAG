@@ -21,7 +21,7 @@ from fastapi_users import BaseUserManager, FastAPIUsers
 from fastapi_users.authentication import AuthenticationBackend, BearerTransport, CookieTransport, JWTStrategy
 from fastapi_users.db import SQLAlchemyUserDatabase
 
-from aperag.config import SessionDep, settings
+from aperag.config import AsyncSessionDep, settings
 from aperag.db.models import ApiKey, ApiKeyStatus, Invitation, Role, User
 from aperag.db.ops import delete_user as db_delete_user
 from aperag.db.ops import query_admin_count, query_first_user_exists
@@ -70,7 +70,7 @@ cookie_backend = AuthenticationBackend(
 
 
 # User Database dependency
-async def get_user_db(session: SessionDep):
+async def get_user_db(session: AsyncSessionDep):
     yield SQLAlchemyUserDatabase(session, User)
 
 
@@ -87,7 +87,7 @@ fastapi_users = FastAPIUsers[User, str](
 
 
 # API Key Authentication
-async def authenticate_api_key(request: Request, session: SessionDep) -> Optional[User]:
+async def authenticate_api_key(request: Request, session: AsyncSessionDep) -> Optional[User]:
     """Authenticate using API Key from Authorization header"""
     from sqlmodel import select
 
@@ -131,7 +131,7 @@ async def authenticate_api_key(request: Request, session: SessionDep) -> Optiona
 
 # Authentication dependency, writes to request.state.user_id
 async def get_current_user_with_state(
-    request: Request, session: SessionDep, user: User = Depends(fastapi_users.current_user(optional=True))
+    request: Request, session: AsyncSessionDep, user: User = Depends(fastapi_users.current_user(optional=True))
 ) -> Optional[User]:
     """Get current user from JWT/Cookie or API Key and write to request.state.user_id"""
     # First try API Key authentication
@@ -149,7 +149,7 @@ async def get_current_user_with_state(
 
 
 async def get_current_active_user(
-    request: Request, session: SessionDep, user: Optional[User] = Depends(get_current_user_with_state)
+    request: Request, session: AsyncSessionDep, user: Optional[User] = Depends(get_current_user_with_state)
 ) -> User:
     """Get current active user, raise 401 if not authenticated"""
     if not user:
@@ -157,7 +157,7 @@ async def get_current_active_user(
     return user
 
 
-async def get_current_admin(session: SessionDep, user: User = Depends(get_current_active_user)) -> User:
+async def get_current_admin(session: AsyncSessionDep, user: User = Depends(get_current_active_user)) -> User:
     """Get current admin user"""
     if user.role != Role.ADMIN:
         raise HTTPException(status_code=403, detail="Only admin members can perform this action")
@@ -171,7 +171,7 @@ router = APIRouter()
 
 @router.post("/invite")
 async def create_invitation_view(
-    data: view_models.InvitationCreate, session: SessionDep, user: User = Depends(get_current_admin)
+    data: view_models.InvitationCreate, session: AsyncSessionDep, user: User = Depends(get_current_admin)
 ) -> view_models.Invitation:
     # Check if user already exists
     from sqlmodel import select
@@ -205,7 +205,7 @@ async def create_invitation_view(
 
 @router.get("/invitations")
 async def list_invitations_view(
-    session: SessionDep, user: User = Depends(get_current_admin)
+    session: AsyncSessionDep, user: User = Depends(get_current_admin)
 ) -> view_models.InvitationList:
     from sqlmodel import select
 
@@ -229,7 +229,7 @@ async def list_invitations_view(
 
 @router.post("/register")
 async def register_view(
-    data: view_models.Register, session: SessionDep, user_manager: UserManager = Depends(get_user_manager)
+    data: view_models.Register, session: AsyncSessionDep, user_manager: UserManager = Depends(get_user_manager)
 ) -> view_models.User:
     from sqlmodel import select
 
@@ -288,7 +288,7 @@ async def login_view(
     request: Request,
     response: Response,
     data: view_models.Login,
-    session: SessionDep,
+    session: AsyncSessionDep,
     user_manager: UserManager = Depends(get_user_manager),
 ) -> view_models.User:
     from sqlmodel import select
@@ -338,7 +338,7 @@ async def logout_view(response: Response):
 
 @router.get("/user")
 async def get_user_view(
-    request: Request, session: SessionDep, user: Optional[User] = Depends(get_current_user_with_state)
+    request: Request, session: AsyncSessionDep, user: Optional[User] = Depends(get_current_user_with_state)
 ):
     """Get user info, return 401 if not authenticated"""
     if not user:
@@ -355,7 +355,7 @@ async def get_user_view(
 
 
 @router.get("/users")
-async def list_users_view(session: SessionDep, user: User = Depends(get_current_admin)) -> view_models.UserList:
+async def list_users_view(session: AsyncSessionDep, user: User = Depends(get_current_admin)) -> view_models.UserList:
     from sqlmodel import select
 
     result = await session.execute(select(User))
@@ -376,7 +376,7 @@ async def list_users_view(session: SessionDep, user: User = Depends(get_current_
 @router.post("/change-password")
 async def change_password_view(
     data: view_models.ChangePassword,
-    session: SessionDep,
+    session: AsyncSessionDep,
     user_manager: UserManager = Depends(get_user_manager),
     user: User = Depends(get_current_active_user),
 ):
@@ -404,7 +404,7 @@ async def change_password_view(
 
 
 @router.delete("/users/{user_id}")
-async def delete_user_view(user_id: str, session: SessionDep, user: User = Depends(get_current_admin)):
+async def delete_user_view(user_id: str, session: AsyncSessionDep, user: User = Depends(get_current_admin)):
     from sqlmodel import select
 
     result = await session.execute(select(User).where(User.id == user_id))

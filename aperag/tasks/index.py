@@ -21,15 +21,18 @@ from pathlib import Path
 
 from asgiref.sync import async_to_sync
 from celery import Task
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from sqlmodel import select
 
-from aperag.config import settings
+from aperag.config import SyncSessionDep, get_sync_session, settings, with_sync_session
 from aperag.context.full_text import insert_document, remove_document
-from aperag.db.models import Collection, Document, DocumentStatus, ModelServiceProvider, ModelServiceProviderStatus
+from aperag.db.models import (
+    Collection,
+    Document,
+    DocumentIndexStatus,
+    DocumentStatus,
+)
 from aperag.docparser.doc_parser import DocParser
-from aperag.embed.base_embedding import get_embedding_model
+from aperag.embed.base_embedding import get_collection_embedding_service_sync
 from aperag.embed.local_path_embedding import LocalPathEmbedding
 from aperag.graph import lightrag_holder
 from aperag.objectstore.base import get_object_store
@@ -48,74 +51,6 @@ from config.vector_db import get_vector_db_connector
 logger = logging.getLogger(__name__)
 
 
-# Create sync database engine for celery tasks
-def get_sync_database_url():
-    """Get synchronous database URL for celery tasks"""
-    # Get the base database URL
-    db_url = str(settings.database_url)
-
-    # Convert async database URL to sync version
-    if "+asyncpg:" in db_url:
-        # Replace asyncpg with psycopg2 for sync operations
-        sync_url = db_url.replace("+asyncpg:", "+psycopg2:")
-    elif "postgresql://" in db_url:
-        # Add psycopg2 driver if not specified
-        sync_url = db_url.replace("postgresql://", "postgresql+psycopg2://")
-    elif "sqlite" in db_url:
-        # SQLite works fine with sync operations
-        sync_url = db_url
-    else:
-        # For other databases, just use the original URL
-        sync_url = db_url
-
-    return sync_url
-
-
-sync_engine = create_engine(get_sync_database_url(), echo=False)
-SyncSessionLocal = sessionmaker(bind=sync_engine)
-
-
-def get_sync_session():
-    """Get synchronous database session for celery tasks"""
-    return SyncSessionLocal()
-
-
-def get_collection_embedding_service_sync(collection) -> tuple[object, int]:
-    """Synchronous version of get_collection_embedding_service for Celery tasks"""
-    config = parseCollectionConfig(collection.config)
-    embedding_msp = config.embedding.model_service_provider
-    embedding_model_name = config.embedding.model
-    custom_llm_provider = config.embedding.custom_llm_provider
-    logger.info("get_collection_embedding_model_sync %s %s", embedding_msp, embedding_model_name)
-
-    # Query model service providers using sync session
-    with get_sync_session() as session:
-        stmt = select(ModelServiceProvider).where(
-            ModelServiceProvider.user == collection.user,
-            ModelServiceProvider.status == ModelServiceProviderStatus.ACTIVE,
-        )
-        result = session.execute(stmt)
-        msps = result.scalars().all()
-
-        msp_dict = {msp.name: msp for msp in msps}
-
-    if embedding_msp in msp_dict:
-        msp = msp_dict[embedding_msp]
-        embedding_service_url = msp.base_url
-        embedding_service_api_key = msp.api_key
-        logger.info("get_collection_embedding_model_sync %s %s", embedding_service_url, embedding_service_api_key)
-
-        return get_embedding_model(
-            embedding_provider=custom_llm_provider,
-            embedding_model=embedding_model_name,
-            embedding_service_url=embedding_service_url,
-            embedding_service_api_key=embedding_service_api_key,
-        )
-
-    logger.warning("get_collection_embedding_model_sync cannot find model service provider %s", embedding_msp)
-    return None, 0
-
-
 # Configuration constants
 class IndexTaskConfig:
     MAX_EXTRACTED_SIZE = 5000 * 1024 * 1024  # 5 GB
@@ -128,54 +63,74 @@ class IndexTaskConfig:
 
 
 class CustomLoadDocumentTask(Task):
+    @staticmethod
+    @with_sync_session
+    def _on_success(session: SyncSessionDep, document_id: str):
+        document = session.get(Document, document_id)
+        if not document:
+            return
+        # Update overall status
+        document.update_overall_status()
+        session.add(document)
+        session.commit()
+        logger.info(f"index for document {document.name} success")
+
+    @staticmethod
+    @with_sync_session
+    def _on_failure(session: SyncSessionDep, document_id: str, exc: Exception):
+        document = session.get(Document, document_id)
+        if not document:
+            return
+        # Set all index statuses to failed
+        document.vector_index_status = DocumentIndexStatus.FAILED
+        document.fulltext_index_status = DocumentIndexStatus.FAILED
+        document.graph_index_status = DocumentIndexStatus.FAILED
+        document.update_overall_status()
+        session.add(document)
+        session.commit()
+        logger.error(f"index for document {document.name} error:{exc}")
+
     def on_success(self, retval, task_id, args, kwargs):
         document_id = args[0]
-        with get_sync_session() as session:
-            document = session.get(Document, document_id)
-            if document:
-                # Update overall status
-                document.update_overall_status()
-                session.add(document)
-                session.commit()
-                logger.info(f"index for document {document.name} success")
+        self._on_success(document_id)
 
     def on_failure(self, exc, task_id, args, kwargs, einfo):
         document_id = args[0]
-        with get_sync_session() as session:
-            document = session.get(Document, document_id)
-            if document:
-                # Set all index statuses to failed
-                document.vector_index_status = DocumentStatus.FAILED
-                document.fulltext_index_status = DocumentStatus.FAILED
-                document.graph_index_status = DocumentStatus.FAILED
-                document.update_overall_status()
-                session.add(document)
-                session.commit()
-                logger.error(f"index for document {document.name} error:{exc}")
+        self._on_failure(document_id, exc)
 
 
 class CustomDeleteDocumentTask(Task):
+    @staticmethod
+    @with_sync_session
+    def _on_success(session: SyncSessionDep, document_id: str):
+        document = session.get(Document, document_id)
+        if not document:
+            return
+        logger.info(f"remove qdrant points for document {document.name} success")
+        document.status = DocumentStatus.DELETED
+        document.gmt_deleted = datetime.utcnow()
+        document.name = document.name + "-" + str(uuid.uuid4())
+        session.add(document)
+        session.commit()
+
+    @staticmethod
+    @with_sync_session
+    def _on_failure(session: SyncSessionDep, document_id: str, exc: Exception):
+        document = session.get(Document, document_id)
+        if not document:
+            return
+        logger.error(f"remove_index(): index delete from vector db failed:{exc}")
+        document.status = DocumentStatus.FAILED
+        session.add(document)
+        session.commit()
+
     def on_success(self, retval, task_id, args, kwargs):
         document_id = args[0]
-        with get_sync_session() as session:
-            document = session.get(Document, document_id)
-            if document:
-                logger.info(f"remove qdrant points for document {document.name} success")
-                document.status = DocumentStatus.DELETED
-                document.gmt_deleted = datetime.utcnow()
-                document.name = document.name + "-" + str(uuid.uuid4())
-                session.add(document)
-                session.commit()
+        self._on_success(document_id)
 
     def on_failure(self, exc, task_id, args, kwargs, einfo):
         document_id = args[0]
-        with get_sync_session() as session:
-            document = session.get(Document, document_id)
-            if document:
-                document.status = DocumentStatus.FAILED
-                session.add(document)
-                session.commit()
-                logger.error(f"remove_index(): index delete from vector db failed:{exc}")
+        self._on_failure(document_id, exc)
 
 
 # Utility functions: Extract repeated code without changing main flow
@@ -251,7 +206,7 @@ def uncompress_file(document: Document, supported_file_extensions: list[str]):
                 document_instance.doc_metadata = json.dumps({"object_path": upload_path, "uncompressed": "true"})
 
                 # Save document using sync session
-                with get_sync_session() as session:
+                for session in get_sync_session():
                     session.add(document_instance)
                     session.commit()
                     session.refresh(document_instance)  # Refresh to get the generated ID
@@ -286,62 +241,51 @@ def add_index_for_document(self, document_id):
     Raises:
         Exception: Various document processing exceptions (permissions, etc.)
     """
+    document: Document = None
+    collection: Collection = None
     # Get initial document and collection info
-    with get_sync_session() as session:
+    for session in get_sync_session():
         document = session.get(Document, document_id)
         if not document:
             raise Exception(f"Document {document_id} not found")
-
-        # Set all index statuses to running
-        document.vector_index_status = DocumentStatus.RUNNING
-        document.fulltext_index_status = DocumentStatus.RUNNING
-        document.graph_index_status = DocumentStatus.RUNNING
-        document.status = DocumentStatus.RUNNING
-        session.add(document)
-        session.commit()
 
         # Get collection synchronously
         collection = session.get(Collection, document.collection_id)
         if not collection:
             raise Exception(f"Collection {document.collection_id} not found")
 
-        # Get document metadata while we have the session
-        doc_metadata = document.doc_metadata or "{}"
-        doc_name = document.name
-        doc_size = document.size
-        doc_object_path = document.object_path
-        doc_user = document.user
-        collection_id = collection.id
+    # Set all index statuses to running
+    document.vector_index_status = DocumentIndexStatus.RUNNING
+    document.fulltext_index_status = DocumentIndexStatus.RUNNING
+    document.graph_index_status = DocumentIndexStatus.RUNNING
+    document.status = DocumentStatus.RUNNING
 
+    # Get document metadata while we have the session
     source = None
     local_doc = None
-    metadata = json.loads(doc_metadata)
+    metadata = json.loads(document.doc_metadata or "{}")
     metadata["doc_id"] = document_id
     supported_file_extensions = DocParser().supported_extensions()  # TODO: apply collection config
     supported_file_extensions += SUPPORTED_COMPRESSED_EXTENSIONS
 
     try:
-        if doc_object_path and Path(doc_object_path).suffix in SUPPORTED_COMPRESSED_EXTENSIONS:
+        if document.object_path and Path(document.object_path).suffix in SUPPORTED_COMPRESSED_EXTENSIONS:
             config = parseCollectionConfig(collection.config)
             if config.source != "system":
                 return
             # Need to get document again for uncompress_file since it might update it
-            with get_sync_session() as session:
+            for session in get_sync_session():
                 document = session.get(Document, document_id)
                 uncompress_file(document, supported_file_extensions)
             return
         else:
             source = get_source(parseCollectionConfig(collection.config))
-            local_doc = source.prepare_document(name=doc_name, metadata=metadata)
+            local_doc = source.prepare_document(name=document.name, metadata=metadata)
 
             # Update document size if needed
-            if doc_size == 0:
+            if document.size == 0:
                 new_size = os.path.getsize(local_doc.path)
-                with get_sync_session() as session:
-                    document = session.get(Document, document_id)
-                    document.size = new_size
-                    session.add(document)
-                    session.commit()
+                document.size = new_size
 
             config, enable_knowledge_graph = get_collection_config_settings(collection)
 
@@ -349,7 +293,7 @@ def add_index_for_document(self, document_id):
             try:
                 embedding_model, vector_size = get_collection_embedding_service_sync(collection)
                 loader = create_local_path_embedding_loader(
-                    local_doc, document_id, collection_id, doc_user, embedding_model, vector_size
+                    local_doc, document_id, collection.id, document.user, embedding_model, vector_size
                 )
 
                 ctx_ids, content = loader.load_data()
@@ -357,20 +301,12 @@ def add_index_for_document(self, document_id):
                 relate_ids = {
                     "ctx": ctx_ids,
                 }
-                with get_sync_session() as session:
-                    document = session.get(Document, document_id)
-                    document.relate_ids = json.dumps(relate_ids)
-                    document.vector_index_status = DocumentStatus.COMPLETE
-                    session.add(document)
-                    session.commit()
+                document.relate_ids = json.dumps(relate_ids)
+                document.vector_index_status = DocumentIndexStatus.COMPLETE
                 logger.info(f"Vector index completed for document {local_doc.path}: {ctx_ids}")
 
             except Exception as e:
-                with get_sync_session() as session:
-                    document = session.get(Document, document_id)
-                    document.vector_index_status = DocumentStatus.FAILED
-                    session.add(document)
-                    session.commit()
+                document.vector_index_status = DocumentIndexStatus.FAILED
                 logger.error(f"Vector index failed for document {local_doc.path}: {str(e)}")
                 raise e
 
@@ -379,25 +315,13 @@ def add_index_for_document(self, document_id):
                 if ctx_ids:  # Only create fulltext index when vector data exists
                     index = generate_fulltext_index_name(collection.id)
                     insert_document(index, document_id, local_doc.name, content)
-                    with get_sync_session() as session:
-                        document = session.get(Document, document_id)
-                        document.fulltext_index_status = DocumentStatus.COMPLETE
-                        session.add(document)
-                        session.commit()
+                    document.fulltext_index_status = DocumentIndexStatus.COMPLETE
                     logger.info(f"Fulltext index completed for document {local_doc.path}")
                 else:
-                    with get_sync_session() as session:
-                        document = session.get(Document, document_id)
-                        document.fulltext_index_status = DocumentStatus.SKIPPED
-                        session.add(document)
-                        session.commit()
+                    document.fulltext_index_status = DocumentIndexStatus.SKIPPED
                     logger.info(f"Fulltext index skipped for document {local_doc.path} (no content)")
             except Exception as e:
-                with get_sync_session() as session:
-                    document = session.get(Document, document_id)
-                    document.fulltext_index_status = DocumentStatus.FAILED
-                    session.add(document)
-                    session.commit()
+                document.fulltext_index_status = DocumentIndexStatus.FAILED
                 logger.error(f"Fulltext index failed for document {local_doc.path}: {str(e)}")
 
             # Process knowledge graph index
@@ -405,41 +329,27 @@ def add_index_for_document(self, document_id):
                 if enable_knowledge_graph:
                     # Start asynchronous LightRAG indexing task
                     add_lightrag_index_task.delay(content, document_id, local_doc.path)
-                    with get_sync_session() as session:
-                        document = session.get(Document, document_id)
-                        document.graph_index_status = DocumentStatus.RUNNING
-                        session.add(document)
-                        session.commit()
+                    document.graph_index_status = DocumentIndexStatus.RUNNING
                     logger.info(f"Graph index task scheduled for document {local_doc.path}")
                 else:
-                    with get_sync_session() as session:
-                        document = session.get(Document, document_id)
-                        document.graph_index_status = DocumentStatus.SKIPPED
-                        session.add(document)
-                        session.commit()
+                    document.graph_index_status = DocumentIndexStatus.SKIPPED
                     logger.info(f"Graph index skipped for document {local_doc.path} (not enabled)")
             except Exception as e:
-                with get_sync_session() as session:
-                    document = session.get(Document, document_id)
-                    document.graph_index_status = DocumentStatus.FAILED
-                    session.add(document)
-                    session.commit()
+                document.graph_index_status = DocumentIndexStatus.FAILED
                 logger.error(f"Graph index failed for document {local_doc.path}: {str(e)}")
 
     except FeishuNoPermission:
-        raise Exception("no permission to access document %s" % doc_name)
+        raise Exception("no permission to access document %s" % document.name)
     except FeishuPermissionDenied:
-        raise Exception("permission denied to access document %s" % doc_name)
+        raise Exception("permission denied to access document %s" % document.name)
     except Exception as e:
         raise e
     finally:
         # Update overall status
-        with get_sync_session() as session:
-            document = session.get(Document, document_id)
-            if document:
-                document.update_overall_status()
-                session.add(document)
-                session.commit()
+        document.update_overall_status()
+        for session in get_sync_session():
+            session.add(document)
+            session.commit()
         if local_doc and source:
             source.cleanup_document(local_doc.path)
 
@@ -455,7 +365,7 @@ def remove_index(self, document_id):
     Raises:
         Exception: Various database operation exceptions
     """
-    with get_sync_session() as session:
+    for session in get_sync_session():
         document = session.get(Document, document_id)
         if not document:
             raise Exception(f"Document {document_id} not found")
@@ -516,7 +426,7 @@ def update_index_for_document(self, document_id):
     Raises:
         Exception: Various document processing exceptions (permissions, etc.)
     """
-    with get_sync_session() as session:
+    for session in get_sync_session():
         document = session.get(Document, document_id)
         if not document:
             raise Exception(f"Document {document_id} not found")
@@ -600,7 +510,7 @@ def add_lightrag_index_task(self, content, document_id, file_path):
     logger.info(f"Begin LightRAG indexing task for document (ID: {document_id})")
 
     # Get document object and check if it's deleted
-    with get_sync_session() as session:
+    for session in get_sync_session():
         document = session.get(Document, document_id)
         if not document:
             logger.info(f"Document {document_id} not found, skipping LightRAG indexing")
@@ -636,9 +546,9 @@ def add_lightrag_index_task(self, content, document_id, file_path):
         session.commit()
 
     async def _async_add_lightrag_index():
-        from aperag.config import get_session
+        from aperag.config import get_async_session
 
-        async for async_session in get_session():
+        async for async_session in get_async_session():
             # Get document and collection using async session
             document_stmt = select(Document).where(Document.id == document_id)
             document_result = await async_session.execute(document_stmt)
@@ -671,7 +581,7 @@ def add_lightrag_index_task(self, content, document_id, file_path):
     try:
         async_to_sync(_async_add_lightrag_index)()
         # Update graph index status to complete
-        with get_sync_session() as session:
+        for session in get_sync_session():
             document = session.get(Document, document_id)
             if document:
                 document.graph_index_status = DocumentStatus.COMPLETE
@@ -682,7 +592,7 @@ def add_lightrag_index_task(self, content, document_id, file_path):
     except Exception as e:
         logger.error(f"LightRAG indexing failed for document (ID: {document_id}): {str(e)}")
         # Update graph index status to failed
-        with get_sync_session() as session:
+        for session in get_sync_session():
             document = session.get(Document, document_id)
             if document:
                 document.graph_index_status = DocumentStatus.FAILED
@@ -705,9 +615,9 @@ def remove_lightrag_index_task(self, document_id, collection_id):
     logger.info(f"Begin LightRAG deletion task for document (ID: {document_id})")
 
     async def _async_delete_lightrag():
-        from aperag.config import get_session
+        from aperag.config import get_async_session
 
-        async for async_session in get_session():
+        async for async_session in get_async_session():
             collection_stmt = select(Collection).where(Collection.id == collection_id)
             collection_result = await async_session.execute(collection_stmt)
             collection = collection_result.scalars().first()

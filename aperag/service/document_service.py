@@ -23,7 +23,7 @@ from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.apps import QuotaType
-from aperag.config import get_session, settings
+from aperag.config import settings
 from aperag.db import models as db_models
 from aperag.db.ops import (
     DatabaseOps,
@@ -48,26 +48,8 @@ class DocumentService:
         # Use global db_ops instance by default, or create custom one with provided session
         if session is None:
             self.db_ops = db_ops  # Use global instance
-            self._custom_session = None
         else:
             self.db_ops = DatabaseOps(session)  # Create custom instance for transaction control
-            self._custom_session = session
-
-    async def _execute_with_session(self, operation):
-        """Execute operation with proper session management for write operations"""
-        if self._custom_session:
-            # Use provided session
-            return await operation(self._custom_session)
-        else:
-            # Create new session for this operation
-            async for session in get_session():
-                try:
-                    result = await operation(session)
-                    await session.commit()
-                    return result
-                except Exception:
-                    await session.rollback()
-                    raise
 
     def build_document_response(self, document: db_models.Document) -> view_models.Document:
         """Build Document response object for API return."""
@@ -148,7 +130,7 @@ class DocumentService:
             return response
 
         try:
-            result = await self._execute_with_session(_create_documents_operation)
+            result = await self.db_ops.execute_with_transaction(_create_documents_operation)
             return success(DocumentList(items=result))
         except ValueError as e:
             return fail(HTTPStatus.BAD_REQUEST, str(e))
@@ -197,7 +179,7 @@ class DocumentService:
             return response
 
         try:
-            result = await self._execute_with_session(_create_url_documents_operation)
+            result = await self.db_ops.execute_with_transaction(_create_url_documents_operation)
             return success(DocumentList(items=result))
         except Exception:
             logger.exception("create url document failed")
@@ -249,7 +231,7 @@ class DocumentService:
                 return self.build_document_response(instance)
 
         try:
-            result = await self._execute_with_session(_update_document_operation)
+            result = await self.db_ops.execute_with_transaction(_update_document_operation)
             return success(result)
         except ValueError as e:
             status_code = HTTPStatus.NOT_FOUND if "not found" in str(e) else HTTPStatus.BAD_REQUEST
@@ -280,7 +262,7 @@ class DocumentService:
                 raise ValueError("Document not found")
 
         try:
-            result = await self._execute_with_session(_delete_document_operation)
+            result = await self.db_ops.execute_with_transaction(_delete_document_operation)
             return success(result)
         except ValueError as e:
             return fail(HTTPStatus.NOT_FOUND, str(e))
@@ -298,7 +280,7 @@ class DocumentService:
             return {"success": success_ids, "failed": failed_ids}
 
         try:
-            result = await self._execute_with_session(_delete_documents_operation)
+            result = await self.db_ops.execute_with_transaction(_delete_documents_operation)
             return success(result)
         except Exception as e:
             logger.exception("Failed to delete documents")

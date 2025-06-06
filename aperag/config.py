@@ -1,11 +1,14 @@
+from functools import wraps
 from pathlib import Path
-from typing import Annotated, Any, AsyncGenerator, Dict, Optional
+from typing import Annotated, Any, AsyncGenerator, Dict, Generator, Optional
 
 from fastapi import Depends
 from pydantic import Field
 from pydantic_settings import BaseSettings
+from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+from sqlmodel import Session
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -152,20 +155,66 @@ class Config(BaseSettings):
                 f"Unsupported OBJECT_STORE_TYPE: {self.object_store_type}. Supported types are: local, s3."
             )
 
-        parts = self.database_url.split(":", 1)
-        if parts[0] == "postgresql":
-            self.database_url = f"{parts[0]}+asyncpg:{parts[1]}"
+
+def get_sync_database_url(url: str):
+    """Convert async database URL to sync version for celery"""
+    if url.startswith("postgresql+asyncpg://"):
+        return url.replace("postgresql+asyncpg://", "postgresql://")
+    elif url.startswith("postgres+asyncpg://"):
+        return url.replace("postgres+asyncpg://", "postgres://")
+    else:
+        return url
+
+
+def get_async_database_url(url: str):
+    """Convert sync database URL to async version for celery"""
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+asyncpg://")
+    elif url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+asyncpg://")
+    else:
+        return url
 
 
 settings = Config()
 
-engine = create_async_engine(settings.database_url, echo=False)
+async_engine = create_async_engine(get_async_database_url(settings.database_url), echo=settings.debug)
+sync_engine = create_engine(get_sync_database_url(settings.database_url), echo=settings.debug)
 
 
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+    async_session = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
     async with async_session() as session:
         yield session
 
 
-SessionDep = Annotated[AsyncSession, Depends(get_session)]
+def get_sync_session() -> Generator[Session, None, None]:
+    sync_session = sessionmaker(sync_engine)
+    with sync_session() as session:
+        yield session
+
+
+def with_sync_session(func):
+    """Decorator to inject sync session into sync functions"""
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        for session in get_sync_session():
+            return func(session, *args, **kwargs)
+
+    return wrapper
+
+
+def with_async_session(func):
+    """Decorator to inject async session into async functions"""
+
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        async for session in get_async_session():
+            return await func(session, *args, **kwargs)
+
+    return wrapper
+
+
+AsyncSessionDep = Annotated[AsyncSession, Depends(get_async_session)]
+SyncSessionDep = Annotated[Session, Depends(get_sync_session)]

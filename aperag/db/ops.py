@@ -18,9 +18,10 @@ from typing import List, Optional
 
 from sqlalchemy import desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import sessionmaker
 from sqlmodel import select
 
-from aperag.config import get_session
+from aperag.config import async_engine, get_async_session
 from aperag.db.models import (
     ApiKey,
     ApiKeyStatus,
@@ -52,36 +53,101 @@ class DatabaseOps:
     def __init__(self, session: Optional[AsyncSession] = None):
         self._session = session
 
-    async def get_session(self) -> AsyncSession:
-        """Get database session, create new one if not provided"""
+    async def _get_session(self) -> AsyncSession:
+        """Get database session, create new one if not provided
+
+        This method is primarily used for write operations (create, update, delete)
+        where you need full control over transaction boundaries and explicit session management.
+
+        Usage pattern for write operations:
+        1. Call this method to get a session
+        2. Perform database operations (add, delete, modify)
+        3. Manually call session.flush(), session.commit(), session.refresh() as needed
+        4. Handle transaction rollback if errors occur
+
+        The caller is responsible for session lifecycle management when using this method.
+        """
         if self._session:
             return self._session
 
         # For global instance usage, use the dependency injection pattern
         # This will be managed by the caller (usually in service layer _execute_with_session)
-        async for session in get_session():
+        async for session in get_async_session():
             return session
 
     async def _execute_query(self, query_func):
-        """Execute a read-only query with proper session management"""
+        """Execute a read-only query with proper session management
+
+        This method is designed for read-only database operations (SELECT queries)
+        and provides automatic session lifecycle management. It follows the pattern
+        of accepting a query function that encapsulates the database operation.
+
+        Key benefits:
+        1. Automatic session creation and cleanup for read operations
+        2. Consistent session management across all query methods
+        3. Support for both injected sessions and auto-created sessions
+        4. Simplified code for read-only operations
+
+        Usage pattern for read operations:
+        1. Define an inner async function that takes a session parameter
+        2. Write your SELECT query logic inside the inner function
+        3. Pass the inner function to this method
+        4. Session lifecycle is handled automatically
+
+        Example:
+            async def query_user(self, user_id: str):
+                async def _query(session):
+                    stmt = select(User).where(User.id == user_id)
+                    result = await session.execute(stmt)
+                    return result.scalars().first()
+                return await self._execute_query(_query)
+        """
         if self._session:
-            # Use provided session
             return await query_func(self._session)
         else:
-            # Create new session and manage its lifecycle
-            async for session in get_session():
+            async_session = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
+            async with async_session() as session:
+                return await query_func(session)
+
+    async def execute_with_transaction(self, operation):
+        """Execute multiple database operations in a single transaction
+
+        This method is used when you need to perform multiple database operations
+        that must all succeed or all fail together. Individual DatabaseOps methods
+        will automatically detect that they're running within a managed transaction
+        and will only flush (not commit) their changes.
+
+        Design philosophy:
+        - Single operations: Use DatabaseOps methods directly, they handle their own transactions
+        - Multiple operations: Use this method to wrap them in a single transaction
+
+        Usage pattern:
+        1. Define an operation function that takes a session parameter
+        2. Create DatabaseOps instance with the session
+        3. Perform multiple database operations within the function
+        4. All operations will be executed in a single transaction
+        5. Automatic commit on success, rollback on error
+        """
+        if self._session:
+            # Use provided session, caller manages transaction
+            return await operation(self._session)
+        else:
+            # Create new session and manage transaction lifecycle
+            async for session in get_async_session():
                 try:
-                    return await query_func(session)
-                finally:
-                    # Session is automatically closed by the context manager
-                    pass
+                    result = await operation(session)
+                    await session.commit()
+                    return result
+                except Exception:
+                    await session.rollback()
+                    raise
 
     # Collection Operations
     async def create_collection(
         self, user: str, title: str, description: str, collection_type, config: str = None
     ) -> Collection:
         """Create a new collection in database"""
-        session = await self.get_session()
+        session = await self._get_session()
         instance = Collection(
             user=user,
             type=collection_type,
@@ -99,7 +165,7 @@ class DatabaseOps:
         self, user: str, collection_id: str, title: str, description: str, config: str
     ) -> Optional[Collection]:
         """Update collection by ID"""
-        session = await self.get_session()
+        session = await self._get_session()
         stmt = select(Collection).where(
             Collection.id == collection_id, Collection.user == user, Collection.status != CollectionStatus.DELETED
         )
@@ -118,7 +184,7 @@ class DatabaseOps:
 
     async def delete_collection_by_id(self, user: str, collection_id: str) -> Optional[Collection]:
         """Soft delete collection by ID"""
-        session = await self.get_session()
+        session = await self._get_session()
         stmt = select(Collection).where(
             Collection.id == collection_id, Collection.user == user, Collection.status != CollectionStatus.DELETED
         )
@@ -151,7 +217,7 @@ class DatabaseOps:
         items: List[dict] = None,
     ) -> SearchTestHistory:
         """Create a search test record"""
-        session = await self.get_session()
+        session = await self._get_session()
         record = SearchTestHistory(
             user=user,
             query=query,
@@ -168,7 +234,7 @@ class DatabaseOps:
 
     async def query_search_tests(self, user: str, collection_id: str) -> List[SearchTestHistory]:
         """Query search tests for a collection"""
-        session = await self.get_session()
+        session = await self._get_session()
         stmt = (
             select(SearchTestHistory)
             .where(SearchTestHistory.user == user, SearchTestHistory.collection_id == collection_id)
@@ -179,7 +245,7 @@ class DatabaseOps:
 
     async def delete_search_test(self, user: str, collection_id: str, search_test_id: str) -> bool:
         """Delete a search test record"""
-        session = await self.get_session()
+        session = await self._get_session()
         stmt = select(SearchTestHistory).where(
             SearchTestHistory.id == search_test_id,
             SearchTestHistory.user == user,
@@ -418,18 +484,12 @@ class DatabaseOps:
         return await self._execute_query(_query)
 
     async def create_user(self, username: str, email: str, password: str, role: Role):
-        session = await self.get_session()
+        session = await self._get_session()
         user = User(username=username, email=email, password=password, role=role, is_staff=(role == Role.ADMIN))
         session.add(user)
         await session.commit()
         await session.refresh(user)
         return user
-
-    async def set_user_password(self, user: User, password: str):
-        session = await self.get_session()
-        user.password = password
-        session.add(user)
-        await session.commit()
 
     async def delete_user(self, user: User):
         session = await self.get_session()
@@ -445,7 +505,7 @@ class DatabaseOps:
         return await self._execute_query(_query)
 
     async def create_invitation(self, email: str, token: str, created_by: str, role: Role):
-        session = await self.get_session()
+        session = await self._get_session()
         invitation = Invitation(email=email, token=token, created_by=created_by, role=role)
         session.add(invitation)
         await session.commit()
@@ -453,7 +513,7 @@ class DatabaseOps:
         return invitation
 
     async def mark_invitation_used(self, invitation: Invitation):
-        session = await self.get_session()
+        session = await self._get_session()
         await invitation.use(session)
 
     async def query_invitations(self):
@@ -466,7 +526,7 @@ class DatabaseOps:
 
         return await self._execute_query(_query)
 
-    async def list_user_api_keys(self, user: str):
+    async def query_api_keys(self, user: str):
         """List all active API keys for a user"""
 
         async def _query(session):
@@ -480,7 +540,7 @@ class DatabaseOps:
 
     async def create_api_key(self, user: str, description: Optional[str] = None) -> ApiKey:
         """Create a new API key for a user"""
-        session = await self.get_session()
+        session = await self._get_session()
         api_key = ApiKey(user=user, description=description, status=ApiKeyStatus.ACTIVE)
         session.add(api_key)
         await session.commit()
@@ -489,7 +549,7 @@ class DatabaseOps:
 
     async def delete_api_key(self, user: str, key_id: str) -> bool:
         """Delete an API key (soft delete)"""
-        session = await self.get_session()
+        session = await self._get_session()
         stmt = select(ApiKey).where(
             ApiKey.id == key_id, ApiKey.user == user, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted.is_(None)
         )
@@ -576,7 +636,7 @@ class DatabaseOps:
     # Bot Operations
     async def create_bot(self, user: str, title: str, description: str, bot_type, config: str = "{}") -> Bot:
         """Create a new bot in database"""
-        session = await self.get_session()
+        session = await self._get_session()
         instance = Bot(
             user=user,
             title=title,
@@ -594,7 +654,7 @@ class DatabaseOps:
         self, user: str, bot_id: str, title: str, description: str, bot_type, config: str
     ) -> Optional[Bot]:
         """Update bot by ID"""
-        session = await self.get_session()
+        session = await self._get_session()
         stmt = select(Bot).where(Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED)
         result = await session.execute(stmt)
         instance = result.scalars().first()
@@ -612,7 +672,7 @@ class DatabaseOps:
 
     async def delete_bot_by_id(self, user: str, bot_id: str) -> Optional[Bot]:
         """Soft delete bot by ID"""
-        session = await self.get_session()
+        session = await self._get_session()
         stmt = select(Bot).where(Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED)
         result = await session.execute(stmt)
         instance = result.scalars().first()
@@ -630,7 +690,7 @@ class DatabaseOps:
         """Create bot-collection relation"""
         from aperag.db.models import BotCollectionRelation
 
-        session = await self.get_session()
+        session = await self._get_session()
         relation = BotCollectionRelation(bot_id=bot_id, collection_id=collection_id)
         session.add(relation)
         await session.flush()
@@ -640,7 +700,7 @@ class DatabaseOps:
         """Soft delete all bot-collection relations for a bot"""
         from aperag.db.models import BotCollectionRelation
 
-        session = await self.get_session()
+        session = await self._get_session()
         stmt = select(BotCollectionRelation).where(
             BotCollectionRelation.bot_id == bot_id, BotCollectionRelation.gmt_deleted.is_(None)
         )
@@ -657,7 +717,7 @@ class DatabaseOps:
         self, user: str, collection_id: str, name: str, size: int, object_path: str = None, metadata: str = None
     ) -> Document:
         """Create a new document in database"""
-        session = await self.get_session()
+        session = await self._get_session()
         instance = Document(
             user=user,
             name=name,
@@ -676,7 +736,7 @@ class DatabaseOps:
         self, user: str, collection_id: str, document_id: str, metadata: str = None
     ) -> Optional[Document]:
         """Update document by ID"""
-        session = await self.get_session()
+        session = await self._get_session()
         stmt = select(Document).where(
             Document.id == document_id,
             Document.collection_id == collection_id,
@@ -698,7 +758,7 @@ class DatabaseOps:
         """Soft delete document by ID"""
         from aperag.db.models import DocumentStatus
 
-        session = await self.get_session()
+        session = await self._get_session()
         stmt = select(Document).where(
             Document.id == document_id,
             Document.collection_id == collection_id,
@@ -721,7 +781,7 @@ class DatabaseOps:
         """Bulk soft delete documents by IDs"""
         from aperag.db.models import DocumentStatus
 
-        session = await self.get_session()
+        session = await self._get_session()
         stmt = select(Document).where(
             Document.id.in_(document_ids),
             Document.collection_id == collection_id,
@@ -748,7 +808,7 @@ class DatabaseOps:
     # Chat Operations
     async def create_chat(self, user: str, bot_id: str, title: str = "New Chat") -> Chat:
         """Create a new chat in database"""
-        session = await self.get_session()
+        session = await self._get_session()
         instance = Chat(
             user=user,
             bot_id=bot_id,
@@ -762,7 +822,7 @@ class DatabaseOps:
 
     async def update_chat_by_id(self, user: str, bot_id: str, chat_id: str, title: str) -> Optional[Chat]:
         """Update chat by ID"""
-        session = await self.get_session()
+        session = await self._get_session()
         stmt = select(Chat).where(
             Chat.id == chat_id, Chat.bot_id == bot_id, Chat.user == user, Chat.status != ChatStatus.DELETED
         )
@@ -779,7 +839,7 @@ class DatabaseOps:
 
     async def delete_chat_by_id(self, user: str, bot_id: str, chat_id: str) -> Optional[Chat]:
         """Soft delete chat by ID"""
-        session = await self.get_session()
+        session = await self._get_session()
         stmt = select(Chat).where(
             Chat.id == chat_id, Chat.bot_id == bot_id, Chat.user == user, Chat.status != ChatStatus.DELETED
         )
@@ -809,7 +869,7 @@ class DatabaseOps:
         collection_id: str = None,
     ) -> MessageFeedback:
         """Create message feedback"""
-        session = await self.get_session()
+        session = await self._get_session()
         from aperag.db.models import MessageFeedbackStatus
 
         instance = MessageFeedback(
@@ -841,7 +901,7 @@ class DatabaseOps:
         original_answer: str = None,
     ) -> Optional[MessageFeedback]:
         """Update existing message feedback"""
-        session = await self.get_session()
+        session = await self._get_session()
         stmt = select(MessageFeedback).where(
             MessageFeedback.user == user,
             MessageFeedback.chat_id == chat_id,
@@ -872,7 +932,7 @@ class DatabaseOps:
 
     async def delete_message_feedback(self, user: str, chat_id: str, message_id: str) -> bool:
         """Delete message feedback (soft delete)"""
-        session = await self.get_session()
+        session = await self._get_session()
         stmt = select(MessageFeedback).where(
             MessageFeedback.user == user,
             MessageFeedback.chat_id == chat_id,
@@ -902,7 +962,7 @@ class DatabaseOps:
         collection_id: str = None,
     ) -> MessageFeedback:
         """Create or update message feedback (upsert operation)"""
-        session = await self.get_session()
+        session = await self._get_session()
 
         # Try to find existing feedback
         stmt = select(MessageFeedback).where(
@@ -951,7 +1011,7 @@ class DatabaseOps:
 
     async def update_api_key_by_id(self, user: str, key_id: str, description: str) -> Optional[ApiKey]:
         """Update API key description"""
-        session = await self.get_session()
+        session = await self._get_session()
         stmt = select(ApiKey).where(
             ApiKey.user == user, ApiKey.id == key_id, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted.is_(None)
         )
@@ -972,30 +1032,14 @@ class DatabaseOps:
 db_ops = DatabaseOps()
 
 
-# Keep the original function names for backwards compatibility during transition
+async def query_msp_dict(session, user: str):
+    """Deprecated: Use DatabaseOps instance instead"""
+    return await DatabaseOps(session).query_msp_dict(user)
+
+
 async def query_collection(session, user: str, collection_id: str):
     """Deprecated: Use DatabaseOps instance instead"""
     return await DatabaseOps(session).query_collection(user, collection_id)
-
-
-async def query_collections(session, users: List[str]):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_collections(users)
-
-
-async def query_collections_count(session, user: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_collections_count(user)
-
-
-async def query_collection_without_user(session, collection_id: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_collection_without_user(collection_id)
-
-
-async def query_document(session, user: str, collection_id: str, document_id: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_document(user, collection_id, document_id)
 
 
 async def query_documents(session, users: List[str], collection_id: str):
@@ -1003,89 +1047,9 @@ async def query_documents(session, users: List[str], collection_id: str):
     return await DatabaseOps(session).query_documents(users, collection_id)
 
 
-async def query_documents_count(session, user: str, collection_id: str):
+async def query_chat_feedbacks(session, user: str, chat_id: str):
     """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_documents_count(user, collection_id)
-
-
-async def query_chat(session, user: str, bot_id: str, chat_id: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_chat(user, bot_id, chat_id)
-
-
-async def query_chat_by_peer(session, user: str, peer_type, peer_id: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_chat_by_peer(user, peer_type, peer_id)
-
-
-async def query_chats(session, user: str, bot_id: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_chats(user, bot_id)
-
-
-async def query_bot(session, user: str, bot_id: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_bot(user, bot_id)
-
-
-async def query_bots(session, users: List[str]):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_bots(users)
-
-
-async def query_bots_count(session, user: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_bots_count(user)
-
-
-async def query_config(session, key):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_config(key)
-
-
-async def query_user_quota(session, user: str, key: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_user_quota(user, key)
-
-
-async def query_msp_list(session, user: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_msp_list(user)
-
-
-async def query_msp_dict(session, user: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_msp_dict(user)
-
-
-async def query_msp(session, user: str, provider: str, filterDeletion: bool = True):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_msp(user, provider, filterDeletion)
-
-
-async def query_user_by_username(session, username: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_user_by_username(username)
-
-
-async def query_user_by_email(session, email: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_user_by_email(email)
-
-
-async def query_user_exists(session, username: str = None, email: str = None):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_user_exists(username, email)
-
-
-async def create_user(session, username: str, email: str, password: str, role: Role):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).create_user(username, email, password, role)
-
-
-async def set_user_password(session, user: User, password: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).set_user_password(user, password)
+    return await DatabaseOps(session).query_chat_feedbacks(user, chat_id)
 
 
 async def delete_user(session, user: User):
@@ -1093,59 +1057,9 @@ async def delete_user(session, user: User):
     return await DatabaseOps(session).delete_user(user)
 
 
-async def query_invitation_by_token(session, token: str):
+async def query_admin_count(session):
     """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_invitation_by_token(token)
-
-
-async def create_invitation(session, email: str, token: str, created_by: str, role: Role):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).create_invitation(email, token, created_by, role)
-
-
-async def mark_invitation_used(session, invitation: Invitation):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).mark_invitation_used(invitation)
-
-
-async def query_invitations(session):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_invitations()
-
-
-async def list_user_api_keys(session, user: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).list_user_api_keys(user)
-
-
-async def create_api_key(session, user: str, description: Optional[str] = None) -> ApiKey:
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).create_api_key(user, description)
-
-
-async def delete_api_key(session, user: str, key_id: str) -> bool:
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).delete_api_key(user, key_id)
-
-
-async def get_api_key_by_id(session, user: str, id: str) -> Optional[ApiKey]:
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).get_api_key_by_id(user, id)
-
-
-async def get_api_key_by_key(session, key: str) -> Optional[ApiKey]:
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).get_api_key_by_key(key)
-
-
-async def query_chat_feedbacks(session, user: str, chat_id: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_chat_feedbacks(user, chat_id)
-
-
-async def query_message_feedback(session, user: str, chat_id: str, message_id: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_message_feedback(user, chat_id, message_id)
+    return await DatabaseOps(session).query_admin_count()
 
 
 async def query_first_user_exists(session):
@@ -1153,6 +1067,6 @@ async def query_first_user_exists(session):
     return await DatabaseOps(session).query_first_user_exists()
 
 
-async def query_admin_count(session):
+async def query_invitation_by_token(session, token: str):
     """Deprecated: Use DatabaseOps instance instead"""
-    return await DatabaseOps(session).query_admin_count()
+    return await DatabaseOps(session).query_invitation_by_token(token)

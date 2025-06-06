@@ -18,7 +18,7 @@ from typing import List
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.config import get_session, settings
+from aperag.config import settings
 from aperag.db import models as db_models
 from aperag.db.ops import DatabaseOps, db_ops
 from aperag.schema import view_models
@@ -33,26 +33,8 @@ class ModelServiceProviderService:
         # Use global db_ops instance by default, or create custom one with provided session
         if session is None:
             self.db_ops = db_ops  # Use global instance
-            self._custom_session = None
         else:
             self.db_ops = DatabaseOps(session)  # Create custom instance for transaction control
-            self._custom_session = session
-
-    async def _execute_with_session(self, operation):
-        """Execute operation with proper session management for write operations"""
-        if self._custom_session:
-            # Use provided session
-            return await operation(self._custom_session)
-        else:
-            # Create new session for this operation
-            async for session in get_session():
-                try:
-                    result = await operation(session)
-                    await session.commit()
-                    return result
-                except Exception:
-                    await session.rollback()
-                    raise
 
     def build_model_service_provider_response(
         self, msp: db_models.ModelServiceProvider, supported_msp: view_models.ModelServiceProvider
@@ -122,7 +104,7 @@ class ModelServiceProviderService:
             return {}
 
         try:
-            result = await self._execute_with_session(_update_operation)
+            result = await self.db_ops.execute_with_transaction(_update_operation)
             return success(result)
         except Exception as e:
             return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to update model service provider: {str(e)}")
@@ -151,7 +133,7 @@ class ModelServiceProviderService:
             return {}
 
         try:
-            result = await self._execute_with_session(_delete_operation)
+            result = await self.db_ops.execute_with_transaction(_delete_operation)
             return success(result)
         except ValueError as e:
             return fail(HTTPStatus.NOT_FOUND, str(e))

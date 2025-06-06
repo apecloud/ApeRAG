@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.chat.sse.base import APIRequest
 from aperag.chat.sse.openai_consumer import OpenAIFormatter
-from aperag.config import get_session, settings
+from aperag.config import settings
 from aperag.db.ops import DatabaseOps, db_ops
 from aperag.flow.engine import FlowEngine
 from aperag.flow.parser import FlowParser
@@ -38,26 +38,8 @@ class ChatCompletionService:
         # Use global db_ops instance by default, or create custom one with provided session
         if session is None:
             self.db_ops = db_ops  # Use global instance
-            self._custom_session = None
         else:
             self.db_ops = DatabaseOps(session)  # Create custom instance for transaction control
-            self._custom_session = session
-
-    async def _execute_with_session(self, operation):
-        """Execute operation with proper session management for write operations"""
-        if self._custom_session:
-            # Use provided session
-            return await operation(self._custom_session)
-        else:
-            # Create new session for this operation
-            async for session in get_session():
-                try:
-                    result = await operation(session)
-                    await session.commit()
-                    return result
-                except Exception:
-                    await session.rollback()
-                    raise
 
     async def stream_openai_sse_response(self, generator: AsyncGenerator[str, None], formatter, msg_id: str):
         """Stream SSE response for OpenAI API format"""

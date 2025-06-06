@@ -17,7 +17,6 @@ from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.config import get_session
 from aperag.db.models import ApiKey
 from aperag.db.ops import DatabaseOps, db_ops
 from aperag.schema.view_models import ApiKey as ApiKeyModel
@@ -32,26 +31,8 @@ class ApiKeyService:
         # Use global db_ops instance by default, or create custom one with provided session
         if session is None:
             self.db_ops = db_ops  # Use global instance
-            self._custom_session = None
         else:
             self.db_ops = DatabaseOps(session)  # Create custom instance for transaction control
-            self._custom_session = session
-
-    async def _execute_with_session(self, operation):
-        """Execute operation with proper session management for write operations"""
-        if self._custom_session:
-            # Use provided session
-            return await operation(self._custom_session)
-        else:
-            # Create new session for this operation
-            async for session in get_session():
-                try:
-                    result = await operation(session)
-                    await session.commit()
-                    return result
-                except Exception:
-                    await session.rollback()
-                    raise
 
     # Convert database ApiKey model to API response model
     def to_api_key_model(self, apikey: ApiKey) -> ApiKeyModel:
@@ -66,7 +47,7 @@ class ApiKeyService:
 
     async def list_api_keys(self, user: str) -> ApiKeyList:
         """List all API keys for the current user"""
-        tokens = await self.db_ops.list_user_api_keys(user)
+        tokens = await self.db_ops.query_api_keys(user)
         items = []
         for token in tokens:
             items.append(self.to_api_key_model(token))
@@ -74,16 +55,10 @@ class ApiKeyService:
 
     async def create_api_key(self, user: str, api_key_create: ApiKeyCreate) -> ApiKeyModel:
         """Create a new API key"""
-
-        async def _create_operation(session):
-            # Use DatabaseOps to create API key
-            db_ops_session = DatabaseOps(session)
-            token = await db_ops_session.create_api_key(user, api_key_create.description)
-            return self.to_api_key_model(token)
-
         try:
-            result = await self._execute_with_session(_create_operation)
-            return success(result)
+            # For single operations, use DatabaseOps directly
+            token = await self.db_ops.create_api_key(user, api_key_create.description)
+            return success(self.to_api_key_model(token))
         except Exception as e:
             return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to create API key: {str(e)}")
 
@@ -103,7 +78,7 @@ class ApiKeyService:
             return {}
 
         try:
-            result = await self._execute_with_session(_delete_operation)
+            result = await self.db_ops.execute_with_transaction(_delete_operation)
             return success(result)
         except ValueError as e:
             return fail(HTTPStatus.NOT_FOUND, str(e))
@@ -126,7 +101,7 @@ class ApiKeyService:
             return self.to_api_key_model(updated_key)
 
         try:
-            result = await self._execute_with_session(_update_operation)
+            result = await self.db_ops.execute_with_transaction(_update_operation)
             return success(result)
         except ValueError as e:
             return fail(HTTPStatus.NOT_FOUND, str(e))

@@ -21,7 +21,6 @@ from http import HTTPStatus
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.config import get_session
 from aperag.db.ops import DatabaseOps, db_ops
 from aperag.flow.engine import FlowEngine
 from aperag.flow.parser import FlowParser
@@ -38,26 +37,8 @@ class FlowService:
         # Use global db_ops instance by default, or create custom one with provided session
         if session is None:
             self.db_ops = db_ops  # Use global instance
-            self._custom_session = None
         else:
             self.db_ops = DatabaseOps(session)  # Create custom instance for transaction control
-            self._custom_session = session
-
-    async def _execute_with_session(self, operation):
-        """Execute operation with proper session management for write operations"""
-        if self._custom_session:
-            # Use provided session
-            return await operation(self._custom_session)
-        else:
-            # Create new session for this operation
-            async for session in get_session():
-                try:
-                    result = await operation(session)
-                    await session.commit()
-                    return result
-                except Exception:
-                    await session.rollback()
-                    raise
 
     def _convert_to_serializable(self, obj):
         if hasattr(obj, "model_dump"):
@@ -171,7 +152,7 @@ class FlowService:
             return flow
 
         try:
-            result = await self._execute_with_session(_update_operation)
+            result = await self.db_ops.execute_with_transaction(_update_operation)
             return success(result)
         except ValueError as e:
             return fail(HTTPStatus.NOT_FOUND, message=str(e))

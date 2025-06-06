@@ -20,12 +20,16 @@ from threading import Lock
 from typing import Any
 
 from langchain_core.embeddings import Embeddings
+from sqlalchemy import select
 
-from aperag.config import settings
+from aperag.config import get_sync_session, settings
+from aperag.db.models import ModelServiceProvider, ModelServiceProviderStatus
 from aperag.db.ops import db_ops
 from aperag.embed.embedding_service import EmbeddingService
 from aperag.schema.utils import parseCollectionConfig
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
+
+logger = logging.getLogger(__name__)
 
 mutex = Lock()
 
@@ -97,6 +101,42 @@ async def get_collection_embedding_service(collection) -> tuple[Embeddings | Non
         )
 
     logging.warning("get_collection_embedding_model cannot find model service provider %s", embedding_msp)
+    return None, 0
+
+
+def get_collection_embedding_service_sync(collection) -> tuple[object, int]:
+    """Synchronous version of get_collection_embedding_service for Celery tasks"""
+    config = parseCollectionConfig(collection.config)
+    embedding_msp = config.embedding.model_service_provider
+    embedding_model_name = config.embedding.model
+    custom_llm_provider = config.embedding.custom_llm_provider
+    logger.info("get_collection_embedding_model_sync %s %s", embedding_msp, embedding_model_name)
+
+    # Query model service providers using sync session
+    for session in get_sync_session():
+        stmt = select(ModelServiceProvider).where(
+            ModelServiceProvider.user == collection.user,
+            ModelServiceProvider.status == ModelServiceProviderStatus.ACTIVE,
+        )
+        result = session.execute(stmt)
+        msps = result.scalars().all()
+
+        msp_dict = {msp.name: msp for msp in msps}
+
+    if embedding_msp in msp_dict:
+        msp = msp_dict[embedding_msp]
+        embedding_service_url = msp.base_url
+        embedding_service_api_key = msp.api_key
+        logger.info("get_collection_embedding_model_sync %s %s", embedding_service_url, embedding_service_api_key)
+
+        return get_embedding_model(
+            embedding_provider=custom_llm_provider,
+            embedding_model=embedding_model_name,
+            embedding_service_url=embedding_service_url,
+            embedding_service_api_key=embedding_service_api_key,
+        )
+
+    logger.warning("get_collection_embedding_model_sync cannot find model service provider %s", embedding_msp)
     return None, 0
 
 

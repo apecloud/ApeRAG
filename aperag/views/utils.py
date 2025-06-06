@@ -22,7 +22,7 @@ from pydantic import ValidationError
 
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
-from aperag.config import SessionDep
+from aperag.config import AsyncSessionDep
 from aperag.db.models import BotType
 from aperag.db.ops import logger, query_chat_feedbacks
 from aperag.llm.base import Predictor
@@ -32,7 +32,7 @@ from aperag.source.base import CustomSourceInitializationError, get_source
 from aperag.utils.utils import AVAILABLE_SOURCE
 
 
-async def query_chat_messages(session: SessionDep, user: str, chat_id: str) -> list[view_models.ChatMessage]:
+async def query_chat_messages(session: AsyncSessionDep, user: str, chat_id: str) -> list[view_models.ChatMessage]:
     feedbacks = await query_chat_feedbacks(session, user, chat_id)
     feedback_map = {}
     for feedback in feedbacks:

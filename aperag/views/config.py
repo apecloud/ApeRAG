@@ -14,7 +14,7 @@
 
 from fastapi import APIRouter
 
-from aperag.config import SessionDep, settings
+from aperag.config import AsyncSessionDep, settings
 from aperag.db.ops import query_first_user_exists
 from aperag.schema.view_models import Auth, Auth0, Authing, Config, Logto
 from aperag.views.utils import success
@@ -23,7 +23,7 @@ router = APIRouter()
 
 
 @router.get("")
-async def config_view(session: SessionDep) -> Config:
+async def config_view(session: AsyncSessionDep) -> Config:
     auth = Auth(
         type=settings.auth_type,
     )
