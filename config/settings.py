@@ -231,6 +231,9 @@ LOGGING = {
     "formatters": {
         "verbose": {
             "format": "%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s"
+        },
+        "celery": {
+            "format": "[%(asctime)s: %(levelname)s/%(processName)s] %(message)s"
         }
     },
     "handlers": {
@@ -239,11 +242,38 @@ LOGGING = {
             "class": "logging.StreamHandler",
             "formatter": "verbose",
         },
+        "celery_console": {
+            "level": "INFO",
+            "class": "logging.StreamHandler",
+            "formatter": "celery",
+        },
     },
     "loggers": {
         "LiteLLM": {
             "handlers": ["console"],
             "level": env.str("LITELLM_LOG_LEVEL", default="WARNING"),  # Read from environment variable
+            "propagate": False,
+        },
+        # Celery loggers
+        "celery": {
+            "handlers": ["celery_console"],
+            "level": env.str("CELERY_LOG_LEVEL", default="INFO"),
+            "propagate": False,
+        },
+        "celery.task": {
+            "handlers": ["celery_console"],
+            "level": env.str("CELERY_LOG_LEVEL", default="INFO"),
+            "propagate": False,
+        },
+        "celery.worker": {
+            "handlers": ["celery_console"],
+            "level": env.str("CELERY_LOG_LEVEL", default="INFO"),
+            "propagate": False,
+        },
+        # Application task loggers
+        "aperag.tasks": {
+            "handlers": ["console"],
+            "level": env.str("DJANGO_LOG_LEVEL", default="INFO"),
             "propagate": False,
         },
     },
