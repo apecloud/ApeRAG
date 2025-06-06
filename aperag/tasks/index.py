@@ -318,7 +318,7 @@ def add_index_for_document(self, document_id):
     except FeishuPermissionDenied:
         raise Exception("permission denied to access document %s" % document.name)
     except Exception as e:
-        raise e
+        raise Exception(f"Error indexing document {document.name}: {str(e)}")
     finally:
         # Update overall status
         document.update_overall_status()
@@ -368,7 +368,7 @@ def remove_index(self, document_id):
                 remove_lightrag_index_task.delay(document_id, collection.id)
 
     except Exception as e:
-        raise e
+        raise Exception(f"Error removing index for document {document.name}: {str(e)}")
 
 
 @app.task(base=CustomLoadDocumentTask, bind=True, track_started=True)
@@ -449,8 +449,7 @@ def update_index_for_document(self, document_id):
     except FeishuPermissionDenied:
         raise Exception("permission denied to access document %s" % document.name)
     except Exception as e:
-        logger.error(e)
-        raise Exception("an error occur %s" % e)
+        raise Exception(f"Error updating index for document {document.name}: {str(e)}")
     finally:
         # Final status update in database
         db_ops.update_document(document)
