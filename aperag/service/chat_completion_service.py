@@ -21,9 +21,9 @@ from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from aperag import config
 from aperag.chat.sse.base import APIRequest
 from aperag.chat.sse.openai_consumer import OpenAIFormatter
-from aperag.config import settings
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.flow.engine import FlowEngine
 from aperag.flow.parser import FlowParser
@@ -68,7 +68,7 @@ class ChatCompletionService:
             return None, OpenAIFormatter.format_error("Bot not found")
 
         formatter = OpenAIFormatter()
-        yaml_path = os.path.join(settings.base_dir, "aperag/flow/examples/rag_flow2.yaml")
+        yaml_path = os.path.join(config.BASE_DIR, "aperag/flow/examples/rag_flow2.yaml")
         flow = FlowParser.load_from_file(yaml_path)
         engine = FlowEngine()
         initial_data = {

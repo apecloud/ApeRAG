@@ -51,7 +51,7 @@ def test_update_bot(benchmark, client, collection, bot):
 
 
 def test_update_flow(benchmark, client, bot):
-    flow_path = Path(__file__).parent / "testdata" / "flow_for_bot.yaml"
+    flow_path = Path(__file__).parent / "testdata" / "rag-flow.yaml"
     with open(flow_path, "r", encoding="utf-8") as f:
         flow = yaml.safe_load(f)
     flow_json = json.dumps(flow)
