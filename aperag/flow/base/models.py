@@ -146,6 +146,7 @@ def register_node_runner(
 class SystemInput:
     query: str
     user: str
+    chat_id: Optional[str] = None
     history: Optional[BaseChatMessageHistory] = None
     message_id: Optional[str] = None
 

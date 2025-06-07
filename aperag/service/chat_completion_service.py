@@ -15,13 +15,11 @@
 import asyncio
 import json
 import logging
-import os
 import uuid
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag import config
 from aperag.chat.sse.base import APIRequest
 from aperag.chat.sse.openai_consumer import OpenAIFormatter
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
@@ -68,8 +66,14 @@ class ChatCompletionService:
             return None, OpenAIFormatter.format_error("Bot not found")
 
         formatter = OpenAIFormatter()
-        yaml_path = os.path.join(config.BASE_DIR, "aperag/flow/examples/rag_flow2.yaml")
-        flow = FlowParser.load_from_file(yaml_path)
+
+        # Get bot's flow configuration
+        bot_config = json.loads(bot.config or "{}")
+        flow_config = bot_config.get("flow")
+        if not flow_config:
+            return None, OpenAIFormatter.format_error("Bot flow config not found")
+
+        flow = FlowParser.parse(flow_config)
         engine = FlowEngine()
         initial_data = {
             "query": api_request.messages[-1]["content"],

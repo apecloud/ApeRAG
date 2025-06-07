@@ -14,7 +14,6 @@
 
 import logging
 from typing import List
-from urllib.parse import parse_qsl
 
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 
@@ -289,8 +288,9 @@ async def list_available_models_view(
 
 @router.post("/chat/completions/frontend")
 async def frontend_chat_completions_view(request: Request, user: User = Depends(get_current_user_with_state)):
-    message = request.body.decode("utf-8")
-    query_params = dict(parse_qsl(request.GET.urlencode()))
+    body = await request.body()
+    message = body.decode("utf-8")
+    query_params = dict(request.query_params)
     stream = query_params.get("stream", "false").lower() == "true"
     bot_id = query_params.get("bot_id", "")
     chat_id = query_params.get("chat_id", "")

@@ -14,6 +14,7 @@
 
 import json
 import logging
+import uuid
 from http import HTTPStatus
 from typing import Any, AsyncGenerator
 
@@ -21,11 +22,12 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.chat.history.redis import RedisChatMessageHistory
-from aperag.chat.sse.base import ChatRequest, MessageProcessor
 from aperag.chat.sse.frontend_consumer import BaseFormatter, FrontendFormatter
 from aperag.chat.utils import get_async_redis_client
 from aperag.db import models as db_models
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
+from aperag.flow.engine import FlowEngine
+from aperag.flow.parser import FlowParser
 from aperag.schema import view_models
 from aperag.schema.view_models import Chat, ChatDetails, ChatList
 from aperag.views.utils import fail, success
@@ -180,15 +182,16 @@ class ChatService:
         self, user: str, message: str, stream: bool, bot_id: str, chat_id: str, msg_id: str
     ) -> Any:
         try:
-            chat_request = ChatRequest(
-                user=user, bot_id=bot_id, chat_id=chat_id, msg_id=msg_id, stream=stream, message=message
-            )
+            # Validate bot_id
+            if not bot_id:
+                return success(FrontendFormatter.format_error("bot_id is required"))
 
-            bot = await self.db_ops.query_bot(chat_request.user, chat_request.bot_id)
+            bot = await self.db_ops.query_bot(user, bot_id)
             if not bot:
                 return success(FrontendFormatter.format_error("Bot not found"))
 
-            chat = await self.db_ops.query_chat_by_peer(bot.user, db_models.ChatPeerType.FEISHU, chat_request.chat_id)
+            # Get or create chat session
+            chat = await self.db_ops.query_chat_by_peer(bot.user, db_models.ChatPeerType.FEISHU, chat_id)
 
             async def _ensure_chat_operation(session):
                 if chat is None:
@@ -196,7 +199,7 @@ class ChatService:
                     new_chat = await db_ops_session.create_chat(user=bot.user, bot_id=bot.id, title="Feishu Chat")
                     # Set peer info manually since DatabaseOps doesn't support this yet
                     new_chat.peer_type = db_models.ChatPeerType.FEISHU
-                    new_chat.peer_id = chat_request.chat_id
+                    new_chat.peer_id = chat_id
                     session.add(new_chat)
                     await session.flush()
                     await session.refresh(new_chat)
@@ -206,24 +209,61 @@ class ChatService:
             if chat is None:
                 chat = await self.db_ops.execute_with_transaction(_ensure_chat_operation)
 
-            history = RedisChatMessageHistory(session_id=str(chat.id), redis_client=get_async_redis_client())
-            processor = MessageProcessor(bot, history)
+            # Use flow engine instead of MessageProcessor/pipeline
             formatter = FrontendFormatter()
 
-            if chat_request.stream:
+            # Get bot's flow configuration
+            bot_config = json.loads(bot.config or "{}")
+            flow_config = bot_config.get("flow")
+            if not flow_config:
+                return success(FrontendFormatter.format_error("Bot flow config not found"))
+
+            flow = FlowParser.parse(flow_config)
+            engine = FlowEngine()
+
+            # Prepare initial data for flow execution
+            initial_data = {
+                "query": message,
+                "user": user,
+                "message_id": msg_id or str(uuid.uuid4()),
+            }
+
+            # Execute flow
+            try:
+                _, system_outputs = await engine.execute_flow(flow, initial_data)
+                logger.info("Flow executed successfully!")
+            except Exception as e:
+                logger.exception(e)
+                return success(FrontendFormatter.format_error(str(e)))
+
+            # Find the async generator from flow outputs
+            async_generator = None
+            nodes = engine.find_end_nodes(flow)
+            for node in nodes:
+                async_generator = system_outputs[node].get("async_generator")
+                if async_generator:
+                    break
+
+            if not async_generator:
+                return success(FrontendFormatter.format_error("No output node found"))
+
+            # Return streaming or non-streaming response
+            if stream:
                 return StreamingResponse(
                     self.stream_frontend_sse_response(
-                        processor.process_message(chat_request.message, chat_request.msg_id),
+                        async_generator(),
                         formatter,
-                        chat_request.msg_id,
+                        msg_id or str(uuid.uuid4()),
                     ),
                     media_type="text/event-stream",
                 )
             else:
+                # Collect all content for non-streaming response
                 full_content = ""
-                async for chunk in processor.process_message(chat_request.message, chat_request.msg_id):
+                async for chunk in async_generator():
                     full_content += chunk
-                return success(formatter.format_complete_response(chat_request.msg_id, full_content))
+                return success(formatter.format_complete_response(msg_id or str(uuid.uuid4()), full_content))
+
         except Exception as e:
             logger.exception(e)
             return success(FrontendFormatter.format_error(str(e)))
