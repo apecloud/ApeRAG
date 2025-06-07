@@ -249,8 +249,9 @@ class BotCollectionRelation(SQLModel, table=True):
     __tablename__ = "bot_collection_relation"
     __table_args__ = (UniqueConstraint("bot_id", "collection_id", "gmt_deleted", name="uq_bot_collection_deleted"),)
 
-    bot_id: str = Field(max_length=24, primary_key=True)
-    collection_id: str = Field(max_length=24, primary_key=True)
+    id: str = Field(default_factory=lambda: "bcr" + random_id(), primary_key=True, max_length=24)
+    bot_id: str = Field(max_length=24)
+    collection_id: str = Field(max_length=24)
     gmt_created: datetime = Field(default_factory=datetime.utcnow)
     gmt_deleted: Optional[datetime] = None
 

@@ -200,6 +200,7 @@ def add_index_for_local_document(self, document_id):
     try:
         add_index_for_document(document_id)
     except Exception as e:
+        logger.error(f"Error adding index for document {document_id}: {str(e)}")
         raise self.retry(
             exc=e,
             countdown=IndexTaskConfig.RETRY_COUNTDOWN_ADD_INDEX,
@@ -484,14 +485,14 @@ def add_lightrag_index_task(self, content, document_id, file_path):
 
         if collection.status == Collection.Status.DELETED:
             logger.info(f"Collection {collection.id} is deleted, skipping LightRAG indexing for document {document_id}")
-            document.graph_index_status = DocumentStatus.SKIPPED
+            document.graph_index_status = DocumentIndexStatus.SKIPPED
             db_ops.update_document(document)
             return
     except Exception:
         logger.info(f"Collection not found for document {document_id}, skipping LightRAG indexing")
         return
 
-    document.graph_index_status = DocumentStatus.RUNNING
+    document.graph_index_status = DocumentIndexStatus.RUNNING
     db_ops.update_document(document)
 
     async def _async_add_lightrag_index():
@@ -511,12 +512,12 @@ def add_lightrag_index_task(self, content, document_id, file_path):
     try:
         async_to_sync(_async_add_lightrag_index)()
         # Update graph index status to complete
-        document.graph_index_status = DocumentStatus.COMPLETE
+        document.graph_index_status = DocumentIndexStatus.COMPLETE
         logger.info(f"Graph index completed for document (ID: {document_id})")
     except Exception as e:
         logger.error(f"LightRAG indexing failed for document (ID: {document_id}): {str(e)}")
         # Update graph index status to failed
-        document.graph_index_status = DocumentStatus.FAILED
+        document.graph_index_status = DocumentIndexStatus.FAILED
         raise self.retry(
             exc=e,
             countdown=IndexTaskConfig.RETRY_COUNTDOWN_LIGHTRAG,

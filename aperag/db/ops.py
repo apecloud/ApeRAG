@@ -211,7 +211,7 @@ class AsyncDatabaseOps:
     ) -> Collection:
         """Create a new collection in database"""
 
-        async def _create_operation(session):
+        async def _operation(session):
             instance = Collection(
                 user=user,
                 type=collection_type,
@@ -225,14 +225,14 @@ class AsyncDatabaseOps:
             await session.refresh(instance)
             return instance
 
-        return await self.execute_with_transaction(_create_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def update_collection_by_id(
         self, user: str, collection_id: str, title: str, description: str, config: str
     ) -> Optional[Collection]:
         """Update collection by ID"""
 
-        async def _update_operation(session):
+        async def _operation(session):
             stmt = select(Collection).where(
                 Collection.id == collection_id, Collection.user == user, Collection.status != CollectionStatus.DELETED
             )
@@ -249,12 +249,12 @@ class AsyncDatabaseOps:
 
             return instance
 
-        return await self.execute_with_transaction(_update_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def delete_collection_by_id(self, user: str, collection_id: str) -> Optional[Collection]:
         """Soft delete collection by ID"""
 
-        async def _delete_operation(session):
+        async def _operation(session):
             stmt = select(Collection).where(
                 Collection.id == collection_id, Collection.user == user, Collection.status != CollectionStatus.DELETED
             )
@@ -275,7 +275,7 @@ class AsyncDatabaseOps:
 
             return instance
 
-        return await self.execute_with_transaction(_delete_operation)
+        return await self.execute_with_transaction(_operation)
 
     # Search Test Operations
     async def create_search_test(
@@ -290,7 +290,7 @@ class AsyncDatabaseOps:
     ) -> SearchTestHistory:
         """Create a search test record"""
 
-        async def _create_operation(session):
+        async def _operation(session):
             record = SearchTestHistory(
                 user=user,
                 query=query,
@@ -305,7 +305,7 @@ class AsyncDatabaseOps:
             await session.refresh(record)
             return record
 
-        return await self.execute_with_transaction(_create_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def query_search_tests(self, user: str, collection_id: str) -> List[SearchTestHistory]:
         """Query search tests for a collection"""
@@ -324,7 +324,7 @@ class AsyncDatabaseOps:
     async def delete_search_test(self, user: str, collection_id: str, search_test_id: str) -> bool:
         """Delete a search test record"""
 
-        async def _delete_operation(session):
+        async def _operation(session):
             stmt = select(SearchTestHistory).where(
                 SearchTestHistory.id == search_test_id,
                 SearchTestHistory.user == user,
@@ -339,7 +339,7 @@ class AsyncDatabaseOps:
                 return True
             return False
 
-        return await self.execute_with_transaction(_delete_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def query_collection(self, user: str, collection_id: str):
         async def _query(session):
@@ -566,27 +566,21 @@ class AsyncDatabaseOps:
         return await self._execute_query(_query)
 
     async def create_user(self, username: str, email: str, password: str, role: Role):
-        async def _create_operation(session):
+        async def _operation(session):
             user = User(username=username, email=email, password=password, role=role, is_staff=(role == Role.ADMIN))
             session.add(user)
             await session.flush()
             await session.refresh(user)
             return user
 
-        if self._session:
-            return await _create_operation(self._session)
-        else:
-            return await self.execute_with_transaction(_create_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def delete_user(self, user: User):
-        async def _delete_operation(session):
+        async def _operation(session):
             await session.delete(user)
             await session.flush()
 
-        if self._session:
-            return await _delete_operation(self._session)
-        else:
-            return await self.execute_with_transaction(_delete_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def query_invitation_by_token(self, token: str):
         async def _query(session):
@@ -597,26 +591,20 @@ class AsyncDatabaseOps:
         return await self._execute_query(_query)
 
     async def create_invitation(self, email: str, token: str, created_by: str, role: Role):
-        async def _create_operation(session):
+        async def _operation(session):
             invitation = Invitation(email=email, token=token, created_by=created_by, role=role)
             session.add(invitation)
             await session.flush()
             await session.refresh(invitation)
             return invitation
 
-        if self._session:
-            return await _create_operation(self._session)
-        else:
-            return await self.execute_with_transaction(_create_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def mark_invitation_used(self, invitation: Invitation):
-        async def _mark_used_operation(session):
+        async def _operation(session):
             await invitation.use(session)
 
-        if self._session:
-            return await _mark_used_operation(self._session)
-        else:
-            return await self.execute_with_transaction(_mark_used_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def query_invitations(self):
         """Query all valid invitations (not used), ordered by created_at descending."""
@@ -643,22 +631,19 @@ class AsyncDatabaseOps:
     async def create_api_key(self, user: str, description: Optional[str] = None) -> ApiKey:
         """Create a new API key for a user"""
 
-        async def _create_operation(session):
+        async def _operation(session):
             api_key = ApiKey(user=user, description=description, status=ApiKeyStatus.ACTIVE)
             session.add(api_key)
             await session.flush()
             await session.refresh(api_key)
             return api_key
 
-        if self._session:
-            return await _create_operation(self._session)
-        else:
-            return await self.execute_with_transaction(_create_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def delete_api_key(self, user: str, key_id: str) -> bool:
         """Delete an API key (soft delete)"""
 
-        async def _delete_operation(session):
+        async def _operation(session):
             stmt = select(ApiKey).where(
                 ApiKey.id == key_id,
                 ApiKey.user == user,
@@ -677,10 +662,7 @@ class AsyncDatabaseOps:
                 return True
             return False
 
-        if self._session:
-            return await _delete_operation(self._session)
-        else:
-            return await self.execute_with_transaction(_delete_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def get_api_key_by_id(self, user: str, id: str) -> Optional[ApiKey]:
         """Get API key by id string"""
@@ -754,7 +736,7 @@ class AsyncDatabaseOps:
     async def create_bot(self, user: str, title: str, description: str, bot_type, config: str = "{}") -> Bot:
         """Create a new bot in database"""
 
-        async def _create_operation(session):
+        async def _operation(session):
             instance = Bot(
                 user=user,
                 title=title,
@@ -768,14 +750,14 @@ class AsyncDatabaseOps:
             await session.refresh(instance)
             return instance
 
-        return await self.execute_with_transaction(_create_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def update_bot_by_id(
         self, user: str, bot_id: str, title: str, description: str, bot_type, config: str
     ) -> Optional[Bot]:
         """Update bot by ID"""
 
-        async def _update_operation(session):
+        async def _operation(session):
             stmt = select(Bot).where(Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED)
             result = await session.execute(stmt)
             instance = result.scalars().first()
@@ -791,12 +773,12 @@ class AsyncDatabaseOps:
 
             return instance
 
-        return await self.execute_with_transaction(_update_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def delete_bot_by_id(self, user: str, bot_id: str) -> Optional[Bot]:
         """Soft delete bot by ID"""
 
-        async def _delete_operation(session):
+        async def _operation(session):
             stmt = select(Bot).where(Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED)
             result = await session.execute(stmt)
             instance = result.scalars().first()
@@ -810,25 +792,25 @@ class AsyncDatabaseOps:
 
             return instance
 
-        return await self.execute_with_transaction(_delete_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def create_bot_collection_relation(self, bot_id: str, collection_id: str):
         """Create bot-collection relation"""
         from aperag.db.models import BotCollectionRelation
 
-        async def _create_operation(session):
+        async def _operation(session):
             relation = BotCollectionRelation(bot_id=bot_id, collection_id=collection_id)
             session.add(relation)
             await session.flush()
             return relation
 
-        return await self.execute_with_transaction(_create_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def delete_bot_collection_relations(self, bot_id: str):
         """Soft delete all bot-collection relations for a bot"""
         from aperag.db.models import BotCollectionRelation
 
-        async def _delete_operation(session):
+        async def _operation(session):
             stmt = select(BotCollectionRelation).where(
                 BotCollectionRelation.bot_id == bot_id, BotCollectionRelation.gmt_deleted.is_(None)
             )
@@ -840,7 +822,7 @@ class AsyncDatabaseOps:
             await session.flush()
             return len(relations)
 
-        return await self.execute_with_transaction(_delete_operation)
+        return await self.execute_with_transaction(_operation)
 
     # Document Operations
     async def create_document(
@@ -848,7 +830,7 @@ class AsyncDatabaseOps:
     ) -> Document:
         """Create a new document in database"""
 
-        async def _create_operation(session):
+        async def _operation(session):
             instance = Document(
                 user=user,
                 name=name,
@@ -863,14 +845,14 @@ class AsyncDatabaseOps:
             await session.refresh(instance)
             return instance
 
-        return await self.execute_with_transaction(_create_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def update_document_by_id(
         self, user: str, collection_id: str, document_id: str, metadata: str = None
     ) -> Optional[Document]:
         """Update document by ID"""
 
-        async def _update_operation(session):
+        async def _operation(session):
             stmt = select(Document).where(
                 Document.id == document_id,
                 Document.collection_id == collection_id,
@@ -888,13 +870,13 @@ class AsyncDatabaseOps:
 
             return instance
 
-        return await self.execute_with_transaction(_update_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def delete_document_by_id(self, user: str, collection_id: str, document_id: str) -> Optional[Document]:
         """Soft delete document by ID"""
         from aperag.db.models import DocumentStatus
 
-        async def _delete_operation(session):
+        async def _operation(session):
             stmt = select(Document).where(
                 Document.id == document_id,
                 Document.collection_id == collection_id,
@@ -913,13 +895,13 @@ class AsyncDatabaseOps:
 
             return instance
 
-        return await self.execute_with_transaction(_delete_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def delete_documents_by_ids(self, user: str, collection_id: str, document_ids: List[str]) -> tuple:
         """Bulk soft delete documents by IDs"""
         from aperag.db.models import DocumentStatus
 
-        async def _delete_operation(session):
+        async def _operation(session):
             stmt = select(Document).where(
                 Document.id.in_(document_ids),
                 Document.collection_id == collection_id,
@@ -943,13 +925,13 @@ class AsyncDatabaseOps:
             failed_ids = [doc_id for doc_id in document_ids if doc_id not in success_ids]
             return success_ids, failed_ids
 
-        return await self.execute_with_transaction(_delete_operation)
+        return await self.execute_with_transaction(_operation)
 
     # Chat Operations
     async def create_chat(self, user: str, bot_id: str, title: str = "New Chat") -> Chat:
         """Create a new chat in database"""
 
-        async def _create_operation(session):
+        async def _operation(session):
             instance = Chat(
                 user=user,
                 bot_id=bot_id,
@@ -961,12 +943,12 @@ class AsyncDatabaseOps:
             await session.refresh(instance)
             return instance
 
-        return await self.execute_with_transaction(_create_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def update_chat_by_id(self, user: str, bot_id: str, chat_id: str, title: str) -> Optional[Chat]:
         """Update chat by ID"""
 
-        async def _update_operation(session):
+        async def _operation(session):
             stmt = select(Chat).where(
                 Chat.id == chat_id, Chat.bot_id == bot_id, Chat.user == user, Chat.status != ChatStatus.DELETED
             )
@@ -981,12 +963,12 @@ class AsyncDatabaseOps:
 
             return instance
 
-        return await self.execute_with_transaction(_update_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def delete_chat_by_id(self, user: str, bot_id: str, chat_id: str) -> Optional[Chat]:
         """Soft delete chat by ID"""
 
-        async def _delete_operation(session):
+        async def _operation(session):
             stmt = select(Chat).where(
                 Chat.id == chat_id, Chat.bot_id == bot_id, Chat.user == user, Chat.status != ChatStatus.DELETED
             )
@@ -1002,7 +984,7 @@ class AsyncDatabaseOps:
 
             return instance
 
-        return await self.execute_with_transaction(_delete_operation)
+        return await self.execute_with_transaction(_operation)
 
     # Message Feedback Operations
     async def create_message_feedback(
@@ -1019,7 +1001,7 @@ class AsyncDatabaseOps:
     ) -> MessageFeedback:
         """Create message feedback"""
 
-        async def _create_operation(session):
+        async def _operation(session):
             from aperag.db.models import MessageFeedbackStatus
 
             instance = MessageFeedback(
@@ -1039,7 +1021,7 @@ class AsyncDatabaseOps:
             await session.refresh(instance)
             return instance
 
-        return await self.execute_with_transaction(_create_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def update_message_feedback(
         self,
@@ -1054,7 +1036,7 @@ class AsyncDatabaseOps:
     ) -> Optional[MessageFeedback]:
         """Update existing message feedback"""
 
-        async def _update_operation(session):
+        async def _operation(session):
             stmt = select(MessageFeedback).where(
                 MessageFeedback.user == user,
                 MessageFeedback.chat_id == chat_id,
@@ -1083,12 +1065,12 @@ class AsyncDatabaseOps:
 
             return feedback
 
-        return await self.execute_with_transaction(_update_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def delete_message_feedback(self, user: str, chat_id: str, message_id: str) -> bool:
         """Delete message feedback (soft delete)"""
 
-        async def _delete_operation(session):
+        async def _operation(session):
             stmt = select(MessageFeedback).where(
                 MessageFeedback.user == user,
                 MessageFeedback.chat_id == chat_id,
@@ -1105,7 +1087,7 @@ class AsyncDatabaseOps:
                 return True
             return False
 
-        return await self.execute_with_transaction(_delete_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def upsert_message_feedback(
         self,
@@ -1121,7 +1103,7 @@ class AsyncDatabaseOps:
     ) -> MessageFeedback:
         """Create or update message feedback (upsert operation)"""
 
-        async def _upsert_operation(session):
+        async def _operation(session):
             # Try to find existing feedback
             stmt = select(MessageFeedback).where(
                 MessageFeedback.user == user,
@@ -1167,12 +1149,12 @@ class AsyncDatabaseOps:
             await session.refresh(feedback)
             return feedback
 
-        return await self.execute_with_transaction(_upsert_operation)
+        return await self.execute_with_transaction(_operation)
 
     async def update_api_key_by_id(self, user: str, key_id: str, description: str) -> Optional[ApiKey]:
         """Update API key description"""
 
-        async def _update_operation(session):
+        async def _operation(session):
             stmt = select(ApiKey).where(
                 ApiKey.user == user,
                 ApiKey.id == key_id,
@@ -1190,10 +1172,7 @@ class AsyncDatabaseOps:
 
             return api_key
 
-        if self._session:
-            return await _update_operation(self._session)
-        else:
-            return await self.execute_with_transaction(_update_operation)
+        return await self.execute_with_transaction(_operation)
 
 
 # Create a global instance for backwards compatibility and easy access
