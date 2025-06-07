@@ -18,21 +18,27 @@ import os
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 WS_BASE_URL = os.getenv("WS_BASE_URL", "ws://localhost:8000/api/v1")
 
-# Test user credentials
-API_KEY = os.getenv("API_KEY", "sk-6fbd14ed09fa42e5b305a541739bc483")
+# Please specify the model service provider name and API key using environment variables
+EMBEDDING_MODEL_PROVIDER = os.getenv("EMBEDDING_MODEL_PROVIDER", "siliconflow")
+EMBEDDING_MODEL_PROVIDER_URL = os.getenv("EMBEDDING_MODEL_PROVIDER_URL", "https://api.siliconflow.cn/v1")
+EMBEDDING_MODEL_PROVIDER_API_KEY = os.getenv("EMBEDDING_MODEL_PROVIDER_API_KEY", "")
 
-AUTH_TYPE = "api_key"
+COMPLETION_MODEL_PROVIDER = os.getenv("COMPLETION_MODEL_PROVIDER", "openrouter")
+COMPLETION_MODEL_PROVIDER_URL = os.getenv("COMPLETION_MODEL_PROVIDER_URL", "https://openrouter.ai/api/v1")
+COMPLETION_MODEL_PROVIDER_API_KEY = os.getenv("COMPLETION_MODEL_PROVIDER_API_KEY", "")
 
-# Please setup the related model service provider key in the Aperag UI
-EMBEDDING_MODEL_PROVIDER = "siliconflow"
-EMBEDDING_MODEL_NAME = "BAAI/bge-large-zh-v1.5"
-EMBEDDING_MODEL_CUSTOM_PROVIDER = "openai"
+RERANK_MODEL_PROVIDER = os.getenv("RERANK_MODEL_PROVIDER", "siliconflow")
+RERANK_MODEL_PROVIDER_URL = os.getenv("RERANK_MODEL_PROVIDER_URL", "https://api.siliconflow.cn/v1")
+RERANK_MODEL_PROVIDER_API_KEY = os.getenv("RERANK_MODEL_PROVIDER_API_KEY", "")
 
-COMPLETION_MODEL_PROVIDER = "openrouter"
-COMPLETION_MODEL_NAME = "deepseek/deepseek-chat-v3-0324:free"
-COMPLETION_MODEL_CUSTOM_PROVIDER = "openrouter"
+# The following model names are used for testing, please specify the model name using environment variables
+EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "BAAI/bge-large-zh-v1.5")
+EMBEDDING_MODEL_CUSTOM_PROVIDER = os.getenv("EMBEDDING_MODEL_CUSTOM_PROVIDER", "openai")
 
-RERANK_MODEL_PROVIDER = "siliconflow"
-RERANK_MODEL_NAME = "BAAI/bge-large-zh-1.5"
+COMPLETION_MODEL_NAME = os.getenv("COMPLETION_MODEL_NAME", "deepseek/deepseek-chat-v3-0324:free")
+COMPLETION_MODEL_CUSTOM_PROVIDER = os.getenv("COMPLETION_MODEL_CUSTOM_PROVIDER", "openrouter")
+
+RERANK_MODEL_NAME = os.getenv("RERANK_MODEL_NAME", "BAAI/bge-large-zh-1.5")
+
 
 MAX_DOCUMENT_SIZE_MB = 100

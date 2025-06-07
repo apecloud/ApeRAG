@@ -382,7 +382,12 @@ class ApiKey(SQLModel, table=True):
 
 class ModelServiceProvider(SQLModel, table=True):
     __tablename__ = "model_service_provider"
-    name: str = Field(default_factory=lambda: "int" + random_id(), primary_key=True, max_length=24)
+    __table_args__ = (
+        UniqueConstraint("name", "user", "gmt_deleted", name="uq_model_service_provider_name_user_deleted"),
+    )
+
+    id: str = Field(default_factory=lambda: "msp" + random_id(), primary_key=True, max_length=24)
+    name: str = Field(max_length=256)
     user: str = Field(max_length=256)
     status: ModelServiceProviderStatus
     dialect: str = Field(default="openai", max_length=32)

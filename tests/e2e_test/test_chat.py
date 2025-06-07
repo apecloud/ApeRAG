@@ -2,13 +2,13 @@ import json
 import logging
 from http import HTTPStatus
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List
 
 import pytest
 import yaml
 from openai import OpenAI
 
-from tests.e2e_test.config import API_BASE_URL, API_KEY, WS_BASE_URL
+from tests.e2e_test.config import API_BASE_URL, WS_BASE_URL
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -16,17 +16,16 @@ logger = logging.getLogger(__name__)
 
 class APITestHelper:
     """Helper class for API testing to reduce code duplication"""
-    
-    def __init__(self, client, base_url: str = API_BASE_URL, api_key: str = API_KEY):
+
+    def __init__(self, client, base_url: str, api_key: str):
         self.client = client
         self.base_url = base_url
         self.api_key = api_key
         self.openai_client = OpenAI(base_url=f"{base_url}/v1", api_key=api_key)
-    
+
     def test_openai_api(self, bot_id: str, chat_id: str, message: str, test_name: str) -> None:
         """Test OpenAI-compatible API for both streaming and non-streaming"""
-        logger.info(f"Testing OpenAI API for {test_name}")
-        
+
         # Test non-streaming mode
         try:
             response = self.openai_client.chat.completions.create(
@@ -35,13 +34,12 @@ class APITestHelper:
                 stream=False,
                 extra_query={"bot_id": bot_id, "chat_id": chat_id},
             )
-            
+
             # Validate OpenAI response inline
             if hasattr(response, "error") and response.error:
-                logger.warning(f"API returned error: {response.error}")
                 assert hasattr(response, "error")
                 assert response.error.get("type") == "server_error"
-                logger.info(f"{test_name} non-streaming test: API responded with expected error structure")
+                pytest.fail(f"{test_name} non-streaming test: API responded with expected error structure")
             else:
                 # Non-streaming response validation
                 assert response.id is not None
@@ -53,14 +51,10 @@ class APITestHelper:
                 assert response.choices[0].message.content is not None
                 assert len(response.choices[0].message.content) > 0
                 assert response.choices[0].finish_reason == "stop"
-                logger.info(f"{test_name} non-streaming test: API responded successfully")
-                
+
         except Exception as e:
-            logger.warning(f"{test_name} non-streaming request failed: {e}")
-            assert "bot_id" not in str(e) or "unexpected keyword argument" not in str(e), (
-                "API should accept bot_id as query parameter"
-            )
-        
+            pytest.fail(f"{test_name} non-streaming request failed: {e}")
+
         # Test streaming mode
         try:
             stream = self.openai_client.chat.completions.create(
@@ -69,45 +63,35 @@ class APITestHelper:
                 stream=True,
                 extra_query={"bot_id": bot_id, "chat_id": chat_id},
             )
-            
+
             collected_content = ""
             chunk_count = 0
-            error_in_stream = False
-            
+
             for chunk in stream:
                 chunk_count += 1
-                
+
                 if hasattr(chunk, "error") and chunk.error:
-                    error_in_stream = True
-                    logger.warning(f"{test_name} streaming API returned error: {chunk.error}")
-                    break
-                
+                    pytest.fail(f"{test_name} streaming API returned error: {chunk.error}")
+
                 assert chunk.id is not None
                 assert chunk.object == "chat.completion.chunk"
                 assert chunk.created is not None
                 assert chunk.model == "aperag"
                 assert len(chunk.choices) == 1
-                
+
                 if chunk.choices[0].delta.content is not None:
                     collected_content += chunk.choices[0].delta.content
-            
-            if error_in_stream:
-                logger.info(f"{test_name} streaming test: API responded with error in stream")
-            else:
-                assert chunk_count > 1, "Should receive multiple chunks in streaming mode"
-                assert len(collected_content) > 0, "Should receive content in streaming response"
-                logger.info(f"{test_name} streaming test: API responded successfully")
-                
+
+            assert chunk_count > 1, "Should receive multiple chunks in streaming mode"
+            assert len(collected_content) > 0, "Should receive content in streaming response"
+
         except Exception as e:
-            logger.warning(f"{test_name} streaming request failed: {e}")
-            assert "bot_id" not in str(e) or "unexpected keyword argument" not in str(e), (
-                "API should accept bot_id as query parameter"
-            )
-    
-    def test_frontend_api(self, bot_id: str, chat_id: str, message: str, test_name: str, is_knowledge_bot: bool = False) -> None:
+            pytest.fail(f"{test_name} streaming request failed: {e}")
+
+    def test_frontend_api(
+        self, bot_id: str, chat_id: str, message: str, test_name: str, is_knowledge_bot: bool = False
+    ) -> None:
         """Test frontend-specific API for both streaming and non-streaming"""
-        logger.info(f"Testing Frontend API for {test_name}")
-        
         # Test non-streaming mode
         try:
             msg_id = f"{test_name.lower().replace(' ', '_')}_msg_001"
@@ -117,16 +101,16 @@ class APITestHelper:
                 params={"stream": "false", "bot_id": bot_id, "chat_id": chat_id},
                 headers={"msg_id": msg_id, "Content-Type": "text/plain"},
             )
-            
+
             assert response.status_code == HTTPStatus.OK
             response_data = response.json()
-            
+
             # Validate frontend response inline
             if response_data.get("type") == "error":
                 logger.warning(f"Frontend API returned error: {response_data.get('data')}")
                 assert response_data.get("type") == "error"
                 assert "data" in response_data
-                logger.info(f"{test_name} frontend non-streaming test: API responded with expected error structure")
+                pytest.fail(f"{test_name} frontend non-streaming test: API responded with expected error structure")
             else:
                 assert response_data.get("type") == "message"
                 assert response_data.get("id") == msg_id
@@ -134,12 +118,10 @@ class APITestHelper:
                 assert response_data.get("data") is not None
                 assert len(response_data.get("data", "")) > 0
                 assert "timestamp" in response_data
-                logger.info(f"{test_name} frontend non-streaming test: API responded successfully")
-                
+
         except Exception as e:
-            logger.warning(f"{test_name} frontend non-streaming request failed: {e}")
-            assert "bot_id" not in str(e), "API should accept bot_id as query parameter"
-        
+            pytest.fail(f"{test_name} frontend non-streaming request failed: {e}")
+
         # Test streaming mode
         try:
             msg_id = f"{test_name.lower().replace(' ', '_')}_msg_002"
@@ -149,10 +131,10 @@ class APITestHelper:
                 params={"stream": "true", "bot_id": bot_id, "chat_id": chat_id},
                 headers={"msg_id": msg_id, "Content-Type": "text/plain"},
             )
-            
+
             assert response.status_code == HTTPStatus.OK
             assert response.headers.get("content-type").startswith("text/event-stream")
-            
+
             # Parse SSE response
             events = []
             for line in response.text.split("\n"):
@@ -162,74 +144,69 @@ class APITestHelper:
                         events.append(event_data)
                     except json.JSONDecodeError:
                         continue
-            
+
             # Validate SSE events inline
             if not events:
-                logger.warning("No events received in SSE response")
-                logger.info(f"{test_name} frontend streaming test: API responded with expected error structure")
+                pytest.fail(f"{test_name} frontend streaming test: No events received in SSE response")
             else:
-                message_types = [event.get("type") for event in events]
-                logger.info(f"Message flow: {' -> '.join(message_types)}")
-                
                 start_events = [e for e in events if e.get("type") == "start"]
                 message_events = [e for e in events if e.get("type") == "message"]
                 stop_events = [e for e in events if e.get("type") == "stop"]
                 error_events = [e for e in events if e.get("type") == "error"]
-                
+
                 if error_events:
-                    logger.warning(f"SSE API returned error: {error_events[0].get('data')}")
                     assert error_events[0].get("type") == "error"
-                    logger.info(f"{test_name} frontend streaming test: API responded with expected error structure")
+                    pytest.fail(f"{test_name} frontend streaming test: API responded with expected error structure")
                 else:
                     # Verify event structure
                     assert len(start_events) >= 1, "Should have at least one start event"
                     assert start_events[0].get("id") == msg_id
                     assert "timestamp" in start_events[0]
-                    
+
                     if message_events:
                         for event in message_events:
                             assert event.get("id") == msg_id
                             assert "data" in event
                             assert "timestamp" in event
-                    
+
                     if stop_events:
                         assert stop_events[0].get("id") == msg_id
                         assert "timestamp" in stop_events[0]
                         # Knowledge bots might have references/urls in stop event
                         if is_knowledge_bot and "data" in stop_events[0]:
                             assert isinstance(stop_events[0]["data"], list)
-                    
-                    logger.info(f"{test_name} frontend streaming test: API responded successfully")
-                
         except Exception as e:
-            logger.warning(f"{test_name} frontend streaming request failed: {e}")
-            assert "bot_id" not in str(e), "API should accept bot_id as query parameter"
-    
+            pytest.fail(f"{test_name} frontend streaming request failed: {e}")
 
 
-
-def create_bot_config(model_name: str = "deepseek/deepseek-v3-base:free", bot_type: str = "common", **kwargs) -> Dict[str, Any]:
+def create_bot_config(
+    model_name: str = "deepseek/deepseek-v3-base:free", bot_type: str = "common", **kwargs
+) -> Dict[str, Any]:
     """Create bot configuration with sensible defaults"""
     base_config = {
         "model_name": model_name,
         "model_service_provider": "openrouter",
         "llm": {"context_window": 3500, "temperature": 0.1 if bot_type == "knowledge" else 0.7},
     }
-    
+
     if bot_type == "knowledge":
-        base_config["llm"].update({
-            "similarity_score_threshold": 0.5,
-            "similarity_topk": 3,
-        })
-    
+        base_config["llm"].update(
+            {
+                "similarity_score_threshold": 0.5,
+                "similarity_topk": 3,
+            }
+        )
+
     base_config["llm"].update(kwargs)
     return base_config
 
 
-def create_and_configure_bot(client, bot_type: str, collection_ids: List[str] = None, flow_file: str = None) -> Dict[str, Any]:
+def create_and_configure_bot(
+    client, bot_type: str, collection_ids: List[str] = None, flow_file: str = None
+) -> Dict[str, Any]:
     """Create and configure a bot with the given parameters"""
     config = create_bot_config(bot_type=bot_type)
-    
+
     create_data = {
         "title": f"E2E {bot_type.title()} Test Bot",
         "description": f"E2E {bot_type.title()} Bot Description",
@@ -237,28 +214,30 @@ def create_and_configure_bot(client, bot_type: str, collection_ids: List[str] = 
         "config": json.dumps(config),
         "collection_ids": collection_ids or [],
     }
-    
+
     resp = client.post("/api/v1/bots", json=create_data)
     assert resp.status_code == HTTPStatus.OK
     bot = resp.json()
-    
+
     # Configure flow if specified
     if flow_file:
         flow_path = Path(__file__).parent / "testdata" / flow_file
         with open(flow_path, "r", encoding="utf-8") as f:
             flow = yaml.safe_load(f)
-        
+
         # Update collection_ids in flow nodes if needed
         if collection_ids:
             for node in flow.get("nodes", []):
                 if node.get("type") in ["vector_search", "fulltext_search", "graph_search"]:
                     if "data" in node and "input" in node["data"] and "values" in node["data"]["input"]:
                         node["data"]["input"]["values"]["collection_ids"] = collection_ids
-        
+
         flow_json = json.dumps(flow)
-        resp = client.put(f"/api/v1/bots/{bot['id']}/flow", data=flow_json, headers={"Content-Type": "application/json"})
+        resp = client.put(
+            f"/api/v1/bots/{bot['id']}/flow", data=flow_json, headers={"Content-Type": "application/json"}
+        )
         assert resp.status_code == HTTPStatus.OK
-    
+
     return bot
 
 
@@ -266,10 +245,7 @@ def create_and_configure_bot(client, bot_type: str, collection_ids: List[str] = 
 def knowledge_bot(client, collection):
     """Create a knowledge bot for RAG testing"""
     bot = create_and_configure_bot(
-        client, 
-        bot_type="knowledge", 
-        collection_ids=[collection["id"]], 
-        flow_file="rag-flow.yaml"
+        client, bot_type="knowledge", collection_ids=[collection["id"]], flow_file="rag-flow.yaml"
     )
     yield bot
     resp = client.delete(f"/api/v1/bots/{bot['id']}")
@@ -279,11 +255,7 @@ def knowledge_bot(client, collection):
 @pytest.fixture
 def basic_bot(client):
     """Create a basic bot for simple chat testing"""
-    bot = create_and_configure_bot(
-        client, 
-        bot_type="common", 
-        flow_file="basic-flow.yaml"
-    )
+    bot = create_and_configure_bot(client, bot_type="common", flow_file="basic-flow.yaml")
     yield bot
     resp = client.delete(f"/api/v1/bots/{bot['id']}")
     assert resp.status_code in (200, 204)
@@ -300,7 +272,7 @@ def create_chat(client, bot_id: str, title: str) -> Dict[str, Any]:
 @pytest.fixture
 def knowledge_chat(client, knowledge_bot):
     """Create a chat for knowledge bot testing"""
-    chat = create_chat(client, knowledge_bot['id'], "E2E Knowledge Test Chat")
+    chat = create_chat(client, knowledge_bot["id"], "E2E Knowledge Test Chat")
     yield chat
     delete_resp = client.delete(f"/api/v1/bots/{knowledge_bot['id']}/chats/{chat['id']}")
     assert delete_resp.status_code in (200, 204, 404)
@@ -309,16 +281,16 @@ def knowledge_chat(client, knowledge_bot):
 @pytest.fixture
 def basic_chat(client, basic_bot):
     """Create a chat for basic bot testing"""
-    chat = create_chat(client, basic_bot['id'], "E2E Basic Test Chat")
+    chat = create_chat(client, basic_bot["id"], "E2E Basic Test Chat")
     yield chat
     delete_resp = client.delete(f"/api/v1/bots/{basic_bot['id']}/chats/{chat['id']}")
     assert delete_resp.status_code in (200, 204, 404)
 
 
 @pytest.fixture
-def api_helper(client):
+def api_helper(client, api_key):
     """Create API test helper instance"""
-    return APITestHelper(client)
+    return APITestHelper(client, base_url=API_BASE_URL, api_key=api_key)
 
 
 # Parameterized tests to reduce duplication
@@ -327,7 +299,7 @@ def test_get_chat_detail(client, bot_type, request):
     """Test getting chat details for different bot types"""
     bot = request.getfixturevalue(f"{bot_type}_bot")
     chat = request.getfixturevalue(f"{bot_type}_chat")
-    
+
     resp = client.get(f"/api/v1/bots/{bot['id']}/chats/{chat['id']}")
     assert resp.status_code == HTTPStatus.OK
     detail = resp.json()
@@ -340,7 +312,7 @@ def test_update_chat(client, bot_type, request):
     """Test updating chat title for different bot types"""
     bot = request.getfixturevalue(f"{bot_type}_bot")
     chat = request.getfixturevalue(f"{bot_type}_chat")
-    
+
     new_title = f"E2E {bot_type.title()} Test Chat Updated"
     update_data = {"title": new_title}
     resp = client.put(f"/api/v1/bots/{bot['id']}/chats/{chat['id']}", json=update_data)
@@ -349,27 +321,33 @@ def test_update_chat(client, bot_type, request):
     assert updated["title"] == new_title
 
 
-@pytest.mark.parametrize("bot_type,message", [
-    ("knowledge", "What is ApeRAG?"),
-    ("basic", "Hello, how are you today?"),
-])
+@pytest.mark.parametrize(
+    "bot_type,message",
+    [
+        ("knowledge", "What is ApeRAG?"),
+        ("basic", "Hello, how are you today?"),
+    ],
+)
 def test_chat_message_openai_api(api_helper, bot_type, message, request):
     """Test OpenAI-compatible chat completions API"""
     bot = request.getfixturevalue(f"{bot_type}_bot")
     chat = request.getfixturevalue(f"{bot_type}_chat")
-    
+
     api_helper.test_openai_api(bot["id"], chat["id"], message, f"{bot_type} bot")
 
 
-@pytest.mark.parametrize("bot_type,message", [
-    ("knowledge", "What is ApeRAG? Please tell me about this knowledge base system."),
-    ("basic", "Hello, this is a test message for frontend API"),
-])
+@pytest.mark.parametrize(
+    "bot_type,message",
+    [
+        ("knowledge", "What is ApeRAG? Please tell me about this knowledge base system."),
+        ("basic", "Hello, this is a test message for frontend API"),
+    ],
+)
 def test_chat_message_frontend_api(api_helper, bot_type, message, request):
     """Test frontend-specific chat completions API"""
     bot = request.getfixturevalue(f"{bot_type}_bot")
     chat = request.getfixturevalue(f"{bot_type}_chat")
-    
+
     is_knowledge_bot = bot_type == "knowledge"
     api_helper.test_frontend_api(bot["id"], chat["id"], message, f"{bot_type} bot", is_knowledge_bot)
 
@@ -377,7 +355,7 @@ def test_chat_message_frontend_api(api_helper, bot_type, message, request):
 def test_openai_api_error_handling(api_helper, basic_chat):
     """Test error handling for OpenAI API"""
     logger.info("Testing error handling scenarios")
-    
+
     # Test invalid bot_id
     try:
         response = api_helper.openai_client.chat.completions.create(
@@ -386,34 +364,32 @@ def test_openai_api_error_handling(api_helper, basic_chat):
             stream=False,
             extra_query={"bot_id": "invalid_bot_id"},
         )
-        
+
         if hasattr(response, "error") and response.error:
             error_message = response.error.get("message", "")
             assert "Bot not found" in error_message or "not found" in error_message.lower()
             logger.info("Got expected 'Bot not found' error")
         else:
             assert False, "Should have received an error for invalid bot_id"
-            
+
     except Exception as e:
         error_message = str(e)
         assert "Bot not found" in error_message or "not found" in error_message.lower()
         logger.info("Got expected exception for invalid bot_id")
-    
+
     # Test without bot_id
     try:
         response = api_helper.openai_client.chat.completions.create(
-            model="aperag", 
-            messages=[{"role": "user", "content": "Hello"}], 
-            stream=False
+            model="aperag", messages=[{"role": "user", "content": "Hello"}], stream=False
         )
-        
+
         if hasattr(response, "error") and response.error:
             error_message = response.error.get("message", "")
             assert "bot_id is required" in error_message or "required" in error_message.lower()
             logger.info("Got expected 'bot_id is required' error")
         else:
             assert False, "Should have received an error when bot_id is missing"
-            
+
     except Exception as e:
         error_message = str(e)
         assert "bot_id is required" in error_message or "required" in error_message.lower()
@@ -431,18 +407,18 @@ def test_frontend_api_error_handling(client, basic_chat):
             params={"stream": "false", "bot_id": "invalid_bot_id", "chat_id": basic_chat["id"]},
             headers={"msg_id": "test_msg_003", "Content-Type": "text/plain"},
         )
-        
+
         assert response.status_code == HTTPStatus.OK
         response_data = response.json()
         assert response_data.get("type") == "error"
         error_message = response_data.get("data", "")
         assert "Bot not found" in error_message or "not found" in error_message.lower()
         logger.info("Got expected 'Bot not found' error")
-        
+
     except Exception as e:
         logger.warning(f"Frontend error handling request failed: {e}")
         assert "bot_id" not in str(e), "API should accept bot_id as query parameter"
-    
+
     # Test without bot_id
     try:
         message = "Test message"
@@ -452,7 +428,7 @@ def test_frontend_api_error_handling(client, basic_chat):
             params={"stream": "false", "chat_id": basic_chat["id"]},
             headers={"msg_id": "test_msg_004", "Content-Type": "text/plain"},
         )
-        
+
         if response.status_code == HTTPStatus.OK:
             response_data = response.json()
             assert response_data.get("type") == "error"
@@ -462,7 +438,7 @@ def test_frontend_api_error_handling(client, basic_chat):
         else:
             assert response.status_code in [400, 422], "Should return 400 or 422 for missing bot_id"
             logger.info("Got expected HTTP error for missing bot_id")
-            
+
     except Exception as e:
         logger.warning(f"Frontend missing bot_id test failed: {e}")
         error_message = str(e)
@@ -470,39 +446,35 @@ def test_frontend_api_error_handling(client, basic_chat):
         logger.info("Got expected exception for missing bot_id")
 
 
-async def websocket_test_impl(ws_url: str, cookie_header: str, test_message: Dict[str, Any], test_name: str, is_knowledge_bot: bool = False):
+async def websocket_test_impl(
+    ws_url: str, cookie_header: str, test_message: Dict[str, Any], test_name: str, is_knowledge_bot: bool = False
+):
     """Implementation of WebSocket test logic"""
     import asyncio
+
     import websockets
-    
+
     try:
-        logger.info(f"Connecting to WebSocket: {ws_url}")
-        
         headers = {"Cookie": cookie_header} if cookie_header else {}
-        
         async with websockets.connect(ws_url, additional_headers=headers) as websocket:
-            logger.info("WebSocket connected successfully")
-            
             await websocket.send(json.dumps(test_message))
-            logger.info(f"Sent message: {test_message['data']}")
-            
+
             messages_received = []
             timeout_seconds = 30
-            
             try:
                 while True:
                     response_text = await asyncio.wait_for(websocket.recv(), timeout=timeout_seconds)
                     response = json.loads(response_text)
                     messages_received.append(response)
-                    
+
                     message_type = response.get("type")
                     logger.info(f"Received {message_type}: {response.get('data', '')[:50]}...")
-                    
+
                     # Validate message structure
                     assert "type" in response
                     assert "id" in response
                     assert "timestamp" in response
-                    
+
                     if message_type == "start":
                         assert response["type"] == "start"
                     elif message_type == "message":
@@ -516,60 +488,52 @@ async def websocket_test_impl(ws_url: str, cookie_header: str, test_message: Dic
                     elif message_type == "error":
                         logger.warning(f"Error received: {response.get('data')}")
                         break
-                        
+
             except asyncio.TimeoutError:
                 logger.warning(f"WebSocket response timeout after {timeout_seconds}s")
-            
+
             # Validate message flow
             message_types = [msg.get("type") for msg in messages_received]
-            logger.info(f"Message flow: {' -> '.join(message_types)}")
-            
-            has_start = "start" in message_types
-            has_error = "error" in message_types
-            
-            assert has_start or has_error, "Should receive start message or error"
-            
-            if has_start:
-                logger.info(f"{test_name} WebSocket test: Received start message")
-                if "message" in message_types:
-                    logger.info(f"{test_name} WebSocket test: Received streaming content")
-                if "stop" in message_types:
-                    logger.info(f"{test_name} WebSocket test: Received stop message")
-            elif has_error:
-                logger.warning(f"{test_name} WebSocket test: Received error response (expected in test environment)")
-            
-            logger.info(f"{test_name} WebSocket API test completed successfully")
+            assert "message" in message_types, "Should receive message"
+            assert "start" in message_types, "Should receive start message"
+            assert "stop" in message_types, "Should receive stop message"
+
+            if "error" in message_types:
+                pytest.fail(f"{test_name} WebSocket test: Received error response (expected in test environment)")
+
             return True
-            
+
     except (websockets.exceptions.InvalidURI, ConnectionRefusedError, OSError) as e:
-        logger.warning(f"WebSocket connection error: {e}")
-        logger.info("Skipping WebSocket test - this is expected in CI/test environments")
+        pytest.fail(f"WebSocket connection error: {e}")
         return False
     except Exception as e:
-        logger.error(f"WebSocket test error: {e}")
+        pytest.fail(f"WebSocket test error: {e}")
         return False
 
 
-@pytest.mark.parametrize("bot_type,message", [
-    ("knowledge", "What is ApeRAG? Tell me about knowledge retrieval."),
-    ("basic", "Hello! Please tell me a short joke."),
-])
+@pytest.mark.parametrize(
+    "bot_type,message",
+    [
+        ("knowledge", "What is ApeRAG? Tell me about knowledge retrieval."),
+        ("basic", "Hello! Please tell me a short joke."),
+    ],
+)
 def test_chat_message_websocket_api(bot_type, message, request, cookie_client):
     """Test WebSocket chat API with different bot types"""
     import asyncio
-    
+
     bot = request.getfixturevalue(f"{bot_type}_bot")
     chat = request.getfixturevalue(f"{bot_type}_chat")
-    
+
     ws_url = f"{WS_BASE_URL}/bots/{bot['id']}/chats/{chat['id']}/connect"
-    
+
     # Get cookies for authentication
     cookies_dict = dict(cookie_client.cookies)
     cookie_header = "; ".join([f"{k}={v}" for k, v in cookies_dict.items()])
-    
+
     test_message = {"data": message, "type": "message"}
     is_knowledge_bot = bot_type == "knowledge"
-    
+
     try:
         _ = asyncio.run(websocket_test_impl(ws_url, cookie_header, test_message, f"{bot_type} bot", is_knowledge_bot))
         assert True, "WebSocket test completed"

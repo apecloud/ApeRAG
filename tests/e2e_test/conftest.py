@@ -7,54 +7,54 @@ import pytest
 
 from tests.e2e_test.config import (
     API_BASE_URL,
-    API_KEY,
-    AUTH_TYPE,
     COMPLETION_MODEL_NAME,
     COMPLETION_MODEL_PROVIDER,
+    COMPLETION_MODEL_PROVIDER_API_KEY,
     EMBEDDING_MODEL_CUSTOM_PROVIDER,
     EMBEDDING_MODEL_NAME,
     EMBEDDING_MODEL_PROVIDER,
+    EMBEDDING_MODEL_PROVIDER_API_KEY,
+    RERANK_MODEL_PROVIDER,
+    RERANK_MODEL_PROVIDER_API_KEY,
 )
 from tests.e2e_test.utils import assert_dict_subset
 
 
 @pytest.fixture(scope="module")
-def api_key(register_user, login_user):
-    """Dynamically create an API key for testing and yield its value, then delete it after tests. Requires login first."""
-    if AUTH_TYPE != "api_key":
-        yield None
-        return
-    with httpx.Client(base_url=API_BASE_URL) as c:
-        c.cookies.update(login_user["cookies"])
-        resp = c.post("/api/v1/apikeys", json={"description": "e2e dynamic key"})
-        assert resp.status_code == HTTPStatus.OK, f"Failed to create API key: {resp.text}"
-        key_info = resp.json()
-        api_key_value = key_info["key"]
-        yield api_key_value
-        # Cleanup
-        c.delete(f"/api/v1/apikeys/{key_info['id']}")
+def api_key(cookie_client):
+    """Dynamically create an API key for testing and yield its value, then delete it after tests."""
+    resp = cookie_client.post("/api/v1/apikeys", json={"description": "e2e dynamic key"})
+    assert resp.status_code == HTTPStatus.OK, f"Failed to create API key: {resp.text}"
+    api_key = resp.json()["key"]
+    yield api_key
+    cookie_client.delete(f"/api/v1/apikeys/{resp.json()['id']}")
 
 
 @pytest.fixture(scope="module")
-def client():
-    """Return a httpx.Client using either API key or cookie authentication, depending on AUTH_TYPE."""
-    # if AUTH_TYPE == "api_key":
-    #     headers = {"Authorization": f"Bearer {api_key}"}
-    #     c = httpx.Client(base_url=API_BASE_URL, headers=headers)
-    #     yield c
-    #     c.close()
-    # elif AUTH_TYPE == "cookie":
-    #     c = httpx.Client(base_url=API_BASE_URL)
-    #     c.cookies.update(login_user["cookies"])
-    #     yield c
-    #     c.close()
-    # else:
-    #     raise ValueError(f"Unsupported AUTH_TYPE: {AUTH_TYPE}")
+def setup_model_service_provider(cookie_client):
+    """Setup completion/embedding/rerank model service provider for testing."""
+    resp = cookie_client.put(
+        f"/api/v1/model_service_providers/{COMPLETION_MODEL_PROVIDER}",
+        json={"api_key": COMPLETION_MODEL_PROVIDER_API_KEY},
+    )
+    assert resp.status_code == HTTPStatus.OK, f"Failed to create completion model service provider: {resp.text}"
+    resp = cookie_client.put(
+        f"/api/v1/model_service_providers/{EMBEDDING_MODEL_PROVIDER}",
+        json={"api_key": EMBEDDING_MODEL_PROVIDER_API_KEY},
+    )
+    assert resp.status_code == HTTPStatus.OK, f"Failed to create embedding model service provider: {resp.text}"
+    resp = cookie_client.put(
+        f"/api/v1/model_service_providers/{RERANK_MODEL_PROVIDER}", json={"api_key": RERANK_MODEL_PROVIDER_API_KEY}
+    )
+    assert resp.status_code == HTTPStatus.OK, f"Failed to create rerank model service provider: {resp.text}"
 
-    headers = {"Authorization": f"Bearer {API_KEY}"}
-    c = httpx.Client(base_url=API_BASE_URL, headers=headers)
-    yield c
-    c.close()
+
+@pytest.fixture(scope="module")
+def client(cookie_client, api_key, setup_model_service_provider):
+    """Return a httpx.Client using api key authentication."""
+    headers = {"Authorization": f"Bearer {api_key}"}
+    with httpx.Client(base_url=API_BASE_URL, headers=headers) as c:
+        yield c
 
 
 @pytest.fixture
@@ -199,7 +199,6 @@ def login_user(register_user):
 @pytest.fixture(scope="module")
 def cookie_client(login_user):
     """Return a httpx.Client with cookie-based authentication"""
-    c = httpx.Client(base_url=API_BASE_URL)
-    c.cookies.update(login_user["cookies"])
-    yield c
-    c.close()
+    with httpx.Client(base_url=API_BASE_URL) as c:
+        c.cookies.update(login_user["cookies"])
+        yield c
