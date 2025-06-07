@@ -18,12 +18,13 @@ import uuid
 from http import HTTPStatus
 from typing import Any, AsyncGenerator
 
+from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.sse.frontend_consumer import BaseFormatter, FrontendFormatter
-from aperag.chat.utils import get_async_redis_client
+from aperag.chat.utils import fail_response, get_async_redis_client, start_response, stop_response, success_response
 from aperag.db import models as db_models
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.flow.engine import FlowEngine
@@ -323,6 +324,124 @@ class ChatService:
         except Exception as e:
             logger.exception(f"Error in feedback_message: {e}")
             return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to process feedback: {str(e)}")
+
+    async def handle_websocket_chat(self, websocket: WebSocket, user: str, bot_id: str, chat_id: str):
+        """Handle WebSocket chat connections and message streaming"""
+        await websocket.accept()
+
+        try:
+            while True:
+                # Receive message from client
+                text_data = await websocket.receive_text()
+                data = json.loads(text_data)
+
+                # Extract message content - support both "data" and "message" fields
+                message_content = data.get("data") or data.get("message", "")
+                if not message_content:
+                    await websocket.send_text(fail_response("error", "Message content is required"))
+                    continue
+
+                # Generate message ID
+                message_id = str(uuid.uuid4())
+
+                try:
+                    # Get bot configuration
+                    bot = await self.db_ops.query_bot(user, bot_id)
+                    if not bot:
+                        await websocket.send_text(fail_response(message_id, "Bot not found"))
+                        continue
+
+                    # Get or create chat session
+                    try:
+                        await self.db_ops.query_chat(user, bot_id, chat_id)
+                    except Exception:
+                        # If chat doesn't exist, create it
+                        async def _create_chat_operation(session):
+                            db_ops_session = AsyncDatabaseOps(session)
+                            new_chat = await db_ops_session.create_chat(
+                                user=user, bot_id=bot_id, title="WebSocket Chat"
+                            )
+                            return new_chat
+
+                        await self.db_ops.execute_with_transaction(_create_chat_operation)
+
+                    # Get bot's flow configuration
+                    bot_config = json.loads(bot.config or "{}")
+                    flow_config = bot_config.get("flow")
+                    if not flow_config:
+                        await websocket.send_text(fail_response(message_id, "Bot flow config not found"))
+                        continue
+
+                    flow = FlowParser.parse(flow_config)
+                    engine = FlowEngine()
+
+                    # Prepare initial data for flow execution
+                    initial_data = {
+                        "query": message_content,
+                        "user": user,
+                        "message_id": message_id,
+                    }
+
+                    # Send start message
+                    await websocket.send_text(start_response(message_id))
+
+                    # Execute flow
+                    _, system_outputs = await engine.execute_flow(flow, initial_data)
+                    logger.info("Flow executed successfully for WebSocket!")
+
+                    # Find the async generator from flow outputs
+                    async_generator = None
+                    nodes = engine.find_end_nodes(flow)
+                    for node in nodes:
+                        async_generator = system_outputs[node].get("async_generator")
+                        if async_generator:
+                            break
+
+                    if not async_generator:
+                        await websocket.send_text(fail_response(message_id, "No output node found"))
+                        continue
+
+                    # Stream response tokens
+                    full_message = ""
+                    references = []
+                    urls = []
+
+                    async for chunk in async_generator():
+                        # Handle special tokens for references and URLs (similar to original implementation)
+                        if chunk.startswith("DOC_QA_REFERENCES:"):
+                            try:
+                                references = json.loads(chunk[len("DOC_QA_REFERENCES:") :])
+                                continue
+                            except Exception as e:
+                                logger.exception(f"Error parsing DOC_QA_REFERENCES: {chunk}, {e}")
+
+                        if chunk.startswith("DOCUMENT_URLS:"):
+                            try:
+                                urls = eval(chunk[len("DOCUMENT_URLS:") :])  # Using eval as in original code
+                                continue
+                            except Exception as e:
+                                logger.exception(f"Error parsing DOCUMENT_URLS: {chunk}, {e}")
+
+                        # Send streaming response
+                        await websocket.send_text(success_response(message_id, chunk))
+                        full_message += chunk
+
+                    # Send stop message with references and URLs
+                    memory_count = 0  # You might want to implement memory counting if needed
+                    await websocket.send_text(stop_response(message_id, references, memory_count, urls))
+
+                except Exception as e:
+                    logger.exception(f"Error processing WebSocket message: {e}")
+                    await websocket.send_text(fail_response(message_id, str(e)))
+
+        except WebSocketDisconnect:
+            logger.info(f"WebSocket disconnected for bot {bot_id}, chat {chat_id}")
+        except Exception as e:
+            logger.exception(f"WebSocket error: {e}")
+            try:
+                await websocket.send_text(fail_response("error", str(e)))
+            except Exception as e:
+                logger.exception(f"Error sending fail response: {e}")
 
 
 # Create a global service instance for easy access

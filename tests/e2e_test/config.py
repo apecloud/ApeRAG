@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Please set the API base URL to the Aperag backend API endpoint
-API_BASE_URL = "http://localhost:8000"
-# Please create an API key in the Aperag UI and set it here
-API_KEY = "sk-6fbd14ed09fa42e5b305a541739bc483"
+import os
+
+# Base URLs for API testing
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
+WS_BASE_URL = os.getenv("WS_BASE_URL", "ws://localhost:8000/api/v1")
+
+# Test user credentials
+API_KEY = os.getenv("API_KEY", "sk-6fbd14ed09fa42e5b305a541739bc483")
 
 AUTH_TYPE = "api_key"
 

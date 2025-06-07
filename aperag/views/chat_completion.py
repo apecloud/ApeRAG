@@ -20,7 +20,7 @@ from fastapi.responses import StreamingResponse
 from aperag.chat.sse.openai_consumer import OpenAIFormatter
 from aperag.db.models import User
 from aperag.service.chat_completion_service import chat_completion_service
-from aperag.views.auth import get_current_user_with_state
+from aperag.views.auth import current_user
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ router = APIRouter()
 
 
 @router.post("/chat/completions")
-async def openai_chat_completions_view(request: Request, user: User = Depends(get_current_user_with_state)):
+async def openai_chat_completions_view(request: Request, user: User = Depends(current_user)):
     try:
         body_data = await request.json()
         query_params = dict(request.query_params)

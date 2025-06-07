@@ -19,7 +19,7 @@ from aperag.db.models import ApiKey, User
 from aperag.schema.view_models import ApiKey as ApiKeyModel
 from aperag.schema.view_models import ApiKeyCreate, ApiKeyList, ApiKeyUpdate
 from aperag.service.api_key_service import api_key_service
-from aperag.views.auth import get_current_user_with_state
+from aperag.views.auth import current_user
 from aperag.views.utils import success
 
 router = APIRouter()
@@ -40,7 +40,7 @@ def to_api_key_model(apikey: ApiKey) -> ApiKeyModel:
 
 
 @router.get("/apikeys")
-async def list_api_keys_view(request: Request, user: User = Depends(get_current_user_with_state)) -> ApiKeyList:
+async def list_api_keys_view(request: Request, user: User = Depends(current_user)) -> ApiKeyList:
     """List all API keys for the current user"""
     return await api_key_service.list_api_keys(str(user.id))
 
@@ -49,14 +49,14 @@ async def list_api_keys_view(request: Request, user: User = Depends(get_current_
 async def create_api_key_view(
     request: Request,
     api_key_create: ApiKeyCreate,
-    user: User = Depends(get_current_user_with_state),
+    user: User = Depends(current_user),
 ):
     """Create a new API key"""
     return await api_key_service.create_api_key(str(user.id), api_key_create)
 
 
 @router.delete("/apikeys/{apikey_id}")
-async def delete_api_key_view(request: Request, apikey_id: str, user: User = Depends(get_current_user_with_state)):
+async def delete_api_key_view(request: Request, apikey_id: str, user: User = Depends(current_user)):
     """Delete an API key"""
     return await api_key_service.delete_api_key(str(user.id), apikey_id)
 
@@ -66,7 +66,7 @@ async def update_api_key_view(
     request: Request,
     apikey_id: str,
     api_key_update: ApiKeyUpdate,
-    user: User = Depends(get_current_user_with_state),
+    user: User = Depends(current_user),
 ):
     """Update an API key"""
     return await api_key_service.update_api_key(str(user.id), apikey_id, api_key_update)

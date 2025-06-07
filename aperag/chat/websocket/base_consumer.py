@@ -88,11 +88,6 @@ class BaseConsumer(AsyncWebsocketConsumer):
 
     async def receive(self, text_data=None, bytes_data=None):
         data = json.loads(text_data)
-        self.msg_type = data["type"]
-        if self.msg_type == "bot_context":
-            await self.pipeline.update_bot_context(data["data"])
-            return
-
         self.response_type = "message"
 
         message = ""

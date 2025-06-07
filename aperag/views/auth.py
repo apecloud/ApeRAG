@@ -18,7 +18,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi_users import BaseUserManager, FastAPIUsers
-from fastapi_users.authentication import AuthenticationBackend, BearerTransport, CookieTransport, JWTStrategy
+from fastapi_users.authentication import AuthenticationBackend, CookieTransport, JWTStrategy
 from fastapi_users.db import SQLAlchemyUserDatabase
 
 from aperag.config import AsyncSessionDep, settings
@@ -54,14 +54,8 @@ def get_jwt_strategy() -> JWTStrategy:
 
 # Transport methods
 cookie_transport = CookieTransport(cookie_name="session", cookie_max_age=3600)
-bearer_transport = BearerTransport(tokenUrl="/login")
 
 # Authentication backends
-jwt_backend = AuthenticationBackend(
-    name="jwt",
-    transport=bearer_transport,
-    get_strategy=get_jwt_strategy,
-)
 cookie_backend = AuthenticationBackend(
     name="cookie",
     transport=cookie_transport,
@@ -82,7 +76,7 @@ async def get_user_manager(user_db: SQLAlchemyUserDatabase = Depends(get_user_db
 # FastAPI Users instance
 fastapi_users = FastAPIUsers[User, str](
     get_user_manager,
-    [jwt_backend, cookie_backend],
+    [cookie_backend],
 )
 
 
@@ -130,7 +124,7 @@ async def authenticate_api_key(request: Request, session: AsyncSessionDep) -> Op
 
 
 # Authentication dependency, writes to request.state.user_id
-async def get_current_user_with_state(
+async def current_user(
     request: Request, session: AsyncSessionDep, user: User = Depends(fastapi_users.current_user(optional=True))
 ) -> Optional[User]:
     """Get current user from JWT/Cookie or API Key and write to request.state.user_id"""
@@ -149,7 +143,7 @@ async def get_current_user_with_state(
 
 
 async def get_current_active_user(
-    request: Request, session: AsyncSessionDep, user: Optional[User] = Depends(get_current_user_with_state)
+    request: Request, session: AsyncSessionDep, user: Optional[User] = Depends(current_user)
 ) -> User:
     """Get current active user, raise 401 if not authenticated"""
     if not user:
@@ -295,7 +289,6 @@ async def login_view(
 
     result = await session.execute(select(User).where(User.username == data.username))
     user = result.scalars().first()
-
     if not user:
         raise HTTPException(status_code=400, detail="Invalid credentials")
 
@@ -305,9 +298,7 @@ async def login_view(
     )
     if not verified:
         raise HTTPException(status_code=400, detail="Invalid credentials")
-
-    # If password hash is updated, save to database
-    if updated_password_hash is not None:
+    if updated_password_hash:
         user.hashed_password = updated_password_hash
         session.add(user)
         await session.commit()
@@ -337,9 +328,7 @@ async def logout_view(response: Response):
 
 
 @router.get("/user")
-async def get_user_view(
-    request: Request, session: AsyncSessionDep, user: Optional[User] = Depends(get_current_user_with_state)
-):
+async def get_user_view(request: Request, session: AsyncSessionDep, user: Optional[User] = Depends(current_user)):
     """Get user info, return 401 if not authenticated"""
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")

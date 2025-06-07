@@ -567,7 +567,7 @@ class AsyncDatabaseOps:
 
     async def create_user(self, username: str, email: str, password: str, role: Role):
         async def _operation(session):
-            user = User(username=username, email=email, password=password, role=role, is_staff=(role == Role.ADMIN))
+            user = User(username=username, email=email, password=password, role=role)
             session.add(user)
             await session.flush()
             await session.refresh(user)
