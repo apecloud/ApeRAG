@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import logging
 from http import HTTPStatus
 from typing import Dict, Tuple
 
@@ -22,18 +23,19 @@ from pydantic import ValidationError
 
 from aperag.chat.history.redis import RedisChatMessageHistory
 from aperag.chat.utils import get_async_redis_client
-from aperag.config import AsyncSessionDep
 from aperag.db.models import BotType
-from aperag.db.ops import logger, query_chat_feedbacks
+from aperag.db.ops import async_db_ops
 from aperag.llm.base import Predictor
 from aperag.schema import view_models
 from aperag.schema.view_models import CollectionConfig
 from aperag.source.base import CustomSourceInitializationError, get_source
 from aperag.utils.utils import AVAILABLE_SOURCE
 
+logger = logging.getLogger(__name__)
 
-async def query_chat_messages(session: AsyncSessionDep, user: str, chat_id: str) -> list[view_models.ChatMessage]:
-    feedbacks = await query_chat_feedbacks(session, user, chat_id)
+
+async def query_chat_messages(user: str, chat_id: str) -> list[view_models.ChatMessage]:
+    feedbacks = await async_db_ops.query_chat_feedbacks(user, chat_id)
     feedback_map = {}
     for feedback in feedbacks:
         feedback_map[feedback.message_id] = feedback

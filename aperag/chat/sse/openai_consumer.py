@@ -14,13 +14,16 @@
 
 
 import json
+import logging
 import time
 import uuid
 from typing import Any, AsyncGenerator, Dict, Optional
 from urllib.parse import parse_qsl
 
-from aperag.chat.sse.base import APIRequest, BaseConsumer, BaseFormatter, MessageProcessor, logger
+from aperag.chat.sse.base import APIRequest, BaseConsumer, BaseFormatter, MessageProcessor
 from aperag.db.models import Bot
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIFormatter(BaseFormatter):

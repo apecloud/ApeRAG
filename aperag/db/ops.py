@@ -1525,38 +1525,3 @@ db_ops = DatabaseOps()
 async def query_msp_dict(user: str):
     """Deprecated: Use DatabaseOps instance instead"""
     return await async_db_ops.query_msp_dict(user)
-
-
-async def query_collection(session, user: str, collection_id: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await AsyncDatabaseOps(session).query_collection(user, collection_id)
-
-
-async def query_documents(session, users: List[str], collection_id: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await AsyncDatabaseOps(session).query_documents(users, collection_id)
-
-
-async def query_chat_feedbacks(session, user: str, chat_id: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await AsyncDatabaseOps(session).query_chat_feedbacks(user, chat_id)
-
-
-async def delete_user(session, user: User):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await AsyncDatabaseOps(session).delete_user(user)
-
-
-async def query_admin_count(session):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await AsyncDatabaseOps(session).query_admin_count()
-
-
-async def query_first_user_exists(session):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await AsyncDatabaseOps(session).query_first_user_exists()
-
-
-async def query_invitation_by_token(session, token: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await AsyncDatabaseOps(session).query_invitation_by_token(token)

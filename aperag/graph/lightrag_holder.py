@@ -27,7 +27,7 @@ from lightrag.utils import EmbeddingFunc
 from aperag.config import get_async_session
 from aperag.db.models import Collection, Document
 from aperag.db.ops import (
-    query_msp_dict,
+    async_db_ops,
 )
 from aperag.embed.base_embedding import get_collection_embedding_service
 from aperag.schema.utils import parseCollectionConfig
@@ -271,7 +271,7 @@ async def gen_lightrag_llm_func(collection: Collection) -> Callable[..., Awaitab
     """Generate LightRAG LLM function with improved error handling"""
     try:
         async for async_session in get_async_session():
-            msp_dict = await query_msp_dict(async_session, collection.user)
+            msp_dict = await async_db_ops.query_msp_dict(async_session, collection.user)
             break
         return await create_lightrag_llm_func(collection, msp_dict)
     except Exception as e:

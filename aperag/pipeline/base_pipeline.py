@@ -21,7 +21,7 @@ from langchain.schema import AIMessage, HumanMessage
 from pydantic import BaseModel
 
 from aperag.chat.history.base import BaseChatMessageHistory
-from aperag.db.ops import query_msp_dict
+from aperag.db.ops import async_db_ops
 from aperag.llm.base import Predictor
 from aperag.utils.utils import now_unix_milliseconds
 
@@ -76,7 +76,7 @@ class Pipeline(ABC):
         self.prompt_template = self.llm_config.get("prompt_template", None)
 
     async def ainit(self):
-        msp_dict = await query_msp_dict(self.bot.user)
+        msp_dict = await async_db_ops.query_msp_dict(self.bot.user)
         if self.model_service_provider in msp_dict:
             msp = msp_dict[self.model_service_provider]
             api_key = msp.api_key

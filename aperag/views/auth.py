@@ -24,8 +24,7 @@ from fastapi_users.db import SQLAlchemyUserDatabase
 
 from aperag.config import AsyncSessionDep, settings
 from aperag.db.models import ApiKey, ApiKeyStatus, Invitation, Role, User
-from aperag.db.ops import delete_user as db_delete_user
-from aperag.db.ops import query_admin_count, query_first_user_exists
+from aperag.db.ops import async_db_ops
 from aperag.schema import view_models
 
 logger = logging.getLogger(__name__)
@@ -302,7 +301,7 @@ async def register_view(
 ) -> view_models.User:
     from sqlmodel import select
 
-    is_first_user = not await query_first_user_exists(session)
+    is_first_user = not await async_db_ops.query_first_user_exists()
     need_invitation = settings.register_mode == "invitation" and not is_first_user
     invitation = None
     if need_invitation:
@@ -475,10 +474,10 @@ async def delete_user_view(user_id: str, session: AsyncSessionDep, user: User = 
     target = result.scalars().first()
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
-    admin_count = await query_admin_count(session)
+    admin_count = await async_db_ops.query_admin_count()
     if target.role == Role.ADMIN and admin_count <= 1:
         raise HTTPException(status_code=400, detail="Cannot delete the last admin user")
     if target.id == user.id:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
-    await db_delete_user(session, target)
+    await async_db_ops.delete_user(session, target)
     return {"message": "User deleted successfully"}

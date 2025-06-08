@@ -14,14 +14,17 @@
 
 
 import json
+import logging
 import uuid
 from typing import Any, AsyncGenerator, Dict, List, Optional
 from urllib.parse import parse_qsl
 
 from aperag.chat.history.redis import RedisChatMessageHistory
-from aperag.chat.sse.base import BaseConsumer, BaseFormatter, ChatRequest, MessageProcessor, logger
+from aperag.chat.sse.base import BaseConsumer, BaseFormatter, ChatRequest, MessageProcessor
 from aperag.chat.utils import get_async_redis_client, now_unix_milliseconds
 from aperag.db.models import Bot, Chat
+
+logger = logging.getLogger(__name__)
 
 
 class FrontendFormatter(BaseFormatter):

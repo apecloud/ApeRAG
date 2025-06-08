@@ -14,8 +14,8 @@
 
 from fastapi import APIRouter
 
-from aperag.config import AsyncSessionDep, settings
-from aperag.db.ops import query_first_user_exists
+from aperag.config import settings
+from aperag.db.ops import async_db_ops
 from aperag.schema.view_models import Auth, Auth0, Authing, Config, Logto
 from aperag.views.utils import success
 
@@ -23,7 +23,7 @@ router = APIRouter()
 
 
 @router.get("")
-async def config_view(session: AsyncSessionDep) -> Config:
+async def config_view() -> Config:
     auth = Auth(
         type=settings.auth_type,
     )
@@ -50,6 +50,6 @@ async def config_view(session: AsyncSessionDep) -> Config:
 
     result = Config(
         auth=auth,
-        admin_user_exists=await query_first_user_exists(session),
+        admin_user_exists=await async_db_ops.query_first_user_exists(),
     )
     return success(result)

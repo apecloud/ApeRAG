@@ -87,24 +87,14 @@ class ChatService:
         # Import here to avoid circular imports
         from aperag.views.utils import query_chat_messages
 
-        async def _get_chat_operation(session):
-            # Use DatabaseOps with the same session for all database operations
-            db_ops_session = AsyncDatabaseOps(session)
-
-            # Query chat using the provided session
-            chat = await db_ops_session.query_chat(user, bot_id, chat_id)
-            if chat is None:
-                return None, None
-
-            # Query messages using the same session
-            messages = await query_chat_messages(session, user, chat_id)
-            return chat, messages
-
         try:
-            chat, messages = await self.db_ops._execute_query(_get_chat_operation)
-
+            # Query chat using the provided session
+            chat = await self.db_ops.query_chat(user, bot_id, chat_id)
             if chat is None:
                 return fail(HTTPStatus.NOT_FOUND, "Chat not found")
+
+            # Query messages using the same session
+            messages = await query_chat_messages(user, chat_id)
 
             chat_obj = self.build_chat_response(chat)
             return success(ChatDetails(**chat_obj.model_dump(), history=messages))
