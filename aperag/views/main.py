@@ -13,23 +13,46 @@
 # limitations under the License.
 
 import logging
-from typing import List, Optional
+from typing import List
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile, WebSocket
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, WebSocket
 
-from aperag.config import settings
 from aperag.db.models import User
 from aperag.schema import view_models
 from aperag.service.bot_service import bot_service
 from aperag.service.chat_service import chat_service_global
-from aperag.service.collection_service import collection_service
-from aperag.service.document_service import document_service
+from aperag.service.collection_service import (
+    collection_service,
+)
+from aperag.service.document_service import (
+    document_service,
+)
 from aperag.service.flow_service import flow_service_global
-from aperag.service.model_service import model_service_provider_service
+from aperag.service.llm_config_service import get_model_config_objects
+from aperag.service.llm_configuration_service import (
+    create_llm_provider,
+    create_llm_provider_model,
+    delete_llm_provider,
+    delete_llm_provider_model,
+    get_llm_configuration,
+    get_llm_provider,
+    list_llm_provider_models,
+    list_llm_providers,
+    update_llm_provider,
+    update_llm_provider_model,
+)
+from aperag.service.model_service import (
+    delete_model_service_provider,
+    list_available_models,
+    list_model_service_providers,
+    list_supported_model_service_providers,
+    update_model_service_provider,
+)
 from aperag.service.prompt_template_service import list_prompt_templates
+from aperag.utils.request import get_urls
 
 # Import authentication dependencies
-from aperag.views.auth import UserManager, current_user, get_jwt_strategy, get_user_manager
+from aperag.views.auth import UserManager, authenticate_websocket_user, current_user, get_user_manager
 
 logger = logging.getLogger(__name__)
 
@@ -96,8 +119,6 @@ async def create_documents_view(
 async def create_url_document_view(
     request: Request, collection_id: str, user: User = Depends(current_user)
 ) -> view_models.DocumentList:
-    from aperag.utils.request import get_urls
-
     urls = get_urls(request)
     return await document_service.create_url_document(str(user.id), collection_id, urls)
 
@@ -163,7 +184,7 @@ async def list_chats_view(request: Request, bot_id: str, user: User = Depends(cu
 @router.get("/bots/{bot_id}/chats/{chat_id}")
 async def get_chat_view(
     request: Request, bot_id: str, chat_id: str, user: User = Depends(current_user)
-) -> view_models.Chat:
+) -> view_models.ChatDetails:
     return await chat_service_global.get_chat(str(user.id), bot_id, chat_id)
 
 
@@ -237,14 +258,14 @@ async def delete_bot_view(request: Request, bot_id: str, user: User = Depends(cu
 async def list_supported_model_service_providers_view(
     request: Request, user: User = Depends(current_user)
 ) -> view_models.ModelServiceProviderList:
-    return await model_service_provider_service.list_supported_model_service_providers()
+    return await list_supported_model_service_providers()
 
 
 @router.get("/model_service_providers")
 async def list_model_service_providers_view(
     request: Request, user: User = Depends(current_user)
 ) -> view_models.ModelServiceProviderList:
-    return await model_service_provider_service.list_model_service_providers(str(user.id))
+    return await list_model_service_providers(str(user.id))
 
 
 @router.put("/model_service_providers/{provider}")
@@ -254,24 +275,20 @@ async def update_model_service_provider_view(
     mspIn: view_models.ModelServiceProviderUpdate,
     user: User = Depends(current_user),
 ):
-    from aperag.schema.view_models import ModelConfig
-
-    supported_providers = [ModelConfig(**item) for item in settings.model_configs]
-    return await model_service_provider_service.update_model_service_provider(
-        str(user.id), provider, mspIn, supported_providers
-    )
+    supported_providers = await get_model_config_objects()
+    return await update_model_service_provider(str(user.id), provider, mspIn, supported_providers)
 
 
 @router.delete("/model_service_providers/{provider}")
 async def delete_model_service_provider_view(request: Request, provider: str, user: User = Depends(current_user)):
-    return await model_service_provider_service.delete_model_service_provider(str(user.id), provider)
+    return await delete_model_service_provider(str(user.id), provider)
 
 
 @router.get("/available_models")
 async def list_available_models_view(
     request: Request, user: User = Depends(current_user)
 ) -> view_models.ModelConfigList:
-    return await model_service_provider_service.list_available_models(str(user.id))
+    return await list_available_models(str(user.id))
 
 
 @router.post("/chat/completions/frontend")
@@ -323,78 +340,6 @@ async def debug_flow_stream_view(
     return await flow_service_global.debug_flow_stream(str(user.id), bot_id, debug)
 
 
-async def authenticate_websocket_user(websocket: WebSocket, user_manager: UserManager) -> Optional[str]:
-    """Authenticate WebSocket connection using session cookie
-
-    Returns:
-        str: User ID if authenticated, None otherwise
-    """
-    try:
-        # Extract cookies from WebSocket headers
-        cookies_header = None
-
-        # Try different ways to access headers
-        if hasattr(websocket, "headers"):
-            # WebSocket headers might be a mapping (dict-like)
-            if hasattr(websocket.headers, "get"):
-                cookie_value = websocket.headers.get("cookie") or websocket.headers.get(b"cookie")
-                if cookie_value:
-                    cookies_header = cookie_value.decode() if isinstance(cookie_value, bytes) else cookie_value
-            else:
-                # WebSocket headers might be an iterable of tuples/pairs
-                try:
-                    for header_item in websocket.headers:
-                        if isinstance(header_item, (list, tuple)) and len(header_item) >= 2:
-                            name, value = header_item[0], header_item[1]
-                            if name == b"cookie" or name == "cookie":
-                                cookies_header = value.decode() if isinstance(value, bytes) else value
-                                break
-                except (TypeError, ValueError):
-                    # If iteration fails, headers format is unexpected
-                    logger.debug("WebSocket headers format not supported for authentication")
-                    pass
-
-        if not cookies_header:
-            logger.debug("No cookies found in WebSocket headers")
-            return None
-
-        # Parse cookies to find session cookie
-        session_token = None
-        for cookie in cookies_header.split(";"):
-            cookie = cookie.strip()
-            if cookie.startswith("session="):
-                session_token = cookie.split("=", 1)[1]
-                break
-
-        if not session_token:
-            logger.debug("No session cookie found")
-            return None
-
-        logger.debug(f"Found session token: {session_token[:20]}...")
-
-        # Verify JWT token using the same strategy as HTTP authentication
-        jwt_strategy = get_jwt_strategy()
-
-        # Manually decode and verify the JWT token
-        try:
-            user_data = await jwt_strategy.read_token(session_token, user_manager)
-            if user_data:
-                logger.debug(f"Successfully authenticated user from WebSocket: {user_data.id}")
-                return str(user_data.id)
-            else:
-                logger.debug("JWT token validation returned no user data")
-                return None
-        except Exception as e:
-            logger.debug(f"WebSocket JWT verification failed: {e}")
-            return None
-
-    except Exception as e:
-        logger.error(f"WebSocket authentication error: {e}")
-        return None
-
-    return None
-
-
 @router.websocket("/bots/{bot_id}/chats/{chat_id}/connect")
 async def websocket_chat_endpoint(
     websocket: WebSocket, bot_id: str, chat_id: str, user_manager: UserManager = Depends(get_user_manager)
@@ -405,10 +350,92 @@ async def websocket_chat_endpoint(
     """
     # Authenticate user from WebSocket cookies
     user_id = await authenticate_websocket_user(websocket, user_manager)
-
-    if user_id:
-        logger.info(f"WebSocket connected with authenticated user: {user_id}")
-    else:
-        logger.info("WebSocket connected without authentication (anonymous mode)")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
     await chat_service_global.handle_websocket_chat(websocket, user_id, bot_id, chat_id)
+
+
+# LLM Configuration API endpoints
+@router.get("/llm_configuration")
+async def get_llm_configuration_view(request: Request, user: User = Depends(current_user)):
+    """Get complete LLM configuration including providers and models"""
+    return await get_llm_configuration()
+
+
+@router.get("/llm_providers")
+async def list_llm_providers_view(request: Request, user: User = Depends(current_user)):
+    """List all LLM providers"""
+    return await list_llm_providers(str(user.id))
+
+
+@router.post("/llm_providers")
+async def create_llm_provider_view(request: Request, user: User = Depends(current_user)):
+    """Create a new LLM provider"""
+    import json
+
+    data = json.loads(request.body.decode("utf-8"))
+    return await create_llm_provider(data)
+
+
+@router.get("/llm_providers/{provider_name}")
+async def get_llm_provider_view(request: Request, provider_name: str, user: User = Depends(current_user)):
+    """Get a specific LLM provider"""
+    return await get_llm_provider(provider_name)
+
+
+@router.put("/llm_providers/{provider_name}")
+async def update_llm_provider_view(request: Request, provider_name: str, user: User = Depends(current_user)):
+    """Update an existing LLM provider"""
+    import json
+
+    data = json.loads(request.body.decode("utf-8"))
+    return await update_llm_provider(provider_name, data)
+
+
+@router.delete("/llm_providers/{provider_name}")
+async def delete_llm_provider_view(request: Request, provider_name: str, user: User = Depends(current_user)):
+    """Delete an LLM provider"""
+    return await delete_llm_provider(provider_name)
+
+
+@router.get("/llm_provider_models")
+async def list_llm_provider_models_view(
+    request: Request, provider_name: str = None, user: User = Depends(current_user)
+):
+    """List LLM provider models, optionally filtered by provider"""
+    return await list_llm_provider_models(provider_name)
+
+
+@router.get("/llm_providers/{provider_name}/models")
+async def get_provider_models_view(request: Request, provider_name: str, user: User = Depends(current_user)):
+    """Get all models for a specific provider"""
+    return await list_llm_provider_models(provider_name=provider_name)
+
+
+@router.post("/llm_providers/{provider_name}/models")
+async def create_provider_model_view(request: Request, provider_name: str, user: User = Depends(current_user)):
+    """Create a new model for a specific provider"""
+    import json
+
+    data = json.loads(request.body.decode("utf-8"))
+    return await create_llm_provider_model(provider_name, data)
+
+
+@router.put("/llm_providers/{provider_name}/models/{api}/{model}")
+async def update_provider_model_view(
+    request: Request, provider_name: str, api: str, model: str, user: User = Depends(current_user)
+):
+    """Update a specific model"""
+    import json
+
+    data = json.loads(request.body.decode("utf-8"))
+    return await update_llm_provider_model(provider_name, api, model, data)
+
+
+@router.delete("/llm_providers/{provider_name}/models/{api}/{model}")
+async def delete_provider_model_view(
+    request: Request, provider_name: str, api: str, model: str, user: User = Depends(current_user)
+):
+    """Delete a specific model"""
+    return await delete_llm_provider_model(provider_name, api, model)

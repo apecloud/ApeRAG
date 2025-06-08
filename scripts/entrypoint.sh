@@ -34,6 +34,30 @@ END
 
 >&2 echo 'PostgreSQL is available'
 
+# FIXME: Temporary solution - create pgvector extension. Should be removed in the future
+# and handled by proper database migration or initialization script
+python3 << END
+import sys
+import psycopg2
+
+try:
+    conn = psycopg2.connect(
+        dbname="${POSTGRES_DB}",
+        user="${POSTGRES_USER}",
+        password="${POSTGRES_PASSWORD}",
+        host="${POSTGRES_HOST}",
+        port="${POSTGRES_PORT}",
+    )
+    cursor = conn.cursor()
+    cursor.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+    conn.commit()
+    cursor.close()
+    conn.close()
+    sys.stderr.write("pgvector extension created successfully\n")
+except Exception as error:
+    sys.stderr.write("Failed to create pgvector extension (this is non-critical): {}\n".format(error))
+END
+
 # Build DATABASE_URL from components
 if [[ -n "${POSTGRES_HOST:-}" && -n "${POSTGRES_USER:-}" && -n "${POSTGRES_PASSWORD:-}" ]]; then
     export DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-postgres}"

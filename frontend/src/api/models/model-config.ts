@@ -34,7 +34,19 @@ export interface ModelConfig {
      * @type {string}
      * @memberof ModelConfig
      */
-    'dialect'?: string;
+    'completion_dialect'?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ModelConfig
+     */
+    'embedding_dialect'?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ModelConfig
+     */
+    'rerank_dialect'?: string;
     /**
      * 
      * @type {string}

@@ -68,6 +68,20 @@ paths:
   /available_models:
     $ref: './paths/models.yaml#/availableModels'
   
+  # llm configuration
+  /llm_configuration:
+    $ref: './paths/llm_configuration.yaml#/llmConfiguration'
+  /llm_providers:
+    $ref: './paths/llm_configuration.yaml#/llmProviders'
+  /llm_providers/{provider_name}:
+    $ref: './paths/llm_configuration.yaml#/llmProvider'
+  /llm_providers/{provider_name}/models:
+    $ref: './paths/llm_configuration.yaml#/llmProviderModels'
+  /llm_providers/{provider_name}/models/{api}/{model}:
+    $ref: './paths/llm_configuration.yaml#/llmProviderModel'
+  /llm_provider_models:
+    $ref: './paths/llm_configuration.yaml#/llmProviderModelsList'
+  
   # config
   /config:
     $ref: './paths/config.yaml#/config'

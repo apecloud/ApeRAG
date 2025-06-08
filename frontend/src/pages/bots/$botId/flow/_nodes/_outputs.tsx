@@ -29,11 +29,11 @@ export const NodeOutputs = ({ node }: OutputProps) => {
   const outputs = useMemo(() => {
     let outputKey: 'docs' | undefined;
     switch (node.type) {
+      case 'graph_search':
       case 'fulltext_search':
       case 'vector_search':
       case 'merge':
       case 'rerank':
-      case 'llm':
         outputKey = 'docs';
         break;
     }
@@ -99,7 +99,11 @@ export const NodeOutputs = ({ node }: OutputProps) => {
       <Button
         size="small"
         type="text"
-        onClick={() => setOutputsVisible(true)}
+        onClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          setOutputsVisible(true);
+        }}
         style={{ padding: 0 }}
       >
         <Badge overflowCount={9} count={_.size(outputs)}></Badge>
@@ -109,11 +113,17 @@ export const NodeOutputs = ({ node }: OutputProps) => {
         title={formatMessage({ id: 'text.outputs' })}
         open={outputsVisible}
         size="large"
-        onClose={() => setOutputsVisible(false)}
+        onClose={(e) => {
+          e.stopPropagation();
+          setOutputsVisible(false);
+        }}
         styles={{
           body: {
             padding: 0,
           },
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
         }}
       >
         <Collapse

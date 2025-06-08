@@ -15,19 +15,14 @@
 
 # -*- coding: utf-8 -*-
 import logging
-from abc import ABC, abstractmethod
 from threading import Lock
-from typing import Any
 
 from langchain_core.embeddings import Embeddings
-from sqlalchemy import select
 
-from aperag.config import get_sync_session, settings
-from aperag.db.models import ModelServiceProvider, ModelServiceProviderStatus
-from aperag.db.ops import async_db_ops
+from aperag.config import settings
+from aperag.db.ops import async_db_ops, db_ops
 from aperag.embed.embedding_service import EmbeddingService
 from aperag.schema.utils import parseCollectionConfig
-from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
 
 logger = logging.getLogger(__name__)
 
@@ -89,8 +84,15 @@ async def get_collection_embedding_service(collection) -> tuple[Embeddings | Non
     msp_dict = await async_db_ops.query_msp_dict(collection.user)
     if embedding_msp in msp_dict:
         msp = msp_dict[embedding_msp]
-        embedding_service_url = msp.base_url
         embedding_service_api_key = msp.api_key
+
+        # Get base_url from LLMProvider
+        try:
+            llm_provider = await async_db_ops.query_llm_provider_by_name(embedding_msp)
+            embedding_service_url = llm_provider.base_url
+        except Exception:
+            raise ValueError(f"LLMProvider '{embedding_msp}' not found")
+
         logging.info("get_collection_embedding_model %s %s", embedding_service_url, embedding_service_api_key)
 
         return get_embedding_model(
@@ -112,22 +114,16 @@ def get_collection_embedding_service_sync(collection) -> tuple[object, int]:
     custom_llm_provider = config.embedding.custom_llm_provider
     logger.info("get_collection_embedding_model_sync %s %s", embedding_msp, embedding_model_name)
 
-    # Query model service providers using sync session
-    for session in get_sync_session():
-        stmt = select(ModelServiceProvider).where(
-            ModelServiceProvider.user == collection.user,
-            ModelServiceProvider.status == ModelServiceProviderStatus.ACTIVE,
-        )
-        result = session.execute(stmt)
-        msps = result.scalars().all()
-
-        msp_dict = {msp.name: msp for msp in msps}
-
+    msp_dict = db_ops.query_msp_dict(collection.user)
     if embedding_msp in msp_dict:
         msp = msp_dict[embedding_msp]
-        embedding_service_url = msp.base_url
         embedding_service_api_key = msp.api_key
-        logger.info("get_collection_embedding_model_sync %s %s", embedding_service_url, embedding_service_api_key)
+
+        try:
+            llm_provider = db_ops.query_llm_provider_by_name(embedding_msp)
+            embedding_service_url = llm_provider.base_url
+        except Exception:
+            raise ValueError(f"LLMProvider '{embedding_msp}' not found")
 
         return get_embedding_model(
             embedding_provider=custom_llm_provider,
@@ -138,24 +134,3 @@ def get_collection_embedding_service_sync(collection) -> tuple[object, int]:
 
     logger.warning("get_collection_embedding_model_sync cannot find model service provider %s", embedding_msp)
     return None, 0
-
-
-class DocumentBaseEmbedding(ABC):
-    def __init__(
-        self,
-        vector_store_adaptor: VectorStoreConnectorAdaptor,
-        embedding_model: Embeddings = None,
-        vector_size: int = None,
-        **kwargs: Any,
-    ) -> None:
-        self.connector = vector_store_adaptor.connector
-        # Improved logic to handle optional embedding_model/vector_size
-        if embedding_model is None or vector_size is None:
-            raise ValueError("lacks embedding model or vector size")
-
-        self.embedding, self.vector_size = embedding_model, vector_size
-        self.client = vector_store_adaptor.connector.client
-
-    @abstractmethod
-    def load_data(self, **kwargs: Any):
-        pass

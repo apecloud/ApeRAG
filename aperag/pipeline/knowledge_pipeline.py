@@ -30,7 +30,6 @@ from aperag.llm.prompts import (
 from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES, DOCUMENT_URLS, Message, Pipeline
 from aperag.pipeline.keyword_extractor import IKExtractor
 from aperag.query.query import DocumentWithScore, get_packed_answer
-from aperag.rank.reranker import rerank
 from aperag.schema.utils import parseCollectionConfig
 from aperag.source.utils import async_run
 from aperag.utils.utils import (
@@ -171,11 +170,8 @@ class KnowledgePipeline(Pipeline):
             )
             results.append(bot_context_result)
 
-        if len(results) > 1:
-            results = await rerank(query_with_history, results)  # Use query_with_history for reranking
-            logger.info("[%s] Reranked %d candidates", log_prefix, len(results))
-        else:
-            logger.info("[%s] No need to rerank (candidates <= 1)", log_prefix)
+        # Note: Rerank functionality has been removed from this legacy pipeline.
+        # Use the new flow-based system for rerank support.
 
         candidates = results[: self.topk]
 

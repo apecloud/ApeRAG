@@ -163,3 +163,5 @@ requirements.txt
 magic-pdf.json
 .cursor
 .objects/
+
+cursorplans

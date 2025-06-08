@@ -80,6 +80,24 @@ import type { InvitationCreate } from '../models';
 // @ts-ignore
 import type { InvitationList } from '../models';
 // @ts-ignore
+import type { LlmConfigurationResponse } from '../models';
+// @ts-ignore
+import type { LlmProvider } from '../models';
+// @ts-ignore
+import type { LlmProviderCreate } from '../models';
+// @ts-ignore
+import type { LlmProviderList } from '../models';
+// @ts-ignore
+import type { LlmProviderModel } from '../models';
+// @ts-ignore
+import type { LlmProviderModelCreate } from '../models';
+// @ts-ignore
+import type { LlmProviderModelList } from '../models';
+// @ts-ignore
+import type { LlmProviderModelUpdate } from '../models';
+// @ts-ignore
+import type { LlmProviderUpdate } from '../models';
+// @ts-ignore
 import type { Login } from '../models';
 // @ts-ignore
 import type { ModelConfigList } from '../models';
@@ -1574,6 +1592,409 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
+         * Get complete LLM configuration including providers and models
+         * @summary Get complete LLM configuration
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmConfigurationGet: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/llm_configuration`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * List all LLM provider models, optionally filtered by provider
+         * @summary List all LLM provider models
+         * @param {string} [providerName] Optional filter by provider name
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmProviderModelsGet: async (providerName?: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/llm_provider_models`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (providerName !== undefined) {
+                localVarQueryParameter['provider_name'] = providerName;
+            }
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * List all LLM providers
+         * @summary List all LLM providers
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmProvidersGet: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/llm_providers`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Create a new LLM provider
+         * @summary Create a new LLM provider
+         * @param {LlmProviderCreate} llmProviderCreate 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmProvidersPost: async (llmProviderCreate: LlmProviderCreate, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'llmProviderCreate' is not null or undefined
+            assertParamExists('llmProvidersPost', 'llmProviderCreate', llmProviderCreate)
+            const localVarPath = `/llm_providers`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(llmProviderCreate, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Delete an LLM provider (soft delete)
+         * @summary Delete an LLM provider
+         * @param {string} providerName Provider name
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmProvidersProviderNameDelete: async (providerName: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'providerName' is not null or undefined
+            assertParamExists('llmProvidersProviderNameDelete', 'providerName', providerName)
+            const localVarPath = `/llm_providers/{provider_name}`
+                .replace(`{${"provider_name"}}`, encodeURIComponent(String(providerName)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'DELETE', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Get a specific LLM provider by name
+         * @summary Get a specific LLM provider
+         * @param {string} providerName Provider name
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmProvidersProviderNameGet: async (providerName: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'providerName' is not null or undefined
+            assertParamExists('llmProvidersProviderNameGet', 'providerName', providerName)
+            const localVarPath = `/llm_providers/{provider_name}`
+                .replace(`{${"provider_name"}}`, encodeURIComponent(String(providerName)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Delete a specific model of a provider
+         * @summary Delete a provider model
+         * @param {string} providerName Provider name
+         * @param {LlmProvidersProviderNameModelsApiModelDeleteApiEnum} api API type
+         * @param {string} model Model name
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmProvidersProviderNameModelsApiModelDelete: async (providerName: string, api: LlmProvidersProviderNameModelsApiModelDeleteApiEnum, model: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'providerName' is not null or undefined
+            assertParamExists('llmProvidersProviderNameModelsApiModelDelete', 'providerName', providerName)
+            // verify required parameter 'api' is not null or undefined
+            assertParamExists('llmProvidersProviderNameModelsApiModelDelete', 'api', api)
+            // verify required parameter 'model' is not null or undefined
+            assertParamExists('llmProvidersProviderNameModelsApiModelDelete', 'model', model)
+            const localVarPath = `/llm_providers/{provider_name}/models/{api}/{model}`
+                .replace(`{${"provider_name"}}`, encodeURIComponent(String(providerName)))
+                .replace(`{${"api"}}`, encodeURIComponent(String(api)))
+                .replace(`{${"model"}}`, encodeURIComponent(String(model)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'DELETE', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Update a specific model of a provider
+         * @summary Update a provider model
+         * @param {string} providerName Provider name
+         * @param {LlmProvidersProviderNameModelsApiModelPutApiEnum} api API type
+         * @param {string} model Model name
+         * @param {LlmProviderModelUpdate} llmProviderModelUpdate 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmProvidersProviderNameModelsApiModelPut: async (providerName: string, api: LlmProvidersProviderNameModelsApiModelPutApiEnum, model: string, llmProviderModelUpdate: LlmProviderModelUpdate, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'providerName' is not null or undefined
+            assertParamExists('llmProvidersProviderNameModelsApiModelPut', 'providerName', providerName)
+            // verify required parameter 'api' is not null or undefined
+            assertParamExists('llmProvidersProviderNameModelsApiModelPut', 'api', api)
+            // verify required parameter 'model' is not null or undefined
+            assertParamExists('llmProvidersProviderNameModelsApiModelPut', 'model', model)
+            // verify required parameter 'llmProviderModelUpdate' is not null or undefined
+            assertParamExists('llmProvidersProviderNameModelsApiModelPut', 'llmProviderModelUpdate', llmProviderModelUpdate)
+            const localVarPath = `/llm_providers/{provider_name}/models/{api}/{model}`
+                .replace(`{${"provider_name"}}`, encodeURIComponent(String(providerName)))
+                .replace(`{${"api"}}`, encodeURIComponent(String(api)))
+                .replace(`{${"model"}}`, encodeURIComponent(String(model)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'PUT', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(llmProviderModelUpdate, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Get all models for a specific provider
+         * @summary Get models for a specific provider
+         * @param {string} providerName Provider name
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmProvidersProviderNameModelsGet: async (providerName: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'providerName' is not null or undefined
+            assertParamExists('llmProvidersProviderNameModelsGet', 'providerName', providerName)
+            const localVarPath = `/llm_providers/{provider_name}/models`
+                .replace(`{${"provider_name"}}`, encodeURIComponent(String(providerName)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Create a new model for a specific provider
+         * @summary Create a new model for a provider
+         * @param {string} providerName Provider name
+         * @param {LlmProviderModelCreate} llmProviderModelCreate 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmProvidersProviderNameModelsPost: async (providerName: string, llmProviderModelCreate: LlmProviderModelCreate, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'providerName' is not null or undefined
+            assertParamExists('llmProvidersProviderNameModelsPost', 'providerName', providerName)
+            // verify required parameter 'llmProviderModelCreate' is not null or undefined
+            assertParamExists('llmProvidersProviderNameModelsPost', 'llmProviderModelCreate', llmProviderModelCreate)
+            const localVarPath = `/llm_providers/{provider_name}/models`
+                .replace(`{${"provider_name"}}`, encodeURIComponent(String(providerName)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(llmProviderModelCreate, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Update an existing LLM provider
+         * @summary Update an LLM provider
+         * @param {string} providerName Provider name
+         * @param {LlmProviderUpdate} llmProviderUpdate 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmProvidersProviderNamePut: async (providerName: string, llmProviderUpdate: LlmProviderUpdate, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'providerName' is not null or undefined
+            assertParamExists('llmProvidersProviderNamePut', 'providerName', providerName)
+            // verify required parameter 'llmProviderUpdate' is not null or undefined
+            assertParamExists('llmProvidersProviderNamePut', 'llmProviderUpdate', llmProviderUpdate)
+            const localVarPath = `/llm_providers/{provider_name}`
+                .replace(`{${"provider_name"}}`, encodeURIComponent(String(providerName)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'PUT', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(llmProviderUpdate, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Login a user with username and password
          * @summary Login a user
          * @param {Login} login 
@@ -2432,6 +2853,154 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Get complete LLM configuration including providers and models
+         * @summary Get complete LLM configuration
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async llmConfigurationGet(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<LlmConfigurationResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.llmConfigurationGet(options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.llmConfigurationGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * List all LLM provider models, optionally filtered by provider
+         * @summary List all LLM provider models
+         * @param {string} [providerName] Optional filter by provider name
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async llmProviderModelsGet(providerName?: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<LlmProviderModelList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.llmProviderModelsGet(providerName, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.llmProviderModelsGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * List all LLM providers
+         * @summary List all LLM providers
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async llmProvidersGet(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<LlmProviderList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.llmProvidersGet(options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.llmProvidersGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Create a new LLM provider
+         * @summary Create a new LLM provider
+         * @param {LlmProviderCreate} llmProviderCreate 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async llmProvidersPost(llmProviderCreate: LlmProviderCreate, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<LlmProvider>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.llmProvidersPost(llmProviderCreate, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.llmProvidersPost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Delete an LLM provider (soft delete)
+         * @summary Delete an LLM provider
+         * @param {string} providerName Provider name
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async llmProvidersProviderNameDelete(providerName: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<void>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.llmProvidersProviderNameDelete(providerName, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.llmProvidersProviderNameDelete']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Get a specific LLM provider by name
+         * @summary Get a specific LLM provider
+         * @param {string} providerName Provider name
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async llmProvidersProviderNameGet(providerName: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<LlmProvider>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.llmProvidersProviderNameGet(providerName, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.llmProvidersProviderNameGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Delete a specific model of a provider
+         * @summary Delete a provider model
+         * @param {string} providerName Provider name
+         * @param {LlmProvidersProviderNameModelsApiModelDeleteApiEnum} api API type
+         * @param {string} model Model name
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async llmProvidersProviderNameModelsApiModelDelete(providerName: string, api: LlmProvidersProviderNameModelsApiModelDeleteApiEnum, model: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<void>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.llmProvidersProviderNameModelsApiModelDelete(providerName, api, model, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.llmProvidersProviderNameModelsApiModelDelete']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Update a specific model of a provider
+         * @summary Update a provider model
+         * @param {string} providerName Provider name
+         * @param {LlmProvidersProviderNameModelsApiModelPutApiEnum} api API type
+         * @param {string} model Model name
+         * @param {LlmProviderModelUpdate} llmProviderModelUpdate 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async llmProvidersProviderNameModelsApiModelPut(providerName: string, api: LlmProvidersProviderNameModelsApiModelPutApiEnum, model: string, llmProviderModelUpdate: LlmProviderModelUpdate, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<LlmProviderModel>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.llmProvidersProviderNameModelsApiModelPut(providerName, api, model, llmProviderModelUpdate, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.llmProvidersProviderNameModelsApiModelPut']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Get all models for a specific provider
+         * @summary Get models for a specific provider
+         * @param {string} providerName Provider name
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async llmProvidersProviderNameModelsGet(providerName: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<LlmProviderModelList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.llmProvidersProviderNameModelsGet(providerName, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.llmProvidersProviderNameModelsGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Create a new model for a specific provider
+         * @summary Create a new model for a provider
+         * @param {string} providerName Provider name
+         * @param {LlmProviderModelCreate} llmProviderModelCreate 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async llmProvidersProviderNameModelsPost(providerName: string, llmProviderModelCreate: LlmProviderModelCreate, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<LlmProviderModel>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.llmProvidersProviderNameModelsPost(providerName, llmProviderModelCreate, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.llmProvidersProviderNameModelsPost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Update an existing LLM provider
+         * @summary Update an LLM provider
+         * @param {string} providerName Provider name
+         * @param {LlmProviderUpdate} llmProviderUpdate 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async llmProvidersProviderNamePut(providerName: string, llmProviderUpdate: LlmProviderUpdate, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<LlmProvider>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.llmProvidersProviderNamePut(providerName, llmProviderUpdate, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.llmProvidersProviderNamePut']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Login a user with username and password
          * @summary Login a user
          * @param {Login} login 
@@ -2936,6 +3505,114 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.invitePost(requestParameters.invitationCreate, options).then((request) => request(axios, basePath));
         },
         /**
+         * Get complete LLM configuration including providers and models
+         * @summary Get complete LLM configuration
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmConfigurationGet(options?: RawAxiosRequestConfig): AxiosPromise<LlmConfigurationResponse> {
+            return localVarFp.llmConfigurationGet(options).then((request) => request(axios, basePath));
+        },
+        /**
+         * List all LLM provider models, optionally filtered by provider
+         * @summary List all LLM provider models
+         * @param {DefaultApiLlmProviderModelsGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmProviderModelsGet(requestParameters: DefaultApiLlmProviderModelsGetRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<LlmProviderModelList> {
+            return localVarFp.llmProviderModelsGet(requestParameters.providerName, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * List all LLM providers
+         * @summary List all LLM providers
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmProvidersGet(options?: RawAxiosRequestConfig): AxiosPromise<LlmProviderList> {
+            return localVarFp.llmProvidersGet(options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Create a new LLM provider
+         * @summary Create a new LLM provider
+         * @param {DefaultApiLlmProvidersPostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmProvidersPost(requestParameters: DefaultApiLlmProvidersPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<LlmProvider> {
+            return localVarFp.llmProvidersPost(requestParameters.llmProviderCreate, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Delete an LLM provider (soft delete)
+         * @summary Delete an LLM provider
+         * @param {DefaultApiLlmProvidersProviderNameDeleteRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmProvidersProviderNameDelete(requestParameters: DefaultApiLlmProvidersProviderNameDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<void> {
+            return localVarFp.llmProvidersProviderNameDelete(requestParameters.providerName, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Get a specific LLM provider by name
+         * @summary Get a specific LLM provider
+         * @param {DefaultApiLlmProvidersProviderNameGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmProvidersProviderNameGet(requestParameters: DefaultApiLlmProvidersProviderNameGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<LlmProvider> {
+            return localVarFp.llmProvidersProviderNameGet(requestParameters.providerName, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Delete a specific model of a provider
+         * @summary Delete a provider model
+         * @param {DefaultApiLlmProvidersProviderNameModelsApiModelDeleteRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmProvidersProviderNameModelsApiModelDelete(requestParameters: DefaultApiLlmProvidersProviderNameModelsApiModelDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<void> {
+            return localVarFp.llmProvidersProviderNameModelsApiModelDelete(requestParameters.providerName, requestParameters.api, requestParameters.model, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Update a specific model of a provider
+         * @summary Update a provider model
+         * @param {DefaultApiLlmProvidersProviderNameModelsApiModelPutRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmProvidersProviderNameModelsApiModelPut(requestParameters: DefaultApiLlmProvidersProviderNameModelsApiModelPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<LlmProviderModel> {
+            return localVarFp.llmProvidersProviderNameModelsApiModelPut(requestParameters.providerName, requestParameters.api, requestParameters.model, requestParameters.llmProviderModelUpdate, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Get all models for a specific provider
+         * @summary Get models for a specific provider
+         * @param {DefaultApiLlmProvidersProviderNameModelsGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmProvidersProviderNameModelsGet(requestParameters: DefaultApiLlmProvidersProviderNameModelsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<LlmProviderModelList> {
+            return localVarFp.llmProvidersProviderNameModelsGet(requestParameters.providerName, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Create a new model for a specific provider
+         * @summary Create a new model for a provider
+         * @param {DefaultApiLlmProvidersProviderNameModelsPostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmProvidersProviderNameModelsPost(requestParameters: DefaultApiLlmProvidersProviderNameModelsPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<LlmProviderModel> {
+            return localVarFp.llmProvidersProviderNameModelsPost(requestParameters.providerName, requestParameters.llmProviderModelCreate, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Update an existing LLM provider
+         * @summary Update an LLM provider
+         * @param {DefaultApiLlmProvidersProviderNamePutRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        llmProvidersProviderNamePut(requestParameters: DefaultApiLlmProvidersProviderNamePutRequest, options?: RawAxiosRequestConfig): AxiosPromise<LlmProvider> {
+            return localVarFp.llmProvidersProviderNamePut(requestParameters.providerName, requestParameters.llmProviderUpdate, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Login a user with username and password
          * @summary Login a user
          * @param {DefaultApiLoginPostRequest} requestParameters Request parameters.
@@ -3403,6 +4080,114 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     invitePost(requestParameters: DefaultApiInvitePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<Invitation>;
+
+    /**
+     * Get complete LLM configuration including providers and models
+     * @summary Get complete LLM configuration
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    llmConfigurationGet(options?: RawAxiosRequestConfig): AxiosPromise<LlmConfigurationResponse>;
+
+    /**
+     * List all LLM provider models, optionally filtered by provider
+     * @summary List all LLM provider models
+     * @param {DefaultApiLlmProviderModelsGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    llmProviderModelsGet(requestParameters?: DefaultApiLlmProviderModelsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<LlmProviderModelList>;
+
+    /**
+     * List all LLM providers
+     * @summary List all LLM providers
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    llmProvidersGet(options?: RawAxiosRequestConfig): AxiosPromise<LlmProviderList>;
+
+    /**
+     * Create a new LLM provider
+     * @summary Create a new LLM provider
+     * @param {DefaultApiLlmProvidersPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    llmProvidersPost(requestParameters: DefaultApiLlmProvidersPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<LlmProvider>;
+
+    /**
+     * Delete an LLM provider (soft delete)
+     * @summary Delete an LLM provider
+     * @param {DefaultApiLlmProvidersProviderNameDeleteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    llmProvidersProviderNameDelete(requestParameters: DefaultApiLlmProvidersProviderNameDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
+
+    /**
+     * Get a specific LLM provider by name
+     * @summary Get a specific LLM provider
+     * @param {DefaultApiLlmProvidersProviderNameGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    llmProvidersProviderNameGet(requestParameters: DefaultApiLlmProvidersProviderNameGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<LlmProvider>;
+
+    /**
+     * Delete a specific model of a provider
+     * @summary Delete a provider model
+     * @param {DefaultApiLlmProvidersProviderNameModelsApiModelDeleteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    llmProvidersProviderNameModelsApiModelDelete(requestParameters: DefaultApiLlmProvidersProviderNameModelsApiModelDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
+
+    /**
+     * Update a specific model of a provider
+     * @summary Update a provider model
+     * @param {DefaultApiLlmProvidersProviderNameModelsApiModelPutRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    llmProvidersProviderNameModelsApiModelPut(requestParameters: DefaultApiLlmProvidersProviderNameModelsApiModelPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<LlmProviderModel>;
+
+    /**
+     * Get all models for a specific provider
+     * @summary Get models for a specific provider
+     * @param {DefaultApiLlmProvidersProviderNameModelsGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    llmProvidersProviderNameModelsGet(requestParameters: DefaultApiLlmProvidersProviderNameModelsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<LlmProviderModelList>;
+
+    /**
+     * Create a new model for a specific provider
+     * @summary Create a new model for a provider
+     * @param {DefaultApiLlmProvidersProviderNameModelsPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    llmProvidersProviderNameModelsPost(requestParameters: DefaultApiLlmProvidersProviderNameModelsPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<LlmProviderModel>;
+
+    /**
+     * Update an existing LLM provider
+     * @summary Update an LLM provider
+     * @param {DefaultApiLlmProvidersProviderNamePutRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    llmProvidersProviderNamePut(requestParameters: DefaultApiLlmProvidersProviderNamePutRequest, options?: RawAxiosRequestConfig): AxiosPromise<LlmProvider>;
 
     /**
      * Login a user with username and password
@@ -4141,6 +4926,181 @@ export interface DefaultApiInvitePostRequest {
 }
 
 /**
+ * Request parameters for llmProviderModelsGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiLlmProviderModelsGetRequest
+ */
+export interface DefaultApiLlmProviderModelsGetRequest {
+    /**
+     * Optional filter by provider name
+     * @type {string}
+     * @memberof DefaultApiLlmProviderModelsGet
+     */
+    readonly providerName?: string
+}
+
+/**
+ * Request parameters for llmProvidersPost operation in DefaultApi.
+ * @export
+ * @interface DefaultApiLlmProvidersPostRequest
+ */
+export interface DefaultApiLlmProvidersPostRequest {
+    /**
+     * 
+     * @type {LlmProviderCreate}
+     * @memberof DefaultApiLlmProvidersPost
+     */
+    readonly llmProviderCreate: LlmProviderCreate
+}
+
+/**
+ * Request parameters for llmProvidersProviderNameDelete operation in DefaultApi.
+ * @export
+ * @interface DefaultApiLlmProvidersProviderNameDeleteRequest
+ */
+export interface DefaultApiLlmProvidersProviderNameDeleteRequest {
+    /**
+     * Provider name
+     * @type {string}
+     * @memberof DefaultApiLlmProvidersProviderNameDelete
+     */
+    readonly providerName: string
+}
+
+/**
+ * Request parameters for llmProvidersProviderNameGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiLlmProvidersProviderNameGetRequest
+ */
+export interface DefaultApiLlmProvidersProviderNameGetRequest {
+    /**
+     * Provider name
+     * @type {string}
+     * @memberof DefaultApiLlmProvidersProviderNameGet
+     */
+    readonly providerName: string
+}
+
+/**
+ * Request parameters for llmProvidersProviderNameModelsApiModelDelete operation in DefaultApi.
+ * @export
+ * @interface DefaultApiLlmProvidersProviderNameModelsApiModelDeleteRequest
+ */
+export interface DefaultApiLlmProvidersProviderNameModelsApiModelDeleteRequest {
+    /**
+     * Provider name
+     * @type {string}
+     * @memberof DefaultApiLlmProvidersProviderNameModelsApiModelDelete
+     */
+    readonly providerName: string
+
+    /**
+     * API type
+     * @type {'completion' | 'embedding' | 'rerank'}
+     * @memberof DefaultApiLlmProvidersProviderNameModelsApiModelDelete
+     */
+    readonly api: LlmProvidersProviderNameModelsApiModelDeleteApiEnum
+
+    /**
+     * Model name
+     * @type {string}
+     * @memberof DefaultApiLlmProvidersProviderNameModelsApiModelDelete
+     */
+    readonly model: string
+}
+
+/**
+ * Request parameters for llmProvidersProviderNameModelsApiModelPut operation in DefaultApi.
+ * @export
+ * @interface DefaultApiLlmProvidersProviderNameModelsApiModelPutRequest
+ */
+export interface DefaultApiLlmProvidersProviderNameModelsApiModelPutRequest {
+    /**
+     * Provider name
+     * @type {string}
+     * @memberof DefaultApiLlmProvidersProviderNameModelsApiModelPut
+     */
+    readonly providerName: string
+
+    /**
+     * API type
+     * @type {'completion' | 'embedding' | 'rerank'}
+     * @memberof DefaultApiLlmProvidersProviderNameModelsApiModelPut
+     */
+    readonly api: LlmProvidersProviderNameModelsApiModelPutApiEnum
+
+    /**
+     * Model name
+     * @type {string}
+     * @memberof DefaultApiLlmProvidersProviderNameModelsApiModelPut
+     */
+    readonly model: string
+
+    /**
+     * 
+     * @type {LlmProviderModelUpdate}
+     * @memberof DefaultApiLlmProvidersProviderNameModelsApiModelPut
+     */
+    readonly llmProviderModelUpdate: LlmProviderModelUpdate
+}
+
+/**
+ * Request parameters for llmProvidersProviderNameModelsGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiLlmProvidersProviderNameModelsGetRequest
+ */
+export interface DefaultApiLlmProvidersProviderNameModelsGetRequest {
+    /**
+     * Provider name
+     * @type {string}
+     * @memberof DefaultApiLlmProvidersProviderNameModelsGet
+     */
+    readonly providerName: string
+}
+
+/**
+ * Request parameters for llmProvidersProviderNameModelsPost operation in DefaultApi.
+ * @export
+ * @interface DefaultApiLlmProvidersProviderNameModelsPostRequest
+ */
+export interface DefaultApiLlmProvidersProviderNameModelsPostRequest {
+    /**
+     * Provider name
+     * @type {string}
+     * @memberof DefaultApiLlmProvidersProviderNameModelsPost
+     */
+    readonly providerName: string
+
+    /**
+     * 
+     * @type {LlmProviderModelCreate}
+     * @memberof DefaultApiLlmProvidersProviderNameModelsPost
+     */
+    readonly llmProviderModelCreate: LlmProviderModelCreate
+}
+
+/**
+ * Request parameters for llmProvidersProviderNamePut operation in DefaultApi.
+ * @export
+ * @interface DefaultApiLlmProvidersProviderNamePutRequest
+ */
+export interface DefaultApiLlmProvidersProviderNamePutRequest {
+    /**
+     * Provider name
+     * @type {string}
+     * @memberof DefaultApiLlmProvidersProviderNamePut
+     */
+    readonly providerName: string
+
+    /**
+     * 
+     * @type {LlmProviderUpdate}
+     * @memberof DefaultApiLlmProvidersProviderNamePut
+     */
+    readonly llmProviderUpdate: LlmProviderUpdate
+}
+
+/**
  * Request parameters for loginPost operation in DefaultApi.
  * @export
  * @interface DefaultApiLoginPostRequest
@@ -4653,6 +5613,136 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
     }
 
     /**
+     * Get complete LLM configuration including providers and models
+     * @summary Get complete LLM configuration
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public llmConfigurationGet(options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).llmConfigurationGet(options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * List all LLM provider models, optionally filtered by provider
+     * @summary List all LLM provider models
+     * @param {DefaultApiLlmProviderModelsGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public llmProviderModelsGet(requestParameters: DefaultApiLlmProviderModelsGetRequest = {}, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).llmProviderModelsGet(requestParameters.providerName, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * List all LLM providers
+     * @summary List all LLM providers
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public llmProvidersGet(options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).llmProvidersGet(options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Create a new LLM provider
+     * @summary Create a new LLM provider
+     * @param {DefaultApiLlmProvidersPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public llmProvidersPost(requestParameters: DefaultApiLlmProvidersPostRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).llmProvidersPost(requestParameters.llmProviderCreate, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Delete an LLM provider (soft delete)
+     * @summary Delete an LLM provider
+     * @param {DefaultApiLlmProvidersProviderNameDeleteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public llmProvidersProviderNameDelete(requestParameters: DefaultApiLlmProvidersProviderNameDeleteRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).llmProvidersProviderNameDelete(requestParameters.providerName, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Get a specific LLM provider by name
+     * @summary Get a specific LLM provider
+     * @param {DefaultApiLlmProvidersProviderNameGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public llmProvidersProviderNameGet(requestParameters: DefaultApiLlmProvidersProviderNameGetRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).llmProvidersProviderNameGet(requestParameters.providerName, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Delete a specific model of a provider
+     * @summary Delete a provider model
+     * @param {DefaultApiLlmProvidersProviderNameModelsApiModelDeleteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public llmProvidersProviderNameModelsApiModelDelete(requestParameters: DefaultApiLlmProvidersProviderNameModelsApiModelDeleteRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).llmProvidersProviderNameModelsApiModelDelete(requestParameters.providerName, requestParameters.api, requestParameters.model, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Update a specific model of a provider
+     * @summary Update a provider model
+     * @param {DefaultApiLlmProvidersProviderNameModelsApiModelPutRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public llmProvidersProviderNameModelsApiModelPut(requestParameters: DefaultApiLlmProvidersProviderNameModelsApiModelPutRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).llmProvidersProviderNameModelsApiModelPut(requestParameters.providerName, requestParameters.api, requestParameters.model, requestParameters.llmProviderModelUpdate, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Get all models for a specific provider
+     * @summary Get models for a specific provider
+     * @param {DefaultApiLlmProvidersProviderNameModelsGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public llmProvidersProviderNameModelsGet(requestParameters: DefaultApiLlmProvidersProviderNameModelsGetRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).llmProvidersProviderNameModelsGet(requestParameters.providerName, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Create a new model for a specific provider
+     * @summary Create a new model for a provider
+     * @param {DefaultApiLlmProvidersProviderNameModelsPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public llmProvidersProviderNameModelsPost(requestParameters: DefaultApiLlmProvidersProviderNameModelsPostRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).llmProvidersProviderNameModelsPost(requestParameters.providerName, requestParameters.llmProviderModelCreate, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Update an existing LLM provider
+     * @summary Update an LLM provider
+     * @param {DefaultApiLlmProvidersProviderNamePutRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public llmProvidersProviderNamePut(requestParameters: DefaultApiLlmProvidersProviderNamePutRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).llmProvidersProviderNamePut(requestParameters.providerName, requestParameters.llmProviderUpdate, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Login a user with username and password
      * @summary Login a user
      * @param {DefaultApiLoginPostRequest} requestParameters Request parameters.
@@ -4779,3 +5869,21 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
     }
 }
 
+/**
+ * @export
+ */
+export const LlmProvidersProviderNameModelsApiModelDeleteApiEnum = {
+    completion: 'completion',
+    embedding: 'embedding',
+    rerank: 'rerank'
+} as const;
+export type LlmProvidersProviderNameModelsApiModelDeleteApiEnum = typeof LlmProvidersProviderNameModelsApiModelDeleteApiEnum[keyof typeof LlmProvidersProviderNameModelsApiModelDeleteApiEnum];
+/**
+ * @export
+ */
+export const LlmProvidersProviderNameModelsApiModelPutApiEnum = {
+    completion: 'completion',
+    embedding: 'embedding',
+    rerank: 'rerank'
+} as const;
+export type LlmProvidersProviderNameModelsApiModelPutApiEnum = typeof LlmProvidersProviderNameModelsApiModelPutApiEnum[keyof typeof LlmProvidersProviderNameModelsApiModelPutApiEnum];

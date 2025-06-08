@@ -251,6 +251,7 @@ nodes:
         values:
           model: bge-reranker
           model_service_provider: openai
+          custom_llm_provider: openai
           docs: "{{ nodes.merge_1a9c5d8e.output.docs }}"
       output:
         schema:

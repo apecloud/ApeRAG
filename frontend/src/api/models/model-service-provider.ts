@@ -31,25 +31,7 @@ export interface ModelServiceProvider {
      * @type {string}
      * @memberof ModelServiceProvider
      */
-    'dialect'?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof ModelServiceProvider
-     */
     'label'?: string;
-    /**
-     * 
-     * @type {boolean}
-     * @memberof ModelServiceProvider
-     */
-    'allow_custom_base_url'?: boolean;
-    /**
-     * 
-     * @type {string}
-     * @memberof ModelServiceProvider
-     */
-    'base_url'?: string;
     /**
      * 
      * @type {string}

@@ -8,6 +8,7 @@ import _ from 'lodash';
 import { useCallback, useEffect, useMemo } from 'react';
 import { useIntl, useModel } from 'umi';
 import { NodeInput } from './_node-input';
+import { NodeOutputs } from './_outputs';
 import { OutputParams } from './_outputs_params';
 import { getCollapsePanelStyle } from './_styles';
 
@@ -82,6 +83,12 @@ export const ApeNodeRerank = ({ node }: { node: ApeNode }) => {
                       _.set(values, 'model', name);
                       _.set(
                         values,
+                        'custom_llm_provider',
+                        getProviderByModelName(name, 'rerank').model
+                          ?.custom_llm_provider,
+                      );
+                      _.set(
+                        values,
                         'model_service_provider',
                         getProviderByModelName(name, 'rerank').provider?.name,
                       );
@@ -116,6 +123,7 @@ export const ApeNodeRerank = ({ node }: { node: ApeNode }) => {
             label: formatMessage({ id: 'flow.output.params' }),
             style: getCollapsePanelStyle(token),
             children: <OutputParams node={node} />,
+            extra: <NodeOutputs node={node} />,
           },
         ]}
       />

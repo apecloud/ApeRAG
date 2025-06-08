@@ -27,7 +27,7 @@ install_kubeblocks() {
     print_success "snapshot-controller installation complete!"
 
     # Install KubeBlocks CRDs
-    kubectl create -f https://github.com/apecloud/kubeblocks/releases/download/v${KB_VERSION}/kubeblocks_crds.yaml
+    kubectl create -f https://github.com/apecloud/kubeblocks/releases/download/${KB_VERSION}/kubeblocks_crds.yaml
 
     # Add and update KubeBlocks repository
     helm repo add kubeblocks $HELM_REPO

@@ -18,6 +18,7 @@ import tempfile
 import uuid
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from asgiref.sync import async_to_sync
 from celery import Task
@@ -34,7 +35,7 @@ from aperag.db.models import (
 from aperag.db.ops import db_ops
 from aperag.docparser.doc_parser import DocParser
 from aperag.embed.base_embedding import get_collection_embedding_service_sync
-from aperag.embed.local_path_embedding import LocalPathEmbedding
+from aperag.embed.embedding_utils import create_embeddings_and_store
 from aperag.graph import lightrag_holder
 from aperag.objectstore.base import get_object_store
 from aperag.schema.utils import parseCollectionConfig
@@ -110,32 +111,111 @@ class CustomDeleteDocumentTask(Task):
         db_ops.update_document(document)
 
 
-# Utility functions: Extract repeated code without changing main flow
-def create_local_path_embedding_loader(local_doc, document_id, collection_id, user_id, embedding_model, vector_size):
-    """Create LocalPathEmbedding instance - extracted from repeated code"""
-    # Generate object store base path directly without using document object
-    user_safe = user_id.replace("|", "-")
-    object_store_base_path = f"user-{user_safe}/{collection_id}/{document_id}"
-
-    return LocalPathEmbedding(
-        filepath=local_doc.path,
-        file_metadata=local_doc.metadata,
-        object_store_base_path=object_store_base_path,
-        embedding_model=embedding_model,
-        vector_size=vector_size,
-        vector_store_adaptor=get_vector_db_connector(
-            collection=generate_vector_db_collection_name(collection_id=collection_id)
-        ),
-        chunk_size=settings.chunk_size,
-        chunk_overlap=settings.chunk_overlap_size,
-        tokenizer=get_default_tokenizer(),
-    )
-
-
 def get_collection_config_settings(collection):
     """Extract collection configuration settings - extracted from repeated code"""
     config = parseCollectionConfig(collection.config)
     return config, config.enable_knowledge_graph or False
+
+
+def parse_document(filepath: str, file_metadata: dict[str, Any]) -> list:
+    """
+    Parse document into parts using DocParser.
+
+    Args:
+        filepath: Path to the document file
+        file_metadata: Metadata associated with the document
+
+    Returns:
+        list[Part]: List of document parts (MarkdownPart, AssetBinPart, etc.)
+
+    Raises:
+        ValueError: If the file type is unsupported
+    """
+
+    parser = DocParser()  # TODO: use the parser config from the collection
+    filepath_obj = Path(filepath)
+
+    if not parser.accept(filepath_obj.suffix):
+        raise ValueError(f"unsupported file type: {filepath_obj.suffix}")
+
+    parts = parser.parse_file(filepath_obj, file_metadata)
+    logger.info(f"Parsed document {filepath} into {len(parts)} parts")
+    return parts
+
+
+def save_processed_content_and_assets(doc_parts: list, object_store_base_path: str | None) -> str:
+    """
+    Save processed content and assets to object storage.
+
+    Args:
+        doc_parts: List of document parts from DocParser
+        object_store_base_path: Base path for object storage, if None, skip saving
+
+    Returns:
+        str: Full markdown content of the document
+
+    Raises:
+        Exception: If object storage operations fail
+    """
+    from aperag.docparser.base import AssetBinPart, MarkdownPart
+
+    content = ""
+
+    # Extract full markdown content if available
+    md_part = next((part for part in doc_parts if isinstance(part, MarkdownPart)), None)
+    if md_part is not None:
+        content = md_part.markdown
+
+    # Save to object storage if base path is provided
+    if object_store_base_path is not None:
+        base_path = object_store_base_path
+        obj_store = get_object_store()
+
+        # Save markdown content
+        md_upload_path = f"{base_path}/parsed.md"
+        md_data = content.encode("utf-8")
+        obj_store.put(md_upload_path, md_data)
+        logger.info(f"uploaded markdown content to {md_upload_path}, size: {len(md_data)}")
+
+        # Save assets
+        asset_count = 0
+        for part in doc_parts:
+            if not isinstance(part, AssetBinPart):
+                continue
+            asset_upload_path = f"{base_path}/assets/{part.asset_id}"
+            obj_store.put(asset_upload_path, part.data)
+            asset_count += 1
+            logger.info(f"uploaded asset to {asset_upload_path}, size: {len(part.data)}")
+
+        logger.info(f"Saved {asset_count} assets to object storage")
+
+    return content
+
+
+def extract_content_from_parts(doc_parts: list) -> str:
+    """
+    Extract content from document parts when no MarkdownPart is available.
+
+    Args:
+        doc_parts: List of document parts
+
+    Returns:
+        str: Concatenated content from all text parts
+    """
+    from aperag.docparser.base import MarkdownPart
+
+    # Check if MarkdownPart exists
+    md_part = next((part for part in doc_parts if isinstance(part, MarkdownPart)), None)
+    if md_part is not None:
+        return md_part.markdown
+
+    # If no MarkdownPart, concatenate content from other parts
+    content_parts = []
+    for part in doc_parts:
+        if hasattr(part, "content") and part.content:
+            content_parts.append(part.content)
+
+    return "\n\n".join(content_parts)
 
 
 def uncompress_file(document: Document, supported_file_extensions: list[str]):
@@ -221,7 +301,7 @@ def add_index_for_document(self, document_id):
     Raises:
         Exception: Various document processing exceptions (permissions, etc.)
     """
-    # Get initial document and collection info using db_ops
+    # 1. Retrieve Document and Collection object and set initial status to RUNNING
     document = db_ops.query_document_by_id(document_id)
     if not document:
         raise Exception(f"Document {document_id} not found")
@@ -230,14 +310,13 @@ def add_index_for_document(self, document_id):
     if not collection:
         raise Exception(f"Collection {document.collection_id} not found")
 
-    # Set all index statuses to running
     document.vector_index_status = DocumentIndexStatus.RUNNING
     document.fulltext_index_status = DocumentIndexStatus.RUNNING
     document.graph_index_status = DocumentIndexStatus.RUNNING
     document.status = DocumentStatus.RUNNING
     db_ops.update_document(document)
 
-    # Get document metadata while we have the session
+    # 2. Load document metadata
     source = None
     local_doc = None
     metadata = json.loads(document.doc_metadata or "{}")
@@ -246,15 +325,16 @@ def add_index_for_document(self, document_id):
     supported_file_extensions += SUPPORTED_COMPRESSED_EXTENSIONS
 
     try:
+        # 3. Check if the file is compressed
         if document.object_path and Path(document.object_path).suffix in SUPPORTED_COMPRESSED_EXTENSIONS:
             config = parseCollectionConfig(collection.config)
             if config.source != "system":
                 return
-            # Need to get document again for uncompress_file since it might update it
-            document = db_ops.query_document_by_id(document_id)
+            # 3.1 If compressed, uncompress and trigger index tasks for extracted files, then return
             uncompress_file(document, supported_file_extensions)
             return
         else:
+            # 4. If not compressed, prepare the document using the configured source
             source = get_source(parseCollectionConfig(collection.config))
             local_doc = source.prepare_document(name=document.name, metadata=metadata)
 
@@ -265,15 +345,31 @@ def add_index_for_document(self, document_id):
 
             config, enable_knowledge_graph = get_collection_config_settings(collection)
 
-            # Process vector index
+            # 5. Process vector index
             try:
+                # 5.1 Parse document into parts
+                doc_parts = parse_document(local_doc.path, local_doc.metadata)
+
+                # 5.2 Save processed content and assets to object storage
+                content = save_processed_content_and_assets(doc_parts, document.object_store_base_path())
+
+                # 5.3 Get embedding model and create embeddings
                 embedding_model, vector_size = get_collection_embedding_service_sync(collection)
-                loader = create_local_path_embedding_loader(
-                    local_doc, document_id, collection.id, document.user, embedding_model, vector_size
+                vector_store_adaptor = get_vector_db_connector(
+                    collection=generate_vector_db_collection_name(collection_id=collection.id)
                 )
 
-                ctx_ids, content = loader.load_data()
+                # 5.4 Generate embeddings and store in vector database
+                ctx_ids = create_embeddings_and_store(
+                    parts=doc_parts,
+                    vector_store_adaptor=vector_store_adaptor,
+                    embedding_model=embedding_model,
+                    chunk_size=settings.chunk_size,
+                    chunk_overlap=settings.chunk_overlap_size,
+                    tokenizer=get_default_tokenizer(),
+                )
 
+                # 5.5 Update document with related IDs and set status. Handle errors.
                 relate_ids = {
                     "ctx": ctx_ids,
                 }
@@ -286,8 +382,9 @@ def add_index_for_document(self, document_id):
                 logger.error(f"Vector index failed for document {local_doc.path}: {str(e)}")
                 raise e
 
-            # Process fulltext index
+            # 6. Process fulltext index
             try:
+                # 6.1 Check if vector data exists, insert into fulltext index and set status. Handle errors.
                 if ctx_ids:  # Only create fulltext index when vector data exists
                     index = generate_fulltext_index_name(collection.id)
                     insert_document(index, document_id, local_doc.name, content)
@@ -300,8 +397,9 @@ def add_index_for_document(self, document_id):
                 document.fulltext_index_status = DocumentIndexStatus.FAILED
                 logger.error(f"Fulltext index failed for document {local_doc.path}: {str(e)}")
 
-            # Process knowledge graph index
+            # 7. Process knowledge graph index
             try:
+                # 7.1 Check if knowledge graph is enabled, schedule LightRAG indexing task and set status. Handle errors.
                 if enable_knowledge_graph:
                     # Start asynchronous LightRAG indexing task
                     add_lightrag_index_task.delay(content, document_id, local_doc.path)
@@ -321,9 +419,11 @@ def add_index_for_document(self, document_id):
     except Exception as e:
         raise Exception(f"Error indexing document {document.name}: {str(e)}")
     finally:
-        # Update overall status
+        # 8. Update overall status and save document
         document.update_overall_status()
         db_ops.update_document(document)
+
+        # 9. Cleanup local document file
         if local_doc and source:
             source.cleanup_document(local_doc.path)
 
@@ -417,14 +517,30 @@ def update_index_for_document(self, document_id):
         metadata["doc_id"] = document_id
         local_doc = source.prepare_document(name=document.name, metadata=metadata)
 
+        # Parse document into parts and save assets
+        doc_parts = parse_document(local_doc.path, local_doc.metadata)
+        content = save_processed_content_and_assets(doc_parts, document.object_store_base_path())
+
+        # Get embedding model and vector store adaptor
         embedding_model, vector_size = get_collection_embedding_service_sync(collection)
-        loader = create_local_path_embedding_loader(
-            local_doc, document_id, collection.id, document.user, embedding_model, vector_size
+        vector_store_adaptor = get_vector_db_connector(
+            collection=generate_vector_db_collection_name(collection_id=collection.id)
         )
-        loader.connector.delete(ids=relate_ids.get("ctx", []))
+
+        # Delete old vectors
+        vector_store_adaptor.connector.delete(ids=relate_ids.get("ctx", []))
 
         config, enable_knowledge_graph = get_collection_config_settings(collection)
-        ctx_ids, content = loader.load_data()
+
+        # Generate embeddings and store in vector database
+        ctx_ids = create_embeddings_and_store(
+            parts=doc_parts,
+            vector_store_adaptor=vector_store_adaptor,
+            embedding_model=embedding_model,
+            chunk_size=settings.chunk_size,
+            chunk_overlap=settings.chunk_overlap_size,
+            tokenizer=get_default_tokenizer(),
+        )
         logger.info(f"add ctx qdrant points: {ctx_ids} for document {local_doc.path}")
 
         # only index the document that have points in the vector database

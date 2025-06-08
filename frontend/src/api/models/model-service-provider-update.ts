@@ -32,17 +32,5 @@ export interface ModelServiceProviderUpdate {
      * @memberof ModelServiceProviderUpdate
      */
     'api_key'?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof ModelServiceProviderUpdate
-     */
-    'base_url'?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof ModelServiceProviderUpdate
-     */
-    'extra'?: string;
 }
 

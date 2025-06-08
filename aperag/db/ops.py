@@ -35,6 +35,8 @@ from aperag.db.models import (
     Document,
     DocumentStatus,
     Invitation,
+    LLMProvider,
+    LLMProviderModel,
     MessageFeedback,
     ModelServiceProvider,
     ModelServiceProviderStatus,
@@ -107,6 +109,22 @@ class DatabaseOps:
         session.commit()
         session.refresh(collection)
         return collection
+
+    def query_msp_dict(self, user: str):
+        def _query(session):
+            stmt = select(ModelServiceProvider).where(ModelServiceProvider.user == user)
+            result = session.execute(stmt)
+            return {msp.name: msp for msp in result.scalars().all()}
+
+        return self._execute_query(_query)
+
+    def query_llm_provider_by_name(self, name: str):
+        def _query(session):
+            stmt = select(LLMProvider).where(LLMProvider.name == name)
+            result = session.execute(stmt)
+            return result.scalars().first()
+
+        return self._execute_query(_query)
 
 
 class AsyncDatabaseOps:
@@ -536,6 +554,25 @@ class AsyncDatabaseOps:
             return result.scalars().first()
 
         return await self._execute_query(_query)
+
+    async def update_msp(self, msp: ModelServiceProvider):
+        async def _operation(session):
+            session.add(msp)
+            await session.flush()
+            await session.refresh(msp)
+            return msp
+
+        return await self.execute_with_transaction(_operation)
+
+    async def delete_msp(self, msp: ModelServiceProvider):
+        async def _operation(session):
+            msp.status = ModelServiceProviderStatus.DELETED
+            msp.gmt_deleted = datetime.utcnow()
+            session.add(msp)
+            await session.flush()
+            return msp
+
+        return await self.execute_with_transaction(_operation)
 
     async def query_user_by_username(self, username: str):
         async def _query(session):
@@ -1174,6 +1211,310 @@ class AsyncDatabaseOps:
 
         return await self.execute_with_transaction(_operation)
 
+    # LLM Provider Operations
+    async def query_llm_providers(self):
+        """Get all active LLM providers"""
+
+        async def _query(session):
+            stmt = select(LLMProvider).where(LLMProvider.gmt_deleted.is_(None))
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+        return await self._execute_query(_query)
+
+    async def query_llm_provider_by_name(self, name: str):
+        """Get LLM provider by name"""
+
+        async def _query(session):
+            stmt = select(LLMProvider).where(LLMProvider.name == name, LLMProvider.gmt_deleted.is_(None))
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
+
+    async def create_llm_provider(
+        self,
+        name: str,
+        label: str,
+        completion_dialect: str = "openai",
+        embedding_dialect: str = "openai",
+        rerank_dialect: str = "jina_ai",
+        allow_custom_base_url: bool = False,
+        base_url: str = "",
+        extra: str = None,
+    ) -> LLMProvider:
+        """Create a new LLM provider"""
+
+        async def _operation(session):
+            provider = LLMProvider(
+                name=name,
+                label=label,
+                completion_dialect=completion_dialect,
+                embedding_dialect=embedding_dialect,
+                rerank_dialect=rerank_dialect,
+                allow_custom_base_url=allow_custom_base_url,
+                base_url=base_url,
+                extra=extra,
+            )
+            session.add(provider)
+            await session.flush()
+            await session.refresh(provider)
+            return provider
+
+        return await self.execute_with_transaction(_operation)
+
+    async def update_llm_provider(
+        self,
+        name: str,
+        label: str = None,
+        completion_dialect: str = None,
+        embedding_dialect: str = None,
+        rerank_dialect: str = None,
+        allow_custom_base_url: bool = None,
+        base_url: str = None,
+        extra: str = None,
+    ) -> Optional[LLMProvider]:
+        """Update an existing LLM provider"""
+
+        async def _operation(session):
+            stmt = select(LLMProvider).where(LLMProvider.name == name, LLMProvider.gmt_deleted.is_(None))
+            result = await session.execute(stmt)
+            provider = result.scalars().first()
+
+            if provider:
+                if label is not None:
+                    provider.label = label
+                if completion_dialect is not None:
+                    provider.completion_dialect = completion_dialect
+                if embedding_dialect is not None:
+                    provider.embedding_dialect = embedding_dialect
+                if rerank_dialect is not None:
+                    provider.rerank_dialect = rerank_dialect
+                if allow_custom_base_url is not None:
+                    provider.allow_custom_base_url = allow_custom_base_url
+                if base_url is not None:
+                    provider.base_url = base_url
+                if extra is not None:
+                    provider.extra = extra
+
+                provider.gmt_updated = datetime.utcnow()
+                session.add(provider)
+                await session.flush()
+                await session.refresh(provider)
+
+            return provider
+
+        return await self.execute_with_transaction(_operation)
+
+    async def delete_llm_provider(self, name: str) -> Optional[LLMProvider]:
+        """Soft delete LLM provider and its models"""
+
+        async def _operation(session):
+            stmt = select(LLMProvider).where(LLMProvider.name == name, LLMProvider.gmt_deleted.is_(None))
+            result = await session.execute(stmt)
+            provider = result.scalars().first()
+
+            if provider:
+                # Soft delete the provider
+                provider.gmt_deleted = datetime.utcnow()
+                provider.gmt_updated = datetime.utcnow()
+                session.add(provider)
+
+                # Also soft delete all models for this provider
+                models_stmt = select(LLMProviderModel).where(
+                    LLMProviderModel.provider_name == name, LLMProviderModel.gmt_deleted.is_(None)
+                )
+                models_result = await session.execute(models_stmt)
+                models = models_result.scalars().all()
+                for model in models:
+                    model.gmt_deleted = datetime.utcnow()
+                    model.gmt_updated = datetime.utcnow()
+                    session.add(model)
+
+                await session.flush()
+                await session.refresh(provider)
+
+            return provider
+
+        return await self.execute_with_transaction(_operation)
+
+    async def restore_llm_provider(self, name: str) -> Optional[LLMProvider]:
+        """Restore a soft-deleted LLM provider"""
+
+        async def _operation(session):
+            stmt = select(LLMProvider).where(LLMProvider.name == name, LLMProvider.gmt_deleted.is_not(None))
+            result = await session.execute(stmt)
+            provider = result.scalars().first()
+
+            if provider:
+                provider.gmt_deleted = None
+                provider.gmt_updated = datetime.utcnow()
+                session.add(provider)
+
+                # Also restore all models for this provider
+                models_stmt = select(LLMProviderModel).where(
+                    LLMProviderModel.provider_name == name, LLMProviderModel.gmt_deleted.is_not(None)
+                )
+                models_result = await session.execute(models_stmt)
+                models = models_result.scalars().all()
+                for model in models:
+                    model.gmt_deleted = None
+                    model.gmt_updated = datetime.utcnow()
+                    session.add(model)
+
+                await session.flush()
+                await session.refresh(provider)
+
+            return provider
+
+        return await self.execute_with_transaction(_operation)
+
+    # LLM Provider Model Operations
+    async def query_llm_provider_models(self, provider_name: str = None):
+        """Get all active LLM provider models, optionally filtered by provider"""
+
+        async def _query(session):
+            stmt = select(LLMProviderModel).where(LLMProviderModel.gmt_deleted.is_(None))
+            if provider_name:
+                stmt = stmt.where(LLMProviderModel.provider_name == provider_name)
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+        return await self._execute_query(_query)
+
+    async def query_llm_provider_model(self, provider_name: str, api: str, model: str):
+        """Get a specific LLM provider model"""
+
+        async def _query(session):
+            stmt = select(LLMProviderModel).where(
+                LLMProviderModel.provider_name == provider_name,
+                LLMProviderModel.api == api,
+                LLMProviderModel.model == model,
+                LLMProviderModel.gmt_deleted.is_(None),
+            )
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
+
+    async def create_llm_provider_model(
+        self,
+        provider_name: str,
+        api: str,
+        model: str,
+        custom_llm_provider: str,
+        max_tokens: int = None,
+        tags: list = None,
+    ) -> LLMProviderModel:
+        """Create a new LLM provider model"""
+
+        async def _operation(session):
+            from aperag.db.models import APIType
+
+            # Convert enum to string if needed
+            api_value = api.value if isinstance(api, APIType) else api
+
+            model_obj = LLMProviderModel(
+                provider_name=provider_name,
+                api=api_value,
+                model=model,
+                custom_llm_provider=custom_llm_provider,
+                max_tokens=max_tokens,
+                tags=tags or [],
+            )
+            session.add(model_obj)
+            await session.flush()
+            await session.refresh(model_obj)
+            return model_obj
+
+        return await self.execute_with_transaction(_operation)
+
+    async def update_llm_provider_model(
+        self,
+        provider_name: str,
+        api: str,
+        model: str,
+        custom_llm_provider: str = None,
+        max_tokens: int = None,
+        tags: list = None,
+    ) -> Optional[LLMProviderModel]:
+        """Update an existing LLM provider model"""
+
+        async def _operation(session):
+            stmt = select(LLMProviderModel).where(
+                LLMProviderModel.provider_name == provider_name,
+                LLMProviderModel.api == api,
+                LLMProviderModel.model == model,
+                LLMProviderModel.gmt_deleted.is_(None),
+            )
+            result = await session.execute(stmt)
+            model_obj = result.scalars().first()
+
+            if model_obj:
+                if custom_llm_provider is not None:
+                    model_obj.custom_llm_provider = custom_llm_provider
+                if max_tokens is not None:
+                    model_obj.max_tokens = max_tokens
+                if tags is not None:
+                    model_obj.tags = tags
+
+                model_obj.gmt_updated = datetime.utcnow()
+                session.add(model_obj)
+                await session.flush()
+                await session.refresh(model_obj)
+
+            return model_obj
+
+        return await self.execute_with_transaction(_operation)
+
+    async def delete_llm_provider_model(self, provider_name: str, api: str, model: str) -> Optional[LLMProviderModel]:
+        """Soft delete LLM provider model"""
+
+        async def _operation(session):
+            stmt = select(LLMProviderModel).where(
+                LLMProviderModel.provider_name == provider_name,
+                LLMProviderModel.api == api,
+                LLMProviderModel.model == model,
+                LLMProviderModel.gmt_deleted.is_(None),
+            )
+            result = await session.execute(stmt)
+            model_obj = result.scalars().first()
+
+            if model_obj:
+                model_obj.gmt_deleted = datetime.utcnow()
+                model_obj.gmt_updated = datetime.utcnow()
+                session.add(model_obj)
+                await session.flush()
+                await session.refresh(model_obj)
+
+            return model_obj
+
+        return await self.execute_with_transaction(_operation)
+
+    async def restore_llm_provider_model(self, provider_name: str, api: str, model: str) -> Optional[LLMProviderModel]:
+        """Restore a soft-deleted LLM provider model"""
+
+        async def _operation(session):
+            stmt = select(LLMProviderModel).where(
+                LLMProviderModel.provider_name == provider_name,
+                LLMProviderModel.api == api,
+                LLMProviderModel.model == model,
+                LLMProviderModel.gmt_deleted.is_not(None),
+            )
+            result = await session.execute(stmt)
+            model_obj = result.scalars().first()
+
+            if model_obj:
+                model_obj.gmt_deleted = None
+                model_obj.gmt_updated = datetime.utcnow()
+                session.add(model_obj)
+                await session.flush()
+                await session.refresh(model_obj)
+
+            return model_obj
+
+        return await self.execute_with_transaction(_operation)
+
 
 # Create a global instance for backwards compatibility and easy access
 # This can be used in places where session dependency injection is not available
@@ -1181,9 +1522,9 @@ async_db_ops = AsyncDatabaseOps()
 db_ops = DatabaseOps()
 
 
-async def query_msp_dict(session, user: str):
+async def query_msp_dict(user: str):
     """Deprecated: Use DatabaseOps instance instead"""
-    return await AsyncDatabaseOps(session).query_msp_dict(user)
+    return await async_db_ops.query_msp_dict(user)
 
 
 async def query_collection(session, user: str, collection_id: str):

@@ -252,17 +252,7 @@ LOGGING = {
     },
 }
 
-json_path = os.path.join(BASE_DIR, 'model_configs.json')
-with open(json_path, 'r', encoding='utf-8') as f:
-    MODEL_CONFIGS = json.load(f)
-
 EMBEDDING_MAX_CHUNKS_IN_BATCH = env.int("EMBEDDING_MAX_CHUNKS_IN_BATCH", default=16)
-
-
-RERANK_BACKEND = env.str("RERANK_BACKEND", default="local")
-RERANK_SERVICE_URL = env.str("RERANK_SERVICE_URL", default="http://localhost:9997")
-RERANK_SERVICE_MODEL = env.str("RERANK_SERVICE_MODEL",  default="")
-RERANK_SERVICE_TOKEN_API_KEY = env.str("RERANK_SERVICE_TOKEN_API_KEY", default="")
 
 # Memory backend
 MEMORY_REDIS_URL = env.str("MEMORY_REDIS_URL", default="redis://127.0.0.1:6379/1")

@@ -14,6 +14,7 @@
 
 import asyncio
 import logging
+import os
 from datetime import datetime
 from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional, Tuple
 
@@ -211,8 +212,16 @@ async def create_lightrag_llm_func(collection: Collection, msp_dict: Dict[str, A
         )
 
     msp = msp_dict[lightrag_msp]
-    base_url = msp.base_url
     api_key = msp.api_key
+
+    # Get base_url from LLMProvider
+    try:
+        from aperag.db.models import LLMProvider
+
+        llm_provider = await LLMProvider.objects.aget(name=lightrag_msp)
+        base_url = llm_provider.base_url
+    except LLMProvider.DoesNotExist:
+        raise LightRAGInitializationError(f"LLMProvider '{lightrag_msp}' not found")
 
     logger.info(f"Using base URL: {base_url}")
 
@@ -314,8 +323,28 @@ async def create_and_initialize_lightrag(
     logger.info(f"Creating and initializing LightRAG object for namespace: '{namespace_prefix}'")
 
     try:
+        LIGHTRAG_KV_STORAGE = os.environ.get("LIGHTRAG_KV_STORAGE", "JsonKVStorage")
+        LIGHTRAG_VECTOR_STORAGE = os.environ.get("LIGHTRAG_VECTOR_STORAGE", "NanoVectorDBStorage")
+        LIGHTRAG_GRAPH_STORAGE = os.environ.get("LIGHTRAG_GRAPH_STORAGE", "NetworkXStorage")
+        LIGHTRAG_DOC_STATUS_STORAGE = os.environ.get("LIGHTRAG_DOC_STATUS_STORAGE", "JsonDocStatusStorage")
+
+        await checkAndConfigureNeo4jStorage(LIGHTRAG_GRAPH_STORAGE)
+
+        await checkAndConfigurePostgresqlStorage(
+            LIGHTRAG_DOC_STATUS_STORAGE, LIGHTRAG_GRAPH_STORAGE, LIGHTRAG_KV_STORAGE, LIGHTRAG_VECTOR_STORAGE
+        )
+
+        using_local_storage = any(
+            [
+                LIGHTRAG_KV_STORAGE == "JsonKVStorage",
+                LIGHTRAG_VECTOR_STORAGE == "NanoVectorDBStorage",
+                LIGHTRAG_GRAPH_STORAGE == "NetworkXStorage",
+                LIGHTRAG_DOC_STATUS_STORAGE == "JsonDocStatusStorage",
+            ]
+        )
+
         rag = LightRAG(
-            namespace_prefix=namespace_prefix,
+            namespace_prefix=namespace_prefix if using_local_storage else "",
             working_dir=LightRAGConfig.WORKING_DIR,
             chunk_token_size=LightRAGConfig.CHUNK_TOKEN_SIZE,
             chunk_overlap_token_size=LightRAGConfig.CHUNK_OVERLAP_TOKEN_SIZE,
@@ -333,6 +362,10 @@ async def create_and_initialize_lightrag(
             addon_params={
                 "language": LightRAGConfig.DEFAULT_LANGUAGE,
             },
+            kv_storage=LIGHTRAG_KV_STORAGE,
+            vector_storage=LIGHTRAG_VECTOR_STORAGE,
+            graph_storage=LIGHTRAG_GRAPH_STORAGE,
+            doc_status_storage=LIGHTRAG_DOC_STATUS_STORAGE,
         )
 
         await rag.initialize_storages()
@@ -344,6 +377,104 @@ async def create_and_initialize_lightrag(
     except Exception as e:
         logger.error(f"Failed to create and initialize LightRAG for namespace '{namespace_prefix}': {str(e)}")
         raise LightRAGInitializationError(f"LightRAG initialization failed: {str(e)}") from e
+
+
+async def checkAndConfigurePostgresqlStorage(
+    LIGHTRAG_DOC_STATUS_STORAGE, LIGHTRAG_GRAPH_STORAGE, LIGHTRAG_KV_STORAGE, LIGHTRAG_VECTOR_STORAGE
+):
+    # Check and configure PostgreSQL storage if used
+    using_pg_storage = any(
+        [
+            LIGHTRAG_KV_STORAGE == "PGKVStorage",
+            LIGHTRAG_VECTOR_STORAGE == "PGVectorStorage",
+            LIGHTRAG_GRAPH_STORAGE == "PGGraphStorage",
+            LIGHTRAG_DOC_STATUS_STORAGE == "PGDocStatusStorage",
+        ]
+    )
+    if using_pg_storage:
+        logger.info("LightRAG is configured to use PostgreSQL storage, checking environment variables...")
+
+        POSTGRES_HOST = os.environ.get("POSTGRES_HOST")
+        POSTGRES_PORT = os.environ.get("POSTGRES_PORT", "5432")
+        POSTGRES_USER = os.environ.get("POSTGRES_USER")
+        POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD")
+        POSTGRES_DATABASE = os.environ.get("POSTGRES_DB")
+        POSTGRES_WORKSPACE = os.environ.get("POSTGRES_WORKSPACE", "default")
+
+        # Validate required PostgreSQL environment variables
+        missing_pg_vars = []
+        if not POSTGRES_HOST:
+            missing_pg_vars.append("POSTGRES_HOST")
+        if not POSTGRES_USER:
+            missing_pg_vars.append("POSTGRES_USER")
+        if not POSTGRES_PASSWORD:
+            missing_pg_vars.append("POSTGRES_PASSWORD")
+        if not POSTGRES_DATABASE:
+            missing_pg_vars.append("POSTGRES_DB")
+
+        if missing_pg_vars:
+            raise LightRAGInitializationError(
+                f"PostgreSQL storage requires the following environment variables: {', '.join(missing_pg_vars)}"
+            )
+
+        # Set PostgreSQL environment variables for LightRAG
+        os.environ["POSTGRES_HOST"] = POSTGRES_HOST
+        os.environ["POSTGRES_PORT"] = POSTGRES_PORT
+        os.environ["POSTGRES_USER"] = POSTGRES_USER
+        os.environ["POSTGRES_PASSWORD"] = POSTGRES_PASSWORD
+        os.environ["POSTGRES_DATABASE"] = POSTGRES_DATABASE
+        os.environ["POSTGRES_WORKSPACE"] = POSTGRES_WORKSPACE
+
+        # Log which storage types are using PostgreSQL
+        pg_storage_in_use = []
+        if LIGHTRAG_KV_STORAGE == "PGKVStorage":
+            pg_storage_in_use.append("KV")
+        if LIGHTRAG_VECTOR_STORAGE == "PGVectorStorage":
+            pg_storage_in_use.append("Vector")
+        if LIGHTRAG_GRAPH_STORAGE == "PGGraphStorage":
+            pg_storage_in_use.append("Graph")
+        if LIGHTRAG_DOC_STATUS_STORAGE == "PGDocStatusStorage":
+            pg_storage_in_use.append("DocStatus")
+
+        logger.info(
+            f"PostgreSQL configuration: Host={POSTGRES_HOST}:{POSTGRES_PORT}, "
+            f"Database={POSTGRES_DATABASE}, User={POSTGRES_USER}, "
+            f"Workspace={POSTGRES_WORKSPACE}, Storage types: {', '.join(pg_storage_in_use)}"
+        )
+
+
+async def checkAndConfigureNeo4jStorage(LIGHTRAG_GRAPH_STORAGE):
+    # Check and configure Neo4J storage if used
+    if LIGHTRAG_GRAPH_STORAGE == "Neo4JStorage":
+        logger.info("LightRAG is configured to use Neo4J as graph storage, checking environment variables...")
+
+        NEO4J_HOST = os.environ.get("NEO4J_HOST")
+        NEO4J_PORT = os.environ.get("NEO4J_PORT", "7687")
+        NEO4J_USERNAME = os.environ.get("NEO4J_USERNAME")
+        NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD")
+
+        # Validate required Neo4J environment variables
+        missing_neo4j_vars = []
+        if not NEO4J_HOST:
+            missing_neo4j_vars.append("NEO4J_HOST")
+        if not NEO4J_USERNAME:
+            missing_neo4j_vars.append("NEO4J_USERNAME")
+        if not NEO4J_PASSWORD:
+            missing_neo4j_vars.append("NEO4J_PASSWORD")
+
+        if missing_neo4j_vars:
+            raise LightRAGInitializationError(
+                f"Neo4J storage requires the following environment variables: {', '.join(missing_neo4j_vars)}"
+            )
+
+        NEO4J_URI = f"neo4j://{NEO4J_HOST}:{NEO4J_PORT}"
+
+        # Set Neo4J environment variables for LightRAG
+        os.environ["NEO4J_URI"] = NEO4J_URI
+        os.environ["NEO4J_USERNAME"] = NEO4J_USERNAME
+        os.environ["NEO4J_PASSWORD"] = NEO4J_PASSWORD
+
+        logger.info(f"Neo4J configuration: URI={NEO4J_URI}, Username={NEO4J_USERNAME}")
 
 
 # Module-level cache management

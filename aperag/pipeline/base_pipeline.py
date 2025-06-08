@@ -79,8 +79,17 @@ class Pipeline(ABC):
         msp_dict = await query_msp_dict(self.bot.user)
         if self.model_service_provider in msp_dict:
             msp = msp_dict[self.model_service_provider]
-            base_url = msp.base_url
             api_key = msp.api_key
+
+            # Get base_url from LLMProvider
+            try:
+                from aperag.db.models import LLMProvider
+
+                llm_provider = await LLMProvider.objects.aget(name=self.model_service_provider)
+                base_url = llm_provider.base_url
+            except LLMProvider.DoesNotExist:
+                raise Exception(f"LLMProvider '{self.model_service_provider}' not found")
+
             self.predictor = Predictor.get_completion_service(
                 self.model_service_provider, self.model_name, base_url, api_key, **self.llm_config
             )

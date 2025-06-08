@@ -38,7 +38,7 @@ jobs:
           echo $TRIGGER_MODE
           echo trigger_mode=$TRIGGER_MODE >> $GITHUB_OUTPUT
 
-  make-test:
+  unit-test:
     needs: trigger-mode
     runs-on: ubuntu-latest
     if: contains(needs.trigger-mode.outputs.trigger-mode, '[test]')
@@ -61,10 +61,11 @@ jobs:
           pip install ruff
           make lint
 
-      - name: make test
+      - name: unit test
         run: |
-          pip install pytest
-          make test
+          make install
+          uv pip install pytest
+          make unit-test
 
   check-image:
     name: check image

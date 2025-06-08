@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, WebSocket
 from fastapi_users import BaseUserManager, FastAPIUsers
 from fastapi_users.authentication import AuthenticationBackend, CookieTransport, JWTStrategy
 from fastapi_users.db import SQLAlchemyUserDatabase
@@ -26,6 +27,8 @@ from aperag.db.models import ApiKey, ApiKeyStatus, Invitation, Role, User
 from aperag.db.ops import delete_user as db_delete_user
 from aperag.db.ops import query_admin_count, query_first_user_exists
 from aperag.schema import view_models
+
+logger = logging.getLogger(__name__)
 
 # --- fastapi-users Implementation ---
 
@@ -78,6 +81,78 @@ fastapi_users = FastAPIUsers[User, str](
     get_user_manager,
     [cookie_backend],
 )
+
+
+async def authenticate_websocket_user(websocket: WebSocket, user_manager: UserManager) -> Optional[str]:
+    """Authenticate WebSocket connection using session cookie
+
+    Returns:
+        str: User ID if authenticated, None otherwise
+    """
+    try:
+        # Extract cookies from WebSocket headers
+        cookies_header = None
+
+        # Try different ways to access headers
+        if hasattr(websocket, "headers"):
+            # WebSocket headers might be a mapping (dict-like)
+            if hasattr(websocket.headers, "get"):
+                cookie_value = websocket.headers.get("cookie") or websocket.headers.get(b"cookie")
+                if cookie_value:
+                    cookies_header = cookie_value.decode() if isinstance(cookie_value, bytes) else cookie_value
+            else:
+                # WebSocket headers might be an iterable of tuples/pairs
+                try:
+                    for header_item in websocket.headers:
+                        if isinstance(header_item, (list, tuple)) and len(header_item) >= 2:
+                            name, value = header_item[0], header_item[1]
+                            if name == b"cookie" or name == "cookie":
+                                cookies_header = value.decode() if isinstance(value, bytes) else value
+                                break
+                except (TypeError, ValueError):
+                    # If iteration fails, headers format is unexpected
+                    logger.debug("WebSocket headers format not supported for authentication")
+                    pass
+
+        if not cookies_header:
+            logger.debug("No cookies found in WebSocket headers")
+            return None
+
+        # Parse cookies to find session cookie
+        session_token = None
+        for cookie in cookies_header.split(";"):
+            cookie = cookie.strip()
+            if cookie.startswith("session="):
+                session_token = cookie.split("=", 1)[1]
+                break
+
+        if not session_token:
+            logger.debug("No session cookie found")
+            return None
+
+        logger.debug(f"Found session token: {session_token[:20]}...")
+
+        # Verify JWT token using the same strategy as HTTP authentication
+        jwt_strategy = get_jwt_strategy()
+
+        # Manually decode and verify the JWT token
+        try:
+            user_data = await jwt_strategy.read_token(session_token, user_manager)
+            if user_data:
+                logger.debug(f"Successfully authenticated user from WebSocket: {user_data.id}")
+                return str(user_data.id)
+            else:
+                logger.debug("JWT token validation returned no user data")
+                return None
+        except Exception as e:
+            logger.debug(f"WebSocket JWT verification failed: {e}")
+            return None
+
+    except Exception as e:
+        logger.error(f"WebSocket authentication error: {e}")
+        return None
+
+    return None
 
 
 # API Key Authentication

@@ -358,6 +358,11 @@ export const nodeRerankDefinition = (params?: { docId: string }): NodeData => ({
           default: 'openai',
           description: 'model service provider',
         },
+        custom_llm_provider: {
+          type: 'string',
+          default: 'jina_ai',
+          description: 'custom llm provider',
+        },
         docs: {
           type: 'array',
           description: 'Docs to rerank',
@@ -366,11 +371,17 @@ export const nodeRerankDefinition = (params?: { docId: string }): NodeData => ({
           },
         },
       },
-      required: ['model', 'model_service_provider', 'docs'],
+      required: [
+        'model',
+        'model_service_provider',
+        'custom_llm_provider',
+        'docs',
+      ],
     },
     values: {
       model: '',
       model_service_provider: '',
+      custom_llm_provider: '',
       docs: params?.docId ? `{{ nodes.${params.docId}.output.docs }}` : [],
     },
   },

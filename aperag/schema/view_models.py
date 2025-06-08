@@ -666,10 +666,7 @@ class ApiKeyUpdate(BaseModel):
 
 class ModelServiceProvider(BaseModel):
     name: Optional[str] = None
-    dialect: Optional[str] = None
     label: Optional[str] = None
-    allow_custom_base_url: Optional[bool] = None
-    base_url: Optional[str] = None
     api_key: Optional[str] = None
 
 
@@ -681,8 +678,6 @@ class ModelServiceProviderList(BaseModel):
 class ModelServiceProviderUpdate(BaseModel):
     name: Optional[str] = None
     api_key: Optional[str] = None
-    base_url: Optional[str] = None
-    extra: Optional[str] = None
 
 
 class ModelInfo(BaseModel):
@@ -706,7 +701,9 @@ class ModelDefinition(ModelSpec, ModelInfo):
 
 class ModelConfig(BaseModel):
     name: Optional[str] = None
-    dialect: Optional[str] = None
+    completion_dialect: Optional[str] = None
+    embedding_dialect: Optional[str] = None
+    rerank_dialect: Optional[str] = None
     label: Optional[str] = None
     allow_custom_base_url: Optional[bool] = None
     base_url: Optional[str] = None
@@ -848,3 +845,5 @@ class ChangePassword(BaseModel):
     new_password: Optional[str] = Field(
         None, description='The new password of the user'
     )
+
+

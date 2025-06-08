@@ -329,6 +329,8 @@ class ChatService:
         """Handle WebSocket chat connections and message streaming"""
         await websocket.accept()
 
+        history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
+
         try:
             while True:
                 # Receive message from client
@@ -380,6 +382,7 @@ class ChatService:
                         "query": message_content,
                         "user": user,
                         "message_id": message_id,
+                        "history": history,
                     }
 
                     # Send start message

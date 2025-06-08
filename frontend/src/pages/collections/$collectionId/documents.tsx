@@ -1,3 +1,8 @@
+import {
+  DocumentFulltextIndexStatusEnum,
+  DocumentGraphIndexStatusEnum,
+  DocumentVectorIndexStatusEnum,
+} from '@/api';
 import { RefreshButton } from '@/components';
 import {
   DATETIME_FORMAT,
@@ -24,10 +29,10 @@ import {
   Dropdown,
   Input,
   Modal,
+  Popover,
   Space,
   Table,
   TableProps,
-  Tag,
   theme,
   Typography,
   Upload,
@@ -83,30 +88,28 @@ export default () => {
   );
 
   const renderIndexStatus = (
-    vectorStatus?: string,
-    fulltextStatus?: string,
-    graphStatus?: string,
+    vectorStatus?: DocumentVectorIndexStatusEnum,
+    fulltextStatus?: DocumentFulltextIndexStatusEnum,
+    graphStatus?: DocumentGraphIndexStatusEnum,
   ) => {
     const indexTypes = [
-      { name: 'Vector', status: vectorStatus, key: 'vector' },
-      { name: 'Fulltext', status: fulltextStatus, key: 'fulltext' },
-      { name: 'Graph', status: graphStatus, key: 'graph' },
+      { name: 'vector_search', status: vectorStatus },
+      { name: 'fulltext_search', status: fulltextStatus },
+      { name: 'graph_search', status: graphStatus },
     ];
-
     return (
       <Space direction="vertical" size="small">
-        {indexTypes.map(({ name, status, key }) => (
-          <Tag
-            key={key}
-            color={
-              status
-                ? UI_INDEX_STATUS[status as keyof typeof UI_INDEX_STATUS]
-                : 'default'
+        {indexTypes.map(({ name, status }, index) => (
+          <Badge
+            key={index}
+            status={UI_INDEX_STATUS[status as keyof typeof UI_INDEX_STATUS]}
+            text={
+              <span style={{ fontSize: '0.9em' }}>
+                {formatMessage({ id: `searchTest.type.${name}` })}:&nbsp;
+                {formatMessage({ id: `document.index.status.${status}` })}
+              </span>
             }
-            style={{ minWidth: '70px', textAlign: 'center' }}
-          >
-            {name}: {formatMessage({ id: `document.index.status.${status}` })}
-          </Tag>
+          />
         ))}
       </Space>
     );
@@ -149,24 +152,26 @@ export default () => {
       width: 120,
       render: (value, record) => {
         return (
-          <Badge
-            status={
-              record.status ? UI_DOCUMENT_STATUS[record.status] : 'default'
-            }
-            text={formatMessage({ id: `document.status.${value}` })}
-          />
-        );
-      },
-    },
-    {
-      title: formatMessage({ id: 'document.index.status' }),
-      dataIndex: 'index_status',
-      width: 200,
-      render: (value, record) => {
-        return renderIndexStatus(
-          record.vector_index_status,
-          record.fulltext_index_status,
-          record.graph_index_status,
+          <Popover
+            content={renderIndexStatus(
+              record.vector_index_status,
+              record.fulltext_index_status,
+              record.graph_index_status,
+            )}
+            styles={{
+              root: {
+                minWidth: 200,
+              },
+            }}
+          >
+            <Badge
+              status={
+                record.status ? UI_DOCUMENT_STATUS[record.status] : 'default'
+              }
+              text={formatMessage({ id: `document.status.${value}` })}
+              style={{ cursor: 'pointer' }}
+            />
+          </Popover>
         );
       },
     },
@@ -187,11 +192,6 @@ export default () => {
             trigger={['click']}
             menu={{
               items: [
-                // {
-                //   key: 'tags',
-                //   label: formatMessage({ id: 'text.tags' }),
-                //   icon: <TagsOutlined />,
-                // },
                 {
                   key: 'delete',
                   label: formatMessage({ id: 'action.delete' }),

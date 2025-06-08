@@ -1,4 +1,3 @@
-
 modelServiceProviderUpdate:
   type: object
   properties:
@@ -6,23 +5,13 @@ modelServiceProviderUpdate:
       type: string
     api_key:
       type: string
-    base_url:
-      type: string
-    extra:
-      type: string
 
 modelServiceProvider:
   type: object
   properties:
     name:
       type: string
-    dialect:
-      type: string
     label:
-      type: string
-    allow_custom_base_url:
-      type: boolean
-    base_url:
       type: string
     api_key:
       type: string
@@ -117,7 +106,11 @@ modelConfig:
   properties:
     name:
       type: string
-    dialect:
+    completion_dialect:
+      type: string
+    embedding_dialect:
+      type: string
+    rerank_dialect:
       type: string
     label:
       type: string
@@ -148,4 +141,247 @@ modelConfigList:
         $ref: '#/modelConfig'
     pageResult:
       $ref: './common.yaml#/pageResult'
+
+
+# LLM Provider Configuration schemas
+llmProvider:
+  type: object
+  properties:
+    name:
+      type: string
+      description: Unique provider name identifier
+      example: "openai"
+    label:
+      type: string
+      description: Human-readable provider display name
+      example: "OpenAI"
+    completion_dialect:
+      type: string
+      description: API dialect for completion/chat APIs
+      example: "openai"
+      default: "openai"
+    embedding_dialect:
+      type: string
+      description: API dialect for embedding APIs
+      example: "openai"
+      default: "openai"
+    rerank_dialect:
+      type: string
+      description: API dialect for rerank APIs
+      example: "jina_ai"
+      default: "jina_ai"
+    allow_custom_base_url:
+      type: boolean
+      description: Whether custom base URLs are allowed
+      default: false
+    base_url:
+      type: string
+      description: Default API base URL for this provider
+      example: "https://api.openai.com/v1"
+    extra:
+      type: string
+      description: Additional configuration data in JSON format
+    created:
+      type: string
+      format: date-time
+      description: Creation timestamp
+    updated:
+      type: string
+      format: date-time
+      description: Last update timestamp
+  required:
+    - name
+    - label
+    - base_url
+
+llmProviderList:
+  type: object
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/llmProvider'
+    pageResult:
+      $ref: './common.yaml#/pageResult'
+
+llmProviderCreate:
+  type: object
+  properties:
+    name:
+      type: string
+      description: Unique provider name identifier
+    label:
+      type: string
+      description: Human-readable provider display name
+    completion_dialect:
+      type: string
+      description: API dialect for completion/chat APIs
+      default: "openai"
+    embedding_dialect:
+      type: string
+      description: API dialect for embedding APIs
+      default: "openai"
+    rerank_dialect:
+      type: string
+      description: API dialect for rerank APIs
+      default: "jina_ai"
+    allow_custom_base_url:
+      type: boolean
+      description: Whether custom base URLs are allowed
+      default: false
+    base_url:
+      type: string
+      description: Default API base URL for this provider
+    extra:
+      type: string
+      description: Additional configuration data in JSON format
+  required:
+    - name
+    - label
+    - base_url
+
+llmProviderUpdate:
+  type: object
+  properties:
+    label:
+      type: string
+      description: Human-readable provider display name
+    completion_dialect:
+      type: string
+      description: API dialect for completion/chat APIs
+    embedding_dialect:
+      type: string
+      description: API dialect for embedding APIs
+    rerank_dialect:
+      type: string
+      description: API dialect for rerank APIs
+    allow_custom_base_url:
+      type: boolean
+      description: Whether custom base URLs are allowed
+    base_url:
+      type: string
+      description: Default API base URL for this provider
+    extra:
+      type: string
+      description: Additional configuration data in JSON format
+
+llmProviderModel:
+  type: object
+  properties:
+    provider_name:
+      type: string
+      description: Reference to LLMProvider.name
+      example: "openai"
+    api:
+      type: string
+      enum: [completion, embedding, rerank]
+      description: API type for this model
+      example: "completion"
+    model:
+      type: string
+      description: Model name/identifier
+      example: "gpt-4o-mini"
+    custom_llm_provider:
+      type: string
+      description: Custom LLM provider implementation
+      example: "openai"
+    max_tokens:
+      type: integer
+      description: Maximum tokens for this model
+      example: 4096
+    tags:
+      type: array
+      items:
+        type: string
+      description: Tags for model categorization
+      example: ["free", "recommend"]
+      default: []
+    created:
+      type: string
+      format: date-time
+      description: Creation timestamp
+    updated:
+      type: string
+      format: date-time
+      description: Last update timestamp
+  required:
+    - provider_name
+    - api
+    - model
+    - custom_llm_provider
+
+llmProviderModelList:
+  type: object
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/llmProviderModel'
+    pageResult:
+      $ref: './common.yaml#/pageResult'
+
+llmProviderModelCreate:
+  type: object
+  properties:
+    provider_name:
+      type: string
+      description: Reference to LLMProvider.name
+    api:
+      type: string
+      enum: [completion, embedding, rerank]
+      description: API type for this model
+    model:
+      type: string
+      description: Model name/identifier
+    custom_llm_provider:
+      type: string
+      description: Custom LLM provider implementation
+    max_tokens:
+      type: integer
+      description: Maximum tokens for this model
+    tags:
+      type: array
+      items:
+        type: string
+      description: Tags for model categorization
+      default: []
+  required:
+    - provider_name
+    - api
+    - model
+    - custom_llm_provider
+
+llmProviderModelUpdate:
+  type: object
+  properties:
+    custom_llm_provider:
+      type: string
+      description: Custom LLM provider implementation
+    max_tokens:
+      type: integer
+      description: Maximum tokens for this model
+    tags:
+      type: array
+      items:
+        type: string
+      description: Tags for model categorization
+
+llmConfigurationResponse:
+  type: object
+  properties:
+    providers:
+      type: array
+      items:
+        $ref: '#/llmProvider'
+      description: List of LLM providers
+      default: []
+    models:
+      type: array
+      items:
+        $ref: '#/llmProviderModel'
+      description: List of LLM provider models
+      default: []
+  required:
+    - providers
+    - models
 

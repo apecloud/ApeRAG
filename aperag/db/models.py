@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 import random
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Optional, Type
 
-from sqlalchemy import JSON, Column
+from sqlalchemy import JSON, Column, String, TypeDecorator
 from sqlmodel import Field, SQLModel, UniqueConstraint, select
 
 from aperag.config import AsyncSessionDep
@@ -117,6 +118,52 @@ class ModelServiceProviderStatus(str, Enum):
 class ApiKeyStatus(str, Enum):
     ACTIVE = "ACTIVE"
     DELETED = "DELETED"
+
+
+class EnumAsSQLALCHEMYString(TypeDecorator):
+    """
+    Stores Python Enums as their string values in a VARCHAR column.
+    Retrieves them back as Enum members.
+    """
+
+    impl = String  # The underlying SQLAlchemy type is String (VARCHAR)
+    cache_ok = True  # Important for performance with TypeDecorator
+
+    def __init__(self, enum_class: Type[enum.Enum], *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._enum_class = enum_class
+
+    def process_bind_param(self, value: Optional[enum.Enum], dialect) -> Optional[str]:
+        # Called when sending data to the database
+        if value is None:
+            return None
+        if not isinstance(value, self._enum_class):
+            raise ValueError(f"Value {value!r} is not an instance of enum {self._enum_class.__name__}")
+        return value.value  # Store the enum's .value (e.g., "completion")
+
+    def process_result_value(self, value: Optional[str], dialect) -> Optional[enum.Enum]:
+        # Called when retrieving data from the database
+        if value is None:
+            return None
+        try:
+            return self._enum_class(value)  # Convert string value back to Enum member
+        except ValueError:
+            # Handle cases where the value from DB doesn't match any enum member
+            # This could happen if enum definitions change or data is manually inserted
+            # You might want to log this, return None, or raise a different error
+            raise ValueError(f"Invalid value '{value}' for enum {self._enum_class.__name__}")
+
+    # If you want to ensure the VARCHAR has a specific length,
+    # you can override load_dialect_impl.
+    # This is often preferred over passing length directly to String in __init__
+    # if you want the TypeDecorator to be more self-contained.
+    def load_dialect_impl(self, dialect):
+        # Get the implementation for the specific dialect
+        # Here, we ensure the String type has the length provided during __init__
+        # The 'length' attribute is passed from Column(EnumAsSQLALCHEMYString(APIType, length=50))
+        if hasattr(self, "length"):  # 'length' will be passed from Column's constructor args
+            return dialect.type_descriptor(String(self.length))
+        return dialect.type_descriptor(String)  # Or a default if no length given
 
 
 # Models
@@ -390,13 +437,101 @@ class ModelServiceProvider(SQLModel, table=True):
     name: str = Field(max_length=256)
     user: str = Field(max_length=256)
     status: ModelServiceProviderStatus
-    dialect: str = Field(default="openai", max_length=32)
-    base_url: Optional[str] = Field(default=None, max_length=256)
     api_key: str = Field(max_length=256)
-    extra: Optional[str] = None
     gmt_created: datetime = Field(default_factory=datetime.utcnow)
     gmt_updated: datetime = Field(default_factory=datetime.utcnow)
     gmt_deleted: Optional[datetime] = None
+
+
+class LLMProvider(SQLModel, table=True):
+    """LLM Provider configuration model
+
+    This model stores the provider-level configuration that was previously
+    stored in model_configs.json file. Each provider has basic information
+    and dialect configurations for different API types.
+    """
+
+    __tablename__ = "llm_provider"
+
+    name: str = Field(primary_key=True, max_length=128)  # Unique provider name identifier
+    label: str = Field(max_length=256)  # Human-readable provider display name
+    completion_dialect: str = Field(max_length=64)  # API dialect for completion/chat APIs
+    embedding_dialect: str = Field(max_length=64)  # API dialect for embedding APIs
+    rerank_dialect: str = Field(max_length=64)  # API dialect for rerank APIs
+    allow_custom_base_url: bool = Field(default=False)  # Whether custom base URLs are allowed
+    base_url: str = Field(max_length=512)  # Default API base URL for this provider
+    extra: Optional[str] = Field(default=None)  # Additional configuration data in JSON format
+    gmt_created: datetime = Field(default_factory=datetime.utcnow)
+    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
+    gmt_deleted: Optional[datetime] = None
+
+    def __str__(self):
+        return f"LLMProvider(name={self.name}, label={self.label})"
+
+
+class APIType(str, Enum):
+    COMPLETION = "completion"
+    EMBEDDING = "embedding"
+    RERANK = "rerank"
+
+
+class LLMProviderModel(SQLModel, table=True):
+    """LLM Provider Model configuration
+
+    This model stores individual model configurations for each provider.
+    Each model belongs to a provider and has a specific API type (completion, embedding, rerank).
+    """
+
+    __tablename__ = "llm_provider_models"
+    __table_args__ = ()
+
+    provider_name: str = Field(primary_key=True, max_length=128)  # Reference to LLMProvider.name
+    api: APIType = Field(sa_column=Column(EnumAsSQLALCHEMYString(APIType, length=50), nullable=False, primary_key=True))
+    model: str = Field(primary_key=True, max_length=256)  # Model name/identifier
+    custom_llm_provider: str = Field(max_length=128)  # Custom LLM provider implementation
+    max_tokens: Optional[int] = Field(default=None)  # Maximum tokens for this model
+    tags: Optional[list] = Field(default_factory=list, sa_column=Column(JSON))  # Tags for model categorization
+    gmt_created: datetime = Field(default_factory=datetime.utcnow)
+    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
+    gmt_deleted: Optional[datetime] = None
+
+    def __str__(self):
+        return f"LLMProviderModel(provider={self.provider_name}, api={self.api}, model={self.model})"
+
+    async def get_provider(self, session: AsyncSessionDep):
+        """Get the associated provider object"""
+        return await session.get(LLMProvider, self.provider_name)
+
+    async def set_provider(self, provider):
+        """Set the provider_name by LLMProvider object or name"""
+        if hasattr(provider, "name"):
+            self.provider_name = provider.name
+        elif isinstance(provider, str):
+            self.provider_name = provider
+
+    def has_tag(self, tag: str) -> bool:
+        """Check if model has a specific tag"""
+        return tag in (self.tags or [])
+
+    def add_tag(self, tag: str) -> bool:
+        """Add a tag to model. Returns True if tag was added, False if already exists"""
+        if self.tags is None:
+            self.tags = []
+        if tag not in self.tags:
+            self.tags.append(tag)
+            return True
+        return False
+
+    def remove_tag(self, tag: str) -> bool:
+        """Remove a tag from model. Returns True if tag was removed, False if not found"""
+        if self.tags and tag in self.tags:
+            self.tags.remove(tag)
+            return True
+        return False
+
+    def get_tags(self) -> list:
+        """Get all tags for this model"""
+        return self.tags or []
 
 
 class User(SQLModel, table=True):

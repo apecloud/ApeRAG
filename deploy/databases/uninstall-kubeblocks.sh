@@ -33,7 +33,7 @@ uninstall_kubeblocks() {
     helm uninstall snapshot-controller -n kb-system
 
     # Delete KubeBlocks CRDs
-    kubectl delete -f https://github.com/apecloud/kubeblocks/releases/download/v${KB_VERSION}/kubeblocks_crds.yaml --ignore-not-found=true
+    kubectl delete -f https://github.com/apecloud/kubeblocks/releases/download/${KB_VERSION}/kubeblocks_crds.yaml --ignore-not-found=true
 
     # Delete CSI Snapshotter CRDs
     kubectl delete -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v8.2.0/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml --ignore-not-found=true

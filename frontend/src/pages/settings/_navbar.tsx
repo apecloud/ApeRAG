@@ -15,6 +15,10 @@ export const NavbarSettings = () => {
         key: `/settings/users`,
       },
       {
+        label: <FormattedMessage id="model.configuration" />,
+        key: `/settings/modelConfiguration`,
+      },
+      {
         label: <FormattedMessage id="model.provider" />,
         key: `/settings/modelProviders`,
       },

@@ -13,4 +13,4 @@
 # limitations under the License.
 
 VERSION = "dev-latest"
-GIT_COMMIT_ID = "ed6533a"
+GIT_COMMIT_ID = "4498103"

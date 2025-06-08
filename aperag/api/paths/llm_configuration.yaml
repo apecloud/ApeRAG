@@ -1,0 +1,341 @@
+# LLM Configuration API endpoints
+
+llmConfiguration:
+  get:
+    summary: Get complete LLM configuration
+    description: Get complete LLM configuration including providers and models
+    responses:
+      '200':
+        description: Complete LLM configuration
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/model.yaml#/llmConfigurationResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
+llmProviders:
+  get:
+    summary: List all LLM providers
+    description: List all LLM providers
+    responses:
+      '200':
+        description: List of LLM providers
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/model.yaml#/llmProviderList'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+  post:
+    summary: Create a new LLM provider
+    description: Create a new LLM provider
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/model.yaml#/llmProviderCreate'
+    responses:
+      '200':
+        description: LLM provider created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/model.yaml#/llmProvider'
+      '400':
+        description: Bad request
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
+llmProvider:
+  get:
+    summary: Get a specific LLM provider
+    description: Get a specific LLM provider by name
+    parameters:
+      - name: provider_name
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Provider name
+    responses:
+      '200':
+        description: LLM provider details
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/model.yaml#/llmProvider'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Provider not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+  put:
+    summary: Update an LLM provider
+    description: Update an existing LLM provider
+    parameters:
+      - name: provider_name
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Provider name
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/model.yaml#/llmProviderUpdate'
+    responses:
+      '200':
+        description: LLM provider updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/model.yaml#/llmProvider'
+      '400':
+        description: Bad request
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Provider not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+  delete:
+    summary: Delete an LLM provider
+    description: Delete an LLM provider (soft delete)
+    parameters:
+      - name: provider_name
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Provider name
+    responses:
+      '200':
+        description: LLM provider deleted successfully
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Provider not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
+llmProviderModels:
+  get:
+    summary: Get models for a specific provider
+    description: Get all models for a specific provider
+    parameters:
+      - name: provider_name
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Provider name
+    responses:
+      '200':
+        description: List of provider models
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/model.yaml#/llmProviderModelList'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+  post:
+    summary: Create a new model for a provider
+    description: Create a new model for a specific provider
+    parameters:
+      - name: provider_name
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Provider name
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/model.yaml#/llmProviderModelCreate'
+    responses:
+      '200':
+        description: Model created successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/model.yaml#/llmProviderModel'
+      '400':
+        description: Bad request
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
+llmProviderModel:
+  put:
+    summary: Update a provider model
+    description: Update a specific model of a provider
+    parameters:
+      - name: provider_name
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Provider name
+      - name: api
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [completion, embedding, rerank]
+        description: API type
+      - name: model
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Model name
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/model.yaml#/llmProviderModelUpdate'
+    responses:
+      '200':
+        description: Model updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/model.yaml#/llmProviderModel'
+      '400':
+        description: Bad request
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Model not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+  delete:
+    summary: Delete a provider model
+    description: Delete a specific model of a provider
+    parameters:
+      - name: provider_name
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Provider name
+      - name: api
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [completion, embedding, rerank]
+        description: API type
+      - name: model
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Model name
+    responses:
+      '200':
+        description: Model deleted successfully
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Model not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
+llmProviderModelsList:
+  get:
+    summary: List all LLM provider models
+    description: List all LLM provider models, optionally filtered by provider
+    parameters:
+      - name: provider_name
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Optional filter by provider name
+    responses:
+      '200':
+        description: List of LLM provider models
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/model.yaml#/llmProviderModelList'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse' 

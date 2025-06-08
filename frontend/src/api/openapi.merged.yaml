@@ -958,6 +958,346 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
+  /llm_configuration:
+    get:
+      summary: Get complete LLM configuration
+      description: Get complete LLM configuration including providers and models
+      responses:
+        '200':
+          description: Complete LLM configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/llmConfigurationResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /llm_providers:
+    get:
+      summary: List all LLM providers
+      description: List all LLM providers
+      responses:
+        '200':
+          description: List of LLM providers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/llmProviderList'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+    post:
+      summary: Create a new LLM provider
+      description: Create a new LLM provider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/llmProviderCreate'
+      responses:
+        '200':
+          description: LLM provider created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/llmProvider'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /llm_providers/{provider_name}:
+    get:
+      summary: Get a specific LLM provider
+      description: Get a specific LLM provider by name
+      parameters:
+        - name: provider_name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Provider name
+      responses:
+        '200':
+          description: LLM provider details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/llmProvider'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Provider not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+    put:
+      summary: Update an LLM provider
+      description: Update an existing LLM provider
+      parameters:
+        - name: provider_name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Provider name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/llmProviderUpdate'
+      responses:
+        '200':
+          description: LLM provider updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/llmProvider'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Provider not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+    delete:
+      summary: Delete an LLM provider
+      description: Delete an LLM provider (soft delete)
+      parameters:
+        - name: provider_name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Provider name
+      responses:
+        '200':
+          description: LLM provider deleted successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Provider not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /llm_providers/{provider_name}/models:
+    get:
+      summary: Get models for a specific provider
+      description: Get all models for a specific provider
+      parameters:
+        - name: provider_name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Provider name
+      responses:
+        '200':
+          description: List of provider models
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/llmProviderModelList'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+    post:
+      summary: Create a new model for a provider
+      description: Create a new model for a specific provider
+      parameters:
+        - name: provider_name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Provider name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/llmProviderModelCreate'
+      responses:
+        '200':
+          description: Model created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/llmProviderModel'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /llm_providers/{provider_name}/models/{api}/{model}:
+    put:
+      summary: Update a provider model
+      description: Update a specific model of a provider
+      parameters:
+        - name: provider_name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Provider name
+        - name: api
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - completion
+              - embedding
+              - rerank
+          description: API type
+        - name: model
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Model name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/llmProviderModelUpdate'
+      responses:
+        '200':
+          description: Model updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/llmProviderModel'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Model not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+    delete:
+      summary: Delete a provider model
+      description: Delete a specific model of a provider
+      parameters:
+        - name: provider_name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Provider name
+        - name: api
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - completion
+              - embedding
+              - rerank
+          description: API type
+        - name: model
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Model name
+      responses:
+        '200':
+          description: Model deleted successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Model not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /llm_provider_models:
+    get:
+      summary: List all LLM provider models
+      description: List all LLM provider models, optionally filtered by provider
+      parameters:
+        - name: provider_name
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Optional filter by provider name
+      responses:
+        '200':
+          description: List of LLM provider models
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/llmProviderModelList'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
   /config:
     get:
       summary: Get system configuration
@@ -2175,13 +2515,7 @@ components:
       properties:
         name:
           type: string
-        dialect:
-          type: string
         label:
-          type: string
-        allow_custom_base_url:
-          type: boolean
-        base_url:
           type: string
         api_key:
           type: string
@@ -2200,10 +2534,6 @@ components:
         name:
           type: string
         api_key:
-          type: string
-        base_url:
-          type: string
-        extra:
           type: string
     modelInfo:
       type: object
@@ -2234,7 +2564,11 @@ components:
       properties:
         name:
           type: string
-        dialect:
+        completion_dialect:
+          type: string
+        embedding_dialect:
+          type: string
+        rerank_dialect:
           type: string
         label:
           type: string
@@ -2263,6 +2597,246 @@ components:
             $ref: '#/components/schemas/modelConfig'
         pageResult:
           $ref: '#/components/schemas/pageResult'
+    llmProvider:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Unique provider name identifier
+          example: openai
+        label:
+          type: string
+          description: Human-readable provider display name
+          example: OpenAI
+        completion_dialect:
+          type: string
+          description: API dialect for completion/chat APIs
+          example: openai
+          default: openai
+        embedding_dialect:
+          type: string
+          description: API dialect for embedding APIs
+          example: openai
+          default: openai
+        rerank_dialect:
+          type: string
+          description: API dialect for rerank APIs
+          example: jina_ai
+          default: jina_ai
+        allow_custom_base_url:
+          type: boolean
+          description: Whether custom base URLs are allowed
+          default: false
+        base_url:
+          type: string
+          description: Default API base URL for this provider
+          example: https://api.openai.com/v1
+        extra:
+          type: string
+          description: Additional configuration data in JSON format
+        created:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updated:
+          type: string
+          format: date-time
+          description: Last update timestamp
+      required:
+        - name
+        - label
+        - base_url
+    llmProviderModel:
+      type: object
+      properties:
+        provider_name:
+          type: string
+          description: Reference to LLMProvider.name
+          example: openai
+        api:
+          type: string
+          enum:
+            - completion
+            - embedding
+            - rerank
+          description: API type for this model
+          example: completion
+        model:
+          type: string
+          description: Model name/identifier
+          example: gpt-4o-mini
+        custom_llm_provider:
+          type: string
+          description: Custom LLM provider implementation
+          example: openai
+        max_tokens:
+          type: integer
+          description: Maximum tokens for this model
+          example: 4096
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tags for model categorization
+          example:
+            - free
+            - recommend
+          default: []
+        created:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updated:
+          type: string
+          format: date-time
+          description: Last update timestamp
+      required:
+        - provider_name
+        - api
+        - model
+        - custom_llm_provider
+    llmConfigurationResponse:
+      type: object
+      properties:
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/llmProvider'
+          description: List of LLM providers
+          default: []
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/llmProviderModel'
+          description: List of LLM provider models
+          default: []
+      required:
+        - providers
+        - models
+    llmProviderList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/llmProvider'
+        pageResult:
+          $ref: '#/components/schemas/pageResult'
+    llmProviderCreate:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Unique provider name identifier
+        label:
+          type: string
+          description: Human-readable provider display name
+        completion_dialect:
+          type: string
+          description: API dialect for completion/chat APIs
+          default: openai
+        embedding_dialect:
+          type: string
+          description: API dialect for embedding APIs
+          default: openai
+        rerank_dialect:
+          type: string
+          description: API dialect for rerank APIs
+          default: jina_ai
+        allow_custom_base_url:
+          type: boolean
+          description: Whether custom base URLs are allowed
+          default: false
+        base_url:
+          type: string
+          description: Default API base URL for this provider
+        extra:
+          type: string
+          description: Additional configuration data in JSON format
+      required:
+        - name
+        - label
+        - base_url
+    llmProviderUpdate:
+      type: object
+      properties:
+        label:
+          type: string
+          description: Human-readable provider display name
+        completion_dialect:
+          type: string
+          description: API dialect for completion/chat APIs
+        embedding_dialect:
+          type: string
+          description: API dialect for embedding APIs
+        rerank_dialect:
+          type: string
+          description: API dialect for rerank APIs
+        allow_custom_base_url:
+          type: boolean
+          description: Whether custom base URLs are allowed
+        base_url:
+          type: string
+          description: Default API base URL for this provider
+        extra:
+          type: string
+          description: Additional configuration data in JSON format
+    llmProviderModelList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/llmProviderModel'
+        pageResult:
+          $ref: '#/components/schemas/pageResult'
+    llmProviderModelCreate:
+      type: object
+      properties:
+        provider_name:
+          type: string
+          description: Reference to LLMProvider.name
+        api:
+          type: string
+          enum:
+            - completion
+            - embedding
+            - rerank
+          description: API type for this model
+        model:
+          type: string
+          description: Model name/identifier
+        custom_llm_provider:
+          type: string
+          description: Custom LLM provider implementation
+        max_tokens:
+          type: integer
+          description: Maximum tokens for this model
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tags for model categorization
+          default: []
+      required:
+        - provider_name
+        - api
+        - model
+        - custom_llm_provider
+    llmProviderModelUpdate:
+      type: object
+      properties:
+        custom_llm_provider:
+          type: string
+          description: Custom LLM provider implementation
+        max_tokens:
+          type: integer
+          description: Maximum tokens for this model
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tags for model categorization
     config:
       type: object
       properties:

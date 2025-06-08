@@ -42,6 +42,7 @@ spec:
                   fieldPath: status.hostIP
             - name: EMBEDDING_DEVICE
               value: {{ index .Values "celery-worker" "embeddingDevice" | quote }}
+            {{- if .Values.postgres.enabled }}
             - name: POSTGRES_HOST
               value: {{ .Values.postgres.POSTGRES_HOST | quote }}
             - name: POSTGRES_PORT
@@ -66,6 +67,8 @@ spec:
               {{- else }}
               value: {{ .Values.postgres.POSTGRES_PASSWORD | default "postgres" | quote }}
               {{- end }}
+            {{- end }}
+            {{- if .Values.redis.enabled }}
             - name: REDIS_HOST
               value: {{ .Values.redis.REDIS_HOST | quote }}
             - name: REDIS_PORT
@@ -88,6 +91,8 @@ spec:
               {{- else }}
               value: {{ .Values.redis.REDIS_PASSWORD | default "redis" | quote }}
               {{- end }}
+            {{- end }}
+            {{- if .Values.elasticsearch.enabled }}
             - name: ES_HOST_NAME
               value: {{ .Values.elasticsearch.ES_HOST | quote }}
             - name: ES_PORT
@@ -111,6 +116,31 @@ spec:
             - name: ES_PASSWORD
               value: {{ .Values.elasticsearch.ES_PASSWORD | quote }}
             {{- end }}
+            {{- end }}
+            {{- if .Values.neo4j.enabled }}
+            - name: NEO4J_HOST
+              value: {{ .Values.neo4j.NEO4J_HOST | quote }}
+            - name: NEO4J_PORT
+              value: {{ .Values.neo4j.NEO4J_PORT | default "7687" | quote }}
+            - name: NEO4J_USERNAME
+              {{- if .Values.neo4j.NEO4J_CREDENTIALS_SECRET_NAME }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.neo4j.NEO4J_CREDENTIALS_SECRET_NAME }}
+                  key: username
+              {{- else }}
+              value: {{ .Values.neo4j.NEO4J_USERNAME | default "neo4j" | quote }}
+              {{- end }}
+            - name: NEO4J_PASSWORD
+              {{- if .Values.neo4j.NEO4J_CREDENTIALS_SECRET_NAME }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.neo4j.NEO4J_CREDENTIALS_SECRET_NAME }}
+                  key: password
+              {{- else }}
+              value: {{ .Values.neo4j.NEO4J_PASSWORD | default "neo4j" | quote }}
+              {{- end }}
+            {{- end }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           name: aperag-celeryworker
           imagePullPolicy: {{ .Values.image.pullPolicy }}
@@ -122,7 +152,8 @@ spec:
             - mountPath: /data
               name: data
             - name: env-config
-              mountPath: /app/env-config
+              mountPath: /app/.env
+              subPath: .env
               readOnly: true
       restartPolicy: Always
       {{- with index .Values "celery-worker" "affinity" }}

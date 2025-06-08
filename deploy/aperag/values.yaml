@@ -1,6 +1,6 @@
 image:
-  repository: "apecloud/aperag"  # Full image name including registry
-  tag: "dev-latest"
+  repository: "docker.io/apecloud/aperag"  # Full image name including registry
+  tag: "v0.5.0-alpha.24"
   pullPolicy: IfNotPresent
 
 nameOverride: ""
@@ -16,6 +16,7 @@ ingress:
   annotations: {}
 
 postgres:
+  enabled: true  # Enable/disable PostgreSQL database integration
   POSTGRES_HOST: "pg-cluster-postgresql-postgresql"
   POSTGRES_PORT: "5432"
   POSTGRES_DB: "postgres"
@@ -35,6 +36,7 @@ postgres:
   POSTGRES_PASSWORD: ""
 
 redis:
+  enabled: true  # Enable/disable Redis database integration
   REDIS_HOST: "redis-cluster-redis-redis"
   REDIS_PORT: "6379"
   # The name of the Secret containing Redis credentials (e.g., "password" key).
@@ -49,6 +51,7 @@ redis:
   REDIS_PASSWORD: "redis"
 
 elasticsearch:
+  enabled: true  # Enable/disable Elasticsearch integration (used for hybrid search)
   # Hostname for the Elasticsearch HTTP service.
   # Default: "es-cluster-mdit-http" (Kubeblocks Elasticsearch SVC name)
   ES_HOST: "es-cluster-mdit-http"
@@ -66,6 +69,28 @@ elasticsearch:
   # ⚠️ Strongly discourage directly setting sensitive passwords here. Use Secrets for production.
   # ⚠️ Recommend to use ES_CREDENTIALS_SECRET_NAME
   ES_PASSWORD: ""
+
+neo4j:
+  enabled: false  # Enable/disable Neo4j graph database integration (optional for graph features)
+  # Hostname for the Neo4j Bolt service.
+  # Default: "neo4j-cluster-neo4j" (Kubeblocks Neo4j SVC name)
+  NEO4J_HOST: "neo4j-cluster-neo4j"
+  # Port for the Neo4j Bolt service. Default: "7687"
+  NEO4J_PORT: "7687"
+  # The name of the Secret containing Neo4j username and password (e.g., "username" and "password" keys).
+  # Example: "neo4j-cluster-neo4j-account-neo4j" (references your Kubeblocks credential Secret)
+  NEO4J_CREDENTIALS_SECRET_NAME: "neo4j-cluster-neo4j-account-neo4j"
+  # Username and Password Priority:
+  # 1. If NEO4J_CREDENTIALS_SECRET_NAME is set, attempts to fetch 'username' and 'password' from that Secret.
+  # 2. If NEO4J_CREDENTIALS_SECRET_NAME is empty, uses the direct values of NEO4J_USERNAME and NEO4J_PASSWORD.
+  # 3. If direct values are also empty, defaults to "neo4j" for user or forces a failure for password.
+  # ⚠️ Recommend to use NEO4J_CREDENTIALS_SECRET_NAME
+  NEO4J_USERNAME: "neo4j" # Default Neo4j user
+  # Password (Sensitive information, strongly recommended NOT to set directly in values.yaml):
+  # Only use this if you are NOT using NEO4J_CREDENTIALS_SECRET_NAME and accept the security implications.
+  # ⚠️ Strongly discourage directly setting sensitive passwords here. Use Secrets for production.
+  # ⚠️ Recommend to use NEO4J_CREDENTIALS_SECRET_NAME
+  NEO4J_PASSWORD: ""
 
 django:
   dataPath: /data/aperag
@@ -135,17 +160,17 @@ django:
     MAX_DOCUMENT_COUNT: 1000
     MAX_CONVERSATION_COUNT: 100
     EMBEDDING_MAX_CHUNKS_IN_BATCH: 16
-    # RERANK
-    RERANK_BACKEND: jina_ai
-    RERANK_SERVICE_URL: https://api.jina.ai/v1/rerank
-    RERANK_SERVICE_MODEL: jina-reranker-v2-base-multilingual
-    RERANK_SERVICE_TOKEN_API_KEY: ""
     # Chunking
     CHUNK_SIZE: 400
     CHUNK_OVERLAP_SIZE: 20
     TIKTOKEN_CACHE_DIR: /root/.cache/tiktoken
     DEFAULT_ENCODING_MODEL: cl100k_base
     TOKENIZERS_PARALLELISM: "false"
+
+    LIGHTRAG_KV_STORAGE: JsonKVStorage
+    LIGHTRAG_VECTOR_STORAGE: NanoVectorDBStorage
+    LIGHTRAG_GRAPH_STORAGE: NetworkXStorage
+    LIGHTRAG_DOC_STATUS_STORAGE: JsonDocStatusStorage
 
 
 celery-worker:
@@ -206,8 +231,8 @@ flower:
 frontend:
   replicaCount: 1
   image:
-    repository: "apecloud/aperag-frontend"  # Full image name including registry
-    tag: "dev-latest"
+    repository: "docker.io/apecloud/aperag-frontend"  # Full image name including registry
+    tag: "v0.5.0-alpha.24"
     pullPolicy: IfNotPresent
   resources: {}
     # We usually recommend not to specify default resources and to leave this as a conscious

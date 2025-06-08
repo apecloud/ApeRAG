@@ -1,0 +1,1005 @@
+import { LlmConfigurationResponse, LlmProvider, LlmProviderModel } from '@/api';
+import { PageContainer, PageHeader, RefreshButton } from '@/components';
+import { api } from '@/services';
+import {
+  ArrowLeftOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  PlusOutlined,
+  SettingOutlined,
+} from '@ant-design/icons';
+import {
+  Button,
+  Col,
+  Divider,
+  Form,
+  Input,
+  InputNumber,
+  message,
+  Modal,
+  Row,
+  Select,
+  Space,
+  Switch,
+  Table,
+  TableProps,
+  Tag,
+  Tooltip,
+  Typography,
+} from 'antd';
+import { useCallback, useEffect, useState } from 'react';
+import { useIntl, useModel } from 'umi';
+
+const { Title, Text } = Typography;
+
+// 弹窗内容视图类型
+type ModalViewType = 'list' | 'add' | 'edit';
+
+export default () => {
+  const { loading, setLoading } = useModel('global');
+  const { formatMessage } = useIntl();
+
+  const [configuration, setConfiguration] = useState<LlmConfigurationResponse>({
+    providers: [],
+    models: [],
+  });
+
+  // Provider form state
+  const [providerForm] = Form.useForm();
+  const [providerModalVisible, setProviderModalVisible] = useState(false);
+  const [editingProvider, setEditingProvider] = useState<LlmProvider | null>(
+    null,
+  );
+
+  // Model management modal state
+  const [modelManagementVisible, setModelManagementVisible] = useState(false);
+  const [currentProvider, setCurrentProvider] = useState<LlmProvider | null>(
+    null,
+  );
+  const [modalView, setModalView] = useState<ModalViewType>('list');
+  const [modelForm] = Form.useForm();
+  const [editingModel, setEditingModel] = useState<LlmProviderModel | null>(
+    null,
+  );
+
+  const [modal, contextHolder] = Modal.useModal();
+
+  // Fetch LLM configuration
+  const fetchConfiguration = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.llmConfigurationGet();
+      setConfiguration(res.data);
+    } catch (error) {
+      message.error(formatMessage({ id: 'model.configuration.fetch.failed' }));
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading, formatMessage]);
+
+  // Provider operations
+  const handleCreateProvider = useCallback(() => {
+    setEditingProvider(null);
+    providerForm.resetFields();
+    providerForm.setFieldsValue({
+      completion_dialect: 'openai',
+      embedding_dialect: 'openai',
+      rerank_dialect: 'jina_ai',
+      allow_custom_base_url: false,
+    });
+    setProviderModalVisible(true);
+  }, [providerForm]);
+
+  const handleEditProvider = useCallback(
+    (provider: LlmProvider) => {
+      setEditingProvider(provider);
+      providerForm.setFieldsValue(provider);
+      setProviderModalVisible(true);
+    },
+    [providerForm],
+  );
+
+  const handleSaveProvider = useCallback(async () => {
+    try {
+      const values = await providerForm.validateFields();
+      setLoading(true);
+
+      if (editingProvider) {
+        await api.llmProvidersProviderNamePut({
+          providerName: editingProvider.name,
+          llmProviderUpdate: values,
+        });
+        message.success(formatMessage({ id: 'model.provider.update.success' }));
+      } else {
+        await api.llmProvidersPost({
+          llmProviderCreate: values,
+        });
+        message.success(formatMessage({ id: 'model.provider.create.success' }));
+      }
+
+      setProviderModalVisible(false);
+      await fetchConfiguration();
+    } catch (error) {
+      message.error(formatMessage({ id: 'model.provider.save.failed' }));
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    editingProvider,
+    providerForm,
+    setLoading,
+    fetchConfiguration,
+    formatMessage,
+  ]);
+
+  const handleDeleteProvider = useCallback(
+    async (provider: LlmProvider) => {
+      const confirmed = await modal.confirm({
+        title: formatMessage({ id: 'action.confirm' }),
+        content: formatMessage(
+          { id: 'model.provider.delete.confirm' },
+          { name: provider.label },
+        ),
+        okButtonProps: { danger: true },
+      });
+
+      if (confirmed) {
+        setLoading(true);
+        try {
+          await api.llmProvidersProviderNameDelete({
+            providerName: provider.name,
+          });
+          message.success(
+            formatMessage({ id: 'model.provider.delete.success' }),
+          );
+          await fetchConfiguration();
+        } catch (error) {
+          message.error(formatMessage({ id: 'model.provider.delete.failed' }));
+        } finally {
+          setLoading(false);
+        }
+      }
+    },
+    [modal, formatMessage, setLoading, fetchConfiguration],
+  );
+
+  // Model management operations
+  const handleManageModels = useCallback((provider: LlmProvider) => {
+    setCurrentProvider(provider);
+    setModalView('list');
+    setModelManagementVisible(true);
+  }, []);
+
+  const handleAddModel = useCallback(() => {
+    setEditingModel(null);
+    modelForm.resetFields();
+    if (currentProvider) {
+      modelForm.setFieldValue('provider_name', currentProvider.name);
+      // 默认设置为completion的custom_llm_provider
+      modelForm.setFieldValue(
+        'custom_llm_provider',
+        currentProvider.completion_dialect || 'openai',
+      );
+    }
+    setModalView('add');
+  }, [modelForm, currentProvider]);
+
+  const handleEditModel = useCallback(
+    (model: LlmProviderModel) => {
+      setEditingModel(model);
+      modelForm.setFieldsValue(model);
+      setModalView('edit');
+    },
+    [modelForm],
+  );
+
+  const handleSaveModel = useCallback(async () => {
+    try {
+      const values = await modelForm.validateFields();
+      setLoading(true);
+
+      // 确保包含provider_name
+      const modelData = {
+        ...values,
+        provider_name: currentProvider?.name,
+      };
+
+      if (editingModel) {
+        await api.llmProvidersProviderNameModelsApiModelPut({
+          providerName: editingModel.provider_name,
+          api: editingModel.api as any,
+          model: editingModel.model,
+          llmProviderModelUpdate: modelData,
+        });
+        message.success(formatMessage({ id: 'model.update.success' }));
+      } else {
+        await api.llmProvidersProviderNameModelsPost({
+          providerName: currentProvider?.name || '',
+          llmProviderModelCreate: modelData,
+        });
+        message.success(formatMessage({ id: 'model.create.success' }));
+      }
+
+      setModalView('list');
+      await fetchConfiguration();
+    } catch (error) {
+      message.error(formatMessage({ id: 'model.save.failed' }));
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    editingModel,
+    modelForm,
+    setLoading,
+    fetchConfiguration,
+    formatMessage,
+    currentProvider,
+  ]);
+
+  const handleDeleteModel = useCallback(
+    async (model: LlmProviderModel) => {
+      const confirmed = await modal.confirm({
+        title: formatMessage({ id: 'action.confirm' }),
+        content: formatMessage(
+          { id: 'model.delete.confirm' },
+          { model: model.model },
+        ),
+        okButtonProps: { danger: true },
+      });
+
+      if (confirmed) {
+        setLoading(true);
+        try {
+          await api.llmProvidersProviderNameModelsApiModelDelete({
+            providerName: model.provider_name,
+            api: model.api as any,
+            model: model.model,
+          });
+          message.success(formatMessage({ id: 'model.delete.success' }));
+          await fetchConfiguration();
+        } catch (error) {
+          message.error(formatMessage({ id: 'model.delete.failed' }));
+        } finally {
+          setLoading(false);
+        }
+      }
+    },
+    [modal, formatMessage, setLoading, fetchConfiguration],
+  );
+
+  const handleBackToList = useCallback(() => {
+    setModalView('list');
+    setEditingModel(null);
+    // 重置表单但保留provider_name
+    const providerName = modelForm.getFieldValue('provider_name');
+    modelForm.resetFields();
+    if (providerName) {
+      modelForm.setFieldValue('provider_name', providerName);
+    }
+  }, [modelForm]);
+
+  const handleCloseModelManagement = useCallback(() => {
+    setModelManagementVisible(false);
+    setModalView('list');
+    setCurrentProvider(null);
+    setEditingModel(null);
+    modelForm.resetFields();
+  }, [modelForm]);
+
+  // Handle API type change to auto-fill custom_llm_provider
+  const handleApiTypeChange = useCallback(
+    (api: string) => {
+      if (currentProvider) {
+        let dialect = '';
+        switch (api) {
+          case 'completion':
+            dialect = currentProvider.completion_dialect || 'openai';
+            break;
+          case 'embedding':
+            dialect = currentProvider.embedding_dialect || 'openai';
+            break;
+          case 'rerank':
+            dialect = currentProvider.rerank_dialect || 'jina_ai';
+            break;
+        }
+        modelForm.setFieldValue('custom_llm_provider', dialect);
+      }
+    },
+    [modelForm, currentProvider],
+  );
+
+  // Get models for current provider
+  const getCurrentProviderModels = useCallback(() => {
+    if (!currentProvider) return [];
+    return configuration.models.filter(
+      (model) => model.provider_name === currentProvider.name,
+    );
+  }, [configuration.models, currentProvider]);
+
+  // Get model count for provider
+  const getProviderModelCount = useCallback(
+    (providerName: string) => {
+      return configuration.models.filter(
+        (model) => model.provider_name === providerName,
+      ).length;
+    },
+    [configuration.models],
+  );
+
+  // Provider table columns
+  const providerColumns: TableProps<LlmProvider>['columns'] = [
+    {
+      title: formatMessage({ id: 'model.provider.id' }),
+      dataIndex: 'name',
+      key: 'name',
+      render: (name: string) => (
+        <Text code style={{ fontSize: '12px' }}>
+          {name}
+        </Text>
+      ),
+    },
+    {
+      title: formatMessage({ id: 'model.provider.label' }),
+      dataIndex: 'label',
+      key: 'label',
+      render: (label: string) => <Text strong>{label}</Text>,
+    },
+    {
+      title: formatMessage({ id: 'model.provider.base_url' }),
+      dataIndex: 'base_url',
+      key: 'base_url',
+      ellipsis: {
+        showTitle: false,
+      },
+      render: (url: string) => (
+        <Tooltip title={url}>
+          <Text type="secondary" style={{ fontSize: '12px' }}>
+            {url}
+          </Text>
+        </Tooltip>
+      ),
+    },
+    {
+      title: formatMessage({ id: 'model.provider.model_count' }),
+      key: 'model_count',
+      align: 'center',
+      render: (_, record) => {
+        const count = getProviderModelCount(record.name);
+        return (
+          <Text
+            style={{
+              fontSize: '13px',
+              fontWeight: 500,
+              color: count > 0 ? '#1890ff' : '#8c8c8c',
+            }}
+          >
+            {count}
+          </Text>
+        );
+      },
+    },
+    {
+      title: formatMessage({ id: 'action.name' }),
+      key: 'actions',
+      // render: (_, record) => {
+      //   return (
+      //     <Dropdown
+      //       trigger={['click']}
+      //       menu={{
+      //         items: [
+      //           {
+      //             key: 'provider.manage',
+      //             label: formatMessage({ id: 'model.provider.manage' }),
+      //             onClick: () => handleManageModels(record),
+      //           },
+      //           {
+      //             key: 'provider.edit',
+      //             label: formatMessage({ id: 'model.provider.edit' }),
+      //             onClick: () => handleEditProvider(record),
+      //           },
+      //           { type: 'divider' },
+      //           {
+      //             key: 'provider.delete',
+      //             label: formatMessage({ id: 'model.provider.delete' }),
+      //             onClick: () => handleDeleteProvider(record),
+      //           },
+      //         ],
+      //       }}
+      //       overlayStyle={{ width: 160 }}
+      //     >
+      //       <Button type="text" icon={<MoreOutlined />} />
+      //     </Dropdown>
+      //   );
+      // },
+      width: 160,
+      render: (_, record) => (
+        <Space size="small">
+          <Tooltip title={formatMessage({ id: 'model.provider.manage' })}>
+            <Button
+              type="text"
+              icon={<SettingOutlined />}
+              onClick={() => handleManageModels(record)}
+            />
+          </Tooltip>
+          <Tooltip title={formatMessage({ id: 'model.provider.edit' })}>
+            <Button
+              type="text"
+              icon={<EditOutlined />}
+              onClick={() => handleEditProvider(record)}
+            />
+          </Tooltip>
+          <Tooltip title={formatMessage({ id: 'model.provider.delete' })}>
+            <Button
+              type="text"
+              icon={<DeleteOutlined />}
+              danger
+              onClick={() => handleDeleteProvider(record)}
+            />
+          </Tooltip>
+        </Space>
+      ),
+    },
+  ];
+
+  // Model table columns for modal
+  const modalModelColumns: TableProps<LlmProviderModel>['columns'] = [
+    {
+      title: formatMessage({ id: 'model.api_type' }),
+      dataIndex: 'api',
+      key: 'api',
+      width: 100,
+      render: (api: string) => {
+        const colorMap = {
+          completion: '#1890ff',
+          embedding: '#52c41a',
+          rerank: '#fa8c16',
+        };
+        return (
+          <Tag color={colorMap[api as keyof typeof colorMap]}>
+            {formatMessage({ id: `model.api_type.${api}` })}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: formatMessage({ id: 'model.model_name' }),
+      dataIndex: 'model',
+      key: 'model',
+      width: 200,
+      ellipsis: {
+        showTitle: false,
+      },
+      render: (model: string) => (
+        <Tooltip title={model}>
+          <Text strong>{model}</Text>
+        </Tooltip>
+      ),
+    },
+    {
+      title: formatMessage({ id: 'model.custom_llm_provider' }),
+      dataIndex: 'custom_llm_provider',
+      key: 'custom_llm_provider',
+      width: 120,
+      ellipsis: {
+        showTitle: false,
+      },
+      render: (provider: string) => (
+        <Tooltip title={provider || '-'}>
+          <Text code style={{ fontSize: '11px' }}>
+            {provider || '-'}
+          </Text>
+        </Tooltip>
+      ),
+    },
+    {
+      title: formatMessage({ id: 'model.max_tokens' }),
+      dataIndex: 'max_tokens',
+      key: 'max_tokens',
+      width: 100,
+      align: 'center',
+      render: (value?: number) => (
+        <Text type={value ? undefined : 'secondary'}>
+          {value ? value.toLocaleString() : '-'}
+        </Text>
+      ),
+    },
+    {
+      title: formatMessage({ id: 'model.tags' }),
+      dataIndex: 'tags',
+      key: 'tags',
+      width: 120,
+      render: (tags: string[]) => (
+        <Space size={4} wrap>
+          {tags?.map((tag) => (
+            <Tag
+              key={tag}
+              color="processing"
+              style={{ fontSize: '11px', margin: '1px' }}
+            >
+              {tag}
+            </Tag>
+          ))}
+        </Space>
+      ),
+    },
+    {
+      title: formatMessage({ id: 'action.name' }),
+      key: 'actions',
+      width: 100,
+      render: (_, record) => (
+        <Space size="small">
+          <Tooltip title={formatMessage({ id: 'model.edit' })}>
+            <Button
+              type="text"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => handleEditModel(record)}
+            />
+          </Tooltip>
+          <Tooltip title={formatMessage({ id: 'model.delete' })}>
+            <Button
+              type="text"
+              size="small"
+              icon={<DeleteOutlined />}
+              danger
+              onClick={() => handleDeleteModel(record)}
+            />
+          </Tooltip>
+        </Space>
+      ),
+    },
+  ];
+
+  useEffect(() => {
+    fetchConfiguration();
+  }, [fetchConfiguration]);
+
+  return (
+    <PageContainer>
+      {contextHolder}
+      <PageHeader
+        title={formatMessage({ id: 'model.configuration' })}
+        description={formatMessage({ id: 'model.configuration.description' })}
+      >
+        <Button type="primary" onClick={handleCreateProvider}>
+          {formatMessage({ id: 'model.provider.add' })}
+        </Button>
+        <RefreshButton onClick={() => fetchConfiguration()} loading={loading} />
+      </PageHeader>
+      <Table
+        columns={providerColumns}
+        dataSource={configuration.providers}
+        rowKey="name"
+        loading={loading}
+        pagination={false}
+        scroll={{ x: 1000 }}
+        bordered
+      />
+      <Modal
+        title={
+          <Space>
+            <SettingOutlined />
+            <span>
+              {editingProvider
+                ? formatMessage({ id: 'model.provider.edit' })
+                : formatMessage({ id: 'model.provider.add' })}
+            </span>
+          </Space>
+        }
+        open={providerModalVisible}
+        onCancel={() => setProviderModalVisible(false)}
+        onOk={handleSaveProvider}
+        width={650}
+        confirmLoading={loading}
+        maskClosable={false}
+        style={{ top: 100 }}
+      >
+        <Divider style={{ margin: '16px 0 24px 0' }} />
+        <Form
+          form={providerForm}
+          layout="vertical"
+          requiredMark={false}
+          colon={false}
+        >
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="name"
+                label={formatMessage({ id: 'model.provider.name' })}
+                rules={[
+                  {
+                    required: true,
+                    message: formatMessage({
+                      id: 'model.provider.name.required',
+                    }),
+                  },
+                ]}
+              >
+                <Input
+                  disabled={!!editingProvider}
+                  placeholder={formatMessage({
+                    id: 'model.provider.name.placeholder',
+                  })}
+                  style={{ borderRadius: '6px' }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="label"
+                label={formatMessage({ id: 'model.provider.label' })}
+                rules={[
+                  {
+                    required: true,
+                    message: formatMessage({
+                      id: 'model.provider.label.required',
+                    }),
+                  },
+                ]}
+              >
+                <Input
+                  placeholder={formatMessage({
+                    id: 'model.provider.label.placeholder',
+                  })}
+                  style={{ borderRadius: '6px' }}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item
+            name="base_url"
+            label={formatMessage({ id: 'model.provider.base_url' })}
+            rules={[
+              {
+                required: true,
+                message: formatMessage({
+                  id: 'model.provider.base_url.required',
+                }),
+              },
+            ]}
+          >
+            <Input
+              placeholder={formatMessage({
+                id: 'model.provider.base_url.placeholder',
+              })}
+              style={{ borderRadius: '6px' }}
+            />
+          </Form.Item>
+
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item
+                name="completion_dialect"
+                label={formatMessage({
+                  id: 'model.provider.completion_dialect',
+                })}
+                rules={[
+                  {
+                    required: true,
+                    message: formatMessage({
+                      id: 'model.provider.completion_dialect.required',
+                    }),
+                  },
+                ]}
+              >
+                <Input
+                  placeholder={formatMessage({
+                    id: 'model.provider.completion_dialect.placeholder',
+                  })}
+                  style={{ borderRadius: '6px' }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="embedding_dialect"
+                label={formatMessage({
+                  id: 'model.provider.embedding_dialect',
+                })}
+                rules={[
+                  {
+                    required: true,
+                    message: formatMessage({
+                      id: 'model.provider.embedding_dialect.required',
+                    }),
+                  },
+                ]}
+              >
+                <Input
+                  placeholder={formatMessage({
+                    id: 'model.provider.embedding_dialect.placeholder',
+                  })}
+                  style={{ borderRadius: '6px' }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="rerank_dialect"
+                label={formatMessage({ id: 'model.provider.rerank_dialect' })}
+                rules={[
+                  {
+                    required: true,
+                    message: formatMessage({
+                      id: 'model.provider.rerank_dialect.required',
+                    }),
+                  },
+                ]}
+              >
+                <Input
+                  placeholder={formatMessage({
+                    id: 'model.provider.rerank_dialect.placeholder',
+                  })}
+                  style={{ borderRadius: '6px' }}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item
+            name="allow_custom_base_url"
+            valuePropName="checked"
+            label={formatMessage({
+              id: 'model.provider.allow_custom_base_url',
+            })}
+          >
+            <Switch />
+          </Form.Item>
+
+          <Form.Item
+            name="extra"
+            label={formatMessage({ id: 'model.provider.extra_config' })}
+          >
+            <Input.TextArea
+              placeholder={'{"key": "value"}'}
+              rows={3}
+              style={{ borderRadius: '6px' }}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Model Management Modal */}
+      <Modal
+        title={
+          currentProvider
+            ? formatMessage(
+                { id: 'model.management.title' },
+                { provider: currentProvider.label },
+              )
+            : formatMessage({ id: 'model.management.title' }, { provider: '' })
+        }
+        open={modelManagementVisible}
+        onCancel={handleCloseModelManagement}
+        footer={null}
+        width={1000}
+        destroyOnClose
+        maskClosable={false}
+        keyboard={true} // 支持ESC退出
+        style={{ top: 60 }}
+      >
+        <Divider style={{ margin: '16px 0 24px 0' }} />
+
+        {modalView === 'list' && (
+          <div>
+            <div
+              style={{
+                marginBottom: 20,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '0 4px',
+              }}
+            >
+              <Title level={5} style={{ margin: 0, fontWeight: 600 }}>
+                {formatMessage({ id: 'model.list.title' })}
+              </Title>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={handleAddModel}
+                style={{ fontWeight: 500 }}
+              >
+                {formatMessage({ id: 'model.add' })}
+              </Button>
+            </div>
+            <Table
+              columns={modalModelColumns}
+              dataSource={getCurrentProviderModels()}
+              rowKey={(record) => `${record.api}-${record.model}`}
+              loading={loading}
+              // pagination={false}
+              size="small"
+              scroll={{ x: 700 }}
+              style={{
+                fontSize: '13px',
+                border: '1px solid #f0f0f0',
+                borderRadius: '6px',
+              }}
+            />
+          </div>
+        )}
+
+        {(modalView === 'add' || modalView === 'edit') && (
+          <div>
+            <div
+              style={{
+                marginBottom: 24,
+                display: 'flex',
+                alignItems: 'center',
+                padding: '12px 16px',
+                background: '#fafafa',
+                borderRadius: '6px',
+                border: '1px solid #f0f0f0',
+              }}
+            >
+              <Button
+                type="text"
+                icon={<ArrowLeftOutlined />}
+                onClick={handleBackToList}
+                style={{ marginRight: 12, fontWeight: 500 }}
+              >
+                {formatMessage({ id: 'model.back_to_list' })}
+              </Button>
+              <Title level={5} style={{ margin: 0, fontWeight: 600 }}>
+                {modalView === 'add'
+                  ? formatMessage({ id: 'model.add.title' })
+                  : formatMessage(
+                      { id: 'model.edit.title' },
+                      { model: editingModel?.model },
+                    )}
+              </Title>
+            </div>
+
+            <Form
+              form={modelForm}
+              layout="vertical"
+              onFinish={handleSaveModel}
+              requiredMark={false}
+              colon={false}
+              style={{ padding: '0 4px' }}
+            >
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item
+                    name="api"
+                    label={formatMessage({ id: 'model.api_type' })}
+                    rules={[
+                      {
+                        required: true,
+                        message: formatMessage({
+                          id: 'model.api_type.required',
+                        }),
+                      },
+                    ]}
+                  >
+                    <Select
+                      placeholder={formatMessage({
+                        id: 'model.api_type.required',
+                      })}
+                      disabled={!!editingModel}
+                      onChange={handleApiTypeChange}
+                      style={{ borderRadius: '6px' }}
+                    >
+                      <Select.Option value="completion">
+                        {formatMessage({ id: 'model.api_type.completion' })}
+                      </Select.Option>
+                      <Select.Option value="embedding">
+                        {formatMessage({ id: 'model.api_type.embedding' })}
+                      </Select.Option>
+                      <Select.Option value="rerank">
+                        {formatMessage({ id: 'model.api_type.rerank' })}
+                      </Select.Option>
+                    </Select>
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item
+                    name="model"
+                    label={formatMessage({ id: 'model.model_name' })}
+                    rules={[
+                      {
+                        required: true,
+                        message: formatMessage({
+                          id: 'model.model_name.required',
+                        }),
+                      },
+                    ]}
+                  >
+                    <Input
+                      placeholder={formatMessage({
+                        id: 'model.model_name.placeholder',
+                      })}
+                      disabled={!!editingModel}
+                      style={{ borderRadius: '6px' }}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item
+                    name="custom_llm_provider"
+                    label={formatMessage({ id: 'model.custom_llm_provider' })}
+                  >
+                    <Input
+                      placeholder={formatMessage({
+                        id: 'model.custom_llm_provider.placeholder',
+                      })}
+                      style={{ borderRadius: '6px' }}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>{/* 空列，用于保持布局 */}</Col>
+              </Row>
+
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item
+                    name="max_tokens"
+                    label={formatMessage({ id: 'model.max_tokens' })}
+                  >
+                    <InputNumber
+                      placeholder={formatMessage({
+                        id: 'model.max_tokens.placeholder',
+                      })}
+                      min={1}
+                      style={{ width: '100%', borderRadius: '6px' }}
+                      formatter={(value) =>
+                        `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+                      }
+                      parser={(value) => value!.replace(/,/g, '') as any}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item
+                    name="tags"
+                    label={formatMessage({ id: 'model.tags' })}
+                  >
+                    <Select
+                      mode="tags"
+                      placeholder={formatMessage({
+                        id: 'model.tags.placeholder',
+                      })}
+                      tokenSeparators={[',']}
+                      style={{ width: '100%', borderRadius: '6px' }}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <div
+                style={{
+                  marginTop: 32,
+                  padding: '16px 0 8px 0',
+                  borderTop: '1px solid #f0f0f0',
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: 12,
+                }}
+              >
+                <Button
+                  onClick={handleBackToList}
+                  style={{ borderRadius: '6px' }}
+                >
+                  {formatMessage({ id: 'action.cancel' })}
+                </Button>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  loading={loading}
+                  style={{ borderRadius: '6px', fontWeight: 500 }}
+                >
+                  {formatMessage({ id: 'action.save' })}
+                </Button>
+              </div>
+            </Form>
+          </div>
+        )}
+      </Modal>
+    </PageContainer>
+  );
+};

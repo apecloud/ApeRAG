@@ -6,6 +6,7 @@ import { applyNodeChanges, NodeChange } from '@xyflow/react';
 import _ from 'lodash';
 import { useCallback, useMemo } from 'react';
 import { useIntl, useModel } from 'umi';
+import { NodeOutputs } from './_outputs';
 import { OutputParams } from './_outputs_params';
 import { getCollapsePanelStyle } from './_styles';
 
@@ -95,6 +96,7 @@ export const ApeNodeGraphSearch = ({ node }: { node: ApeNode }) => {
             label: formatMessage({ id: 'flow.output.params' }),
             style: getCollapsePanelStyle(token),
             children: <OutputParams node={node} />,
+            extra: <NodeOutputs node={node} />,
           },
         ]}
       />

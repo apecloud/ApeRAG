@@ -62,7 +62,7 @@ run-backend: migrate
 	uvicorn config.asgi:application --host 0.0.0.0 --reload --reload-include '*.html'
 
 run-celery:
-	celery -A config.celery worker -B -l INFO
+	celery -A config.celery worker -B -l INFO --pool=solo
 
 run-flower:
 	celery -A config.celery flower --conf/flowerconfig.py
@@ -73,25 +73,53 @@ run-frontend:
 
 run-db:
 	@echo "Starting all database services..."
-	@$(MAKE) run-redis run-postgres run-qdrant run-es run-minio
+	@$(MAKE) run-redis run-postgres run-qdrant run-es run-minio run-neo4j
 
 # Docker Compose deployment
+
+# Variables for compose command based on environment flags
+# Usage examples:
+#   make compose-up
+#   make compose-up WITH_DOCRAY=1
+#   make compose-up WITH_DOCRAY=1 WITH_GPU=1
+#   make compose-down
+#   make compose-down REMOVE_VOLUMES=1
+_PROFILES_TO_ACTIVATE :=
+_EXTRA_ENVS :=
+_COMPOSE_DOWN_FLAGS :=
+
+# Determine which docray profile to use for 'compose-up'
+ifeq ($(WITH_DOCRAY),1)
+    ifeq ($(WITH_GPU),1)
+        _PROFILES_TO_ACTIVATE += --profile docray-gpu
+		_EXTRA_ENVS += DOCRAY_HOST=http://aperag-docray-gpu:8639
+    else
+        _PROFILES_TO_ACTIVATE += --profile docray
+		_EXTRA_ENVS += DOCRAY_HOST=http://aperag-docray:8639
+    endif
+endif
+
+# Determine flags for 'compose-down'
+ifeq ($(REMOVE_VOLUMES),1)
+    _COMPOSE_DOWN_FLAGS += -v
+endif
+
 .PHONY: compose-up compose-down compose-logs
-compose-up: migrate
-	docker-compose -f compose.yml up -d
+compose-up:
+	$(_EXTRA_ENVS) docker-compose $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d
 
 compose-down:
-	docker-compose -f compose.yml down
+	docker-compose --profile docray --profile docray-gpu -f docker-compose.yml down $(_COMPOSE_DOWN_FLAGS)
 
 compose-logs:
-	docker-compose -f compose.yml logs -f
+	docker-compose -f docker-compose.yml logs -f
 
 # Environment cleanup
 .PHONY: clean
 clean:
 	@echo "Cleaning development environment..."
 	@rm -f db.sqlite3
-	@docker rm -fv aperag-postgres-dev aperag-redis-dev aperag-qdrant-dev aperag-es-dev aperag-minio-dev 2>/dev/null || true
+	@docker rm -fv aperag-postgres-dev aperag-redis-dev aperag-qdrant-dev aperag-es-dev aperag-minio-dev aperag-neo4j-dev 2>/dev/null || true
 
 ##################################################
 # Developers - Code Quality and Tools
@@ -284,7 +312,7 @@ connect-metadb:
 	@docker exec -it aperag-postgres-dev psql -p 5432 -U postgres
 
 # Individual service startup (for advanced users)
-.PHONY: run-redis run-postgres run-qdrant run-es run-minio
+.PHONY: run-redis run-postgres run-qdrant run-es run-minio run-neo4j
 run-redis:
 	@docker inspect aperag-redis-dev >/dev/null 2>&1 || docker run -d --name aperag-redis-dev -p 6379:6379 redis:latest
 	@docker start aperag-redis-dev
@@ -330,6 +358,14 @@ run-minio:
 		docker run -d --name aperag-minio-dev -p 9000:9000 -p 9001:9001 \
 		quay.io/minio/minio server /data --console-address ":9001"
 	@docker start aperag-minio-dev
+
+run-neo4j:
+	@docker inspect aperag-neo4j-dev >/dev/null 2>&1 || \
+		docker run -d --name aperag-neo4j-dev -p 7474:7474 -p 7687:7687 \
+		-e NEO4J_AUTH=neo4j/password \
+		-e NEO4J_PLUGINS=\[\"apoc\"\] \
+		neo4j:5.26.5
+	@docker start aperag-neo4j-dev
 
 .PHONY: load-images-to-minikube
 load-images-to-minikube:

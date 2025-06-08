@@ -21,7 +21,6 @@ import { RibbonProps } from 'antd/es/badge/Ribbon';
 import _ from 'lodash';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useIntl, useModel } from 'umi';
-import { NodeOutputs } from './_outputs';
 import {
   StyledFlowNode,
   StyledFlowNodeAvatar,
@@ -58,25 +57,18 @@ const nodeStatusMap: {
 const FlowNodeWrap = ({
   status,
   children,
-  outputs,
 }: {
   status: ApeFlowNodeStatus;
   children: React.ReactNode;
-  outputs: React.ReactNode;
 }) => {
   if (status === 'stopped') {
     return children;
   }
   return (
     <Badge.Ribbon
-      text={
-        <Space>
-          {nodeStatusMap[status].text}
-          {outputs}
-        </Space>
-      }
+      text={nodeStatusMap[status].text}
       color={nodeStatusMap[status].color}
-      style={{ top: 12, paddingBlock: 4, transitionDuration: '0.5s' }}
+      style={{ top: 20, paddingBlock: 4, transitionDuration: '0.5s' }}
     >
       {children}
     </Badge.Ribbon>
@@ -186,7 +178,7 @@ const ApeBasicNode = (node: ApeNode) => {
 
   return (
     <>
-      <FlowNodeWrap status={nodeStatus} outputs={<NodeOutputs node={node} />}>
+      <FlowNodeWrap status={nodeStatus}>
         <StyledFlowNodeContainer
           token={token}
           selected={selected || nodeStatus === 'running'}
