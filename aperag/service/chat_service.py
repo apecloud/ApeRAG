@@ -88,12 +88,10 @@ class ChatService:
         from aperag.views.utils import query_chat_messages
 
         try:
-            # Query chat using the provided session
             chat = await self.db_ops.query_chat(user, bot_id, chat_id)
             if chat is None:
                 return fail(HTTPStatus.NOT_FOUND, "Chat not found")
 
-            # Query messages using the same session
             messages = await query_chat_messages(user, chat_id)
 
             chat_obj = self.build_chat_response(chat)

@@ -1,7 +1,9 @@
+import os
 from functools import wraps
 from pathlib import Path
 from typing import Annotated, Any, AsyncGenerator, Dict, Generator, Optional
 
+import environ
 from fastapi import Depends
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -11,6 +13,11 @@ from sqlalchemy.orm import sessionmaker
 from sqlmodel import Session
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+env = environ.Env()
+env_file = os.path.join(BASE_DIR, ".env")
+if os.path.exists(env_file):
+    env.read_env(env_file)
 
 
 class S3Config(BaseSettings):

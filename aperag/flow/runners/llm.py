@@ -21,7 +21,7 @@ from litellm import BaseModel
 from pydantic import Field
 
 from aperag.chat.history.base import BaseChatMessageHistory
-from aperag.db.ops import async_db_ops, query_msp_dict
+from aperag.db.ops import async_db_ops
 from aperag.flow.base.models import BaseNodeRunner, SystemInput, register_node_runner
 from aperag.llm.base import Predictor
 from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES
@@ -119,7 +119,7 @@ class LLMService:
         docs: Optional[List[DocumentWithScore]] = None,
     ) -> Tuple[str, Dict]:
         """Generate LLM response with given parameters"""
-        msp_dict = await query_msp_dict(user)
+        msp_dict = await async_db_ops.query_msp_dict(user)
         if model_service_provider not in msp_dict:
             raise Exception(f"Model service provider {model_service_provider} not found")
 

@@ -1520,8 +1520,3 @@ class AsyncDatabaseOps:
 # This can be used in places where session dependency injection is not available
 async_db_ops = AsyncDatabaseOps()
 db_ops = DatabaseOps()
-
-
-async def query_msp_dict(user: str):
-    """Deprecated: Use DatabaseOps instance instead"""
-    return await async_db_ops.query_msp_dict(user)

@@ -14,6 +14,15 @@
 
 import os
 
+import environ
+
+env = environ.Env()
+env_file = os.path.join(os.path.dirname(__file__), ".env")
+if os.path.exists(env_file):
+    env.read_env(env_file)
+else:
+    raise FileNotFoundError(f"E2E test environment file not found: {env_file}")
+
 # Base URLs for API testing
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 WS_BASE_URL = os.getenv("WS_BASE_URL", "ws://localhost:8000/api/v1")
