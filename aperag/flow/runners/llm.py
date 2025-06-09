@@ -20,12 +20,12 @@ from langchain.schema import AIMessage, HumanMessage
 from litellm import BaseModel
 from pydantic import Field
 
-from aperag.chat.history.base import BaseChatMessageHistory
 from aperag.db.ops import async_db_ops
 from aperag.flow.base.models import BaseNodeRunner, SystemInput, register_node_runner
 from aperag.llm.base import Predictor
-from aperag.pipeline.base_pipeline import DOC_QA_REFERENCES
 from aperag.query.query import DocumentWithScore
+from aperag.utils.constant import DOC_QA_REFERENCES
+from aperag.utils.history import BaseChatMessageHistory
 from aperag.utils.utils import now_unix_milliseconds
 
 MAX_CONTEXT_LENGTH = 100000

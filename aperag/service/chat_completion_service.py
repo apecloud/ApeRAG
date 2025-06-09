@@ -15,18 +15,87 @@
 import asyncio
 import json
 import logging
+import time
 import uuid
-from typing import AsyncGenerator
+from dataclasses import dataclass
+from typing import Any, AsyncGenerator, Dict, List
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.chat.sse.base import APIRequest
-from aperag.chat.sse.openai_consumer import OpenAIFormatter
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.flow.engine import FlowEngine
 from aperag.flow.parser import FlowParser
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class APIRequest:
+    """API request parameters for direct API calls"""
+
+    user: str
+    bot_id: str
+    msg_id: str
+    stream: bool
+    messages: List[Dict[str, str]]
+
+
+class OpenAIFormatter:
+    """Format responses according to OpenAI API specification"""
+
+    @staticmethod
+    def format_stream_start(msg_id: str) -> Dict[str, Any]:
+        """Format the start event for streaming"""
+        return {
+            "id": msg_id,
+            "object": "chat.completion.chunk",
+            "created": int(time.time()),
+            "model": "aperag",
+            "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}],
+        }
+
+    @staticmethod
+    def format_stream_content(msg_id: str, content: str) -> Dict[str, Any]:
+        """Format a content chunk for streaming"""
+        return {
+            "id": msg_id,
+            "object": "chat.completion.chunk",
+            "created": int(time.time()),
+            "model": "aperag",
+            "choices": [{"index": 0, "delta": {"content": content}, "finish_reason": None}],
+        }
+
+    @staticmethod
+    def format_stream_end(msg_id: str) -> Dict[str, Any]:
+        """Format the end event for streaming"""
+        return {
+            "id": msg_id,
+            "object": "chat.completion.chunk",
+            "created": int(time.time()),
+            "model": "aperag",
+            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+        }
+
+    @staticmethod
+    def format_complete_response(msg_id: str, content: str) -> Dict[str, Any]:
+        """Format a complete response for non-streaming mode"""
+        return {
+            "id": msg_id,
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": "aperag",
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": content}, "finish_reason": "stop"}],
+            "usage": {
+                "prompt_tokens": 0,  # TODO: Implement token counting
+                "completion_tokens": 0,
+                "total_tokens": 0,
+            },
+        }
+
+    @staticmethod
+    def format_error(error: str) -> Dict[str, Any]:
+        """Format an error response"""
+        return {"error": {"message": error, "type": "server_error", "code": "internal_error"}}
 
 
 class ChatCompletionService:

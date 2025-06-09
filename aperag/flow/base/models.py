@@ -17,8 +17,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
-from aperag.chat.history.base import BaseChatMessageHistory
 from aperag.flow.base.exceptions import CycleError
+from aperag.utils.history import BaseChatMessageHistory
 
 
 @dataclass

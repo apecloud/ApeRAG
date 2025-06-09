@@ -20,8 +20,8 @@ from typing import Any, Dict
 
 import aiohttp
 
-from aperag.chat.utils import get_async_redis_client
 from aperag.source.base import CustomSourceInitializationError
+from aperag.utils.history import get_async_redis_client
 
 logger = logging.getLogger(__name__)
 

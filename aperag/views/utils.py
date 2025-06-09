@@ -21,14 +21,13 @@ from fastapi import HTTPException, Request, Response
 from langchain_core.prompts import PromptTemplate
 from pydantic import ValidationError
 
-from aperag.chat.history.redis import RedisChatMessageHistory
-from aperag.chat.utils import get_async_redis_client
 from aperag.db.models import BotType
 from aperag.db.ops import async_db_ops
 from aperag.llm.base import Predictor
 from aperag.schema import view_models
 from aperag.schema.view_models import CollectionConfig
 from aperag.source.base import CustomSourceInitializationError, get_source
+from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
 from aperag.utils.utils import AVAILABLE_SOURCE
 
 logger = logging.getLogger(__name__)

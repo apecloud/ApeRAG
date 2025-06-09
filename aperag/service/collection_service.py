@@ -16,7 +16,6 @@ from http import HTTPStatus
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.apps import QuotaType
 from aperag.config import settings
 from aperag.db import models as db_models
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
@@ -33,6 +32,7 @@ from aperag.schema.view_models import (
     SearchTestResultList,
 )
 from aperag.tasks.collection import delete_collection_task, init_collection_task
+from aperag.utils.constant import QuotaType
 from aperag.views.utils import fail, success, validate_source_connect_config
 
 

@@ -19,10 +19,10 @@ from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
 
-from aperag.chat.utils import get_sync_redis_client
 from aperag.config import get_sync_session
 from aperag.db.models import Collection, CollectionStatus, Document, DocumentStatus
 from aperag.tasks.index import add_index_for_local_document
+from aperag.utils.history import get_sync_redis_client
 from config.celery import app
 
 

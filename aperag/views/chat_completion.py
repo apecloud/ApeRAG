@@ -17,9 +17,8 @@ import logging
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 
-from aperag.chat.sse.openai_consumer import OpenAIFormatter
 from aperag.db.models import User
-from aperag.service.chat_completion_service import chat_completion_service
+from aperag.service.chat_completion_service import OpenAIFormatter, chat_completion_service
 from aperag.views.auth import current_user
 
 logger = logging.getLogger(__name__)

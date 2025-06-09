@@ -16,24 +16,95 @@ import json
 import logging
 import uuid
 from http import HTTPStatus
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, Dict, List
 
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.chat.history.redis import RedisChatMessageHistory
-from aperag.chat.sse.frontend_consumer import BaseFormatter, FrontendFormatter
-from aperag.chat.utils import fail_response, get_async_redis_client, start_response, stop_response, success_response
 from aperag.db import models as db_models
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.flow.engine import FlowEngine
 from aperag.flow.parser import FlowParser
 from aperag.schema import view_models
 from aperag.schema.view_models import Chat, ChatDetails, ChatList
+from aperag.utils.history import (
+    RedisChatMessageHistory,
+    fail_response,
+    get_async_redis_client,
+    start_response,
+    stop_response,
+    success_response,
+)
+from aperag.utils.utils import now_unix_milliseconds
 from aperag.views.utils import fail, success
 
 logger = logging.getLogger(__name__)
+
+
+class FrontendFormatter:
+    """Format responses according to Aperag custom format"""
+
+    @staticmethod
+    def format_stream_start(msg_id: str) -> Dict[str, Any]:
+        """Format the start event for streaming"""
+        return {
+            "type": "start",
+            "id": msg_id,
+            "timestamp": now_unix_milliseconds(),
+        }
+
+    @staticmethod
+    def format_stream_content(msg_id: str, content: str) -> Dict[str, Any]:
+        """Format a content chunk for streaming"""
+        return {
+            "type": "message",
+            "id": msg_id,
+            "data": content,
+            "timestamp": now_unix_milliseconds(),
+        }
+
+    @staticmethod
+    def format_stream_end(
+        msg_id: str,
+        references: List[str] = None,
+        memory_count: int = 0,
+        urls: List[str] = None,
+    ) -> Dict[str, Any]:
+        """Format the end event for streaming"""
+        if references is None:
+            references = []
+        if urls is None:
+            urls = []
+
+        return {
+            "type": "stop",
+            "id": msg_id,
+            "data": references,
+            "memoryCount": memory_count,
+            "urls": urls,
+            "timestamp": now_unix_milliseconds(),
+        }
+
+    @staticmethod
+    def format_complete_response(msg_id: str, content: str) -> Dict[str, Any]:
+        """Format a complete response for non-streaming mode"""
+        return {
+            "type": "message",
+            "id": msg_id,
+            "data": content,
+            "timestamp": now_unix_milliseconds(),
+        }
+
+    @staticmethod
+    def format_error(error: str) -> Dict[str, Any]:
+        """Format an error response"""
+        return {
+            "type": "error",
+            "id": str(uuid.uuid4()),
+            "data": error,
+            "timestamp": now_unix_milliseconds(),
+        }
 
 
 class ChatService:
@@ -156,7 +227,9 @@ class ChatService:
         except Exception as e:
             return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to delete chat: {str(e)}")
 
-    def stream_frontend_sse_response(self, generator: AsyncGenerator[Any, Any], formatter: BaseFormatter, msg_id: str):
+    def stream_frontend_sse_response(
+        self, generator: AsyncGenerator[Any, Any], formatter: FrontendFormatter, msg_id: str
+    ):
         """Yield SSE events for FastAPI StreamingResponse."""
 
         async def event_stream():

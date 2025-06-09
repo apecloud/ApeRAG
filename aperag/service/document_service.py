@@ -22,7 +22,6 @@ from asgiref.sync import sync_to_async
 from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.apps import QuotaType
 from aperag.config import settings
 from aperag.db import models as db_models
 from aperag.db.ops import (
@@ -35,6 +34,7 @@ from aperag.schema import view_models
 from aperag.schema.view_models import Document, DocumentList
 from aperag.tasks.crawl_web import crawl_domain
 from aperag.tasks.index import add_index_for_local_document, remove_index, update_index_for_document
+from aperag.utils.constant import QuotaType
 from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
 from aperag.views.utils import fail, success, validate_url
 

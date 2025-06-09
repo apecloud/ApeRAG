@@ -64,8 +64,7 @@ class FulltextSearchService:
         if not collection:
             return []
 
-        from aperag.context.full_text import search_document
-        from aperag.pipeline.keyword_extractor import IKExtractor
+        from aperag.context.full_text import IKExtractor, search_document
 
         index = generate_vector_db_collection_name(collection.id)
         async with IKExtractor({"index_name": index, "es_host": settings.es_host}) as extractor:

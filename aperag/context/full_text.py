@@ -13,7 +13,9 @@
 # limitations under the License.
 
 import logging
-from typing import List
+import os
+from pathlib import Path
+from typing import Any, Dict, List
 
 from elasticsearch import AsyncElasticsearch, Elasticsearch, NotFoundError
 
@@ -150,3 +152,50 @@ async def search_document(index: str, keywords: List[str], topk=3) -> List[Docum
             )
         )
     return result
+
+
+class KeywordExtractor(object):
+    def __init__(self, ctx: Dict[str, Any]):
+        self.ctx = ctx
+
+    async def extract(self, text):
+        raise NotImplementedError
+
+
+class IKExtractor(KeywordExtractor):
+    """
+    Extract keywords from text using IK
+    """
+
+    def __init__(self, ctx: Dict[str, Any]):
+        super().__init__(ctx)
+        self.client = AsyncElasticsearch(ctx.get("es_host", "http://127.0.0.1:9200"))
+        self.index_name = ctx["index_name"]
+        # TODO move stop words to global
+        stop_words_path = ctx.get("stop_words_path", Path(__file__).parent / "stopwords.txt")
+        if os.path.exists(stop_words_path):
+            with open(stop_words_path) as f:
+                self.stop_words = set(f.read().splitlines())
+        else:
+            self.stop_words = set()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.client.close()
+
+    async def extract(self, text):
+        resp = await self.client.indices.exists(index=self.index_name)
+        if not resp.body:
+            logger.warning("index %s not exists", self.index_name)
+            return []
+
+        resp = await self.client.indices.analyze(index=self.index_name, body={"text": text}, analyzer="ik_smart")
+        tokens = {}
+        for item in resp.body["tokens"]:
+            token = item["token"]
+            if token in self.stop_words:
+                continue
+            tokens[token] = True
+        return tokens.keys()
