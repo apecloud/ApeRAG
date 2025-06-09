@@ -21,11 +21,11 @@ from typing import List
 from langchain_core.embeddings import Embeddings
 from llama_index.core.schema import BaseNode, TextNode
 
+from aperag.config import settings
 from aperag.docparser.base import Part
 from aperag.docparser.chunking import rechunk
 from aperag.utils.tokenizer import get_default_tokenizer
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
-from config import settings
 
 logger = logging.getLogger(__name__)
 

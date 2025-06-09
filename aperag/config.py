@@ -3,7 +3,7 @@ from functools import wraps
 from pathlib import Path
 from typing import Annotated, Any, AsyncGenerator, Dict, Generator, Optional
 
-import environ
+from dotenv import load_dotenv
 from fastapi import Depends
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -14,10 +14,7 @@ from sqlmodel import Session
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-env = environ.Env()
-env_file = os.path.join(BASE_DIR, ".env")
-if os.path.exists(env_file):
-    env.read_env(env_file)
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 
 class S3Config(BaseSettings):
@@ -129,10 +126,6 @@ class Config(BaseSettings):
     whisper_host: str = Field("", env="WHISPER_HOST")
     paddleocr_host: str = Field("", env="PADDLEOCR_HOST")
     docray_host: str = Field("", env="DOCRAY_HOST")
-
-    # Admin
-    admin_user: str = Field("aperag", env="ADMIN_USER")
-    admin_token: str = Field("", env="ADMIN_TOKEN")
 
     # Register mode
     register_mode: str = Field("unlimited", env="REGISTER_MODE")

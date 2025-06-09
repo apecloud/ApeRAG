@@ -91,7 +91,7 @@ class BotService:
             return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to create bot: {str(e)}")
 
     async def list_bots(self, user: str) -> view_models.BotList:
-        bots = await self.db_ops.query_bots([user, settings.admin_user])
+        bots = await self.db_ops.query_bots([user])
         response = []
 
         # Use _execute_query pattern to get collection IDs for all bots safely

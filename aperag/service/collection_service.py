@@ -109,7 +109,7 @@ class CollectionService:
             return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to create collection: {str(e)}")
 
     async def list_collections(self, user: str) -> view_models.CollectionList:
-        collections = await self.db_ops.query_collections([user, settings.admin_user])
+        collections = await self.db_ops.query_collections([user])
         response = []
         for collection in collections:
             response.append(self.build_collection_response(collection))

@@ -158,21 +158,6 @@ class SessionAuth(APIKeyCookie, BaseAuthBackend):
         return user
 
 
-class AdminAuth(HttpBearer, BaseAuthBackend):
-    """Admin authentication
-
-    Uses specific admin token for authentication
-    Has highest authentication priority
-    """
-
-    async def authenticate(self, request: HttpRequest, token: str) -> Optional[Any]:
-        if not settings.admin_token or token != settings.admin_token:
-            return None
-
-        self.set_user(request, settings.admin_user)
-        return token
-
-
 class GlobalAuth:
     """Global authentication class
 
@@ -188,7 +173,6 @@ class GlobalAuth:
     """
 
     def __init__(self):
-        self.admin_auth = AdminAuth()
         self.jwt_auth = JWTAuth()
         self.api_key_auth = ApiKeyAuth()
         self.session_auth = SessionAuth()
@@ -202,7 +186,6 @@ class GlobalAuth:
                 token = parts[1]
                 # Try different auth methods by priority
                 auth_methods = [
-                    self.admin_auth,  # Admin auth has highest priority
                     self.api_key_auth,  # API key auth second
                     self.jwt_auth,  # JWT auth third
                 ]

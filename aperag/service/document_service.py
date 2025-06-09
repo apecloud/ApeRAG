@@ -186,7 +186,7 @@ class DocumentService:
             return fail(HTTPStatus.INTERNAL_SERVER_ERROR, "create url document failed")
 
     async def list_documents(self, user: str, collection_id: str) -> view_models.DocumentList:
-        documents = await self.db_ops.query_documents([user, settings.admin_user], collection_id)
+        documents = await self.db_ops.query_documents([user], collection_id)
         response = []
         for document in documents:
             response.append(self.build_document_response(document))

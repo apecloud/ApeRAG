@@ -14,14 +14,9 @@
 
 import os
 
-import environ
+from dotenv import load_dotenv
 
-env = environ.Env()
-env_file = os.path.join(os.path.dirname(__file__), ".env")
-if os.path.exists(env_file):
-    env.read_env(env_file)
-else:
-    raise FileNotFoundError(f"E2E test environment file not found: {env_file}")
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 # Base URLs for API testing
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")

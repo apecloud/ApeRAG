@@ -58,7 +58,7 @@ diff:
 # Local services
 .PHONY: run-backend run-frontend run-db run-celery run-flower
 run-backend:
-	export $(cat .env | grep -v '#') && uvicorn aperag.app:app --host 0.0.0.0 --reload --reload-include '*.html' --log-config scripts/uvicorn-log-config.yaml
+	uvicorn aperag.app:app --host 0.0.0.0 --reload --reload-include '*.html' --log-config scripts/uvicorn-log-config.yaml
 
 run-celery:
 	celery -A config.celery worker -B -l INFO --pool=solo
