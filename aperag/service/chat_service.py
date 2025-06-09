@@ -28,6 +28,7 @@ from aperag.flow.engine import FlowEngine
 from aperag.flow.parser import FlowParser
 from aperag.schema import view_models
 from aperag.schema.view_models import Chat, ChatDetails, ChatList
+from aperag.utils.constant import DOC_QA_REFERENCES, DOCUMENT_URLS
 from aperag.utils.history import (
     RedisChatMessageHistory,
     fail_response,
@@ -472,19 +473,19 @@ class ChatService:
 
                     async for chunk in async_generator():
                         # Handle special tokens for references and URLs (similar to original implementation)
-                        if chunk.startswith("DOC_QA_REFERENCES:"):
+                        if chunk.startswith(DOC_QA_REFERENCES):
                             try:
-                                references = json.loads(chunk[len("DOC_QA_REFERENCES:") :])
+                                references = json.loads(chunk[len(DOC_QA_REFERENCES) :])
                                 continue
                             except Exception as e:
-                                logger.exception(f"Error parsing DOC_QA_REFERENCES: {chunk}, {e}")
+                                logger.exception(f"Error parsing doc qa references: {chunk}, {e}")
 
-                        if chunk.startswith("DOCUMENT_URLS:"):
+                        if chunk.startswith(DOCUMENT_URLS):
                             try:
-                                urls = eval(chunk[len("DOCUMENT_URLS:") :])  # Using eval as in original code
+                                urls = eval(chunk[len(DOCUMENT_URLS) :])  # Using eval as in original code
                                 continue
                             except Exception as e:
-                                logger.exception(f"Error parsing DOCUMENT_URLS: {chunk}, {e}")
+                                logger.exception(f"Error parsing document urls: {chunk}, {e}")
 
                         # Send streaming response
                         await websocket.send_text(success_response(message_id, chunk))
