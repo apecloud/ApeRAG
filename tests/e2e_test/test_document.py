@@ -30,7 +30,7 @@ def test_upload_multiple_documents(client, collection):
         ("files", make_markdown_file()),
     ]
     response = client.post(f"/api/v1/collections/{collection['id']}/documents", files=files)
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.OK, response.text
     data = response.json()
     assert "items" in data
     assert len(data["items"]) == 3
@@ -44,9 +44,9 @@ def test_upload_large_document(client, collection, size_mb):
     ]
     response = client.post(f"/api/v1/collections/{collection['id']}/documents", files=files)
     if size_mb >= MAX_DOCUMENT_SIZE_MB:
-        assert response.status_code == HTTPStatus.BAD_REQUEST
+        assert response.status_code == HTTPStatus.BAD_REQUEST, response.text
     else:
-        assert response.status_code == HTTPStatus.OK
+        assert response.status_code == HTTPStatus.OK, response.text
 
 
 def test_upload_unsupported_file_type(benchmark, client, collection):
@@ -55,7 +55,7 @@ def test_upload_unsupported_file_type(benchmark, client, collection):
         ("files", make_exe_file()),
     ]
     response = benchmark(client.post, f"/api/v1/collections/{collection['id']}/documents", files=files)
-    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert response.status_code == HTTPStatus.BAD_REQUEST, response.text
 
 
 def test_upload_too_many_documents(client, collection):
@@ -63,7 +63,7 @@ def test_upload_too_many_documents(client, collection):
     filename, file_obj, mimetype = make_markdown_file()
     files = [("files", (f"test_{i}.md", io.BytesIO(file_obj.getvalue()), mimetype)) for i in range(100)]
     response = client.post(f"/api/v1/collections/{collection['id']}/documents", files=files)
-    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert response.status_code == HTTPStatus.BAD_REQUEST, response.text
 
 
 def test_upload_duplicate_then_delete_and_reupload(client, collection):
@@ -72,7 +72,7 @@ def test_upload_duplicate_then_delete_and_reupload(client, collection):
     filename, file_obj, mimetype = make_markdown_file()
     files = [("files", (filename, file_obj, mimetype))]
     response = client.post(f"/api/v1/collections/{collection['id']}/documents", files=files)
-    assert response.status_code == HTTPStatus.OK
+    assert response.status_code == HTTPStatus.OK, response.text
     data = response.json()
     assert "items" in data
     assert len(data["items"]) == 1
@@ -82,17 +82,17 @@ def test_upload_duplicate_then_delete_and_reupload(client, collection):
     file_obj2 = io.BytesIO(file_obj.getvalue())
     files2 = [("files", (filename, file_obj2, mimetype))]
     response2 = client.post(f"/api/v1/collections/{collection['id']}/documents", files=files2)
-    assert response2.status_code == HTTPStatus.BAD_REQUEST
+    assert response2.status_code == HTTPStatus.BAD_REQUEST, response2.text
 
     # Step 3: Delete the original document
     del_response = client.delete(f"/api/v1/collections/{collection['id']}/documents/{doc_id}")
-    assert del_response.status_code == HTTPStatus.OK
+    assert del_response.status_code == HTTPStatus.OK, del_response.text
     # check if the document is deleted
     max_wait = 10
     interval = 2
     for _ in range(max_wait // interval):
         list_response = client.get(f"/api/v1/collections/{collection['id']}/documents")
-        assert list_response.status_code == HTTPStatus.OK
+        assert list_response.status_code == HTTPStatus.OK, list_response.text
         list_data = list_response.json()
         if all(doc["id"] != doc_id for doc in list_data.get("items", [])):
             break
@@ -104,7 +104,7 @@ def test_upload_duplicate_then_delete_and_reupload(client, collection):
     file_obj3 = io.BytesIO(file_obj.getvalue())
     files3 = [("files", (filename, file_obj3, mimetype))]
     response3 = client.post(f"/api/v1/collections/{collection['id']}/documents", files=files3)
-    assert response3.status_code == HTTPStatus.OK
+    assert response3.status_code == HTTPStatus.OK, response3.text
     data3 = response3.json()
     assert "items" in data3
     assert len(data3["items"]) == 1

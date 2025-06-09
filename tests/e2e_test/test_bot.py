@@ -9,14 +9,14 @@ from tests.e2e_test.config import COMPLETION_MODEL_NAME, COMPLETION_MODEL_PROVID
 
 def test_list_bots(benchmark, client, bot):
     resp = benchmark(client.get, "/api/v1/bots?page=1&page_size=10")
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK, resp.text
     bots = resp.json()["items"]
     assert any(b["id"] == bot["id"] for b in bots)
 
 
 def test_get_bot_detail(benchmark, client, bot):
     resp = benchmark(client.get, f"/api/v1/bots/{bot['id']}")
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK, resp.text
     detail = resp.json()
     assert detail["id"] == bot["id"]
     assert detail["title"] == bot["title"]
@@ -43,7 +43,7 @@ def test_update_bot(benchmark, client, collection, bot):
         "collection_ids": [collection["id"]],
     }
     resp = benchmark(client.put, f"/api/v1/bots/{bot['id']}", json=update_data)
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK, resp.text
     updated = resp.json()
     assert updated["title"] == "E2E Test Bot Updated"
     assert updated["description"] == "E2E Bot Description Updated"
@@ -58,9 +58,9 @@ def test_update_flow(benchmark, client, bot):
     resp = benchmark(
         client.put, f"/api/v1/bots/{bot['id']}/flow", data=flow_json, headers={"Content-Type": "application/json"}
     )
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK, resp.text
     resp = client.get(f"/api/v1/bots/{bot['id']}/flow")
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK, resp.text
     result = resp.json()
     assert result is not None
     assert result.get("name") == "rag_flow"
@@ -73,6 +73,6 @@ def test_update_flow(benchmark, client, bot):
 
 def test_get_flow(benchmark, client, bot):
     resp = benchmark(client.get, f"/api/v1/bots/{bot['id']}/flow")
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK, resp.text
     flow = resp.json()
     assert not flow

@@ -14,16 +14,16 @@ def get_auth_headers(api_key):
 
 
 @pytest.fixture
-def new_api_key(benchmark, client):
+def new_api_key(client):
     # Create a new API key for testing
     create_data = {"description": "e2e test key"}
-    resp = benchmark(client.post, API_KEY_ENDPOINT, json=create_data)
-    assert resp.status_code == HTTPStatus.OK
+    resp = client.post(API_KEY_ENDPOINT, json=create_data)
+    assert resp.status_code == HTTPStatus.OK, resp.text
     resp_data = resp.json()
     yield resp_data
     # Cleanup: delete the key if it still exists
     client.delete(f"{API_KEY_ENDPOINT}/{resp_data['id']}")
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK, resp.text
 
 
 def test_create_api_key(new_api_key):
@@ -41,10 +41,10 @@ def test_access_config_with_valid_api_key(benchmark, client, new_api_key):
     api_key_value = new_api_key["key"]
     with httpx.Client(base_url=API_BASE_URL, headers=get_auth_headers(api_key_value)) as c:
         config_resp = c.get(CONFIG_ENDPOINT)
-        assert config_resp.status_code == HTTPStatus.OK
+        assert config_resp.status_code == HTTPStatus.OK, config_resp.text
 
     resp = benchmark(client.get, f"{API_KEY_ENDPOINT}")
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK, resp.text
     resp_data = resp.json()
     for k in resp_data["items"]:
         if k["id"] == new_api_key["id"]:
@@ -59,7 +59,7 @@ def test_access_config_with_fake_api_key(benchmark):
     fake_key = "sk-fakekey1234567890"
     with httpx.Client(base_url=API_BASE_URL, headers=get_auth_headers(fake_key)) as c:
         config_resp = benchmark(c.get, CONFIG_ENDPOINT)
-        assert config_resp.status_code == HTTPStatus.UNAUTHORIZED
+        assert config_resp.status_code == HTTPStatus.UNAUTHORIZED, config_resp.text
 
 
 def test_update_api_key(benchmark, client, new_api_key):
@@ -67,7 +67,7 @@ def test_update_api_key(benchmark, client, new_api_key):
     api_key_id = new_api_key["id"]
     update_data = {"description": "updated desc"}
     resp = benchmark(client.put, f"{API_KEY_ENDPOINT}/{api_key_id}", json=update_data)
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK, resp.text
     resp_data = resp.json()
     assert resp_data["description"] == "updated desc"
     assert resp_data["updated_at"] is not None
@@ -77,9 +77,9 @@ def test_delete_api_key(benchmark, client, new_api_key):
     # Test deleting API key
     api_key_id = new_api_key["id"]
     resp = benchmark(client.delete, f"{API_KEY_ENDPOINT}/{api_key_id}")
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK, resp.text
     # After deletion, access config should fail
     api_key_value = new_api_key["key"]
     with httpx.Client(base_url=API_BASE_URL, headers=get_auth_headers(api_key_value)) as c:
         config_resp = c.get(CONFIG_ENDPOINT)
-        assert config_resp.status_code == HTTPStatus.UNAUTHORIZED
+        assert config_resp.status_code == HTTPStatus.UNAUTHORIZED, config_resp.text
