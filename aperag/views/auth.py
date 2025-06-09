@@ -441,10 +441,10 @@ async def change_password_view(
     data: view_models.ChangePassword,
     session: AsyncSessionDep,
     user_manager: UserManager = Depends(get_user_manager),
-    user: User = Depends(get_current_active_user),
 ):
-    if user.username != data.username:
-        raise HTTPException(status_code=400, detail="Username mismatch")
+    user = await async_db_ops.query_user_by_username(data.username)
+    if not user:
+        raise HTTPException(status_code=400, detail="User not found")
 
     # Verify old password - use correct fastapi-users API
     verified, _ = user_manager.password_helper.verify_and_update(data.old_password, user.hashed_password)

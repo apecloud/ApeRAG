@@ -37,14 +37,14 @@ def test_get_user_detail(benchmark, cookie_client):
     assert user["date_joined"]
 
 
-def test_change_password(benchmark, cookie_client, login_user):
+def test_change_password(cookie_client, login_user):
     """Test change password for user"""
     data = {
         "username": login_user["username"],
         "old_password": login_user["password"],
         "new_password": login_user["password"] + "_new",
     }
-    resp = benchmark(cookie_client.post, "/api/v1/change-password", json=data)
+    resp = cookie_client.post("/api/v1/change-password", json=data)
     assert resp.status_code == HTTPStatus.OK
     user = resp.json()
     assert user["username"] == login_user["username"]

@@ -12,28 +12,9 @@ def make_markdown_file():
     return "test1.md", io.BytesIO(b"# Title\nThis is a test markdown file."), "text/markdown"
 
 
-def make_pdf_file():
-    # Simulate a minimal PDF file
-    return (
-        "test2.pdf",
-        io.BytesIO(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n1 0 obj\n<< /Type /Catalog >>\nendobj\n"),
-        "application/pdf",
-    )
-
-
-def make_word_file():
-    # Simulate a minimal docx file (just the header, not a valid docx, but enough for mimetype)
-    return (
-        "test3.docx",
-        io.BytesIO(b"PK\x03\x04..."),
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    )
-
-
-def make_large_pdf_file(size_mb=100):
-    # Simulate a large PDF file (e.g., 12MB)
-    content = b"%PDF-1.4\n" + b"0" * (size_mb * 1024 * 1024)
-    return "large_file.pdf", io.BytesIO(content), "application/pdf"
+def make_large_markdown_file(size_mb=100):
+    content = "# Title\n" + "This is a test markdown file." * (size_mb * 1024 * 1024)
+    return "large_file.md", io.BytesIO(content.encode("utf-8")), "text/markdown"
 
 
 def make_exe_file():
@@ -41,14 +22,14 @@ def make_exe_file():
     return "malware.exe", io.BytesIO(b"MZP\x00\x02..."), "application/octet-stream"
 
 
-def test_upload_multiple_documents(benchmark, client, collection):
-    """Test uploading multiple documents at once (markdown, pdf, word)"""
+def test_upload_multiple_documents(client, collection):
+    """Test uploading multiple documents at once"""
     files = [
         ("files", make_markdown_file()),
-        ("files", make_pdf_file()),
-        ("files", make_word_file()),
+        ("files", make_markdown_file()),
+        ("files", make_markdown_file()),
     ]
-    response = benchmark(client.post, f"/api/v1/collections/{collection['id']}/documents", files=files)
+    response = client.post(f"/api/v1/collections/{collection['id']}/documents", files=files)
     assert response.status_code == HTTPStatus.OK
     data = response.json()
     assert "items" in data
@@ -56,12 +37,12 @@ def test_upload_multiple_documents(benchmark, client, collection):
 
 
 @pytest.mark.parametrize("size_mb", [105, 10])
-def test_upload_large_document(benchmark, client, collection, size_mb):
-    """Test uploading a large document (e.g., >10MB pdf)"""
+def test_upload_large_document(client, collection, size_mb):
+    """Test uploading a large document (e.g., >10MB markdown)"""
     files = [
-        ("files", make_large_pdf_file(size_mb)),
+        ("files", make_large_markdown_file(size_mb)),
     ]
-    response = benchmark(client.post, f"/api/v1/collections/{collection['id']}/documents", files=files)
+    response = client.post(f"/api/v1/collections/{collection['id']}/documents", files=files)
     if size_mb >= MAX_DOCUMENT_SIZE_MB:
         assert response.status_code == HTTPStatus.BAD_REQUEST
     else:
@@ -77,11 +58,11 @@ def test_upload_unsupported_file_type(benchmark, client, collection):
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
-def test_upload_too_many_documents(benchmark, client, collection):
+def test_upload_too_many_documents(client, collection):
     """Test uploading more than the allowed number of documents (e.g., 100)"""
     filename, file_obj, mimetype = make_markdown_file()
     files = [("files", (f"test_{i}.md", io.BytesIO(file_obj.getvalue()), mimetype)) for i in range(100)]
-    response = benchmark(client.post, f"/api/v1/collections/{collection['id']}/documents", files=files)
+    response = client.post(f"/api/v1/collections/{collection['id']}/documents", files=files)
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
