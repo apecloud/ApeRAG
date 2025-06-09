@@ -62,7 +62,9 @@ def test_logout_user(login_user):
         assert resp.status_code == HTTPStatus.OK, resp.text
         # After logout, get user should fail (unauthorized or forbidden)
         resp2 = c.get("/api/v1/user")
-        assert resp2.status_code in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN), f"Expected UNAUTHORIZED or FORBIDDEN, got {resp2.status_code}: {resp2.text}"
+        assert resp2.status_code in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN), (
+            f"Expected UNAUTHORIZED or FORBIDDEN, got {resp2.status_code}: {resp2.text}"
+        )
 
 
 def test_get_user_list(benchmark, cookie_client):
@@ -79,4 +81,6 @@ def test_delete_user(cookie_client, login_user):
     # Try to delete self (should fail)
     user_id = login_user["user"]["id"]
     resp = cookie_client.delete(f"/api/v1/users/{user_id}")
-    assert resp.status_code != HTTPStatus.OK, f"Should not be able to delete self, but got {resp.status_code}: {resp.text}"
+    assert resp.status_code != HTTPStatus.OK, (
+        f"Should not be able to delete self, but got {resp.status_code}: {resp.text}"
+    )

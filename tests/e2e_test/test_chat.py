@@ -275,7 +275,9 @@ def knowledge_chat(client, knowledge_bot):
     chat = create_chat(client, knowledge_bot["id"], "E2E Knowledge Test Chat")
     yield chat
     delete_resp = client.delete(f"/api/v1/bots/{knowledge_bot['id']}/chats/{chat['id']}")
-    assert delete_resp.status_code in (200, 204, 404), f"Failed to delete chat: {delete_resp.status_code}, {delete_resp.text}"
+    assert delete_resp.status_code in (200, 204, 404), (
+        f"Failed to delete chat: {delete_resp.status_code}, {delete_resp.text}"
+    )
 
 
 @pytest.fixture
@@ -284,7 +286,9 @@ def basic_chat(client, basic_bot):
     chat = create_chat(client, basic_bot["id"], "E2E Basic Test Chat")
     yield chat
     delete_resp = client.delete(f"/api/v1/bots/{basic_bot['id']}/chats/{chat['id']}")
-    assert delete_resp.status_code in (200, 204, 404), f"Failed to delete chat: {delete_resp.status_code}, {delete_resp.text}"
+    assert delete_resp.status_code in (200, 204, 404), (
+        f"Failed to delete chat: {delete_resp.status_code}, {delete_resp.text}"
+    )
 
 
 @pytest.fixture
