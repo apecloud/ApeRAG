@@ -102,7 +102,7 @@ class APITestHelper:
                 headers={"msg_id": msg_id, "Content-Type": "text/plain"},
             )
 
-            assert response.status_code == HTTPStatus.OK
+            assert response.status_code == HTTPStatus.OK, response.text
             response_data = response.json()
 
             # Validate frontend response inline
@@ -132,7 +132,7 @@ class APITestHelper:
                 headers={"msg_id": msg_id, "Content-Type": "text/plain"},
             )
 
-            assert response.status_code == HTTPStatus.OK
+            assert response.status_code == HTTPStatus.OK, response.text
             assert response.headers.get("content-type").startswith("text/event-stream")
 
             # Parse SSE response
@@ -216,7 +216,7 @@ def create_and_configure_bot(
     }
 
     resp = client.post("/api/v1/bots", json=create_data)
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK, resp.text
     bot = resp.json()
 
     # Configure flow if specified
@@ -236,7 +236,7 @@ def create_and_configure_bot(
         resp = client.put(
             f"/api/v1/bots/{bot['id']}/flow", data=flow_json, headers={"Content-Type": "application/json"}
         )
-        assert resp.status_code == HTTPStatus.OK
+        assert resp.status_code == HTTPStatus.OK, resp.text
 
     return bot
 
@@ -249,7 +249,7 @@ def knowledge_bot(client, collection):
     )
     yield bot
     resp = client.delete(f"/api/v1/bots/{bot['id']}")
-    assert resp.status_code in (200, 204)
+    assert resp.status_code in (200, 204), f"Failed to delete bot: {resp.status_code}, {resp.text}"
 
 
 @pytest.fixture
@@ -258,14 +258,14 @@ def basic_bot(client):
     bot = create_and_configure_bot(client, bot_type="common", flow_file="basic-flow.yaml")
     yield bot
     resp = client.delete(f"/api/v1/bots/{bot['id']}")
-    assert resp.status_code in (200, 204)
+    assert resp.status_code in (200, 204), f"Failed to delete bot: {resp.status_code}, {resp.text}"
 
 
 def create_chat(client, bot_id: str, title: str) -> Dict[str, Any]:
     """Create a chat for the given bot"""
     data = {"title": title}
     resp = client.post(f"/api/v1/bots/{bot_id}/chats", json=data)
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK, resp.text
     return resp.json()
 
 
@@ -275,7 +275,9 @@ def knowledge_chat(client, knowledge_bot):
     chat = create_chat(client, knowledge_bot["id"], "E2E Knowledge Test Chat")
     yield chat
     delete_resp = client.delete(f"/api/v1/bots/{knowledge_bot['id']}/chats/{chat['id']}")
-    assert delete_resp.status_code in (200, 204, 404)
+    assert delete_resp.status_code in (200, 204, 404), (
+        f"Failed to delete chat: {delete_resp.status_code}, {delete_resp.text}"
+    )
 
 
 @pytest.fixture
@@ -284,7 +286,9 @@ def basic_chat(client, basic_bot):
     chat = create_chat(client, basic_bot["id"], "E2E Basic Test Chat")
     yield chat
     delete_resp = client.delete(f"/api/v1/bots/{basic_bot['id']}/chats/{chat['id']}")
-    assert delete_resp.status_code in (200, 204, 404)
+    assert delete_resp.status_code in (200, 204, 404), (
+        f"Failed to delete chat: {delete_resp.status_code}, {delete_resp.text}"
+    )
 
 
 @pytest.fixture
@@ -301,7 +305,7 @@ def test_get_chat_detail(client, bot_type, request):
     chat = request.getfixturevalue(f"{bot_type}_chat")
 
     resp = client.get(f"/api/v1/bots/{bot['id']}/chats/{chat['id']}")
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK, resp.text
     detail = resp.json()
     assert detail["id"] == chat["id"]
     assert detail["title"] == chat["title"]
@@ -316,7 +320,7 @@ def test_update_chat(client, bot_type, request):
     new_title = f"E2E {bot_type.title()} Test Chat Updated"
     update_data = {"title": new_title}
     resp = client.put(f"/api/v1/bots/{bot['id']}/chats/{chat['id']}", json=update_data)
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK, resp.text
     updated = resp.json()
     assert updated["title"] == new_title
 
@@ -408,7 +412,7 @@ def test_frontend_api_error_handling(client, basic_chat):
             headers={"msg_id": "test_msg_003", "Content-Type": "text/plain"},
         )
 
-        assert response.status_code == HTTPStatus.OK
+        assert response.status_code == HTTPStatus.OK, response.text
         response_data = response.json()
         assert response_data.get("type") == "error"
         error_message = response_data.get("data", "")

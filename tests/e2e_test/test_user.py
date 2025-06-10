@@ -28,7 +28,7 @@ def test_login_user(login_user):
 def test_get_user_detail(benchmark, cookie_client):
     """Test get user detail with cookie authentication"""
     resp = benchmark(cookie_client.get, "/api/v1/user")
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK, resp.text
     user = resp.json()
     assert user["username"]
     assert user["email"]
@@ -45,13 +45,13 @@ def test_change_password(cookie_client, login_user):
         "new_password": login_user["password"] + "_new",
     }
     resp = cookie_client.post("/api/v1/change-password", json=data)
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK, resp.text
     user = resp.json()
     assert user["username"] == login_user["username"]
     # Try login with new password
     with httpx.Client(base_url=cookie_client.base_url) as c:
         resp2 = c.post("/api/v1/login", json={"username": login_user["username"], "password": data["new_password"]})
-        assert resp2.status_code == HTTPStatus.OK
+        assert resp2.status_code == HTTPStatus.OK, resp2.text
 
 
 def test_logout_user(login_user):
@@ -59,16 +59,18 @@ def test_logout_user(login_user):
     with httpx.Client(base_url=API_BASE_URL) as c:
         c.cookies.update(login_user["cookies"])
         resp = c.post("/api/v1/logout")
-        assert resp.status_code == HTTPStatus.OK
+        assert resp.status_code == HTTPStatus.OK, resp.text
         # After logout, get user should fail (unauthorized or forbidden)
         resp2 = c.get("/api/v1/user")
-        assert resp2.status_code in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN)
+        assert resp2.status_code in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN), (
+            f"Expected UNAUTHORIZED or FORBIDDEN, got {resp2.status_code}: {resp2.text}"
+        )
 
 
 def test_get_user_list(benchmark, cookie_client):
     """Test get user list (should be empty or only self if not admin)"""
     resp = benchmark(cookie_client.get, "/api/v1/users")
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK, resp.text
     data = resp.json()
     assert "items" in data
     assert isinstance(data["items"], list)
@@ -79,4 +81,6 @@ def test_delete_user(cookie_client, login_user):
     # Try to delete self (should fail)
     user_id = login_user["user"]["id"]
     resp = cookie_client.delete(f"/api/v1/users/{user_id}")
-    assert resp.status_code != HTTPStatus.OK
+    assert resp.status_code != HTTPStatus.OK, (
+        f"Should not be able to delete self, but got {resp.status_code}: {resp.text}"
+    )

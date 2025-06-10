@@ -27,7 +27,8 @@ def api_key(cookie_client):
     assert resp.status_code == HTTPStatus.OK, f"Failed to create API key: {resp.text}"
     api_key = resp.json()["key"]
     yield api_key
-    cookie_client.delete(f"/api/v1/apikeys/{resp.json()['id']}")
+    resp = cookie_client.delete(f"/api/v1/apikeys/{resp.json()['id']}")
+    assert resp.status_code == HTTPStatus.OK, f"Failed to delete API key: {resp.text}"
 
 
 @pytest.fixture(scope="module")
@@ -85,7 +86,7 @@ def collection(client):
     interval = 2
     for _ in range(max_wait // interval):
         get_resp = client.get(f"/api/v1/collections/{collection_id}")
-        assert get_resp.status_code == HTTPStatus.OK
+        assert get_resp.status_code == HTTPStatus.OK, get_resp.text
         got = get_resp.json()
         assert_dict_subset(data, got)
         if got.get("status") == "ACTIVE":
@@ -98,10 +99,10 @@ def collection(client):
 
     # Cleanup: Delete collection
     delete_resp = client.delete(f"/api/v1/collections/{collection_id}")
-    assert delete_resp.status_code == HTTPStatus.OK
+    assert delete_resp.status_code == HTTPStatus.OK, delete_resp.text
 
     resp = client.get(f"/api/v1/collections/{collection_id}")
-    assert resp.status_code == HTTPStatus.NOT_FOUND
+    assert resp.status_code == HTTPStatus.NOT_FOUND, resp.text
 
 
 @pytest.fixture
@@ -109,7 +110,7 @@ def document(client, collection):
     # Upload a test document
     files = {"files": ("test.txt", "This is a test document for e2e.", "text/plain")}
     upload_resp = client.post(f"/api/v1/collections/{collection['id']}/documents", files=files)
-    assert upload_resp.status_code == HTTPStatus.OK
+    assert upload_resp.status_code == HTTPStatus.OK, upload_resp.text
     resp_data = upload_resp.json()
     assert len(resp_data["items"]) == 1
     doc_id = resp_data["items"][0]["id"]
@@ -119,7 +120,7 @@ def document(client, collection):
     interval = 2
     for _ in range(max_wait // interval):
         get_resp = client.get(f"/api/v1/collections/{collection['id']}/documents/{doc_id}")
-        assert get_resp.status_code == HTTPStatus.OK
+        assert get_resp.status_code == HTTPStatus.OK, get_resp.text
         data = get_resp.json()
         if data.get("vector_index_status") == "COMPLETE" and data.get("fulltext_index_status") == "COMPLETE":
             break
@@ -131,10 +132,10 @@ def document(client, collection):
 
     # Cleanup: Delete document
     delete_resp = client.delete(f"/api/v1/collections/{collection['id']}/documents/{doc_id}")
-    assert delete_resp.status_code == HTTPStatus.OK
+    assert delete_resp.status_code == HTTPStatus.OK, delete_resp.text
 
     resp = client.get(f"/api/v1/collections/{collection['id']}/documents")
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK, resp.text
     data = resp.json()
     for item in data["items"]:
         if item["id"] == doc_id:
@@ -156,11 +157,11 @@ def bot(client, document, collection):
         "collection_ids": [collection["id"]],
     }
     resp = client.post("/api/v1/bots", json=create_data)
-    assert resp.status_code == HTTPStatus.OK
+    assert resp.status_code == HTTPStatus.OK, resp.text
     bot = resp.json()
     yield bot
     resp = client.delete(f"/api/v1/bots/{bot['id']}")
-    assert resp.status_code in (200, 204)
+    assert resp.status_code in (200, 204), f"Failed to delete bot: {resp.status_code}, {resp.text}"
 
 
 @pytest.fixture(scope="module")
