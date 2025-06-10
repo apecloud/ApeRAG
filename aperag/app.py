@@ -1,7 +1,5 @@
 from fastapi import FastAPI
 
-from aperag.config import async_engine
-from aperag.db.models import Base
 from aperag.views.api_key import router as api_key_router
 from aperag.views.auth import router as auth_router
 from aperag.views.chat_completion import router as chat_completion_router
@@ -10,12 +8,6 @@ from aperag.views.flow import router as flow_router
 from aperag.views.main import router as main_router
 
 app = FastAPI()
-
-
-@app.on_event("startup")
-async def on_startup():
-    async with async_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
 
 
 app.include_router(auth_router, prefix="/api/v1")

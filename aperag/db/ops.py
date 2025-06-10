@@ -132,29 +132,6 @@ class AsyncDatabaseOps:
     def __init__(self, session: Optional[AsyncSession] = None):
         self._session = session
 
-    async def _get_session(self) -> AsyncSession:
-        """Get database session, create new one if not provided
-
-        This method is primarily used for write operations (create, update, delete)
-        where you need full control over transaction boundaries and explicit session management.
-
-        Usage pattern for write operations:
-        1. Call this method to get a session
-        2. Perform database operations (add, delete, modify)
-        3. Manually call session.flush(), session.commit(), session.refresh() as needed
-        4. Handle transaction rollback if errors occur
-
-        The caller is responsible for session lifecycle management when using this method.
-        """
-        if self._session:
-            return self._session
-
-        # This should not be used directly for global instance
-        # Instead, use execute_with_transaction for proper session management
-        raise RuntimeError(
-            "Cannot create session without explicit session management. Use execute_with_transaction instead."
-        )
-
     async def _execute_query(self, query_func):
         """Execute a read-only query with proper session management
 
