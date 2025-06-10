@@ -689,15 +689,16 @@ class AsyncDatabaseOps:
             )
             result = await session.execute(stmt)
             api_key = result.scalars().first()
-            if api_key:
-                api_key.status = ApiKeyStatus.DELETED
-                from datetime import datetime as dt
+            if not api_key:
+                return None
 
-                api_key.gmt_deleted = dt.utcnow()
-                session.add(api_key)
-                await session.flush()
-                return True
-            return False
+            from datetime import datetime as dt
+
+            api_key.status = ApiKeyStatus.DELETED
+            api_key.gmt_deleted = dt.utcnow()
+            session.add(api_key)
+            await session.flush()
+            return api_key
 
         return await self.execute_with_transaction(_operation)
 
@@ -1516,7 +1517,5 @@ class AsyncDatabaseOps:
         return await self.execute_with_transaction(_operation)
 
 
-# Create a global instance for backwards compatibility and easy access
-# This can be used in places where session dependency injection is not available
 async_db_ops = AsyncDatabaseOps()
 db_ops = DatabaseOps()

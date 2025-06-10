@@ -44,21 +44,17 @@ install: venv
 	uv sync --all-groups --all-extras
 
 # Database management
-.PHONY: makemigration migrate diff
+.PHONY: makemigration migrate
 makemigration:
-	@python manage.py makemigrations
+	@alembic -c aperag/alembic.ini revision --autogenerate
 
 migrate:
-	@python manage.py migrate aperag
-	@python manage.py migrate
-
-diff:
-	@python manage.py diffsettings
+	@alembic -c aperag/alembic.ini upgrade head
 
 # Local services
 .PHONY: run-backend run-frontend run-db run-celery run-flower
-run-backend:
-	uvicorn aperag.app:app --host 0.0.0.0 --reload --reload-include '*.html' --log-config scripts/uvicorn-log-config.yaml
+run-backend: migrate
+	uvicorn aperag.app:app --host 0.0.0.0 --log-config scripts/uvicorn-log-config.yaml
 
 run-celery:
 	celery -A config.celery worker -B -l INFO --pool=solo

@@ -66,9 +66,7 @@ class ApiKeyService:
         """Delete an API key"""
         try:
             # For single operations, use DatabaseOps directly
-            deleted = await self.db_ops.delete_api_key(user, apikey_id)
-            if not deleted:
-                return fail(HTTPStatus.NOT_FOUND, "API key not found")
+            await self.db_ops.delete_api_key(user, apikey_id)
             return success({})
         except Exception as e:
             return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to delete API key: {str(e)}")

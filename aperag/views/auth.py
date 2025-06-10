@@ -157,7 +157,7 @@ async def authenticate_websocket_user(websocket: WebSocket, user_manager: UserMa
 # API Key Authentication
 async def authenticate_api_key(request: Request, session: AsyncSessionDep) -> Optional[User]:
     """Authenticate using API Key from Authorization header"""
-    from sqlmodel import select
+    from sqlmodel import select, SQLModel
 
     authorization: str = request.headers.get("Authorization")
     if not authorization:

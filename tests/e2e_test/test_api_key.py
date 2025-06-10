@@ -17,7 +17,7 @@ def get_auth_headers(api_key):
 def new_api_key(benchmark, client):
     # Create a new API key for testing
     create_data = {"description": "e2e test key"}
-    resp = benchmark(client.post, API_KEY_ENDPOINT, json=create_data)
+    resp = client.post(API_KEY_ENDPOINT, json=create_data)
     assert resp.status_code == HTTPStatus.OK
     resp_data = resp.json()
     yield resp_data
