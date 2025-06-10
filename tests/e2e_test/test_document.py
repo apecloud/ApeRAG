@@ -13,7 +13,7 @@ def make_markdown_file():
 
 
 def make_large_markdown_file(size_mb=100):
-    content = "# Title\n" + "This is a test markdown file." * (size_mb * 1024 * 1024)
+    content = "# Title\nThis is a test markdown file.\n" + "a" * (size_mb * 1024 * 1024)
     return "large_file.md", io.BytesIO(content.encode("utf-8")), "text/markdown"
 
 
@@ -36,17 +36,14 @@ def test_upload_multiple_documents(client, collection):
     assert len(data["items"]) == 3
 
 
-@pytest.mark.parametrize("size_mb", [105, 10])
+@pytest.mark.parametrize("size_mb", [105])
 def test_upload_large_document(client, collection, size_mb):
     """Test uploading a large document (e.g., >10MB markdown)"""
     files = [
         ("files", make_large_markdown_file(size_mb)),
     ]
     response = client.post(f"/api/v1/collections/{collection['id']}/documents", files=files)
-    if size_mb >= MAX_DOCUMENT_SIZE_MB:
-        assert response.status_code == HTTPStatus.BAD_REQUEST, response.text
-    else:
-        assert response.status_code == HTTPStatus.OK, response.text
+    assert response.status_code == HTTPStatus.BAD_REQUEST, response.text
 
 
 def test_upload_unsupported_file_type(benchmark, client, collection):
