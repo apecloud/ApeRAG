@@ -6,12 +6,12 @@ volumes:
   aperag-shared-data: {}
 
 services:
-  django: &django
+  api: &api
     build:
       context: .
       dockerfile: ./Dockerfile
     image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-latest}
-    container_name: aperag-django
+    container_name: aperag-api
     depends_on:
       redis:
         condition: service_started
@@ -32,7 +32,7 @@ services:
       - DOCRAY_HOST=${DOCRAY_HOST}
     ports:
       - "8000:8000"
-    entrypoint: /app/scripts/start-django.sh
+    entrypoint: /app/scripts/start-api.sh
 
   frontend:
     build:
@@ -41,11 +41,11 @@ services:
     image: ${REGISTRY:-docker.io}/apecloud/aperag-frontend:${VERSION:-latest}
     container_name: aperag-frontend
     depends_on:
-      - django
+      - api
     env_file:
       - frontend/deploy/env.local.template
     environment:
-      - APERAG_CONSOLE_SERVICE_HOST=aperag-django
+      - APERAG_CONSOLE_SERVICE_HOST=aperag-api
       - APERAG_CONSOLE_SERVICE_PORT=8000
     ports:
       - "3000:3000"
@@ -91,7 +91,7 @@ services:
     entrypoint: /app/scripts/start-celery-beat.sh
 
   flower:
-    <<: *django
+    <<: *api
     image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-latest}
     build:
       context: .

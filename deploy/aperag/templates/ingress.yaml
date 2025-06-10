@@ -36,6 +36,6 @@ spec:
             name: aperag-frontend
             port:
               number: 3000
-    {{- if .Values.django.domainName }}
-    host: {{ .Values.django.domainName }}
+    {{- if .Values.api.domainName }}
+    host: {{ .Values.api.domainName }}
     {{- end }}

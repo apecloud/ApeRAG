@@ -15,9 +15,9 @@ data:
 
       // config from apiserver
       auth: {
-        type: {{ .Values.django.authType | default "none" | quote }},
-        auth_domain: {{ .Values.django.authDomain | default "" | quote }},
-        auth_app_id: {{ .Values.django.authAppId | default "" | quote }},
+        type: {{ .Values.api.authType | default "none" | quote }},
+        auth_domain: {{ .Values.api.authDomain | default "" | quote }},
+        auth_app_id: {{ .Values.api.authAppId | default "" | quote }},
       },
       public_ips: {{ .Values.frontend.publicIps | default list | toJson }},
     } 

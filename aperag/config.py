@@ -37,12 +37,6 @@ class Config(BaseSettings):
     # Database
     database_url: str = Field(f"sqlite:///{BASE_DIR}/db.sqlite3", env="DATABASE_URL")
 
-    # Media root
-    media_root: str = Field(".", env="MEDIA_ROOT")
-
-    # Session
-    session_cookie_name: str = Field("sessionid", env="SESSION_COOKIE_NAME")
-
     # Auth
     auth_type: str = Field("none", env="AUTH_TYPE")
     auth0_domain: str = Field("aperag-dev.auting.cn", env="AUTH0_DOMAIN")
@@ -87,9 +81,6 @@ class Config(BaseSettings):
     object_store_type: str = Field("local", env="OBJECT_STORE_TYPE")
     object_store_local_config: Optional[LocalObjectStoreConfig] = None
     object_store_s3_config: Optional[S3Config] = None
-
-    # Prometheus, static root
-    static_root: Path = BASE_DIR / "static"
 
     # Feishu
     feishu_app_id: str = Field("", env="FEISHU_APP_ID")

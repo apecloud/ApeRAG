@@ -6,7 +6,7 @@ metadata:
     kompose.version: 1.26.0 (40646f47)
   labels:
     {{- include "aperag.labels" . | nindent 4 }}
-    {{- include "django.labels" . | nindent 4 }}
+    {{- include "api.labels" . | nindent 4 }}
   name: aperag
 spec:
   ports:
@@ -16,4 +16,4 @@ spec:
   type: {{ .Values.service.type }}
   selector:
     {{- include "aperag.selectorLabels" . | nindent 4 }}
-    {{- include "django.labels" . | nindent 4 }}
+    {{- include "api.labels" . | nindent 4 }}

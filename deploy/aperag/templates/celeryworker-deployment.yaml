@@ -161,10 +161,10 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:
-        # shared uploaded files between django and celery
+        # shared uploaded files between api and celery
         - name: data
           hostPath:
-            path: {{ .Values.django.dataPath }}
+            path: {{ .Values.api.dataPath }}
         - name: env-config
           secret:
             secretName: aperag-env

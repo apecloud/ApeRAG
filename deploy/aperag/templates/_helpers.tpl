@@ -51,8 +51,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 
-{{- define "django.labels" -}}
-app.aperag.io/component: django
+{{- define "api.labels" -}}
+app.aperag.io/component: api
 {{- end }}
 
 {{- define "celeryworker.labels" -}}

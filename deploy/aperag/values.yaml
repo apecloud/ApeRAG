@@ -92,7 +92,7 @@ neo4j:
   # ⚠️ Recommend to use NEO4J_CREDENTIALS_SECRET_NAME
   NEO4J_PASSWORD: ""
 
-django:
+api:
   dataPath: /data/aperag
   replicaCount: 1
   resources:
@@ -106,7 +106,7 @@ django:
   # requests:
   #   cpu: 100m
   #   memory: 128Mi
-  # django must be co-located with celery-worker in order to handle uploaded documents
+  # api must be co-located with celery-worker in order to handle uploaded documents
   affinity:
     podAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -120,7 +120,7 @@ django:
           podAffinityTerm:
             labelSelector:
               matchLabels:
-                app.aperag.io/component: django
+                app.aperag.io/component: api
             topologyKey: kubernetes.io/hostname
   env:
     # Auth
@@ -131,11 +131,6 @@ django:
     AUTHING_APP_ID: ""
     LOGTO_DOMAIN: ""
     LOGTO_APP_ID: ""
-    # Logging
-    DJANGO_LOG_LEVEL: INFO
-    # Celery
-    CELERY_FLOWER_USER: admin
-    CELERY_FLOWER_PASSWORD: admin
     # Vector DB
     VECTOR_DB_TYPE: qdrant
     VECTOR_DB_CONTEXT: '{"url":"http://qdrant-cluster-qdrant-qdrant", "port":6333, "distance":"Cosine", "timeout": 1000}'
@@ -226,6 +221,9 @@ flower:
     # requests:
     #   cpu: 100m
     #   memory: 128Mi
+  env:
+    CELERY_FLOWER_USER: admin
+    CELERY_FLOWER_PASSWORD: admin
 
 # Frontend configuration
 frontend:

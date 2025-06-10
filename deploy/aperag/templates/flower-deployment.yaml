@@ -135,9 +135,9 @@ spec:
               {{- end }}
             {{- end }}
             - name: CELERY_FLOWER_USER
-              value: {{ .Values.django.env.CELERY_FLOWER_USER | quote }}
+              value: {{ .Values.flower.env.CELERY_FLOWER_USER | quote }}
             - name: CELERY_FLOWER_PASSWORD
-              value: {{ .Values.django.env.CELERY_FLOWER_PASSWORD | quote }}
+              value: {{ .Values.flower.env.CELERY_FLOWER_PASSWORD | quote }}
           resources:
             {{- toYaml .Values.flower.resources | nindent 12 }}
           volumeMounts:
