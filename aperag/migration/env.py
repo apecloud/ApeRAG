@@ -17,14 +17,14 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-from sqlmodel import SQLModel
+from aperag.db.models import Base
 
-# Import the models module to automatically register all SQLModel tables
-# When you add new SQLModel classes to aperag/db/models.py, they will be 
+# Import the models module to automatically register all SQLAlchemy tables
+# When you add new SQLAlchemy classes to aperag/db/models.py, they will be 
 # automatically discovered - no need to modify this file!
 import aperag.db.models  # noqa: F401
 
-target_metadata = SQLModel.metadata
+target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

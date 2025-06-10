@@ -22,7 +22,7 @@ from typing import Any
 
 from asgiref.sync import async_to_sync
 from celery import Task
-from sqlmodel import select
+from sqlalchemy import select
 
 from aperag.config import settings
 from aperag.context.full_text import insert_document, remove_document

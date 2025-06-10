@@ -12,23 +12,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import enum
 import random
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Type
 
-from sqlalchemy import JSON, Column, String, TypeDecorator
-from sqlmodel import Field, SQLModel, UniqueConstraint, select
+from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import select
 
-from aperag.config import AsyncSessionDep
+# Create the declarative base
+Base = declarative_base()
 
 
 # Helper function for random id generation
 def random_id():
     """Generate a random ID string"""
     return "".join(random.sample(uuid.uuid4().hex, 16))
+
+
+# Helper function for creating enum columns that store values instead of names
+def EnumColumn(enum_class, **kwargs):
+    """Create an Enum column that stores enum values instead of names"""
+    # Extract enum values to create the enum column
+    enum_values = [e.value for e in enum_class]
+    # Use the enum class name for the constraint name
+    kwargs.setdefault('name', enum_class.__name__.lower())
+    return SQLEnum(*enum_values, **kwargs)
 
 
 # Enums for choices
@@ -120,72 +132,33 @@ class ApiKeyStatus(str, Enum):
     DELETED = "DELETED"
 
 
-class EnumAsSQLALCHEMYString(TypeDecorator):
-    """
-    Stores Python Enums as their string values in a VARCHAR column.
-    Retrieves them back as Enum members.
-    """
+class APIType(str, Enum):
+    COMPLETION = "completion"
+    EMBEDDING = "embedding"
+    RERANK = "rerank"
 
-    impl = String  # The underlying SQLAlchemy type is String (VARCHAR)
-    cache_ok = True  # Important for performance with TypeDecorator
 
-    def __init__(self, enum_class: Type[enum.Enum], *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._enum_class = enum_class
 
-    def process_bind_param(self, value: Optional[enum.Enum], dialect) -> Optional[str]:
-        # Called when sending data to the database
-        if value is None:
-            return None
-        if not isinstance(value, self._enum_class):
-            raise ValueError(f"Value {value!r} is not an instance of enum {self._enum_class.__name__}")
-        return value.value  # Store the enum's .value (e.g., "completion")
-
-    def process_result_value(self, value: Optional[str], dialect) -> Optional[enum.Enum]:
-        # Called when retrieving data from the database
-        if value is None:
-            return None
-        try:
-            return self._enum_class(value)  # Convert string value back to Enum member
-        except ValueError:
-            # Handle cases where the value from DB doesn't match any enum member
-            # This could happen if enum definitions change or data is manually inserted
-            # You might want to log this, return None, or raise a different error
-            raise ValueError(f"Invalid value '{value}' for enum {self._enum_class.__name__}")
-
-    # If you want to ensure the VARCHAR has a specific length,
-    # you can override load_dialect_impl.
-    # This is often preferred over passing length directly to String in __init__
-    # if you want the TypeDecorator to be more self-contained.
-    def load_dialect_impl(self, dialect):
-        # Get the implementation for the specific dialect
-        # Here, we ensure the String type has the length provided during __init__
-        # The 'length' attribute is passed from Column(EnumAsSQLALCHEMYString(APIType, length=50))
-        if hasattr(self, "length"):  # 'length' will be passed from Column's constructor args
-            return dialect.type_descriptor(String(self.length))
-        return dialect.type_descriptor(String)  # Or a default if no length given
 
 
 # Models
-class Collection(SQLModel, table=True):
+class Collection(Base):
     __tablename__ = "collection"
     __table_args__ = (UniqueConstraint("id", name="uq_collection_id"),)
 
-    id: str = Field(default_factory=lambda: "col" + random_id(), primary_key=True, max_length=24)
-    title: str = Field(max_length=256)
-    description: Optional[str] = Field(default=None)
-    user: str = Field(max_length=256)
-    status: CollectionStatus
-    type: CollectionType
-    config: str
-    gmt_created: datetime = Field(default_factory=datetime.utcnow)
-    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
-    gmt_deleted: Optional[datetime] = None
+    id = Column(String(24), primary_key=True, default=lambda: "col" + random_id())
+    title = Column(String(256), nullable=False)
+    description = Column(Text, nullable=True)
+    user = Column(String(256), nullable=False)
+    status = Column(EnumColumn(CollectionStatus), nullable=False)
+    type = Column(EnumColumn(CollectionType), nullable=False)
+    config = Column(Text, nullable=False)
+    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_deleted = Column(DateTime, nullable=True)
 
-    async def bots(self, session: AsyncSessionDep, only_ids: bool = False):
+    async def bots(self, session, only_ids: bool = False):
         """Get all active bots related to this collection"""
-        from aperag.db.models import Bot, BotCollectionRelation
-
         stmt = select(BotCollectionRelation).where(
             BotCollectionRelation.collection_id == self.id, BotCollectionRelation.gmt_deleted.is_(None)
         )
@@ -202,27 +175,27 @@ class Collection(SQLModel, table=True):
             return bots
 
 
-class Document(SQLModel, table=True):
+class Document(Base):
     __tablename__ = "document"
     __table_args__ = (
         UniqueConstraint("collection_id", "name", "gmt_deleted", name="uq_document_collection_name_deleted"),
     )
 
-    id: str = Field(default_factory=lambda: "doc" + random_id(), primary_key=True, max_length=24)
-    name: str = Field(max_length=1024)
-    user: str = Field(max_length=256)
-    collection_id: Optional[str] = Field(default=None, max_length=24)
-    status: DocumentStatus
-    vector_index_status: DocumentIndexStatus = DocumentIndexStatus.PENDING
-    fulltext_index_status: DocumentIndexStatus = DocumentIndexStatus.PENDING
-    graph_index_status: DocumentIndexStatus = DocumentIndexStatus.PENDING
-    size: int
-    object_path: Optional[str] = None
-    doc_metadata: Optional[str] = None  # Store document metadata as JSON string
-    relate_ids: Optional[str] = None
-    gmt_created: datetime = Field(default_factory=datetime.utcnow)
-    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
-    gmt_deleted: Optional[datetime] = None
+    id = Column(String(24), primary_key=True, default=lambda: "doc" + random_id())
+    name = Column(String(1024), nullable=False)
+    user = Column(String(256), nullable=False)
+    collection_id = Column(String(24), nullable=True)
+    status = Column(EnumColumn(DocumentStatus), nullable=False)
+    vector_index_status = Column(EnumColumn(DocumentIndexStatus), nullable=False, default=DocumentIndexStatus.PENDING)
+    fulltext_index_status = Column(EnumColumn(DocumentIndexStatus), nullable=False, default=DocumentIndexStatus.PENDING)
+    graph_index_status = Column(EnumColumn(DocumentIndexStatus), nullable=False, default=DocumentIndexStatus.PENDING)
+    size = Column(Integer, nullable=False)
+    object_path = Column(Text, nullable=True)
+    doc_metadata = Column(Text, nullable=True)  # Store document metadata as JSON string
+    relate_ids = Column(Text, nullable=True)
+    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_deleted = Column(DateTime, nullable=True)
 
     def get_overall_status(self) -> "DocumentStatus":
         """Calculate overall status based on individual index statuses"""
@@ -245,10 +218,8 @@ class Document(SQLModel, table=True):
         user = self.user.replace("|", "-")
         return f"user-{user}/{self.collection_id}/{self.id}"
 
-    async def get_collection(self, session: AsyncSessionDep):
+    async def get_collection(self, session):
         """Get the associated collection object"""
-        from aperag.db.models import Collection
-
         return await session.get(Collection, self.collection_id)
 
     async def set_collection(self, collection):
@@ -259,23 +230,22 @@ class Document(SQLModel, table=True):
             self.collection_id = collection
 
 
-class Bot(SQLModel, table=True):
+class Bot(Base):
     __tablename__ = "bot"
-    id: str = Field(default_factory=lambda: "bot" + random_id(), primary_key=True, max_length=24)
-    user: str = Field(max_length=256)
-    title: Optional[str] = Field(default=None, max_length=256)
-    type: BotType = BotType.KNOWLEDGE
-    description: Optional[str] = None
-    status: BotStatus
-    config: str
-    gmt_created: datetime = Field(default_factory=datetime.utcnow)
-    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
-    gmt_deleted: Optional[datetime] = None
 
-    async def collections(self, session: AsyncSessionDep, only_ids: bool = False):
+    id = Column(String(24), primary_key=True, default=lambda: "bot" + random_id())
+    user = Column(String(256), nullable=False)
+    title = Column(String(256), nullable=True)
+    type = Column(EnumColumn(BotType), nullable=False, default=BotType.KNOWLEDGE)
+    description = Column(Text, nullable=True)
+    status = Column(EnumColumn(BotStatus), nullable=False)
+    config = Column(Text, nullable=False)
+    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_deleted = Column(DateTime, nullable=True)
+
+    async def collections(self, session, only_ids: bool = False):
         """Get all active collections related to this bot"""
-        from aperag.db.models import BotCollectionRelation, Collection
-
         stmt = select(BotCollectionRelation).where(
             BotCollectionRelation.bot_id == self.id, BotCollectionRelation.gmt_deleted.is_(None)
         )
@@ -292,57 +262,57 @@ class Bot(SQLModel, table=True):
             return collections
 
 
-class BotCollectionRelation(SQLModel, table=True):
+class BotCollectionRelation(Base):
     __tablename__ = "bot_collection_relation"
     __table_args__ = (UniqueConstraint("bot_id", "collection_id", "gmt_deleted", name="uq_bot_collection_deleted"),)
 
-    id: str = Field(default_factory=lambda: "bcr" + random_id(), primary_key=True, max_length=24)
-    bot_id: str = Field(max_length=24)
-    collection_id: str = Field(max_length=24)
-    gmt_created: datetime = Field(default_factory=datetime.utcnow)
-    gmt_deleted: Optional[datetime] = None
+    id = Column(String(24), primary_key=True, default=lambda: "bcr" + random_id())
+    bot_id = Column(String(24), nullable=False)
+    collection_id = Column(String(24), nullable=False)
+    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_deleted = Column(DateTime, nullable=True)
 
 
-class ConfigModel(SQLModel, table=True):
+class ConfigModel(Base):
     __tablename__ = "config"
-    key: str = Field(primary_key=True, max_length=256)
-    value: str
-    gmt_created: datetime = Field(default_factory=datetime.utcnow)
-    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
-    gmt_deleted: Optional[datetime] = None
+
+    key = Column(String(256), primary_key=True)
+    value = Column(Text, nullable=False)
+    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_deleted = Column(DateTime, nullable=True)
 
 
-class UserQuota(SQLModel, table=True):
+class UserQuota(Base):
     __tablename__ = "user_quota"
-    user: str = Field(max_length=256, primary_key=True)
-    key: str = Field(max_length=256, primary_key=True)
-    value: int = 0
-    gmt_created: datetime = Field(default_factory=datetime.utcnow)
-    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
-    gmt_deleted: Optional[datetime] = None
+
+    user = Column(String(256), primary_key=True)
+    key = Column(String(256), primary_key=True)
+    value = Column(Integer, default=0, nullable=False)
+    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_deleted = Column(DateTime, nullable=True)
 
 
-class Chat(SQLModel, table=True):
+class Chat(Base):
     __tablename__ = "chat"
     __table_args__ = (
         UniqueConstraint("bot_id", "peer_type", "peer_id", "gmt_deleted", name="uq_chat_bot_peer_deleted"),
     )
 
-    id: str = Field(default_factory=lambda: "chat" + random_id(), primary_key=True, max_length=24)
-    user: str = Field(max_length=256)
-    peer_type: ChatPeerType = ChatPeerType.SYSTEM
-    peer_id: Optional[str] = Field(default=None, max_length=256)
-    status: ChatStatus
-    bot_id: str = Field(max_length=24)
-    title: Optional[str] = Field(default=None, max_length=256)
-    gmt_created: datetime = Field(default_factory=datetime.utcnow)
-    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
-    gmt_deleted: Optional[datetime] = None
+    id = Column(String(24), primary_key=True, default=lambda: "chat" + random_id())
+    user = Column(String(256), nullable=False)
+    peer_type = Column(EnumColumn(ChatPeerType), nullable=False, default=ChatPeerType.SYSTEM)
+    peer_id = Column(String(256), nullable=True)
+    status = Column(EnumColumn(ChatStatus), nullable=False)
+    bot_id = Column(String(24), nullable=False)
+    title = Column(String(256), nullable=True)
+    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_deleted = Column(DateTime, nullable=True)
 
-    async def get_bot(self, session: AsyncSessionDep):
+    async def get_bot(self, session):
         """Get the associated bot object"""
-        from aperag.db.models import Bot
-
         return await session.get(Bot, self.bot_id)
 
     async def set_bot(self, bot):
@@ -353,31 +323,29 @@ class Chat(SQLModel, table=True):
             self.bot_id = bot
 
 
-class MessageFeedback(SQLModel, table=True):
+class MessageFeedback(Base):
     __tablename__ = "message_feedback"
     __table_args__ = (
         UniqueConstraint("chat_id", "message_id", "gmt_deleted", name="uq_feedback_chat_message_deleted"),
     )
 
-    user: str = Field(max_length=256)
-    collection_id: Optional[str] = Field(default=None, max_length=24)
-    chat_id: str = Field(max_length=24, primary_key=True)
-    message_id: str = Field(max_length=256, primary_key=True)
-    type: Optional[MessageFeedbackType] = None
-    tag: Optional[MessageFeedbackTag] = None
-    message: Optional[str] = None
-    question: Optional[str] = None
-    status: Optional[MessageFeedbackStatus] = None
-    original_answer: Optional[str] = None
-    revised_answer: Optional[str] = None
-    gmt_created: datetime = Field(default_factory=datetime.utcnow)
-    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
-    gmt_deleted: Optional[datetime] = None
+    user = Column(String(256), nullable=False)
+    collection_id = Column(String(24), nullable=True)
+    chat_id = Column(String(24), primary_key=True)
+    message_id = Column(String(256), primary_key=True)
+    type = Column(EnumColumn(MessageFeedbackType), nullable=True)
+    tag = Column(EnumColumn(MessageFeedbackTag), nullable=True)
+    message = Column(Text, nullable=True)
+    question = Column(Text, nullable=True)
+    status = Column(EnumColumn(MessageFeedbackStatus), nullable=True)
+    original_answer = Column(Text, nullable=True)
+    revised_answer = Column(Text, nullable=True)
+    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_deleted = Column(DateTime, nullable=True)
 
-    async def get_collection(self, session: AsyncSessionDep):
+    async def get_collection(self, session):
         """Get the associated collection object"""
-        from aperag.db.models import Collection
-
         return await session.get(Collection, self.collection_id)
 
     async def set_collection(self, collection):
@@ -387,10 +355,8 @@ class MessageFeedback(SQLModel, table=True):
         elif isinstance(collection, str):
             self.collection_id = collection
 
-    async def get_chat(self, session: AsyncSessionDep):
+    async def get_chat(self, session):
         """Get the associated chat object"""
-        from aperag.db.models import Chat
-
         return await session.get(Chat, self.chat_id)
 
     async def set_chat(self, chat):
@@ -401,49 +367,48 @@ class MessageFeedback(SQLModel, table=True):
             self.chat_id = chat
 
 
-class ApiKey(SQLModel, table=True):
+class ApiKey(Base):
     __tablename__ = "api_key"
-    id: str = Field(
-        default_factory=lambda: "".join(random.sample(uuid.uuid4().hex, 12)), primary_key=True, max_length=24
-    )
-    key: str = Field(default_factory=lambda: f"sk-{uuid.uuid4().hex}", max_length=40)
-    user: str = Field(max_length=256)
-    description: Optional[str] = Field(default=None, max_length=256)
-    status: ApiKeyStatus
-    last_used_at: Optional[datetime] = None
-    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
-    gmt_created: datetime = Field(default_factory=datetime.utcnow)
-    gmt_deleted: Optional[datetime] = None
+
+    id = Column(String(24), primary_key=True, default=lambda: "".join(random.sample(uuid.uuid4().hex, 12)))
+    key = Column(String(40), default=lambda: f"sk-{uuid.uuid4().hex}", nullable=False)
+    user = Column(String(256), nullable=False)
+    description = Column(String(256), nullable=True)
+    status = Column(EnumColumn(ApiKeyStatus), nullable=False)
+    last_used_at = Column(DateTime, nullable=True)
+    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_deleted = Column(DateTime, nullable=True)
 
     @staticmethod
     def generate_key() -> str:
         """Generate a unique API key"""
         return f"sk-{uuid.uuid4().hex}"
 
-    async def update_last_used(self, session: AsyncSessionDep):
+    async def update_last_used(self, session):
         """Update the last_used_at timestamp"""
         self.last_used_at = datetime.utcnow()
         session.add(self)
         await session.commit()
 
 
-class ModelServiceProvider(SQLModel, table=True):
+class ModelServiceProvider(Base):
     __tablename__ = "model_service_provider"
     __table_args__ = (
         UniqueConstraint("name", "user", "gmt_deleted", name="uq_model_service_provider_name_user_deleted"),
     )
 
-    id: str = Field(default_factory=lambda: "msp" + random_id(), primary_key=True, max_length=24)
-    name: str = Field(max_length=256)
-    user: str = Field(max_length=256)
-    status: ModelServiceProviderStatus
-    api_key: str = Field(max_length=256)
-    gmt_created: datetime = Field(default_factory=datetime.utcnow)
-    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
-    gmt_deleted: Optional[datetime] = None
+    id = Column(String(24), primary_key=True, default=lambda: "msp" + random_id())
+    name = Column(String(256), nullable=False)
+    user = Column(String(256), nullable=False)
+    status = Column(EnumColumn(ModelServiceProviderStatus), nullable=False)
+    api_key = Column(String(256), nullable=False)
+    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_deleted = Column(DateTime, nullable=True)
 
 
-class LLMProvider(SQLModel, table=True):
+class LLMProvider(Base):
     """LLM Provider configuration model
 
     This model stores the provider-level configuration that was previously
@@ -453,29 +418,23 @@ class LLMProvider(SQLModel, table=True):
 
     __tablename__ = "llm_provider"
 
-    name: str = Field(primary_key=True, max_length=128)  # Unique provider name identifier
-    label: str = Field(max_length=256)  # Human-readable provider display name
-    completion_dialect: str = Field(max_length=64)  # API dialect for completion/chat APIs
-    embedding_dialect: str = Field(max_length=64)  # API dialect for embedding APIs
-    rerank_dialect: str = Field(max_length=64)  # API dialect for rerank APIs
-    allow_custom_base_url: bool = Field(default=False)  # Whether custom base URLs are allowed
-    base_url: str = Field(max_length=512)  # Default API base URL for this provider
-    extra: Optional[str] = Field(default=None)  # Additional configuration data in JSON format
-    gmt_created: datetime = Field(default_factory=datetime.utcnow)
-    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
-    gmt_deleted: Optional[datetime] = None
+    name = Column(String(128), primary_key=True)  # Unique provider name identifier
+    label = Column(String(256), nullable=False)  # Human-readable provider display name
+    completion_dialect = Column(String(64), nullable=False)  # API dialect for completion/chat APIs
+    embedding_dialect = Column(String(64), nullable=False)  # API dialect for embedding APIs
+    rerank_dialect = Column(String(64), nullable=False)  # API dialect for rerank APIs
+    allow_custom_base_url = Column(Boolean, default=False, nullable=False)  # Whether custom base URLs are allowed
+    base_url = Column(String(512), nullable=False)  # Default API base URL for this provider
+    extra = Column(Text, nullable=True)  # Additional configuration data in JSON format
+    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_deleted = Column(DateTime, nullable=True)
 
     def __str__(self):
         return f"LLMProvider(name={self.name}, label={self.label})"
 
 
-class APIType(str, Enum):
-    COMPLETION = "completion"
-    EMBEDDING = "embedding"
-    RERANK = "rerank"
-
-
-class LLMProviderModel(SQLModel, table=True):
+class LLMProviderModel(Base):
     """LLM Provider Model configuration
 
     This model stores individual model configurations for each provider.
@@ -483,22 +442,21 @@ class LLMProviderModel(SQLModel, table=True):
     """
 
     __tablename__ = "llm_provider_models"
-    __table_args__ = ()
 
-    provider_name: str = Field(primary_key=True, max_length=128)  # Reference to LLMProvider.name
-    api: APIType = Field(sa_column=Column(EnumAsSQLALCHEMYString(APIType, length=50), nullable=False, primary_key=True))
-    model: str = Field(primary_key=True, max_length=256)  # Model name/identifier
-    custom_llm_provider: str = Field(max_length=128)  # Custom LLM provider implementation
-    max_tokens: Optional[int] = Field(default=None)  # Maximum tokens for this model
-    tags: Optional[list] = Field(default_factory=list, sa_column=Column(JSON))  # Tags for model categorization
-    gmt_created: datetime = Field(default_factory=datetime.utcnow)
-    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
-    gmt_deleted: Optional[datetime] = None
+    provider_name = Column(String(128), primary_key=True)  # Reference to LLMProvider.name
+    api = Column(EnumColumn(APIType), nullable=False, primary_key=True)
+    model = Column(String(256), primary_key=True)  # Model name/identifier
+    custom_llm_provider = Column(String(128), nullable=False)  # Custom LLM provider implementation
+    max_tokens = Column(Integer, nullable=True)  # Maximum tokens for this model
+    tags = Column(JSON, default=list, nullable=True)  # Tags for model categorization
+    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_deleted = Column(DateTime, nullable=True)
 
     def __str__(self):
         return f"LLMProviderModel(provider={self.provider_name}, api={self.api}, model={self.model})"
 
-    async def get_provider(self, session: AsyncSessionDep):
+    async def get_provider(self, session):
         """Get the associated provider object"""
         return await session.get(LLMProvider, self.provider_name)
 
@@ -534,21 +492,22 @@ class LLMProviderModel(SQLModel, table=True):
         return self.tags or []
 
 
-class User(SQLModel, table=True):
+class User(Base):
     __tablename__ = "user"
-    id: str = Field(default_factory=lambda: "user" + random_id(), primary_key=True, max_length=24)
-    username: str = Field(max_length=150, unique=True)
-    email: Optional[str] = Field(default=None, unique=True, max_length=254)
-    role: Role = Role.RO
-    hashed_password: str = Field(max_length=128)  # fastapi-users expects hashed_password
-    is_active: bool = True
-    is_superuser: bool = False
-    is_verified: bool = True  # fastapi-users requires is_verified
-    is_staff: bool = False
-    date_joined: datetime = Field(default_factory=datetime.utcnow)
-    gmt_created: datetime = Field(default_factory=datetime.utcnow)
-    gmt_updated: datetime = Field(default_factory=datetime.utcnow)
-    gmt_deleted: Optional[datetime] = None
+
+    id = Column(String(24), primary_key=True, default=lambda: "user" + random_id())
+    username = Column(String(150), unique=True, nullable=False)
+    email = Column(String(254), unique=True, nullable=True)
+    role = Column(EnumColumn(Role), nullable=False, default=Role.RO)
+    hashed_password = Column(String(128), nullable=False)  # fastapi-users expects hashed_password
+    is_active = Column(Boolean, default=True, nullable=False)
+    is_superuser = Column(Boolean, default=False, nullable=False)
+    is_verified = Column(Boolean, default=True, nullable=False)  # fastapi-users requires is_verified
+    is_staff = Column(Boolean, default=False, nullable=False)
+    date_joined = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_deleted = Column(DateTime, nullable=True)
 
     @property
     def password(self):
@@ -559,24 +518,25 @@ class User(SQLModel, table=True):
         self.hashed_password = value
 
 
-class Invitation(SQLModel, table=True):
+class Invitation(Base):
     __tablename__ = "invitation"
-    id: str = Field(default_factory=lambda: "invite" + random_id(), primary_key=True, max_length=24)
-    email: str = Field(max_length=254)
-    token: str = Field(max_length=64, unique=True)
-    created_by: str = Field(max_length=256)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    expires_at: datetime
-    is_used: bool = False
-    used_at: Optional[datetime] = None
-    role: Role = Role.RO
+
+    id = Column(String(24), primary_key=True, default=lambda: "invite" + random_id())
+    email = Column(String(254), nullable=False)
+    token = Column(String(64), unique=True, nullable=False)
+    created_by = Column(String(256), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    is_used = Column(Boolean, default=False, nullable=False)
+    used_at = Column(DateTime, nullable=True)
+    role = Column(EnumColumn(Role), nullable=False, default=Role.RO)
 
     def is_valid(self) -> bool:
         """Check if invitation is still valid"""
         now = datetime.utcnow()
         return not self.is_used and now < self.expires_at
 
-    async def use(self, session: AsyncSessionDep):
+    async def use(self, session):
         """Mark invitation as used"""
         self.is_used = True
         self.used_at = datetime.utcnow()
@@ -587,15 +547,16 @@ class Invitation(SQLModel, table=True):
         # self.expires_at = datetime.utcnow()
 
 
-class SearchTestHistory(SQLModel, table=True):
+class SearchTestHistory(Base):
     __tablename__ = "searchtesthistory"
-    id: str = Field(default_factory=lambda: "sth" + random_id(), primary_key=True, max_length=24)
-    user: str = Field(max_length=256)
-    collection_id: Optional[str] = Field(default=None, max_length=24)
-    query: str
-    vector_search: Optional[dict] = Field(default_factory=dict, sa_column=Column(JSON))
-    fulltext_search: Optional[dict] = Field(default_factory=dict, sa_column=Column(JSON))
-    graph_search: Optional[dict] = Field(default_factory=dict, sa_column=Column(JSON))
-    items: Optional[list] = Field(default_factory=list, sa_column=Column(JSON))
-    gmt_created: datetime = Field(default_factory=datetime.utcnow)
-    gmt_deleted: Optional[datetime] = None
+
+    id = Column(String(24), primary_key=True, default=lambda: "sth" + random_id())
+    user = Column(String(256), nullable=False)
+    collection_id = Column(String(24), nullable=True)
+    query = Column(Text, nullable=False)
+    vector_search = Column(JSON, default=dict, nullable=True)
+    fulltext_search = Column(JSON, default=dict, nullable=True)
+    graph_search = Column(JSON, default=dict, nullable=True)
+    items = Column(JSON, default=list, nullable=True)
+    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
+    gmt_deleted = Column(DateTime, nullable=True)

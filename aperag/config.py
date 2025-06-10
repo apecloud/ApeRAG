@@ -9,8 +9,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-from sqlmodel import Session
+from sqlalchemy.orm import sessionmaker, Session
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 

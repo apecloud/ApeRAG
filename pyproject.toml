@@ -55,10 +55,10 @@ dependencies = [
     "fastapi[standard]>=0.115.12",
     "pydantic-settings>=2.9.1",
     "fastapi-users[sqlalchemy]>=14.0.1",
-    "sqlmodel>=0.0.24",
     "neo4j>=5.28.1",
     "django-environ>=0.12.0",
     "alembic>=1.16.1",
+    "sqlalchemy>=2.0.40",
 ]
 name = "aperag"
 version = "0.1.0"

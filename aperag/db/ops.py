@@ -19,7 +19,7 @@ from typing import List, Optional
 from sqlalchemy import desc, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session, sessionmaker
-from sqlmodel import select
+from sqlalchemy import select
 
 from aperag.config import async_engine, get_async_session, get_sync_session, sync_engine
 from aperag.db.models import (

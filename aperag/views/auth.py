@@ -157,7 +157,7 @@ async def authenticate_websocket_user(websocket: WebSocket, user_manager: UserMa
 # API Key Authentication
 async def authenticate_api_key(request: Request, session: AsyncSessionDep) -> Optional[User]:
     """Authenticate using API Key from Authorization header"""
-    from sqlmodel import select, SQLModel
+    from sqlalchemy import select
 
     authorization: str = request.headers.get("Authorization")
     if not authorization:
@@ -242,7 +242,7 @@ async def create_invitation_view(
     data: view_models.InvitationCreate, session: AsyncSessionDep, user: User = Depends(get_current_admin)
 ) -> view_models.Invitation:
     # Check if user already exists
-    from sqlmodel import select
+    from sqlalchemy import select
 
     result = await session.execute(select(User).where((User.username == data.username) | (User.email == data.email)))
     if result.scalars().first():
@@ -275,7 +275,7 @@ async def create_invitation_view(
 async def list_invitations_view(
     session: AsyncSessionDep, user: User = Depends(get_current_admin)
 ) -> view_models.InvitationList:
-    from sqlmodel import select
+    from sqlalchemy import select
 
     result = await session.execute(select(Invitation))
     invitations = []
@@ -299,7 +299,7 @@ async def list_invitations_view(
 async def register_view(
     data: view_models.Register, session: AsyncSessionDep, user_manager: UserManager = Depends(get_user_manager)
 ) -> view_models.User:
-    from sqlmodel import select
+    from sqlalchemy import select
 
     is_first_user = not await async_db_ops.query_first_user_exists()
     need_invitation = settings.register_mode == "invitation" and not is_first_user
@@ -359,7 +359,7 @@ async def login_view(
     session: AsyncSessionDep,
     user_manager: UserManager = Depends(get_user_manager),
 ) -> view_models.User:
-    from sqlmodel import select
+    from sqlalchemy import select
 
     result = await session.execute(select(User).where(User.username == data.username))
     user = result.scalars().first()
@@ -419,7 +419,7 @@ async def get_user_view(request: Request, session: AsyncSessionDep, user: Option
 
 @router.get("/users")
 async def list_users_view(session: AsyncSessionDep, user: User = Depends(get_current_admin)) -> view_models.UserList:
-    from sqlmodel import select
+    from sqlalchemy import select
 
     result = await session.execute(select(User))
     users = [
@@ -468,7 +468,7 @@ async def change_password_view(
 
 @router.delete("/users/{user_id}")
 async def delete_user_view(user_id: str, session: AsyncSessionDep, user: User = Depends(get_current_admin)):
-    from sqlmodel import select
+    from sqlalchemy import select
 
     result = await session.execute(select(User).where(User.id == user_id))
     target = result.scalars().first()
