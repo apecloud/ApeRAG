@@ -17,11 +17,9 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text, UniqueConstraint, select
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import select
 
 # Create the declarative base
 Base = declarative_base()
@@ -39,7 +37,7 @@ def EnumColumn(enum_class, **kwargs):
     # Extract enum values to create the enum column
     enum_values = [e.value for e in enum_class]
     # Use the enum class name for the constraint name
-    kwargs.setdefault('name', enum_class.__name__.lower())
+    kwargs.setdefault("name", enum_class.__name__.lower())
     return SQLEnum(*enum_values, **kwargs)
 
 
@@ -136,9 +134,6 @@ class APIType(str, Enum):
     COMPLETION = "completion"
     EMBEDDING = "embedding"
     RERANK = "rerank"
-
-
-
 
 
 # Models

@@ -148,6 +148,7 @@ exclude = [
     ".github",
     "models",
     "playground",
+    "aperag/migration",
     "aperag/migrations",
     "aperag/schema/view_models.py",
     "vectorstore/test_connector.py",
