@@ -14,7 +14,7 @@ from aperag.migration.utils import execute_sql_file
 
 # revision identifiers, used by Alembic.
 revision: str = 'be090f06152e'
-down_revision: Union[str, None] = '6b261afb99c8'
+down_revision: Union[str, None] = '8739d13cc4be'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

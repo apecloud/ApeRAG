@@ -14,10 +14,10 @@
 
 import random
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text, UniqueConstraint, select
+from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text, UniqueConstraint, select, BigInteger
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -29,6 +29,12 @@ Base = declarative_base()
 def random_id():
     """Generate a random ID string"""
     return "".join(random.sample(uuid.uuid4().hex, 16))
+
+
+# Helper function for UTC datetime
+def utc_now():
+    """Generate UTC datetime for consistency"""
+    return datetime.now(timezone.utc)
 
 
 # Helper function for creating enum columns that store values instead of names
@@ -139,18 +145,17 @@ class APIType(str, Enum):
 # Models
 class Collection(Base):
     __tablename__ = "collection"
-    __table_args__ = (UniqueConstraint("id", name="uq_collection_id"),)
 
     id = Column(String(24), primary_key=True, default=lambda: "col" + random_id())
     title = Column(String(256), nullable=False)
     description = Column(Text, nullable=True)
-    user = Column(String(256), nullable=False)
-    status = Column(EnumColumn(CollectionStatus), nullable=False)
+    user = Column(String(256), nullable=False, index=True)  # Add index for frequent queries
+    status = Column(EnumColumn(CollectionStatus), nullable=False, index=True)  # Add index for status queries
     type = Column(EnumColumn(CollectionType), nullable=False)
     config = Column(Text, nullable=False)
-    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_deleted = Column(DateTime, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
 
     async def bots(self, session, only_ids: bool = False):
         """Get all active bots related to this collection"""
@@ -178,19 +183,19 @@ class Document(Base):
 
     id = Column(String(24), primary_key=True, default=lambda: "doc" + random_id())
     name = Column(String(1024), nullable=False)
-    user = Column(String(256), nullable=False)
-    collection_id = Column(String(24), nullable=True)
-    status = Column(EnumColumn(DocumentStatus), nullable=False)
+    user = Column(String(256), nullable=False, index=True)  # Add index for user queries
+    collection_id = Column(String(24), nullable=True, index=True)  # Add index for collection queries
+    status = Column(EnumColumn(DocumentStatus), nullable=False, index=True)  # Add index for status queries
     vector_index_status = Column(EnumColumn(DocumentIndexStatus), nullable=False, default=DocumentIndexStatus.PENDING)
     fulltext_index_status = Column(EnumColumn(DocumentIndexStatus), nullable=False, default=DocumentIndexStatus.PENDING)
     graph_index_status = Column(EnumColumn(DocumentIndexStatus), nullable=False, default=DocumentIndexStatus.PENDING)
-    size = Column(Integer, nullable=False)
+    size = Column(BigInteger, nullable=False)  # Support larger files (up to 9 exabytes)
     object_path = Column(Text, nullable=True)
     doc_metadata = Column(Text, nullable=True)  # Store document metadata as JSON string
     relate_ids = Column(Text, nullable=True)
-    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_deleted = Column(DateTime, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
 
     def get_overall_status(self) -> "DocumentStatus":
         """Calculate overall status based on individual index statuses"""
@@ -229,15 +234,15 @@ class Bot(Base):
     __tablename__ = "bot"
 
     id = Column(String(24), primary_key=True, default=lambda: "bot" + random_id())
-    user = Column(String(256), nullable=False)
+    user = Column(String(256), nullable=False, index=True)  # Add index for user queries
     title = Column(String(256), nullable=True)
     type = Column(EnumColumn(BotType), nullable=False, default=BotType.KNOWLEDGE)
     description = Column(Text, nullable=True)
-    status = Column(EnumColumn(BotStatus), nullable=False)
+    status = Column(EnumColumn(BotStatus), nullable=False, index=True)  # Add index for status queries
     config = Column(Text, nullable=False)
-    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_deleted = Column(DateTime, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
 
     async def collections(self, session, only_ids: bool = False):
         """Get all active collections related to this bot"""
@@ -264,8 +269,8 @@ class BotCollectionRelation(Base):
     id = Column(String(24), primary_key=True, default=lambda: "bcr" + random_id())
     bot_id = Column(String(24), nullable=False)
     collection_id = Column(String(24), nullable=False)
-    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_deleted = Column(DateTime, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
 
 
 class ConfigModel(Base):
@@ -273,9 +278,9 @@ class ConfigModel(Base):
 
     key = Column(String(256), primary_key=True)
     value = Column(Text, nullable=False)
-    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_deleted = Column(DateTime, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
 
 
 class UserQuota(Base):
@@ -284,9 +289,9 @@ class UserQuota(Base):
     user = Column(String(256), primary_key=True)
     key = Column(String(256), primary_key=True)
     value = Column(Integer, default=0, nullable=False)
-    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_deleted = Column(DateTime, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
 
 
 class Chat(Base):
@@ -296,15 +301,15 @@ class Chat(Base):
     )
 
     id = Column(String(24), primary_key=True, default=lambda: "chat" + random_id())
-    user = Column(String(256), nullable=False)
+    user = Column(String(256), nullable=False, index=True)  # Add index for user queries
     peer_type = Column(EnumColumn(ChatPeerType), nullable=False, default=ChatPeerType.SYSTEM)
     peer_id = Column(String(256), nullable=True)
-    status = Column(EnumColumn(ChatStatus), nullable=False)
-    bot_id = Column(String(24), nullable=False)
+    status = Column(EnumColumn(ChatStatus), nullable=False, index=True)  # Add index for status queries
+    bot_id = Column(String(24), nullable=False, index=True)  # Add index for bot queries
     title = Column(String(256), nullable=True)
-    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_deleted = Column(DateTime, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
 
     async def get_bot(self, session):
         """Get the associated bot object"""
@@ -324,20 +329,20 @@ class MessageFeedback(Base):
         UniqueConstraint("chat_id", "message_id", "gmt_deleted", name="uq_feedback_chat_message_deleted"),
     )
 
-    user = Column(String(256), nullable=False)
-    collection_id = Column(String(24), nullable=True)
+    user = Column(String(256), nullable=False, index=True)  # Add index for user queries
+    collection_id = Column(String(24), nullable=True, index=True)  # Add index for collection queries
     chat_id = Column(String(24), primary_key=True)
     message_id = Column(String(256), primary_key=True)
     type = Column(EnumColumn(MessageFeedbackType), nullable=True)
     tag = Column(EnumColumn(MessageFeedbackTag), nullable=True)
     message = Column(Text, nullable=True)
     question = Column(Text, nullable=True)
-    status = Column(EnumColumn(MessageFeedbackStatus), nullable=True)
+    status = Column(EnumColumn(MessageFeedbackStatus), nullable=True, index=True)  # Add index for status queries
     original_answer = Column(Text, nullable=True)
     revised_answer = Column(Text, nullable=True)
-    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_deleted = Column(DateTime, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
 
     async def get_collection(self, session):
         """Get the associated collection object"""
@@ -365,15 +370,15 @@ class MessageFeedback(Base):
 class ApiKey(Base):
     __tablename__ = "api_key"
 
-    id = Column(String(24), primary_key=True, default=lambda: "".join(random.sample(uuid.uuid4().hex, 12)))
-    key = Column(String(40), default=lambda: f"sk-{uuid.uuid4().hex}", nullable=False)
-    user = Column(String(256), nullable=False)
+    id = Column(String(24), primary_key=True, default=lambda: "key" + random_id())
+    key = Column(String(64), default=lambda: f"sk-{uuid.uuid4().hex}", nullable=False)
+    user = Column(String(256), nullable=False, index=True)  # Add index for user queries
     description = Column(String(256), nullable=True)
-    status = Column(EnumColumn(ApiKeyStatus), nullable=False)
-    last_used_at = Column(DateTime, nullable=True)
-    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_deleted = Column(DateTime, nullable=True)
+    status = Column(EnumColumn(ApiKeyStatus), nullable=False, index=True)  # Add index for status queries
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
 
     @staticmethod
     def generate_key() -> str:
@@ -382,7 +387,7 @@ class ApiKey(Base):
 
     async def update_last_used(self, session):
         """Update the last_used_at timestamp"""
-        self.last_used_at = datetime.utcnow()
+        self.last_used_at = utc_now()
         session.add(self)
         await session.commit()
 
@@ -395,12 +400,12 @@ class ModelServiceProvider(Base):
 
     id = Column(String(24), primary_key=True, default=lambda: "msp" + random_id())
     name = Column(String(256), nullable=False)
-    user = Column(String(256), nullable=False)
-    status = Column(EnumColumn(ModelServiceProviderStatus), nullable=False)
+    user = Column(String(256), nullable=False, index=True)  # Add index for user queries
+    status = Column(EnumColumn(ModelServiceProviderStatus), nullable=False, index=True)  # Add index for status queries
     api_key = Column(String(256), nullable=False)
-    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_deleted = Column(DateTime, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
 
 
 class LLMProvider(Base):
@@ -421,9 +426,9 @@ class LLMProvider(Base):
     allow_custom_base_url = Column(Boolean, default=False, nullable=False)  # Whether custom base URLs are allowed
     base_url = Column(String(512), nullable=False)  # Default API base URL for this provider
     extra = Column(Text, nullable=True)  # Additional configuration data in JSON format
-    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_deleted = Column(DateTime, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
 
     def __str__(self):
         return f"LLMProvider(name={self.name}, label={self.label})"
@@ -443,10 +448,10 @@ class LLMProviderModel(Base):
     model = Column(String(256), primary_key=True)  # Model name/identifier
     custom_llm_provider = Column(String(128), nullable=False)  # Custom LLM provider implementation
     max_tokens = Column(Integer, nullable=True)  # Maximum tokens for this model
-    tags = Column(JSON, default=list, nullable=True)  # Tags for model categorization
-    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_deleted = Column(DateTime, nullable=True)
+    tags = Column(JSON, default=lambda: [], nullable=True)  # Tags for model categorization
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
 
     def __str__(self):
         return f"LLMProviderModel(provider={self.provider_name}, api={self.api}, model={self.model})"
@@ -491,7 +496,7 @@ class User(Base):
     __tablename__ = "user"
 
     id = Column(String(24), primary_key=True, default=lambda: "user" + random_id())
-    username = Column(String(150), unique=True, nullable=False)
+    username = Column(String(256), unique=True, nullable=False)  # Unified with other user fields
     email = Column(String(254), unique=True, nullable=True)
     role = Column(EnumColumn(Role), nullable=False, default=Role.RO)
     hashed_password = Column(String(128), nullable=False)  # fastapi-users expects hashed_password
@@ -499,10 +504,10 @@ class User(Base):
     is_superuser = Column(Boolean, default=False, nullable=False)
     is_verified = Column(Boolean, default=True, nullable=False)  # fastapi-users requires is_verified
     is_staff = Column(Boolean, default=False, nullable=False)
-    date_joined = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_deleted = Column(DateTime, nullable=True)
+    date_joined = Column(DateTime(timezone=True), default=utc_now, nullable=False)  # Unified naming with other time fields
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
 
     @property
     def password(self):
@@ -520,38 +525,38 @@ class Invitation(Base):
     email = Column(String(254), nullable=False)
     token = Column(String(64), unique=True, nullable=False)
     created_by = Column(String(256), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
     is_used = Column(Boolean, default=False, nullable=False)
-    used_at = Column(DateTime, nullable=True)
+    used_at = Column(DateTime(timezone=True), nullable=True)
     role = Column(EnumColumn(Role), nullable=False, default=Role.RO)
 
     def is_valid(self) -> bool:
         """Check if invitation is still valid"""
-        now = datetime.utcnow()
+        now = utc_now()
         return not self.is_used and now < self.expires_at
 
     async def use(self, session):
         """Mark invitation as used"""
         self.is_used = True
-        self.used_at = datetime.utcnow()
+        self.used_at = utc_now()
         session.add(self)
         await session.commit()
 
         # Auto-expire after use (optional)
-        # self.expires_at = datetime.utcnow()
+        # self.expires_at = utc_now()
 
 
 class SearchTestHistory(Base):
     __tablename__ = "searchtesthistory"
 
     id = Column(String(24), primary_key=True, default=lambda: "sth" + random_id())
-    user = Column(String(256), nullable=False)
-    collection_id = Column(String(24), nullable=True)
+    user = Column(String(256), nullable=False, index=True)  # Add index for user queries
+    collection_id = Column(String(24), nullable=True, index=True)  # Add index for collection queries
     query = Column(Text, nullable=False)
-    vector_search = Column(JSON, default=dict, nullable=True)
-    fulltext_search = Column(JSON, default=dict, nullable=True)
-    graph_search = Column(JSON, default=dict, nullable=True)
-    items = Column(JSON, default=list, nullable=True)
-    gmt_created = Column(DateTime, default=datetime.utcnow, nullable=False)
-    gmt_deleted = Column(DateTime, nullable=True)
+    vector_search = Column(JSON, default=lambda: {}, nullable=True)
+    fulltext_search = Column(JSON, default=lambda: {}, nullable=True)
+    graph_search = Column(JSON, default=lambda: {}, nullable=True)
+    items = Column(JSON, default=lambda: [], nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
