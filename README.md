@@ -5,7 +5,7 @@
 ApeRAG is a comprehensive RAG (Retrieval-Augmented Generation) platform designed for building advanced, enterprise-grade AI applications. It integrates **LightRAG** to enhance its capabilities, notably enabling powerful **graph-based query and knowledge retrieval**. Key features include:
 
 *   **Versatile Document Processing**: Efficiently parses various document types.
-*   **Flexible Data Management**: Utilizes Django backend with Celery for asynchronous tasks, supporting databases like PostgreSQL, Qdrant, Neo4j, and Elasticsearch.
+*   **Flexible Data Management**: Utilizes FastAPI backend with Celery for asynchronous tasks, supporting databases like PostgreSQL, Qdrant, Neo4j, and Elasticsearch.
 *   **Dynamic Frontend**: Modern user interface built with React and TypeScript (UmiJS).
 *   **Advanced RAG Pipelines**: Supports embedding generation, hybrid search (vector, keyword, and graph), and sophisticated workflow automation for complex RAG scenarios.
 *   **LLM Integration**: Seamlessly connects with Large Language Models.
@@ -160,7 +160,7 @@ ApeRAG uses `.env` files for configuration.
 
 These should typically be run in separate terminal windows/tabs. The `make` commands will automatically use the correct Python virtual environment.
 
-*   **Django Development Server**:
+*   **FastAPI Development Server**:
     ```bash
     make run-backend
     ```
@@ -251,7 +251,7 @@ The `Makefile` at the root of the project provides several helpful commands to s
 
 *   **Running Services**:
     *   `make run-db`: (Uses Docker Compose) Starts all required database services (PostgreSQL, Redis, Qdrant, etc.) as defined in `docker-compose.yml`. Useful if you don't have these services running elsewhere.
-    *   `make run-backend`: Starts the Django development server.
+    *   `make run-backend`: Starts the FastAPI development server.
     *   `make run-frontend`: Starts the UmiJS frontend development server.
     *   `make run-celery`: Starts a Celery worker for processing background tasks (includes Celery Beat).
     *   `make run-celery-beat`: (Note: `make run-celery` usually includes Beat due to the `-B` flag. This target might be redundant or for specific scenarios. Check Makefile if explicitly needed separate from worker).
@@ -263,10 +263,9 @@ The `Makefile` at the root of the project provides several helpful commands to s
     *   `make test`: Runs all automated tests (Python unit tests, integration tests).
 
 *   **Database Management**:
-    *   `make makemigration`: Creates new database migration files based on changes to Django models.
+    *   `make makemigration`: Creates new database migration files based on changes to SQLAlchemy models.
     *   `make migrate`: Applies pending database migrations to your connected database.
     *   `make connect-metadb`: Provides a command to connect to the primary PostgreSQL database (usually for inspection, if run via `make run-db`).
-    *   `make diff`: Shows differences in Django settings (useful for debugging configurations).
 
 *   **Generators**:
     *   `make generate-models`: Generates Pydantic models from the OpenAPI schema.
@@ -297,7 +296,7 @@ Contributing to ApeRAG involves the following typical workflow. Before starting 
 
 4.  **Handle API and Model Changes**:
     *   If you change backend API endpoints (add, remove, modify parameters/responses): Update the OpenAPI specification (usually in `aperag/api/openapi.yaml`) and then run `make generate-frontend-sdk` to update the frontend client. Also, run `make generate-models` if schema components are affected.
-    *   If you change Django models: Run `make makemigration` to create migration files, and then `make migrate` to apply changes to your development database.
+    *   If you change SQLAlchemy models: Run `make makemigration` to create migration files, and then `make migrate` to apply changes to your development database.
 
 5.  **Testing**: Add unit tests for new backend logic and integration tests for API changes. Ensure all existing tests pass by running `make test`.
 

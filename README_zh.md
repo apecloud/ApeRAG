@@ -3,7 +3,7 @@
 ApeRAG 是一个全面的 RAG（Retrieval-Augmented Generation，检索增强生成）平台，专为构建先进的企业级人工智能应用而设计。它集成了 **LightRAG** 以增强其功能，特别是实现了强大的**基于图的查询和知识检索**。主要特性包括：
 
 *   **多样化的文档处理**：高效解析各种文档类型。
-*   **灵活的数据管理**：后端采用 Django 和 Celery 进行异步任务处理，支持 PostgreSQL、Qdrant、Neo4j 和 Elasticsearch 等多种数据库。
+*   **灵活的数据管理**：后端采用 FastAPI 和 Celery 进行异步任务处理，支持 PostgreSQL、Qdrant、Neo4j 和 Elasticsearch 等多种数据库。
 *   **动态前端**：基于 React 和 TypeScript (UmiJS) 构建的现代化用户界面。
 *   **先进的 RAG 工作流**：支持 Embedding 生成、混合搜索（向量、关键词和图搜索）以及针对复杂 RAG 场景的精密工作流自动化。
 *   **大语言模型集成**：与大语言模型无缝连接。
@@ -158,7 +158,7 @@ ApeRAG 使用 `.env` 文件进行配置。
 
 这些服务通常应在单独的终端窗口/标签页中运行。`make` 命令将自动使用正确的 Python 虚拟环境。
 
-*   **Django 开发服务器**:
+*   **FastAPI 开发服务器**:
     ```bash
     make run-backend
     ```
@@ -249,7 +249,7 @@ make run-frontend
 
 *   **运行服务**:
     *   `make run-db`: (使用 Docker Compose) 启动 `docker-compose.yml` 中定义的所有必需数据库服务（PostgreSQL、Redis、Qdrant 等）。如果您没有在其他地方运行这些服务，则此命令非常有用。
-    *   `make run-backend`: 启动 Django 开发服务器。
+    *   `make run-backend`: 启动 FastAPI 开发服务器。
     *   `make run-frontend`: 启动 UmiJS 前端开发服务器。
     *   `make run-celery`: 启动 Celery worker 以处理后台任务（包括 Celery Beat）。
     *   `make run-celery-beat`: (注意: `make run-celery` 通常由于 `-B` 标志而包含 Beat。此目标可能是多余的，或用于特定场景。如果明确需要与 worker 分开，请检查 Makefile)。
@@ -261,10 +261,9 @@ make run-frontend
     *   `make test`: 运行所有自动化测试（Python 单元测试、集成测试）。
 
 *   **数据库管理**:
-    *   `make makemigration`: 根据 Django模型的更改创建新的数据库迁移文件。
+    *   `make makemigration`: 根据 SQLAlchemy模型的更改创建新的数据库迁移文件。
     *   `make migrate`: 将待处理的数据库迁移应用到您连接的数据库。
     *   `make connect-metadb`: 提供连接到主 PostgreSQL 数据库的命令（通常用于检查，如果通过 `make run-db` 运行）。
-    *   `make diff`: 显示 Django 设置的差异（用于调试配置）。
 
 *   **生成器**:
     *   `make generate-models`: 从 OpenAPI schema 生成 Pydantic 模型。
@@ -295,7 +294,7 @@ make run-frontend
 
 4.  **处理 API 和模型更改**:
     *   如果您更改了后端 API 端点（添加、删除、修改参数/响应）：更新 OpenAPI 规范（通常在 `aperag/api/openapi.yaml` 中），然后运行 `make generate-frontend-sdk` 以更新前端客户端。如果 schema 组件受到影响，还需运行 `make generate-models`。
-    *   如果您更改了 Django模型：运行 `make makemigration` 创建迁移文件，然后运行 `make migrate` 将更改应用到您的开发数据库。
+    *   如果您更改了 SQLAlchemy模型：运行 `make makemigration` 创建迁移文件，然后运行 `make migrate` 将更改应用到您的开发数据库。
 
 5.  **测试**: 为新的后端逻辑添加单元测试，为 API 更改添加集成测试。通过运行 `make test` 确保所有现有测试通过。
 
