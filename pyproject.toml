@@ -176,5 +176,8 @@ exclude = [
     "aperag/schema/view_models.py",
 ]
 
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+
 [tool.setuptools]
 packages = ["aperag", "config"]

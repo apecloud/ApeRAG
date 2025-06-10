@@ -56,7 +56,7 @@ def test_update_flow(benchmark, client, bot):
         flow = yaml.safe_load(f)
     flow_json = json.dumps(flow)
     resp = benchmark(
-        client.put, f"/api/v1/bots/{bot['id']}/flow", data=flow_json, headers={"Content-Type": "application/json"}
+        client.put, f"/api/v1/bots/{bot['id']}/flow", content=flow_json, headers={"Content-Type": "application/json"}
     )
     assert resp.status_code == HTTPStatus.OK, resp.text
     resp = client.get(f"/api/v1/bots/{bot['id']}/flow")

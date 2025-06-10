@@ -96,7 +96,7 @@ class APITestHelper:
             msg_id = f"{test_name.lower().replace(' ', '_')}_msg_001"
             response = self.client.post(
                 "/api/v1/chat/completions/frontend",
-                data=message,
+                content=message,
                 params={"stream": "false", "bot_id": bot_id, "chat_id": chat_id},
                 headers={"msg_id": msg_id, "Content-Type": "text/plain"},
                 timeout=120.0,  # Set longer timeout for non-streaming requests
@@ -130,7 +130,7 @@ class APITestHelper:
             msg_id = f"{test_name.lower().replace(' ', '_')}_msg_002"
             response = self.client.post(
                 "/api/v1/chat/completions/frontend",
-                data=f"{message} (streaming)",
+                content=f"{message} (streaming)",
                 params={"stream": "true", "bot_id": bot_id, "chat_id": chat_id},
                 headers={"msg_id": msg_id, "Content-Type": "text/plain"},
                 timeout=120.0,  # Set longer timeout for streaming requests as well
@@ -238,7 +238,7 @@ def create_and_configure_bot(
 
         flow_json = json.dumps(flow)
         resp = client.put(
-            f"/api/v1/bots/{bot['id']}/flow", data=flow_json, headers={"Content-Type": "application/json"}
+            f"/api/v1/bots/{bot['id']}/flow", content=flow_json, headers={"Content-Type": "application/json"}
         )
         assert resp.status_code == HTTPStatus.OK, resp.text
 
@@ -442,7 +442,7 @@ def test_frontend_api_error_handling(client, basic_chat):
         message = "Test message"
         response = client.post(
             "/api/v1/chat/completions/frontend",
-            data=message,
+            content=message,
             params={"stream": "false", "bot_id": "invalid_bot_id", "chat_id": basic_chat["id"]},
             headers={"msg_id": "test_msg_003", "Content-Type": "text/plain"},
             timeout=120.0,
@@ -464,7 +464,7 @@ def test_frontend_api_error_handling(client, basic_chat):
         message = "Test message"
         response = client.post(
             "/api/v1/chat/completions/frontend",
-            data=message,
+            content=message,
             params={"stream": "false", "chat_id": basic_chat["id"]},
             headers={"msg_id": "test_msg_004", "Content-Type": "text/plain"},
             timeout=120.0,
