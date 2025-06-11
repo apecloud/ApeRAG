@@ -4,8 +4,6 @@ from http import HTTPStatus
 
 import pytest
 
-from tests.e2e_test.config import MAX_DOCUMENT_SIZE_MB
-
 
 def make_markdown_file():
     # Simulate a markdown file

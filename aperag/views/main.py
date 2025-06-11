@@ -21,12 +21,8 @@ from aperag.db.models import User
 from aperag.schema import view_models
 from aperag.service.bot_service import bot_service
 from aperag.service.chat_service import chat_service_global
-from aperag.service.collection_service import (
-    collection_service,
-)
-from aperag.service.document_service import (
-    document_service,
-)
+from aperag.service.collection_service import collection_service
+from aperag.service.document_service import document_service
 from aperag.service.flow_service import flow_service_global
 from aperag.service.llm_config_service import get_model_config_objects
 from aperag.service.llm_configuration_service import (
@@ -374,7 +370,8 @@ async def create_llm_provider_view(request: Request, user: User = Depends(curren
     """Create a new LLM provider"""
     import json
 
-    data = json.loads(request.body.decode("utf-8"))
+    body = await request.body()
+    data = json.loads(body.decode("utf-8"))
     return await create_llm_provider(data)
 
 
@@ -389,7 +386,8 @@ async def update_llm_provider_view(request: Request, provider_name: str, user: U
     """Update an existing LLM provider"""
     import json
 
-    data = json.loads(request.body.decode("utf-8"))
+    body = await request.body()
+    data = json.loads(body.decode("utf-8"))
     return await update_llm_provider(provider_name, data)
 
 
@@ -418,7 +416,8 @@ async def create_provider_model_view(request: Request, provider_name: str, user:
     """Create a new model for a specific provider"""
     import json
 
-    data = json.loads(request.body.decode("utf-8"))
+    body = await request.body()
+    data = json.loads(body.decode("utf-8"))
     return await create_llm_provider_model(provider_name, data)
 
 
@@ -429,7 +428,8 @@ async def update_provider_model_view(
     """Update a specific model"""
     import json
 
-    data = json.loads(request.body.decode("utf-8"))
+    body = await request.body()
+    data = json.loads(body.decode("utf-8"))
     return await update_llm_provider_model(provider_name, api, model, data)
 
 

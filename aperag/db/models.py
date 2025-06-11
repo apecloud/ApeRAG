@@ -17,7 +17,7 @@ import uuid
 from datetime import datetime, timezone
 from enum import Enum
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text, UniqueConstraint, select, BigInteger
+from sqlalchemy import JSON, BigInteger, Boolean, Column, DateTime, Integer, String, Text, UniqueConstraint, select
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -504,7 +504,9 @@ class User(Base):
     is_superuser = Column(Boolean, default=False, nullable=False)
     is_verified = Column(Boolean, default=True, nullable=False)  # fastapi-users requires is_verified
     is_staff = Column(Boolean, default=False, nullable=False)
-    date_joined = Column(DateTime(timezone=True), default=utc_now, nullable=False)  # Unified naming with other time fields
+    date_joined = Column(
+        DateTime(timezone=True), default=utc_now, nullable=False
+    )  # Unified naming with other time fields
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True)

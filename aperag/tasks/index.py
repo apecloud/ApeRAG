@@ -26,12 +26,7 @@ from sqlalchemy import select
 
 from aperag.config import settings
 from aperag.context.full_text import insert_document, remove_document
-from aperag.db.models import (
-    Collection,
-    Document,
-    DocumentIndexStatus,
-    DocumentStatus,
-)
+from aperag.db.models import Collection, Document, DocumentIndexStatus, DocumentStatus
 from aperag.db.ops import db_ops
 from aperag.docparser.doc_parser import DocParser
 from aperag.embed.base_embedding import get_collection_embedding_service_sync
@@ -43,10 +38,7 @@ from aperag.source.base import get_source
 from aperag.source.feishu.client import FeishuNoPermission, FeishuPermissionDenied
 from aperag.utils.tokenizer import get_default_tokenizer
 from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS, uncompress
-from aperag.utils.utils import (
-    generate_fulltext_index_name,
-    generate_vector_db_collection_name,
-)
+from aperag.utils.utils import generate_fulltext_index_name, generate_vector_db_collection_name
 from config.celery import app
 from config.vector_db import get_vector_db_connector
 
@@ -452,7 +444,7 @@ def remove_index(self, document_id):
         index = generate_fulltext_index_name(collection.id)
         remove_document(index, document.id)
 
-        if document.relate_ids == "":
+        if not document.relate_ids:
             return
 
         relate_ids = json.loads(document.relate_ids)
