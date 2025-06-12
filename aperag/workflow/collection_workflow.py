@@ -13,15 +13,16 @@
 # limitations under the License.
 
 import logging
-from typing import Dict, Any
+from typing import Any, Dict
 
 from asgiref.sync import async_to_sync
 
-from aperag.context.full_text import create_index, delete_index
+from aperag.index.fulltext_index import delete_index
 from aperag.db.models import CollectionStatus
 from aperag.db.ops import db_ops
 from aperag.embed.base_embedding import get_collection_embedding_service_sync
 from aperag.graph import lightrag_manager
+from aperag.index.fulltext_index import create_index
 from aperag.schema.utils import parseCollectionConfig
 from aperag.tasks.async_interface import TaskResult
 from aperag.utils.utils import (

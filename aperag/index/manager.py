@@ -1,16 +1,14 @@
 import logging
-from aperag.db.models import DocumentIndexSpec, DocumentIndexStatus, DocumentIndexType, IndexDesiredState, utc_now
-
+from typing import List, Optional
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-
-from typing import List, Optional
+from aperag.db.models import DocumentIndexSpec, DocumentIndexStatus, DocumentIndexType, IndexDesiredState, utc_now
 
 logger = logging.getLogger(__name__)
 
-class DocumentIndexFrontendManager:
+class FrontendIndexManager:
     """Simple manager for document index specs (frontend chain)"""
 
     async def create_document_indexes(self, session: AsyncSession, document_id: str,
@@ -181,4 +179,4 @@ class DocumentIndexFrontendManager:
 
 
 # Global instance
-document_index_manager = DocumentIndexFrontendManager()
+document_index_manager = FrontendIndexManager()

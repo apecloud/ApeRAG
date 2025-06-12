@@ -32,6 +32,9 @@ from aperag.db.models import (
     CollectionStatus,
     ConfigModel,
     Document,
+    DocumentIndex,
+    DocumentIndexStatus,
+    DocumentIndexType,
     DocumentStatus,
     Invitation,
     LightRAGDocChunksModel,
@@ -50,9 +53,6 @@ from aperag.db.models import (
     SearchTestHistory,
     User,
     UserQuota,
-    DocumentIndex,
-    DocumentIndexType,
-    DocumentIndexStatus,
 )
 
 logger = logging.getLogger(__name__)
@@ -997,7 +997,6 @@ class DatabaseOps:
         Returns:
             List of created DocumentIndex objects
         """
-        from aperag.db.models import DocumentIndex, DocumentIndexType, DocumentIndexStatus
         
         if index_types is None:
             index_types = [DocumentIndexType.VECTOR, DocumentIndexType.FULLTEXT, DocumentIndexType.GRAPH]
@@ -1038,7 +1037,6 @@ class DatabaseOps:
         Returns:
             List of pending DocumentIndex objects
         """
-        from aperag.db.models import DocumentIndex, DocumentIndexStatus
         
         def _operation(session):
             query = session.query(DocumentIndex).filter(
@@ -1062,7 +1060,6 @@ class DatabaseOps:
         Returns:
             List of retryable DocumentIndex objects
         """
-        from aperag.db.models import DocumentIndex, DocumentIndexStatus
         
         def _operation(session):
             indexes = session.query(DocumentIndex).filter(
@@ -1084,7 +1081,6 @@ class DatabaseOps:
         Returns:
             List of DocumentIndex objects
         """
-        from aperag.db.models import DocumentIndex
         
         def _operation(session):
             return session.query(DocumentIndex).filter_by(document_id=document_id).all()
@@ -1102,7 +1098,6 @@ class DatabaseOps:
         Returns:
             Updated DocumentIndex object
         """
-        from aperag.db.models import DocumentIndex
         
         def _operation(session):
             index = session.query(DocumentIndex).filter_by(id=index_id).first()
@@ -1123,7 +1118,6 @@ class DatabaseOps:
         Args:
             document_id: Document ID
         """
-        from aperag.db.models import DocumentIndex, DocumentIndexStatus
         
         def _operation(session):
             indexes = session.query(DocumentIndex).filter_by(document_id=document_id).all()
@@ -1141,7 +1135,6 @@ class DatabaseOps:
         Args:
             document_id: Document ID
         """
-        from aperag.db.models import DocumentIndex
         
         def _operation(session):
             count = session.query(DocumentIndex).filter_by(document_id=document_id).delete()

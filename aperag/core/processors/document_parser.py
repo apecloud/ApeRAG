@@ -17,14 +17,14 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from aperag.db.models import Document, DocumentStatus
 from aperag.db.ops import db_ops
 from aperag.docparser.doc_parser import DocParser
 from aperag.objectstore.base import get_object_store
-from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS, uncompress
 from aperag.tasks.async_interface import TaskResult
+from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS, uncompress
 
 logger = logging.getLogger(__name__)
 
@@ -252,8 +252,9 @@ class DocumentParser:
                         # Create index specs using new declarative system
                         try:
                             import asyncio
-                            from aperag.index.frontend_manager import document_index_manager
+
                             from aperag.db.ops import get_session
+                            from aperag.index.manager import document_index_manager
                             
                             async def create_specs():
                                 async with get_session() as session:

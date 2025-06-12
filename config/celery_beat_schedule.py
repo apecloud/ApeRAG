@@ -29,34 +29,6 @@ CELERY_BEAT_SCHEDULE = {
             'expires': 300,  # Task expires after 5 minutes
         }
     },
-    
-    # Retry failed indexes every 5 minutes
-    'retry-failed-indexes': {
-        'task': 'aperag.tasks.celery_tasks.retry_failed_document_indexes',
-        'schedule': crontab(minute='*/5'),  # Run every 5 minutes
-        'args': (10,),  # Retry up to 10 failed indexes at once
-        'options': {
-            'expires': 600,  # Task expires after 10 minutes
-        }
-    },
-    
-    # Cleanup completed index records older than 7 days - run daily at 2 AM
-    'cleanup-old-index-records': {
-        'task': 'aperag.tasks.celery_tasks.cleanup_old_index_records',
-        'schedule': crontab(hour=2, minute=0),  # Run daily at 2 AM
-        'options': {
-            'expires': 3600,  # Task expires after 1 hour
-        }
-    },
-    
-    # Cleanup expired index locks every 10 minutes
-    'cleanup-expired-locks': {
-        'task': 'aperag.tasks.celery_tasks.cleanup_expired_index_locks',
-        'schedule': crontab(minute='*/10'),  # Run every 10 minutes
-        'options': {
-            'expires': 300,  # Task expires after 5 minutes
-        }
-    },
 }
 
 # Additional beat configuration

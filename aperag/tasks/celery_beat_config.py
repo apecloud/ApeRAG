@@ -5,7 +5,6 @@ This module defines the periodic tasks that should be run by Celery Beat
 to maintain the document index reconciliation system.
 """
 
-from celery.schedules import crontab
 
 # Celery Beat schedule configuration
 CELERY_BEAT_SCHEDULE = {

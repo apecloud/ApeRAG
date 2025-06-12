@@ -10,11 +10,11 @@ Usage:
     python -m aperag.cli.index_manager delete --document-id doc123
 """
 
-import asyncio
 import argparse
+import asyncio
+import json
 import logging
 import sys
-import json
 from typing import Optional
 
 # Setup logging
@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 async def get_document_status(document_id: str):
     """Get document index status"""
-    from aperag.index.frontend_manager import document_index_manager
     from aperag.db.ops import get_session
+    from aperag.index.manager import document_index_manager
     
     async with get_session() as session:
         status = await document_index_manager.get_document_index_status(session, document_id)
@@ -35,7 +35,7 @@ async def get_document_status(document_id: str):
 
 async def run_reconciliation():
     """Run reconciliation manually"""
-    from aperag.index.backend_reconciler import index_reconciler
+    from aperag.index.reconciler import index_reconciler
     
     logger.info("Starting manual reconciliation...")
     await index_reconciler.reconcile_all()
@@ -44,9 +44,9 @@ async def run_reconciliation():
 
 async def create_document_indexes(document_id: str, user: str, index_types: Optional[list] = None):
     """Create document indexes"""
-    from aperag.index.frontend_manager import document_index_manager
-    from aperag.db.ops import get_session
     from aperag.db.models import DocumentIndexType
+    from aperag.db.ops import get_session
+    from aperag.index.manager import document_index_manager
     
     if index_types:
         types = [DocumentIndexType(t) for t in index_types]
@@ -67,9 +67,9 @@ async def create_document_indexes(document_id: str, user: str, index_types: Opti
 
 async def delete_document_indexes(document_id: str, index_types: Optional[list] = None):
     """Delete document indexes"""
-    from aperag.index.frontend_manager import document_index_manager
-    from aperag.db.ops import get_session
     from aperag.db.models import DocumentIndexType
+    from aperag.db.ops import get_session
+    from aperag.index.manager import document_index_manager
     
     if index_types:
         types = [DocumentIndexType(t) for t in index_types]
@@ -90,8 +90,8 @@ async def delete_document_indexes(document_id: str, index_types: Optional[list] 
 
 async def update_document_indexes(document_id: str):
     """Update document indexes (increment version)"""
-    from aperag.index.frontend_manager import document_index_manager
     from aperag.db.ops import get_session
+    from aperag.index.manager import document_index_manager
     
     async with get_session() as session:
         await document_index_manager.update_document_indexes(session, document_id)
@@ -105,8 +105,8 @@ async def update_document_indexes(document_id: str):
 
 async def list_documents_needing_reconciliation():
     """List documents that need reconciliation"""
-    from aperag.index.backend_reconciler import index_reconciler
     from aperag.db.ops import get_session
+    from aperag.index.reconciler import index_reconciler
     
     async with get_session() as session:
         pairs = await index_reconciler._get_specs_needing_reconciliation(session)
@@ -127,9 +127,10 @@ async def list_documents_needing_reconciliation():
 
 async def show_system_stats():
     """Show system statistics"""
+    from sqlalchemy import func, select
+
+    from aperag.db.models import DocumentIndexSpec, DocumentIndexStatus
     from aperag.db.ops import get_session
-    from aperag.db.models import DocumentIndexSpec, DocumentIndexStatus, IndexDesiredState, IndexActualState
-    from sqlalchemy import select, func
     
     async with get_session() as session:
         # Count specs by desired state

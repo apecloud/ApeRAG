@@ -21,6 +21,7 @@ from aperag.config import settings
 from aperag.db.models import Collection
 from aperag.db.ops import async_db_ops
 from aperag.flow.base.models import BaseNodeRunner, SystemInput, register_node_runner
+from aperag.index.fulltext_index import IKExtractor
 from aperag.query.query import DocumentWithScore
 from aperag.utils.utils import generate_vector_db_collection_name
 
@@ -64,14 +65,14 @@ class FulltextSearchService:
         if not collection:
             return []
 
-        from aperag.context.full_text import IKExtractor, search_document
+        from aperag.index.fulltext_index import fulltext_indexer
 
         index = generate_vector_db_collection_name(collection.id)
         async with IKExtractor({"index_name": index, "es_host": settings.es_host}) as extractor:
             keywords = await extractor.extract(query)
 
         # Find the related documents using keywords
-        docs = await search_document(index, keywords, top_k * 3)
+        docs = await fulltext_indexer.search_document(index, keywords, top_k * 3)
 
         # Add recall type metadata
         for doc in docs:

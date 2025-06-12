@@ -12,22 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
-
-
-class AsyncTaskInterface(ABC):
-    """Abstract interface for async task queue implementations"""
-    
-    @abstractmethod
-    def delay(self, *args, **kwargs) -> Any:
-        """Submit task for asynchronous execution"""
-        pass
-    
-    @abstractmethod
-    def apply_async(self, args=None, kwargs=None, **options) -> Any:
-        """Submit task with options for asynchronous execution"""
-        pass
 
 
 class TaskResult:
