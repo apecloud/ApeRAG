@@ -67,6 +67,7 @@ With databases running:
 1.  **Helm Chart Configuration (`deploy/aperag/values.yaml`)**:
     *   **Using KubeBlocks (Phase 1 in `default` namespace)?** Database connections in `values.yaml` are likely pre-configured. **No changes usually needed.**
     *   **Using your own databases?** You MUST update `values.yaml` with your database connection details.
+    *   By default, this Helm chart deploys the [`doc-ray`](https://github.com/apecloud/doc-ray) service for advanced document parsing, which requires at least 4 CPU cores and 8GB of memory. If your Kubernetes cluster has insufficient resources, you can disable the `doc-ray` deployment by setting `docray.enabled` to `false`. In this case, a basic document parser will be used.
     *   Optionally, review other settings (images, resources, Ingress, etc.).
 
 2.  **Deploy ApeRAG with Helm**:

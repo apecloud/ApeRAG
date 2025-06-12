@@ -1,0 +1,90 @@
+{{- if and .Values.docray.enabled (not .Values.docray.useExistingService) }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "aperag.docray.serviceName" . }}
+  labels:
+    {{- include "aperag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: docray
+spec:
+  type: {{ .Values.docray.service.type }}
+  ports:
+    - port: 8639
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: 8265
+      targetPort: ray-dashboard
+      protocol: TCP
+      name: ray-dashboard
+  selector:
+    {{- include "aperag.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: docray
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aperag.fullname" . }}-docray
+  labels:
+    {{- include "aperag.labels" . | nindent 4 }}
+    app.kubernetes.io/component: docray
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "aperag.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: docray
+  template:
+    metadata:
+      labels:
+        {{- include "aperag.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: docray
+    spec:
+      {{- if .Values.docray.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.docray.nodeSelector | nindent 8 }}
+      {{- end }}
+      {{- if .Values.docray.tolerations }}
+      tolerations:
+        {{- toYaml .Values.docray.tolerations | nindent 8 }}
+      {{- end }}
+      {{- if .Values.docray.affinity }}
+      affinity:
+        {{- toYaml .Values.docray.affinity | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: docray
+          image: "{{ .Values.docray.image.repository }}:{{ .Values.docray.image.tag }}"
+          imagePullPolicy: {{ .Values.docray.image.pullPolicy }}
+          env:
+            - name: STANDALONE_MODE
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 8639
+              protocol: TCP
+            - name: ray-dashboard
+              containerPort: 8265
+              protocol: TCP
+          resources:
+            {{- if .Values.docray.gpu.enabled }}
+            {{- toYaml .Values.docray.gpu.resources | nindent 12 }}
+            {{- else }}
+            {{- toYaml .Values.docray.resources | nindent 12 }}
+            {{- end }}
+          # Consider adding liveness and readiness probes for robust health checking
+          # livenessProbe:
+          #   httpGet:
+          #     path: /healthz # Replace with actual health check endpoint
+          #     port: http
+          #   initialDelaySeconds: 60
+          #   periodSeconds: 15
+          #   failureThreshold: 3
+          # readinessProbe:
+          #   httpGet:
+          #     path: /readyz # Replace with actual readiness endpoint
+          #     port: http
+          #   initialDelaySeconds: 30
+          #   periodSeconds: 10
+          #   failureThreshold: 3
+{{- end }}

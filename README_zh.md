@@ -65,6 +65,7 @@ ApeRAG 需要 PostgreSQL、Redis、Qdrant 和 Elasticsearch。如果您没有这
 1.  **Helm Chart 配置 (`deploy/aperag/values.yaml`)**:
     *   **使用 KubeBlocks (阶段一，在 `default` 命名空间)？** `values.yaml` 中的数据库连接信息可能已预先配置好。**通常无需更改。**
     *   **使用您自己的数据库？** 您必须更新 `values.yaml` 文件，填入您的数据库连接详细信息。
+    *   默认情况下，此 Helm chart 会部署用于文档解析的 [`doc-ray`](https://github.com/apecloud/doc-ray) 服务，该服务至少需要 4 个 CPU 核心和 8GB 内存。如果您的 Kubernetes 集群资源不足，可以通过将 `docray.enabled` 设置为 `false` 来禁用 `doc-ray` 的部署。禁用后，系统将使用一个基础的文档解析器。
     *   （可选）检查其他设置（如镜像、资源、Ingress 等）。
 
 2.  **使用 Helm 部署 ApeRAG**:

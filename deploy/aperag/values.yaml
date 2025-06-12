@@ -144,8 +144,7 @@ api:
     OBJECT_STORE_S3_BUCKET: aperag
     OBJECT_STORE_S3_PREFIX_PATH: ""
     OBJECT_STORE_S3_USE_PATH_STYLE: "True"
-    # doc-ray
-    DOCRAY_HOST: ""
+
     DEBUG: "False"
     FEISHU_APP_ID: ""
     FEISHU_APP_SECRET: ""
@@ -251,3 +250,66 @@ frontend:
   logoLight: ""
   github: "https://github.com/apecloud/ApeRAG"
   publicIps: []
+
+docray:
+  # Use existing service instead of deploying a new one
+  # useExistingService: "http://<your-docray-service>.svc.cluster.local:8639"
+  useExistingService: ""
+
+  # Enable/disable doc-ray deployment, if useExistingService is set, this will be ignored
+  enabled: true
+  image:
+    repository: "docker.io/apecloud/doc-ray"
+    tag: "v0.1.1"
+    pullPolicy: "IfNotPresent"
+  service:
+    type: ClusterIP
+
+  # Default resources for CPU-only deployment
+  resources:
+    requests:
+      cpu: "4"
+      memory: "8Gi"
+    limits:
+      cpu: "8"
+      memory: "8Gi"
+
+  gpu:
+    enabled: false
+    # Resources for GPU deployment
+    resources:
+      requests:
+        cpu: "2"
+        memory: "4Gi"
+        nvidia.com/gpu: "1" # Request 1 GPU
+      limits:
+        cpu: "8"
+        memory: "8Gi"
+        nvidia.com/gpu: "1" # Limit to 1 GPU
+
+  # nodeSelector allows scheduling pods on nodes with specific labels (e.g., GPU-enabled nodes)
+  # Example:
+  #   accelerator: nvidia-tesla-t4
+  #   cloud.google.com/gke-accelerator: nvidia-tesla-t4 # GKE example
+  nodeSelector: {}
+  # tolerations allow pods to be scheduled on nodes with matching taints (common for GPU nodes)
+  # Example:
+  # - key: "nvidia.com/gpu"
+  #   operator: "Exists"
+  #   effect: "NoSchedule"
+  tolerations: []
+
+  # Affinity configuration, which is more flexible than nodeSelector.
+  # For example, you can use it to specify that a pod can be scheduled on one of several different GPU nodes.
+  #
+  # affinity:
+  #   nodeAffinity:
+  #     requiredDuringSchedulingIgnoredDuringExecution:
+  #       nodeSelectorTerms:
+  #       - matchExpressions:
+  #         - key: machine.cluster.vke.volcengine.com/gpu-name # Schedule using GPU name
+  #           operator: In
+  #           values:
+  #           - Tesla-V100 # GPU type
+  #           - Tesla-T4
+  affinity: {}
