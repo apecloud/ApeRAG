@@ -176,12 +176,12 @@ class DocumentParser:
     def handle_compressed_file(self, document: Document, supported_file_extensions: List[str], 
                              task_scheduler=None) -> TaskResult:
         """
-        Handle compressed file extraction and create tasks for extracted files
+        Handle compressed file extraction and create document specs for extracted files
         
         Args:
             document: Document object representing the compressed file
             supported_file_extensions: List of supported file extensions
-            task_scheduler: Task scheduler for creating tasks for extracted files
+            task_scheduler: Legacy parameter, ignored in new system
             
         Returns:
             TaskResult indicating success or failure
@@ -249,9 +249,24 @@ class DocumentParser:
                         db_ops._execute_transaction(_operation)
                         created_documents.append(document_instance.id)
                         
-                        # Schedule indexing task if scheduler is provided
-                        if task_scheduler:
-                            task_scheduler.schedule_document_index(document_instance.id)
+                        # Create index specs using new declarative system
+                        try:
+                            import asyncio
+                            from aperag.document_index_manager import document_index_manager
+                            from aperag.db.ops import get_session
+                            
+                            async def create_specs():
+                                async with get_session() as session:
+                                    await document_index_manager.create_document_indexes(
+                                        session, str(document_instance.id), document.user
+                                    )
+                                    await session.commit()
+                            
+                            asyncio.run(create_specs())
+                            self.logger.info(f"Created index specs for extracted document {document_instance.id}")
+                        except Exception as e:
+                            self.logger.warning(f"Failed to create index specs for document {document_instance.id}: {str(e)}")
+                            # Don't fail the whole operation for this
             
             return TaskResult(
                 success=True,

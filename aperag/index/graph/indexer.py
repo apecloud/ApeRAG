@@ -98,12 +98,8 @@ class GraphIndexer(AsyncIndexer):
             # Schedule async graph indexing task
             file_path = kwargs.get('file_path', f'document_{document_id}')
             
-            # Import and schedule task here to avoid circular imports
-            from aperag.tasks.async_interface import TaskScheduler
-            scheduler = TaskScheduler()
-            
-            # This will be handled by celery task
-            # For now, return a running status
+            # Graph indexing is now handled by the reconciliation system
+            # No need to schedule tasks directly
             self.logger.info(f"Graph index task scheduled for document {document_id}")
             
             return IndexResult(
@@ -210,9 +206,7 @@ class GraphIndexer(AsyncIndexer):
                     metadata={"message": "Graph indexing disabled", "status": "skipped"}
                 )
             
-            # Schedule async graph deletion task
-            from aperag.tasks.async_interface import TaskScheduler
-            scheduler = TaskScheduler()
+            # Graph deletion is now handled by the reconciliation system
             
             self.logger.info(f"Graph index deletion task scheduled for document {document_id}")
             

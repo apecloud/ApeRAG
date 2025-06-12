@@ -49,48 +49,5 @@ class TaskResult:
         }
 
 
-class TaskScheduler:
-    """Task scheduler interface for different queue implementations"""
-    
-    def __init__(self, queue_impl: str = 'celery'):
-        self.queue_impl = queue_impl
-    
-    def schedule_collection_init(self, collection_id: str, document_user_quota: int) -> Any:
-        """Schedule collection initialization task"""
-        if self.queue_impl == 'celery':
-            from aperag.tasks.celery_tasks import init_collection_task
-            return init_collection_task.delay(collection_id, document_user_quota)
-        else:
-            raise NotImplementedError(f"Queue implementation {self.queue_impl} not supported")
-    
-    def schedule_collection_delete(self, collection_id: str) -> Any:
-        """Schedule collection deletion task"""
-        if self.queue_impl == 'celery':
-            from aperag.tasks.celery_tasks import delete_collection_task
-            return delete_collection_task.delay(collection_id)
-        else:
-            raise NotImplementedError(f"Queue implementation {self.queue_impl} not supported")
-    
-    def schedule_document_index(self, document_id: int) -> Any:
-        """Schedule document indexing task"""
-        if self.queue_impl == 'celery':
-            from aperag.tasks.celery_tasks import add_index_for_document_task
-            return add_index_for_document_task.delay(document_id)
-        else:
-            raise NotImplementedError(f"Queue implementation {self.queue_impl} not supported")
-    
-    def schedule_document_update(self, document_id: int) -> Any:
-        """Schedule document update task"""
-        if self.queue_impl == 'celery':
-            from aperag.tasks.celery_tasks import update_index_for_document_task
-            return update_index_for_document_task.delay(document_id)
-        else:
-            raise NotImplementedError(f"Queue implementation {self.queue_impl} not supported")
-    
-    def schedule_document_delete(self, document_id: int) -> Any:
-        """Schedule document deletion task"""
-        if self.queue_impl == 'celery':
-            from aperag.tasks.celery_tasks import remove_index_task
-            return remove_index_task.delay(document_id)
-        else:
-            raise NotImplementedError(f"Queue implementation {self.queue_impl} not supported") 
+# TaskScheduler removed - new system uses declarative approach via document_index_manager
+# and reconciliation controller instead of direct task scheduling 
