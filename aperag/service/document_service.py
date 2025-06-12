@@ -33,7 +33,7 @@ from aperag.objectstore.base import get_object_store
 from aperag.schema import view_models
 from aperag.schema.view_models import Document, DocumentList
 from aperag.tasks.crawl_web import crawl_domain
-from aperag.tasks.index import add_index_for_local_document, remove_index, update_index_for_document
+from aperag.document_index_manager import document_index_manager
 from aperag.utils.constant import QuotaType
 from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
 from aperag.views.utils import fail, success, validate_url
@@ -51,15 +51,41 @@ class DocumentService:
         else:
             self.db_ops = AsyncDatabaseOps(session)  # Create custom instance for transaction control
 
-    def build_document_response(self, document: db_models.Document) -> view_models.Document:
+    async def build_document_response(self, document: db_models.Document, session=None) -> view_models.Document:
         """Build Document response object for API return."""
+        # Get index status from new tables
+        if session:
+            index_status_info = await document_index_manager.get_document_index_status(session, document.id)
+        else:
+            # Import here to avoid circular import
+            from aperag.db.ops import get_session
+            # Use current session if available
+            async with get_session() as temp_session:
+                index_status_info = await document_index_manager.get_document_index_status(temp_session, document.id)
+        
+        # Convert new format to old API format for backward compatibility
+        indexes = index_status_info.get("indexes", {})
+        
+        # Map new states to old enum values for API compatibility
+        def map_state_to_old_enum(actual_state: str):
+            if actual_state == "absent":
+                return "PENDING"
+            elif actual_state == "creating":
+                return "RUNNING"
+            elif actual_state == "present":
+                return "COMPLETE" 
+            elif actual_state == "failed":
+                return "FAILED"
+            else:
+                return "PENDING"
+        
         return Document(
             id=document.id,
             name=document.name,
             status=document.status,
-            vector_index_status=document.vector_index_status,
-            fulltext_index_status=document.fulltext_index_status,
-            graph_index_status=document.graph_index_status,
+            vector_index_status=map_state_to_old_enum(indexes.get("vector", {}).get("actual_state", "absent")),
+            fulltext_index_status=map_state_to_old_enum(indexes.get("fulltext", {}).get("actual_state", "absent")),
+            graph_index_status=map_state_to_old_enum(indexes.get("graph", {}).get("actual_state", "absent")),
             size=document.size,
             created=document.gmt_created,
             updated=document.gmt_updated,
@@ -124,8 +150,9 @@ class DocumentService:
                 await session.flush()
                 await session.refresh(updated_doc)
 
-                response.append(self.build_document_response(updated_doc))
-                add_index_for_local_document.delay(updated_doc.id)
+                response.append(await self.build_document_response(updated_doc, session))
+                # Create index specs for the new document
+                await document_index_manager.create_document_indexes(session, updated_doc.id, user)
 
             return response
 
@@ -169,7 +196,8 @@ class DocumentService:
                 metadata = json.dumps({"url": string_data})
                 await db_ops_session.update_document_by_id(user, collection_id, document_instance.id, metadata)
 
-                add_index_for_local_document.delay(document_instance.id)
+                # Create index specs for the new document
+                await document_index_manager.create_document_indexes(session, document_instance.id, user)
                 crawl_domain.delay(url, url, collection_id, user, max_pages=2)
 
             response = {"failed_urls": failed_urls}
@@ -188,15 +216,18 @@ class DocumentService:
     async def list_documents(self, user: str, collection_id: str) -> view_models.DocumentList:
         documents = await self.db_ops.query_documents([user], collection_id)
         response = []
-        for document in documents:
-            response.append(self.build_document_response(document))
+        # Import here to avoid circular import
+        from aperag.db.ops import get_session
+        async with get_session() as session:
+            for document in documents:
+                response.append(await self.build_document_response(document, session))
         return success(DocumentList(items=response))
 
     async def get_document(self, user: str, collection_id: str, document_id: str) -> view_models.Document:
         document = await self.db_ops.query_document(user, collection_id, document_id)
         if document is None:
             return fail(HTTPStatus.NOT_FOUND, "Document not found")
-        return success(self.build_document_response(document))
+        return success(await self.build_document_response(document))
 
     async def update_document(
         self, user: str, collection_id: str, document_id: str, document_in: view_models.DocumentUpdate
@@ -223,12 +254,13 @@ class DocumentService:
                     if not updated_doc:
                         raise ValueError("Document not found")
 
-                    update_index_for_document.delay(updated_doc.id)
-                    return self.build_document_response(updated_doc)
+                    # Update index specs to trigger re-indexing
+                    await document_index_manager.update_document_indexes(session, updated_doc.id)
+                    return await self.build_document_response(updated_doc, session)
                 except json.JSONDecodeError:
                     raise ValueError("invalid document config")
             else:
-                return self.build_document_response(instance)
+                return await self.build_document_response(instance, session)
 
         try:
             result = await self.db_ops.execute_with_transaction(_update_document_operation)
@@ -256,8 +288,9 @@ class DocumentService:
             deleted_doc = await db_ops_session.delete_document_by_id(user, collection_id, document_id)
 
             if deleted_doc:
-                remove_index.delay(document_id)
-                return self.build_document_response(deleted_doc)
+                # Mark index specs for deletion
+                await document_index_manager.delete_document_indexes(session, document_id)
+                return await self.build_document_response(deleted_doc, session)
             else:
                 raise ValueError("Document not found")
 
@@ -275,7 +308,7 @@ class DocumentService:
             success_ids, failed_ids = await db_ops_session.delete_documents_by_ids(user, collection_id, document_ids)
 
             for doc_id in success_ids:
-                remove_index.delay(doc_id)
+                await document_index_manager.delete_document_indexes(session, doc_id)
 
             return {"success": success_ids, "failed": failed_ids}
 
@@ -292,17 +325,9 @@ class DocumentService:
 document_service = DocumentService()
 
 
-# Keep existing functions for backward compatibility
-def build_document_response(document: db_models.Document) -> view_models.Document:
-    """Build Document response object for API return."""
-    return Document(
-        id=document.id,
-        name=document.name,
-        status=document.status,
-        vector_index_status=document.vector_index_status,
-        fulltext_index_status=document.fulltext_index_status,
-        graph_index_status=document.graph_index_status,
-        size=document.size,
-        created=document.gmt_created,
-        updated=document.gmt_updated,
-    )
+# Keep existing functions for backward compatibility (deprecated)
+async def build_document_response(document: db_models.Document) -> view_models.Document:
+    """Build Document response object for API return (deprecated - use service method)."""
+    # Use the service method for consistency
+    service = DocumentService()
+    return await service.build_document_response(document)
