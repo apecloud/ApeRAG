@@ -252,7 +252,7 @@ class DocumentParser:
                         # Create index specs using new declarative system
                         try:
                             import asyncio
-                            from aperag.document_index_manager import document_index_manager
+                            from aperag.index.frontend_manager import document_index_manager
                             from aperag.db.ops import get_session
                             
                             async def create_specs():

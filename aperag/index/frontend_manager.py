@@ -1,39 +1,23 @@
-"""
-Document Index Manager - Frontend Chain
-
-This module handles the frontend chain: updating document index specs based on document operations.
-It's called from document_service.py when documents are created, updated, or deleted.
-
-Simple design:
-- Create document -> Create index specs (desired_state='present')
-- Delete document -> Delete index specs (or mark desired_state='absent')
-- Update document -> Increment spec version to trigger reconciliation
-"""
-
 import logging
-from typing import List, Optional
-from sqlalchemy import select, and_
+from aperag.db.models import DocumentIndexSpec, DocumentIndexStatus, DocumentIndexType, IndexDesiredState, utc_now
+
+
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.db.models import (
-    DocumentIndexSpec, 
-    DocumentIndexStatus,
-    DocumentIndexType,
-    IndexDesiredState,
-    utc_now
-)
+
+from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
-
-class DocumentIndexManager:
+class DocumentIndexFrontendManager:
     """Simple manager for document index specs (frontend chain)"""
-    
-    async def create_document_indexes(self, session: AsyncSession, document_id: str, 
+
+    async def create_document_indexes(self, session: AsyncSession, document_id: str,
                                     user: str, index_types: Optional[List[DocumentIndexType]] = None):
         """
         Create index specs for a document (called when document is created)
-        
+
         Args:
             session: Database session
             document_id: Document ID
@@ -42,7 +26,7 @@ class DocumentIndexManager:
         """
         if index_types is None:
             index_types = [DocumentIndexType.VECTOR, DocumentIndexType.FULLTEXT, DocumentIndexType.GRAPH]
-        
+
         for index_type in index_types:
             # Check if spec already exists
             stmt = select(DocumentIndexSpec).where(
@@ -53,7 +37,7 @@ class DocumentIndexManager:
             )
             result = await session.execute(stmt)
             existing_spec = result.scalar_one_or_none()
-            
+
             if existing_spec:
                 # Update existing spec
                 existing_spec.desired_state = IndexDesiredState.PRESENT
@@ -71,13 +55,13 @@ class DocumentIndexManager:
                 )
                 session.add(spec)
                 logger.info(f"Created spec for {document_id}:{index_type.value}")
-    
+
     async def update_document_indexes(self, session: AsyncSession, document_id: str):
         """
         Update document indexes (called when document content is updated)
-        
+
         This increments the version of all specs to trigger reconciliation.
-        
+
         Args:
             session: Database session  
             document_id: Document ID
@@ -85,18 +69,18 @@ class DocumentIndexManager:
         stmt = select(DocumentIndexSpec).where(DocumentIndexSpec.document_id == document_id)
         result = await session.execute(stmt)
         specs = result.scalars().all()
-        
+
         for spec in specs:
             if spec.desired_state == IndexDesiredState.PRESENT:
                 spec.version += 1  # Increment version to trigger re-indexing
                 spec.gmt_updated = utc_now()
                 logger.info(f"Updated spec version for {document_id}:{spec.index_type.value} to {spec.version}")
-    
-    async def delete_document_indexes(self, session: AsyncSession, document_id: str, 
+
+    async def delete_document_indexes(self, session: AsyncSession, document_id: str,
                                     index_types: Optional[List[DocumentIndexType]] = None):
         """
         Delete document indexes (called when document is deleted)
-        
+
         Args:
             session: Database session
             document_id: Document ID  
@@ -104,7 +88,7 @@ class DocumentIndexManager:
         """
         if index_types is None:
             index_types = [DocumentIndexType.VECTOR, DocumentIndexType.FULLTEXT, DocumentIndexType.GRAPH]
-        
+
         for index_type in index_types:
             stmt = select(DocumentIndexSpec).where(
                 and_(
@@ -114,26 +98,26 @@ class DocumentIndexManager:
             )
             result = await session.execute(stmt)
             spec = result.scalar_one_or_none()
-            
+
             if spec:
                 # Option 1: Mark as absent (let reconciliation handle cleanup)
                 spec.desired_state = IndexDesiredState.ABSENT
                 spec.version += 1
                 spec.gmt_updated = utc_now()
                 logger.info(f"Marked spec for deletion: {document_id}:{index_type.value}")
-                
+
                 # Option 2: Delete spec directly (simpler, but less auditable)
                 # await session.delete(spec)
                 # logger.info(f"Deleted spec for {document_id}:{index_type.value}")
-    
+
     async def get_document_index_status(self, session: AsyncSession, document_id: str) -> dict:
         """
         Get current index status for a document
-        
+
         Args:
             session: Database session
             document_id: Document ID
-            
+
         Returns:
             Dictionary with index status information
         """
@@ -141,50 +125,50 @@ class DocumentIndexManager:
         spec_stmt = select(DocumentIndexSpec).where(DocumentIndexSpec.document_id == document_id)
         spec_result = await session.execute(spec_stmt)
         specs = {spec.index_type: spec for spec in spec_result.scalars().all()}
-        
+
         # Get statuses
         status_stmt = select(DocumentIndexStatus).where(DocumentIndexStatus.document_id == document_id)
         status_result = await session.execute(status_stmt)
         statuses = {status.index_type: status for status in status_result.scalars().all()}
-        
+
         # Combine information
         result = {
             "document_id": document_id,
             "indexes": {},
             "overall_status": "complete"
         }
-        
+
         all_index_types = set(specs.keys()) | set(statuses.keys())
         has_creating = False
         has_failed = False
-        
+
         for index_type in all_index_types:
             spec = specs.get(index_type)
             status = statuses.get(index_type)
-            
+
             index_info = {
                 "type": index_type.value,
                 "desired_state": spec.desired_state.value if spec else "absent",
                 "actual_state": status.actual_state.value if status else "absent",
                 "in_sync": False
             }
-            
+
             # Check if in sync (version matches and states are consistent)
             if spec and status:
                 index_info["in_sync"] = (
                     status.observed_version == spec.version and
                     not status.needs_reconciliation(spec)
                 )
-            
+
             if status:
                 if status.actual_state.value == "creating":
                     has_creating = True
                 elif status.actual_state.value == "failed":
                     has_failed = True
                     index_info["error"] = status.error_message
-            
+
             result["indexes"][index_type.value] = index_info
-        
+
         # Determine overall status
         if has_failed:
             result["overall_status"] = "failed"
@@ -192,9 +176,9 @@ class DocumentIndexManager:
             result["overall_status"] = "running"
         else:
             result["overall_status"] = "complete"
-        
+
         return result
 
 
 # Global instance
-document_index_manager = DocumentIndexManager() 
+document_index_manager = DocumentIndexFrontendManager()

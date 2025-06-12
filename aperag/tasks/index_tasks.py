@@ -10,7 +10,7 @@ import asyncio
 from celery import current_app
 
 from aperag.db.models import DocumentIndexType
-from aperag.index_reconciler import index_task_callbacks
+from aperag.index.backend_reconciler import index_task_callbacks
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +124,7 @@ def reconcile_indexes_task():
         logger.info("Starting index reconciliation")
         
         # Import here to avoid circular dependencies
-        from aperag.index_reconciler import index_reconciler
+        from aperag.index.backend_reconciler import index_reconciler
         
         # Run reconciliation
         asyncio.run(index_reconciler.reconcile_all())
