@@ -30,9 +30,10 @@ from aperag.schema.view_models import (
     SearchTestResultItem,
     SearchTestResultList,
 )
-from aperag.tasks.task_collection import collection_delete_task, collection_init_task
+from config.celery_tasks import collection_init_task
 from aperag.utils.constant import QuotaType
 from aperag.views.utils import fail, success, validate_source_connect_config
+from config.celery_tasks import collection_delete_task
 
 
 class CollectionService:

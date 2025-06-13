@@ -10,69 +10,14 @@ from aperag.graph import lightrag_manager
 from aperag.index.fulltext_index import create_index, delete_index
 from aperag.schema.utils import parseCollectionConfig
 from aperag.tasks.async_interface import TaskResult
-from aperag.tasks.utils import TaskConfig
 from aperag.utils.utils import generate_fulltext_index_name, generate_qa_vector_db_collection_name, generate_vector_db_collection_name
-from config.celery import app
 from config.vector_db import get_vector_db_connector
 
 logger = logging.getLogger(__name__)
 
 
-@app.task(bind=True)
-def collection_delete_task(self, collection_id: str) -> Any:
-    """
-    Delete collection task entry point
-
-    Args:
-        collection_id: Collection ID to delete
-    """
-    try:
-        result = collection_workflow.delete_collection(collection_id)
-
-        if not result.success:
-            raise Exception(result.error)
-
-        logger.info(f"Collection {collection_id} deleted successfully")
-        return result.to_dict()
-
-    except Exception as e:
-        logger.error(f"Collection deletion failed for {collection_id}: {str(e)}")
-        raise self.retry(
-            exc=e,
-            countdown=TaskConfig.RETRY_COUNTDOWN_COLLECTION,
-            max_retries=TaskConfig.RETRY_MAX_RETRIES_COLLECTION,
-        )
-
-
-@app.task(bind=True)
-def collection_init_task(self, collection_id: str, document_user_quota: int) -> Any:
-    """
-    Initialize collection task entry point
-
-    Args:
-        collection_id: Collection ID to initialize
-        document_user_quota: User quota for documents
-    """
-    try:
-        result = collection_workflow.initialize_collection(collection_id, document_user_quota)
-
-        if not result.success:
-            raise Exception(result.error)
-
-        logger.info(f"Collection {collection_id} initialized successfully")
-        return result.to_dict()
-
-    except Exception as e:
-        logger.error(f"Collection initialization failed for {collection_id}: {str(e)}")
-        raise self.retry(
-            exc=e,
-            countdown=TaskConfig.RETRY_COUNTDOWN_COLLECTION,
-            max_retries=TaskConfig.RETRY_MAX_RETRIES_COLLECTION,
-        )
-
-
-class CollectionWorkflow:
-    """Collection workflow orchestrator for async tasks"""
+class CollectionTask:
+    """Collection workflow orchestrator"""
 
     def initialize_collection(self, collection_id: str, document_user_quota: int) -> TaskResult:
         """
@@ -240,4 +185,4 @@ class CollectionWorkflow:
         delete_index(index_name)
         logger.debug(f"Deleted fulltext index {index_name}")
 
-collection_workflow = CollectionWorkflow()
+collection_task = CollectionTask()

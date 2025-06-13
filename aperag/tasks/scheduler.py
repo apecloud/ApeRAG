@@ -222,7 +222,7 @@ class CeleryTaskScheduler(TaskScheduler):
 
     def schedule_create_index(self, document_id: str, index_types: List[str], **kwargs) -> str:
         """Schedule index creation task using Celery"""
-        from aperag.tasks.task_document import create_index_task
+        from config.celery_tasks import create_index_task
 
         task = create_index_task.delay(document_id, index_types)
         logger.debug(f"Scheduled create {index_types} index task {task.id} for document {document_id}")
@@ -230,7 +230,7 @@ class CeleryTaskScheduler(TaskScheduler):
 
     def schedule_update_index(self, document_id: str, index_types: List[str], **kwargs) -> str:
         """Schedule index update task using Celery"""
-        from aperag.tasks.task_document import update_index_task
+        from config.celery_tasks import update_index_task
 
         task = update_index_task.delay(document_id, index_types)
         logger.debug(f"Scheduled update {index_types} index task {task.id} for document {document_id}")
@@ -238,7 +238,7 @@ class CeleryTaskScheduler(TaskScheduler):
 
     def schedule_delete_index(self, document_id: str, index_types: List[str], **kwargs) -> str:
         """Schedule index deletion task using Celery"""
-        from aperag.tasks.task_document import delete_index_task
+        from config.celery_tasks import delete_index_task
 
         task = delete_index_task.delay(document_id, index_types, kwargs.get("index_data"))
         logger.debug(f"Scheduled delete {index_types} index task {task.id} for document {document_id}")

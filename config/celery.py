@@ -41,12 +41,12 @@ app.conf.update(
     task_send_sent_event=settings.celery_task_send_sent_event,
     task_track_started=settings.celery_task_track_started,
     # Auto-discover tasks in the aperag.tasks package
-    include=['aperag.tasks.task_collection', 'aperag.tasks.task_document'],
+    include=['config.celery_tasks'],
 )
 
 app.conf.beat_schedule = {
     'reconcile-indexes': {
-        'task': 'aperag.tasks.task_document.reconcile_indexes_task',
+        'task': 'config.celery_tasks.reconcile_indexes_task',
         'schedule': 5.0,
     },
 }
