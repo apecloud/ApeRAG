@@ -1,17 +1,15 @@
 import logging
 import os
+from pathlib import Path
+from typing import Any, Dict, List
 
 from elasticsearch import AsyncElasticsearch, Elasticsearch, NotFoundError
-from pathlib import Path
+
+from aperag.config import settings
 from aperag.db.ops import db_ops
 from aperag.index.base import BaseIndexer, IndexResult, IndexType
 from aperag.query.query import DocumentWithScore
 from aperag.utils.utils import generate_fulltext_index_name
-from aperag.config import settings
-
-
-from typing import Any, Dict, List
-
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +27,7 @@ class FulltextIndexer(BaseIndexer):
         """Fulltext indexing is always enabled"""
         return True
 
-    def create_index(self, document_id: int, content: str, doc_parts: List[Any],
-                    collection, **kwargs) -> IndexResult:
+    def create_index(self, document_id: int, content: str, doc_parts: List[Any], collection, **kwargs) -> IndexResult:
         """
         Create fulltext index for document
 
@@ -50,7 +47,7 @@ class FulltextIndexer(BaseIndexer):
                 return IndexResult(
                     success=True,
                     index_type=self.index_type,
-                    metadata={"message": "No content to index", "status": "skipped"}
+                    metadata={"message": "No content to index", "status": "skipped"},
                 )
 
             # Get document for name
@@ -62,28 +59,22 @@ class FulltextIndexer(BaseIndexer):
             index_name = generate_fulltext_index_name(collection.id)
             self.insert_document(index_name, document_id, document.name, content)
 
-            self.logger.info(f"Fulltext index created for document {document_id}")
+            logger.info(f"Fulltext index created for document {document_id}")
 
             return IndexResult(
                 success=True,
                 index_type=self.index_type,
                 data={"index_name": index_name, "document_name": document.name},
-                metadata={
-                    "content_length": len(content),
-                    "content_words": len(content.split()) if content else 0
-                }
+                metadata={"content_length": len(content), "content_words": len(content.split()) if content else 0},
             )
 
         except Exception as e:
-            self.logger.error(f"Fulltext index creation failed for document {document_id}: {str(e)}")
+            logger.error(f"Fulltext index creation failed for document {document_id}: {str(e)}")
             return IndexResult(
-                success=False,
-                index_type=self.index_type,
-                error=f"Fulltext index creation failed: {str(e)}"
+                success=False, index_type=self.index_type, error=f"Fulltext index creation failed: {str(e)}"
             )
 
-    def update_index(self, document_id: int, content: str, doc_parts: List[Any],
-                    collection, **kwargs) -> IndexResult:
+    def update_index(self, document_id: int, content: str, doc_parts: List[Any], collection, **kwargs) -> IndexResult:
         """
         Update fulltext index for document
 
@@ -108,14 +99,14 @@ class FulltextIndexer(BaseIndexer):
             # Remove old index
             try:
                 self.remove_document(index_name, document_id)
-                self.logger.debug(f"Removed old fulltext index for document {document_id}")
+                logger.debug(f"Removed old fulltext index for document {document_id}")
             except Exception as e:
-                self.logger.warning(f"Failed to remove old fulltext index for document {document_id}: {str(e)}")
+                logger.warning(f"Failed to remove old fulltext index for document {document_id}: {str(e)}")
 
             # Create new index if there is content
             if content and content.strip():
                 self.insert_document(index_name, document_id, document.name, content)
-                self.logger.info(f"Fulltext index updated for document {document_id}")
+                logger.info(f"Fulltext index updated for document {document_id}")
 
                 return IndexResult(
                     success=True,
@@ -124,22 +115,20 @@ class FulltextIndexer(BaseIndexer):
                     metadata={
                         "content_length": len(content),
                         "content_words": len(content.split()),
-                        "operation": "updated"
-                    }
+                        "operation": "updated",
+                    },
                 )
             else:
                 return IndexResult(
                     success=True,
                     index_type=self.index_type,
-                    metadata={"message": "No content to index", "status": "skipped"}
+                    metadata={"message": "No content to index", "status": "skipped"},
                 )
 
         except Exception as e:
-            self.logger.error(f"Fulltext index update failed for document {document_id}: {str(e)}")
+            logger.error(f"Fulltext index update failed for document {document_id}: {str(e)}")
             return IndexResult(
-                success=False,
-                index_type=self.index_type,
-                error=f"Fulltext index update failed: {str(e)}"
+                success=False, index_type=self.index_type, error=f"Fulltext index update failed: {str(e)}"
             )
 
     def delete_index(self, document_id: int, collection, **kwargs) -> IndexResult:
@@ -158,21 +147,19 @@ class FulltextIndexer(BaseIndexer):
             index_name = generate_fulltext_index_name(collection.id)
             self.remove_document(index_name, document_id)
 
-            self.logger.info(f"Fulltext index deleted for document {document_id}")
+            logger.info(f"Fulltext index deleted for document {document_id}")
 
             return IndexResult(
                 success=True,
                 index_type=self.index_type,
                 data={"index_name": index_name},
-                metadata={"operation": "deleted"}
+                metadata={"operation": "deleted"},
             )
 
         except Exception as e:
-            self.logger.error(f"Fulltext index deletion failed for document {document_id}: {str(e)}")
+            logger.error(f"Fulltext index deletion failed for document {document_id}: {str(e)}")
             return IndexResult(
-                success=False,
-                index_type=self.index_type,
-                error=f"Fulltext index deletion failed: {str(e)}"
+                success=False, index_type=self.index_type, error=f"Fulltext index deletion failed: {str(e)}"
             )
 
     def remove_document(self, index, doc_id):
@@ -274,6 +261,7 @@ class IKExtractor(KeywordExtractor):
                 continue
             tokens[token] = True
         return tokens.keys()
+
 
 es = Elasticsearch(settings.es_host)
 

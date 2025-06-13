@@ -15,4 +15,4 @@
 """
 Core modules containing domain-specific business logic
 Separated from service orchestration
-""" 
+"""

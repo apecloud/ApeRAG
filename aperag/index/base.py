@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional
 
 class IndexType(Enum):
     """Index type enumeration"""
+
     VECTOR = "vector"
     FULLTEXT = "fulltext"
     GRAPH = "graph"
@@ -27,9 +28,10 @@ class IndexType(Enum):
 
 class IndexStatus(Enum):
     """Index status enumeration"""
+
     PENDING = "pending"
     RUNNING = "running"
-    COMPLETE = "complete" 
+    COMPLETE = "complete"
     FAILED = "failed"
     SKIPPED = "skipped"
 
@@ -37,28 +39,30 @@ class IndexStatus(Enum):
 @dataclass
 class IndexResult:
     """Standard index operation result"""
+
     success: bool
     index_type: IndexType
     data: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
-            'success': self.success,
-            'index_type': self.index_type.value,
-            'data': self.data,
-            'error': self.error,
-            'metadata': self.metadata
+            "success": self.success,
+            "index_type": self.index_type.value,
+            "data": self.data,
+            "error": self.error,
+            "metadata": self.metadata,
         }
 
 
 @dataclass
 class IndexConfig:
     """Index configuration"""
+
     enabled: bool = True
     params: Dict[str, Any] = None
-    
+
     def __post_init__(self):
         if self.params is None:
             self.params = {}
@@ -66,81 +70,79 @@ class IndexConfig:
 
 class BaseIndexer(ABC):
     """Abstract base class for all indexers"""
-    
+
     def __init__(self, index_type: IndexType):
         self.index_type = index_type
-    
+
     @abstractmethod
-    def create_index(self, document_id: int, content: str, doc_parts: List[Any], 
-                    collection, **kwargs) -> IndexResult:
+    def create_index(self, document_id: int, content: str, doc_parts: List[Any], collection, **kwargs) -> IndexResult:
         """
         Create index for document
-        
+
         Args:
             document_id: Document ID
             content: Document content
             doc_parts: Parsed document parts
             collection: Collection object
             **kwargs: Additional parameters
-            
+
         Returns:
             IndexResult: Result of index creation
         """
         pass
-    
+
     @abstractmethod
-    def update_index(self, document_id: int, content: str, doc_parts: List[Any],
-                    collection, **kwargs) -> IndexResult:
+    def update_index(self, document_id: int, content: str, doc_parts: List[Any], collection, **kwargs) -> IndexResult:
         """
         Update existing index for document
-        
+
         Args:
             document_id: Document ID
-            content: Document content  
+            content: Document content
             doc_parts: Parsed document parts
             collection: Collection object
             **kwargs: Additional parameters
-            
+
         Returns:
             IndexResult: Result of index update
         """
         pass
-    
+
     @abstractmethod
     def delete_index(self, document_id: int, collection, **kwargs) -> IndexResult:
         """
         Delete index for document
-        
+
         Args:
             document_id: Document ID
             collection: Collection object
             **kwargs: Additional parameters
-            
+
         Returns:
             IndexResult: Result of index deletion
         """
         pass
-    
+
     @abstractmethod
     def is_enabled(self, collection) -> bool:
         """
         Check if this index type is enabled for the collection
-        
+
         Args:
             collection: Collection object
-            
+
         Returns:
             bool: True if enabled
         """
         pass
-    
+
     def get_config(self, collection) -> IndexConfig:
         """
         Get index configuration for collection
-        
+
         Args:
             collection: Collection object
-            
+
         Returns:
             IndexConfig: Index configuration
         """
@@ -149,21 +151,23 @@ class BaseIndexer(ABC):
 
 class AsyncIndexer(BaseIndexer):
     """Base class for asynchronous indexers (like graph indexing)"""
-    
+
     @abstractmethod
-    def create_index_async(self, document_id: int, content: str, doc_parts: List[Any],
-                          collection, **kwargs) -> IndexResult:
+    def create_index_async(
+        self, document_id: int, content: str, doc_parts: List[Any], collection, **kwargs
+    ) -> IndexResult:
         """
         Create index asynchronously
         Returns immediately with status=RUNNING
         """
         pass
-    
+
     @abstractmethod
-    def update_index_async(self, document_id: int, content: str, doc_parts: List[Any],
-                          collection, **kwargs) -> IndexResult:
+    def update_index_async(
+        self, document_id: int, content: str, doc_parts: List[Any], collection, **kwargs
+    ) -> IndexResult:
         """
-        Update index asynchronously  
+        Update index asynchronously
         Returns immediately with status=RUNNING
         """
-        pass 
+        pass

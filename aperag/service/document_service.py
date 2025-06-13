@@ -22,7 +22,7 @@ from asgiref.sync import sync_to_async
 from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.config import settings
+from aperag.config import get_async_session, settings
 from aperag.db import models as db_models
 from aperag.db.ops import (
     AsyncDatabaseOps,
@@ -33,10 +33,9 @@ from aperag.index.manager import document_index_manager
 from aperag.objectstore.base import get_object_store
 from aperag.schema import view_models
 from aperag.schema.view_models import Document, DocumentList
-from aperag.tasks.crawl_web import crawl_domain
 from aperag.utils.constant import QuotaType
 from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
-from aperag.views.utils import fail, success, validate_url
+from aperag.views.utils import fail, success
 
 logger = logging.getLogger(__name__)
 
@@ -57,15 +56,13 @@ class DocumentService:
         if session:
             index_status_info = await document_index_manager.get_document_index_status(session, document.id)
         else:
-            # Import here to avoid circular import
-            from aperag.db.ops import get_session
             # Use current session if available
-            async with get_session() as temp_session:
+            async for temp_session in get_async_session():
                 index_status_info = await document_index_manager.get_document_index_status(temp_session, document.id)
-        
+
         # Convert new format to old API format for backward compatibility
         indexes = index_status_info.get("indexes", {})
-        
+
         # Map new states to old enum values for API compatibility
         def map_state_to_old_enum(actual_state: str):
             if actual_state == "absent":
@@ -73,12 +70,12 @@ class DocumentService:
             elif actual_state == "creating":
                 return "RUNNING"
             elif actual_state == "present":
-                return "COMPLETE" 
+                return "COMPLETE"
             elif actual_state == "failed":
                 return "FAILED"
             else:
                 return "PENDING"
-        
+
         return Document(
             id=document.id,
             name=document.name,
@@ -165,60 +162,10 @@ class DocumentService:
             logger.exception("add document failed")
             return fail(HTTPStatus.INTERNAL_SERVER_ERROR, "add document failed")
 
-    async def create_url_document(self, user: str, collection_id: str, urls: List[str]) -> view_models.DocumentList:
-        collection = await self.db_ops.query_collection(user, collection_id)
-        if collection is None:
-            return fail(HTTPStatus.NOT_FOUND, "Collection not found")
-
-        if settings.max_document_count:
-            document_limit = await self.db_ops.query_user_quota(user, QuotaType.MAX_DOCUMENT_COUNT)
-            if document_limit is None:
-                document_limit = settings.max_document_count
-            if await self.db_ops.query_documents_count(user, collection_id) >= document_limit:
-                return fail(HTTPStatus.FORBIDDEN, f"document number has reached the limit of {document_limit}")
-
-        async def _create_url_documents_operation(session):
-            db_ops_session = AsyncDatabaseOps(session)
-            failed_urls = []
-
-            for url in urls:
-                if not validate_url(url):
-                    failed_urls.append(url)
-                    continue
-
-                document_name = url + ".html" if ".html" not in url else url
-
-                document_instance = await db_ops_session.create_document(
-                    user=user, collection_id=collection.id, name=document_name, size=0
-                )
-
-                string_data = json.dumps(url)
-                metadata = json.dumps({"url": string_data})
-                await db_ops_session.update_document_by_id(user, collection_id, document_instance.id, metadata)
-
-                # Create index specs for the new document
-                await document_index_manager.create_document_indexes(session, document_instance.id, user)
-                crawl_domain.delay(url, url, collection_id, user, max_pages=2)
-
-            response = {"failed_urls": failed_urls}
-            if len(failed_urls) != 0:
-                response["message"] = "Some URLs failed validation,eg. https://example.com/path?query=123#fragment"
-
-            return response
-
-        try:
-            result = await self.db_ops.execute_with_transaction(_create_url_documents_operation)
-            return success(DocumentList(items=result))
-        except Exception:
-            logger.exception("create url document failed")
-            return fail(HTTPStatus.INTERNAL_SERVER_ERROR, "create url document failed")
-
     async def list_documents(self, user: str, collection_id: str) -> view_models.DocumentList:
         documents = await self.db_ops.query_documents([user], collection_id)
         response = []
-        # Import here to avoid circular import
-        from aperag.db.ops import get_session
-        async with get_session() as session:
+        async for session in get_async_session():
             for document in documents:
                 response.append(await self.build_document_response(document, session))
         return success(DocumentList(items=response))

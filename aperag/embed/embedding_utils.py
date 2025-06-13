@@ -14,7 +14,7 @@
 # limitations under the License.
 
 # -*- coding: utf-8 -*-
-import faulthandler
+# import faulthandler
 import logging
 from typing import List
 
@@ -29,7 +29,7 @@ from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
 
 logger = logging.getLogger(__name__)
 
-faulthandler.enable()
+# faulthandler.enable()
 
 
 def create_embeddings_and_store(

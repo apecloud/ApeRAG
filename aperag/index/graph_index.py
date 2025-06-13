@@ -1,13 +1,12 @@
 import logging
+from typing import Any, Dict, List
+
 from aperag.db.models import CollectionStatus, DocumentStatus
 from aperag.db.ops import db_ops
 from aperag.index.base import AsyncIndexer, IndexResult, IndexType
 from aperag.schema.utils import parseCollectionConfig
 
-
-from typing import Any, Dict, List
-
-logger =  logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class GraphIndexer(AsyncIndexer):
@@ -15,15 +14,13 @@ class GraphIndexer(AsyncIndexer):
 
     def __init__(self):
         super().__init__(IndexType.GRAPH)
-        self.logger = logger
 
     def is_enabled(self, collection) -> bool:
         """Check if graph indexing is enabled for the collection"""
         config = parseCollectionConfig(collection.config)
         return config.enable_knowledge_graph or False
 
-    def create_index(self, document_id: int, content: str, doc_parts: List[Any],
-                    collection, **kwargs) -> IndexResult:
+    def create_index(self, document_id: int, content: str, doc_parts: List[Any], collection, **kwargs) -> IndexResult:
         """
         Create graph index for document (synchronous wrapper)
 
@@ -41,14 +38,15 @@ class GraphIndexer(AsyncIndexer):
             return IndexResult(
                 success=True,
                 index_type=self.index_type,
-                metadata={"message": "Graph indexing disabled", "status": "skipped"}
+                metadata={"message": "Graph indexing disabled", "status": "skipped"},
             )
 
         # For graph indexing, we use the async version
         return self.create_index_async(document_id, content, doc_parts, collection, **kwargs)
 
-    def create_index_async(self, document_id: int, content: str, doc_parts: List[Any],
-                          collection, **kwargs) -> IndexResult:
+    def create_index_async(
+        self, document_id: int, content: str, doc_parts: List[Any], collection, **kwargs
+    ) -> IndexResult:
         """
         Create graph index asynchronously using LightRAG
 
@@ -72,22 +70,22 @@ class GraphIndexer(AsyncIndexer):
                 return IndexResult(
                     success=True,
                     index_type=self.index_type,
-                    metadata={"message": "Document deleted, skipping graph indexing", "status": "skipped"}
+                    metadata={"message": "Document deleted, skipping graph indexing", "status": "skipped"},
                 )
 
             if collection.status == CollectionStatus.DELETED:
                 return IndexResult(
                     success=True,
                     index_type=self.index_type,
-                    metadata={"message": "Collection deleted, skipping graph indexing", "status": "skipped"}
+                    metadata={"message": "Collection deleted, skipping graph indexing", "status": "skipped"},
                 )
 
             # Schedule async graph indexing task
-            file_path = kwargs.get('file_path', f'document_{document_id}')
+            file_path = kwargs.get("file_path", f"document_{document_id}")
 
             # Graph indexing is now handled by the reconciliation system
             # No need to schedule tasks directly
-            self.logger.info(f"Graph index task scheduled for document {document_id}")
+            logger.info(f"Graph index task scheduled for document {document_id}")
 
             return IndexResult(
                 success=True,
@@ -96,20 +94,17 @@ class GraphIndexer(AsyncIndexer):
                 metadata={
                     "status": "running",
                     "file_path": file_path,
-                    "content_length": len(content) if content else 0
-                }
+                    "content_length": len(content) if content else 0,
+                },
             )
 
         except Exception as e:
-            self.logger.error(f"Graph index scheduling failed for document {document_id}: {str(e)}")
+            logger.error(f"Graph index scheduling failed for document {document_id}: {str(e)}")
             return IndexResult(
-                success=False,
-                index_type=self.index_type,
-                error=f"Graph index scheduling failed: {str(e)}"
+                success=False, index_type=self.index_type, error=f"Graph index scheduling failed: {str(e)}"
             )
 
-    def update_index(self, document_id: int, content: str, doc_parts: List[Any],
-                    collection, **kwargs) -> IndexResult:
+    def update_index(self, document_id: int, content: str, doc_parts: List[Any], collection, **kwargs) -> IndexResult:
         """
         Update graph index for document
 
@@ -127,13 +122,14 @@ class GraphIndexer(AsyncIndexer):
             return IndexResult(
                 success=True,
                 index_type=self.index_type,
-                metadata={"message": "Graph indexing disabled", "status": "skipped"}
+                metadata={"message": "Graph indexing disabled", "status": "skipped"},
             )
 
         return self.update_index_async(document_id, content, doc_parts, collection, **kwargs)
 
-    def update_index_async(self, document_id: int, content: str, doc_parts: List[Any],
-                          collection, **kwargs) -> IndexResult:
+    def update_index_async(
+        self, document_id: int, content: str, doc_parts: List[Any], collection, **kwargs
+    ) -> IndexResult:
         """
         Update graph index asynchronously
 
@@ -149,9 +145,9 @@ class GraphIndexer(AsyncIndexer):
         """
         try:
             # For graph index update, we typically need to delete old data and create new
-            file_path = kwargs.get('file_path', f'document_{document_id}')
+            file_path = kwargs.get("file_path", f"document_{document_id}")
 
-            self.logger.info(f"Graph index update task scheduled for document {document_id}")
+            logger.info(f"Graph index update task scheduled for document {document_id}")
 
             return IndexResult(
                 success=True,
@@ -161,16 +157,14 @@ class GraphIndexer(AsyncIndexer):
                     "status": "running",
                     "operation": "update",
                     "file_path": file_path,
-                    "content_length": len(content) if content else 0
-                }
+                    "content_length": len(content) if content else 0,
+                },
             )
 
         except Exception as e:
-            self.logger.error(f"Graph index update scheduling failed for document {document_id}: {str(e)}")
+            logger.error(f"Graph index update scheduling failed for document {document_id}: {str(e)}")
             return IndexResult(
-                success=False,
-                index_type=self.index_type,
-                error=f"Graph index update scheduling failed: {str(e)}"
+                success=False, index_type=self.index_type, error=f"Graph index update scheduling failed: {str(e)}"
             )
 
     def delete_index(self, document_id: int, collection, **kwargs) -> IndexResult:
@@ -179,7 +173,7 @@ class GraphIndexer(AsyncIndexer):
 
         Args:
             document_id: Document ID
-            collection: Collection object  
+            collection: Collection object
             **kwargs: Additional parameters
 
         Returns:
@@ -190,29 +184,24 @@ class GraphIndexer(AsyncIndexer):
                 return IndexResult(
                     success=True,
                     index_type=self.index_type,
-                    metadata={"message": "Graph indexing disabled", "status": "skipped"}
+                    metadata={"message": "Graph indexing disabled", "status": "skipped"},
                 )
 
             # Graph deletion is now handled by the reconciliation system
 
-            self.logger.info(f"Graph index deletion task scheduled for document {document_id}")
+            logger.info(f"Graph index deletion task scheduled for document {document_id}")
 
             return IndexResult(
                 success=True,
                 index_type=self.index_type,
                 data={"task_scheduled": True, "document_id": document_id},
-                metadata={
-                    "status": "running",
-                    "operation": "delete"
-                }
+                metadata={"status": "running", "operation": "delete"},
             )
 
         except Exception as e:
-            self.logger.error(f"Graph index deletion scheduling failed for document {document_id}: {str(e)}")
+            logger.error(f"Graph index deletion scheduling failed for document {document_id}: {str(e)}")
             return IndexResult(
-                success=False,
-                index_type=self.index_type,
-                error=f"Graph index deletion scheduling failed: {str(e)}"
+                success=False, index_type=self.index_type, error=f"Graph index deletion scheduling failed: {str(e)}"
             )
 
     def process_lightrag_result(self, result: Dict[str, Any]) -> IndexResult:
@@ -231,34 +220,29 @@ class GraphIndexer(AsyncIndexer):
                     success=True,
                     index_type=self.index_type,
                     data={
-                        "chunks_created": result.get('chunks_created', 0),
-                        "entities_extracted": result.get('entities_extracted', 0),
-                        "relations_extracted": result.get('relations_extracted', 0)
+                        "chunks_created": result.get("chunks_created", 0),
+                        "entities_extracted": result.get("entities_extracted", 0),
+                        "relations_extracted": result.get("relations_extracted", 0),
                     },
-                    metadata={
-                        "status": "complete",
-                        "processing_time": result.get('processing_time')
-                    }
+                    metadata={"status": "complete", "processing_time": result.get("processing_time")},
                 )
             elif result.get("status") == "warning":
                 return IndexResult(
                     success=True,
                     index_type=self.index_type,
-                    data={"warning_message": result.get('message')},
-                    metadata={"status": "complete_with_warnings"}
+                    data={"warning_message": result.get("message")},
+                    metadata={"status": "complete_with_warnings"},
                 )
             else:
                 return IndexResult(
                     success=False,
                     index_type=self.index_type,
-                    error=f"LightRAG processing failed: {result.get('message', 'Unknown error')}"
+                    error=f"LightRAG processing failed: {result.get('message', 'Unknown error')}",
                 )
 
         except Exception as e:
             return IndexResult(
-                success=False,
-                index_type=self.index_type,
-                error=f"Failed to process LightRAG result: {str(e)}"
+                success=False, index_type=self.index_type, error=f"Failed to process LightRAG result: {str(e)}"
             )
 
 

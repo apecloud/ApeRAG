@@ -45,7 +45,6 @@ from aperag.service.model_service import (
     update_model_service_provider,
 )
 from aperag.service.prompt_template_service import list_prompt_templates
-from aperag.utils.request import get_urls
 
 # Import authentication dependencies
 from aperag.views.auth import UserManager, authenticate_websocket_user, current_user, get_user_manager
@@ -109,14 +108,6 @@ async def create_documents_view(
     user: User = Depends(current_user),
 ) -> view_models.DocumentList:
     return await document_service.create_documents(str(user.id), collection_id, files)
-
-
-@router.post("/collections/{collection_id}/urls")
-async def create_url_document_view(
-    request: Request, collection_id: str, user: User = Depends(current_user)
-) -> view_models.DocumentList:
-    urls = get_urls(request)
-    return await document_service.create_url_document(str(user.id), collection_id, urls)
 
 
 @router.get("/collections/{collection_id}/documents")

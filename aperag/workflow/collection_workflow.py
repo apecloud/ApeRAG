@@ -17,12 +17,11 @@ from typing import Any, Dict
 
 from asgiref.sync import async_to_sync
 
-from aperag.index.fulltext_index import delete_index
 from aperag.db.models import CollectionStatus
 from aperag.db.ops import db_ops
 from aperag.embed.base_embedding import get_collection_embedding_service_sync
 from aperag.graph import lightrag_manager
-from aperag.index.fulltext_index import create_index
+from aperag.index.fulltext_index import create_index, delete_index
 from aperag.schema.utils import parseCollectionConfig
 from aperag.tasks.async_interface import TaskResult
 from aperag.utils.utils import (
@@ -37,174 +36,151 @@ logger = logging.getLogger(__name__)
 
 class CollectionWorkflow:
     """Collection workflow orchestrator for async tasks"""
-    
-    def __init__(self):
-        self.logger = logger
-    
+
     def initialize_collection(self, collection_id: str, document_user_quota: int) -> TaskResult:
         """
         Initialize a new collection with all required components
-        
+
         Args:
             collection_id: Collection ID to initialize
             document_user_quota: User quota for documents
-            
+
         Returns:
             TaskResult: Result of the initialization
         """
         try:
             # Get collection from database
             collection = db_ops.query_collection_by_id(collection_id)
-            
+
             if not collection or collection.status == CollectionStatus.DELETED:
-                return TaskResult(
-                    success=False,
-                    error=f"Collection {collection_id} not found or deleted"
-                )
-            
+                return TaskResult(success=False, error=f"Collection {collection_id} not found or deleted")
+
             # Initialize vector database connections
             self._initialize_vector_databases(collection_id, collection)
-            
+
             # Initialize fulltext index
             self._initialize_fulltext_index(collection_id)
-            
+
             # Update collection status
             collection.status = CollectionStatus.ACTIVE
             db_ops.update_collection(collection)
-            
-            self.logger.info(f"Successfully initialized collection {collection_id}")
-            
+
+            logger.info(f"Successfully initialized collection {collection_id}")
+
             return TaskResult(
                 success=True,
                 data={"collection_id": collection_id, "status": "initialized"},
-                metadata={"document_user_quota": document_user_quota}
+                metadata={"document_user_quota": document_user_quota},
             )
-            
+
         except Exception as e:
-            self.logger.error(f"Failed to initialize collection {collection_id}: {str(e)}")
-            return TaskResult(
-                success=False,
-                error=f"Collection initialization failed: {str(e)}"
-            )
-    
+            logger.error(f"Failed to initialize collection {collection_id}: {str(e)}")
+            return TaskResult(success=False, error=f"Collection initialization failed: {str(e)}")
+
     def delete_collection(self, collection_id: str) -> TaskResult:
         """
         Delete a collection and all its associated data
-        
+
         Args:
             collection_id: Collection ID to delete
-            
+
         Returns:
             TaskResult: Result of the deletion
         """
         try:
             # Get collection from database
             collection = db_ops.query_collection_by_id(collection_id)
-            
+
             if not collection:
-                return TaskResult(
-                    success=False,
-                    error=f"Collection {collection_id} not found"
-                )
-            
+                return TaskResult(success=False, error=f"Collection {collection_id} not found")
+
             # Delete knowledge graph data if enabled
             deletion_stats = self._delete_knowledge_graph_data(collection)
-            
+
             # Delete vector databases
             self._delete_vector_databases(collection_id)
-            
+
             # Delete fulltext index
             self._delete_fulltext_index(collection_id)
-            
-            self.logger.info(f"Successfully deleted collection {collection_id}")
-            
+
+            logger.info(f"Successfully deleted collection {collection_id}")
+
             return TaskResult(
-                success=True,
-                data={"collection_id": collection_id, "status": "deleted"},
-                metadata=deletion_stats
+                success=True, data={"collection_id": collection_id, "status": "deleted"}, metadata=deletion_stats
             )
-            
+
         except Exception as e:
-            self.logger.error(f"Failed to delete collection {collection_id}: {str(e)}")
-            return TaskResult(
-                success=False,
-                error=f"Collection deletion failed: {str(e)}"
-            )
-    
+            logger.error(f"Failed to delete collection {collection_id}: {str(e)}")
+            return TaskResult(success=False, error=f"Collection deletion failed: {str(e)}")
+
     def _initialize_vector_databases(self, collection_id: str, collection) -> None:
         """Initialize vector database collections"""
         # Get embedding service
         _, vector_size = get_collection_embedding_service_sync(collection)
-        
+
         # Create main vector database collection
         vector_db_conn = get_vector_db_connector(
             collection=generate_vector_db_collection_name(collection_id=collection_id)
         )
         vector_db_conn.connector.create_collection(vector_size=vector_size)
-        
-        # Create QA vector database collection
-        qa_vector_db_conn = get_vector_db_connector(
-            collection=generate_qa_vector_db_collection_name(collection=collection_id)
-        )
-        qa_vector_db_conn.connector.create_collection(vector_size=vector_size)
-        
-        self.logger.debug(f"Initialized vector databases for collection {collection_id}")
-    
+
+        logger.debug(f"Initialized vector databases for collection {collection_id}")
+
     def _initialize_fulltext_index(self, collection_id: str) -> None:
         """Initialize fulltext search index"""
         index_name = generate_fulltext_index_name(collection_id)
         create_index(index_name)
-        self.logger.debug(f"Initialized fulltext index {index_name}")
-    
+        logger.debug(f"Initialized fulltext index {index_name}")
+
     def _delete_knowledge_graph_data(self, collection) -> Dict[str, Any]:
         """Delete knowledge graph data for the collection"""
         config = parseCollectionConfig(collection.config)
         enable_knowledge_graph = config.enable_knowledge_graph or False
-        
+
         deletion_stats = {"knowledge_graph_enabled": enable_knowledge_graph}
-        
+
         if enable_knowledge_graph:
+
             async def _delete_lightrag():
                 # Create new LightRAG instance
                 rag = await lightrag_manager.create_lightrag_instance(collection)
-                
+
                 # Get all document IDs in this collection
                 document_ids = list(db_ops.query_documents(collection.id).values_list("id", flat=True))
-                
+
                 if document_ids:
                     deleted_count = 0
                     failed_count = 0
-                    
+
                     for document_id in document_ids:
                         try:
                             await rag.adelete_by_doc_id(str(document_id))
                             deleted_count += 1
-                            self.logger.debug(f"Deleted lightrag document for document ID: {document_id}")
+                            logger.debug(f"Deleted lightrag document for document ID: {document_id}")
                         except Exception as e:
                             failed_count += 1
-                            self.logger.warning(f"Failed to delete lightrag document for document ID {document_id}: {str(e)}")
-                    
-                    self.logger.info(
+                            logger.warning(
+                                f"Failed to delete lightrag document for document ID {document_id}: {str(e)}"
+                            )
+
+                    logger.info(
                         f"Completed lightrag document deletion for collection {collection.id}: "
                         f"{deleted_count} deleted, {failed_count} failed"
                     )
-                    
-                    deletion_stats.update({
-                        "documents_deleted": deleted_count,
-                        "documents_failed": failed_count
-                    })
+
+                    deletion_stats.update({"documents_deleted": deleted_count, "documents_failed": failed_count})
                 else:
-                    self.logger.info(f"No documents found for collection {collection.id}")
+                    logger.info(f"No documents found for collection {collection.id}")
                     deletion_stats["documents_deleted"] = 0
-                
+
                 # Clean up resources
                 await rag.finalize_storages()
-            
+
             # Execute async deletion
             async_to_sync(_delete_lightrag)()
-        
+
         return deletion_stats
-    
+
     def _delete_vector_databases(self, collection_id: str) -> None:
         """Delete vector database collections"""
         # Delete main vector database collection
@@ -212,21 +188,21 @@ class CollectionWorkflow:
             collection=generate_vector_db_collection_name(collection_id=collection_id)
         )
         vector_db_conn.connector.delete_collection()
-        
+
         # Delete QA vector database collection
         qa_vector_db_conn = get_vector_db_connector(
             collection=generate_qa_vector_db_collection_name(collection=collection_id)
         )
         qa_vector_db_conn.connector.delete_collection()
-        
-        self.logger.debug(f"Deleted vector database collections for collection {collection_id}")
-    
+
+        logger.debug(f"Deleted vector database collections for collection {collection_id}")
+
     def _delete_fulltext_index(self, collection_id: str) -> None:
         """Delete fulltext search index"""
         index_name = generate_fulltext_index_name(collection_id)
         delete_index(index_name)
-        self.logger.debug(f"Deleted fulltext index {index_name}")
+        logger.debug(f"Deleted fulltext index {index_name}")
 
 
 # Global workflow instance
-collection_workflow = CollectionWorkflow() 
+collection_workflow = CollectionWorkflow()

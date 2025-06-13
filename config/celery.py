@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 from celery import Celery
 from celery.signals import worker_process_init, worker_process_shutdown
 from aperag.config import settings
@@ -42,8 +41,15 @@ app.conf.update(
     task_send_sent_event=settings.celery_task_send_sent_event,
     task_track_started=settings.celery_task_track_started,
     # Auto-discover tasks in the aperag.tasks package
-    include=['aperag.tasks.collection', 'aperag.tasks.index', 'aperag.tasks.crawl_web'],
+    include=['aperag.tasks.task_collection', 'aperag.tasks.task_document'],
 )
+
+app.conf.beat_schedule = {
+    'reconcile-indexes': {
+        'task': 'aperag.tasks.task_document.reconcile_indexes_task',
+        'schedule': 5.0,
+    },
+}
 
 # Set up task routes if local queue is specified
 if settings.local_queue_name:
