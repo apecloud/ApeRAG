@@ -22,7 +22,7 @@ from pydantic import Field
 
 from aperag.db.ops import async_db_ops
 from aperag.flow.base.models import BaseNodeRunner, SystemInput, register_node_runner
-from aperag.llm.base import Predictor
+from aperag.llm.completion_service import CompletionService
 from aperag.query.query import DocumentWithScore
 from aperag.utils.constant import DOC_QA_REFERENCES
 from aperag.utils.history import BaseChatMessageHistory
@@ -150,19 +150,11 @@ class LLMService:
                 "max_tokens %d is too small to hold the prompt which size is %d" % (max_tokens, len(prompt))
             )
 
-        llm_kwargs = {
-            "custom_llm_provider": custom_llm_provider,
-            "temperature": temperature,
-            "max_tokens": output_max_tokens,
-        }
-
-        predictor = Predictor.get_completion_service(
-            model_service_provider, model_name, base_url, api_key, **llm_kwargs
-        )
+        cs = CompletionService(custom_llm_provider, model_name, base_url, api_key, temperature, output_max_tokens)
 
         async def async_generator():
             response = ""
-            async for chunk in predictor.agenerate_stream([], prompt, False):
+            async for chunk in cs.agenerate_stream([], prompt, False):
                 if not chunk:
                     continue
                 yield chunk

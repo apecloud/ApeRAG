@@ -11,29 +11,37 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Optional
 
 import litellm
 
-from aperag.llm.base import LLMConfigError, Predictor
 
-
-class CompletionService(Predictor):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.kwargs = kwargs
-
-    def validate_params(self):
-        if not self.kwargs.get("model"):
-            raise LLMConfigError("Please specify the MODEL")
-
-    @staticmethod
-    def provide_default_token():
-        return False
+class CompletionService:
+    def __init__(
+        self,
+        provider: str,
+        model: str,
+        api_base: str,
+        api_key: str,
+        temperature: float = 0.1,
+        max_tokens: Optional[int] = None,
+    ):
+        super().__init__()
+        self.provider = provider
+        self.model = model
+        self.api_base = api_base
+        self.api_key = api_key
+        self.temperature = temperature
+        self.max_tokens = max_tokens
 
     async def _agenerate_stream(self, history, prompt, memory=False):
         try:
             response = await litellm.acompletion(
-                **self.kwargs,
+                custom_llm_provider=self.provider,
+                model=self.model,
+                api_base=self.api_base,
+                api_key=self.api_key,
+                max_tokens=self.max_tokens,
                 messages=history + [{"role": "user", "content": prompt}]
                 if memory
                 else [{"role": "user", "content": prompt}],
@@ -52,7 +60,11 @@ class CompletionService(Predictor):
     def _generate_stream(self, history, prompt, memory=False):
         try:
             response = litellm.completion(
-                **self.kwargs,
+                custom_llm_provider=self.provider,
+                model=self.model,
+                api_base=self.api_base,
+                api_key=self.api_key,
+                max_tokens=self.max_tokens,
                 messages=history + [{"role": "user", "content": prompt}]
                 if memory
                 else [{"role": "user", "content": prompt}],
@@ -75,7 +87,11 @@ class CompletionService(Predictor):
     async def agenerate_by_tools(self, prompt, tools):
         try:
             response = await litellm.acompletion(
-                **self.kwargs,
+                custom_llm_provider=self.provider,
+                model=self.model,
+                api_base=self.api_base,
+                api_key=self.api_key,
+                max_tokens=self.max_tokens,
                 messages=[{"role": "user", "content": prompt}],
                 tools=tools,
                 tool_choice="auto",

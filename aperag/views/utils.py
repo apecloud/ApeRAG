@@ -23,7 +23,6 @@ from pydantic import ValidationError
 
 from aperag.db.models import BotType
 from aperag.db.ops import async_db_ops
-from aperag.llm.base import Predictor
 from aperag.schema import view_models
 from aperag.schema.view_models import CollectionConfig
 from aperag.source.base import CustomSourceInitializationError, get_source
@@ -88,11 +87,6 @@ def validate_source_connect_config(config: CollectionConfig) -> Tuple[bool, str]
 def validate_bot_config(
     model_service_provider, model_name, base_url, api_key, config: Dict, type, memory
 ) -> Tuple[bool, str]:
-    try:
-        Predictor.get_completion_service(model_service_provider, model_name, base_url, api_key, **config)
-    except Exception as e:
-        return False, str(e)
-
     try:
         # validate the prompt
         prompt_template = config.get("prompt_template", None)

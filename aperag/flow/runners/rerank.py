@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from aperag.db.ops import async_db_ops
 from aperag.flow.base.models import BaseNodeRunner, SystemInput, register_node_runner
 from aperag.query.query import DocumentWithScore
-from aperag.rank.rerank_service import RerankService
+from aperag.rerank.rerank_service import RerankService
 
 logger = logging.getLogger(__name__)
 

@@ -74,7 +74,7 @@ class Config(BaseSettings):
     model_configs: Dict[str, Any] = {}
 
     # Embedding
-    embedding_max_chunks_in_batch: int = Field(16, alias="EMBEDDING_MAX_CHUNKS_IN_BATCH")
+    embedding_max_chunks_in_batch: int = Field(10, alias="EMBEDDING_MAX_CHUNKS_IN_BATCH")
 
     # Rerank
     rerank_backend: str = Field("local", alias="RERANK_BACKEND")

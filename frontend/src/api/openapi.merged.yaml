@@ -942,16 +942,79 @@ paths:
               schema:
                 $ref: '#/components/schemas/failResponse'
   /available_models:
-    get:
-      summary: Get available models
-      description: Get available models
+    post:
+      summary: Get available models with filtering
+      description: |
+        Get available models with tag filtering support.
+        - No tag_filters or empty array: Returns only models with "recommend" tag (default)
+        - Specific filters: Returns models matching the filter conditions
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/tagFilterRequest'
+            examples:
+              default:
+                summary: Default (recommend only)
+                description: Empty request body returns only models with "recommend" tag
+                value: {}
+              all_models:
+                summary: Get all models
+                description: Empty tag_filters array returns all models
+                value:
+                  tag_filters: []
+              simple_filter:
+                summary: Simple tag filter
+                description: Models with recommend tag
+                value:
+                  tag_filters:
+                    - operation: OR
+                      tags:
+                        - recommend
+              and_filter:
+                summary: AND filter
+                description: Models with both free and recommend tags
+                value:
+                  tag_filters:
+                    - operation: AND
+                      tags:
+                        - free
+                        - recommend
+              or_filter:
+                summary: OR filter
+                description: Models with either openai or gpt tags
+                value:
+                  tag_filters:
+                    - operation: OR
+                      tags:
+                        - openai
+                        - gpt
+              combined_filter:
+                summary: Combined filter
+                description: Complex logic - (free AND recommend) OR (openai)
+                value:
+                  tag_filters:
+                    - operation: AND
+                      tags:
+                        - free
+                        - recommend
+                    - operation: OR
+                      tags:
+                        - openai
       responses:
         '200':
-          description: Available models
+          description: Available models matching filter criteria
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/modelConfigList'
+        '400':
+          description: Invalid tag filter format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
         '401':
           description: Unauthorized
           content:
@@ -2050,6 +2113,15 @@ components:
           type: integer
           description: Number of top results to return when reranking documents
           minimum: 1
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tags for model categorization
+          example:
+            - free
+            - recommend
+          default: []
     collectionConfig:
       type: object
       properties:
@@ -2535,30 +2607,45 @@ components:
           type: string
         api_key:
           type: string
-    modelInfo:
+    tagFilterCondition:
       type: object
       properties:
-        input_cost_per_token:
-          type: number
-          description: Input cost per token for single requests
-          example: 0.0000025
-        output_cost_per_token:
-          type: number
-          description: Output cost per token for single requests
-          example: 0.00001
-        input_cost_per_token_batches:
-          type: number
-          description: Input cost per token for batch requests
-          example: 0.00000125
-        output_cost_per_token_batches:
-          type: number
-          description: Output cost per token for batch requests
-          example: 0.000005
-    modelDefinition:
+        operation:
+          type: string
+          enum:
+            - AND
+            - OR
+          description: Logical operation for tags in this condition
+          example: AND
+        tags:
+          type: array
+          items:
+            type: string
+          description: List of tags for this condition
+          example:
+            - free
+            - recommend
+      required:
+        - operation
+        - tags
+    tagFilterRequest:
       type: object
-      allOf:
-        - $ref: '#/components/schemas/modelSpec'
-        - $ref: '#/components/schemas/modelInfo'
+      properties:
+        tag_filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/tagFilterCondition'
+          description: List of tag filter conditions (OR relationship between conditions). If not provided or empty, returns models with "recommend" tag by default.
+          example:
+            - operation: AND
+              tags:
+                - free
+                - recommend
+            - operation: OR
+              tags:
+                - openai
+                - gpt
+      description: Tag filtering request. Empty request body or empty tag_filters returns recommend models by default.
     modelConfig:
       type: object
       properties:
@@ -2579,15 +2666,15 @@ components:
         embedding:
           type: array
           items:
-            $ref: '#/components/schemas/modelDefinition'
+            $ref: '#/components/schemas/modelSpec'
         completion:
           type: array
           items:
-            $ref: '#/components/schemas/modelDefinition'
+            $ref: '#/components/schemas/modelSpec'
         rerank:
           type: array
           items:
-            $ref: '#/components/schemas/modelDefinition'
+            $ref: '#/components/schemas/modelSpec'
     modelConfigList:
       type: object
       properties:
@@ -2920,7 +3007,7 @@ components:
           type: string
           description: The token of the invitation
         created_by:
-          type: integer
+          type: string
           description: The ID of the user who created the invitation
         created_at:
           type: string

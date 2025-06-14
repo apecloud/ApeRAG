@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import logging
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, WebSocket
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Request, UploadFile, WebSocket
 
 from aperag.db.models import User
 from aperag.schema import view_models
@@ -39,7 +39,7 @@ from aperag.service.llm_configuration_service import (
 )
 from aperag.service.model_service import (
     delete_model_service_provider,
-    list_available_models,
+    get_available_models,
     list_model_service_providers,
     list_supported_model_service_providers,
     update_model_service_provider,
@@ -280,11 +280,18 @@ async def delete_model_service_provider_view(request: Request, provider: str, us
     return await delete_model_service_provider(str(user.id), provider)
 
 
-@router.get("/available_models")
-async def list_available_models_view(
-    request: Request, user: User = Depends(current_user)
+@router.post("/available_models")
+async def get_available_models_view(
+    request: Request,
+    tag_filter_request: Optional[view_models.TagFilterRequest] = Body(None),
+    user: User = Depends(current_user),
 ) -> view_models.ModelConfigList:
-    return await list_available_models(str(user.id))
+    """Get available models with optional tag filtering"""
+    # If no request body provided, create default request
+    if tag_filter_request is None:
+        tag_filter_request = view_models.TagFilterRequest()
+
+    return await get_available_models(str(user.id), tag_filter_request)
 
 
 @router.post("/chat/completions/frontend")

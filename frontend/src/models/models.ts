@@ -8,10 +8,10 @@ export default () => {
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>();
   const [availableModels, setAvailableModels] = useState<ModelConfig[]>([]);
 
-  // get available models
+  // get available models (recommend only by default)
   const getAvailableModels = async () => {
     setLoading(true);
-    const res = await api.availableModelsGet();
+    const res = await api.availableModelsPost({});
     setLoading(false);
     setAvailableModels(res.data.items || []);
   };

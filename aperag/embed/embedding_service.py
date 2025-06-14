@@ -32,7 +32,7 @@ class EmbeddingService(Embeddings):
         embedding_max_chunks_in_batch: int,
     ):
         self.embedding_provider = embedding_provider
-        self.model = f"{embedding_model}"
+        self.model = embedding_model
         self.api_base = embedding_service_url
         self.api_key = embedding_service_api_key
         self.max_chunks = embedding_max_chunks_in_batch

@@ -1,14 +1,69 @@
 availableModels:
-  get:
-    summary: Get available models
-    description: Get available models 
+  post:
+    summary: Get available models with filtering
+    description: |
+      Get available models with tag filtering support.
+      - No tag_filters or empty array: Returns only models with "recommend" tag (default)
+      - Specific filters: Returns models matching the filter conditions
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/model.yaml#/tagFilterRequest'
+          examples:
+            default:
+              summary: Default (recommend only)
+              description: Empty request body returns only models with "recommend" tag
+              value: {}
+            all_models:
+              summary: Get all models
+              description: Empty tag_filters array returns all models
+              value:
+                tag_filters: []
+            simple_filter:
+              summary: Simple tag filter
+              description: Models with recommend tag
+              value:
+                tag_filters:
+                  - operation: "OR"
+                    tags: ["recommend"]
+            and_filter:
+              summary: AND filter
+              description: Models with both free and recommend tags
+              value:
+                tag_filters:
+                  - operation: "AND"
+                    tags: ["free", "recommend"]
+            or_filter:
+              summary: OR filter
+              description: Models with either openai or gpt tags
+              value:
+                tag_filters:
+                  - operation: "OR"
+                    tags: ["openai", "gpt"]
+            combined_filter:
+              summary: Combined filter
+              description: Complex logic - (free AND recommend) OR (openai)
+              value:
+                tag_filters:
+                  - operation: "AND"
+                    tags: ["free", "recommend"]
+                  - operation: "OR"
+                    tags: ["openai"]
     responses:
       '200':
-        description: Available models
+        description: Available models matching filter criteria
         content:
           application/json:
             schema:
               $ref: '../components/schemas/model.yaml#/modelConfigList'
+      '400':
+        description: Invalid tag filter format
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
       '401':
         description: Unauthorized
         content:

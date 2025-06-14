@@ -43,7 +43,7 @@ class RerankService:
             rerank_service_api_key: The API key for authentication
         """
         self.rerank_provider = rerank_provider
-        self.model = f"{rerank_model}"
+        self.model = rerank_model
         self.api_base = rerank_service_url
         self.api_key = rerank_service_api_key
 

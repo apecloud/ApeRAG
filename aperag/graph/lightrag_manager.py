@@ -257,8 +257,14 @@ async def _gen_llm_func(collection: Collection) -> Callable[..., Awaitable[str]]
         ) -> str:
             from aperag.llm.completion_service import CompletionService
 
-            merged_kwargs = {"api_key": api_key, "base_url": base_url, **config.completion.dict()}
-            completion_service = CompletionService(**merged_kwargs)
+            completion_service = CompletionService(
+                provider=config.completion.custom_llm_provider,
+                model=config.completion.model,
+                api_base=base_url,
+                api_key=api_key,
+                temperature=config.completion.temperature,
+                max_tokens=None,
+            )
 
             messages = []
             if system_prompt:
