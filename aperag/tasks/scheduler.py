@@ -2,7 +2,6 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional
 
-from aperag.index.base import IndexType
 from aperag.tasks.utils import cleanup_local_document, parse_document_content
 
 logger = logging.getLogger(__name__)
@@ -129,7 +128,7 @@ class LocalTaskScheduler(TaskScheduler):
             try:
                 # Process each requested index type
                 for index_type in index_types:
-                    if index_type == IndexType.VECTOR.value:
+                    if index_type == "vector":
                         try:
                             result = vector_indexer.create_index(
                                 document_id=document_id,
