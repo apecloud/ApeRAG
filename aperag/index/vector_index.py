@@ -8,8 +8,8 @@ from aperag.config import settings
 
 # NOTE: This file has been updated to use DocumentIndex table instead of Document.relate_ids field
 # The relate_ids field has been removed from Document model and replaced with index_data in DocumentIndex
-from aperag.embed.base_embedding import get_collection_embedding_service_sync
-from aperag.embed.embedding_utils import create_embeddings_and_store
+from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
+from aperag.llm.embed.embedding_utils import create_embeddings_and_store
 from aperag.index.base import BaseIndexer, IndexResult, IndexType
 from aperag.utils.tokenizer import get_default_tokenizer
 from aperag.utils.utils import generate_vector_db_collection_name
