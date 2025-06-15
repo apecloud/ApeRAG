@@ -84,6 +84,8 @@ def create_task_scheduler(scheduler_type: str):
         return LocalTaskScheduler()
     elif scheduler_type == "celery":
         return CeleryTaskScheduler()
+    elif scheduler_type == "prefect":
+        return PrefectTaskScheduler()
     else:
         raise Exception("unknown task scheduler type: %s" % scheduler_type)
 
@@ -293,3 +295,22 @@ class CeleryTaskScheduler(TaskScheduler):
         except Exception as e:
             logger.error(f"Failed to get workflow status for {task_id}: {str(e)}")
             return TaskResult(task_id, success=False, error=str(e))
+
+class PrefectTaskScheduler(TaskScheduler):
+    """Prefect implementation of TaskScheduler - Direct workflow execution"""
+
+    def schedule_create_index(self, document_id: str, index_types: List[str], **kwargs) -> str:
+        """Schedule index creation workflow"""
+        raise NotImplementedError("Prefect task scheduler is not implemented")
+    
+    def schedule_update_index(self, document_id: str, index_types: List[str], **kwargs) -> str:
+        """Schedule index update workflow"""
+        raise NotImplementedError("Prefect task scheduler is not implemented")
+    
+    def schedule_delete_index(self, document_id: str, index_types: List[str], **kwargs) -> str:
+        """Schedule index deletion workflow"""
+        raise NotImplementedError("Prefect task scheduler is not implemented")
+    
+    def get_task_status(self, task_id: str) -> Optional[TaskResult]:
+        """Get workflow status using Prefect AsyncResult (non-blocking)"""
+        raise NotImplementedError("Prefect task scheduler is not implemented")
