@@ -504,22 +504,22 @@ def create_siliconflow_config(model_blocklist=None):
         "allow_custom_base_url": False,
         "base_url": "https://api.siliconflow.cn/v1",
         "embedding": [
-            {
-                "model": "BAAI/bge-large-en-v1.5",
-                "custom_llm_provider": "openai"
-            },
-            {
-                "model": "BAAI/bge-large-zh-v1.5",
-                "custom_llm_provider": "openai"
-            },
+            # {
+            #     "model": "BAAI/bge-large-en-v1.5",
+            #     "custom_llm_provider": "openai"
+            # },
+            # {
+            #     "model": "BAAI/bge-large-zh-v1.5",
+            #     "custom_llm_provider": "openai"
+            # },
             {
                 "model": "BAAI/bge-m3",
                 "custom_llm_provider": "openai"
             },
-            {
-                "model": "netease-youdao/bce-embedding-base_v1",
-                "custom_llm_provider": "openai"
-            }
+            # {
+            #     "model": "netease-youdao/bce-embedding-base_v1",
+            #     "custom_llm_provider": "openai"
+            # }
         ],
         "completion": [
             {
