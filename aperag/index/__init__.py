@@ -11,21 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-K8s-Inspired Document Index Management System
-
-This module provides a simple, reliable system for managing document indexes
-using a declarative approach inspired by Kubernetes resource management.
-
-Key components:
-- ReconciliationController: Ensures actual state matches desired state
-- IndexSpecManager: API for managing index specifications
-- SimpleIndexService: High-level service API for applications
-
-The system uses two main tables:
-- DocumentIndexSpec: Declares desired state (present/absent)
-- DocumentIndexStatus: Tracks actual state (absent/creating/present/deleting/failed)
-
-A reconciliation controller runs periodically to ensure consistency.
-"""
