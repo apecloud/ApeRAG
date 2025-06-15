@@ -64,9 +64,12 @@ async def create_embeddings(request: EmbeddingRequest, user: User = Depends(curr
         total_tokens = sum(len(text.split()) for text in input_texts)
 
         # Format response in OpenAI format
-        embedding_data = [EmbeddingData(embedding=embedding, index=i) for i, embedding in enumerate(embeddings)]
+        embedding_data = [
+            EmbeddingData(object="embedding", embedding=embedding, index=i) for i, embedding in enumerate(embeddings)
+        ]
 
         return EmbeddingResponse(
+            object="list",
             data=embedding_data,
             model=request.model,
             usage=EmbeddingUsage(prompt_tokens=total_tokens, total_tokens=total_tokens),
