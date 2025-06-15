@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from asgiref.sync import async_to_sync, Dict
+from asgiref.sync import Dict, async_to_sync
 
 from aperag.db.models import CollectionStatus
 from aperag.db.ops import db_ops
@@ -10,7 +10,11 @@ from aperag.graph import lightrag_manager
 from aperag.index.fulltext_index import create_index, delete_index
 from aperag.schema.utils import parseCollectionConfig
 from aperag.tasks.async_interface import TaskResult
-from aperag.utils.utils import generate_fulltext_index_name, generate_qa_vector_db_collection_name, generate_vector_db_collection_name
+from aperag.utils.utils import (
+    generate_fulltext_index_name,
+    generate_qa_vector_db_collection_name,
+    generate_vector_db_collection_name,
+)
 from config.vector_db import get_vector_db_connector
 
 logger = logging.getLogger(__name__)
@@ -187,5 +191,6 @@ class CollectionTask:
         index_name = generate_fulltext_index_name(collection_id)
         delete_index(index_name)
         logger.debug(f"Deleted fulltext index {index_name}")
+
 
 collection_task = CollectionTask()

@@ -321,9 +321,6 @@ def trigger_create_indexes_workflow(self, parsed_data_dict: dict, document_id: s
         Chord signature for parallel index creation + completion notification
     """
     try:
-        # Convert dict back to structured data to access document info
-        parsed_data = ParsedDocumentData.from_dict(parsed_data_dict)
-        
         logger.info(f"Triggering parallel index creation for document {document_id} with types: {index_types}")
         
         # Dynamically create parallel index creation tasks
@@ -399,9 +396,6 @@ def trigger_update_indexes_workflow(self, parsed_data_dict: dict, document_id: s
         Chord signature for parallel index update + completion notification
     """
     try:
-        # Convert dict back to structured data to access document info
-        parsed_data = ParsedDocumentData.from_dict(parsed_data_dict)
-        
         logger.info(f"Triggering parallel index update for document {document_id} with types: {index_types}")
         
         # Create parallel index update tasks

@@ -228,7 +228,9 @@ class CeleryTaskScheduler(TaskScheduler):
             # Execute workflow and return AsyncResult ID (not calling .get())
             workflow_result = create_document_indexes_workflow(document_id, index_types)
             workflow_id = workflow_result.id  # Use .id instead of .get('workflow_id')
-            logger.debug(f"Scheduled create indexes workflow {workflow_id} for document {document_id} with types {index_types}")
+            logger.debug(
+                f"Scheduled create indexes workflow {workflow_id} for document {document_id} with types {index_types}"
+            )
             return workflow_id
         except Exception as e:
             logger.error(f"Failed to schedule create indexes workflow for document {document_id}: {str(e)}")
@@ -242,7 +244,9 @@ class CeleryTaskScheduler(TaskScheduler):
             # Execute workflow and return AsyncResult ID (not calling .get())
             workflow_result = update_document_indexes_workflow(document_id, index_types)
             workflow_id = workflow_result.id  # Use .id instead of .get('workflow_id')
-            logger.debug(f"Scheduled update indexes workflow {workflow_id} for document {document_id} with types {index_types}")
+            logger.debug(
+                f"Scheduled update indexes workflow {workflow_id} for document {document_id} with types {index_types}"
+            )
             return workflow_id
         except Exception as e:
             logger.error(f"Failed to schedule update indexes workflow for document {document_id}: {str(e)}")
@@ -256,7 +260,9 @@ class CeleryTaskScheduler(TaskScheduler):
             # Execute workflow and return AsyncResult ID (not calling .get())
             workflow_result = delete_document_indexes_workflow(document_id, index_types)
             workflow_id = workflow_result.id  # Use .id instead of .get('workflow_id')
-            logger.debug(f"Scheduled delete indexes workflow {workflow_id} for document {document_id} with types {index_types}")
+            logger.debug(
+                f"Scheduled delete indexes workflow {workflow_id} for document {document_id} with types {index_types}"
+            )
             return workflow_id
         except Exception as e:
             logger.error(f"Failed to schedule delete indexes workflow for document {document_id}: {str(e)}")
@@ -266,19 +272,20 @@ class CeleryTaskScheduler(TaskScheduler):
         """Get workflow status using Celery AsyncResult (non-blocking)"""
         try:
             from celery.result import AsyncResult
+
             from config.celery import app
 
             # Get AsyncResult without calling .get()
             workflow_result = AsyncResult(task_id, app=app)
-            
+
             # Check status without blocking
-            if workflow_result.state == 'PENDING':
+            if workflow_result.state == "PENDING":
                 return TaskResult(task_id, success=False, error="Workflow is pending")
-            elif workflow_result.state == 'STARTED':
+            elif workflow_result.state == "STARTED":
                 return TaskResult(task_id, success=False, error="Workflow is running")
-            elif workflow_result.state == 'SUCCESS':
+            elif workflow_result.state == "SUCCESS":
                 return TaskResult(task_id, success=True, data=workflow_result.result)
-            elif workflow_result.state == 'FAILURE':
+            elif workflow_result.state == "FAILURE":
                 return TaskResult(task_id, success=False, error=str(workflow_result.info))
             else:
                 return TaskResult(task_id, success=False, error=f"Unknown state: {workflow_result.state}")
