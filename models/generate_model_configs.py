@@ -137,12 +137,99 @@ ON CONFLICT (provider_name, api, model) DO UPDATE SET
 
 
 # Model Configuration Functions
-def generate_model_specs(models, provider, mode, enable_whitelist=False, model_whitelist=None):
+
+class ModelBlockList:
+    """
+    Model filtering system using block lists for different API types (completion, embedding, rerank)
+    """
+    
+    def __init__(self, 
+                 completion_blocklist=None, 
+                 embedding_blocklist=None, 
+                 rerank_blocklist=None):
+        """
+        Initialize model filter with block lists for each API type
+        
+        Args:
+            completion_blocklist: List of forbidden completion models (these models will be excluded)
+            embedding_blocklist: List of forbidden embedding models (these models will be excluded)
+            rerank_blocklist: List of forbidden rerank models (these models will be excluded)
+        """
+        self.completion_blocklist = completion_blocklist or []
+        self.embedding_blocklist = embedding_blocklist or []
+        self.rerank_blocklist = rerank_blocklist or []
+    
+    def filter_models(self, models, api_type):
+        """
+        Filter models based on block list for the given API type
+        
+        Args:
+            models: List of model names to filter
+            api_type: API type ("completion", "embedding", "rerank")
+            
+        Returns:
+            Filtered list of model names (with blocked models removed)
+        """
+        # Select appropriate block list based on API type
+        if api_type == "completion":
+            blocklist = self.completion_blocklist
+        elif api_type == "embedding":
+            blocklist = self.embedding_blocklist
+        elif api_type == "rerank":
+            blocklist = self.rerank_blocklist
+        else:
+            return models
+        
+        # Apply block list filter (exclude blocked models)
+        if blocklist:
+            filtered = [model for model in models if model not in blocklist]
+            blocked_count = len(models) - len(filtered)
+            if blocked_count > 0:
+                print(f"  📋 Blocked {blocked_count} {api_type} models from block list")
+            return filtered
+        
+        return models
+
+    def filter_model_specs(self, model_specs, api_type):
+        """
+        Filter model specifications based on model names
+        
+        Args:
+            model_specs: List of model specification dicts with 'model' key
+            api_type: API type ("completion", "embedding", "rerank")
+            
+        Returns:
+            Filtered list of model specifications (with blocked models removed)
+        """
+        model_names = [spec['model'] for spec in model_specs]
+        filtered_names = self.filter_models(model_names, api_type)
+        filtered_names_set = set(filtered_names)
+        
+        return [spec for spec in model_specs if spec['model'] in filtered_names_set]
+
+
+def generate_model_specs(models, provider, mode, model_blocklist=None):
+    """
+    Generate model specifications for a provider and mode, with optional block list filtering
+    
+    Args:
+        models: List of model names
+        provider: Provider name
+        mode: Model mode ("chat", "embedding", "rerank")
+        model_blocklist: Optional ModelBlockList instance for filtering
+        
+    Returns:
+        List of model specifications
+    """
     specs = []
     
+    # Apply model block list if provided
     filtered_models = models
-    if enable_whitelist and model_whitelist:
-        filtered_models = [model for model in models if model in model_whitelist]
+    if model_blocklist:
+        # Map mode to API type
+        api_type_map = {"chat": "completion", "embedding": "embedding", "rerank": "rerank"}
+        api_type = api_type_map.get(mode, mode)
+        filtered_models = model_blocklist.filter_models(models, api_type)
     
     for model in filtered_models:
         try:
@@ -180,7 +267,7 @@ def generate_model_specs(models, provider, mode, enable_whitelist=False, model_w
     return specs
 
 
-def create_openai_config(enable_whitelist=False, model_whitelist=None):
+def create_openai_config(model_blocklist=None):
     provider = "openai"
     config = {
         "name": provider,
@@ -194,9 +281,9 @@ def create_openai_config(enable_whitelist=False, model_whitelist=None):
     
     provider_models = litellm.models_by_provider.get(provider, [])
     
-    completion_models = generate_model_specs(provider_models, provider, "chat", enable_whitelist, model_whitelist)
-    embedding_models = generate_model_specs(provider_models, provider, "embedding", enable_whitelist, model_whitelist)
-    rerank_models = generate_model_specs(provider_models, provider, "rerank", enable_whitelist, model_whitelist)
+    completion_models = generate_model_specs(provider_models, provider, "chat", model_blocklist)
+    embedding_models = generate_model_specs(provider_models, provider, "embedding", model_blocklist)
+    rerank_models = generate_model_specs(provider_models, provider, "rerank", model_blocklist)
 
     config["completion"] = completion_models
     config["embedding"] = embedding_models
@@ -205,7 +292,7 @@ def create_openai_config(enable_whitelist=False, model_whitelist=None):
     return config
 
 
-def create_anthropic_config(enable_whitelist=False, model_whitelist=None):
+def create_anthropic_config(model_blocklist=None):
     provider = "anthropic"
     config = {
         "name": provider,
@@ -219,9 +306,9 @@ def create_anthropic_config(enable_whitelist=False, model_whitelist=None):
     
     provider_models = litellm.models_by_provider.get(provider, [])
     
-    completion_models = generate_model_specs(provider_models, provider, "chat", enable_whitelist, model_whitelist)
-    embedding_models = generate_model_specs(provider_models, provider, "embedding", enable_whitelist, model_whitelist)
-    rerank_models = generate_model_specs(provider_models, provider, "rerank", enable_whitelist, model_whitelist)
+    completion_models = generate_model_specs(provider_models, provider, "chat", model_blocklist)
+    embedding_models = generate_model_specs(provider_models, provider, "embedding", model_blocklist)
+    rerank_models = generate_model_specs(provider_models, provider, "rerank", model_blocklist)
 
     config["completion"] = completion_models
     config["embedding"] = embedding_models
@@ -230,7 +317,7 @@ def create_anthropic_config(enable_whitelist=False, model_whitelist=None):
     return config
 
 
-def create_deepseek_config():
+def create_deepseek_config(model_blocklist=None):
     config = {
         "name": "deepseek",
         "label": "DeepSeek",
@@ -253,6 +340,12 @@ def create_deepseek_config():
         "rerank": []
     }
     
+    # Apply model block list if provided
+    if model_blocklist:
+        config["completion"] = model_blocklist.filter_model_specs(config["completion"], "completion")
+        config["embedding"] = model_blocklist.filter_model_specs(config["embedding"], "embedding")
+        config["rerank"] = model_blocklist.filter_model_specs(config["rerank"], "rerank")
+    
     # Sort model lists
     config["completion"].sort(key=lambda x: x["model"])
     config["embedding"].sort(key=lambda x: x["model"])
@@ -261,7 +354,7 @@ def create_deepseek_config():
     return config
 
 
-def create_gemini_config(enable_whitelist=False, model_whitelist=None):
+def create_gemini_config(model_blocklist=None):
     provider = "gemini"
     config = {
         "name": provider,
@@ -275,9 +368,9 @@ def create_gemini_config(enable_whitelist=False, model_whitelist=None):
     
     provider_models = litellm.models_by_provider.get(provider, [])
     
-    completion_models = generate_model_specs(provider_models, provider, "chat", enable_whitelist, model_whitelist)
-    embedding_models = generate_model_specs(provider_models, provider, "embedding", enable_whitelist, model_whitelist)
-    rerank_models = generate_model_specs(provider_models, provider, "rerank", enable_whitelist, model_whitelist)
+    completion_models = generate_model_specs(provider_models, provider, "chat", model_blocklist)
+    embedding_models = generate_model_specs(provider_models, provider, "embedding", model_blocklist)
+    rerank_models = generate_model_specs(provider_models, provider, "rerank", model_blocklist)
 
     config["completion"] = completion_models
     config["embedding"] = embedding_models
@@ -286,7 +379,7 @@ def create_gemini_config(enable_whitelist=False, model_whitelist=None):
     return config
 
 
-def create_xai_config(enable_whitelist=False, model_whitelist=None):
+def create_xai_config(model_blocklist=None):
     provider = "xai"
     config = {
         "name": provider,
@@ -300,9 +393,9 @@ def create_xai_config(enable_whitelist=False, model_whitelist=None):
     
     provider_models = litellm.models_by_provider.get(provider, [])
     
-    completion_models = generate_model_specs(provider_models, provider, "chat", enable_whitelist, model_whitelist)
-    embedding_models = generate_model_specs(provider_models, provider, "embedding", enable_whitelist, model_whitelist)
-    rerank_models = generate_model_specs(provider_models, provider, "rerank", enable_whitelist, model_whitelist)
+    completion_models = generate_model_specs(provider_models, provider, "chat", model_blocklist)
+    embedding_models = generate_model_specs(provider_models, provider, "embedding", model_blocklist)
+    rerank_models = generate_model_specs(provider_models, provider, "rerank", model_blocklist)
 
     config["completion"] = completion_models
     config["embedding"] = embedding_models
@@ -351,12 +444,12 @@ def parse_bailian_models(file_path: str) -> List[Dict[str, Any]]:
     return models
 
 
-def create_alibabacloud_config():
-    # Setup file paths
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    completion_file = os.path.join(project_root, "models", "alibaba_bailian_models_completion.json")
-    embedding_file = os.path.join(project_root, "models", "alibaba_bailian_models_embedding.json")
-    rerank_file = os.path.join(project_root, "models", "alibaba_bailian_models_rerank.json")
+def create_alibabacloud_config(model_blocklist=None):
+    # Setup file paths - now that the script is in models directory, use current directory
+    models_dir = os.path.dirname(__file__)
+    completion_file = os.path.join(models_dir, "alibaba_bailian_models_completion.json")
+    embedding_file = os.path.join(models_dir, "alibaba_bailian_models_embedding.json")
+    rerank_file = os.path.join(models_dir, "alibaba_bailian_models_rerank.json")
     
     print(f"📁 Reading Alibaba Bailian models from multiple files...")
     
@@ -371,6 +464,12 @@ def create_alibabacloud_config():
     # Parse rerank models
     print(f"  - Reading rerank models from: {rerank_file}")
     rerank_models = parse_bailian_models(rerank_file)
+    
+    # Apply model block list if provided
+    if model_blocklist:
+        completion_models = model_blocklist.filter_model_specs(completion_models, "completion")
+        embedding_models = model_blocklist.filter_model_specs(embedding_models, "embedding")
+        rerank_models = model_blocklist.filter_model_specs(rerank_models, "rerank")
     
     # Sort model lists
     completion_models.sort(key=lambda x: x["model"])
@@ -395,7 +494,7 @@ def create_alibabacloud_config():
     return config
 
 
-def create_siliconflow_config():
+def create_siliconflow_config(model_blocklist=None):
     config = {
         "name": "siliconflow",
         "label": "SiliconFlow",
@@ -448,6 +547,12 @@ def create_siliconflow_config():
         ]
     }
 
+    # Apply model block list if provided
+    if model_blocklist:
+        config["completion"] = model_blocklist.filter_model_specs(config["completion"], "completion")
+        config["embedding"] = model_blocklist.filter_model_specs(config["embedding"], "embedding")
+        config["rerank"] = model_blocklist.filter_model_specs(config["rerank"], "rerank")
+
     # Sort model lists
     config["completion"].sort(key=lambda x: x["model"])
     config["embedding"].sort(key=lambda x: x["model"])
@@ -456,14 +561,13 @@ def create_siliconflow_config():
     return config
 
 
-def create_openrouter_config():
-    # Setup file paths
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    downloads_dir = os.path.join(project_root, "models")
-    openrouter_file = os.path.join(downloads_dir, "openrouter_models.json")
+def create_openrouter_config(model_blocklist=None):
+    # Setup file paths - now that the script is in models directory, use current directory
+    models_dir = os.path.dirname(__file__)
+    openrouter_file = os.path.join(models_dir, "openrouter_models.json")
     
-    # Ensure downloads directory exists
-    os.makedirs(downloads_dir, exist_ok=True)
+    # Ensure models directory exists
+    os.makedirs(models_dir, exist_ok=True)
     
     data = None
     downloaded_data = None
@@ -525,6 +629,10 @@ def create_openrouter_config():
                 "max_tokens": context_length,
             })
         
+        # Apply model block list if provided
+        if model_blocklist:
+            all_models = model_blocklist.filter_model_specs(all_models, "completion")
+        
         # Sort by model name
         all_models.sort(key=lambda x: x["model"])
         
@@ -562,57 +670,64 @@ def create_openrouter_config():
 
 
 def create_provider_config():
-    openai_whitelist = [
-        # chat models
-        "gpt-4", "gpt-4-turbo",
-        "gpt-4o-mini", "gpt-4o",
-        "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano",
-        "o1", "o1-mini",
-        "o3", "o3-mini",
-        "o4-mini",
-        # embedding models
-        "text-embedding-3-large", "text-embedding-3-small", "text-embedding-ada-002", "text-embedding-ada-002-v2",
-    ]
-    # Sort openai whitelist
-    openai_whitelist.sort()
-
-    anthropic_whitelist = [
-        "claude-3-5-sonnet-latest",
-        "claude-3-7-sonnet-latest",
-    ]
-    # Sort anthropic whitelist
-    anthropic_whitelist.sort()
-
-    gemini_whitelist = [
-        "gemini/gemini-2.5-pro-preview-03-25",
-        "gemini/gemini-2.5-flash-preview-04-17",
-    ]
-    # Sort gemini whitelist
-    gemini_whitelist.sort()
-
-    xai_whitelist = [
-        "xai/grok-3-beta",
-        "xai/grok-3-fast-latest",
-        "xai/grok-3-mini-beta",
-        "xai/grok-3-mini-fast-latest",
-    ]
-    # Sort xai whitelist
-    xai_whitelist.sort()
-
-    enable_whitelist = False
+    """
+    Create provider configuration with block list filtering
     
+    To block specific models, you can add them to the appropriate block lists below.
+    Example block lists (uncomment and modify as needed):
+    """
+    
+    # Example block lists - uncomment and modify as needed
+    # openai_completion_blocklist = ["gpt-3.5-turbo-instruct", "davinci-002"]
+    # openai_embedding_blocklist = ["text-embedding-ada-002-v2"]
+    
+    # anthropic_completion_blocklist = ["claude-instant-1", "claude-instant-1.2"]
+    
+    # gemini_completion_blocklist = ["gemini-pro", "gemini-pro-vision"]
+    
+    # xai_completion_blocklist = ["grok-beta"]
+    
+    # deepseek_completion_blocklist = ["deepseek-coder"]
+    
+    # alibabacloud_completion_blocklist = ["qwen-turbo", "qwen-plus"]
+    # alibabacloud_embedding_blocklist = ["text-embedding-v1"]
+    
+    # siliconflow_completion_blocklist = ["Qwen/Qwen2-7B-Instruct"]
+    # siliconflow_embedding_blocklist = ["BAAI/bge-small-en-v1.5"]
+    
+    # openrouter_completion_blocklist = ["openai/gpt-3.5-turbo-instruct"]
+    
+    # Create ModelBlockList instances for each provider (None = no filtering)
+    openai_blocklist = None
+    anthropic_blocklist = None  
+    gemini_blocklist = None
+    xai_blocklist = None
+    deepseek_blocklist = None
+    alibabacloud_blocklist = ModelBlockList(
+        embedding_blocklist=["multimodal-embedding-v1", "text-embedding-async-v1", "text-embedding-async-v2"]
+    )
+    siliconflow_blocklist = None
+    openrouter_blocklist = None
+    
+    # Example of creating a block list (uncomment to use):
+    # openai_blocklist = ModelBlockList(
+    #     completion_blocklist=openai_completion_blocklist,
+    #     embedding_blocklist=openai_embedding_blocklist
+    # )
+    
+    # Generate provider configurations
     result = [
-        create_openai_config(enable_whitelist, openai_whitelist),
-        create_anthropic_config(enable_whitelist, anthropic_whitelist),
-        create_gemini_config(enable_whitelist, gemini_whitelist),
-        create_xai_config(enable_whitelist, xai_whitelist),
-        create_deepseek_config(),
-        create_alibabacloud_config(),
-        create_siliconflow_config()
+        create_openai_config(openai_blocklist),
+        create_anthropic_config(anthropic_blocklist),
+        create_gemini_config(gemini_blocklist),
+        create_xai_config(xai_blocklist),
+        create_deepseek_config(deepseek_blocklist),
+        create_alibabacloud_config(alibabacloud_blocklist),
+        create_siliconflow_config(siliconflow_blocklist)
     ]
     
     # Add OpenRouter configuration
-    openrouter_config = create_openrouter_config()
+    openrouter_config = create_openrouter_config(openrouter_blocklist)
     if openrouter_config:
         result.append(openrouter_config)
     
@@ -765,6 +880,14 @@ def main():
     """Main function to generate model configuration and SQL script"""
     try:
         print("Generating model configuration data...")
+        print("\n📋 Block List Usage:")
+        print("- To block specific models, modify the create_provider_config() function")
+        print("- Uncomment the example block lists and add model names you want to exclude")
+        print("- Each provider supports completion_blocklist, embedding_blocklist, and rerank_blocklist")
+        print("- Example: ModelBlockList(completion_blocklist=['model1', 'model2'])")
+        print("\n📚 For a working example, see create_provider_config_with_blocklist_example() function")
+        print()
+        
         providers_data = create_provider_config()
         
         print("Generating SQL script...")
@@ -776,6 +899,12 @@ def main():
         print("\nTo execute the script:")
         print("  psql -h <host> -U <user> -d <database> -f aperag/sql/model_configs_init.sql")
         print("\nOr copy the contents and run in your PostgreSQL client.")
+        
+        print("\n🔧 Usage Examples:")
+        print("1. To generate config with example block lists:")
+        print("   Modify main() to call create_provider_config_with_blocklist_example()")
+        print("2. To customize block lists:")
+        print("   Edit the block list variables in create_provider_config()")
         
     except Exception as e:
         print(f"❌ Error generating SQL script: {e}")

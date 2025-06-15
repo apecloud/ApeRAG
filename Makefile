@@ -162,7 +162,7 @@ e2e-performance-test:
 		tests/e2e_test/
 
 # Code generation
-.PHONY: merge-openapi generate-models generate-frontend-sdk generate_model_configs
+.PHONY: merge-openapi generate-models generate-frontend-sdk llm_provider
 merge-openapi:
 	@cd aperag && redocly bundle ./api/openapi.yaml > ./api/openapi.merged.yaml
 
@@ -181,8 +181,8 @@ generate-models: merge-openapi
 generate-frontend-sdk:
 	cd ./frontend && yarn api:build
 
-generate_model_configs:
-	python ./scripts/generate_model_configs.py
+llm_provider:
+	python ./models/generate_model_configs.py
 
 # Version management and licensing
 .PHONY: version

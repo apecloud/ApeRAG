@@ -20,7 +20,6 @@ from typing import Dict, List, Sequence, Tuple
 
 import litellm
 from langchain.embeddings.base import Embeddings
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 from aperag.llm.llm_error_types import (
     BatchProcessingError,
@@ -149,11 +148,6 @@ class EmbeddingService(Embeddings):
             # Convert litellm errors for batch processing
             raise wrap_litellm_error(e, "embedding", self.embedding_provider, self.model) from e
 
-    @retry(
-        wait=wait_exponential(multiplier=1, min=1, max=20),
-        stop=stop_after_attempt(6),
-        reraise=True,
-    )
     def _embed_batch(self, batch: Sequence[str]) -> List[List[float]]:
         """
         Embed a batch of texts using litellm.

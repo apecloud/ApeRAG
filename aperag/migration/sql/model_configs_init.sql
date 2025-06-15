@@ -1,5 +1,5 @@
 -- Model configuration initialization SQL script
--- Generated directly from configuration data on 2025-06-12 14:05:09
+-- Generated directly from configuration data on 2025-06-16 00:17:02
 -- This script populates llm_provider and llm_provider_models tables
 
 BEGIN;
@@ -1895,7 +1895,46 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, max_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
+    'xai', 'completion', 'xai/grok-3-latest', 'xai', 131072, '[]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    max_tokens = EXCLUDED.max_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, max_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'xai', 'completion', 'xai/grok-3-mini', 'xai', 131072, '[]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    max_tokens = EXCLUDED.max_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, max_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
     'xai', 'completion', 'xai/grok-3-mini-beta', 'xai', 131072, '[]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    max_tokens = EXCLUDED.max_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, max_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'xai', 'completion', 'xai/grok-3-mini-fast', 'xai', 131072, '[]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -1922,6 +1961,19 @@ INSERT INTO llm_provider_models (
     gmt_created, gmt_updated
 ) VALUES (
     'xai', 'completion', 'xai/grok-3-mini-fast-latest', 'xai', 131072, '[]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    max_tokens = EXCLUDED.max_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, max_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'xai', 'completion', 'xai/grok-3-mini-latest', 'xai', 131072, '[]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -2934,45 +2986,6 @@ ON CONFLICT (provider_name, api, model) DO UPDATE SET
     gmt_updated = NOW();
 
 -- Embedding models for alibabacloud
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, max_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
-    'alibabacloud', 'embedding', 'multimodal-embedding-v1', 'openai', NULL, '[]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    max_tokens = EXCLUDED.max_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, max_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
-    'alibabacloud', 'embedding', 'text-embedding-async-v1', 'openai', NULL, '[]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    max_tokens = EXCLUDED.max_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, max_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
-    'alibabacloud', 'embedding', 'text-embedding-async-v2', 'openai', NULL, '[]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    max_tokens = EXCLUDED.max_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
 INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, max_tokens, tags,
     gmt_created, gmt_updated
@@ -7374,6 +7387,6 @@ ON CONFLICT (provider_name, api, model) DO UPDATE SET
 
 COMMIT;
 
--- Script completed. Generated on 2025-06-12 14:05:09
+-- Script completed. Generated on 2025-06-16 00:17:02
 -- Total providers: 8
--- Total models: 555
+-- Total models: 556
