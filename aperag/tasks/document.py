@@ -9,14 +9,12 @@ logger = logging.getLogger(__name__)
 
 class DocumentIndexTask:
     """
-    Document index task orchestrator with structured data handling
+    Document index task orchestrator
     """
-
-    # ========== Fine-grained Task Methods ==========
 
     def parse_document(self, document_id: str) -> ParsedDocumentData:
         """
-        Parse document content and return structured data
+        Parse document content
 
         Args:
             document_id: Document ID to parse
@@ -31,10 +29,8 @@ class DocumentIndexTask:
         document, collection = get_document_and_collection(document_id)
         content, doc_parts, local_doc = parse_document_content(document, collection)
 
-        # Create structured local document info
         local_doc_info = LocalDocumentInfo(path=local_doc.path, is_temp=getattr(local_doc, "is_temp", False))
 
-        # Return structured parsed data
         return ParsedDocumentData(
             document_id=document_id,
             collection_id=collection.id,

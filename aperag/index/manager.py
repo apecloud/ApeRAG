@@ -49,7 +49,6 @@ class FrontendIndexManager:
                     created_by=user,
                 )
                 session.add(doc_index)
-                logger.info(f"Created index for {document_id}:{index_type}")
 
     async def update_document_indexes(self, session: AsyncSession, document_id: str):
         """
@@ -69,7 +68,6 @@ class FrontendIndexManager:
             if index.desired_state == IndexDesiredState.PRESENT:
                 index.version += 1  # Increment version to trigger re-indexing
                 index.gmt_updated = utc_now()
-                logger.info(f"Updated index version for {document_id}:{index.index_type} to {index.version}")
 
     async def delete_document_indexes(
         self, session: AsyncSession, document_id: str, index_types: Optional[List[DocumentIndexType]] = None
@@ -94,7 +92,6 @@ class FrontendIndexManager:
 
             if doc_index:
                 doc_index.update_spec(IndexDesiredState.ABSENT)
-                logger.info(f"Marked index for deletion: {document_id}:{index_type}")
 
     async def get_document_index_status(self, session: AsyncSession, document_id: str) -> dict:
         """

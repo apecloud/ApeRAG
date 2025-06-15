@@ -110,7 +110,6 @@ from aperag.tasks.models import (
     ParsedDocumentData,
     IndexTaskResult, 
     WorkflowResult,
-    WorkflowStatusInfo,
     TaskStatus
 )
 from config.celery import app
@@ -119,6 +118,10 @@ from config.celery import app
 logger = logging.getLogger()
 
 class BaseIndexTask(Task):
+    """
+    Base class for all index tasks
+    """
+
     abstract = True
 
     def _handle_index_success(self, document_id: str, index_type: str, index_data: dict = None):
@@ -584,74 +587,6 @@ def update_document_indexes_workflow(document_id: str, index_types: List[str]):
     logger.info(f"Update indexes workflow submitted for document {document_id}, workflow ID: {workflow_result.id}")
     
     return workflow_result
-
-
-# ========== Workflow Status Monitoring ==========
-
-@current_app.task(bind=True)
-def get_workflow_status(self, workflow_id: str) -> dict:
-    """
-    Get the status of a workflow by ID
-    
-    Args:
-        workflow_id: Workflow ID to check
-        
-    Returns:
-        Serialized WorkflowStatusInfo
-    """
-    try:
-        from celery.result import AsyncResult
-        
-        # Get the workflow result
-        workflow_result = AsyncResult(workflow_id, app=current_app)
-        
-        # Determine status based on Celery task state
-        if workflow_result.state == 'PENDING':
-            status = TaskStatus.RUNNING
-            message = "Workflow is pending execution"
-            progress = 0
-        elif workflow_result.state == 'STARTED':
-            status = TaskStatus.RUNNING  
-            message = "Workflow has started"
-            progress = 25
-        elif workflow_result.state == 'SUCCESS':
-            status = TaskStatus.SUCCESS
-            message = "Workflow completed successfully"
-            progress = 100
-        elif workflow_result.state == 'FAILURE':
-            status = TaskStatus.FAILED
-            message = f"Workflow failed: {str(workflow_result.info)}"
-            progress = 0
-        else:
-            status = TaskStatus.RUNNING
-            message = f"Workflow state: {workflow_result.state}"
-            progress = 50
-        
-        # Create status info
-        status_info = WorkflowStatusInfo(
-            workflow_id=workflow_id,
-            status=status,
-            message=message,
-            progress=progress,
-            result=workflow_result.result if workflow_result.state == 'SUCCESS' else None
-        )
-        
-        return status_info.to_dict()
-        
-    except Exception as e:
-        error_msg = f"Failed to get workflow status for {workflow_id}: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        
-        # Return error status
-        status_info = WorkflowStatusInfo(
-            workflow_id=workflow_id,
-            status=TaskStatus.FAILED,
-            message=error_msg,
-            progress=0,
-            result=None
-        )
-        
-        return status_info.to_dict()
 
 
 # ========== Collection Tasks ==========
