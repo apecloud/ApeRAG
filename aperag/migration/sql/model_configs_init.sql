@@ -1,5 +1,5 @@
 -- Model configuration initialization SQL script
--- Generated directly from configuration data on 2025-06-16 00:17:02
+-- Generated directly from configuration data on 2025-06-16 00:30:25
 -- This script populates llm_provider and llm_provider_models tables
 
 BEGIN;
@@ -2986,32 +2986,6 @@ ON CONFLICT (provider_name, api, model) DO UPDATE SET
     gmt_updated = NOW();
 
 -- Embedding models for alibabacloud
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, max_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
-    'alibabacloud', 'embedding', 'text-embedding-v1', 'openai', NULL, '[]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    max_tokens = EXCLUDED.max_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, max_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
-    'alibabacloud', 'embedding', 'text-embedding-v2', 'openai', NULL, '[]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    max_tokens = EXCLUDED.max_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
 INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, max_tokens, tags,
     gmt_created, gmt_updated
@@ -7387,6 +7361,6 @@ ON CONFLICT (provider_name, api, model) DO UPDATE SET
 
 COMMIT;
 
--- Script completed. Generated on 2025-06-16 00:17:02
+-- Script completed. Generated on 2025-06-16 00:30:25
 -- Total providers: 8
--- Total models: 556
+-- Total models: 554

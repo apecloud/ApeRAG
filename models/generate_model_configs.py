@@ -704,7 +704,7 @@ def create_provider_config():
     xai_blocklist = None
     deepseek_blocklist = None
     alibabacloud_blocklist = ModelBlockList(
-        embedding_blocklist=["multimodal-embedding-v1", "text-embedding-async-v1", "text-embedding-async-v2"]
+        embedding_blocklist=["multimodal-embedding-v1", "text-embedding-async-v1", "text-embedding-async-v2", "text-embedding-v1", "text-embedding-v2"]
     )
     siliconflow_blocklist = None
     openrouter_blocklist = None
