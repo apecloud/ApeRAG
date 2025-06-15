@@ -34,6 +34,30 @@ def test_upload_multiple_documents(client, collection):
     assert len(data["items"]) == 3
 
 
+def test_upload_document_and_wait_to_be_active(client, collection):
+    files = [
+        ("files", make_markdown_file()),
+    ]
+    response = client.post(f"/api/v1/collections/{collection['id']}/documents", files=files)
+    assert response.status_code == HTTPStatus.OK, response.text
+    data = response.json()
+    assert "items" in data
+    assert len(data["items"]) == 1
+    doc_id = data["items"][0]["id"]
+    max_wait = 30
+    interval = 2
+    for _ in range(max_wait // interval):
+        list_response = client.get(f"/api/v1/collections/{collection['id']}/documents")
+        assert list_response.status_code == HTTPStatus.OK, list_response.text
+        list_data = list_response.json()
+        for doc in list_data.get("items", []):
+            if doc["id"] == doc_id and doc["status"].lower() == "complete":
+                return
+        time.sleep(interval)
+    else:
+        pytest.fail("Document is not active")
+
+
 @pytest.mark.parametrize("size_mb", [105])
 def test_upload_large_document(client, collection, size_mb):
     """Test uploading a large document (e.g., >10MB markdown)"""

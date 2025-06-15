@@ -30,9 +30,9 @@ from aperag.schema.view_models import (
     SearchTestResultItem,
     SearchTestResultList,
 )
-from aperag.tasks.collection import delete_collection_task, init_collection_task
 from aperag.utils.constant import QuotaType
 from aperag.views.utils import fail, success, validate_source_connect_config
+from config.celery_tasks import collection_delete_task, collection_init_task
 
 
 class CollectionService:
@@ -89,7 +89,7 @@ class CollectionService:
             # Initialize collection based on type
             if instance.type == db_models.CollectionType.DOCUMENT:
                 document_user_quota = await self.db_ops.query_user_quota(user, QuotaType.MAX_DOCUMENT_COUNT)
-                init_collection_task.delay(instance.id, document_user_quota)
+                collection_init_task.delay(instance.id, document_user_quota)
             else:
                 raise ValueError("unknown collection type")
 
@@ -165,7 +165,7 @@ class CollectionService:
                 raise ValueError("Collection not found")
 
             # Clean up related resources
-            delete_collection_task.delay(collection_id)
+            collection_delete_task.delay(collection_id)
 
             return self.build_collection_response(deleted_instance)
 

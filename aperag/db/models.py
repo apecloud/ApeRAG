@@ -80,12 +80,12 @@ class DocumentStatus(str, Enum):
     DELETED = "DELETED"
 
 
-class DocumentIndexStatus(str, Enum):
-    PENDING = "PENDING"
-    RUNNING = "RUNNING"
-    COMPLETE = "COMPLETE"
-    FAILED = "FAILED"
-    SKIPPED = "SKIPPED"
+class DocumentIndexType(str, Enum):
+    """Document index type enumeration"""
+
+    VECTOR = "vector"
+    FULLTEXT = "fulltext"
+    GRAPH = "graph"
 
 
 class BotStatus(str, Enum):
@@ -164,6 +164,24 @@ class LightRAGDocStatus(str, Enum):
     FAILED = "failed"
 
 
+# Add new enums for K8s-inspired design
+class IndexDesiredState(str, Enum):
+    """Desired state for index - what we want"""
+
+    PRESENT = "present"
+    ABSENT = "absent"
+
+
+class IndexActualState(str, Enum):
+    """Actual state for index - what currently exists"""
+
+    ABSENT = "absent"
+    CREATING = "creating"
+    PRESENT = "present"
+    DELETING = "deleting"
+    FAILED = "failed"
+
+
 # Models
 class Collection(Base):
     __tablename__ = "collection"
@@ -208,32 +226,38 @@ class Document(Base):
     user = Column(String(256), nullable=False, index=True)  # Add index for user queries
     collection_id = Column(String(24), nullable=True, index=True)  # Add index for collection queries
     status = Column(EnumColumn(DocumentStatus), nullable=False, index=True)  # Add index for status queries
-    vector_index_status = Column(EnumColumn(DocumentIndexStatus), nullable=False, default=DocumentIndexStatus.PENDING)
-    fulltext_index_status = Column(EnumColumn(DocumentIndexStatus), nullable=False, default=DocumentIndexStatus.PENDING)
-    graph_index_status = Column(EnumColumn(DocumentIndexStatus), nullable=False, default=DocumentIndexStatus.PENDING)
     size = Column(BigInteger, nullable=False)  # Support larger files (up to 9 exabytes)
     object_path = Column(Text, nullable=True)
     doc_metadata = Column(Text, nullable=True)  # Store document metadata as JSON string
-    relate_ids = Column(Text, nullable=True)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
 
-    def get_overall_status(self) -> "DocumentStatus":
-        """Calculate overall status based on individual index statuses"""
-        index_statuses = [self.vector_index_status, self.fulltext_index_status, self.graph_index_status]
-        if any(status == DocumentIndexStatus.FAILED for status in index_statuses):
+    def get_document_indexes(self, session):
+        """Get document indexes from the merged table"""
+        from sqlalchemy import select
+
+        stmt = select(DocumentIndex).where(DocumentIndex.document_id == self.id)
+        result = session.execute(stmt)
+        return result.scalars().all()
+
+    def get_overall_index_status(self, session) -> "DocumentStatus":
+        """Calculate overall status based on document indexes"""
+        document_indexes = self.get_document_indexes(session)
+
+        if not document_indexes:
+            return DocumentStatus.PENDING
+
+        states = [idx.actual_state for idx in document_indexes]
+
+        if any(state == IndexActualState.FAILED for state in states):
             return DocumentStatus.FAILED
-        elif any(status == DocumentIndexStatus.RUNNING for status in index_statuses):
+        elif any(state == IndexActualState.CREATING for state in states):
             return DocumentStatus.RUNNING
-        elif all(status in [DocumentIndexStatus.COMPLETE, DocumentIndexStatus.SKIPPED] for status in index_statuses):
+        elif all(state == IndexActualState.PRESENT for state in states):
             return DocumentStatus.COMPLETE
         else:
             return DocumentStatus.PENDING
-
-    def update_overall_status(self):
-        """Update overall status field"""
-        self.status = self.get_overall_status()
 
     def object_store_base_path(self) -> str:
         """Generate the base path for object store"""
@@ -680,3 +704,104 @@ class LightRAGLLMCacheModel(Base):
     return_value = Column(Text, nullable=True)
     create_time = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     update_time = Column(DateTime(timezone=True), nullable=True)
+
+
+class DocumentIndex(Base):
+    """Document index - combines spec and status into single table"""
+
+    __tablename__ = "document_indexes"
+    __table_args__ = (UniqueConstraint("document_id", "index_type", name="uq_document_index"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(String(24), nullable=False, index=True)
+    index_type = Column(EnumColumn(DocumentIndexType), nullable=False, index=True)
+
+    # Desired state (spec) fields
+    desired_state = Column(EnumColumn(IndexDesiredState), nullable=False, default=IndexDesiredState.PRESENT, index=True)
+    version = Column(Integer, nullable=False, default=1)  # Incremented on each spec change
+    created_by = Column(String(256), nullable=False)  # User who created this spec
+
+    # Actual state (status) fields
+    actual_state = Column(EnumColumn(IndexActualState), nullable=False, default=IndexActualState.ABSENT, index=True)
+    observed_version = Column(Integer, nullable=False, default=0)  # Last processed spec version
+    index_data = Column(Text, nullable=True)  # JSON string for index-specific data
+    error_message = Column(Text, nullable=True)
+
+    # Timestamps
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_last_reconciled = Column(DateTime(timezone=True), nullable=True)  # Last reconciliation attempt
+
+    def __repr__(self):
+        return f"<DocumentIndex(id={self.id}, document_id={self.document_id}, type={self.index_type}, desired={self.desired_state}, actual={self.actual_state})>"
+
+    def needs_reconciliation(self) -> bool:
+        """Check if this index needs reconciliation"""
+        # Check version first - if observed_version < version, need reconciliation
+        if self.observed_version < self.version:
+            return True
+
+        # Then check state consistency
+        if self.desired_state == IndexDesiredState.PRESENT:
+            return self.actual_state in [IndexActualState.ABSENT, IndexActualState.FAILED]
+        elif self.desired_state == IndexDesiredState.ABSENT:
+            return self.actual_state in [IndexActualState.CREATING, IndexActualState.PRESENT]
+        return False
+
+    def is_in_sync(self) -> bool:
+        """Check if desired and actual states are in sync"""
+        if self.observed_version < self.version:
+            return False
+
+        if self.desired_state == IndexDesiredState.PRESENT:
+            return self.actual_state == IndexActualState.PRESENT
+        elif self.desired_state == IndexDesiredState.ABSENT:
+            return self.actual_state == IndexActualState.ABSENT
+        return False
+
+    def update_spec(self, desired_state: IndexDesiredState = None, created_by: str = None):
+        """Update the spec (desired state) part"""
+        if desired_state is not None:
+            self.desired_state = desired_state
+        if created_by is not None:
+            self.created_by = created_by
+        self.version += 1
+        self.gmt_updated = utc_now()
+
+    def mark_creating(self):
+        """Mark as creating"""
+        self.actual_state = IndexActualState.CREATING
+        self.gmt_updated = utc_now()
+        self.gmt_last_reconciled = utc_now()
+
+    def mark_present(self, index_data: str = None):
+        """Mark as present (successfully created)"""
+        self.actual_state = IndexActualState.PRESENT
+        self.observed_version = self.version  # Mark as processed
+        self.error_message = None
+        if index_data:
+            self.index_data = index_data
+        self.gmt_updated = utc_now()
+        self.gmt_last_reconciled = utc_now()
+
+    def mark_deleting(self):
+        """Mark as deleting"""
+        self.actual_state = IndexActualState.DELETING
+        self.gmt_updated = utc_now()
+        self.gmt_last_reconciled = utc_now()
+
+    def mark_absent(self):
+        """Mark as absent (successfully deleted)"""
+        self.actual_state = IndexActualState.ABSENT
+        self.observed_version = self.version  # Mark as processed
+        self.index_data = None
+        self.error_message = None
+        self.gmt_updated = utc_now()
+        self.gmt_last_reconciled = utc_now()
+
+    def mark_failed(self, error_message: str):
+        """Mark as failed"""
+        self.actual_state = IndexActualState.FAILED
+        self.error_message = error_message
+        self.gmt_updated = utc_now()
+        self.gmt_last_reconciled = utc_now()
