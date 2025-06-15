@@ -96,7 +96,7 @@ class DocumentService:
         return Document(
             id=document.id,
             name=document.name,
-            status=(await document.get_overall_index_status(session)),
+            status=document.status,
             vector_index_status=map_state_to_old_enum(indexes.get("vector", {}).get("actual_state", "absent")),
             fulltext_index_status=map_state_to_old_enum(indexes.get("fulltext", {}).get("actual_state", "absent")),
             graph_index_status=map_state_to_old_enum(indexes.get("graph", {}).get("actual_state", "absent")),

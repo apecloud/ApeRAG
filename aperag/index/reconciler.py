@@ -6,8 +6,10 @@ from sqlalchemy.orm import Session
 
 from aperag.config import get_sync_session
 from aperag.db.models import (
+    Document,
     DocumentIndex,
     DocumentIndexType,
+    DocumentStatus,
     IndexActualState,
     IndexDesiredState,
     utc_now,
@@ -127,6 +129,15 @@ class IndexTaskCallbacks:
     """Callbacks for index task completion"""
 
     @staticmethod
+    def _update_document_status(document_id: str, session: Session):
+        stmt = select(Document).where(Document.id == document_id)
+        result = session.execute(stmt)
+        document = result.scalar_one_or_none()
+        if document:
+            document.status = document.get_overall_index_status(session)
+            session.add(document)
+
+    @staticmethod
     def on_index_created(document_id: str, index_type: str, index_data: str = None):
         """Called when index creation succeeds"""
         for session in get_sync_session():
@@ -141,6 +152,8 @@ class IndexTaskCallbacks:
 
             if doc_index:
                 doc_index.mark_present(index_data)
+            IndexTaskCallbacks._update_document_status(document_id, session)
+
             logger.info(f"{index_type} index creation completed for document {document_id}")
             session.commit()
 
@@ -159,6 +172,8 @@ class IndexTaskCallbacks:
 
             if doc_index:
                 doc_index.mark_failed(error_message)
+            IndexTaskCallbacks._update_document_status(document_id, session)
+
             logger.error(f"{index_type} index operation failed for document {document_id}: {error_message}")
             session.commit()
 
@@ -177,9 +192,11 @@ class IndexTaskCallbacks:
 
             if doc_index:
                 doc_index.mark_absent()
+            IndexTaskCallbacks._update_document_status(document_id, session)
+
             logger.info(f"{index_type} index deletion completed for document {document_id}")
             session.commit()
-
+    
 
 # Global instance
 index_reconciler = BackendIndexReconciler()

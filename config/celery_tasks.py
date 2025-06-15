@@ -145,8 +145,7 @@ class BaseIndexTask(Task):
             logger.info(f"Index failure callback executed for {index_types} indexes of document {document_id}")
         except Exception as e:
             logger.warning(f"Failed to execute index failure callback for {document_id}: {e}", exc_info=True)
-
-
+    
 # ========== Core Document Processing Tasks ==========
 
 @current_app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3, 'countdown': 60})
@@ -420,8 +419,8 @@ def trigger_update_indexes_workflow(self, parsed_data_dict: dict, document_id: s
         raise
 
 
-@current_app.task
-def notify_workflow_complete(index_results: List[dict], document_id: str, operation: str, index_types: List[str]) -> dict:
+@current_app.task(bind=True, base=BaseIndexTask)
+def notify_workflow_complete(self, index_results: List[dict], document_id: str, operation: str, index_types: List[str]) -> dict:
     """
     Workflow completion notification task.
     
@@ -440,7 +439,7 @@ def notify_workflow_complete(index_results: List[dict], document_id: str, operat
     try:
         logger.info(f"Workflow {operation} completed for document {document_id}")
         logger.info(f"Index results: {index_results}")
-        
+
         # Analyze results
         successful_tasks = []
         failed_tasks = []

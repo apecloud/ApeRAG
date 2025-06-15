@@ -233,17 +233,17 @@ class Document(Base):
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
 
-    async def get_document_indexes(self, session):
+    def get_document_indexes(self, session):
         """Get document indexes from the merged table"""
         from sqlalchemy import select
 
         stmt = select(DocumentIndex).where(DocumentIndex.document_id == self.id)
-        result = await session.execute(stmt)
+        result = session.execute(stmt)
         return result.scalars().all()
 
-    async def get_overall_index_status(self, session) -> "DocumentStatus":
+    def get_overall_index_status(self, session) -> "DocumentStatus":
         """Calculate overall status based on document indexes"""
-        document_indexes = await self.get_document_indexes(session)
+        document_indexes = self.get_document_indexes(session)
 
         if not document_indexes:
             return DocumentStatus.PENDING
