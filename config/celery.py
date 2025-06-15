@@ -49,7 +49,7 @@ app.conf.update(
 app.conf.beat_schedule = {
     'reconcile-indexes': {
         'task': 'config.celery_tasks.reconcile_indexes_task',
-        'schedule': 5.0,
+        'schedule': 3600.0,  # Increased from 600s (10min) to 3600s (60min) since we now trigger on document operations
     },
 }
 

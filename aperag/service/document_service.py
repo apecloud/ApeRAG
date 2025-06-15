@@ -40,6 +40,28 @@ from aperag.views.utils import fail, success
 logger = logging.getLogger(__name__)
 
 
+def _trigger_index_reconciliation():
+    """
+    Trigger index reconciliation task asynchronously for better real-time responsiveness.
+    
+    This is called after document create/update/delete operations to immediately 
+    process index changes, improving responsiveness compared to relying only on 
+    periodic reconciliation. The periodic task interval can be increased since 
+    we have real-time triggering.
+    """
+    try:
+        # Import here to avoid circular dependencies and handle missing celery gracefully  
+        from config.celery_tasks import reconcile_indexes_task
+        
+        # Trigger the reconciliation task asynchronously
+        reconcile_indexes_task.delay()
+        logger.debug("Index reconciliation task triggered for real-time processing")
+    except ImportError:
+        logger.warning("Celery not available, skipping index reconciliation trigger")
+    except Exception as e:
+        logger.warning(f"Failed to trigger index reconciliation task: {e}")
+
+
 class DocumentService:
     """Document service that handles business logic for documents"""
 
@@ -159,6 +181,10 @@ class DocumentService:
 
         try:
             result = await self.db_ops.execute_with_transaction(_create_documents_operation)
+            
+            # Trigger index reconciliation after successful document creation
+            _trigger_index_reconciliation()
+            
             return success(DocumentList(items=result))
         except ValueError as e:
             return fail(HTTPStatus.BAD_REQUEST, str(e))
@@ -215,6 +241,10 @@ class DocumentService:
 
         try:
             result = await self.db_ops.execute_with_transaction(_update_document_operation)
+            
+            # Trigger index reconciliation after successful document update
+            _trigger_index_reconciliation()
+            
             return success(result)
         except ValueError as e:
             status_code = HTTPStatus.NOT_FOUND if "not found" in str(e) else HTTPStatus.BAD_REQUEST
@@ -247,6 +277,10 @@ class DocumentService:
 
         try:
             result = await self.db_ops.execute_with_transaction(_delete_document_operation)
+            
+            # Trigger index reconciliation after successful document deletion
+            _trigger_index_reconciliation()
+            
             return success(result)
         except ValueError as e:
             return fail(HTTPStatus.NOT_FOUND, str(e))
@@ -265,6 +299,11 @@ class DocumentService:
 
         try:
             result = await self.db_ops.execute_with_transaction(_delete_documents_operation)
+            
+            # Trigger index reconciliation after successful batch document deletion
+            if result.get("success"):  # Only trigger if at least one document was deleted successfully
+                _trigger_index_reconciliation()
+            
             return success(result)
         except Exception as e:
             logger.exception("Failed to delete documents")

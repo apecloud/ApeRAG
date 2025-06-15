@@ -245,22 +245,22 @@ class Document(Base):
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
 
-    async def get_index_statuses(self, session):
-        """Get index statuses from the new index tables"""
+    async def get_document_indexes(self, session):
+        """Get document indexes from the merged table"""
         from sqlalchemy import select
 
-        stmt = select(DocumentIndexStatus).where(DocumentIndexStatus.document_id == self.id)
+        stmt = select(DocumentIndex).where(DocumentIndex.document_id == self.id)
         result = await session.execute(stmt)
         return result.scalars().all()
 
     async def get_overall_index_status(self, session) -> "DocumentStatus":
-        """Calculate overall status based on index statuses from new tables"""
-        index_statuses = await self.get_index_statuses(session)
+        """Calculate overall status based on document indexes"""
+        document_indexes = await self.get_document_indexes(session)
 
-        if not index_statuses:
+        if not document_indexes:
             return DocumentStatus.PENDING
 
-        states = [status.actual_state for status in index_statuses]
+        states = [idx.actual_state for idx in document_indexes]
 
         if any(state == IndexActualState.FAILED for state in states):
             return DocumentStatus.FAILED
@@ -718,51 +718,26 @@ class LightRAGLLMCacheModel(Base):
     update_time = Column(DateTime(timezone=True), nullable=True)
 
 
-class DocumentIndexSpec(Base):
-    """Document index specification - desired state (K8s-inspired)"""
+class DocumentIndex(Base):
+    """Document index - combines spec and status into single table"""
 
-    __tablename__ = "document_index_specs"
-    __table_args__ = (UniqueConstraint("document_id", "index_type", name="uq_document_index_spec"),)
+    __tablename__ = "document_indexes"
+    __table_args__ = (UniqueConstraint("document_id", "index_type", name="uq_document_index"),)
 
     id = Column(Integer, primary_key=True, index=True)
     document_id = Column(String(24), nullable=False, index=True)
     index_type = Column(EnumColumn(DocumentIndexType), nullable=False, index=True)
+
+    # Desired state (spec) fields
     desired_state = Column(EnumColumn(IndexDesiredState), nullable=False, default=IndexDesiredState.PRESENT, index=True)
-
-    # Version tracking (like k8s generation)
     version = Column(Integer, nullable=False, default=1)  # Incremented on each spec change
-
-    # Metadata
     created_by = Column(String(256), nullable=False)  # User who created this spec
 
-    # Timestamps
-    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-
-    def __repr__(self):
-        return f"<DocumentIndexSpec(id={self.id}, document_id={self.document_id}, type={self.index_type}, desired={self.desired_state})>"
-
-
-class DocumentIndexStatus(Base):
-    """Document index status - actual state (K8s-inspired)"""
-
-    __tablename__ = "document_index_statuses"
-    __table_args__ = (UniqueConstraint("document_id", "index_type", name="uq_document_index_status"),)
-
-    id = Column(Integer, primary_key=True, index=True)
-    document_id = Column(String(24), nullable=False, index=True)
-    index_type = Column(EnumColumn(DocumentIndexType), nullable=False, index=True)
+    # Actual state (status) fields
     actual_state = Column(EnumColumn(IndexActualState), nullable=False, default=IndexActualState.ABSENT, index=True)
-
-    # Version tracking (matches spec version when in sync)
     observed_version = Column(Integer, nullable=False, default=0)  # Last processed spec version
-
-    # Index-specific data (e.g., vector IDs, fulltext index names, etc.)
-    index_data = Column(Text, nullable=True)  # JSON string
-
-    # Error information for failed indexes
+    index_data = Column(Text, nullable=True)  # JSON string for index-specific data
     error_message = Column(Text, nullable=True)
-    retry_count = Column(Integer, nullable=False, default=0)
 
     # Timestamps
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
@@ -770,24 +745,40 @@ class DocumentIndexStatus(Base):
     gmt_last_reconciled = Column(DateTime(timezone=True), nullable=True)  # Last reconciliation attempt
 
     def __repr__(self):
-        return f"<DocumentIndexStatus(id={self.id}, document_id={self.document_id}, type={self.index_type}, actual={self.actual_state})>"
+        return f"<DocumentIndex(id={self.id}, document_id={self.document_id}, type={self.index_type}, desired={self.desired_state}, actual={self.actual_state})>"
 
-    def needs_reconciliation(self, spec) -> bool:
-        """Check if this status needs reconciliation based on spec"""
-        # Check version first - if observed_version < spec.version, need reconciliation
-        if self.observed_version < spec.version:
+    def needs_reconciliation(self) -> bool:
+        """Check if this index needs reconciliation"""
+        # Check version first - if observed_version < version, need reconciliation
+        if self.observed_version < self.version:
             return True
 
         # Then check state consistency
-        if spec.desired_state == IndexDesiredState.PRESENT:
+        if self.desired_state == IndexDesiredState.PRESENT:
             return self.actual_state in [IndexActualState.ABSENT, IndexActualState.FAILED]
-        elif spec.desired_state == IndexDesiredState.ABSENT:
+        elif self.desired_state == IndexDesiredState.ABSENT:
             return self.actual_state in [IndexActualState.CREATING, IndexActualState.PRESENT]
         return False
 
-    def can_retry(self, max_retries: int = 3) -> bool:
-        """Check if this status can be retried (for failed states)"""
-        return self.actual_state == IndexActualState.FAILED and self.retry_count < max_retries
+    def is_in_sync(self) -> bool:
+        """Check if desired and actual states are in sync"""
+        if self.observed_version < self.version:
+            return False
+        
+        if self.desired_state == IndexDesiredState.PRESENT:
+            return self.actual_state == IndexActualState.PRESENT
+        elif self.desired_state == IndexDesiredState.ABSENT:
+            return self.actual_state == IndexActualState.ABSENT
+        return False
+
+    def update_spec(self, desired_state: IndexDesiredState = None, created_by: str = None):
+        """Update the spec (desired state) part"""
+        if desired_state is not None:
+            self.desired_state = desired_state
+        if created_by is not None:
+            self.created_by = created_by
+        self.version += 1
+        self.gmt_updated = utc_now()
 
     def mark_creating(self):
         """Mark as creating"""
@@ -798,8 +789,8 @@ class DocumentIndexStatus(Base):
     def mark_present(self, index_data: str = None):
         """Mark as present (successfully created)"""
         self.actual_state = IndexActualState.PRESENT
+        self.observed_version = self.version  # Mark as processed
         self.error_message = None
-        self.retry_count = 0
         if index_data:
             self.index_data = index_data
         self.gmt_updated = utc_now()
@@ -814,9 +805,9 @@ class DocumentIndexStatus(Base):
     def mark_absent(self):
         """Mark as absent (successfully deleted)"""
         self.actual_state = IndexActualState.ABSENT
+        self.observed_version = self.version  # Mark as processed
         self.index_data = None
         self.error_message = None
-        self.retry_count = 0
         self.gmt_updated = utc_now()
         self.gmt_last_reconciled = utc_now()
 
@@ -824,6 +815,6 @@ class DocumentIndexStatus(Base):
         """Mark as failed"""
         self.actual_state = IndexActualState.FAILED
         self.error_message = error_message
-        self.retry_count += 1
         self.gmt_updated = utc_now()
         self.gmt_last_reconciled = utc_now()
+    

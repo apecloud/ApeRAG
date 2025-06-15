@@ -4,7 +4,7 @@ from typing import List, Optional
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.db.models import DocumentIndexSpec, DocumentIndexStatus, DocumentIndexType, IndexDesiredState, utc_now
+from aperag.db.models import DocumentIndex, DocumentIndexType, IndexDesiredState, IndexActualState, utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -28,51 +28,48 @@ class FrontendIndexManager:
             index_types = [DocumentIndexType.VECTOR, DocumentIndexType.FULLTEXT, DocumentIndexType.GRAPH]
 
         for index_type in index_types:
-            # Check if spec already exists
-            stmt = select(DocumentIndexSpec).where(
-                and_(DocumentIndexSpec.document_id == document_id, DocumentIndexSpec.index_type == index_type)
+            # Check if index already exists
+            stmt = select(DocumentIndex).where(
+                and_(DocumentIndex.document_id == document_id, DocumentIndex.index_type == index_type)
             )
             result = await session.execute(stmt)
-            existing_spec = result.scalar_one_or_none()
+            existing_index = result.scalar_one_or_none()
 
-            if existing_spec:
-                # Update existing spec
-                existing_spec.desired_state = IndexDesiredState.PRESENT
-                existing_spec.version += 1  # Increment version to trigger reconciliation
-                existing_spec.gmt_updated = utc_now()
-                existing_spec.gmt_deleted = None
-                logger.debug(f"Updated spec for {document_id}:{index_type} to version {existing_spec.version}")
+            if existing_index:
+                # Update existing index
+                existing_index.update_spec(IndexDesiredState.PRESENT, user)
+                logger.debug(f"Updated index for {document_id}:{index_type} to version {existing_index.version}")
             else:
-                # Create new spec
-                spec = DocumentIndexSpec(
+                # Create new index
+                doc_index = DocumentIndex(
                     document_id=document_id,
                     index_type=index_type,
                     desired_state=IndexDesiredState.PRESENT,
                     version=1,
                     created_by=user,
                 )
-                session.add(spec)
-                logger.info(f"Created spec for {document_id}:{index_type}")
+                session.add(doc_index)
+                logger.info(f"Created index for {document_id}:{index_type}")
 
     async def update_document_indexes(self, session: AsyncSession, document_id: str):
         """
         Update document indexes (called when document content is updated)
 
-        This increments the version of all specs to trigger reconciliation.
+        This increments the version of all indexes to trigger reconciliation.
 
         Args:
             session: Database session
             document_id: Document ID
         """
-        stmt = select(DocumentIndexSpec).where(DocumentIndexSpec.document_id == document_id)
+        stmt = select(DocumentIndex).where(DocumentIndex.document_id == document_id)
         result = await session.execute(stmt)
-        specs = result.scalars().all()
+        indexes = result.scalars().all()
 
-        for spec in specs:
-            if spec.desired_state == IndexDesiredState.PRESENT:
-                spec.version += 1  # Increment version to trigger re-indexing
-                spec.gmt_updated = utc_now()
-                logger.info(f"Updated spec version for {document_id}:{spec.index_type} to {spec.version}")
+        for index in indexes:
+            if index.desired_state == IndexDesiredState.PRESENT:
+                index.version += 1  # Increment version to trigger re-indexing
+                index.gmt_updated = utc_now()
+                logger.info(f"Updated index version for {document_id}:{index.index_type} to {index.version}")
 
     async def delete_document_indexes(
         self, session: AsyncSession, document_id: str, index_types: Optional[List[DocumentIndexType]] = None
@@ -89,18 +86,15 @@ class FrontendIndexManager:
             index_types = [DocumentIndexType.VECTOR, DocumentIndexType.FULLTEXT, DocumentIndexType.GRAPH]
 
         for index_type in index_types:
-            stmt = select(DocumentIndexSpec).where(
-                and_(DocumentIndexSpec.document_id == document_id, DocumentIndexSpec.index_type == index_type)
+            stmt = select(DocumentIndex).where(
+                and_(DocumentIndex.document_id == document_id, DocumentIndex.index_type == index_type)
             )
             result = await session.execute(stmt)
-            spec = result.scalar_one_or_none()
+            doc_index = result.scalar_one_or_none()
 
-            if spec:
-                spec.desired_state = IndexDesiredState.ABSENT
-                spec.version += 1
-                spec.gmt_updated = utc_now()
-                spec.gmt_deleted = utc_now()
-                logger.info(f"Marked spec for deletion: {document_id}:{index_type}")
+            if doc_index:
+                doc_index.update_spec(IndexDesiredState.ABSENT)
+                logger.info(f"Marked index for deletion: {document_id}:{index_type}")
 
     async def get_document_index_status(self, session: AsyncSession, document_id: str) -> dict:
         """
@@ -113,48 +107,32 @@ class FrontendIndexManager:
         Returns:
             Dictionary with index status information
         """
-        # Get specs
-        spec_stmt = select(DocumentIndexSpec).where(DocumentIndexSpec.document_id == document_id)
-        spec_result = await session.execute(spec_stmt)
-        specs = {spec.index_type: spec for spec in spec_result.scalars().all()}
+        # Get all indexes for the document
+        stmt = select(DocumentIndex).where(DocumentIndex.document_id == document_id)
+        result = await session.execute(stmt)
+        indexes = result.scalars().all()
 
-        # Get statuses
-        status_stmt = select(DocumentIndexStatus).where(DocumentIndexStatus.document_id == document_id)
-        status_result = await session.execute(status_stmt)
-        statuses = {status.index_type: status for status in status_result.scalars().all()}
-
-        # Combine information
+        # Build result
         result = {"document_id": document_id, "indexes": {}, "overall_status": "complete"}
 
-        all_index_types = set(specs.keys()) | set(statuses.keys())
         has_creating = False
         has_failed = False
 
-        for index_type in all_index_types:
-            spec = specs.get(index_type)
-            status = statuses.get(index_type)
-
+        for index in indexes:
             index_info = {
-                "type": index_type,
-                "desired_state": spec.desired_state if spec else "absent",
-                "actual_state": status.actual_state if status else "absent",
-                "in_sync": False,
+                "type": index.index_type,
+                "desired_state": index.desired_state,
+                "actual_state": index.actual_state,
+                "in_sync": index.is_in_sync(),
             }
 
-            # Check if in sync (version matches and states are consistent)
-            if spec and status:
-                index_info["in_sync"] = status.observed_version == spec.version and not status.needs_reconciliation(
-                    spec
-                )
+            if index.actual_state == IndexActualState.CREATING:
+                has_creating = True
+            elif index.actual_state == IndexActualState.FAILED:
+                has_failed = True
+                index_info["error"] = index.error_message
 
-            if status:
-                if status.actual_state == "creating":
-                    has_creating = True
-                elif status.actual_state == "failed":
-                    has_failed = True
-                    index_info["error"] = status.error_message
-
-            result["indexes"][index_type] = index_info
+            result["indexes"][index.index_type] = index_info
 
         # Determine overall status
         if has_failed:
