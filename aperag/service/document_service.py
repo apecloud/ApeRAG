@@ -149,7 +149,11 @@ class DocumentService:
 
                 response.append(await self.build_document_response(updated_doc, session))
                 # Create index specs for the new document
-                await document_index_manager.create_document_indexes(session, updated_doc.id, user)
+                index_types = [db_models.DocumentIndexType.VECTOR, db_models.DocumentIndexType.FULLTEXT]
+                collection_config = json.loads(collection.config)
+                if collection_config.get("enable_knowledge_graph", False):
+                    index_types.append(db_models.DocumentIndexType.GRAPH)
+                await document_index_manager.create_document_indexes(session, updated_doc.id, user, index_types)
 
             return response
 

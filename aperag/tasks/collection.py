@@ -121,6 +121,9 @@ class CollectionTask:
 
         deletion_stats = {"knowledge_graph_enabled": enable_knowledge_graph}
 
+        if not enable_knowledge_graph:
+            return deletion_stats
+
         if enable_knowledge_graph:
 
             async def _delete_lightrag():

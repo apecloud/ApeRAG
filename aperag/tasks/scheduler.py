@@ -218,48 +218,71 @@ class LocalTaskScheduler(TaskScheduler):
 
 
 class CeleryTaskScheduler(TaskScheduler):
-    """Celery implementation of TaskScheduler"""
+    """Celery implementation of TaskScheduler - Direct workflow execution"""
 
     def schedule_create_index(self, document_id: str, index_types: List[str], **kwargs) -> str:
-        """Schedule index creation task using Celery"""
-        from config.celery_tasks import create_index_task
+        """Schedule index creation workflow"""
+        from config.celery_tasks import create_document_indexes_workflow
 
-        task = create_index_task.delay(document_id, index_types)
-        logger.debug(f"Scheduled create {index_types} index task {task.id} for document {document_id}")
-        return task.id
+        try:
+            # Execute workflow and return AsyncResult ID (not calling .get())
+            workflow_result = create_document_indexes_workflow(document_id, index_types)
+            workflow_id = workflow_result.id  # Use .id instead of .get('workflow_id')
+            logger.debug(f"Scheduled create indexes workflow {workflow_id} for document {document_id} with types {index_types}")
+            return workflow_id
+        except Exception as e:
+            logger.error(f"Failed to schedule create indexes workflow for document {document_id}: {str(e)}")
+            raise
 
     def schedule_update_index(self, document_id: str, index_types: List[str], **kwargs) -> str:
-        """Schedule index update task using Celery"""
-        from config.celery_tasks import update_index_task
+        """Schedule index update workflow"""
+        from config.celery_tasks import update_document_indexes_workflow
 
-        task = update_index_task.delay(document_id, index_types)
-        logger.debug(f"Scheduled update {index_types} index task {task.id} for document {document_id}")
-        return task.id
+        try:
+            # Execute workflow and return AsyncResult ID (not calling .get())
+            workflow_result = update_document_indexes_workflow(document_id, index_types)
+            workflow_id = workflow_result.id  # Use .id instead of .get('workflow_id')
+            logger.debug(f"Scheduled update indexes workflow {workflow_id} for document {document_id} with types {index_types}")
+            return workflow_id
+        except Exception as e:
+            logger.error(f"Failed to schedule update indexes workflow for document {document_id}: {str(e)}")
+            raise
 
     def schedule_delete_index(self, document_id: str, index_types: List[str], **kwargs) -> str:
-        """Schedule index deletion task using Celery"""
-        from config.celery_tasks import delete_index_task
+        """Schedule index deletion workflow"""
+        from config.celery_tasks import delete_document_indexes_workflow
 
-        task = delete_index_task.delay(document_id, index_types, kwargs.get("index_data"))
-        logger.debug(f"Scheduled delete {index_types} index task {task.id} for document {document_id}")
-        return task.id
+        try:
+            # Execute workflow and return AsyncResult ID (not calling .get())
+            workflow_result = delete_document_indexes_workflow(document_id, index_types)
+            workflow_id = workflow_result.id  # Use .id instead of .get('workflow_id')
+            logger.debug(f"Scheduled delete indexes workflow {workflow_id} for document {document_id} with types {index_types}")
+            return workflow_id
+        except Exception as e:
+            logger.error(f"Failed to schedule delete indexes workflow for document {document_id}: {str(e)}")
+            raise
 
     def get_task_status(self, task_id: str) -> Optional[TaskResult]:
-        """Get Celery task status"""
+        """Get workflow status using Celery AsyncResult (non-blocking)"""
         try:
             from celery.result import AsyncResult
+            from config.celery import app
 
-            result = AsyncResult(task_id)
-
-            if result.state == "PENDING":
-                return TaskResult(task_id, success=False, error="Task pending")
-            elif result.state == "SUCCESS":
-                return TaskResult(task_id, success=True, data=result.result)
-            elif result.state == "FAILURE":
-                return TaskResult(task_id, success=False, error=str(result.info))
+            # Get AsyncResult without calling .get()
+            workflow_result = AsyncResult(task_id, app=app)
+            
+            # Check status without blocking
+            if workflow_result.state == 'PENDING':
+                return TaskResult(task_id, success=False, error="Workflow is pending")
+            elif workflow_result.state == 'STARTED':
+                return TaskResult(task_id, success=False, error="Workflow is running")
+            elif workflow_result.state == 'SUCCESS':
+                return TaskResult(task_id, success=True, data=workflow_result.result)
+            elif workflow_result.state == 'FAILURE':
+                return TaskResult(task_id, success=False, error=str(workflow_result.info))
             else:
-                return TaskResult(task_id, success=False, error=f"Unknown state: {result.state}")
+                return TaskResult(task_id, success=False, error=f"Unknown state: {workflow_result.state}")
 
         except Exception as e:
-            logger.error(f"Failed to get task status for {task_id}: {str(e)}")
+            logger.error(f"Failed to get workflow status for {task_id}: {str(e)}")
             return TaskResult(task_id, success=False, error=str(e))

@@ -42,6 +42,8 @@ app.conf.update(
     task_track_started=settings.celery_task_track_started,
     # Auto-discover tasks in the aperag.tasks package
     include=['config.celery_tasks'],
+    # worker_log_format='[%(asctime)s: %(levelname)s/%(processName)s] (%(filename)s:%(lineno)d) %(message)s',
+    # task_log_format='[%(asctime)s: %(levelname)s/%(processName)s] (%(filename)s:%(lineno)d) %(message)s'
 )
 
 app.conf.beat_schedule = {

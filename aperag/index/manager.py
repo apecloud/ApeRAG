@@ -40,6 +40,7 @@ class FrontendIndexManager:
                 existing_spec.desired_state = IndexDesiredState.PRESENT
                 existing_spec.version += 1  # Increment version to trigger reconciliation
                 existing_spec.gmt_updated = utc_now()
+                existing_spec.gmt_deleted = None
                 logger.debug(f"Updated spec for {document_id}:{index_type} to version {existing_spec.version}")
             else:
                 # Create new spec
@@ -95,10 +96,10 @@ class FrontendIndexManager:
             spec = result.scalar_one_or_none()
 
             if spec:
-                # Option 1: Mark as absent (let reconciliation handle cleanup)
                 spec.desired_state = IndexDesiredState.ABSENT
                 spec.version += 1
                 spec.gmt_updated = utc_now()
+                spec.gmt_deleted = utc_now()
                 logger.info(f"Marked spec for deletion: {document_id}:{index_type}")
 
     async def get_document_index_status(self, session: AsyncSession, document_id: str) -> dict:
