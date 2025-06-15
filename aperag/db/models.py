@@ -80,17 +80,6 @@ class DocumentStatus(str, Enum):
     DELETED = "DELETED"
 
 
-class DocumentIndexStatusOld(str, Enum):
-    """Document index status enumeration (deprecated - kept for backward compatibility)"""
-
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETE = "complete"
-    FAILED = "failed"
-    DELETED = "deleted"
-    SKIPPED = "skipped"
-
-
 class DocumentIndexType(str, Enum):
     """Document index type enumeration"""
 
@@ -240,7 +229,6 @@ class Document(Base):
     size = Column(BigInteger, nullable=False)  # Support larger files (up to 9 exabytes)
     object_path = Column(Text, nullable=True)
     doc_metadata = Column(Text, nullable=True)  # Store document metadata as JSON string
-    relate_ids = Column(Text, nullable=True)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries

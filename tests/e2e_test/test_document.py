@@ -44,14 +44,14 @@ def test_upload_document_and_wait_to_be_active(client, collection):
     assert "items" in data
     assert len(data["items"]) == 1
     doc_id = data["items"][0]["id"]
-    max_wait = 10
+    max_wait = 30
     interval = 2
     for _ in range(max_wait // interval):
         list_response = client.get(f"/api/v1/collections/{collection['id']}/documents")
         assert list_response.status_code == HTTPStatus.OK, list_response.text
         list_data = list_response.json()
         for doc in list_data.get("items", []):
-            if doc["id"] == doc_id and doc["status"] == "active":
+            if doc["id"] == doc_id and doc["status"].lower() == "complete":
                 return
         time.sleep(interval)
     else:

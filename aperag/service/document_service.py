@@ -72,15 +72,10 @@ class DocumentService:
         else:
             self.db_ops = AsyncDatabaseOps(session)  # Create custom instance for transaction control
 
-    async def build_document_response(self, document: db_models.Document, session=None) -> view_models.Document:
+    async def build_document_response(self, document: db_models.Document, session: AsyncSession) -> view_models.Document:
         """Build Document response object for API return."""
         # Get index status from new tables
-        if session:
-            index_status_info = await document_index_manager.get_document_index_status(session, document.id)
-        else:
-            # Use current session if available
-            async for temp_session in get_async_session():
-                index_status_info = await document_index_manager.get_document_index_status(temp_session, document.id)
+        index_status_info = await document_index_manager.get_document_index_status(session, document.id)
 
         # Convert new format to old API format for backward compatibility
         indexes = index_status_info.get("indexes", {})
@@ -88,7 +83,7 @@ class DocumentService:
         # Map new states to old enum values for API compatibility
         def map_state_to_old_enum(actual_state: str):
             if actual_state == "absent":
-                return "PENDING"
+                return "SKIPPED"
             elif actual_state == "creating":
                 return "RUNNING"
             elif actual_state == "present":
@@ -101,7 +96,7 @@ class DocumentService:
         return Document(
             id=document.id,
             name=document.name,
-            status=document.status,
+            status=(await document.get_overall_index_status(session)),
             vector_index_status=map_state_to_old_enum(indexes.get("vector", {}).get("actual_state", "absent")),
             fulltext_index_status=map_state_to_old_enum(indexes.get("fulltext", {}).get("actual_state", "absent")),
             graph_index_status=map_state_to_old_enum(indexes.get("graph", {}).get("actual_state", "absent")),
@@ -204,7 +199,8 @@ class DocumentService:
         document = await self.db_ops.query_document(user, collection_id, document_id)
         if document is None:
             return fail(HTTPStatus.NOT_FOUND, "Document not found")
-        return success(await self.build_document_response(document))
+        async for session in get_async_session():
+            return success(await self.build_document_response(document, session))
 
     async def update_document(
         self, user: str, collection_id: str, document_id: str, document_in: view_models.DocumentUpdate
@@ -313,11 +309,3 @@ class DocumentService:
 # Create a global service instance for easy access
 # This uses the global db_ops instance and doesn't require session management in views
 document_service = DocumentService()
-
-
-# Keep existing functions for backward compatibility (deprecated)
-async def build_document_response(document: db_models.Document) -> view_models.Document:
-    """Build Document response object for API return (deprecated - use service method)."""
-    # Use the service method for consistency
-    service = DocumentService()
-    return await service.build_document_response(document)

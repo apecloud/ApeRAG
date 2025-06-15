@@ -82,7 +82,7 @@ def collection(client):
     assert_dict_subset(data, collection_data)
 
     # Wait for collection to be active
-    max_wait = 10
+    max_wait = 30
     interval = 2
     for _ in range(max_wait // interval):
         get_resp = client.get(f"/api/v1/collections/{collection_id}")

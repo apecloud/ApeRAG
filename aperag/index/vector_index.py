@@ -2,8 +2,12 @@ import json
 import logging
 from typing import Any, List
 
+from sqlalchemy import and_, select
 from aperag.config import settings
 from aperag.db.ops import db_ops
+
+# NOTE: This file has been updated to use DocumentIndex table instead of Document.relate_ids field
+# The relate_ids field has been removed from Document model and replaced with index_data in DocumentIndex
 from aperag.embed.base_embedding import get_collection_embedding_service_sync
 from aperag.embed.embedding_utils import create_embeddings_and_store
 from aperag.index.base import BaseIndexer, IndexResult, IndexType
@@ -55,13 +59,25 @@ class VectorIndexer(BaseIndexer):
                 tokenizer=get_default_tokenizer(),
             )
 
-            # Update document with related IDs
-            document = db_ops.query_document_by_id(document_id)
-            if document:
-                relate_ids = json.loads(document.relate_ids) if document.relate_ids else {}
-                relate_ids["ctx"] = ctx_ids
-                document.relate_ids = json.dumps(relate_ids)
-                db_ops.update_document(document)
+            # Update DocumentIndex with vector IDs
+            from aperag.db.models import DocumentIndex, DocumentIndexType
+            from aperag.config import get_sync_session
+            
+            # Use sync session to update DocumentIndex
+            for session in get_sync_session():
+                stmt = select(DocumentIndex).where(
+                    and_(
+                        DocumentIndex.document_id == document_id,
+                        DocumentIndex.index_type == DocumentIndexType.VECTOR
+                    )
+                )
+                result = session.execute(stmt)
+                doc_index = result.scalar_one_or_none()
+                
+                if doc_index:
+                    index_data = {"ctx": ctx_ids}
+                    doc_index.index_data = json.dumps(index_data)
+                    session.commit()
 
             logger.info(f"Vector index created for document {document_id}: {len(ctx_ids)} vectors")
 
@@ -98,13 +114,25 @@ class VectorIndexer(BaseIndexer):
             IndexResult: Result of vector index update
         """
         try:
-            # Get document and existing relate_ids
-            document = db_ops.query_document_by_id(document_id)
-            if not document:
-                raise Exception(f"Document {document_id} not found")
-
-            relate_ids = json.loads(document.relate_ids) if document.relate_ids else {}
-            old_ctx_ids = relate_ids.get("ctx", [])
+            # Get existing vector index data from DocumentIndex
+            from aperag.db.models import DocumentIndex, DocumentIndexType
+            from aperag.config import get_sync_session
+            
+            old_ctx_ids = []
+            doc_index = None
+            for session in get_sync_session():
+                stmt = select(DocumentIndex).where(
+                    and_(
+                        DocumentIndex.document_id == document_id,
+                        DocumentIndex.index_type == DocumentIndexType.VECTOR
+                    )
+                )
+                result = session.execute(stmt)
+                doc_index = result.scalar_one_or_none()
+                
+                if doc_index and doc_index.index_data:
+                    index_data = json.loads(doc_index.index_data)
+                    old_ctx_ids = index_data.get("ctx", [])
 
             # Get vector store adaptor
             vector_store_adaptor = get_vector_db_connector(
@@ -127,10 +155,11 @@ class VectorIndexer(BaseIndexer):
                 tokenizer=get_default_tokenizer(),
             )
 
-            # Update relate_ids
-            relate_ids["ctx"] = ctx_ids
-            document.relate_ids = json.dumps(relate_ids)
-            db_ops.update_document(document)
+            # Update DocumentIndex with new vector IDs
+            if doc_index:
+                index_data = {"ctx": ctx_ids}
+                doc_index.index_data = json.dumps(index_data)
+                session.commit()
 
             logger.info(f"Vector index updated for document {document_id}: {len(ctx_ids)} vectors")
 
@@ -162,15 +191,28 @@ class VectorIndexer(BaseIndexer):
             IndexResult: Result of vector index deletion
         """
         try:
-            # Get document and relate_ids
-            document = db_ops.query_document_by_id(document_id)
-            if not document or not document.relate_ids:
-                return IndexResult(
-                    success=True, index_type=self.index_type, metadata={"message": "No vector index to delete"}
+            # Get existing vector index data from DocumentIndex
+            from aperag.db.models import DocumentIndex, DocumentIndexType
+            from aperag.config import get_sync_session
+            
+            ctx_ids = []
+            for session in get_sync_session():
+                stmt = select(DocumentIndex).where(
+                    and_(
+                        DocumentIndex.document_id == document_id,
+                        DocumentIndex.index_type == DocumentIndexType.VECTOR
+                    )
                 )
+                result = session.execute(stmt)
+                doc_index = result.scalar_one_or_none()
+                
+                if not doc_index or not doc_index.index_data:
+                    return IndexResult(
+                        success=True, index_type=self.index_type, metadata={"message": "No vector index to delete"}
+                    )
 
-            relate_ids = json.loads(document.relate_ids)
-            ctx_ids = relate_ids.get("ctx", [])
+                index_data = json.loads(doc_index.index_data)
+                ctx_ids = index_data.get("ctx", [])
 
             if not ctx_ids:
                 return IndexResult(
