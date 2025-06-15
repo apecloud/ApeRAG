@@ -4,7 +4,7 @@ from typing import List, Optional
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.db.models import DocumentIndex, DocumentIndexType, IndexDesiredState, IndexActualState, utc_now
+from aperag.db.models import DocumentIndex, DocumentIndexType, IndexActualState, IndexDesiredState, utc_now
 
 logger = logging.getLogger(__name__)
 

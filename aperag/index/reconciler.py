@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
@@ -9,10 +9,8 @@ from aperag.db.models import (
     Document,
     DocumentIndex,
     DocumentIndexType,
-    DocumentStatus,
     IndexActualState,
     IndexDesiredState,
-    utc_now,
 )
 from aperag.tasks.scheduler import TaskScheduler, create_task_scheduler
 
@@ -54,7 +52,9 @@ class BackendIndexReconciler:
         for doc_index in indexes_needing_reconciliation:
             # Skip if currently processing
             if doc_index.actual_state in [IndexActualState.CREATING, IndexActualState.DELETING]:
-                logger.debug(f"Skipping reconcile for {doc_index.document_id}:{doc_index.index_type} - already processing")
+                logger.debug(
+                    f"Skipping reconcile for {doc_index.document_id}:{doc_index.index_type} - already processing"
+                )
                 continue
 
             # Determine operation type
@@ -196,7 +196,7 @@ class IndexTaskCallbacks:
 
             logger.info(f"{index_type} index deletion completed for document {document_id}")
             session.commit()
-    
+
 
 # Global instance
 index_reconciler = BackendIndexReconciler()

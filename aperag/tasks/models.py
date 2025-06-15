@@ -231,3 +231,18 @@ class WorkflowStatusInfo:
             progress=data["progress"],
             result=data.get("result"),
         )
+
+
+class TaskResult:
+    """Standardized task result format"""
+
+    def __init__(
+        self, success: bool, data: Any = None, error: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None
+    ):
+        self.success = success
+        self.data = data
+        self.error = error
+        self.metadata = metadata or {}
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"success": self.success, "data": self.data, "error": self.error, "metadata": self.metadata}

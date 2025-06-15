@@ -12,19 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
-import os
-import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from aperag.db.models import Document, DocumentStatus
-from aperag.db.ops import db_ops
 from aperag.docparser.doc_parser import DocParser
 from aperag.objectstore.base import get_object_store
-from aperag.tasks.async_interface import TaskResult
-from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS, uncompress
 
 logger = logging.getLogger(__name__)
 
@@ -166,114 +159,6 @@ class DocumentParser:
 
         except Exception as e:
             raise Exception(f"Document parsing failed for {filepath}: {str(e)}")
-
-    def handle_compressed_file(
-        self, document: Document, supported_file_extensions: List[str], task_scheduler=None
-    ) -> TaskResult:
-        """
-        Handle compressed file extraction and create document specs for extracted files
-
-        Args:
-            document: Document object representing the compressed file
-            supported_file_extensions: List of supported file extensions
-            task_scheduler: Legacy parameter, ignored in new system
-
-        Returns:
-            TaskResult indicating success or failure
-        """
-        try:
-            obj_store = get_object_store()
-            supported_file_extensions = supported_file_extensions or []
-
-            with tempfile.TemporaryDirectory(prefix=f"aperag_unzip_{document.id}_") as temp_dir_path_str:
-                tmp_dir = Path(temp_dir_path_str)
-                obj = obj_store.get(document.object_path)
-                if obj is None:
-                    raise Exception(f"object '{document.object_path}' is not found")
-
-                suffix = Path(document.object_path).suffix
-                with obj:
-                    uncompress(obj, suffix, tmp_dir)
-
-                extracted_files = []
-                total_size = 0
-
-                for root, dirs, file_names in os.walk(tmp_dir):
-                    for name in file_names:
-                        path = Path(os.path.join(root, name))
-                        if path.suffix.lower() in SUPPORTED_COMPRESSED_EXTENSIONS:
-                            continue
-                        if path.suffix.lower() not in supported_file_extensions:
-                            continue
-                        extracted_files.append(path)
-                        total_size += path.stat().st_size
-
-                        if total_size > self.MAX_EXTRACTED_SIZE:
-                            raise Exception("Extracted size exceeded limit")
-
-                # Create document instances for extracted files
-                created_documents = []
-
-                for extracted_file_path in extracted_files:
-                    with extracted_file_path.open(mode="rb") as extracted_file:  # open in binary
-                        document_instance = Document(
-                            user=document.user,
-                            name=document.name + "/" + extracted_file_path.name,
-                            status=DocumentStatus.PENDING,
-                            size=extracted_file_path.stat().st_size,
-                            collection_id=document.collection_id,
-                        )
-
-                        # Upload to object store
-                        upload_path = f"{document_instance.object_store_base_path()}/original{suffix}"
-                        obj_store.put(upload_path, extracted_file)
-
-                        document_instance.object_path = upload_path
-                        document_instance.doc_metadata = json.dumps(
-                            {"object_path": upload_path, "uncompressed": "true"}
-                        )
-
-                        # Save document using db_ops
-                        def _operation(session):
-                            session.add(document_instance)
-                            session.flush()
-                            session.refresh(document_instance)  # Refresh to get the generated ID
-                            return document_instance
-
-                        db_ops._execute_transaction(_operation)
-                        created_documents.append(document_instance.id)
-
-                        # Create index specs using new declarative system
-                        try:
-                            import asyncio
-
-                            from aperag.db.ops import get_session
-                            from aperag.index.manager import document_index_manager
-
-                            async def create_specs():
-                                async with get_session() as session:
-                                    await document_index_manager.create_document_indexes(
-                                        session, str(document_instance.id), document.user
-                                    )
-                                    await session.commit()
-
-                            asyncio.run(create_specs())
-                            logger.info(f"Created index specs for extracted document {document_instance.id}")
-                        except Exception as e:
-                            logger.warning(
-                                f"Failed to create index specs for document {document_instance.id}: {str(e)}"
-                            )
-                            # Don't fail the whole operation for this
-
-            return TaskResult(
-                success=True,
-                data={"extracted_documents": created_documents},
-                metadata={"total_extracted": len(created_documents), "total_size": total_size},
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to handle compressed file {document.object_path}: {str(e)}")
-            return TaskResult(success=False, error=f"Compressed file handling failed: {str(e)}")
 
 
 # Global parser instance

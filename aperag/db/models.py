@@ -752,7 +752,7 @@ class DocumentIndex(Base):
         """Check if desired and actual states are in sync"""
         if self.observed_version < self.version:
             return False
-        
+
         if self.desired_state == IndexDesiredState.PRESENT:
             return self.actual_state == IndexActualState.PRESENT
         elif self.desired_state == IndexDesiredState.ABSENT:
@@ -805,4 +805,3 @@ class DocumentIndex(Base):
         self.error_message = error_message
         self.gmt_updated = utc_now()
         self.gmt_last_reconciled = utc_now()
-    
