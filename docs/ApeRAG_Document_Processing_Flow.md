@@ -243,9 +243,9 @@ return LocalDoc(path=local_temp_path, metadata=metadata)
 
 ### Stage 3: Document Parsing and Structured Processing
 
-#### 3.1 Document Parsing (`embed/local_path_embedding.py::LocalPathEmbedding`)
+#### 3.1 Document Parsing (`llm/embed/base_embedding.py::LocalPathEmbedding`)
 **Input Data**: Local file path
-**Processing Component**: `aperag.embed.local_path_embedding.LocalPathEmbedding`
+**Processing Component**: `aperag.llm.embed.base_embedding.LocalPathEmbedding`
 
 **Data Flow Process**:
 ```python

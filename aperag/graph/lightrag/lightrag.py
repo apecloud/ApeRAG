@@ -240,9 +240,6 @@ class LightRAG:
     # Extensions
     # ---
 
-    max_parallel_insert: int = field(default=2)
-    """Maximum number of parallel insert operations."""
-
     addon_params: dict[str, Any] = field(
         default_factory=lambda: {"language": get_env_value("SUMMARY_LANGUAGE", "English", str)}
     )

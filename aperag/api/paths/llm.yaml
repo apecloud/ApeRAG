@@ -1,0 +1,137 @@
+embeddings:
+  post:
+    summary: Create embeddings
+    description: |
+      Generate embeddings for the given input text(s) using the specified provider and model.
+      This endpoint is compatible with OpenAI's embeddings API format, but includes an additional
+      'provider' parameter to specify which LLM provider to use.
+      
+      The endpoint supports both single text inputs and batch processing of multiple texts.
+      It requires the provider to be configured in the user's Model Service Provider (MSP) settings
+      with a valid API key.
+    tags:
+      - LLM
+    security:
+      - BearerAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/llm.yaml#/embeddingRequest'
+          examples:
+            single_text:
+              summary: Single text embedding
+              description: Generate embedding for a single text input
+              value:
+                provider: "openai"
+                model: "text-embedding-3-small"
+                input: "The food was delicious and the waiter was very attentive."
+            multiple_texts:
+              summary: Batch text embeddings
+              description: Generate embeddings for multiple text inputs
+              value:
+                provider: "openai"
+                model: "text-embedding-3-small"
+                input:
+                  - "The food was delicious and the waiter was very attentive."
+                  - "I had a wonderful experience at this restaurant."
+                  - "The service was excellent and the ambiance was perfect."
+            different_provider:
+              summary: Using different provider
+              description: Generate embeddings using a different provider
+              value:
+                provider: "anthropic"
+                model: "text-embedding-ada-002"
+                input: "This is a sample text for embedding generation."
+    responses:
+      '200':
+        description: Successfully generated embeddings
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/llm.yaml#/embeddingResponse'
+            examples:
+              single_result:
+                summary: Single embedding result
+                description: Response for single text input
+                value:
+                  object: "list"
+                  data:
+                    - object: "embedding"
+                      embedding: [0.0023064255, -0.009327292, 0.015797421, -0.0076543210]
+                      index: 0
+                  model: "text-embedding-3-small"
+                  usage:
+                    prompt_tokens: 16
+                    total_tokens: 16
+              multiple_results:
+                summary: Multiple embedding results
+                description: Response for multiple text inputs
+                value:
+                  object: "list"
+                  data:
+                    - object: "embedding"
+                      embedding: [0.0023064255, -0.009327292, 0.015797421, -0.0076543210]
+                      index: 0
+                    - object: "embedding"
+                      embedding: [0.0012345678, -0.0087654321, 0.0199887766, -0.0034567890]
+                      index: 1
+                  model: "text-embedding-3-small"
+                  usage:
+                    prompt_tokens: 32
+                    total_tokens: 32
+      '400':
+        description: Bad request - Invalid input parameters
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+            examples:
+              empty_input:
+                summary: Empty input
+                description: Input cannot be empty
+                value:
+                  success: false
+                  message: "Input cannot be empty"
+              invalid_provider:
+                summary: Provider not found
+                description: Specified provider is not configured for the user
+                value:
+                  success: false
+                  message: "Provider 'invalid_provider' not found for user"
+              model_not_found:
+                summary: Model not found
+                description: Specified model not found for the provider
+                value:
+                  success: false
+                  message: "Model 'invalid_model' not found for provider 'openai'"
+      '401':
+        description: Unauthorized - Authentication required
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+            example:
+              success: false
+              message: "Authentication required"
+      '500':
+        description: Internal server error - Embedding generation failed
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+            examples:
+              embedding_error:
+                summary: Embedding generation failed
+                description: Error during embedding generation process
+                value:
+                  success: false
+                  message: "Embedding generation failed: API rate limit exceeded"
+              configuration_error:
+                summary: Configuration error
+                description: Provider configuration issue
+                value:
+                  success: false
+                  message: "API key not configured for provider 'openai'" 

@@ -21,9 +21,13 @@ import numpy
 
 from aperag.db.models import Collection
 from aperag.db.ops import db_ops
-from aperag.embed.base_embedding import get_collection_embedding_service
 from aperag.graph.lightrag import LightRAG
 from aperag.graph.lightrag.utils import EmbeddingFunc
+from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
+from aperag.llm.llm_error_types import (
+    EmbeddingError,
+    ProviderNotFoundError,
+)
 from aperag.schema.utils import parseCollectionConfig
 
 logger = logging.getLogger(__name__)
@@ -35,7 +39,6 @@ class LightRAGConfig:
 
     CHUNK_TOKEN_SIZE = 3000
     CHUNK_OVERLAP_TOKEN_SIZE = 100
-    MAX_PARALLEL_INSERT = 2
     LLM_MODEL_MAX_ASYNC = 20
     COSINE_BETTER_THAN_THRESHOLD = 0.2
     MAX_BATCH_SIZE = 32
@@ -85,7 +88,6 @@ async def create_lightrag_instance(collection: Collection) -> LightRAG:
             ),
             cosine_better_than_threshold=LightRAGConfig.COSINE_BETTER_THAN_THRESHOLD,
             max_batch_size=LightRAGConfig.MAX_BATCH_SIZE,
-            max_parallel_insert=LightRAGConfig.MAX_PARALLEL_INSERT,
             llm_model_max_async=LightRAGConfig.LLM_MODEL_MAX_ASYNC,
             entity_extract_max_gleaning=LightRAGConfig.ENTITY_EXTRACT_MAX_GLEANING,
             addon_params={"language": LightRAGConfig.DEFAULT_LANGUAGE},
@@ -222,13 +224,17 @@ async def _gen_embed_func(
 ) -> Tuple[Callable[[list[str]], Awaitable[numpy.ndarray]], int]:
     """Generate embedding function for LightRAG"""
     try:
-        embedding_svc, dim = await get_collection_embedding_service(collection)
+        embedding_svc, dim = get_collection_embedding_service_sync(collection)
 
         async def embed_func(texts: list[str]) -> numpy.ndarray:
             embeddings = await embedding_svc.aembed_documents(texts)
             return numpy.array(embeddings)
 
         return embed_func, dim
+    except (ProviderNotFoundError, EmbeddingError) as e:
+        # Configuration or embedding-specific errors
+        logger.error(f"Failed to create embedding function - configuration error: {str(e)}")
+        raise LightRAGError(f"Embedding configuration error: {str(e)}") from e
     except Exception as e:
         logger.error(f"Failed to create embedding function: {str(e)}")
         raise LightRAGError(f"Failed to create embedding function: {str(e)}") from e
@@ -257,10 +263,16 @@ async def _gen_llm_func(collection: Collection) -> Callable[..., Awaitable[str]]
             history_messages: List = [],
             **kwargs,
         ) -> str:
-            from aperag.llm.completion_service import CompletionService
+            from aperag.llm.completion.completion_service import CompletionService
 
-            merged_kwargs = {"api_key": api_key, "base_url": base_url, **config.completion.dict()}
-            completion_service = CompletionService(**merged_kwargs)
+            completion_service = CompletionService(
+                provider=config.completion.custom_llm_provider,
+                model=config.completion.model,
+                base_url=base_url,
+                api_key=api_key,
+                temperature=config.completion.temperature,
+                max_tokens=None,
+            )
 
             messages = []
             if system_prompt:

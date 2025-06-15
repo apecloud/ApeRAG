@@ -13,17 +13,11 @@
  */
 
 
-// May contain unused imports in some cases
-// @ts-ignore
-import type { ModelInfo } from './model-info';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { ModelSpec } from './model-spec';
 
 /**
- * @type ModelDefinition
+ * @type EmbeddingRequestInput
  * @export
  */
-export type ModelDefinition = ModelInfo & ModelSpec;
+export type EmbeddingRequestInput = Array<string> | string;
 
 

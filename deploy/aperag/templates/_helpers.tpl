@@ -62,3 +62,21 @@ app.aperag.io/component: celery-worker
 {{- define "frontend.labels" -}}
 app.aperag.io/component: frontend
 {{- end }}
+
+{{- define "aperag.docray.serviceName" -}}
+{{ include "aperag.fullname" . }}-docray
+{{- end }}
+
+{{/*
+Construct DOCRAY_HOST value.
+If docray.useExistingService is set, uses that value.
+If docray.enabled is true, uses the docray service name.
+Otherwise returns empty string.
+*/}}
+{{- define "aperag.docrayEndpoint" -}}
+{{- if .Values.docray.useExistingService -}}
+"{{ .Values.docray.useExistingService }}"
+{{- else if .Values.docray.enabled -}}
+"http://{{ include "aperag.docray.serviceName" . }}:8639"
+{{- end }}
+{{- end }}

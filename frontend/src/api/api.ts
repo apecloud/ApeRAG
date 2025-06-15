@@ -15,4 +15,5 @@
 
 
 export * from './apis/default-api';
+export * from './apis/llmapi';
 

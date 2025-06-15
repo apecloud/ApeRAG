@@ -82,6 +82,10 @@ paths:
   /llm_provider_models:
     $ref: './paths/llm_configuration.yaml#/llmProviderModelsList'
   
+  # llm services  
+  /embeddings:
+    $ref: './paths/llm.yaml#/embeddings'
+  
   # config
   /config:
     $ref: './paths/config.yaml#/config'

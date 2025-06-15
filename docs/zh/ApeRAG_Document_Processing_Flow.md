@@ -243,9 +243,9 @@ return LocalDoc(path=local_temp_path, metadata=metadata)
 
 ### 阶段3: 文档解析与结构化处理
 
-#### 3.1 文档解析 (`embed/local_path_embedding.py::LocalPathEmbedding`)
+#### 3.1 文档解析 (`llm/embed/base_embedding.py::LocalPathEmbedding`)
 **输入数据**: 本地文件路径
-**处理组件**: `aperag.embed.local_path_embedding.LocalPathEmbedding`
+**处理组件**: `aperag.llm.embed.base_embedding.LocalPathEmbedding`
 
 **数据流转过程**:
 ```python

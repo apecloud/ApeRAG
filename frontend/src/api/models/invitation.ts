@@ -34,10 +34,10 @@ export interface Invitation {
     'token'?: string;
     /**
      * The ID of the user who created the invitation
-     * @type {number}
+     * @type {string}
      * @memberof Invitation
      */
-    'created_by'?: number;
+    'created_by'?: string;
     /**
      * The date and time the invitation was created
      * @type {string}

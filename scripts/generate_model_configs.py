@@ -2,8 +2,8 @@
 """
 Script to generate model_configs_init.sql directly from model configuration data
 
-This script generates PostgreSQL upsert statements to populate the aperag_llm_provider 
-and aperag_llm_provider_models tables directly, without using an intermediate JSON file.
+This script generates PostgreSQL upsert statements to populate the llm_provider 
+and llm_provider_models tables directly, without using an intermediate JSON file.
 
 Usage:
     python generate_model_configs.py
@@ -63,7 +63,7 @@ def format_json_array(value: List[str]) -> str:
 
 
 def generate_provider_upsert(provider: Dict[str, Any]) -> str:
-    """Generate upsert statement for aperag_llm_provider table"""
+    """Generate upsert statement for llm_provider table"""
     
     name = escape_sql_string(provider['name'])
     label = escape_sql_string(provider['label'])
@@ -73,7 +73,7 @@ def generate_provider_upsert(provider: Dict[str, Any]) -> str:
     allow_custom_base_url = format_boolean(provider['allow_custom_base_url'])
     base_url = escape_sql_string(provider['base_url'])
     
-    return f"""INSERT INTO aperag_llm_provider (
+    return f"""INSERT INTO llm_provider (
     name, label, completion_dialect, embedding_dialect, rerank_dialect, 
     allow_custom_base_url, base_url, gmt_created, gmt_updated
 ) VALUES (
@@ -91,7 +91,7 @@ ON CONFLICT (name) DO UPDATE SET
 
 
 def generate_model_upserts(provider_name: str, api_type: str, models: List[Dict[str, Any]]) -> List[str]:
-    """Generate upsert statements for aperag_llm_provider_models table"""
+    """Generate upsert statements for llm_provider_models table"""
     
     upserts = []
     for model in models:
@@ -118,7 +118,7 @@ def generate_model_upserts(provider_name: str, api_type: str, models: List[Dict[
         
         tags_sql = format_json_array(tags)
         
-        upsert = f"""INSERT INTO aperag_llm_provider_models (
+        upsert = f"""INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, max_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
@@ -311,7 +311,74 @@ def create_xai_config(enable_whitelist=False, model_whitelist=None):
     return config
 
 
+def parse_bailian_models(file_path: str) -> List[Dict[str, Any]]:
+    """Parse Alibaba Bailian models from JSON file"""
+    with open(file_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    models = []
+    
+    # Navigate through the nested JSON structure
+    model_list_path = data.get("data", {}).get("DataV2", {}).get("data", {}).get("data", {})
+    model_groups = model_list_path.get("list", [])
+    
+    processed_models = set()
+    
+    for group in model_groups:
+        for model_info in group.get("items", []):
+            model_id = model_info.get("model")
+            if not model_id or model_id in processed_models:
+                continue
+            
+            # Only include models that support inference
+            if not model_info.get("supports", {}).get("inference", False):
+                continue
+            
+            processed_models.add(model_id)
+            
+            spec = {
+                "model": model_id,
+                "custom_llm_provider": "openai"
+            }
+            
+            # Add context window as max_tokens if available
+            context_window = model_info.get("contextWindow")
+            if context_window:
+                spec["max_tokens"] = context_window
+            
+            models.append(spec)
+    
+    return models
+
+
 def create_alibabacloud_config():
+    # Setup file paths
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    completion_file = os.path.join(project_root, "models", "alibaba_bailian_models_completion.json")
+    embedding_file = os.path.join(project_root, "models", "alibaba_bailian_models_embedding.json")
+    rerank_file = os.path.join(project_root, "models", "alibaba_bailian_models_rerank.json")
+    
+    print(f"📁 Reading Alibaba Bailian models from multiple files...")
+    
+    # Parse completion models
+    print(f"  - Reading completion models from: {completion_file}")
+    completion_models = parse_bailian_models(completion_file)
+    
+    # Parse embedding models
+    print(f"  - Reading embedding models from: {embedding_file}")
+    embedding_models = parse_bailian_models(embedding_file)
+    
+    # Parse rerank models
+    print(f"  - Reading rerank models from: {rerank_file}")
+    rerank_models = parse_bailian_models(rerank_file)
+    
+    # Sort model lists
+    completion_models.sort(key=lambda x: x["model"])
+    embedding_models.sort(key=lambda x: x["model"])
+    rerank_models.sort(key=lambda x: x["model"])
+    
+    print(f"✅ Found {len(completion_models)} completion, {len(embedding_models)} embedding, and {len(rerank_models)} rerank models from Alibaba Bailian")
+    
     config = {
         "name": "alibabacloud",
         "label": "AlibabaCloud",
@@ -320,78 +387,11 @@ def create_alibabacloud_config():
         "rerank_dialect": "jina_ai",
         "allow_custom_base_url": False,
         "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "embedding": [
-            {
-                "model": "text-embedding-v1",
-                "custom_llm_provider": "openai"
-            },
-            {
-                "model": "text-embedding-v2",
-                "custom_llm_provider": "openai"
-            },
-            {
-                "model": "text-embedding-v3",
-                "custom_llm_provider": "openai"
-            }
-        ],
-        "completion": [
-            {
-                "model": "deepseek-r1",
-                "custom_llm_provider": "openai"
-            },
-            {
-                "model": "deepseek-v3",
-                "custom_llm_provider": "openai"
-            },
-            {
-                "model": "qwen-max",
-                "custom_llm_provider": "openai"
-            },
-            {
-                "model": "qwen-long",
-                "custom_llm_provider": "openai"
-            },
-            {
-                "model": "qwen-plus",
-                "custom_llm_provider": "openai"
-            },
-            {
-                "model": "qwen-plus-latest",
-                "custom_llm_provider": "openai"
-            },
-            {
-                "model": "qwen-turbo",
-                "custom_llm_provider": "openai"
-            },
-            {
-                "model": "qwq-32b",
-                "custom_llm_provider": "openai"
-            },
-            {
-                "model": "qwq-plus",
-                "custom_llm_provider": "openai"
-            },
-            {
-                "model": "qwq-plus-latest",
-                "custom_llm_provider": "openai"
-            },
-            {
-                "model": "qwen-vl-max",
-                "custom_llm_provider": "openai"
-            },
-            {
-                "model": "qwen-vl-plus",
-                "custom_llm_provider": "openai"
-            }
-        ],
-        "rerank": []
+        "embedding": embedding_models,
+        "completion": completion_models,
+        "rerank": rerank_models
     }
-
-    # Sort model lists
-    config["completion"].sort(key=lambda x: x["model"])
-    config["embedding"].sort(key=lambda x: x["model"])
-    config["rerank"].sort(key=lambda x: x["model"])
-
+    
     return config
 
 
@@ -418,17 +418,13 @@ def create_siliconflow_config():
                 "custom_llm_provider": "openai"
             },
             {
-                "model": "Pro/BAAI/bge-m3",
-                "custom_llm_provider": "openai"
-            },
-            {
                 "model": "netease-youdao/bce-embedding-base_v1",
                 "custom_llm_provider": "openai"
             }
         ],
         "completion": [
             {
-                "model": "Qwen/QwQ-32B",
+                "model": "Qwen/Qwen3-8B",
                 "custom_llm_provider": "openai"
             },
             {
@@ -443,10 +439,6 @@ def create_siliconflow_config():
         "rerank": [
             {
                 "model": "BAAI/bge-reranker-v2-m3",
-                "custom_llm_provider": "jina_ai"
-            },
-            {
-                "model": "Pro/BAAI/bge-reranker-v2-m3",
                 "custom_llm_provider": "jina_ai"
             },
             {
@@ -465,34 +457,88 @@ def create_siliconflow_config():
 
 
 def create_openrouter_config():
+    # Setup file paths
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    downloads_dir = os.path.join(project_root, "models")
+    openrouter_file = os.path.join(downloads_dir, "openrouter_models.json")
+    
+    # Ensure downloads directory exists
+    os.makedirs(downloads_dir, exist_ok=True)
+    
+    data = None
+    downloaded_data = None
+    
+    # First try to download from API (but don't save yet)
     try:
-        # Request OpenRouter API to get model information
+        print("Downloading OpenRouter models from API...")
         response = requests.get(
             "https://openrouter.ai/api/v1/models",
             headers={},
-            proxies={"http": "http://127.0.0.1:8118", "https": "http://127.0.0.1:8118"}
+            timeout=10  # Add timeout
         )
         
-        if response.status_code != 200:
-            print(f"Error fetching OpenRouter models: {response.status_code}")
+        if response.status_code == 200:
+            downloaded_data = response.json()
+            # Validate downloaded data before using it
+            if downloaded_data and isinstance(downloaded_data, dict) and "data" in downloaded_data:
+                data = downloaded_data
+                print("✅ Successfully downloaded OpenRouter models from API")
+            else:
+                print("❌ Downloaded data is invalid or missing 'data' field")
+                downloaded_data = None
+        else:
+            print(f"❌ Error fetching OpenRouter models: HTTP {response.status_code}")
+            
+    except Exception as e:
+        print(f"❌ Network error downloading OpenRouter models: {str(e)}")
+    
+    # If download failed, try to read from local file 
+    if data is None:
+        try:
+            if os.path.exists(openrouter_file):
+                print(f"📁 Reading OpenRouter models from local file: {openrouter_file}")
+                with open(openrouter_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                print("✅ Successfully loaded OpenRouter models from local file")
+            else:
+                print(f"❌ Local file {openrouter_file} not found")
+                print("💡 Tip: You can manually download the JSON from https://openrouter.ai/api/v1/models")
+                print(f"💡 and save it as {openrouter_file}")
+                return None
+        except Exception as e:
+            print(f"❌ Error reading local OpenRouter file: {str(e)}")
             return None
-        
-        data = response.json()
-        
-        # Filter models ending with ":free"
-        free_models = []
+    
+    if data is None:
+        return None
+    
+    try:
+        # Get all OpenRouter models (not just free ones)
+        all_models = []
         for model in data.get("data", []):
             model_id = model.get("id", "")
             context_length = model.get("context_length")
-            if model_id.endswith(":free"):
-                free_models.append({
-                    "model": model_id,
-                    "custom_llm_provider": "openrouter",
-                    "max_tokens": context_length,
-                })
+            # Include all models, not just free ones
+            all_models.append({
+                "model": model_id,
+                "custom_llm_provider": "openrouter",
+                "max_tokens": context_length,
+            })
         
         # Sort by model name
-        free_models.sort(key=lambda x: x["model"])
+        all_models.sort(key=lambda x: x["model"])
+        
+        print(f"✅ Found {len(all_models)} OpenRouter models")
+        
+        # Only save to file if we successfully processed downloaded data
+        if downloaded_data is not None and len(all_models) > 0:
+            try:
+                with open(openrouter_file, 'w', encoding='utf-8') as f:
+                    json.dump(downloaded_data, f, indent=2, ensure_ascii=False)
+                print(f"✅ OpenRouter models saved to {openrouter_file}")
+            except Exception as e:
+                print(f"⚠️ Warning: Failed to save downloaded models to file: {str(e)}")
+                print("💡 But we can continue with the downloaded data in memory")
         
         # Create OpenRouter configuration
         config = {
@@ -504,13 +550,14 @@ def create_openrouter_config():
             "allow_custom_base_url": False,
             "base_url": "https://openrouter.ai/api/v1",
             "embedding": [],
-            "completion": free_models,
+            "completion": all_models,
             "rerank": []
         }
         
         return config
+        
     except Exception as e:
-        print(f"Error creating OpenRouter config: {str(e)}")
+        print(f"❌ Error processing OpenRouter data: {str(e)}")
         return None
 
 
@@ -552,7 +599,7 @@ def create_provider_config():
     # Sort xai whitelist
     xai_whitelist.sort()
 
-    enable_whitelist = True
+    enable_whitelist = False
     
     result = [
         create_openai_config(enable_whitelist, openai_whitelist),
@@ -648,7 +695,7 @@ def generate_sql_script(providers_data: List[Dict[str, Any]]) -> str:
     sql_lines = [
         "-- Model configuration initialization SQL script",
         f"-- Generated directly from configuration data on {timestamp}",
-        "-- This script populates aperag_llm_provider and aperag_llm_provider_models tables",
+        "-- This script populates llm_provider and llm_provider_models tables",
         "",
         "BEGIN;",
         "",
@@ -706,7 +753,7 @@ def generate_sql_script(providers_data: List[Dict[str, Any]]) -> str:
 def save_sql_to_file(sql_content: str):
     """Save SQL content to model_configs_init.sql file"""
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    output_file = os.path.join(project_root, "aperag", "sql", "model_configs_init.sql")
+    output_file = os.path.join(project_root, "aperag", "migration", "sql", "model_configs_init.sql")
     
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(sql_content)

@@ -68,5 +68,11 @@ export interface ModelSpec {
      * @memberof ModelSpec
      */
     'top_n'?: number;
+    /**
+     * Tags for model categorization
+     * @type {Array<string>}
+     * @memberof ModelSpec
+     */
+    'tags'?: Array<string>;
 }
 

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import logging
 from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, Field
@@ -21,10 +22,16 @@ from aperag.config import settings
 from aperag.context.context import ContextManager
 from aperag.db.models import Collection
 from aperag.db.ops import async_db_ops
-from aperag.embed.base_embedding import get_collection_embedding_service
 from aperag.flow.base.models import BaseNodeRunner, SystemInput, register_node_runner
+from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
+from aperag.llm.llm_error_types import (
+    EmbeddingError,
+    ProviderNotFoundError,
+)
 from aperag.query.query import DocumentWithScore
 from aperag.utils.utils import generate_vector_db_collection_name
+
+logger = logging.getLogger(__name__)
 
 
 # User input model for vector search node
@@ -66,22 +73,34 @@ class VectorSearchService:
         if not collection:
             return []
 
-        collection_name = generate_vector_db_collection_name(collection.id)
-        embedding_model, vector_size = await get_collection_embedding_service(collection)
-        vectordb_ctx = json.loads(settings.vector_db_context)
-        vectordb_ctx["collection"] = collection_name
-        context_manager = ContextManager(collection_name, embedding_model, settings.vector_db_type, vectordb_ctx)
+        try:
+            collection_name = generate_vector_db_collection_name(collection.id)
+            embedding_model, vector_size = get_collection_embedding_service_sync(collection)
+            vectordb_ctx = json.loads(settings.vector_db_context)
+            vectordb_ctx["collection"] = collection_name
+            context_manager = ContextManager(collection_name, embedding_model, settings.vector_db_type, vectordb_ctx)
 
-        vector = embedding_model.embed_query(query)
-        results = context_manager.query(query, score_threshold=similarity_threshold, topk=top_k, vector=vector)
+            vector = embedding_model.embed_query(query)
+            results = context_manager.query(query, score_threshold=similarity_threshold, topk=top_k, vector=vector)
 
-        # Add recall type metadata
-        for item in results:
-            if item.metadata is None:
-                item.metadata = {}
-            item.metadata["recall_type"] = "vector_search"
+            # Add recall type metadata
+            for item in results:
+                if item.metadata is None:
+                    item.metadata = {}
+                item.metadata["recall_type"] = "vector_search"
 
-        return results
+            return results
+        except ProviderNotFoundError as e:
+            # Configuration error - gracefully degrade by returning empty results
+            logger.warning(f"Vector search skipped for collection {collection.id} due to provider not found: {str(e)}")
+            return []
+        except EmbeddingError as e:
+            # Embedding error - gracefully degrade by returning empty results
+            logger.warning(f"Vector search skipped for collection {collection.id} due to embedding error: {str(e)}")
+            return []
+        except Exception as e:
+            logger.error(f"Vector search failed for collection {collection.id}: {str(e)}")
+            return []
 
 
 @register_node_runner(

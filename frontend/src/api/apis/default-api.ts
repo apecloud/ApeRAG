@@ -116,6 +116,8 @@ import type { SearchTestResult } from '../models';
 // @ts-ignore
 import type { SearchTestResultList } from '../models';
 // @ts-ignore
+import type { TagFilterRequest } from '../models';
+// @ts-ignore
 import type { User } from '../models';
 // @ts-ignore
 import type { UserList } from '../models';
@@ -280,12 +282,13 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
-         * Get available models
-         * @summary Get available models
+         * Get available models with tag filtering support. - No tag_filters or empty array: Returns only models with \"recommend\" tag (default) - Specific filters: Returns models matching the filter conditions 
+         * @summary Get available models with filtering
+         * @param {TagFilterRequest} [tagFilterRequest] 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        availableModelsGet: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        availableModelsPost: async (tagFilterRequest?: TagFilterRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             const localVarPath = `/available_models`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
@@ -294,15 +297,18 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
                 baseOptions = configuration.baseOptions;
             }
 
-            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
 
 
     
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
             setSearchParams(localVarUrlObj, localVarQueryParameter);
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(tagFilterRequest, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -2415,15 +2421,16 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Get available models
-         * @summary Get available models
+         * Get available models with tag filtering support. - No tag_filters or empty array: Returns only models with \"recommend\" tag (default) - Specific filters: Returns models matching the filter conditions 
+         * @summary Get available models with filtering
+         * @param {TagFilterRequest} [tagFilterRequest] 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async availableModelsGet(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ModelConfigList>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.availableModelsGet(options);
+        async availableModelsPost(tagFilterRequest?: TagFilterRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ModelConfigList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.availableModelsPost(tagFilterRequest, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
-            const localVarOperationServerBasePath = operationServerMap['DefaultApi.availableModelsGet']?.[localVarOperationServerIndex]?.url;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.availableModelsPost']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
@@ -3188,13 +3195,14 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.apikeysPost(requestParameters.apiKeyCreate, options).then((request) => request(axios, basePath));
         },
         /**
-         * Get available models
-         * @summary Get available models
+         * Get available models with tag filtering support. - No tag_filters or empty array: Returns only models with \"recommend\" tag (default) - Specific filters: Returns models matching the filter conditions 
+         * @summary Get available models with filtering
+         * @param {DefaultApiAvailableModelsPostRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        availableModelsGet(options?: RawAxiosRequestConfig): AxiosPromise<ModelConfigList> {
-            return localVarFp.availableModelsGet(options).then((request) => request(axios, basePath));
+        availableModelsPost(requestParameters: DefaultApiAvailableModelsPostRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<ModelConfigList> {
+            return localVarFp.availableModelsPost(requestParameters.tagFilterRequest, options).then((request) => request(axios, basePath));
         },
         /**
          * Delete a chat
@@ -3765,13 +3773,14 @@ export interface DefaultApiInterface {
     apikeysPost(requestParameters: DefaultApiApikeysPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<ApiKey>;
 
     /**
-     * Get available models
-     * @summary Get available models
+     * Get available models with tag filtering support. - No tag_filters or empty array: Returns only models with \"recommend\" tag (default) - Specific filters: Returns models matching the filter conditions 
+     * @summary Get available models with filtering
+     * @param {DefaultApiAvailableModelsPostRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof DefaultApiInterface
      */
-    availableModelsGet(options?: RawAxiosRequestConfig): AxiosPromise<ModelConfigList>;
+    availableModelsPost(requestParameters?: DefaultApiAvailableModelsPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<ModelConfigList>;
 
     /**
      * Delete a chat
@@ -4342,6 +4351,20 @@ export interface DefaultApiApikeysPostRequest {
      * @memberof DefaultApiApikeysPost
      */
     readonly apiKeyCreate: ApiKeyCreate
+}
+
+/**
+ * Request parameters for availableModelsPost operation in DefaultApi.
+ * @export
+ * @interface DefaultApiAvailableModelsPostRequest
+ */
+export interface DefaultApiAvailableModelsPostRequest {
+    /**
+     * 
+     * @type {TagFilterRequest}
+     * @memberof DefaultApiAvailableModelsPost
+     */
+    readonly tagFilterRequest?: TagFilterRequest
 }
 
 /**
@@ -5232,14 +5255,15 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
     }
 
     /**
-     * Get available models
-     * @summary Get available models
+     * Get available models with tag filtering support. - No tag_filters or empty array: Returns only models with \"recommend\" tag (default) - Specific filters: Returns models matching the filter conditions 
+     * @summary Get available models with filtering
+     * @param {DefaultApiAvailableModelsPostRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof DefaultApi
      */
-    public availableModelsGet(options?: RawAxiosRequestConfig) {
-        return DefaultApiFp(this.configuration).availableModelsGet(options).then((request) => request(this.axios, this.basePath));
+    public availableModelsPost(requestParameters: DefaultApiAvailableModelsPostRequest = {}, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).availableModelsPost(requestParameters.tagFilterRequest, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

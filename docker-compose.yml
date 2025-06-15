@@ -156,7 +156,7 @@ services:
     restart: on-failure
 
   docray:
-    image: ${REGISTRY:-docker.io}/apecloud/doc-ray:${DOCRAY_VERSION:-v0.1.0}
+    image: ${REGISTRY:-docker.io}/apecloud/doc-ray:${DOCRAY_VERSION:-v0.1.1}
     container_name: aperag-docray
     ports:
       - "8265:8265"
@@ -170,7 +170,7 @@ services:
           memory: "8G"
 
   docray-gpu:
-    image: ${REGISTRY:-docker.io}/apecloud/doc-ray:${DOCRAY_VERSION:-v0.1.0}
+    image: ${REGISTRY:-docker.io}/apecloud/doc-ray:${DOCRAY_VERSION:-v0.1.1}
     container_name: aperag-docray-gpu
     ports:
       - "8265:8265"

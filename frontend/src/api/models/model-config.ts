@@ -15,7 +15,7 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { ModelDefinition } from './model-definition';
+import type { ModelSpec } from './model-spec';
 
 /**
  * 
@@ -67,21 +67,21 @@ export interface ModelConfig {
     'base_url'?: string;
     /**
      * 
-     * @type {Array<ModelDefinition>}
+     * @type {Array<ModelSpec>}
      * @memberof ModelConfig
      */
-    'embedding'?: Array<ModelDefinition>;
+    'embedding'?: Array<ModelSpec>;
     /**
      * 
-     * @type {Array<ModelDefinition>}
+     * @type {Array<ModelSpec>}
      * @memberof ModelConfig
      */
-    'completion'?: Array<ModelDefinition>;
+    'completion'?: Array<ModelSpec>;
     /**
      * 
-     * @type {Array<ModelDefinition>}
+     * @type {Array<ModelSpec>}
      * @memberof ModelConfig
      */
-    'rerank'?: Array<ModelDefinition>;
+    'rerank'?: Array<ModelSpec>;
 }
 

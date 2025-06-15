@@ -942,16 +942,79 @@ paths:
               schema:
                 $ref: '#/components/schemas/failResponse'
   /available_models:
-    get:
-      summary: Get available models
-      description: Get available models
+    post:
+      summary: Get available models with filtering
+      description: |
+        Get available models with tag filtering support.
+        - No tag_filters or empty array: Returns only models with "recommend" tag (default)
+        - Specific filters: Returns models matching the filter conditions
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/tagFilterRequest'
+            examples:
+              default:
+                summary: Default (recommend only)
+                description: Empty request body returns only models with "recommend" tag
+                value: {}
+              all_models:
+                summary: Get all models
+                description: Empty tag_filters array returns all models
+                value:
+                  tag_filters: []
+              simple_filter:
+                summary: Simple tag filter
+                description: Models with recommend tag
+                value:
+                  tag_filters:
+                    - operation: OR
+                      tags:
+                        - recommend
+              and_filter:
+                summary: AND filter
+                description: Models with both free and recommend tags
+                value:
+                  tag_filters:
+                    - operation: AND
+                      tags:
+                        - free
+                        - recommend
+              or_filter:
+                summary: OR filter
+                description: Models with either openai or gpt tags
+                value:
+                  tag_filters:
+                    - operation: OR
+                      tags:
+                        - openai
+                        - gpt
+              combined_filter:
+                summary: Combined filter
+                description: Complex logic - (free AND recommend) OR (openai)
+                value:
+                  tag_filters:
+                    - operation: AND
+                      tags:
+                        - free
+                        - recommend
+                    - operation: OR
+                      tags:
+                        - openai
       responses:
         '200':
-          description: Available models
+          description: Available models matching filter criteria
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/modelConfigList'
+        '400':
+          description: Invalid tag filter format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
         '401':
           description: Unauthorized
           content:
@@ -1298,6 +1361,155 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
+  /embeddings:
+    post:
+      summary: Create embeddings
+      description: |
+        Generate embeddings for the given input text(s) using the specified provider and model.
+        This endpoint is compatible with OpenAI's embeddings API format, but includes an additional
+        'provider' parameter to specify which LLM provider to use.
+
+        The endpoint supports both single text inputs and batch processing of multiple texts.
+        It requires the provider to be configured in the user's Model Service Provider (MSP) settings
+        with a valid API key.
+      tags:
+        - LLM
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/embeddingRequest'
+            examples:
+              single_text:
+                summary: Single text embedding
+                description: Generate embedding for a single text input
+                value:
+                  provider: openai
+                  model: text-embedding-3-small
+                  input: The food was delicious and the waiter was very attentive.
+              multiple_texts:
+                summary: Batch text embeddings
+                description: Generate embeddings for multiple text inputs
+                value:
+                  provider: openai
+                  model: text-embedding-3-small
+                  input:
+                    - The food was delicious and the waiter was very attentive.
+                    - I had a wonderful experience at this restaurant.
+                    - The service was excellent and the ambiance was perfect.
+              different_provider:
+                summary: Using different provider
+                description: Generate embeddings using a different provider
+                value:
+                  provider: anthropic
+                  model: text-embedding-ada-002
+                  input: This is a sample text for embedding generation.
+      responses:
+        '200':
+          description: Successfully generated embeddings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/embeddingResponse'
+              examples:
+                single_result:
+                  summary: Single embedding result
+                  description: Response for single text input
+                  value:
+                    object: list
+                    data:
+                      - object: embedding
+                        embedding:
+                          - 0.0023064255
+                          - -0.009327292
+                          - 0.015797421
+                          - -0.007654321
+                        index: 0
+                    model: text-embedding-3-small
+                    usage:
+                      prompt_tokens: 16
+                      total_tokens: 16
+                multiple_results:
+                  summary: Multiple embedding results
+                  description: Response for multiple text inputs
+                  value:
+                    object: list
+                    data:
+                      - object: embedding
+                        embedding:
+                          - 0.0023064255
+                          - -0.009327292
+                          - 0.015797421
+                          - -0.007654321
+                        index: 0
+                      - object: embedding
+                        embedding:
+                          - 0.0012345678
+                          - -0.0087654321
+                          - 0.0199887766
+                          - -0.003456789
+                        index: 1
+                    model: text-embedding-3-small
+                    usage:
+                      prompt_tokens: 32
+                      total_tokens: 32
+        '400':
+          description: Bad request - Invalid input parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+              examples:
+                empty_input:
+                  summary: Empty input
+                  description: Input cannot be empty
+                  value:
+                    success: false
+                    message: Input cannot be empty
+                invalid_provider:
+                  summary: Provider not found
+                  description: Specified provider is not configured for the user
+                  value:
+                    success: false
+                    message: Provider 'invalid_provider' not found for user
+                model_not_found:
+                  summary: Model not found
+                  description: Specified model not found for the provider
+                  value:
+                    success: false
+                    message: Model 'invalid_model' not found for provider 'openai'
+        '401':
+          description: Unauthorized - Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+              example:
+                success: false
+                message: Authentication required
+        '500':
+          description: Internal server error - Embedding generation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+              examples:
+                embedding_error:
+                  summary: Embedding generation failed
+                  description: Error during embedding generation process
+                  value:
+                    success: false
+                    message: 'Embedding generation failed: API rate limit exceeded'
+                configuration_error:
+                  summary: Configuration error
+                  description: Provider configuration issue
+                  value:
+                    success: false
+                    message: API key not configured for provider 'openai'
   /config:
     get:
       summary: Get system configuration
@@ -2050,6 +2262,15 @@ components:
           type: integer
           description: Number of top results to return when reranking documents
           minimum: 1
+        tags:
+          type: array
+          items:
+            type: string
+          description: Tags for model categorization
+          example:
+            - free
+            - recommend
+          default: []
     collectionConfig:
       type: object
       properties:
@@ -2535,30 +2756,45 @@ components:
           type: string
         api_key:
           type: string
-    modelInfo:
+    tagFilterCondition:
       type: object
       properties:
-        input_cost_per_token:
-          type: number
-          description: Input cost per token for single requests
-          example: 0.0000025
-        output_cost_per_token:
-          type: number
-          description: Output cost per token for single requests
-          example: 0.00001
-        input_cost_per_token_batches:
-          type: number
-          description: Input cost per token for batch requests
-          example: 0.00000125
-        output_cost_per_token_batches:
-          type: number
-          description: Output cost per token for batch requests
-          example: 0.000005
-    modelDefinition:
+        operation:
+          type: string
+          enum:
+            - AND
+            - OR
+          description: Logical operation for tags in this condition
+          example: AND
+        tags:
+          type: array
+          items:
+            type: string
+          description: List of tags for this condition
+          example:
+            - free
+            - recommend
+      required:
+        - operation
+        - tags
+    tagFilterRequest:
       type: object
-      allOf:
-        - $ref: '#/components/schemas/modelSpec'
-        - $ref: '#/components/schemas/modelInfo'
+      properties:
+        tag_filters:
+          type: array
+          items:
+            $ref: '#/components/schemas/tagFilterCondition'
+          description: List of tag filter conditions (OR relationship between conditions). If not provided or empty, returns models with "recommend" tag by default.
+          example:
+            - operation: AND
+              tags:
+                - free
+                - recommend
+            - operation: OR
+              tags:
+                - openai
+                - gpt
+      description: Tag filtering request. Empty request body or empty tag_filters returns recommend models by default.
     modelConfig:
       type: object
       properties:
@@ -2579,15 +2815,15 @@ components:
         embedding:
           type: array
           items:
-            $ref: '#/components/schemas/modelDefinition'
+            $ref: '#/components/schemas/modelSpec'
         completion:
           type: array
           items:
-            $ref: '#/components/schemas/modelDefinition'
+            $ref: '#/components/schemas/modelSpec'
         rerank:
           type: array
           items:
-            $ref: '#/components/schemas/modelDefinition'
+            $ref: '#/components/schemas/modelSpec'
     modelConfigList:
       type: object
       properties:
@@ -2837,6 +3073,102 @@ components:
           items:
             type: string
           description: Tags for model categorization
+    embeddingRequest:
+      type: object
+      description: Request to generate embeddings for text inputs
+      properties:
+        provider:
+          type: string
+          description: LLM provider name (e.g., openai, anthropic)
+          example: openai
+        model:
+          type: string
+          description: Model name for embedding generation
+          example: text-embedding-3-small
+        input:
+          oneOf:
+            - type: string
+              description: Single text input to embed
+              example: The food was delicious and the waiter was very attentive.
+            - type: array
+              description: List of text inputs to embed
+              items:
+                type: string
+              example:
+                - The food was delicious and the waiter was very attentive.
+                - I had a wonderful experience at this restaurant.
+      required:
+        - provider
+        - model
+        - input
+    embeddingData:
+      type: object
+      description: Individual embedding result
+      properties:
+        object:
+          type: string
+          description: Object type identifier
+          example: embedding
+          default: embedding
+        embedding:
+          type: array
+          description: The embedding vector as a list of floats
+          items:
+            type: number
+            format: float
+          example:
+            - 0.0023064255
+            - -0.009327292
+            - 0.015797421
+            - 0.0012345678
+        index:
+          type: integer
+          description: Index of the input text corresponding to this embedding
+          example: 0
+      required:
+        - object
+        - embedding
+        - index
+    embeddingUsage:
+      type: object
+      description: Token usage information for the embedding request
+      properties:
+        prompt_tokens:
+          type: integer
+          description: Number of tokens in the input text(s)
+          example: 16
+        total_tokens:
+          type: integer
+          description: Total number of tokens used (same as prompt_tokens for embeddings)
+          example: 16
+      required:
+        - prompt_tokens
+        - total_tokens
+    embeddingResponse:
+      type: object
+      description: Response containing generated embeddings in OpenAI-compatible format
+      properties:
+        object:
+          type: string
+          description: Object type identifier
+          example: list
+          default: list
+        data:
+          type: array
+          description: List of embedding results
+          items:
+            $ref: '#/components/schemas/embeddingData'
+        model:
+          type: string
+          description: Model used for embedding generation
+          example: text-embedding-3-small
+        usage:
+          $ref: '#/components/schemas/embeddingUsage'
+      required:
+        - object
+        - data
+        - model
+        - usage
     config:
       type: object
       properties:
@@ -2920,7 +3252,7 @@ components:
           type: string
           description: The token of the invitation
         created_by:
-          type: integer
+          type: string
           description: The ID of the user who created the invitation
         created_at:
           type: string

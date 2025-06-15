@@ -12,3 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
+from aperag.llm.embed.embedding_service import EmbeddingService
+from aperag.llm.embed.embedding_utils import create_embeddings_and_store
+
+__all__ = ["EmbeddingService", "get_collection_embedding_service_sync", "create_embeddings_and_store"]

@@ -717,7 +717,7 @@ class DatabaseOps:
                     WITH relevant_chunks AS (
                         SELECT id as chunk_id
                         FROM lightrag_doc_chunks
-                        WHERE full_doc_id = ANY(:doc_ids)
+                        WHERE workspace = :workspace AND full_doc_id = ANY(:doc_ids)
                     )
                     SELECT id, content, file_path, EXTRACT(EPOCH FROM create_time)::BIGINT as created_at,
                            1 - (content_vector <=> '[:embedding]'::vector) as distance
@@ -772,7 +772,7 @@ class DatabaseOps:
                     WITH relevant_chunks AS (
                         SELECT id as chunk_id
                         FROM lightrag_doc_chunks
-                        WHERE full_doc_id = ANY(:doc_ids)
+                        WHERE workspace = :workspace AND full_doc_id = ANY(:doc_ids)
                     )
                     SELECT entity_name, EXTRACT(EPOCH FROM create_time)::BIGINT as created_at,
                            1 - (content_vector <=> '[:embedding]'::vector) as distance
@@ -830,7 +830,7 @@ class DatabaseOps:
                     WITH relevant_chunks AS (
                         SELECT id as chunk_id
                         FROM lightrag_doc_chunks
-                        WHERE full_doc_id = ANY(:doc_ids)
+                        WHERE workspace = :workspace AND full_doc_id = ANY(:doc_ids)
                     )
                     SELECT source_id as src_id, target_id as tgt_id, 
                            EXTRACT(EPOCH FROM create_time)::BIGINT as created_at,
