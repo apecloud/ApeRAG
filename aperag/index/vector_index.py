@@ -20,8 +20,6 @@ from sqlalchemy import and_, select
 
 from aperag.config import settings
 
-# NOTE: This file has been updated to use DocumentIndex table instead of Document.relate_ids field
-# The relate_ids field has been removed from Document model and replaced with index_data in DocumentIndex
 from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
 from aperag.llm.embed.embedding_utils import create_embeddings_and_store
 from aperag.index.base import BaseIndexer, IndexResult, IndexType

@@ -59,6 +59,9 @@ run-backend: migrate
 run-celery:
 	celery -A config.celery worker -B -l INFO --pool=solo
 
+run-beat:
+	celery -A config.celery beat -l INFO
+
 run-flower:
 	celery -A config.celery flower --conf/flowerconfig.py
 

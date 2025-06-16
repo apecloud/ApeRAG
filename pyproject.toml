@@ -2,7 +2,7 @@
 authors = [
     {name = "nayutah", email = "dullboy@apecloud.com"},
 ]
-requires-python = "<3.13,>=3.10.0"
+requires-python = "<3.13,>=3.11.12"
 dependencies = [
     "langchain<1.0.0,>=0.3.23",
     "langchain-huggingface<1.0.0,>=0.1.2",
