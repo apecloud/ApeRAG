@@ -15,7 +15,7 @@
 import logging
 from typing import List, Optional
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, not_, select
 from sqlalchemy.orm import Session
 
 from aperag.config import get_sync_session
@@ -23,6 +23,7 @@ from aperag.db.models import (
     Document,
     DocumentIndex,
     DocumentIndexType,
+    DocumentStatus,
     IndexActualState,
     IndexDesiredState,
 )
@@ -144,12 +145,19 @@ class IndexTaskCallbacks:
 
     @staticmethod
     def _update_document_status(document_id: str, session: Session):
-        stmt = select(Document).where(Document.id == document_id)
+        stmt = select(Document).where(Document.id == document_id, Document.status != DocumentStatus.DELETED)
         result = session.execute(stmt)
         document = result.scalar_one_or_none()
-        if document:
+        if not document:
+            return
+        # FIXME: this is not safe
+        indexes = document.get_document_indexes(session)
+        states = [idx.actual_state for idx in indexes]
+        if all([state == IndexActualState.ABSENT for state in states]) and document.status == DocumentStatus.DELETING:
+            document.status = DocumentStatus.DELETED
+        else:
             document.status = document.get_overall_index_status(session)
-            session.add(document)
+        session.add(document)
 
     @staticmethod
     def on_index_created(document_id: str, index_type: str, index_data: str = None):

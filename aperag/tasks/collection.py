@@ -142,45 +142,43 @@ class CollectionTask:
         if not enable_knowledge_graph:
             return deletion_stats
 
-        if enable_knowledge_graph:
+        async def _delete_lightrag():
+            # Create new LightRAG instance
+            rag = await lightrag_manager.create_lightrag_instance(collection)
 
-            async def _delete_lightrag():
-                # Create new LightRAG instance
-                rag = await lightrag_manager.create_lightrag_instance(collection)
+            # Get all document IDs in this collection
+            document_ids = list(db_ops.query_documents(collection.id).values_list("id", flat=True))
 
-                # Get all document IDs in this collection
-                document_ids = list(db_ops.query_documents(collection.id).values_list("id", flat=True))
+            if document_ids:
+                deleted_count = 0
+                failed_count = 0
 
-                if document_ids:
-                    deleted_count = 0
-                    failed_count = 0
+                for document_id in document_ids:
+                    try:
+                        await rag.adelete_by_doc_id(str(document_id))
+                        deleted_count += 1
+                        logger.debug(f"Deleted lightrag document for document ID: {document_id}")
+                    except Exception as e:
+                        failed_count += 1
+                        logger.warning(
+                            f"Failed to delete lightrag document for document ID {document_id}: {str(e)}"
+                        )
 
-                    for document_id in document_ids:
-                        try:
-                            await rag.adelete_by_doc_id(str(document_id))
-                            deleted_count += 1
-                            logger.debug(f"Deleted lightrag document for document ID: {document_id}")
-                        except Exception as e:
-                            failed_count += 1
-                            logger.warning(
-                                f"Failed to delete lightrag document for document ID {document_id}: {str(e)}"
-                            )
+                logger.info(
+                    f"Completed lightrag document deletion for collection {collection.id}: "
+                    f"{deleted_count} deleted, {failed_count} failed"
+                )
 
-                    logger.info(
-                        f"Completed lightrag document deletion for collection {collection.id}: "
-                        f"{deleted_count} deleted, {failed_count} failed"
-                    )
+                deletion_stats.update({"documents_deleted": deleted_count, "documents_failed": failed_count})
+            else:
+                logger.info(f"No documents found for collection {collection.id}")
+                deletion_stats["documents_deleted"] = 0
 
-                    deletion_stats.update({"documents_deleted": deleted_count, "documents_failed": failed_count})
-                else:
-                    logger.info(f"No documents found for collection {collection.id}")
-                    deletion_stats["documents_deleted"] = 0
+            # Clean up resources
+            await rag.finalize_storages()
 
-                # Clean up resources
-                await rag.finalize_storages()
-
-            # Execute async deletion
-            async_to_sync(_delete_lightrag)()
+        # Execute async deletion
+        async_to_sync(_delete_lightrag)()
 
         return deletion_stats
 
