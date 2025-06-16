@@ -76,7 +76,6 @@ class DocumentStatus(str, Enum):
     RUNNING = "RUNNING"
     COMPLETE = "COMPLETE"
     FAILED = "FAILED"
-    DELETING = "DELETING"
     DELETED = "DELETED"
 
 

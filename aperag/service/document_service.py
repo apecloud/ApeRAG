@@ -210,8 +210,6 @@ class DocumentService:
         instance = await self.db_ops.query_document(user, collection_id, document_id)
         if instance is None:
             return fail(HTTPStatus.NOT_FOUND, "Document not found")
-        if instance.status == db_models.DocumentStatus.DELETING:
-            return fail(HTTPStatus.BAD_REQUEST, "Document is deleting")
 
         async def _update_document_operation(session):
             if document_in.config:
@@ -254,9 +252,6 @@ class DocumentService:
         document = await self.db_ops.query_document(user, collection_id, document_id)
         if document is None:
             logger.info(f"document {document_id} not found, maybe has already been deleted")
-            return success({})
-        if document.status == db_models.DocumentStatus.DELETING:
-            logger.info(f"document {document_id} is deleting, ignore delete")
             return success({})
 
         async def _delete_document_operation(session):

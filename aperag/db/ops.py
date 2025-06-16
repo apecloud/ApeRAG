@@ -1757,8 +1757,9 @@ class AsyncDatabaseOps:
             instance = result.scalars().first()
 
             if instance:
-                instance.status = DocumentStatus.DELETING
-                instance.gmt_deleted = datetime.utcnow()
+                from aperag.db.models import utc_now
+                instance.status = DocumentStatus.DELETED
+                instance.gmt_deleted = utc_now()
                 session.add(instance)
                 await session.flush()
                 await session.refresh(instance)
@@ -1784,8 +1785,9 @@ class AsyncDatabaseOps:
             success_ids = []
             for doc in documents:
                 try:
-                    doc.status = DocumentStatus.DELETING
-                    doc.gmt_deleted = datetime.utcnow()
+                    from aperag.db.models import utc_now
+                    doc.status = DocumentStatus.DELETED
+                    doc.gmt_deleted = utc_now()
                     session.add(doc)
                     success_ids.append(doc.id)
                 except Exception:

@@ -150,13 +150,7 @@ class IndexTaskCallbacks:
         document = result.scalar_one_or_none()
         if not document:
             return
-        # FIXME: this is not safe
-        indexes = document.get_document_indexes(session)
-        states = [idx.actual_state for idx in indexes]
-        if all([state == IndexActualState.ABSENT for state in states]) and document.status == DocumentStatus.DELETING:
-            document.status = DocumentStatus.DELETED
-        else:
-            document.status = document.get_overall_index_status(session)
+        document.status = document.get_overall_index_status(session)
         session.add(document)
 
     @staticmethod
