@@ -56,18 +56,6 @@ class IndexResult:
         }
 
 
-@dataclass
-class IndexConfig:
-    """Index configuration"""
-
-    enabled: bool = True
-    params: Dict[str, Any] = None
-
-    def __post_init__(self):
-        if self.params is None:
-            self.params = {}
-
-
 class BaseIndexer(ABC):
     """Abstract base class for all indexers"""
 
@@ -135,18 +123,6 @@ class BaseIndexer(ABC):
             bool: True if enabled
         """
         pass
-
-    def get_config(self, collection) -> IndexConfig:
-        """
-        Get index configuration for collection
-
-        Args:
-            collection: Collection object
-
-        Returns:
-            IndexConfig: Index configuration
-        """
-        return IndexConfig(enabled=self.is_enabled(collection))
 
 
 class AsyncIndexer(BaseIndexer):
