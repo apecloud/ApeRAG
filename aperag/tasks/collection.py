@@ -147,7 +147,8 @@ class CollectionTask:
             rag = await lightrag_manager.create_lightrag_instance(collection)
 
             # Get all document IDs in this collection
-            document_ids = list(db_ops.query_documents(collection.id).values_list("id", flat=True))
+            documents = db_ops.query_documents([collection.user], collection.id)
+            document_ids = [doc.id for doc in documents]
 
             if document_ids:
                 deleted_count = 0

@@ -15,7 +15,7 @@
 from unittest.mock import MagicMock
 
 from aperag.schema import view_models
-from aperag.service.model_service import _filter_models_by_tags, _filter_providers_by_tags
+from aperag.service.llm_available_model_service import _filter_models_by_tags, _filter_providers_by_tags
 
 
 class TestFilterModelsByTags:

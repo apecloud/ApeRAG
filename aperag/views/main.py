@@ -24,7 +24,8 @@ from aperag.service.chat_service import chat_service_global
 from aperag.service.collection_service import collection_service
 from aperag.service.document_service import document_service
 from aperag.service.flow_service import flow_service_global
-from aperag.service.llm_configuration_service import (
+from aperag.service.llm_available_model_service import get_available_models
+from aperag.service.llm_provider_service import (
     create_llm_provider,
     create_llm_provider_model,
     delete_llm_provider,
@@ -35,7 +36,6 @@ from aperag.service.llm_configuration_service import (
     update_llm_provider,
     update_llm_provider_model,
 )
-from aperag.service.model_service import get_available_models
 from aperag.service.prompt_template_service import list_prompt_templates
 
 # Import authentication dependencies
