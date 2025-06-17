@@ -28,13 +28,19 @@ from aperag.db.ops import (
     async_db_ops,
 )
 from aperag.docparser.doc_parser import DocParser
+from aperag.exceptions import (
+    CollectionInactiveException,
+    DocumentNotFoundException,
+    QuotaExceededException,
+    ResourceNotFoundException,
+    invalid_param,
+)
 from aperag.index.manager import document_index_manager
 from aperag.objectstore.base import get_object_store
 from aperag.schema import view_models
 from aperag.schema.view_models import Document, DocumentList
 from aperag.utils.constant import QuotaType
 from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
-from aperag.exceptions import ResourceNotFoundException, CollectionInactiveException, QuotaExceededException, DocumentNotFoundException, invalid_param
 
 logger = logging.getLogger(__name__)
 
@@ -156,13 +162,12 @@ class DocumentService:
 
             # Update document with object path
             metadata = json.dumps({"object_path": upload_path})
-            updated_doc = await self.db_ops.update_document_by_id(
-                user, collection_id, document_instance.id, metadata
-            )
+            updated_doc = await self.db_ops.update_document_by_id(user, collection_id, document_instance.id, metadata)
 
             # Get document response
             async def _get_doc_response(session):
                 return await self.build_document_response(updated_doc, session)
+
             doc_response = await self.db_ops._execute_query(_get_doc_response)
             response.append(doc_response)
 
@@ -174,6 +179,7 @@ class DocumentService:
 
             async def _create_indexes(session):
                 await document_index_manager.create_document_indexes(session, updated_doc.id, user, index_types)
+
             await self.db_ops.execute_with_transaction(_create_indexes)
 
         # Trigger index reconciliation after successful document creation
@@ -221,17 +227,21 @@ class DocumentService:
                 # Update index specs to trigger re-indexing
                 async def _update_indexes(session):
                     await document_index_manager.update_document_indexes(session, updated_doc.id)
+
                 await self.db_ops.execute_with_transaction(_update_indexes)
 
                 # Get document response
                 async def _get_doc_response(session):
                     return await self.build_document_response(updated_doc, session)
+
                 result = await self.db_ops._execute_query(_get_doc_response)
             except json.JSONDecodeError:
                 raise invalid_param("config", "invalid document config")
         else:
+
             async def _get_doc_response(session):
                 return await self.build_document_response(instance, session)
+
             result = await self.db_ops._execute_query(_get_doc_response)
 
         # Trigger index reconciliation after successful document update
@@ -241,7 +251,7 @@ class DocumentService:
 
     async def delete_document(self, user: str, collection_id: str, document_id: str) -> Optional[view_models.Document]:
         """Delete document by ID (idempotent operation)
-        
+
         Returns the deleted document or None if already deleted/not found
         """
         document = await self.db_ops.query_document(user, collection_id, document_id)
@@ -260,18 +270,20 @@ class DocumentService:
             # Mark index specs for deletion
             async def _delete_indexes(session):
                 await document_index_manager.delete_document_indexes(session, document_id)
+
             await self.db_ops.execute_with_transaction(_delete_indexes)
 
             # Get document response
             async def _get_doc_response(session):
                 return await self.build_document_response(deleted_doc, session)
+
             result = await self.db_ops._execute_query(_get_doc_response)
 
             # Trigger index reconciliation after successful document deletion
             _trigger_index_reconciliation()
 
             return result
-        
+
         return None
 
     async def delete_documents(self, user: str, collection_id: str, document_ids: List[str]) -> dict:
@@ -280,8 +292,10 @@ class DocumentService:
 
         # Delete indexes for successful deletions
         for doc_id in success_ids:
+
             async def _delete_indexes(session):
                 await document_index_manager.delete_document_indexes(session, doc_id)
+
             await self.db_ops.execute_with_transaction(_delete_indexes)
 
         result = {"success": success_ids, "failed": failed_ids}

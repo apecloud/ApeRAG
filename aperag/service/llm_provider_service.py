@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from http import HTTPStatus
 from typing import Optional
 
 from aperag.db.ops import async_db_ops
@@ -217,7 +216,7 @@ async def update_llm_provider(provider_name: str, update_data: dict, user_id: st
 
 async def delete_llm_provider(provider_name: str) -> Optional[bool]:
     """Delete an LLM provider (soft delete, idempotent operation)
-    
+
     Returns True if deleted, None if already deleted/not found
     """
     provider = await async_db_ops.query_llm_provider_by_name(provider_name)
@@ -272,14 +271,12 @@ async def create_llm_provider_model(provider_name: str, model_data: dict):
         raise ResourceNotFoundException("Provider", provider_name)
 
     # First check if there's an active model with the same combination
-    active_existing = await async_db_ops.query_llm_provider_model(
-        provider_name, model_data["api"], model_data["model"]
-    )
+    active_existing = await async_db_ops.query_llm_provider_model(provider_name, model_data["api"], model_data["model"])
 
     if active_existing:
         raise invalid_param(
             "model",
-            f"Model '{model_data['model']}' for API '{model_data['api']}' already exists for provider '{provider_name}'"
+            f"Model '{model_data['model']}' for API '{model_data['api']}' already exists for provider '{provider_name}'",
         )
 
     # Try to restore a soft-deleted model if it exists
@@ -323,9 +320,7 @@ async def update_llm_provider_model(provider_name: str, api: str, model: str, up
     existing_model = await async_db_ops.query_llm_provider_model(provider_name, api, model)
 
     if not existing_model:
-        raise ResourceNotFoundException(
-            f"Model '{model}' for API '{api}'", f"provider '{provider_name}'"
-        )
+        raise ResourceNotFoundException(f"Model '{model}' for API '{api}'", f"provider '{provider_name}'")
 
     # Update model using the DatabaseOps method
     model_obj = await async_db_ops.update_llm_provider_model(
@@ -351,7 +346,7 @@ async def update_llm_provider_model(provider_name: str, api: str, model: str, up
 
 async def delete_llm_provider_model(provider_name: str, api: str, model: str) -> Optional[bool]:
     """Delete a specific model of a provider (idempotent operation)
-    
+
     Returns True if deleted, None if already deleted/not found
     """
     model_obj = await async_db_ops.query_llm_provider_model(provider_name, api, model)

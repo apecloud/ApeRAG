@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import json
-from http import HTTPStatus
 from typing import List, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,11 +20,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aperag.config import settings
 from aperag.db import models as db_models
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
+from aperag.exceptions import (
+    CollectionInactiveException,
+    QuotaExceededException,
+    ResourceNotFoundException,
+    invalid_param,
+)
 from aperag.schema import view_models
 from aperag.schema.view_models import Bot, BotList
 from aperag.utils.constant import QuotaType
 from aperag.views.utils import validate_bot_config
-from aperag.exceptions import QuotaExceededException, ResourceNotFoundException, CollectionInactiveException, invalid_param
 
 
 class BotService:
@@ -135,7 +139,9 @@ class BotService:
         # Get API key for the model service provider
         api_key = await async_db_ops.query_provider_api_key(model_service_provider, user)
         if not api_key:
-            raise invalid_param("model_service_provider", f"API KEY not found for LLM Provider: {model_service_provider}")
+            raise invalid_param(
+                "model_service_provider", f"API KEY not found for LLM Provider: {model_service_provider}"
+            )
 
         # Get base_url from LLMProvider
         try:
@@ -184,13 +190,14 @@ class BotService:
         # Get collection IDs for response
         async def _get_collections(session):
             return await updated_bot.collections(session, only_ids=True)
+
         collection_ids = await self.db_ops._execute_query(_get_collections)
 
         return self.build_bot_response(updated_bot, collection_ids=collection_ids)
 
     async def delete_bot(self, user: str, bot_id: str) -> Optional[view_models.Bot]:
         """Delete bot by ID (idempotent operation)
-        
+
         Returns the deleted bot or None if already deleted/not found
         """
         # Check if bot exists - if not, silently succeed (idempotent)
@@ -208,10 +215,11 @@ class BotService:
             # Get collection IDs for response
             async def _get_collections(session):
                 return await deleted_bot.collections(session, only_ids=True)
+
             collection_ids = await self.db_ops._execute_query(_get_collections)
 
             return self.build_bot_response(deleted_bot, collection_ids=collection_ids)
-        
+
         return None
 
 

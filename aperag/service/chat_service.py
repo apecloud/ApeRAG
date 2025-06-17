@@ -15,7 +15,6 @@
 import json
 import logging
 import uuid
-from http import HTTPStatus
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
@@ -24,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.db import models as db_models
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
+from aperag.exceptions import ChatNotFoundException, ResourceNotFoundException
 from aperag.flow.engine import FlowEngine
 from aperag.flow.parser import FlowParser
 from aperag.schema import view_models
@@ -38,7 +38,6 @@ from aperag.utils.history import (
     success_response,
 )
 from aperag.utils.utils import now_unix_milliseconds
-from aperag.exceptions import ResourceNotFoundException, ChatNotFoundException
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +180,7 @@ class ChatService:
 
     async def delete_chat(self, user: str, bot_id: str, chat_id: str) -> Optional[view_models.Chat]:
         """Delete chat by ID (idempotent operation)
-        
+
         Returns the deleted chat or None if already deleted/not found
         """
         # Check if chat exists - if not, silently succeed (idempotent)
@@ -198,7 +197,7 @@ class ChatService:
             await history.clear()
 
             return self.build_chat_response(deleted_chat)
-        
+
         return None
 
     def stream_frontend_sse_response(
@@ -218,7 +217,7 @@ class ChatService:
         self, user: str, message: str, stream: bool, bot_id: str, chat_id: str, msg_id: str
     ) -> Any:
         """Frontend chat completions with special error handling for UI responses"""
-        
+
         # Validate bot_id - return formatted error for frontend
         if not bot_id:
             return FrontendFormatter.format_error("bot_id is required")
@@ -233,11 +232,12 @@ class ChatService:
         if chat is None:
             # Direct call to repository method for chat creation
             chat = await self.db_ops.create_chat(user=bot.user, bot_id=bot.id, title="Feishu Chat")
-            
+
             # Set peer info manually using a query operation
             async def _set_peer_info(session):
                 # Get the chat instance and update peer info
                 from sqlalchemy import select
+
                 stmt = select(db_models.Chat).where(db_models.Chat.id == chat.id)
                 result = await session.execute(stmt)
                 chat_instance = result.scalars().first()
@@ -248,7 +248,7 @@ class ChatService:
                     await session.flush()
                     await session.refresh(chat_instance)
                 return chat_instance
-            
+
             chat = await self.db_ops._execute_query(_set_peer_info)
 
         # Use flow engine instead of MessageProcessor/pipeline

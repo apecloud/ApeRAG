@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from http import HTTPStatus
 
+from aperag.exceptions import invalid_param
 from aperag.llm.prompts import MULTI_ROLE_EN_PROMPT_TEMPLATES, MULTI_ROLE_ZH_PROMPT_TEMPLATES
 from aperag.schema import view_models
-from aperag.exceptions import invalid_param
 
 
 def list_prompt_templates(language: str) -> view_models.PromptTemplateList:
@@ -26,7 +25,7 @@ def list_prompt_templates(language: str) -> view_models.PromptTemplateList:
         templates = MULTI_ROLE_EN_PROMPT_TEMPLATES
     else:
         raise invalid_param("language", "unsupported language of prompt templates")
-    
+
     response = []
     for template in templates:
         response.append(

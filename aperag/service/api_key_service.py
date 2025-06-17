@@ -12,16 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from http import HTTPStatus
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.db.models import ApiKey
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
+from aperag.exceptions import ResourceNotFoundException
 from aperag.schema.view_models import ApiKey as ApiKeyModel
 from aperag.schema.view_models import ApiKeyCreate, ApiKeyList, ApiKeyUpdate
-from aperag.exceptions import ResourceNotFoundException
 
 
 class ApiKeyService:
@@ -61,16 +60,16 @@ class ApiKeyService:
 
     async def delete_api_key(self, user: str, apikey_id: str) -> Optional[bool]:
         """Delete an API key (idempotent operation)
-        
+
         Returns True if deleted, None if already deleted/not found
         """
         # Check if API key exists - if not, silently succeed (idempotent)
         existing_keys = await self.db_ops.query_api_keys(user)
         key_exists = any(str(key.id) == apikey_id for key in existing_keys)
-        
+
         if not key_exists:
             return None  # Idempotent operation, not found is success
-        
+
         # For single operations, use DatabaseOps directly
         result = await self.db_ops.delete_api_key(user, apikey_id)
         return result

@@ -13,20 +13,19 @@
 # limitations under the License.
 
 import logging
-from typing import Any, Dict
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
-from aperag.exceptions import BusinessException, ErrorCode
+from aperag.exceptions import BusinessException
 
 logger = logging.getLogger(__name__)
 
 
 def register_exception_handlers(app: FastAPI):
     """Register global exception handlers for the FastAPI application"""
-    
+
     @app.exception_handler(BusinessException)
     async def business_exception_handler(request: Request, exc: BusinessException) -> JSONResponse:
         """Handle business exceptions and convert to proper HTTP responses"""
@@ -37,10 +36,10 @@ def register_exception_handlers(app: FastAPI):
                 "code": exc.code,
                 "details": exc.details,
                 "path": request.url.path,
-                "method": request.method
+                "method": request.method,
             },
         )
-        
+
         return JSONResponse(
             status_code=exc.http_status.value,
             content={
@@ -49,23 +48,19 @@ def register_exception_handlers(app: FastAPI):
                 "code": exc.code,
                 "message": exc.message,
                 "details": exc.details,
-                "path": request.url.path
-            }
+                "path": request.url.path,
+            },
         )
-    
+
     @app.exception_handler(SQLAlchemyError)
     async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
         """Handle SQLAlchemy database errors"""
         logger.error(
             f"Database error: {str(exc)}",
-            extra={
-                "exception_type": type(exc).__name__,
-                "path": request.url.path,
-                "method": request.method
-            },
-            exc_info=True
+            extra={"exception_type": type(exc).__name__, "path": request.url.path, "method": request.method},
+            exc_info=True,
         )
-        
+
         # Don't expose internal database errors to clients
         return JSONResponse(
             status_code=500,
@@ -75,21 +70,15 @@ def register_exception_handlers(app: FastAPI):
                 "code": 1050,
                 "message": "A database error occurred",
                 "details": {},
-                "path": request.url.path
-            }
+                "path": request.url.path,
+            },
         )
-    
+
     @app.exception_handler(ValueError)
     async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
         """Handle ValueError exceptions as validation errors"""
-        logger.warning(
-            f"Validation error: {str(exc)}",
-            extra={
-                "path": request.url.path,
-                "method": request.method
-            }
-        )
-        
+        logger.warning(f"Validation error: {str(exc)}", extra={"path": request.url.path, "method": request.method})
+
         return JSONResponse(
             status_code=400,
             content={
@@ -98,23 +87,19 @@ def register_exception_handlers(app: FastAPI):
                 "code": 1051,
                 "message": str(exc),
                 "details": {},
-                "path": request.url.path
-            }
+                "path": request.url.path,
+            },
         )
-    
+
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         """Handle all other unhandled exceptions"""
         logger.error(
             f"Unhandled exception: {str(exc)}",
-            extra={
-                "exception_type": type(exc).__name__,
-                "path": request.url.path,
-                "method": request.method
-            },
-            exc_info=True
+            extra={"exception_type": type(exc).__name__, "path": request.url.path, "method": request.method},
+            exc_info=True,
         )
-        
+
         return JSONResponse(
             status_code=500,
             content={
@@ -123,8 +108,6 @@ def register_exception_handlers(app: FastAPI):
                 "code": 1000,
                 "message": "An unexpected error occurred",
                 "details": {},
-                "path": request.url.path
-            }
+                "path": request.url.path,
+            },
         )
-
- 

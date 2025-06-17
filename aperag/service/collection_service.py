@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from http import HTTPStatus
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,13 +19,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aperag.config import settings
 from aperag.db import models as db_models
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
+from aperag.exceptions import QuotaExceededException, ValidationException
 from aperag.flow.base.models import Edge, FlowInstance, NodeInstance
 from aperag.flow.engine import FlowEngine
 from aperag.schema import view_models
 from aperag.schema.utils import dumpCollectionConfig, parseCollectionConfig
 from aperag.schema.view_models import (
     Collection,
-    CollectionList,
     SearchTestResult,
     SearchTestResultItem,
     SearchTestResultList,
@@ -34,9 +33,6 @@ from aperag.schema.view_models import (
 from aperag.utils.constant import QuotaType
 from aperag.views.utils import validate_source_connect_config
 from config.celery_tasks import collection_delete_task, collection_init_task
-from aperag.exceptions import (
-    BusinessException, ErrorCode, QuotaExceededException, ValidationException
-)
 
 
 class CollectionService:
@@ -79,7 +75,7 @@ class CollectionService:
 
         # Direct call to repository method, which handles its own transaction
         config_str = dumpCollectionConfig(collection_config) if collection.config is not None else None
-        
+
         instance = await self.db_ops.create_collection(
             user=user,
             title=collection.title,
@@ -87,11 +83,11 @@ class CollectionService:
             collection_type=collection.type,
             config=config_str,
         )
-        
+
         # Initialize collection based on type
         document_user_quota = await self.db_ops.query_user_quota(user, QuotaType.MAX_DOCUMENT_COUNT)
         collection_init_task.delay(instance.id, document_user_quota)
-        
+
         return self.build_collection_response(instance)
 
     async def list_collections(self, user: str) -> view_models.CollectionList:
@@ -103,7 +99,7 @@ class CollectionService:
 
     async def get_collection(self, user: str, collection_id: str) -> view_models.Collection:
         from aperag.exceptions import CollectionNotFoundException
-        
+
         collection = await self.db_ops.query_collection(user, collection_id)
         if collection is None:
             raise CollectionNotFoundException(collection_id)
@@ -113,7 +109,7 @@ class CollectionService:
         self, user: str, collection_id: str, collection: view_models.CollectionUpdate
     ) -> view_models.Collection:
         from aperag.exceptions import CollectionNotFoundException
-        
+
         # First check if collection exists
         instance = await self.db_ops.query_collection(user, collection_id)
         if instance is None:
@@ -121,7 +117,7 @@ class CollectionService:
 
         # Direct call to repository method, which handles its own transaction
         config_str = dumpCollectionConfig(collection.config)
-        
+
         updated_instance = await self.db_ops.update_collection_by_id(
             user=user,
             collection_id=collection_id,
@@ -137,7 +133,7 @@ class CollectionService:
 
     async def delete_collection(self, user: str, collection_id: str) -> Optional[view_models.Collection]:
         """Delete collection by ID (idempotent operation)
-        
+
         Returns the deleted collection or None if already deleted/not found
         """
         # Check if collection exists - if not, silently succeed (idempotent)
@@ -152,14 +148,14 @@ class CollectionService:
             # Clean up related resources
             collection_delete_task.delay(collection_id)
             return self.build_collection_response(deleted_instance)
-        
+
         return None
 
     async def create_search_test(
         self, user: str, collection_id: str, data: view_models.SearchTestRequest
     ) -> view_models.SearchTestResult:
         from aperag.exceptions import CollectionNotFoundException
-        
+
         collection = await self.db_ops.query_collection(user, collection_id)
         if not collection:
             raise CollectionNotFoundException(collection_id)
@@ -252,27 +248,27 @@ class CollectionService:
             )
 
         record = await self.db_ops.create_search_test(
-                user=user,
-                collection_id=collection_id,
-                query=data.query,
-                vector_search=data.vector_search.dict() if data.vector_search else None,
-                fulltext_search=data.fulltext_search.dict() if data.fulltext_search else None,
-                graph_search=data.graph_search.dict() if data.graph_search else None,
-                items=[item.dict() for item in items],
+            user=user,
+            collection_id=collection_id,
+            query=data.query,
+            vector_search=data.vector_search.dict() if data.vector_search else None,
+            fulltext_search=data.fulltext_search.dict() if data.fulltext_search else None,
+            graph_search=data.graph_search.dict() if data.graph_search else None,
+            items=[item.dict() for item in items],
         )
         return SearchTestResult(
-                id=record.id,
-                query=record.query,
-                vector_search=record.vector_search,
-                fulltext_search=record.fulltext_search,
-                graph_search=record.graph_search,
-                items=items,
-                created=record.gmt_created.isoformat(),
-            )
+            id=record.id,
+            query=record.query,
+            vector_search=record.vector_search,
+            fulltext_search=record.fulltext_search,
+            graph_search=record.graph_search,
+            items=items,
+            created=record.gmt_created.isoformat(),
+        )
 
     async def list_search_tests(self, user: str, collection_id: str) -> view_models.SearchTestResultList:
         from aperag.exceptions import CollectionNotFoundException
-        
+
         collection = await self.db_ops.query_collection(user, collection_id)
         if not collection:
             raise CollectionNotFoundException(collection_id)
@@ -300,11 +296,11 @@ class CollectionService:
 
     async def delete_search_test(self, user: str, collection_id: str, search_test_id: str) -> Optional[bool]:
         """Delete search test by ID (idempotent operation)
-        
-        Returns True if deleted, None if already deleted/not found  
+
+        Returns True if deleted, None if already deleted/not found
         """
         from aperag.exceptions import CollectionNotFoundException
-        
+
         collection = await self.db_ops.query_collection(user, collection_id)
         if not collection:
             raise CollectionNotFoundException(collection_id)

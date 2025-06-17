@@ -21,10 +21,10 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
+from aperag.exceptions import ResourceNotFoundException
 from aperag.flow.engine import FlowEngine
 from aperag.flow.parser import FlowParser
 from aperag.schema import view_models
-from aperag.exceptions import ResourceNotFoundException
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +111,7 @@ class FlowService:
         bot = await self.db_ops.query_bot(user, bot_id)
         if not bot:
             raise ResourceNotFoundException("Bot", bot_id)
-        
+
         config = json.loads(bot.config or "{}")
         flow = config.get("flow")
 
@@ -132,7 +132,7 @@ class FlowService:
         config = json.loads(bot.config or "{}")
         flow = data.model_dump(exclude_unset=True, by_alias=True)
         config["flow"] = flow
-        
+
         # Update bot config directly using repository method
         updated_bot = await self.db_ops.update_bot_by_id(
             user=user,
@@ -142,10 +142,10 @@ class FlowService:
             bot_type=bot.type,
             config=json.dumps(config, ensure_ascii=False),
         )
-        
+
         if not updated_bot:
             raise ResourceNotFoundException("Bot", bot_id)
-            
+
         return flow
 
 

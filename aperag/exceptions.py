@@ -19,7 +19,7 @@ from typing import Any, Dict, Optional
 
 class ErrorCode(Enum):
     """Business error codes with HTTP status mapping"""
-    
+
     # Generic errors (1000-1099)
     UNKNOWN_ERROR = ("UNKNOWN_ERROR", 1000, HTTPStatus.INTERNAL_SERVER_ERROR)
     INVALID_PARAMETER = ("INVALID_PARAMETER", 1001, HTTPStatus.BAD_REQUEST)
@@ -29,21 +29,21 @@ class ErrorCode(Enum):
     CONFLICT = ("CONFLICT", 1005, HTTPStatus.CONFLICT)
     DATABASE_ERROR = ("DATABASE_ERROR", 1050, HTTPStatus.INTERNAL_SERVER_ERROR)
     VALIDATION_ERROR = ("VALIDATION_ERROR", 1051, HTTPStatus.BAD_REQUEST)
-    
+
     # Collection errors (1100-1199)
     COLLECTION_NOT_FOUND = ("COLLECTION_NOT_FOUND", 1101, HTTPStatus.NOT_FOUND)
     COLLECTION_INACTIVE = ("COLLECTION_INACTIVE", 1102, HTTPStatus.BAD_REQUEST)
     COLLECTION_QUOTA_EXCEEDED = ("COLLECTION_QUOTA_EXCEEDED", 1103, HTTPStatus.FORBIDDEN)
     COLLECTION_HAS_RELATED_BOTS = ("COLLECTION_HAS_RELATED_BOTS", 1104, HTTPStatus.BAD_REQUEST)
     INVALID_SOURCE_CONFIG = ("INVALID_SOURCE_CONFIG", 1105, HTTPStatus.BAD_REQUEST)
-    
+
     # Bot errors (1200-1299)
     BOT_NOT_FOUND = ("BOT_NOT_FOUND", 1201, HTTPStatus.NOT_FOUND)
     BOT_QUOTA_EXCEEDED = ("BOT_QUOTA_EXCEEDED", 1202, HTTPStatus.FORBIDDEN)
     BOT_CONFIG_INVALID = ("BOT_CONFIG_INVALID", 1203, HTTPStatus.BAD_REQUEST)
     LLM_PROVIDER_NOT_FOUND = ("LLM_PROVIDER_NOT_FOUND", 1204, HTTPStatus.BAD_REQUEST)
     API_KEY_NOT_FOUND = ("API_KEY_NOT_FOUND", 1205, HTTPStatus.BAD_REQUEST)
-    
+
     # Document errors (1300-1399)
     DOCUMENT_NOT_FOUND = ("DOCUMENT_NOT_FOUND", 1301, HTTPStatus.NOT_FOUND)
     DOCUMENT_QUOTA_EXCEEDED = ("DOCUMENT_QUOTA_EXCEEDED", 1302, HTTPStatus.FORBIDDEN)
@@ -51,31 +51,31 @@ class ErrorCode(Enum):
     FILE_SIZE_TOO_LARGE = ("FILE_SIZE_TOO_LARGE", 1304, HTTPStatus.BAD_REQUEST)
     TOO_MANY_DOCUMENTS = ("TOO_MANY_DOCUMENTS", 1305, HTTPStatus.BAD_REQUEST)
     INVALID_DOCUMENT_CONFIG = ("INVALID_DOCUMENT_CONFIG", 1306, HTTPStatus.BAD_REQUEST)
-    
+
     # Chat errors (1400-1499)
     CHAT_NOT_FOUND = ("CHAT_NOT_FOUND", 1401, HTTPStatus.NOT_FOUND)
     MESSAGE_NOT_FOUND = ("MESSAGE_NOT_FOUND", 1402, HTTPStatus.NOT_FOUND)
-    
+
     # Flow errors (1500-1599)
     FLOW_CONFIG_NOT_FOUND = ("FLOW_CONFIG_NOT_FOUND", 1501, HTTPStatus.BAD_REQUEST)
     FLOW_EXECUTION_FAILED = ("FLOW_EXECUTION_FAILED", 1502, HTTPStatus.INTERNAL_SERVER_ERROR)
-    
+
     # Auth errors (1600-1699)
     AUTH_TOKEN_INVALID = ("AUTH_TOKEN_INVALID", 1601, HTTPStatus.UNAUTHORIZED)
     AUTH_TOKEN_EXPIRED = ("AUTH_TOKEN_EXPIRED", 1602, HTTPStatus.UNAUTHORIZED)
-    
+
     # Search errors (1700-1799)
     SEARCH_TEST_NOT_FOUND = ("SEARCH_TEST_NOT_FOUND", 1701, HTTPStatus.NOT_FOUND)
-    
+
     # LLM Provider errors (1800-1899)
     LLM_PROVIDER_ALREADY_EXISTS = ("LLM_PROVIDER_ALREADY_EXISTS", 1801, HTTPStatus.CONFLICT)
     LLM_MODEL_NOT_FOUND = ("LLM_MODEL_NOT_FOUND", 1802, HTTPStatus.NOT_FOUND)
-    
+
     # Future resources can use ranges:
     # 1900-1999: Reserved for future resource type 1
     # 2000-2099: Reserved for future resource type 2
     # ... and so on
-    
+
     def __init__(self, name: str, code: int, http_status: HTTPStatus):
         self.error_name = name
         self.code = code
@@ -84,38 +84,34 @@ class ErrorCode(Enum):
 
 class BusinessException(Exception):
     """Base business exception class"""
-    
-    def __init__(
-        self, 
-        error_code: ErrorCode, 
-        message: Optional[str] = None, 
-        details: Optional[Dict[str, Any]] = None
-    ):
+
+    def __init__(self, error_code: ErrorCode, message: Optional[str] = None, details: Optional[Dict[str, Any]] = None):
         self.error_code = error_code
         self.message = message or error_code.error_name.replace("_", " ").title()
         self.details = details or {}
         super().__init__(self.message)
-    
+
     @property
     def http_status(self) -> HTTPStatus:
         return self.error_code.http_status
-    
+
     @property
     def code(self) -> int:
         return self.error_code.code
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "error_code": self.error_code.error_name,
             "code": self.code,
             "message": self.message,
-            "details": self.details
+            "details": self.details,
         }
 
 
 # Specific exception classes for better type safety and usage
 class ResourceNotFoundException(BusinessException):
     """Resource not found exception"""
+
     def __init__(self, resource_type: str, resource_id: str = None):
         message = f"{resource_type} not found"
         if resource_id:
@@ -125,60 +121,51 @@ class ResourceNotFoundException(BusinessException):
 
 class CollectionNotFoundException(BusinessException):
     """Collection not found exception"""
+
     def __init__(self, collection_id: str):
-        super().__init__(
-            ErrorCode.COLLECTION_NOT_FOUND, 
-            f"Collection not found: {collection_id}"
-        )
+        super().__init__(ErrorCode.COLLECTION_NOT_FOUND, f"Collection not found: {collection_id}")
 
 
 class CollectionInactiveException(BusinessException):
     """Collection inactive exception"""
+
     def __init__(self, collection_id: str):
-        super().__init__(
-            ErrorCode.COLLECTION_INACTIVE, 
-            f"Collection is inactive: {collection_id}"
-        )
+        super().__init__(ErrorCode.COLLECTION_INACTIVE, f"Collection is inactive: {collection_id}")
 
 
 class QuotaExceededException(BusinessException):
     """Quota exceeded exception"""
+
     def __init__(self, resource_type: str, limit: int):
         super().__init__(
-            ErrorCode.COLLECTION_QUOTA_EXCEEDED,
-            f"{resource_type} number has reached the limit of {limit}"
+            ErrorCode.COLLECTION_QUOTA_EXCEEDED, f"{resource_type} number has reached the limit of {limit}"
         )
 
 
 class BotNotFoundException(BusinessException):
     """Bot not found exception"""
+
     def __init__(self, bot_id: str):
-        super().__init__(
-            ErrorCode.BOT_NOT_FOUND, 
-            f"Bot not found: {bot_id}"
-        )
+        super().__init__(ErrorCode.BOT_NOT_FOUND, f"Bot not found: {bot_id}")
 
 
 class DocumentNotFoundException(BusinessException):
     """Document not found exception"""
+
     def __init__(self, document_id: str):
-        super().__init__(
-            ErrorCode.DOCUMENT_NOT_FOUND, 
-            f"Document not found: {document_id}"
-        )
+        super().__init__(ErrorCode.DOCUMENT_NOT_FOUND, f"Document not found: {document_id}")
 
 
 class ChatNotFoundException(BusinessException):
     """Chat not found exception"""
+
     def __init__(self, chat_id: str):
-        super().__init__(
-            ErrorCode.CHAT_NOT_FOUND, 
-            f"Chat not found: {chat_id}"
-        )
+        super().__init__(ErrorCode.CHAT_NOT_FOUND, f"Chat not found: {chat_id}")
 
 
 class InvalidParameterException(BusinessException):
     """Invalid parameter exception"""
+
     def __init__(self, parameter_name: str, reason: str = None):
         message = f"Invalid parameter: {parameter_name}"
         if reason:
@@ -188,6 +175,7 @@ class InvalidParameterException(BusinessException):
 
 class ValidationException(BusinessException):
     """Validation error exception"""
+
     def __init__(self, message: str, details: Dict[str, Any] = None):
         super().__init__(ErrorCode.INVALID_PARAMETER, message, details)
 
@@ -210,4 +198,4 @@ def quota_exceeded(resource_type: str, limit: int) -> QuotaExceededException:
 
 def validation_error(message: str, details: Dict[str, Any] = None) -> ValidationException:
     """Create a validation error exception"""
-    return ValidationException(message, details) 
+    return ValidationException(message, details)
