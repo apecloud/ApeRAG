@@ -21,7 +21,7 @@ from aperag.db.models import ApiKey
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.schema.view_models import ApiKey as ApiKeyModel
 from aperag.schema.view_models import ApiKeyCreate, ApiKeyList, ApiKeyUpdate
-from aperag.views.utils import fail, success
+from aperag.exceptions import ResourceNotFoundException
 
 
 class ApiKeyService:
@@ -51,36 +51,37 @@ class ApiKeyService:
         items = []
         for token in tokens:
             items.append(self.to_api_key_model(token))
-        return success(ApiKeyList(items=items))
+        return ApiKeyList(items=items)
 
     async def create_api_key(self, user: str, api_key_create: ApiKeyCreate) -> ApiKeyModel:
         """Create a new API key"""
-        try:
-            # For single operations, use DatabaseOps directly
-            token = await self.db_ops.create_api_key(user, api_key_create.description)
-            return success(self.to_api_key_model(token))
-        except Exception as e:
-            return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to create API key: {str(e)}")
+        # For single operations, use DatabaseOps directly
+        token = await self.db_ops.create_api_key(user, api_key_create.description)
+        return self.to_api_key_model(token)
 
-    async def delete_api_key(self, user: str, apikey_id: str):
-        """Delete an API key"""
-        try:
-            # For single operations, use DatabaseOps directly
-            await self.db_ops.delete_api_key(user, apikey_id)
-            return success({})
-        except Exception as e:
-            return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to delete API key: {str(e)}")
+    async def delete_api_key(self, user: str, apikey_id: str) -> Optional[bool]:
+        """Delete an API key (idempotent operation)
+        
+        Returns True if deleted, None if already deleted/not found
+        """
+        # Check if API key exists - if not, silently succeed (idempotent)
+        existing_keys = await self.db_ops.query_api_keys(user)
+        key_exists = any(str(key.id) == apikey_id for key in existing_keys)
+        
+        if not key_exists:
+            return None  # Idempotent operation, not found is success
+        
+        # For single operations, use DatabaseOps directly
+        result = await self.db_ops.delete_api_key(user, apikey_id)
+        return result
 
     async def update_api_key(self, user: str, apikey_id: str, api_key_update: ApiKeyUpdate) -> Optional[ApiKeyModel]:
         """Update an API key"""
-        try:
-            # For single operations, use DatabaseOps directly
-            updated_key = await self.db_ops.update_api_key_by_id(user, apikey_id, api_key_update.description)
-            if not updated_key:
-                return fail(HTTPStatus.NOT_FOUND, "API key not found")
-            return success(self.to_api_key_model(updated_key))
-        except Exception as e:
-            return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to update API key: {str(e)}")
+        # For single operations, use DatabaseOps directly
+        updated_key = await self.db_ops.update_api_key_by_id(user, apikey_id, api_key_update.description)
+        if not updated_key:
+            raise ResourceNotFoundException("API key", apikey_id)
+        return self.to_api_key_model(updated_key)
 
 
 # Create a global service instance for easy access

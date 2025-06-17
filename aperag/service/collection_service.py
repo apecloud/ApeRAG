@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from http import HTTPStatus
+from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,8 +32,11 @@ from aperag.schema.view_models import (
     SearchTestResultList,
 )
 from aperag.utils.constant import QuotaType
-from aperag.views.utils import fail, success, validate_source_connect_config
+from aperag.views.utils import validate_source_connect_config
 from config.celery_tasks import collection_delete_task, collection_init_task
+from aperag.exceptions import (
+    BusinessException, ErrorCode, QuotaExceededException, ValidationException
+)
 
 
 class CollectionService:
@@ -63,7 +67,7 @@ class CollectionService:
         if collection.type == db_models.CollectionType.DOCUMENT:
             is_validate, error_msg = validate_source_connect_config(collection_config)
             if not is_validate:
-                return fail(HTTPStatus.BAD_REQUEST, error_msg)
+                raise ValidationException(error_msg)
 
         # Check quota limit on collection
         if settings.max_collection_count:
@@ -71,118 +75,94 @@ class CollectionService:
             if collection_limit is None:
                 collection_limit = settings.max_collection_count
             if collection_limit and await self.db_ops.query_collections_count(user) >= collection_limit:
-                return fail(HTTPStatus.FORBIDDEN, f"collection number has reached the limit of {collection_limit}")
+                raise QuotaExceededException("collection", collection_limit)
 
-        async def _create_operation(session):
-            # Use DatabaseOps to create collection
-            db_ops_session = AsyncDatabaseOps(session)
-            config_str = dumpCollectionConfig(collection_config) if collection.config is not None else None
-
-            instance = await db_ops_session.create_collection(
-                user=user,
-                title=collection.title,
-                description=collection.description,
-                collection_type=collection.type,
-                config=config_str,
-            )
-
-            # Initialize collection based on type
-            if instance.type == db_models.CollectionType.DOCUMENT:
-                document_user_quota = await self.db_ops.query_user_quota(user, QuotaType.MAX_DOCUMENT_COUNT)
-                collection_init_task.delay(instance.id, document_user_quota)
-            else:
-                raise ValueError("unknown collection type")
-
-            return self.build_collection_response(instance)
-
-        try:
-            result = await self.db_ops.execute_with_transaction(_create_operation)
-            return success(result)
-        except ValueError as e:
-            return fail(HTTPStatus.BAD_REQUEST, str(e))
-        except Exception as e:
-            return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to create collection: {str(e)}")
+        # Direct call to repository method, which handles its own transaction
+        config_str = dumpCollectionConfig(collection_config) if collection.config is not None else None
+        
+        instance = await self.db_ops.create_collection(
+            user=user,
+            title=collection.title,
+            description=collection.description,
+            collection_type=collection.type,
+            config=config_str,
+        )
+        
+        # Initialize collection based on type
+        document_user_quota = await self.db_ops.query_user_quota(user, QuotaType.MAX_DOCUMENT_COUNT)
+        collection_init_task.delay(instance.id, document_user_quota)
+        
+        return self.build_collection_response(instance)
 
     async def list_collections(self, user: str) -> view_models.CollectionList:
         collections = await self.db_ops.query_collections([user])
         response = []
         for collection in collections:
             response.append(self.build_collection_response(collection))
-        return success(CollectionList(items=response))
+        return view_models.CollectionList(items=response)
 
     async def get_collection(self, user: str, collection_id: str) -> view_models.Collection:
+        from aperag.exceptions import CollectionNotFoundException
+        
         collection = await self.db_ops.query_collection(user, collection_id)
         if collection is None:
-            return fail(HTTPStatus.NOT_FOUND, "Collection not found")
-        return success(self.build_collection_response(collection))
+            raise CollectionNotFoundException(collection_id)
+        return self.build_collection_response(collection)
 
     async def update_collection(
         self, user: str, collection_id: str, collection: view_models.CollectionUpdate
     ) -> view_models.Collection:
+        from aperag.exceptions import CollectionNotFoundException
+        
         # First check if collection exists
         instance = await self.db_ops.query_collection(user, collection_id)
         if instance is None:
-            return fail(HTTPStatus.NOT_FOUND, "Collection not found")
+            raise CollectionNotFoundException(collection_id)
 
-        async def _update_operation(session):
-            # Use DatabaseOps to update collection
-            db_ops_session = AsyncDatabaseOps(session)
-            config_str = dumpCollectionConfig(collection.config)
+        # Direct call to repository method, which handles its own transaction
+        config_str = dumpCollectionConfig(collection.config)
+        
+        updated_instance = await self.db_ops.update_collection_by_id(
+            user=user,
+            collection_id=collection_id,
+            title=collection.title,
+            description=collection.description,
+            config=config_str,
+        )
 
-            updated_instance = await db_ops_session.update_collection_by_id(
-                user=user,
-                collection_id=collection_id,
-                title=collection.title,
-                description=collection.description,
-                config=config_str,
-            )
+        if not updated_instance:
+            raise CollectionNotFoundException(collection_id)
 
-            if not updated_instance:
-                raise ValueError("Collection not found")
+        return self.build_collection_response(updated_instance)
 
-            return self.build_collection_response(updated_instance)
-
-        try:
-            result = await self.db_ops.execute_with_transaction(_update_operation)
-            return success(result)
-        except ValueError as e:
-            return fail(HTTPStatus.NOT_FOUND, str(e))
-        except Exception as e:
-            return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to update collection: {str(e)}")
-
-    async def delete_collection(self, user: str, collection_id: str) -> view_models.Collection:
-        # First check if collection exists
+    async def delete_collection(self, user: str, collection_id: str) -> Optional[view_models.Collection]:
+        """Delete collection by ID (idempotent operation)
+        
+        Returns the deleted collection or None if already deleted/not found
+        """
+        # Check if collection exists - if not, silently succeed (idempotent)
         collection = await self.db_ops.query_collection(user, collection_id)
         if collection is None:
-            return fail(HTTPStatus.NOT_FOUND, "Collection not found")
+            return None
 
-        async def _delete_operation(session):
-            # Use DatabaseOps to delete collection
-            db_ops_session = AsyncDatabaseOps(session)
-            deleted_instance = await db_ops_session.delete_collection_by_id(user, collection_id)
+        # Direct call to repository method, which handles its own transaction
+        deleted_instance = await self.db_ops.delete_collection_by_id(user, collection_id)
 
-            if not deleted_instance:
-                raise ValueError("Collection not found")
-
+        if deleted_instance:
             # Clean up related resources
             collection_delete_task.delay(collection_id)
-
             return self.build_collection_response(deleted_instance)
-
-        try:
-            result = await self.db_ops.execute_with_transaction(_delete_operation)
-            return success(result)
-        except ValueError as e:
-            return fail(HTTPStatus.BAD_REQUEST, str(e))
-        except Exception as e:
-            return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to delete collection: {str(e)}")
+        
+        return None
 
     async def create_search_test(
         self, user: str, collection_id: str, data: view_models.SearchTestRequest
     ) -> view_models.SearchTestResult:
+        from aperag.exceptions import CollectionNotFoundException
+        
         collection = await self.db_ops.query_collection(user, collection_id)
         if not collection:
-            return fail(404, "Collection not found")
+            raise CollectionNotFoundException(collection_id)
 
         # Build flow for search test execution
         nodes = {}
@@ -255,7 +235,7 @@ class CollectionService:
         result, _ = await engine.execute_flow(flow, initial_data)
 
         if not result:
-            return fail(400, "Failed to execute flow")
+            raise Exception("Failed to execute flow")
 
         # Process search results
         docs = result.get(end_node_id, {}).docs
@@ -271,10 +251,7 @@ class CollectionService:
                 )
             )
 
-        async def _create_search_test_operation(session):
-            # Use DatabaseOps to create search test record
-            db_ops_session = AsyncDatabaseOps(session)
-            record = await db_ops_session.create_search_test(
+        record = await self.db_ops.create_search_test(
                 user=user,
                 collection_id=collection_id,
                 query=data.query,
@@ -282,9 +259,8 @@ class CollectionService:
                 fulltext_search=data.fulltext_search.dict() if data.fulltext_search else None,
                 graph_search=data.graph_search.dict() if data.graph_search else None,
                 items=[item.dict() for item in items],
-            )
-
-            return SearchTestResult(
+        )
+        return SearchTestResult(
                 id=record.id,
                 query=record.query,
                 vector_search=record.vector_search,
@@ -294,16 +270,12 @@ class CollectionService:
                 created=record.gmt_created.isoformat(),
             )
 
-        try:
-            result = await self.db_ops.execute_with_transaction(_create_search_test_operation)
-            return success(result)
-        except Exception as e:
-            return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to create search test: {str(e)}")
-
     async def list_search_tests(self, user: str, collection_id: str) -> view_models.SearchTestResultList:
+        from aperag.exceptions import CollectionNotFoundException
+        
         collection = await self.db_ops.query_collection(user, collection_id)
         if not collection:
-            return fail(404, "Collection not found")
+            raise CollectionNotFoundException(collection_id)
 
         # Use DatabaseOps to query search tests
         search_tests = await self.db_ops.query_search_tests(user, collection_id)
@@ -324,29 +296,20 @@ class CollectionService:
                     created=search_test.gmt_created.isoformat(),
                 )
             )
-        return success(SearchTestResultList(items=items))
+        return SearchTestResultList(items=items)
 
-    async def delete_search_test(self, user: str, collection_id: str, search_test_id: str):
+    async def delete_search_test(self, user: str, collection_id: str, search_test_id: str) -> Optional[bool]:
+        """Delete search test by ID (idempotent operation)
+        
+        Returns True if deleted, None if already deleted/not found  
+        """
+        from aperag.exceptions import CollectionNotFoundException
+        
         collection = await self.db_ops.query_collection(user, collection_id)
         if not collection:
-            return fail(404, "Collection not found")
+            raise CollectionNotFoundException(collection_id)
 
-        async def _delete_search_test_operation(session):
-            # Use DatabaseOps to delete search test
-            db_ops_session = AsyncDatabaseOps(session)
-            deleted = await db_ops_session.delete_search_test(user, collection_id, search_test_id)
-
-            if not deleted:
-                raise ValueError("Search test not found")
-            return {}
-
-        try:
-            await self.db_ops.execute_with_transaction(_delete_search_test_operation)
-            return success({})
-        except ValueError as e:
-            return fail(404, str(e))
-        except Exception as e:
-            return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to delete search test: {str(e)}")
+        return await self.db_ops.delete_search_test(user, collection_id, search_test_id)
 
 
 # Create a global service instance for easy access

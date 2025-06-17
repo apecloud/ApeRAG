@@ -24,7 +24,7 @@ from aperag.service.chat_service import chat_service_global
 from aperag.service.collection_service import collection_service
 from aperag.service.document_service import document_service
 from aperag.service.flow_service import flow_service_global
-from aperag.service.llm_available_model_service import get_available_models
+from aperag.service.llm_available_model_service import llm_available_model_service
 from aperag.service.llm_provider_service import (
     create_llm_provider,
     create_llm_provider_model,
@@ -244,7 +244,7 @@ async def get_available_models_view(
     if tag_filter_request is None:
         tag_filter_request = view_models.TagFilterRequest()
 
-    return await get_available_models(str(user.id), tag_filter_request)
+    return await llm_available_model_service.get_available_models(str(user.id), tag_filter_request)
 
 
 @router.post("/chat/completions/frontend")

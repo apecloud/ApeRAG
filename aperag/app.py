@@ -14,6 +14,7 @@
 
 from fastapi import FastAPI
 
+from aperag.exception_handlers import register_exception_handlers
 from aperag.llm.litellm_track import register_opik_llm_track
 from aperag.views.api_key import router as api_key_router
 from aperag.views.auth import router as auth_router
@@ -23,7 +24,14 @@ from aperag.views.flow import router as flow_router
 from aperag.views.llm import router as llm_router
 from aperag.views.main import router as main_router
 
-app = FastAPI()
+app = FastAPI(
+    title="ApeRAG API",
+    description="Knowledge management and retrieval system",
+    version="1.0.0",
+)
+
+# Register global exception handlers
+register_exception_handlers(app)
 
 register_opik_llm_track()
 

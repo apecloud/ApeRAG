@@ -16,7 +16,7 @@ import json
 import logging
 import uuid
 from http import HTTPStatus
-from typing import Any, AsyncGenerator, Dict, List
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
@@ -38,7 +38,7 @@ from aperag.utils.history import (
     success_response,
 )
 from aperag.utils.utils import now_unix_milliseconds
-from aperag.views.utils import fail, success
+from aperag.exceptions import ResourceNotFoundException, ChatNotFoundException
 
 logger = logging.getLogger(__name__)
 
@@ -134,43 +134,34 @@ class ChatService:
         # First check if bot exists
         bot = await self.db_ops.query_bot(user, bot_id)
         if bot is None:
-            return fail(HTTPStatus.NOT_FOUND, "Bot not found")
+            raise ResourceNotFoundException("Bot", bot_id)
 
-        async def _create_operation(session):
-            # Use DatabaseOps to create chat
-            db_ops_session = AsyncDatabaseOps(session)
-            chat_instance = await db_ops_session.create_chat(user=user, bot_id=bot_id, title="New Chat")
-            return self.build_chat_response(chat_instance)
+        # Direct call to repository method, which handles its own transaction
+        chat = await self.db_ops.create_chat(user=user, bot_id=bot_id, title="")
 
-        try:
-            result = await self.db_ops.execute_with_transaction(_create_operation)
-            return success(result)
-        except Exception as e:
-            return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to create chat: {str(e)}")
+        return self.build_chat_response(chat)
 
     async def list_chats(self, user: str, bot_id: str) -> view_models.ChatList:
         chats = await self.db_ops.query_chats(user, bot_id)
         response = []
         for chat in chats:
             response.append(self.build_chat_response(chat))
-        return success(ChatList(items=response))
+        return ChatList(items=response)
 
     async def get_chat(self, user: str, bot_id: str, chat_id: str) -> view_models.ChatDetails:
         # Import here to avoid circular imports
         from aperag.views.utils import query_chat_messages
 
-        try:
-            chat = await self.db_ops.query_chat(user, bot_id, chat_id)
-            if chat is None:
-                return fail(HTTPStatus.NOT_FOUND, "Chat not found")
+        chat = await self.db_ops.query_chat(user, bot_id, chat_id)
+        if chat is None:
+            raise ChatNotFoundException(chat_id)
 
-            messages = await query_chat_messages(user, chat_id)
+        # Get chat history
+        messages = await query_chat_messages(user, chat_id)
 
-            chat_obj = self.build_chat_response(chat)
-            return success(ChatDetails(**chat_obj.model_dump(), history=messages))
-
-        except Exception as e:
-            return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to get chat: {str(e)}")
+        # Build response object
+        chat_obj = self.build_chat_response(chat)
+        return ChatDetails(**chat_obj.model_dump(), history=messages)
 
     async def update_chat(
         self, user: str, bot_id: str, chat_id: str, chat_in: view_models.ChatUpdate
@@ -178,55 +169,37 @@ class ChatService:
         # First check if chat exists
         chat = await self.db_ops.query_chat(user, bot_id, chat_id)
         if chat is None:
-            return fail(HTTPStatus.NOT_FOUND, "Chat not found")
+            raise ChatNotFoundException(chat_id)
 
-        async def _update_operation(session):
-            # Use DatabaseOps to update chat
-            db_ops_session = AsyncDatabaseOps(session)
-            updated_chat = await db_ops_session.update_chat_by_id(
-                user=user, bot_id=bot_id, chat_id=chat_id, title=chat_in.title
-            )
+        # Direct call to repository method, which handles its own transaction
+        updated_chat = await self.db_ops.update_chat_by_id(user, bot_id, chat_id, chat_in.title)
 
-            if not updated_chat:
-                raise ValueError("Chat not found")
+        if not updated_chat:
+            raise ChatNotFoundException(chat_id)
 
-            return self.build_chat_response(updated_chat)
+        return self.build_chat_response(updated_chat)
 
-        try:
-            result = await self.db_ops.execute_with_transaction(_update_operation)
-            return success(result)
-        except ValueError as e:
-            return fail(HTTPStatus.NOT_FOUND, str(e))
-        except Exception as e:
-            return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to update chat: {str(e)}")
-
-    async def delete_chat(self, user: str, bot_id: str, chat_id: str) -> view_models.Chat:
-        # First check if chat exists
+    async def delete_chat(self, user: str, bot_id: str, chat_id: str) -> Optional[view_models.Chat]:
+        """Delete chat by ID (idempotent operation)
+        
+        Returns the deleted chat or None if already deleted/not found
+        """
+        # Check if chat exists - if not, silently succeed (idempotent)
         chat = await self.db_ops.query_chat(user, bot_id, chat_id)
         if chat is None:
-            return fail(HTTPStatus.NOT_FOUND, "Chat not found")
+            return None
 
-        async def _delete_operation(session):
-            # Use DatabaseOps to delete chat
-            db_ops_session = AsyncDatabaseOps(session)
-            deleted_chat = await db_ops_session.delete_chat_by_id(user, bot_id, chat_id)
+        # Direct call to repository method, which handles its own transaction
+        deleted_chat = await self.db_ops.delete_chat_by_id(user, bot_id, chat_id)
 
-            if not deleted_chat:
-                raise ValueError("Chat not found")
-
+        if deleted_chat:
             # Clear chat history from Redis
             history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
             await history.clear()
 
             return self.build_chat_response(deleted_chat)
-
-        try:
-            result = await self.db_ops.execute_with_transaction(_delete_operation)
-            return success(result)
-        except ValueError as e:
-            return fail(HTTPStatus.NOT_FOUND, str(e))
-        except Exception as e:
-            return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to delete chat: {str(e)}")
+        
+        return None
 
     def stream_frontend_sse_response(
         self, generator: AsyncGenerator[Any, Any], formatter: FrontendFormatter, msg_id: str
@@ -244,43 +217,50 @@ class ChatService:
     async def frontend_chat_completions(
         self, user: str, message: str, stream: bool, bot_id: str, chat_id: str, msg_id: str
     ) -> Any:
-        try:
-            # Validate bot_id
-            if not bot_id:
-                return success(FrontendFormatter.format_error("bot_id is required"))
+        """Frontend chat completions with special error handling for UI responses"""
+        
+        # Validate bot_id - return formatted error for frontend
+        if not bot_id:
+            return FrontendFormatter.format_error("bot_id is required")
 
-            bot = await self.db_ops.query_bot(user, bot_id)
-            if not bot:
-                return success(FrontendFormatter.format_error("Bot not found"))
+        bot = await self.db_ops.query_bot(user, bot_id)
+        if not bot:
+            return FrontendFormatter.format_error("Bot not found")
 
-            # Get or create chat session
-            chat = await self.db_ops.query_chat_by_peer(bot.user, db_models.ChatPeerType.FEISHU, chat_id)
+        # Get or create chat session
+        chat = await self.db_ops.query_chat_by_peer(bot.user, db_models.ChatPeerType.FEISHU, chat_id)
 
-            async def _ensure_chat_operation(session):
-                if chat is None:
-                    db_ops_session = AsyncDatabaseOps(session)
-                    new_chat = await db_ops_session.create_chat(user=bot.user, bot_id=bot.id, title="Feishu Chat")
-                    # Set peer info manually since DatabaseOps doesn't support this yet
-                    new_chat.peer_type = db_models.ChatPeerType.FEISHU
-                    new_chat.peer_id = chat_id
-                    session.add(new_chat)
+        if chat is None:
+            # Direct call to repository method for chat creation
+            chat = await self.db_ops.create_chat(user=bot.user, bot_id=bot.id, title="Feishu Chat")
+            
+            # Set peer info manually using a query operation
+            async def _set_peer_info(session):
+                # Get the chat instance and update peer info
+                from sqlalchemy import select
+                stmt = select(db_models.Chat).where(db_models.Chat.id == chat.id)
+                result = await session.execute(stmt)
+                chat_instance = result.scalars().first()
+                if chat_instance:
+                    chat_instance.peer_type = db_models.ChatPeerType.FEISHU
+                    chat_instance.peer_id = chat_id
+                    session.add(chat_instance)
                     await session.flush()
-                    await session.refresh(new_chat)
-                    return new_chat
-                return chat
+                    await session.refresh(chat_instance)
+                return chat_instance
+            
+            chat = await self.db_ops._execute_query(_set_peer_info)
 
-            if chat is None:
-                chat = await self.db_ops.execute_with_transaction(_ensure_chat_operation)
+        # Use flow engine instead of MessageProcessor/pipeline
+        formatter = FrontendFormatter()
 
-            # Use flow engine instead of MessageProcessor/pipeline
-            formatter = FrontendFormatter()
+        # Get bot's flow configuration
+        bot_config = json.loads(bot.config or "{}")
+        flow_config = bot_config.get("flow")
+        if not flow_config:
+            return FrontendFormatter.format_error("Bot flow config not found")
 
-            # Get bot's flow configuration
-            bot_config = json.loads(bot.config or "{}")
-            flow_config = bot_config.get("flow")
-            if not flow_config:
-                return success(FrontendFormatter.format_error("Bot flow config not found"))
-
+        try:
             flow = FlowParser.parse(flow_config)
             engine = FlowEngine()
 
@@ -292,12 +272,8 @@ class ChatService:
             }
 
             # Execute flow
-            try:
-                _, system_outputs = await engine.execute_flow(flow, initial_data)
-                logger.info("Flow executed successfully!")
-            except Exception as e:
-                logger.exception(e)
-                return success(FrontendFormatter.format_error(str(e)))
+            _, system_outputs = await engine.execute_flow(flow, initial_data)
+            logger.info("Flow executed successfully!")
 
             # Find the async generator from flow outputs
             async_generator = None
@@ -308,7 +284,7 @@ class ChatService:
                     break
 
             if not async_generator:
-                return success(FrontendFormatter.format_error("No output node found"))
+                return FrontendFormatter.format_error("No output node found")
 
             # Return streaming or non-streaming response
             if stream:
@@ -325,11 +301,11 @@ class ChatService:
                 full_content = ""
                 async for chunk in async_generator():
                     full_content += chunk
-                return success(formatter.format_complete_response(msg_id or str(uuid.uuid4()), full_content))
+                return formatter.format_complete_response(msg_id or str(uuid.uuid4()), full_content)
 
         except Exception as e:
             logger.exception(e)
-            return success(FrontendFormatter.format_error(str(e)))
+            return FrontendFormatter.format_error(str(e))
 
     async def feedback_message(
         self,
@@ -339,53 +315,43 @@ class ChatService:
         feedback_type: str = None,
         feedback_tag: str = None,
         feedback_message: str = None,
-    ) -> view_models.Chat:
+    ) -> dict:
         """Handle message feedback for chat messages"""
-        try:
-            # Get message from Redis history to validate it exists and get context
-            history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
-            msg = None
-            for message in await history.messages:
-                item = json.loads(message.content)
-                if item["id"] != message_id:
-                    continue
-                if message.additional_kwargs.get("role", "") != "ai":
-                    continue
-                msg = item
-                break
+        # Get message from Redis history to validate it exists and get context
+        history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
+        msg = None
+        for message in await history.messages:
+            item = json.loads(message.content)
+            if item["id"] != message_id:
+                continue
+            if message.additional_kwargs.get("role", "") != "ai":
+                continue
+            msg = item
+            break
 
-            if msg is None:
-                return fail(HTTPStatus.NOT_FOUND, "Message not found")
+        if msg is None:
+            raise ResourceNotFoundException("Message", message_id)
 
-            async def _feedback_operation(session):
-                db_ops_session = AsyncDatabaseOps(session)
-
-                # If feedback_type is None, delete the feedback record
-                if feedback_type is None:
-                    success_deleted = await db_ops_session.delete_message_feedback(user, chat_id, message_id)
-                    return {"action": "deleted", "success": success_deleted}
-
-                # Otherwise create or update the feedback record
-                feedback = await db_ops_session.upsert_message_feedback(
-                    user=user,
-                    chat_id=chat_id,
-                    message_id=message_id,
-                    feedback_type=feedback_type,
-                    feedback_tag=feedback_tag,
-                    feedback_message=feedback_message,
-                    question=msg.get("query"),
-                    original_answer=msg.get("response", ""),
-                    collection_id=msg.get("collection_id"),
-                )
-
-                return {"action": "upserted", "feedback": feedback}
-
-            result = await self.db_ops.execute_with_transaction(_feedback_operation)
-            return success(result)
-
-        except Exception as e:
-            logger.exception(f"Error in feedback_message: {e}")
-            return fail(HTTPStatus.INTERNAL_SERVER_ERROR, f"Failed to process feedback: {str(e)}")
+        # Direct calls to repository methods
+        if feedback_type is None:
+            # Delete the feedback record
+            success_deleted = await self.db_ops.delete_message_feedback(user, chat_id, message_id)
+            result = {"action": "deleted", "success": success_deleted}
+        else:
+            # Create or update the feedback record
+            feedback = await self.db_ops.upsert_message_feedback(
+                user=user,
+                chat_id=chat_id,
+                message_id=message_id,
+                feedback_type=feedback_type,
+                feedback_tag=feedback_tag,
+                feedback_message=feedback_message,
+                question=msg.get("query"),
+                original_answer=msg.get("response", ""),
+                collection_id=msg.get("collection_id"),
+            )
+            result = {"action": "upserted", "feedback": feedback}
+        return result
 
     async def handle_websocket_chat(self, websocket: WebSocket, user: str, bot_id: str, chat_id: str):
         """Handle WebSocket chat connections and message streaming"""
@@ -419,15 +385,8 @@ class ChatService:
                     try:
                         await self.db_ops.query_chat(user, bot_id, chat_id)
                     except Exception:
-                        # If chat doesn't exist, create it
-                        async def _create_chat_operation(session):
-                            db_ops_session = AsyncDatabaseOps(session)
-                            new_chat = await db_ops_session.create_chat(
-                                user=user, bot_id=bot_id, title="WebSocket Chat"
-                            )
-                            return new_chat
-
-                        await self.db_ops.execute_with_transaction(_create_chat_operation)
+                        # If chat doesn't exist, create it with direct repository call
+                        await self.db_ops.create_chat(user=user, bot_id=bot_id, title="WebSocket Chat")
 
                     # Get bot's flow configuration
                     bot_config = json.loads(bot.config or "{}")
