@@ -169,6 +169,10 @@ class EvaluationRunner:
 
     async def _call_bot_api(self, bot_id: str, question: str) -> Dict[str, Any]:
         """Call bot API and get response with context"""
+        import time
+
+        start_time = time.perf_counter()  # Use more precise timing
+
         try:
             # Use direct HTTP request instead of OpenAI client to handle ApeRAG's response format
             api_config = self.config["api"]
@@ -200,6 +204,12 @@ class EvaluationRunner:
                 response = await client.post(chat_url, headers=headers, json=request_body, params=params)
                 response.raise_for_status()
 
+                # Calculate response time with higher precision
+                end_time = time.perf_counter()
+                response_time = round(end_time - start_time, 3)  # Round to 3 decimal places
+
+                logger.debug(f"API call took {response_time:.3f} seconds")
+
                 # Parse response
                 response_data = response.json()
 
@@ -207,13 +217,18 @@ class EvaluationRunner:
                 if "error" in response_data:
                     error_msg = response_data.get("error", {}).get("message", "Unknown API error")
                     logger.error(f"API returned error: {error_msg}")
-                    return {"response": "", "context": [], "error": error_msg}
+                    return {"response": "", "context": [], "error": error_msg, "response_time": response_time}
 
                 # Extract content from OpenAI-compatible response
                 choices = response_data.get("choices", [])
                 if not choices:
                     logger.warning("No choices in API response")
-                    return {"response": "", "context": [], "error": "No response content"}
+                    return {
+                        "response": "",
+                        "context": [],
+                        "error": "No response content",
+                        "response_time": response_time,
+                    }
 
                 raw_content = choices[0].get("message", {}).get("content", "")
                 logger.debug(f"Raw API response content: {raw_content[:200]}...")
@@ -248,19 +263,24 @@ class EvaluationRunner:
                         "response": response_text,
                         "context": context_data,  # Keep as parsed object, not string
                         "error": None,
+                        "response_time": response_time,
                     }
                 else:
                     # No separator, treat whole content as response
-                    return {"response": raw_content, "context": [], "error": None}
+                    return {"response": raw_content, "context": [], "error": None, "response_time": response_time}
 
         except httpx.HTTPStatusError as e:
+            end_time = time.perf_counter()
+            response_time = round(end_time - start_time, 3)
             error_msg = f"HTTP error {e.response.status_code}: {e.response.text}"
             logger.error(f"API HTTP error: {error_msg}")
-            return {"response": "", "context": [], "error": error_msg}
+            return {"response": "", "context": [], "error": error_msg, "response_time": response_time}
         except Exception as e:
+            end_time = time.perf_counter()
+            response_time = round(end_time - start_time, 3)
             error_msg = f"API call failed: {str(e)}"
             logger.error(f"API call error: {error_msg}")
-            return {"response": "", "context": [], "error": error_msg}
+            return {"response": "", "context": [], "error": error_msg, "response_time": response_time}
 
     async def _process_dataset(self, bot_id: str, df: pd.DataFrame) -> List[Dict[str, Any]]:
         """Process dataset and get bot responses"""
@@ -280,6 +300,13 @@ class EvaluationRunner:
             # Call bot API
             api_result = await self._call_bot_api(bot_id, question)
 
+            # Log response time
+            response_time = api_result.get("response_time", 0)
+            if api_result.get("error"):
+                logger.info(f"Question {idx + 1}/{total} failed in {response_time:.2f}s: {api_result.get('error')}")
+            else:
+                logger.info(f"Question {idx + 1}/{total} completed in {response_time:.2f}s")
+
             # Build result record
             result = {
                 "question": question,
@@ -287,6 +314,7 @@ class EvaluationRunner:
                 "response": api_result.get("response", ""),
                 "context": api_result.get("context", []),  # Keep as parsed object/list
                 "error": api_result.get("error"),
+                "response_time": response_time,
             }
 
             results.append(result)
@@ -461,7 +489,79 @@ class EvaluationRunner:
                 json.dump(results, f, indent=2, ensure_ascii=False)
             logger.info(f"Saved intermediate results to {intermediate_path}")
 
-    def _generate_markdown_report(
+    async def _fetch_bot_details(self, bot_id: str) -> Dict[str, Any]:
+        """Fetch bot details from API"""
+        try:
+            async with httpx.AsyncClient() as client:
+                headers = {"Authorization": f"Bearer {self.config['api']['api_token']}"}
+                url = f"{self.config['api']['base_url']}/bots/{bot_id}"
+
+                response = await client.get(url, headers=headers)
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    logger.warning(f"Failed to fetch bot details: {response.status_code} - {response.text}")
+                    return {}
+        except Exception as e:
+            logger.error(f"Error fetching bot details: {e}")
+            return {}
+
+    async def _fetch_collection_details(self, collection_id: str) -> Dict[str, Any]:
+        """Fetch collection details from API"""
+        try:
+            async with httpx.AsyncClient() as client:
+                headers = {"Authorization": f"Bearer {self.config['api']['api_token']}"}
+                url = f"{self.config['api']['base_url']}/collections/{collection_id}"
+
+                response = await client.get(url, headers=headers)
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    logger.warning(f"Failed to fetch collection details: {response.status_code} - {response.text}")
+                    return {}
+        except Exception as e:
+            logger.error(f"Error fetching collection details: {e}")
+            return {}
+
+    def _generate_ragas_metrics_explanation(self) -> str:
+        """Generate explanation for Ragas evaluation metrics"""
+        return """
+## Ragas Evaluation Metrics Explanation
+
+Ragas (Retrieval Augmented Generation Assessment) is a framework specifically designed for evaluating RAG systems, providing the following core metrics:
+
+### 1. Faithfulness
+- **Definition**: Measures the consistency between generated answers and retrieved context information
+- **Calculation**: Analyzes whether statements in the answer can find support in the retrieved context
+- **Score Range**: 0-1, higher scores indicate answers are more faithful to source materials
+- **Significance**: Ensures AI doesn't generate hallucinated content that contradicts facts
+
+### 2. Answer Relevancy  
+- **Definition**: Evaluates how relevant the generated answer is to the user's question
+- **Calculation**: Analyzes whether the answer directly addresses the user's specific question
+- **Score Range**: 0-1, higher scores indicate more relevant answers
+- **Significance**: Avoids irrelevant responses and ensures targeted answers
+
+### 3. Context Precision
+- **Definition**: Measures the proportion of relevant content in retrieved context information
+- **Calculation**: Evaluates the ratio of useful information vs irrelevant information in retrieval results
+- **Score Range**: 0-1, higher scores indicate more precise retrieval
+- **Significance**: Optimizes retrieval strategy and reduces noise
+
+### 4. Context Recall
+- **Definition**: Evaluates whether the retrieval system can find all relevant information needed to answer the question
+- **Calculation**: Checks if all information the answer depends on can be found in the retrieved context
+- **Score Range**: 0-1, higher scores indicate more complete retrieval coverage
+- **Significance**: Ensures important information is not missed
+
+### 5. Answer Correctness
+- **Definition**: Comprehensively evaluates answer correctness, combining factual accuracy and semantic similarity
+- **Calculation**: Compares generated answers with standard answers at semantic and factual levels
+- **Score Range**: 0-1, higher scores indicate more accurate answers
+- **Significance**: Comprehensively measures RAG system output quality
+"""
+
+    async def _generate_markdown_report(
         self,
         task_name: str,
         bot_id: str,
@@ -472,16 +572,93 @@ class EvaluationRunner:
         output_path: Path,
     ) -> None:
         """Generate a markdown evaluation report"""
+
+        # Fetch bot and collection details
+        logger.info("Fetching bot and collection details...")
+        bot_details = await self._fetch_bot_details(bot_id)
+
+        # Parse bot config to get collection IDs
+        collection_details = []
+        if bot_details.get("collection_ids"):
+            for collection_id in bot_details["collection_ids"]:
+                collection_detail = await self._fetch_collection_details(collection_id)
+                if collection_detail:
+                    collection_details.append(collection_detail)
+
         with open(output_path, "w", encoding="utf-8") as f:
             f.write("# ApeRAG Evaluation Report\n\n")
             f.write(f"**Task Name:** {task_name}\n\n")
-            f.write(f"**Bot ID:** {bot_id}\n\n")
             f.write(f"**Dataset:** {dataset_path}\n\n")
             f.write(f"**Timestamp:** {timestamp}\n\n")
             f.write(f"**Total Samples:** {len(results)}\n\n")
 
+            # Bot Configuration Section
+            f.write("## Bot Configuration\n\n")
+            f.write(f"**Bot ID:** {bot_id}\n\n")
+            if bot_details:
+                f.write(f"**Bot Title:** {bot_details.get('title', 'N/A')}\n\n")
+                f.write(f"**Bot Type:** {bot_details.get('type', 'N/A')}\n\n")
+                f.write(f"**Bot Description:** {bot_details.get('description', 'N/A')}\n\n")
+
+                # Parse bot config for model information
+                try:
+                    import json
+
+                    if bot_details.get("config"):
+                        bot_config = json.loads(bot_details["config"])
+                        if bot_config.get("model_name"):
+                            f.write(f"**LLM Model:** {bot_config['model_name']}\n\n")
+                        if bot_config.get("model_service_provider"):
+                            f.write(f"**LLM Provider:** {bot_config['model_service_provider']}\n\n")
+                except json.JSONDecodeError:
+                    logger.warning("Failed to parse bot config JSON")
+
+            # Collection Configuration Section
+            if collection_details:
+                f.write("## Collection Configuration\n\n")
+                for i, collection in enumerate(collection_details, 1):
+                    f.write(f"### Collection {i}: {collection.get('title', 'N/A')}\n\n")
+                    f.write(f"**Collection ID:** {collection.get('id', 'N/A')}\n\n")
+                    f.write(f"**Description:** {collection.get('description', 'N/A')}\n\n")
+
+                    # Parse collection config for model information
+                    config = collection.get("config", {})
+                    if config:
+                        f.write("**Model Configuration:**\n\n")
+
+                        # Embedding model
+                        embedding_config = config.get("embedding", {})
+                        if embedding_config:
+                            f.write(f"- **Embedding Model:** {embedding_config.get('model', 'N/A')}\n")
+                            f.write(
+                                f"- **Embedding Provider:** {embedding_config.get('model_service_provider', 'N/A')}\n"
+                            )
+                            if embedding_config.get("custom_llm_provider"):
+                                f.write(
+                                    f"- **Embedding Custom Provider:** {embedding_config.get('custom_llm_provider', 'N/A')}\n"
+                                )
+
+                        # Completion model
+                        completion_config = config.get("completion", {})
+                        if completion_config:
+                            f.write(f"- **Completion Model:** {completion_config.get('model', 'N/A')}\n")
+                            f.write(
+                                f"- **Completion Provider:** {completion_config.get('model_service_provider', 'N/A')}\n"
+                            )
+                            if completion_config.get("custom_llm_provider"):
+                                f.write(
+                                    f"- **Completion Custom Provider:** {completion_config.get('custom_llm_provider', 'N/A')}\n"
+                                )
+
+                        # Knowledge graph setting
+                        if "enable_knowledge_graph" in config:
+                            f.write(f"- **Knowledge Graph Enabled:** {config.get('enable_knowledge_graph', False)}\n")
+
+                        f.write("\n")
+
+            # Ragas Evaluation Metrics Section
             if ragas_results:
-                f.write("## Ragas Evaluation Metrics\n\n")
+                f.write("## Ragas Evaluation Results\n\n")
                 if isinstance(ragas_results, list) and len(ragas_results) > 0:
                     # Calculate average scores
                     metrics = {}
@@ -492,6 +669,10 @@ class EvaluationRunner:
                                 "answer",
                                 "contexts",
                                 "ground_truth",
+                                "user_input",
+                                "response",
+                                "retrieved_contexts",
+                                "reference",
                             ]:
                                 if key not in metrics:
                                     metrics[key] = []
@@ -499,22 +680,85 @@ class EvaluationRunner:
 
                     for metric, values in metrics.items():
                         avg_score = sum(values) / len(values)
-                        f.write(f"- **{metric.replace('_', ' ').title()}**: {avg_score:.3f}\n")
+                        min_score = min(values)
+                        max_score = max(values)
+                        f.write(
+                            f"- **{metric.replace('_', ' ').title()}**: {avg_score:.3f} (Range: {min_score:.3f} - {max_score:.3f})\n"
+                        )
                     f.write("\n")
 
+                # Add metrics explanation
+                f.write(self._generate_ragas_metrics_explanation())
+
+            # Response Time Statistics Section
+            f.write("## Performance Statistics\n\n")
+
+            # Calculate response time statistics
+            response_times = [
+                result.get("response_time", 0)
+                for result in results
+                if result.get("response_time") is not None and result.get("response_time") > 0
+            ]
+            successful_response_times = [
+                result.get("response_time", 0)
+                for result in results
+                if not result.get("error")
+                and result.get("response_time") is not None
+                and result.get("response_time") > 0
+            ]
+
+            response_time_stats = {}
+            if response_times:
+                response_time_stats = {
+                    "total_calls": len(results),
+                    "calls_with_response_time": len(response_times),
+                    "successful_calls": len(successful_response_times),
+                    "failed_calls": len(results) - len([r for r in results if not r.get("error")]),
+                    "average_response_time": sum(response_times) / len(response_times),
+                    "min_response_time": min(response_times),
+                    "max_response_time": max(response_times),
+                    "total_time": sum(response_times),
+                }
+                if successful_response_times:
+                    response_time_stats["average_successful_response_time"] = sum(successful_response_times) / len(
+                        successful_response_times
+                    )
+                    response_time_stats["min_successful_response_time"] = min(successful_response_times)
+                    response_time_stats["max_successful_response_time"] = max(successful_response_times)
+
+            f.write(f"**Response Time Statistics:**\n\n{json.dumps(response_time_stats)}\n\n")
+
+            # Sample Results Section
             f.write("## Sample Results\n\n")
 
             for i, result in enumerate(results[:10], 1):  # Show first 10 samples
                 f.write(f"### Sample {i}\n\n")
                 f.write(f"**Question:** {result['question']}\n\n")
                 f.write(f"**Ground Truth:** {result['ground_truth']}\n\n")
-                f.write(f"**Bot Response:** {result['response']}\n\n")
-                if result.get("context"):
-                    f.write(f"**Context:** {result['context']}\n\n")
+                f.write(f"**Bot Response:** \n```\n{result['response']}\n```\n\n")
+
+                # Add response time
+                response_time = result.get("response_time", 0)
+                f.write(f"**Response Time:** {response_time:.2f} seconds\n\n")
+
+                # Add error information if present
+                if result.get("error"):
+                    f.write(f"**Error:** {result['error']}\n\n")
+
+                # Add Ragas metrics for this sample if available
+                if result.get("ragas_metrics"):
+                    f.write("**Evaluation Metrics:**\n\n")
+                    for metric, value in result["ragas_metrics"].items():
+                        if isinstance(value, (int, float)):
+                            f.write(f"- {metric.replace('_', ' ').title()}: {value:.3f}\n")
+                    f.write("\n")
+
                 f.write("---\n\n")
 
             if len(results) > 10:
                 f.write(f"*({len(results) - 10} more samples not shown)*\n\n")
+
+        logger.info(f"Enhanced markdown report saved to {output_path}")
 
     async def _run_ragas_evaluation(self, results: List[Dict], metrics: List[str]) -> Optional[List[Dict]]:
         """Run Ragas evaluation on the results"""
@@ -572,7 +816,7 @@ class EvaluationRunner:
             logger.error(f"Traceback: {traceback.format_exc()}")
             return None
 
-    def _generate_reports(
+    async def _generate_reports(
         self,
         task_name: str,
         bot_id: str,
@@ -587,32 +831,138 @@ class EvaluationRunner:
         # Ensure report directory exists
         report_dir.mkdir(parents=True, exist_ok=True)
 
-        # ragas_results is already a list of dicts, no need to convert
-        ragas_list = ragas_results
+        # Create a mapping from question to ragas results for easier lookup
+        ragas_lookup = {}
+        if ragas_results:
+            for ragas_row in ragas_results:
+                # Ragas uses 'user_input' field for questions
+                question = ragas_row.get("user_input", "") or ragas_row.get("question", "")
+                if question:
+                    ragas_lookup[question] = ragas_row
 
-        # Generate CSV report
-        csv_path = report_dir / f"evaluation_report_{timestamp}.csv"
-        self._generate_csv_report(results, ragas_list, csv_path)
+        # Merge results with ragas scores
+        enriched_results = []
+        for result in results:
+            enriched_result = {
+                "question": result.get("question", ""),
+                "ground_truth": result.get("ground_truth", ""),
+                "response": result.get("response", ""),
+                "context": result.get("context", []),
+                "response_time": result.get("response_time", 0),
+                "error": result.get("error"),
+            }
 
-        # Generate JSON summary
+            # Add Ragas metrics if available for this question
+            question = result.get("question", "")
+            if question in ragas_lookup:
+                ragas_row = ragas_lookup[question]
+                ragas_metrics = {}
+                for metric_name, metric_value in ragas_row.items():
+                    if metric_name not in [
+                        "user_input",
+                        "response",
+                        "retrieved_contexts",
+                        "reference",
+                        "question",
+                        "answer",
+                        "contexts",
+                        "ground_truth",
+                    ]:
+                        ragas_metrics[metric_name] = metric_value
+                enriched_result["ragas_metrics"] = ragas_metrics
+            else:
+                enriched_result["ragas_metrics"] = {}
+
+            enriched_results.append(enriched_result)
+
+        # Calculate overall Ragas statistics
+        overall_ragas_stats = {}
+        if ragas_results:
+            # Collect all metric values
+            all_metrics = {}
+            for ragas_row in ragas_results:
+                for metric_name, metric_value in ragas_row.items():
+                    if metric_name not in [
+                        "user_input",
+                        "response",
+                        "retrieved_contexts",
+                        "reference",
+                        "question",
+                        "answer",
+                        "contexts",
+                        "ground_truth",
+                    ] and isinstance(metric_value, (int, float)):
+                        if metric_name not in all_metrics:
+                            all_metrics[metric_name] = []
+                        all_metrics[metric_name].append(metric_value)
+
+            # Calculate statistics for each metric
+            for metric_name, values in all_metrics.items():
+                if values:  # Make sure we have values
+                    overall_ragas_stats[metric_name] = {
+                        "mean": sum(values) / len(values),
+                        "min": min(values),
+                        "max": max(values),
+                        "count": len(values),
+                        "std": (sum((x - sum(values) / len(values)) ** 2 for x in values) / len(values)) ** 0.5
+                        if len(values) > 1
+                        else 0.0,
+                    }
+
+        # Calculate response time statistics
+        response_times = [
+            result.get("response_time", 0)
+            for result in results
+            if result.get("response_time") is not None and result.get("response_time") > 0
+        ]
+        successful_response_times = [
+            result.get("response_time", 0)
+            for result in results
+            if not result.get("error") and result.get("response_time") is not None and result.get("response_time") > 0
+        ]
+
+        response_time_stats = {}
+        if response_times:
+            response_time_stats = {
+                "total_calls": len(results),
+                "calls_with_response_time": len(response_times),
+                "successful_calls": len(successful_response_times),
+                "failed_calls": len(results) - len([r for r in results if not r.get("error")]),
+                "average_response_time": sum(response_times) / len(response_times),
+                "min_response_time": min(response_times),
+                "max_response_time": max(response_times),
+                "total_time": sum(response_times),
+            }
+            if successful_response_times:
+                response_time_stats["average_successful_response_time"] = sum(successful_response_times) / len(
+                    successful_response_times
+                )
+                response_time_stats["min_successful_response_time"] = min(successful_response_times)
+                response_time_stats["max_successful_response_time"] = max(successful_response_times)
+
+        # Generate comprehensive JSON summary
         summary = {
             "task_name": task_name,
             "bot_id": bot_id,
             "dataset_path": dataset_path,
             "timestamp": timestamp,
             "total_samples": len(results),
-            "ragas_results": ragas_list,
-            "results": results,
+            "samples_with_ragas": len(ragas_results) if ragas_results else 0,
+            "overall_ragas_metrics": overall_ragas_stats,
+            "response_time_statistics": response_time_stats,
+            "results": enriched_results,
         }
 
         summary_path = report_dir / f"evaluation_summary_{timestamp}.json"
         with open(summary_path, "w", encoding="utf-8") as f:
             json.dump(summary, f, indent=2, ensure_ascii=False)
-        logger.info(f"Summary report saved to {summary_path}")
+        logger.info(f"Comprehensive evaluation summary saved to {summary_path}")
 
-        # Generate Markdown report
+        # Generate Markdown report (optional, for human readability)
         md_path = report_dir / f"evaluation_report_{timestamp}.md"
-        self._generate_markdown_report(task_name, bot_id, dataset_path, timestamp, results, ragas_list, md_path)
+        await self._generate_markdown_report(
+            task_name, bot_id, dataset_path, timestamp, enriched_results, ragas_results, md_path
+        )
 
     async def run_evaluation(self, task_config: Dict[str, Any]) -> Dict[str, Any]:
         """Run a single evaluation task"""
@@ -652,6 +1002,8 @@ class EvaluationRunner:
                         "ground_truth": item["answer"],
                         "response": result["response"],
                         "context": result["context"],
+                        "response_time": result.get("response_time", 0),
+                        "error": result.get("error"),
                     }
                 )
 
@@ -669,7 +1021,9 @@ class EvaluationRunner:
         # Generate reports
         logger.info(f"Saving results to {report_dir}")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self._generate_reports(task_name, bot_id, dataset_path, timestamp, results, ragas_results, Path(report_dir))
+        await self._generate_reports(
+            task_name, bot_id, dataset_path, timestamp, results, ragas_results, Path(report_dir)
+        )
 
         logger.info(f"Evaluation task completed: {task_name}")
         return {"task_name": task_name, "results": results, "ragas_results": ragas_results}
@@ -688,88 +1042,6 @@ class EvaluationRunner:
             await self.run_evaluation(task_config)
 
         logger.info("All evaluation tasks completed")
-
-    def _generate_csv_report(self, results: List[Dict], ragas_results: Optional[List[Dict]], output_path: Path) -> None:
-        """Generate a CSV evaluation report"""
-        # Prepare data for CSV
-        csv_data = []
-
-        # Create a mapping from question to ragas results for easier lookup
-        ragas_lookup = {}
-        if ragas_results:
-            for ragas_row in ragas_results:
-                # Ragas uses 'user_input' field for questions
-                question = ragas_row.get("user_input", "") or ragas_row.get("question", "")
-                if question:
-                    ragas_lookup[question] = ragas_row
-
-        for result in results:
-            # Extract context text from the context data
-            context_text = ""
-            context_data = result.get("context", [])
-            if context_data:
-                # Extract text from parsed context data
-                context_texts = []
-                for item in context_data:
-                    if isinstance(item, dict) and "text" in item:
-                        text_content = item["text"]
-                        if text_content and text_content.strip():
-                            context_texts.append(text_content.strip())
-                    elif isinstance(item, str) and item.strip():
-                        context_texts.append(item.strip())
-                context_text = " | ".join(context_texts)
-
-            row = {
-                "question": result.get("question", ""),
-                "ground_truth": result.get("ground_truth", ""),
-                "response": result.get("response", ""),
-                "context": context_text,
-            }
-
-            # Add additional fields for Ragas compatibility
-            row["user_input"] = result.get("question", "")
-            row["retrieved_contexts"] = [context_text] if context_text else []
-            row["reference"] = result.get("ground_truth", "")
-
-            # Add Ragas metrics if available for this question
-            question = result.get("question", "")
-            if question in ragas_lookup:
-                ragas_row = ragas_lookup[question]
-                for metric_name, metric_value in ragas_row.items():
-                    if metric_name not in [
-                        "user_input",
-                        "response",
-                        "retrieved_contexts",
-                        "reference",
-                        "question",
-                        "answer",
-                        "contexts",
-                        "ground_truth",
-                    ]:
-                        row[metric_name] = metric_value
-            else:
-                # If no ragas results for this question, add None values for metrics
-                if ragas_results and len(ragas_results) > 0:
-                    sample_ragas = ragas_results[0]
-                    for metric_name in sample_ragas.keys():
-                        if metric_name not in [
-                            "user_input",
-                            "response",
-                            "retrieved_contexts",
-                            "reference",
-                            "question",
-                            "answer",
-                            "contexts",
-                            "ground_truth",
-                        ]:
-                            row[metric_name] = None
-
-            csv_data.append(row)
-
-        # Create DataFrame and save to CSV
-        df = pd.DataFrame(csv_data)
-        df.to_csv(output_path, index=False, encoding="utf-8")
-        logger.info(f"CSV report saved to {output_path} with {len(df.columns)} columns: {list(df.columns)}")
 
 
 async def main():
