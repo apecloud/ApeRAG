@@ -376,7 +376,7 @@ class EvaluationRunner:
         }
 
         # Metrics that require embeddings
-        embedding_required_metrics = {"answer_relevancy"}
+        embedding_required_metrics = {"answer_relevancy", "context_precision", "context_recall"}
 
         metrics = []
         for name in metric_names:
