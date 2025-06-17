@@ -5,7 +5,6 @@ config.yaml
 evaluation_reports/
 *.csv
 *.json
-*.md
 
 # Keep example files
 !config.example.yaml
