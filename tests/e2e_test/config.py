@@ -36,10 +36,10 @@ RERANK_MODEL_PROVIDER_URL = os.getenv("RERANK_MODEL_PROVIDER_URL", "https://api.
 RERANK_MODEL_PROVIDER_API_KEY = os.getenv("RERANK_MODEL_PROVIDER_API_KEY", "")
 
 # The following model names are used for testing, please specify the model name using environment variables
-EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "BAAI/bge-large-zh-v1.5")
+EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "BAAI/bge-m3")
 EMBEDDING_MODEL_CUSTOM_PROVIDER = os.getenv("EMBEDDING_MODEL_CUSTOM_PROVIDER", "openai")
 
-COMPLETION_MODEL_NAME = os.getenv("COMPLETION_MODEL_NAME", "deepseek/deepseek-chat-v3-0324:free")
+COMPLETION_MODEL_NAME = os.getenv("COMPLETION_MODEL_NAME", "deepseek/deepseek-r1-distill-qwen-32b:free")
 COMPLETION_MODEL_CUSTOM_PROVIDER = os.getenv("COMPLETION_MODEL_CUSTOM_PROVIDER", "openrouter")
 
 RERANK_MODEL_NAME = os.getenv("RERANK_MODEL_NAME", "BAAI/bge-large-zh-1.5")

@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: 6b5cab1cd8d8
-Revises: be090f06152e
-Create Date: 2025-06-11 22:27:52.828110
+Revision ID: dcc0b6c56552
+Revises: 
+Create Date: 2025-06-17 11:34:47.015293
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
 
 # revision identifiers, used by Alembic.
-revision: str = '6b5cab1cd8d8'
+revision: str = 'dcc0b6c56552'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -108,14 +108,10 @@ def upgrade() -> None:
     sa.Column('name', sa.String(length=1024), nullable=False),
     sa.Column('user', sa.String(length=256), nullable=False),
     sa.Column('collection_id', sa.String(length=24), nullable=True),
-    sa.Column('status', sa.Enum('PENDING', 'RUNNING', 'COMPLETE', 'FAILED', 'DELETING', 'DELETED', name='documentstatus'), nullable=False),
-    sa.Column('vector_index_status', sa.Enum('PENDING', 'RUNNING', 'COMPLETE', 'FAILED', 'SKIPPED', name='documentindexstatus'), nullable=False),
-    sa.Column('fulltext_index_status', sa.Enum('PENDING', 'RUNNING', 'COMPLETE', 'FAILED', 'SKIPPED', name='documentindexstatus'), nullable=False),
-    sa.Column('graph_index_status', sa.Enum('PENDING', 'RUNNING', 'COMPLETE', 'FAILED', 'SKIPPED', name='documentindexstatus'), nullable=False),
+    sa.Column('status', sa.Enum('PENDING', 'RUNNING', 'COMPLETE', 'FAILED', 'DELETED', name='documentstatus'), nullable=False),
     sa.Column('size', sa.BigInteger(), nullable=False),
     sa.Column('object_path', sa.Text(), nullable=True),
     sa.Column('doc_metadata', sa.Text(), nullable=True),
-    sa.Column('relate_ids', sa.Text(), nullable=True),
     sa.Column('gmt_created', sa.DateTime(timezone=True), nullable=False),
     sa.Column('gmt_updated', sa.DateTime(timezone=True), nullable=False),
     sa.Column('gmt_deleted', sa.DateTime(timezone=True), nullable=True),
@@ -126,6 +122,28 @@ def upgrade() -> None:
     op.create_index(op.f('ix_document_gmt_deleted'), 'document', ['gmt_deleted'], unique=False)
     op.create_index(op.f('ix_document_status'), 'document', ['status'], unique=False)
     op.create_index(op.f('ix_document_user'), 'document', ['user'], unique=False)
+    op.create_table('document_indexes',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('document_id', sa.String(length=24), nullable=False),
+    sa.Column('index_type', sa.Enum('vector', 'fulltext', 'graph', name='documentindextype'), nullable=False),
+    sa.Column('desired_state', sa.Enum('present', 'absent', name='indexdesiredstate'), nullable=False),
+    sa.Column('version', sa.Integer(), nullable=False),
+    sa.Column('created_by', sa.String(length=256), nullable=False),
+    sa.Column('actual_state', sa.Enum('absent', 'creating', 'present', 'deleting', 'failed', name='indexactualstate'), nullable=False),
+    sa.Column('observed_version', sa.Integer(), nullable=False),
+    sa.Column('index_data', sa.Text(), nullable=True),
+    sa.Column('error_message', sa.Text(), nullable=True),
+    sa.Column('gmt_created', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('gmt_updated', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('gmt_last_reconciled', sa.DateTime(timezone=True), nullable=True),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('document_id', 'index_type', name='uq_document_index')
+    )
+    op.create_index(op.f('ix_document_indexes_actual_state'), 'document_indexes', ['actual_state'], unique=False)
+    op.create_index(op.f('ix_document_indexes_desired_state'), 'document_indexes', ['desired_state'], unique=False)
+    op.create_index(op.f('ix_document_indexes_document_id'), 'document_indexes', ['document_id'], unique=False)
+    op.create_index(op.f('ix_document_indexes_id'), 'document_indexes', ['id'], unique=False)
+    op.create_index(op.f('ix_document_indexes_index_type'), 'document_indexes', ['index_type'], unique=False)
     op.create_table('invitation',
     sa.Column('id', sa.String(length=24), nullable=False),
     sa.Column('email', sa.String(length=254), nullable=False),
@@ -213,6 +231,7 @@ def upgrade() -> None:
     )
     op.create_table('llm_provider',
     sa.Column('name', sa.String(length=128), nullable=False),
+    sa.Column('user_id', sa.String(length=256), nullable=False),
     sa.Column('label', sa.String(length=256), nullable=False),
     sa.Column('completion_dialect', sa.String(length=64), nullable=False),
     sa.Column('embedding_dialect', sa.String(length=64), nullable=False),
@@ -225,6 +244,7 @@ def upgrade() -> None:
     sa.Column('gmt_deleted', sa.DateTime(timezone=True), nullable=True),
     sa.PrimaryKeyConstraint('name')
     )
+    op.create_index(op.f('ix_llm_provider_user_id'), 'llm_provider', ['user_id'], unique=False)
     op.create_table('llm_provider_models',
     sa.Column('provider_name', sa.String(length=128), nullable=False),
     sa.Column('api', sa.Enum('completion', 'embedding', 'rerank', name='apitype'), nullable=False),
@@ -262,18 +282,17 @@ def upgrade() -> None:
     op.create_table('model_service_provider',
     sa.Column('id', sa.String(length=24), nullable=False),
     sa.Column('name', sa.String(length=256), nullable=False),
-    sa.Column('user', sa.String(length=256), nullable=False),
     sa.Column('status', sa.Enum('ACTIVE', 'INACTIVE', 'DELETED', name='modelserviceproviderstatus'), nullable=False),
     sa.Column('api_key', sa.String(length=256), nullable=False),
     sa.Column('gmt_created', sa.DateTime(timezone=True), nullable=False),
     sa.Column('gmt_updated', sa.DateTime(timezone=True), nullable=False),
     sa.Column('gmt_deleted', sa.DateTime(timezone=True), nullable=True),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('name', 'user', 'gmt_deleted', name='uq_model_service_provider_name_user_deleted')
+    sa.UniqueConstraint('name', 'gmt_deleted', name='uq_model_service_provider_name_deleted')
     )
     op.create_index(op.f('ix_model_service_provider_gmt_deleted'), 'model_service_provider', ['gmt_deleted'], unique=False)
+    op.create_index(op.f('ix_model_service_provider_name'), 'model_service_provider', ['name'], unique=False)
     op.create_index(op.f('ix_model_service_provider_status'), 'model_service_provider', ['status'], unique=False)
-    op.create_index(op.f('ix_model_service_provider_user'), 'model_service_provider', ['user'], unique=False)
     op.create_table('searchtesthistory',
     sa.Column('id', sa.String(length=24), nullable=False),
     sa.Column('user', sa.String(length=256), nullable=False),
@@ -329,8 +348,8 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_searchtesthistory_gmt_deleted'), table_name='searchtesthistory')
     op.drop_index(op.f('ix_searchtesthistory_collection_id'), table_name='searchtesthistory')
     op.drop_table('searchtesthistory')
-    op.drop_index(op.f('ix_model_service_provider_user'), table_name='model_service_provider')
     op.drop_index(op.f('ix_model_service_provider_status'), table_name='model_service_provider')
+    op.drop_index(op.f('ix_model_service_provider_name'), table_name='model_service_provider')
     op.drop_index(op.f('ix_model_service_provider_gmt_deleted'), table_name='model_service_provider')
     op.drop_table('model_service_provider')
     op.drop_index(op.f('ix_message_feedback_user'), table_name='message_feedback')
@@ -339,6 +358,7 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_message_feedback_collection_id'), table_name='message_feedback')
     op.drop_table('message_feedback')
     op.drop_table('llm_provider_models')
+    op.drop_index(op.f('ix_llm_provider_user_id'), table_name='llm_provider')
     op.drop_table('llm_provider')
     op.drop_table('lightrag_vdb_relation')
     op.drop_table('lightrag_vdb_entity')
@@ -347,6 +367,12 @@ def downgrade() -> None:
     op.drop_table('lightrag_doc_full')
     op.drop_table('lightrag_doc_chunks')
     op.drop_table('invitation')
+    op.drop_index(op.f('ix_document_indexes_index_type'), table_name='document_indexes')
+    op.drop_index(op.f('ix_document_indexes_id'), table_name='document_indexes')
+    op.drop_index(op.f('ix_document_indexes_document_id'), table_name='document_indexes')
+    op.drop_index(op.f('ix_document_indexes_desired_state'), table_name='document_indexes')
+    op.drop_index(op.f('ix_document_indexes_actual_state'), table_name='document_indexes')
+    op.drop_table('document_indexes')
     op.drop_index(op.f('ix_document_user'), table_name='document')
     op.drop_index(op.f('ix_document_status'), table_name='document')
     op.drop_index(op.f('ix_document_gmt_deleted'), table_name='document')

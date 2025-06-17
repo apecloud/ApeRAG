@@ -35,17 +35,17 @@ def api_key(cookie_client):
 def setup_model_service_provider(cookie_client):
     """Setup completion/embedding/rerank model service provider for testing."""
     resp = cookie_client.put(
-        f"/api/v1/model_service_providers/{COMPLETION_MODEL_PROVIDER}",
+        f"/api/v1/llm_providers/{COMPLETION_MODEL_PROVIDER}",
         json={"api_key": COMPLETION_MODEL_PROVIDER_API_KEY},
     )
     assert resp.status_code == HTTPStatus.OK, f"Failed to create completion model service provider: {resp.text}"
     resp = cookie_client.put(
-        f"/api/v1/model_service_providers/{EMBEDDING_MODEL_PROVIDER}",
+        f"/api/v1/llm_providers/{EMBEDDING_MODEL_PROVIDER}",
         json={"api_key": EMBEDDING_MODEL_PROVIDER_API_KEY},
     )
     assert resp.status_code == HTTPStatus.OK, f"Failed to create embedding model service provider: {resp.text}"
     resp = cookie_client.put(
-        f"/api/v1/model_service_providers/{RERANK_MODEL_PROVIDER}", json={"api_key": RERANK_MODEL_PROVIDER_API_KEY}
+        f"/api/v1/llm_providers/{RERANK_MODEL_PROVIDER}", json={"api_key": RERANK_MODEL_PROVIDER_API_KEY}
     )
     assert resp.status_code == HTTPStatus.OK, f"Failed to create rerank model service provider: {resp.text}"
 
