@@ -468,7 +468,7 @@ class EvaluationRunner:
         dataset_path: str,
         timestamp: str,
         results: List[Dict],
-        ragas_results: Optional[Dict],
+        ragas_results: Optional[List[Dict]],
         output_path: Path,
     ) -> None:
         """Generate a markdown evaluation report"""
@@ -516,7 +516,7 @@ class EvaluationRunner:
             if len(results) > 10:
                 f.write(f"*({len(results) - 10} more samples not shown)*\n\n")
 
-    async def _run_ragas_evaluation(self, results: List[Dict], metrics: List[str]) -> Optional[Dict]:
+    async def _run_ragas_evaluation(self, results: List[Dict], metrics: List[str]) -> Optional[List[Dict]]:
         """Run Ragas evaluation on the results"""
         if not metrics:
             logger.warning("No metrics specified for Ragas evaluation")
@@ -579,7 +579,7 @@ class EvaluationRunner:
         dataset_path: str,
         timestamp: str,
         results: List[Dict],
-        ragas_results: Optional[Dict],
+        ragas_results: Optional[List[Dict]],
         report_dir: Path,
     ) -> None:
         """Generate evaluation reports in multiple formats"""
@@ -587,14 +587,8 @@ class EvaluationRunner:
         # Ensure report directory exists
         report_dir.mkdir(parents=True, exist_ok=True)
 
-        # Convert ragas_results to list format if it exists
-        ragas_list = None
-        if ragas_results and hasattr(ragas_results, "to_pandas"):
-            try:
-                ragas_df = ragas_results.to_pandas()
-                ragas_list = ragas_df.to_dict("records")
-            except Exception as e:
-                logger.warning(f"Failed to convert Ragas results to list: {e}")
+        # ragas_results is already a list of dicts, no need to convert
+        ragas_list = ragas_results
 
         # Generate CSV report
         csv_path = report_dir / f"evaluation_report_{timestamp}.csv"
@@ -700,7 +694,16 @@ class EvaluationRunner:
         # Prepare data for CSV
         csv_data = []
 
-        for i, result in enumerate(results):
+        # Create a mapping from question to ragas results for easier lookup
+        ragas_lookup = {}
+        if ragas_results:
+            for ragas_row in ragas_results:
+                # Ragas uses 'user_input' field for questions
+                question = ragas_row.get("user_input", "") or ragas_row.get("question", "")
+                if question:
+                    ragas_lookup[question] = ragas_row
+
+        for result in results:
             # Extract context text from the context data
             context_text = ""
             context_data = result.get("context", [])
@@ -723,12 +726,43 @@ class EvaluationRunner:
                 "context": context_text,
             }
 
-            # Add Ragas metrics if available
-            if ragas_results and i < len(ragas_results):
-                ragas_row = ragas_results[i]
+            # Add additional fields for Ragas compatibility
+            row["user_input"] = result.get("question", "")
+            row["retrieved_contexts"] = [context_text] if context_text else []
+            row["reference"] = result.get("ground_truth", "")
+
+            # Add Ragas metrics if available for this question
+            question = result.get("question", "")
+            if question in ragas_lookup:
+                ragas_row = ragas_lookup[question]
                 for metric_name, metric_value in ragas_row.items():
-                    if metric_name not in ["question", "answer", "contexts", "ground_truth"]:
+                    if metric_name not in [
+                        "user_input",
+                        "response",
+                        "retrieved_contexts",
+                        "reference",
+                        "question",
+                        "answer",
+                        "contexts",
+                        "ground_truth",
+                    ]:
                         row[metric_name] = metric_value
+            else:
+                # If no ragas results for this question, add None values for metrics
+                if ragas_results and len(ragas_results) > 0:
+                    sample_ragas = ragas_results[0]
+                    for metric_name in sample_ragas.keys():
+                        if metric_name not in [
+                            "user_input",
+                            "response",
+                            "retrieved_contexts",
+                            "reference",
+                            "question",
+                            "answer",
+                            "contexts",
+                            "ground_truth",
+                        ]:
+                            row[metric_name] = None
 
             csv_data.append(row)
 
