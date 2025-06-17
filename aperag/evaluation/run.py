@@ -32,7 +32,7 @@ import httpx
 import pandas as pd
 import yaml
 from datasets import Dataset
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from ragas import evaluate
 from ragas.metrics import (
     answer_correctness,
@@ -55,6 +55,7 @@ class EvaluationRunner:
         self.config_path = config_path or Path(__file__).parent / "config.yaml"
         self.config = self._load_config()
         self.llm_for_eval = self._setup_llm_for_eval()
+        self.embeddings_for_eval = self._setup_embeddings_for_eval()
 
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from YAML file"""
@@ -88,6 +89,26 @@ class EvaluationRunner:
             model=llm_config["model"],
             temperature=llm_config["temperature"],
         )
+
+    def _setup_embeddings_for_eval(self) -> Optional[OpenAIEmbeddings]:
+        """Setup embeddings for Ragas evaluation"""
+        # Check if embeddings configuration exists
+        embeddings_config = self.config.get("embeddings_for_eval")
+
+        if not embeddings_config or not embeddings_config.get("api_base"):
+            logger.warning("No embeddings configuration found. Embedding-based metrics will be skipped.")
+            return None
+
+        try:
+            return OpenAIEmbeddings(
+                openai_api_base=embeddings_config["api_base"],
+                openai_api_key=embeddings_config["api_key"],
+                model=embeddings_config.get("model", "text-embedding-3-small"),
+                check_embedding_ctx_length=False,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to setup embeddings: {e}. Embedding-based metrics will be skipped.")
+            return None
 
     def _load_dataset(self, dataset_path: str, max_samples: Optional[int] = None) -> List[Dict[str, str]]:
         """Load dataset from CSV or JSON file"""
@@ -162,141 +183,187 @@ class EvaluationRunner:
             if base_url.endswith("/api/v1"):
                 # Remove /api/v1 and add /v1 for chat completions
                 host = base_url[:-7]  # Remove "/api/v1"
-                api_url = f"{host}/v1/chat/completions"
+                chat_url = f"{host}/v1/chat/completions"
             else:
-                # Assume it's already the correct base
-                api_url = f"{base_url.rstrip('/')}/v1/chat/completions"
+                chat_url = f"{base_url}/v1/chat/completions"
 
-            logger.debug(f"Using API URL: {api_url}")
-
-            # Prepare request
-            headers = {"Content-Type": "application/json"}
+            headers = {}
             if api_token:
                 headers["Authorization"] = f"Bearer {api_token}"
+            headers["Content-Type"] = "application/json"
 
             request_body = {"messages": [{"role": "user", "content": question}], "model": "aperag", "stream": False}
 
             params = {"bot_id": bot_id}
 
-            # Make HTTP request
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    api_url, json=request_body, headers=headers, params=params, timeout=timeout
-                )
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(chat_url, headers=headers, json=request_body, params=params)
                 response.raise_for_status()
 
-            result = response.json()
-            logger.debug(f"API Response JSON: {result}")
+                # Parse response
+                response_data = response.json()
 
-            # Check if it's an error response
-            if "error" in result:
-                error_msg = result["error"].get("message", "Unknown error")
-                logger.error(f"API returned error: {error_msg}")
-                return {"response": f"Error: {error_msg}", "context": [], "error": error_msg}
+                # Check for API error format
+                if "error" in response_data:
+                    error_msg = response_data.get("error", {}).get("message", "Unknown API error")
+                    logger.error(f"API returned error: {error_msg}")
+                    return {"response": "", "context": [], "error": error_msg}
 
-            # Parse OpenAI-style response
-            if "choices" in result and len(result["choices"]) > 0:
-                bot_response = result["choices"][0]["message"]["content"]
-                logger.debug(f"Bot response content: '{bot_response[:100]}...' (length: {len(bot_response)})")
-            else:
-                logger.warning("No choices found in API response")
-                bot_response = ""
+                # Extract content from OpenAI-compatible response
+                choices = response_data.get("choices", [])
+                if not choices:
+                    logger.warning("No choices in API response")
+                    return {"response": "", "context": [], "error": "No response content"}
 
-            # Parse references from response if embedded
-            context = []
-            references_marker = "参考文档："  # DOC_QA_REFERENCES constant
+                raw_content = choices[0].get("message", {}).get("content", "")
+                logger.debug(f"Raw API response content: {raw_content[:200]}...")
 
-            if references_marker in bot_response:
-                # Split response and references
-                parts = bot_response.split(references_marker)
-                if len(parts) > 1:
-                    bot_response = parts[0].strip()
-                    try:
-                        references_json = parts[1].strip()
-                        references = json.loads(references_json)
-                        # Extract text from references as context
-                        context = [ref.get("text", "") for ref in references if ref.get("text")]
-                        logger.debug(f"Extracted {len(context)} context items from references")
-                    except json.JSONDecodeError:
-                        logger.warning("Failed to parse references JSON")
+                # Parse content with |DOC_QA_REFERENCES| separator
+                if "|DOC_QA_REFERENCES|" in raw_content:
+                    parts = raw_content.split("|DOC_QA_REFERENCES|", 1)
+                    response_text = parts[0].strip()
+                    context_text = parts[1].strip() if len(parts) > 1 else ""
 
-            # Ensure context is a list
-            if not isinstance(context, list):
-                context = [str(context)] if context else []
+                    # Parse context JSON
+                    context_data = []
+                    if context_text:
+                        try:
+                            # Try to parse as JSON
+                            parsed_context = json.loads(context_text)
 
-            return {"response": bot_response, "context": context, "raw_result": result}
+                            # Handle both single object and array
+                            if isinstance(parsed_context, list):
+                                context_data = parsed_context
+                            elif isinstance(parsed_context, dict):
+                                context_data = [parsed_context]
 
+                            logger.debug(f"Successfully parsed context: {len(context_data)} items")
+
+                        except json.JSONDecodeError as e:
+                            logger.warning(f"Failed to parse context JSON: {e}")
+                            # Keep as string if parsing fails
+                            context_data = [{"text": context_text}]
+
+                    return {
+                        "response": response_text,
+                        "context": context_data,  # Keep as parsed object, not string
+                        "error": None,
+                    }
+                else:
+                    # No separator, treat whole content as response
+                    return {"response": raw_content, "context": [], "error": None}
+
+        except httpx.HTTPStatusError as e:
+            error_msg = f"HTTP error {e.response.status_code}: {e.response.text}"
+            logger.error(f"API HTTP error: {error_msg}")
+            return {"response": "", "context": [], "error": error_msg}
         except Exception as e:
-            logger.error(f"Error calling bot API: {e}")
-            return {"response": f"Error: {str(e)}", "context": [], "error": str(e)}
+            error_msg = f"API call failed: {str(e)}"
+            logger.error(f"API call error: {error_msg}")
+            return {"response": "", "context": [], "error": error_msg}
 
     async def _process_dataset(self, bot_id: str, df: pd.DataFrame) -> List[Dict[str, Any]]:
-        """Process dataset by calling bot API for each question"""
+        """Process dataset and get bot responses"""
         results = []
+        total = len(df)
+
+        # Get advanced settings
         advanced_config = self.config.get("advanced", {})
-        batch_size = advanced_config.get("batch_size", 5)
-        request_delay = advanced_config.get("request_delay", 1)
+        request_delay = advanced_config.get("request_delay", 0)
 
-        logger.info(f"Processing {len(df)} questions with bot {bot_id}")
+        for idx, row in df.iterrows():
+            question = row["question"]
+            ground_truth = row["answer"]
 
-        for i in range(0, len(df), batch_size):
-            batch = df.iloc[i : i + batch_size]
-            batch_results = []
+            logger.info(f"Processing question {idx + 1}/{total}: {question[:50]}...")
 
-            # Process batch concurrently
-            tasks = []
-            for _, row in batch.iterrows():
-                task = self._call_bot_api(bot_id, row["question"])
-                tasks.append(task)
+            # Call bot API
+            api_result = await self._call_bot_api(bot_id, question)
 
-            batch_responses = await asyncio.gather(*tasks)
+            # Build result record
+            result = {
+                "question": question,
+                "ground_truth": ground_truth,
+                "response": api_result.get("response", ""),
+                "context": api_result.get("context", []),  # Keep as parsed object/list
+                "error": api_result.get("error"),
+            }
 
-            # Combine results
-            for (_, row), response in zip(batch.iterrows(), batch_responses):
-                result = {
-                    "question": row["question"],
-                    "ground_truth": row["answer"],
-                    "response": response["response"],
-                    "context": response["context"],
-                }
-                batch_results.append(result)
-                results.append(result)
+            results.append(result)
 
-            logger.info(f"Processed {min(i + batch_size, len(df))}/{len(df)} questions")
-
-            # Delay between batches
-            if i + batch_size < len(df):
+            # Add delay between requests if configured
+            if request_delay > 0:
                 await asyncio.sleep(request_delay)
 
         return results
 
-    def _prepare_ragas_dataset(self, results: List[Dict[str, Any]]) -> Dataset:
+    def _prepare_ragas_dataset(self, results: List[Dict]) -> Dataset:
         """Prepare dataset for Ragas evaluation"""
-        logger.info("Preparing data for Ragas evaluation")
+        # Filter out failed requests
+        valid_results = [r for r in results if not r.get("error") and r.get("response")]
 
-        # Extract data for Ragas format
-        questions = []
-        answers = []
-        contexts = []
-        ground_truths = []
+        if not valid_results:
+            logger.warning("No valid results found for Ragas evaluation")
+            return Dataset.from_dict({"question": [], "answer": [], "contexts": [], "ground_truth": []})
 
-        for result in results:
-            questions.append(result["question"])
-            answers.append(result["response"])
-            # Ensure contexts is a list of strings
-            context = result["context"]
-            if isinstance(context, str):
-                contexts.append([context])
-            elif isinstance(context, list):
-                contexts.append([str(c) for c in context])
-            else:
-                contexts.append([str(context)])
-            ground_truths.append(result["ground_truth"])
+        # Prepare data for Ragas
+        ragas_data = {"question": [], "answer": [], "contexts": [], "ground_truth": []}
 
-        # Create Ragas dataset
-        dataset_dict = {"question": questions, "answer": answers, "contexts": contexts, "ground_truth": ground_truths}
+        for result in valid_results:
+            ragas_data["question"].append(result["question"])
+            ragas_data["answer"].append(result["response"])
+            ragas_data["ground_truth"].append(result["ground_truth"])
 
-        return Dataset.from_dict(dataset_dict)
+            # Handle context - extract text fields from JSON context
+            contexts_list = []
+            raw_context_data = result.get("context", [])
+
+            if raw_context_data:
+                # Extract text from parsed context data
+                for item in raw_context_data:
+                    if isinstance(item, dict) and "text" in item:
+                        text_content = item["text"]
+                        if text_content and text_content.strip():
+                            contexts_list.append(text_content.strip())
+                    elif isinstance(item, str) and item.strip():
+                        # If it's already a string, use it directly
+                        contexts_list.append(item.strip())
+
+            # If no contexts extracted from raw_context_data, try the context string
+            if not contexts_list:
+                context_str = result.get("context", "")
+                if context_str and context_str.strip():
+                    try:
+                        # Try to parse context string as JSON
+                        import json
+
+                        context_json = json.loads(context_str)
+
+                        # Handle different JSON structures
+                        if isinstance(context_json, list):
+                            for item in context_json:
+                                if isinstance(item, dict) and "text" in item:
+                                    text_content = item["text"]
+                                    if text_content and text_content.strip():
+                                        contexts_list.append(text_content.strip())
+                        elif isinstance(context_json, dict) and "text" in context_json:
+                            text_content = context_json["text"]
+                            if text_content and text_content.strip():
+                                contexts_list.append(text_content.strip())
+                    except json.JSONDecodeError:
+                        # If JSON parsing fails, use the string directly
+                        contexts_list.append(context_str.strip())
+
+            # Ensure we have at least an empty string for Ragas
+            if not contexts_list:
+                contexts_list = [""]
+
+            ragas_data["contexts"].append(contexts_list)
+
+            logger.debug(f"Extracted {len(contexts_list)} context items for question: {result['question'][:50]}...")
+
+        logger.info(f"Prepared Ragas dataset with {len(valid_results)} valid samples")
+        return Dataset.from_dict(ragas_data)
 
     def _get_metrics(self, metric_names: List[str]):
         """Get Ragas metric objects from names"""
@@ -308,12 +375,22 @@ class EvaluationRunner:
             "answer_correctness": answer_correctness,
         }
 
+        # Metrics that require embeddings
+        embedding_required_metrics = {"answer_relevancy"}
+
         metrics = []
         for name in metric_names:
             if name in metric_map:
+                # Skip embedding-based metrics if embeddings are not available
+                if name in embedding_required_metrics and self.embeddings_for_eval is None:
+                    logger.warning(f"Skipping metric '{name}' as it requires embeddings which are not available")
+                    continue
                 metrics.append(metric_map[name])
             else:
                 logger.warning(f"Unknown metric: {name}")
+
+        if not metrics:
+            logger.warning("No valid metrics available for evaluation")
 
         return metrics
 
@@ -442,23 +519,57 @@ class EvaluationRunner:
     async def _run_ragas_evaluation(self, results: List[Dict], metrics: List[str]) -> Optional[Dict]:
         """Run Ragas evaluation on the results"""
         if not metrics:
+            logger.warning("No metrics specified for Ragas evaluation")
             return None
 
         try:
             # Prepare data for Ragas
             logger.info("Preparing data for Ragas evaluation")
             ragas_dataset = self._prepare_ragas_dataset(results)
+
+            # Debug: Check dataset content
+            logger.info(f"Ragas dataset prepared with {len(ragas_dataset)} samples")
+            if len(ragas_dataset) > 0:
+                logger.debug(f"Sample dataset entry: {dict(ragas_dataset[0])}")
+
             ragas_metrics = self._get_metrics(metrics)
+            logger.info(f"Using Ragas metrics: {[str(m) for m in ragas_metrics]}")
+
+            # Check if we have valid data
+            if len(ragas_dataset) == 0:
+                logger.warning("Empty dataset for Ragas evaluation")
+                return None
 
             # Run evaluation
-            eval_results = evaluate(
-                dataset=ragas_dataset, metrics=ragas_metrics, llm=self.llm_for_eval, raise_exceptions=False
-            )
-            logger.info("Ragas evaluation completed")
-            return eval_results.to_pandas().to_dict("records")
+            logger.info("Starting Ragas evaluation...")
+            if self.embeddings_for_eval is not None:
+                # Use both LLM and embeddings
+                eval_results = evaluate(
+                    dataset=ragas_dataset,
+                    metrics=ragas_metrics,
+                    llm=self.llm_for_eval,
+                    embeddings=self.embeddings_for_eval,
+                    raise_exceptions=False,
+                )
+            else:
+                # Use only LLM, skip embedding-based metrics
+                logger.info("Using LLM-only evaluation (no embeddings available)")
+                eval_results = evaluate(
+                    dataset=ragas_dataset, metrics=ragas_metrics, llm=self.llm_for_eval, raise_exceptions=False
+                )
+            logger.info("Ragas evaluation completed successfully")
+
+            # Convert to dict and return
+            results_dict = eval_results.to_pandas().to_dict("records")
+            logger.info(f"Ragas results converted to {len(results_dict)} records")
+
+            return results_dict
 
         except Exception as e:
-            logger.error(f"Ragas evaluation failed: {e}")
+            logger.error(f"Ragas evaluation failed with exception: {e}")
+            import traceback
+
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return None
 
     def _generate_reports(
@@ -466,55 +577,48 @@ class EvaluationRunner:
         task_name: str,
         bot_id: str,
         dataset_path: str,
+        timestamp: str,
         results: List[Dict],
         ragas_results: Optional[Dict],
-        report_dir: str,
-        timestamp: str,
-    ) -> Dict[str, str]:
+        report_dir: Path,
+    ) -> None:
         """Generate evaluation reports in multiple formats"""
-        report_dir = Path(report_dir)
+
+        # Ensure report directory exists
         report_dir.mkdir(parents=True, exist_ok=True)
 
-        reports = {}
+        # Convert ragas_results to list format if it exists
+        ragas_list = None
+        if ragas_results and hasattr(ragas_results, "to_pandas"):
+            try:
+                ragas_df = ragas_results.to_pandas()
+                ragas_list = ragas_df.to_dict("records")
+            except Exception as e:
+                logger.warning(f"Failed to convert Ragas results to list: {e}")
 
-        # CSV Report
+        # Generate CSV report
         csv_path = report_dir / f"evaluation_report_{timestamp}.csv"
-        df = pd.DataFrame(results)
-        df.to_csv(csv_path, index=False)
-        reports["csv"] = str(csv_path)
-        logger.info(f"Saved detailed report to {csv_path}")
+        self._generate_csv_report(results, ragas_list, csv_path)
 
-        # JSON Summary
+        # Generate JSON summary
         summary = {
             "task_name": task_name,
             "bot_id": bot_id,
             "dataset_path": dataset_path,
             "timestamp": timestamp,
             "total_samples": len(results),
-            "ragas_results": ragas_results,
+            "ragas_results": ragas_list,
             "results": results,
         }
 
-        json_path = report_dir / f"evaluation_summary_{timestamp}.json"
-        with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(summary, f, ensure_ascii=False, indent=2)
-        reports["json"] = str(json_path)
-        logger.info(f"Saved summary to {json_path}")
+        summary_path = report_dir / f"evaluation_summary_{timestamp}.json"
+        with open(summary_path, "w", encoding="utf-8") as f:
+            json.dump(summary, f, indent=2, ensure_ascii=False)
+        logger.info(f"Summary report saved to {summary_path}")
 
-        # Markdown Report
+        # Generate Markdown report
         md_path = report_dir / f"evaluation_report_{timestamp}.md"
-        self._generate_markdown_report(task_name, bot_id, dataset_path, timestamp, results, ragas_results, md_path)
-        reports["markdown"] = str(md_path)
-        logger.info(f"Saved markdown report to {md_path}")
-
-        # Intermediate Results (for debugging)
-        intermediate_path = report_dir / f"intermediate_results_{timestamp}.json"
-        with open(intermediate_path, "w", encoding="utf-8") as f:
-            json.dump(results, f, ensure_ascii=False, indent=2)
-        reports["intermediate"] = str(intermediate_path)
-        logger.info(f"Saved intermediate results to {intermediate_path}")
-
-        return reports
+        self._generate_markdown_report(task_name, bot_id, dataset_path, timestamp, results, ragas_list, md_path)
 
     async def run_evaluation(self, task_config: Dict[str, Any]) -> Dict[str, Any]:
         """Run a single evaluation task"""
@@ -571,10 +675,10 @@ class EvaluationRunner:
         # Generate reports
         logger.info(f"Saving results to {report_dir}")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        reports = self._generate_reports(task_name, bot_id, dataset_path, results, ragas_results, report_dir, timestamp)
+        self._generate_reports(task_name, bot_id, dataset_path, timestamp, results, ragas_results, Path(report_dir))
 
         logger.info(f"Evaluation task completed: {task_name}")
-        return {"task_name": task_name, "results": results, "ragas_results": ragas_results, "reports": reports}
+        return {"task_name": task_name, "results": results, "ragas_results": ragas_results}
 
     async def run_all(self):
         """Run all evaluation tasks defined in configuration"""
@@ -590,6 +694,48 @@ class EvaluationRunner:
             await self.run_evaluation(task_config)
 
         logger.info("All evaluation tasks completed")
+
+    def _generate_csv_report(self, results: List[Dict], ragas_results: Optional[List[Dict]], output_path: Path) -> None:
+        """Generate a CSV evaluation report"""
+        # Prepare data for CSV
+        csv_data = []
+
+        for i, result in enumerate(results):
+            # Extract context text from the context data
+            context_text = ""
+            context_data = result.get("context", [])
+            if context_data:
+                # Extract text from parsed context data
+                context_texts = []
+                for item in context_data:
+                    if isinstance(item, dict) and "text" in item:
+                        text_content = item["text"]
+                        if text_content and text_content.strip():
+                            context_texts.append(text_content.strip())
+                    elif isinstance(item, str) and item.strip():
+                        context_texts.append(item.strip())
+                context_text = " | ".join(context_texts)
+
+            row = {
+                "question": result.get("question", ""),
+                "ground_truth": result.get("ground_truth", ""),
+                "response": result.get("response", ""),
+                "context": context_text,
+            }
+
+            # Add Ragas metrics if available
+            if ragas_results and i < len(ragas_results):
+                ragas_row = ragas_results[i]
+                for metric_name, metric_value in ragas_row.items():
+                    if metric_name not in ["question", "answer", "contexts", "ground_truth"]:
+                        row[metric_name] = metric_value
+
+            csv_data.append(row)
+
+        # Create DataFrame and save to CSV
+        df = pd.DataFrame(csv_data)
+        df.to_csv(output_path, index=False, encoding="utf-8")
+        logger.info(f"CSV report saved to {output_path} with {len(df.columns)} columns: {list(df.columns)}")
 
 
 async def main():
