@@ -9,4 +9,3 @@ evaluation_reports/
 
 # Keep example files
 !config.example.yaml
-!README.md 
