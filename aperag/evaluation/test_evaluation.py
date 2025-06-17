@@ -20,6 +20,7 @@ This script tests basic functionality without requiring a full evaluation run.
 """
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 
@@ -65,9 +66,9 @@ async def test_dataset_loading():
         print(f"✗ Dataset not found at {dataset_path}")
 
 
-async def test_api_connection():
-    """Test API connection (without actually calling bot)"""
-    print("\nTesting API connection setup...")
+async def test_api_configuration():
+    """Test API configuration"""
+    print("\nTesting API configuration...")
 
     config_path = Path(__file__).parent / "config.yaml"
     if not config_path.exists():
@@ -75,12 +76,15 @@ async def test_api_connection():
 
     runner = EvaluationRunner(str(config_path))
 
-    # Just test that the API client is configured
-    if runner.api_client:
-        print("✓ API client configured successfully")
-        print(f"  Host: {runner.api_client.api_client.configuration.host}")
+    # Just test that the API config is loaded
+    api_config = runner.config.get("api", {})
+    if api_config:
+        print("✓ API configuration loaded successfully")
+        print(f"  Base URL: {api_config.get('base_url', 'Not set')}")
+        has_token = bool(api_config.get("api_token") or os.environ.get("APERAG_API_TOKEN"))
+        print(f"  API Token: {'Configured' if has_token else 'Not configured'}")
     else:
-        print("✗ Failed to configure API client")
+        print("✗ No API configuration found")
 
 
 async def main():
@@ -90,7 +94,7 @@ async def main():
     try:
         await test_config_loading()
         await test_dataset_loading()
-        await test_api_connection()
+        await test_api_configuration()
 
         print("\n=== All tests completed ===")
         print("\nTo run a full evaluation, use:")

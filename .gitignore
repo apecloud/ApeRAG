@@ -166,3 +166,6 @@ magic-pdf.json
 
 cursorplans
 celerybeat-schedule.db
+
+evaluation/**
+/evaluation/

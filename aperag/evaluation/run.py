@@ -24,11 +24,11 @@ import asyncio
 import json
 import logging
 import os
-import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import httpx
 import pandas as pd
 import yaml
 from datasets import Dataset
@@ -42,11 +42,6 @@ from ragas.metrics import (
     faithfulness,
 )
 
-# Add parent directory to path for imports
-sys.path.append(str(Path(__file__).parent.parent.parent))
-
-from aperag.api import api
-
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -59,7 +54,6 @@ class EvaluationRunner:
         """Initialize the evaluation runner with configuration"""
         self.config_path = config_path or Path(__file__).parent / "config.yaml"
         self.config = self._load_config()
-        self.api_client = self._setup_api_client()
         self.llm_for_eval = self._setup_llm_for_eval()
 
     def _load_config(self) -> Dict[str, Any]:
@@ -85,24 +79,6 @@ class EvaluationRunner:
             return [self._replace_env_vars(item) for item in obj]
         return obj
 
-    def _setup_api_client(self) -> api.DefaultApi:
-        """Setup API client for calling bot endpoints"""
-        api_config = self.config["api"]
-        base_url = api_config["base_url"]
-
-        # Configure API client
-        configuration = api.Configuration()
-        configuration.host = base_url
-
-        # Set API token if available
-        api_token = api_config.get("api_token") or os.environ.get("APERAG_API_TOKEN")
-        if api_token:
-            configuration.api_key["Authorization"] = api_token
-            configuration.api_key_prefix["Authorization"] = "Bearer"
-
-        api_client = api.ApiClient(configuration)
-        return api.DefaultApi(api_client)
-
     def _setup_llm_for_eval(self) -> ChatOpenAI:
         """Setup LLM for Ragas evaluation"""
         llm_config = self.config["llm_for_eval"]
@@ -113,61 +89,118 @@ class EvaluationRunner:
             temperature=llm_config["temperature"],
         )
 
-    def _load_dataset(self, dataset_path: str, max_samples: Optional[int] = None) -> pd.DataFrame:
+    def _load_dataset(self, dataset_path: str, max_samples: Optional[int] = None) -> List[Dict[str, str]]:
         """Load dataset from CSV or JSON file"""
-        logger.info(f"Loading dataset from {dataset_path}")
+        path = Path(dataset_path)
 
-        if dataset_path.endswith(".csv"):
-            df = pd.read_csv(dataset_path)
-        elif dataset_path.endswith(".json"):
-            df = pd.read_json(dataset_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Dataset file not found: {dataset_path}")
+
+        if path.suffix.lower() == ".csv":
+            df = pd.read_csv(path)
+
+            # Handle different column names
+            question_col = None
+            answer_col = None
+
+            # Look for question column
+            for col in df.columns:
+                if col.lower() in ["question", "query", "input", "q"]:
+                    question_col = col
+                    break
+
+            # Look for answer column
+            for col in df.columns:
+                if col.lower() in ["answer", "response", "output", "a", "ground_truth"]:
+                    answer_col = col
+                    break
+
+            if question_col is None:
+                raise ValueError(f"No question column found in CSV. Available columns: {list(df.columns)}")
+            if answer_col is None:
+                raise ValueError(f"No answer column found in CSV. Available columns: {list(df.columns)}")
+
+            logger.info(f"Using question column: '{question_col}', answer column: '{answer_col}'")
+
+            # Convert to standard format
+            dataset = []
+            for _, row in df.iterrows():
+                dataset.append({"question": str(row[question_col]), "answer": str(row[answer_col])})
+
+        elif path.suffix.lower() == ".json":
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            if isinstance(data, list):
+                dataset = data
+            else:
+                raise ValueError("JSON file should contain a list of question-answer pairs")
+
         else:
-            raise ValueError(f"Unsupported dataset format: {dataset_path}")
-
-        # Validate required columns
-        required_columns = ["question", "answer"]
-        missing_columns = set(required_columns) - set(df.columns)
-        if missing_columns:
-            raise ValueError(f"Dataset missing required columns: {missing_columns}")
+            raise ValueError(f"Unsupported file format: {path.suffix}. Only CSV and JSON are supported.")
 
         # Limit samples if specified
-        if max_samples:
-            df = df.head(max_samples)
+        if max_samples and max_samples < len(dataset):
+            dataset = dataset[:max_samples]
             logger.info(f"Limited dataset to {max_samples} samples")
 
-        logger.info(f"Loaded {len(df)} samples from dataset")
-        return df
+        return dataset
 
     async def _call_bot_api(self, bot_id: str, question: str) -> Dict[str, Any]:
         """Call bot API and get response with context"""
         try:
-            # Prepare request body
-            request_body = {"messages": [{"role": "user", "content": question}], "stream": False}
+            # Use direct HTTP request instead of OpenAI client to handle ApeRAG's response format
+            api_config = self.config["api"]
+            base_url = api_config["base_url"]
+            api_token = api_config.get("api_token") or os.environ.get("APERAG_API_TOKEN")
 
-            # Call API
+            # Configure timeout
             advanced_config = self.config.get("advanced", {})
             timeout = advanced_config.get("request_timeout", 30)
 
-            # Make HTTP request directly since we need custom parameters
-            import httpx
+            # The chat/completions endpoint is at /v1, not /api/v1
+            if base_url.endswith("/api/v1"):
+                # Remove /api/v1 and add /v1 for chat completions
+                host = base_url[:-7]  # Remove "/api/v1"
+                api_url = f"{host}/v1/chat/completions"
+            else:
+                # Assume it's already the correct base
+                api_url = f"{base_url.rstrip('/')}/v1/chat/completions"
 
-            api_config = self.config["api"]
-            base_url = api_config["base_url"]
-            url = f"{base_url}/chat/completions?bot_id={bot_id}"
+            logger.debug(f"Using API URL: {api_url}")
 
-            headers = {}
-            api_token = api_config.get("api_token") or os.environ.get("APERAG_API_TOKEN")
+            # Prepare request
+            headers = {"Content-Type": "application/json"}
             if api_token:
                 headers["Authorization"] = f"Bearer {api_token}"
 
+            request_body = {"messages": [{"role": "user", "content": question}], "model": "aperag", "stream": False}
+
+            params = {"bot_id": bot_id}
+
+            # Make HTTP request
             async with httpx.AsyncClient() as client:
-                response = await client.post(url, json=request_body, headers=headers, timeout=timeout)
+                response = await client.post(
+                    api_url, json=request_body, headers=headers, params=params, timeout=timeout
+                )
                 response.raise_for_status()
 
             result = response.json()
+            logger.debug(f"API Response JSON: {result}")
 
-            # Extract response and context
-            bot_response = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            # Check if it's an error response
+            if "error" in result:
+                error_msg = result["error"].get("message", "Unknown error")
+                logger.error(f"API returned error: {error_msg}")
+                return {"response": f"Error: {error_msg}", "context": [], "error": error_msg}
+
+            # Parse OpenAI-style response
+            if "choices" in result and len(result["choices"]) > 0:
+                bot_response = result["choices"][0]["message"]["content"]
+                logger.debug(f"Bot response content: '{bot_response[:100]}...' (length: {len(bot_response)})")
+            else:
+                logger.warning("No choices found in API response")
+                bot_response = ""
 
             # Parse references from response if embedded
             context = []
@@ -183,18 +216,9 @@ class EvaluationRunner:
                         references = json.loads(references_json)
                         # Extract text from references as context
                         context = [ref.get("text", "") for ref in references if ref.get("text")]
+                        logger.debug(f"Extracted {len(context)} context items from references")
                     except json.JSONDecodeError:
                         logger.warning("Failed to parse references JSON")
-
-            # If no context found, check other possible fields
-            if not context:
-                context = result.get("context", [])
-            if not context and "sources" in result:
-                context = result["sources"]
-            if not context and "references" in result:
-                refs = result["references"]
-                if isinstance(refs, list):
-                    context = [ref.get("text", "") for ref in refs if isinstance(ref, dict) and ref.get("text")]
 
             # Ensure context is a list
             if not isinstance(context, list):
@@ -360,75 +384,197 @@ class EvaluationRunner:
                 json.dump(results, f, indent=2, ensure_ascii=False)
             logger.info(f"Saved intermediate results to {intermediate_path}")
 
-    def _generate_markdown_report(self, summary: Dict[str, Any], df_results: pd.DataFrame, output_path: Path):
-        """Generate a markdown report"""
+    def _generate_markdown_report(
+        self,
+        task_name: str,
+        bot_id: str,
+        dataset_path: str,
+        timestamp: str,
+        results: List[Dict],
+        ragas_results: Optional[Dict],
+        output_path: Path,
+    ) -> None:
+        """Generate a markdown evaluation report"""
         with open(output_path, "w", encoding="utf-8") as f:
             f.write("# ApeRAG Evaluation Report\n\n")
-            f.write(f"**Task Name:** {summary['task_name']}\n\n")
-            f.write(f"**Bot ID:** {summary['bot_id']}\n\n")
-            f.write(f"**Dataset:** {summary['dataset_path']}\n\n")
-            f.write(f"**Timestamp:** {summary['timestamp']}\n\n")
-            f.write(f"**Total Samples:** {summary['total_samples']}\n\n")
+            f.write(f"**Task Name:** {task_name}\n\n")
+            f.write(f"**Bot ID:** {bot_id}\n\n")
+            f.write(f"**Dataset:** {dataset_path}\n\n")
+            f.write(f"**Timestamp:** {timestamp}\n\n")
+            f.write(f"**Total Samples:** {len(results)}\n\n")
 
-            if summary["metrics"]:
-                f.write("## Metrics Summary\n\n")
-                f.write("| Metric | Mean | Std | Min | Max |\n")
-                f.write("|--------|------|-----|-----|-----|\n")
-                for metric, stats in summary["metrics"].items():
-                    f.write(
-                        f"| {metric} | {stats['mean']:.3f} | {stats['std']:.3f} | "
-                        f"{stats['min']:.3f} | {stats['max']:.3f} |\n"
-                    )
-                f.write("\n")
+            if ragas_results:
+                f.write("## Ragas Evaluation Metrics\n\n")
+                if isinstance(ragas_results, list) and len(ragas_results) > 0:
+                    # Calculate average scores
+                    metrics = {}
+                    for result in ragas_results:
+                        for key, value in result.items():
+                            if isinstance(value, (int, float)) and key not in [
+                                "question",
+                                "answer",
+                                "contexts",
+                                "ground_truth",
+                            ]:
+                                if key not in metrics:
+                                    metrics[key] = []
+                                metrics[key].append(value)
+
+                    for metric, values in metrics.items():
+                        avg_score = sum(values) / len(values)
+                        f.write(f"- **{metric.replace('_', ' ').title()}**: {avg_score:.3f}\n")
+                    f.write("\n")
 
             f.write("## Sample Results\n\n")
-            # Show first 5 results as examples
-            for i, row in df_results.head(5).iterrows():
-                f.write(f"### Sample {i + 1}\n\n")
-                f.write(f"**Question:** {row['question']}\n\n")
-                f.write(f"**Ground Truth:** {row['ground_truth']}\n\n")
-                f.write(f"**Bot Response:** {row['response']}\n\n")
-                if "context" in row and row["context"]:
-                    f.write(f"**Context:** {row['context']}\n\n")
+
+            for i, result in enumerate(results[:10], 1):  # Show first 10 samples
+                f.write(f"### Sample {i}\n\n")
+                f.write(f"**Question:** {result['question']}\n\n")
+                f.write(f"**Ground Truth:** {result['ground_truth']}\n\n")
+                f.write(f"**Bot Response:** {result['response']}\n\n")
+                if result.get("context"):
+                    f.write(f"**Context:** {result['context']}\n\n")
                 f.write("---\n\n")
 
-    async def run_evaluation(self, task_config: Dict[str, Any]):
-        """Run a single evaluation task"""
-        task_name = task_config["task_name"]
-        logger.info(f"Starting evaluation task: {task_name}")
+            if len(results) > 10:
+                f.write(f"*({len(results) - 10} more samples not shown)*\n\n")
+
+    async def _run_ragas_evaluation(self, results: List[Dict], metrics: List[str]) -> Optional[Dict]:
+        """Run Ragas evaluation on the results"""
+        if not metrics:
+            return None
 
         try:
-            # Load dataset
-            df = self._load_dataset(task_config["dataset_path"], task_config.get("max_samples"))
+            # Prepare data for Ragas
+            logger.info("Preparing data for Ragas evaluation")
+            ragas_dataset = self._prepare_ragas_dataset(results)
+            ragas_metrics = self._get_metrics(metrics)
 
-            # Process dataset with bot API
-            results = await self._process_dataset(task_config["bot_id"], df)
-
-            # Evaluate with Ragas if metrics are specified
-            eval_results = None
-            if "metrics" in task_config and task_config["metrics"]:
-                logger.info("Running Ragas evaluation")
-                ragas_dataset = self._prepare_ragas_dataset(results)
-                metrics = self._get_metrics(task_config["metrics"])
-
-                try:
-                    eval_results = evaluate(
-                        dataset=ragas_dataset, metrics=metrics, llm=self.llm_for_eval, raise_exceptions=False
-                    )
-                    logger.info("Ragas evaluation completed")
-                except Exception as e:
-                    logger.error(f"Ragas evaluation failed: {e}")
-
-            # Save results
-            report_dir = Path(task_config["report_dir"])
-            self._save_results(results, eval_results, task_config, report_dir)
-
-            logger.info(f"Evaluation task completed: {task_name}")
+            # Run evaluation
+            eval_results = evaluate(
+                dataset=ragas_dataset, metrics=ragas_metrics, llm=self.llm_for_eval, raise_exceptions=False
+            )
+            logger.info("Ragas evaluation completed")
+            return eval_results.to_pandas().to_dict("records")
 
         except Exception as e:
-            logger.error(f"Evaluation task failed: {task_name}")
-            logger.exception(e)
-            raise
+            logger.error(f"Ragas evaluation failed: {e}")
+            return None
+
+    def _generate_reports(
+        self,
+        task_name: str,
+        bot_id: str,
+        dataset_path: str,
+        results: List[Dict],
+        ragas_results: Optional[Dict],
+        report_dir: str,
+        timestamp: str,
+    ) -> Dict[str, str]:
+        """Generate evaluation reports in multiple formats"""
+        report_dir = Path(report_dir)
+        report_dir.mkdir(parents=True, exist_ok=True)
+
+        reports = {}
+
+        # CSV Report
+        csv_path = report_dir / f"evaluation_report_{timestamp}.csv"
+        df = pd.DataFrame(results)
+        df.to_csv(csv_path, index=False)
+        reports["csv"] = str(csv_path)
+        logger.info(f"Saved detailed report to {csv_path}")
+
+        # JSON Summary
+        summary = {
+            "task_name": task_name,
+            "bot_id": bot_id,
+            "dataset_path": dataset_path,
+            "timestamp": timestamp,
+            "total_samples": len(results),
+            "ragas_results": ragas_results,
+            "results": results,
+        }
+
+        json_path = report_dir / f"evaluation_summary_{timestamp}.json"
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(summary, f, ensure_ascii=False, indent=2)
+        reports["json"] = str(json_path)
+        logger.info(f"Saved summary to {json_path}")
+
+        # Markdown Report
+        md_path = report_dir / f"evaluation_report_{timestamp}.md"
+        self._generate_markdown_report(task_name, bot_id, dataset_path, timestamp, results, ragas_results, md_path)
+        reports["markdown"] = str(md_path)
+        logger.info(f"Saved markdown report to {md_path}")
+
+        # Intermediate Results (for debugging)
+        intermediate_path = report_dir / f"intermediate_results_{timestamp}.json"
+        with open(intermediate_path, "w", encoding="utf-8") as f:
+            json.dump(results, f, ensure_ascii=False, indent=2)
+        reports["intermediate"] = str(intermediate_path)
+        logger.info(f"Saved intermediate results to {intermediate_path}")
+
+        return reports
+
+    async def run_evaluation(self, task_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Run a single evaluation task"""
+        task_name = task_config["task_name"]
+        bot_id = task_config["bot_id"]
+        dataset_path = task_config["dataset_path"]
+        max_samples = task_config.get("max_samples")
+        report_dir = task_config["report_dir"]
+        metrics = task_config.get("metrics", ["faithfulness", "answer_relevancy"])
+
+        logger.info(f"Starting evaluation task: {task_name}")
+
+        # Load dataset
+        logger.info(f"Loading dataset from {dataset_path}")
+        dataset = self._load_dataset(dataset_path, max_samples)
+        logger.info(f"Loaded {len(dataset)} samples from dataset")
+
+        # Process questions
+        logger.info(f"Processing {len(dataset)} questions with bot {bot_id}")
+
+        # Get advanced config for batch processing and delays
+        advanced_config = self.config.get("advanced", {})
+        batch_size = advanced_config.get("batch_size", 5)
+        request_delay = advanced_config.get("request_delay", 1)
+
+        results = []
+        for i in range(0, len(dataset), batch_size):
+            batch = dataset[i : i + batch_size]
+            batch_tasks = [self._call_bot_api(bot_id, item["question"]) for item in batch]
+            batch_results = await asyncio.gather(*batch_tasks)
+
+            for j, result in enumerate(batch_results):
+                item = batch[j]
+                results.append(
+                    {
+                        "question": item["question"],
+                        "ground_truth": item["answer"],
+                        "response": result["response"],
+                        "context": result["context"],
+                    }
+                )
+
+            logger.info(f"Processed {min(i + batch_size, len(dataset))}/{len(dataset)} questions")
+
+            # Add delay between batches to respect rate limits
+            if i + batch_size < len(dataset) and request_delay > 0:
+                logger.debug(f"Waiting {request_delay} seconds before next batch...")
+                await asyncio.sleep(request_delay)
+
+        # Run Ragas evaluation
+        logger.info("Running Ragas evaluation")
+        ragas_results = await self._run_ragas_evaluation(results, metrics)
+
+        # Generate reports
+        logger.info(f"Saving results to {report_dir}")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        reports = self._generate_reports(task_name, bot_id, dataset_path, results, ragas_results, report_dir, timestamp)
+
+        logger.info(f"Evaluation task completed: {task_name}")
+        return {"task_name": task_name, "results": results, "ragas_results": ragas_results, "reports": reports}
 
     async def run_all(self):
         """Run all evaluation tasks defined in configuration"""

@@ -142,11 +142,13 @@ python -m aperag.evaluation.run --config ci_evaluation_config.yaml
 
 ## 故障排除
 
-### 常见问题
+遇到问题？请查看[详细的故障排除指南](./TROUBLESHOOTING.md)。
+
+### 常见问题快速解答
 
 1. **"Dataset missing required columns"**: 确保数据集包含 `question` 和 `answer` 列
 2. **API认证失败**: 检查API token是否正确设置
-3. **Ragas评测失败**: 确保OpenAI API配置正确
+3. **Ragas评测失败**: 确保设置了OPENAI_API_KEY环境变量（即使使用其他LLM提供商）
 4. **连接超时**: 增加 `request_timeout` 值或检查网络连接
 
 ### 调试模式
