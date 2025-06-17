@@ -23,6 +23,7 @@ It loads datasets, calls bot APIs, and generates comprehensive reports using Rag
 import asyncio
 import json
 import logging
+import math
 import os
 from datetime import datetime
 from pathlib import Path
@@ -51,11 +52,65 @@ class EvaluationRunner:
     """Main class for running RAG evaluations"""
 
     def __init__(self, config_path: str = None):
-        """Initialize the evaluation runner with configuration"""
+        """Initialize evaluation runner with configuration"""
         self.config_path = config_path or Path(__file__).parent / "config.yaml"
         self.config = self._load_config()
         self.llm_for_eval = self._setup_llm_for_eval()
         self.embeddings_for_eval = self._setup_embeddings_for_eval()
+
+    def _is_valid_number(self, value: Any) -> bool:
+        """Check if a value is a valid finite number (not NaN or infinity)"""
+        if not isinstance(value, (int, float)):
+            return False
+        return math.isfinite(value) and not math.isnan(value)
+
+    def _safe_metric_calculation(self, values: List[float]) -> Dict[str, Any]:
+        """Safely calculate statistics from a list of values, filtering out NaN and invalid values"""
+        # Filter out NaN and invalid values
+        valid_values = [v for v in values if self._is_valid_number(v)]
+
+        if not valid_values:
+            return {
+                "mean": None,
+                "min": None,
+                "max": None,
+                "count": 0,
+                "valid_count": 0,
+                "invalid_count": len(values),
+                "std": None,
+            }
+
+        mean_val = sum(valid_values) / len(valid_values)
+        std_val = 0.0
+        if len(valid_values) > 1:
+            variance = sum((x - mean_val) ** 2 for x in valid_values) / len(valid_values)
+            std_val = math.sqrt(variance)
+
+        return {
+            "mean": mean_val,
+            "min": min(valid_values),
+            "max": max(valid_values),
+            "count": len(values),
+            "valid_count": len(valid_values),
+            "invalid_count": len(values) - len(valid_values),
+            "std": std_val,
+        }
+
+    def _clean_for_json(self, obj: Any) -> Any:
+        """Clean an object for JSON serialization by handling NaN, infinity, and other problematic values"""
+        if isinstance(obj, dict):
+            return {k: self._clean_for_json(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._clean_for_json(item) for item in obj]
+        elif isinstance(obj, float):
+            if math.isnan(obj):
+                return None
+            elif math.isinf(obj):
+                return None
+            else:
+                return obj
+        else:
+            return obj
 
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from YAML file"""
@@ -465,16 +520,11 @@ class EvaluationRunner:
             eval_df = eval_results.to_pandas()
             for col in eval_df.columns:
                 if col not in ["question", "answer", "contexts", "ground_truth"]:
-                    summary["metrics"][col] = {
-                        "mean": float(eval_df[col].mean()),
-                        "std": float(eval_df[col].std()),
-                        "min": float(eval_df[col].min()),
-                        "max": float(eval_df[col].max()),
-                    }
+                    summary["metrics"][col] = self._safe_metric_calculation(eval_df[col].tolist())
 
         json_path = report_dir / f"evaluation_summary_{timestamp}.json"
         with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(summary, f, indent=2, ensure_ascii=False)
+            json.dump(self._clean_for_json(summary), f, indent=2, ensure_ascii=False)
         logger.info(f"Saved summary to {json_path}")
 
         # 3. Save Markdown report
@@ -660,7 +710,7 @@ Ragas (Retrieval Augmented Generation Assessment) is a framework specifically de
             if ragas_results:
                 f.write("## Ragas Evaluation Results\n\n")
                 if isinstance(ragas_results, list) and len(ragas_results) > 0:
-                    # Calculate average scores
+                    # Calculate average scores with NaN handling
                     metrics = {}
                     for result in ragas_results:
                         for key, value in result.items():
@@ -676,15 +726,37 @@ Ragas (Retrieval Augmented Generation Assessment) is a framework specifically de
                             ]:
                                 if key not in metrics:
                                     metrics[key] = []
-                                metrics[key].append(value)
+                                # Only append valid numbers
+                                if self._is_valid_number(value):
+                                    metrics[key].append(value)
 
                     for metric, values in metrics.items():
-                        avg_score = sum(values) / len(values)
-                        min_score = min(values)
-                        max_score = max(values)
-                        f.write(
-                            f"- **{metric.replace('_', ' ').title()}**: {avg_score:.3f} (Range: {min_score:.3f} - {max_score:.3f})\n"
-                        )
+                        if values:  # Only calculate if we have valid values
+                            stats = self._safe_metric_calculation(values)
+                            avg_score = stats["mean"]
+                            min_score = stats["min"]
+                            max_score = stats["max"]
+                            valid_count = stats["valid_count"]
+                            total_count = len([r for r in ragas_results if metric in r])
+
+                            if avg_score is not None:
+                                f.write(
+                                    f"- **{metric.replace('_', ' ').title()}**: {avg_score:.3f} "
+                                    f"(Range: {min_score:.3f} - {max_score:.3f}, "
+                                    f"Valid: {valid_count}/{total_count})\n"
+                                )
+                            else:
+                                f.write(
+                                    f"- **{metric.replace('_', ' ').title()}**: N/A "
+                                    f"(No valid values, Total samples: {total_count})\n"
+                                )
+                        else:
+                            # No valid values found for this metric
+                            total_count = len([r for r in ragas_results if metric in r])
+                            f.write(
+                                f"- **{metric.replace('_', ' ').title()}**: N/A "
+                                f"(No valid values, Total samples: {total_count})\n"
+                            )
                     f.write("\n")
 
                 # Add metrics explanation
@@ -750,7 +822,10 @@ Ragas (Retrieval Augmented Generation Assessment) is a framework specifically de
                     f.write("**Evaluation Metrics:**\n\n")
                     for metric, value in result["ragas_metrics"].items():
                         if isinstance(value, (int, float)):
-                            f.write(f"- {metric.replace('_', ' ').title()}: {value:.3f}\n")
+                            if self._is_valid_number(value):
+                                f.write(f"- {metric.replace('_', ' ').title()}: {value:.3f}\n")
+                            else:
+                                f.write(f"- {metric.replace('_', ' ').title()}: N/A (Invalid value)\n")
                     f.write("\n")
 
                 f.write("---\n\n")
@@ -806,6 +881,26 @@ Ragas (Retrieval Augmented Generation Assessment) is a framework specifically de
             # Convert to dict and return
             results_dict = eval_results.to_pandas().to_dict("records")
             logger.info(f"Ragas results converted to {len(results_dict)} records")
+
+            # Debug: Check for NaN values in results
+            nan_count = 0
+            total_metrics = 0
+            for record in results_dict:
+                for key, value in record.items():
+                    if isinstance(value, (int, float)):
+                        total_metrics += 1
+                        if math.isnan(value) or math.isinf(value):
+                            nan_count += 1
+                            logger.warning(
+                                f"Found NaN/Inf value for metric '{key}' in question: {record.get('user_input', record.get('question', 'Unknown'))[:50]}..."
+                            )
+
+            if nan_count > 0:
+                logger.warning(
+                    f"Found {nan_count} NaN/Inf values out of {total_metrics} total metric values. These will be handled safely in statistics calculation."
+                )
+            else:
+                logger.info("No NaN/Inf values found in Ragas results")
 
             return results_dict
 
@@ -868,7 +963,8 @@ Ragas (Retrieval Augmented Generation Assessment) is a framework specifically de
                         "contexts",
                         "ground_truth",
                     ]:
-                        ragas_metrics[metric_name] = metric_value
+                        # Clean the metric value for JSON serialization
+                        ragas_metrics[metric_name] = self._clean_for_json(metric_value)
                 enriched_result["ragas_metrics"] = ragas_metrics
             else:
                 enriched_result["ragas_metrics"] = {}
@@ -878,7 +974,7 @@ Ragas (Retrieval Augmented Generation Assessment) is a framework specifically de
         # Calculate overall Ragas statistics
         overall_ragas_stats = {}
         if ragas_results:
-            # Collect all metric values
+            # Collect all metric values with NaN filtering
             all_metrics = {}
             for ragas_row in ragas_results:
                 for metric_name, metric_value in ragas_row.items():
@@ -892,22 +988,16 @@ Ragas (Retrieval Augmented Generation Assessment) is a framework specifically de
                         "contexts",
                         "ground_truth",
                     ] and isinstance(metric_value, (int, float)):
-                        if metric_name not in all_metrics:
-                            all_metrics[metric_name] = []
-                        all_metrics[metric_name].append(metric_value)
+                        # Only include valid numbers (not NaN or infinity)
+                        if self._is_valid_number(metric_value):
+                            if metric_name not in all_metrics:
+                                all_metrics[metric_name] = []
+                            all_metrics[metric_name].append(metric_value)
 
-            # Calculate statistics for each metric
+            # Calculate statistics for each metric using safe calculation
             for metric_name, values in all_metrics.items():
                 if values:  # Make sure we have values
-                    overall_ragas_stats[metric_name] = {
-                        "mean": sum(values) / len(values),
-                        "min": min(values),
-                        "max": max(values),
-                        "count": len(values),
-                        "std": (sum((x - sum(values) / len(values)) ** 2 for x in values) / len(values)) ** 0.5
-                        if len(values) > 1
-                        else 0.0,
-                    }
+                    overall_ragas_stats[metric_name] = self._safe_metric_calculation(values)
 
         # Calculate response time statistics
         response_times = [
@@ -955,7 +1045,7 @@ Ragas (Retrieval Augmented Generation Assessment) is a framework specifically de
 
         summary_path = report_dir / f"evaluation_summary_{timestamp}.json"
         with open(summary_path, "w", encoding="utf-8") as f:
-            json.dump(summary, f, indent=2, ensure_ascii=False)
+            json.dump(self._clean_for_json(summary), f, indent=2, ensure_ascii=False)
         logger.info(f"Comprehensive evaluation summary saved to {summary_path}")
 
         # Generate Markdown report (optional, for human readability)
