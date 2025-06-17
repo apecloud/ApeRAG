@@ -164,6 +164,12 @@ e2e-performance-test:
 		--benchmark-save=benchmark-result-$$(date +%Y%m%d%H%M%S) \
 		tests/e2e_test/
 
+# Evaluation
+.PHONY: evaluate
+evaluate:
+	@echo "Running RAG evaluation..."
+	@python -m aperag.evaluation.run
+
 # Code generation
 .PHONY: merge-openapi generate-models generate-frontend-sdk llm_provider
 merge-openapi:
