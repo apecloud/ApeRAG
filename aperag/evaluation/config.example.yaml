@@ -1,61 +1,48 @@
-# ApeRAG Evaluation Configuration Example
-# Copy this file to config.yaml and modify according to your needs
-
-# API Configuration
 api:
   base_url: "http://localhost:8000/api/v1"
-  # API token can be set here or via APERAG_API_TOKEN environment variable
-  # api_token: "your-api-token"
+  api_token: "${APERAG_API_KEY}"
 
 # LLM Configuration for Ragas evaluation
 llm_for_eval:
   # These can be overridden by environment variables
-  api_base: "${OPENAI_API_BASE}"
-  api_key: "${OPENAI_API_KEY}"
-  model: "gpt-3.5-turbo"
+  api_base: "https://openrouter.ai/api/v1"
+  api_key: "${OPENROUTER_API_KEY}"
+  model: "openai/gpt-4o-mini"
   temperature: 0
+
+# Embedding Configuration for Ragas evaluation (optional)
+embeddings_for_eval:
+  # If not provided, will try to use the same as llm_for_eval
+  # You can also use local models or set to null to skip embedding-based metrics
+  api_base: "https://api.siliconflow.cn/v1"
+  api_key: "{SILICONFLOW_API_KEY}"
+  model: "BAAI/bge-m3"
+  # Set to null to disable embedding-based metrics
+  # api_base: null
 
 # Evaluation Tasks
 evaluations:
-  # Example 1: Quick test with small sample
-  - task_name: "Quick Test - 5 samples"
-    bot_id: "1"  # Replace with your actual bot ID
-    dataset_path: "./tests/evaluation/datasets/qa-1300.csv"
-    max_samples: 5
-    report_dir: "./evaluation_reports/quick_test"
+  - task_name: "Demo Evaluation - Three Kingdoms Q&A (All Metrics)"
+    # Replace with your bot ID
+    bot_id: "bot61b56647225effd1"
+    dataset_path: "./evaluation/threekingdoms/datasets/qa.csv"
+    # Optional: limit the number of samples (useful for testing)
+    max_samples: 3
+    # Output directory for reports
+    report_dir: "./evaluation/threekingdoms/report"
+    # Metrics to evaluate - all supported Ragas metrics
     metrics:
-      - answer_relevancy
-      - faithfulness
+      - faithfulness          # 忠实性评估 (仅需LLM)
+      - answer_relevancy      # 答案相关性评估 (需要embedding)
+      - context_precision     # 上下文精确性评估 (需要LLM和ground truth)
+      - context_recall        # 上下文召回率评估 (需要LLM和ground truth)
+      - answer_correctness    # 答案正确性评估 (需要LLM和ground truth)
 
-  # Example 2: Full evaluation with all metrics
-  - task_name: "Full Evaluation - Three Kingdoms Q&A"
-    bot_id: "1"  # Replace with your actual bot ID
-    dataset_path: "./tests/evaluation/datasets/qa-1300.csv"
-    max_samples: 50
-    report_dir: "./evaluation_reports/full_eval"
-    metrics:
-      - faithfulness
-      - answer_relevancy
-      - context_precision
-      - context_recall
-      - answer_correctness
-
-  # Example 3: Custom dataset evaluation
-  # - task_name: "Custom Dataset Evaluation"
-  #   bot_id: "2"
-  #   dataset_path: "./my_custom_dataset.json"
-  #   report_dir: "./evaluation_reports/custom_eval"
-  #   metrics:
-  #     - faithfulness
-  #     - answer_relevancy
-
-# Advanced Configuration
+# Advanced settings
 advanced:
-  # Request timeout in seconds
-  request_timeout: 30
+  request_timeout: 30  # API request timeout in seconds
+  request_delay: 3     # Delay between requests in seconds to avoid rate limits
   # Batch size for processing (to avoid overwhelming the API)
-  batch_size: 5
-  # Delay between requests (in seconds)
-  request_delay: 1
+  batch_size: 3
   # Whether to save intermediate results
   save_intermediate: true 
