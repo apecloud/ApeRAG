@@ -1,0 +1,61 @@
+# ApeRAG Evaluation Configuration Example
+# Copy this file to config.yaml and modify according to your needs
+
+# API Configuration
+api:
+  base_url: "http://localhost:8000/api/v1"
+  # API token can be set here or via APERAG_API_TOKEN environment variable
+  # api_token: "your-api-token"
+
+# LLM Configuration for Ragas evaluation
+llm_for_eval:
+  # These can be overridden by environment variables
+  api_base: "${OPENAI_API_BASE}"
+  api_key: "${OPENAI_API_KEY}"
+  model: "gpt-3.5-turbo"
+  temperature: 0
+
+# Evaluation Tasks
+evaluations:
+  # Example 1: Quick test with small sample
+  - task_name: "Quick Test - 5 samples"
+    bot_id: "1"  # Replace with your actual bot ID
+    dataset_path: "./tests/evaluation/datasets/qa-1300.csv"
+    max_samples: 5
+    report_dir: "./evaluation_reports/quick_test"
+    metrics:
+      - answer_relevancy
+      - faithfulness
+
+  # Example 2: Full evaluation with all metrics
+  - task_name: "Full Evaluation - Three Kingdoms Q&A"
+    bot_id: "1"  # Replace with your actual bot ID
+    dataset_path: "./tests/evaluation/datasets/qa-1300.csv"
+    max_samples: 50
+    report_dir: "./evaluation_reports/full_eval"
+    metrics:
+      - faithfulness
+      - answer_relevancy
+      - context_precision
+      - context_recall
+      - answer_correctness
+
+  # Example 3: Custom dataset evaluation
+  # - task_name: "Custom Dataset Evaluation"
+  #   bot_id: "2"
+  #   dataset_path: "./my_custom_dataset.json"
+  #   report_dir: "./evaluation_reports/custom_eval"
+  #   metrics:
+  #     - faithfulness
+  #     - answer_relevancy
+
+# Advanced Configuration
+advanced:
+  # Request timeout in seconds
+  request_timeout: 30
+  # Batch size for processing (to avoid overwhelming the API)
+  batch_size: 5
+  # Delay between requests (in seconds)
+  request_delay: 1
+  # Whether to save intermediate results
+  save_intermediate: true 
