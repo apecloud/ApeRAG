@@ -415,6 +415,156 @@ class LightRAG:
 
     # ============= New Stateless Interfaces =============
 
+    def _find_connected_components(self, chunk_results: List[tuple[dict, dict]]) -> List[List[str]]:
+        """
+        Find connected components in the extracted entities and relationships.
+
+        Args:
+            chunk_results: List of (nodes_dict, edges_dict) tuples from entity extraction
+
+        Returns:
+            List of entity groups, where each group is a list of connected entity names
+        """
+        # Build adjacency list
+        adjacency: Dict[str, set[str]] = {}
+
+        for nodes, edges in chunk_results:
+            # Add all nodes to adjacency list
+            for entity_name in nodes.keys():
+                if entity_name not in adjacency:
+                    adjacency[entity_name] = set()
+
+            # Add edges to create connections
+            for src, tgt in edges.keys():
+                if src not in adjacency:
+                    adjacency[src] = set()
+                if tgt not in adjacency:
+                    adjacency[tgt] = set()
+                adjacency[src].add(tgt)
+                adjacency[tgt].add(src)
+
+        # Find connected components using BFS
+        visited = set()
+        components = []
+
+        for node in adjacency:
+            if node not in visited:
+                # Start BFS from this node
+                component = []
+                queue = [node]
+                visited.add(node)
+
+                while queue:
+                    current = queue.pop(0)
+                    component.append(current)
+
+                    # Visit all neighbors
+                    for neighbor in adjacency.get(current, set()):
+                        if neighbor not in visited:
+                            visited.add(neighbor)
+                            queue.append(neighbor)
+
+                components.append(component)
+
+        logger.info(f"Found {len(components)} connected components from {len(adjacency)} entities")
+        return components
+
+    async def _process_entity_groups(
+        self,
+        chunk_results: List[tuple[dict, dict]],
+        components: List[List[str]],
+        collection_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Process entities and relationships in groups based on connected components.
+
+        Args:
+            chunk_results: List of (nodes_dict, edges_dict) from entity extraction
+            components: List of entity groups (connected components)
+            collection_id: Optional collection ID for logging
+
+        Returns:
+            Dict with processing results
+        """
+        workspace = self.workspace if self.workspace else "default"
+        lightrag_logger = create_lightrag_logger(prefix="LightRAG-GraphIndex", workspace=workspace)
+
+        total_entities = 0
+        total_relations = 0
+        processed_groups = 0
+
+        for i, component in enumerate(components):
+            # Create a set for quick lookup
+            component_entities = set(component)
+
+            # Filter chunk results for this component
+            component_chunk_results = []
+
+            for nodes, edges in chunk_results:
+                # Filter nodes belonging to this component
+                filtered_nodes = {
+                    entity_name: entity_data
+                    for entity_name, entity_data in nodes.items()
+                    if entity_name in component_entities
+                }
+
+                # Filter edges where both endpoints belong to this component
+                filtered_edges = {
+                    (src, tgt): edge_data
+                    for (src, tgt), edge_data in edges.items()
+                    if src in component_entities and tgt in component_entities
+                }
+
+                if filtered_nodes or filtered_edges:
+                    component_chunk_results.append((filtered_nodes, filtered_edges))
+
+            if not component_chunk_results:
+                continue
+
+            # Create locks for all entities in this component
+            entity_locks = []
+            for entity_name in sorted(component):  # Sort to prevent deadlock
+                lock = get_or_create_lock(f"entity:{entity_name}:{self.workspace}")
+                entity_locks.append(lock)
+
+            lightrag_logger.info(f"Processing component {i + 1}/{len(components)} with {len(component)} entities")
+
+            # Use MultiLock to acquire all locks for this component
+            async with MultiLock(entity_locks):
+                # Merge nodes and edges for this component
+                await merge_nodes_and_edges(
+                    chunk_results=component_chunk_results,
+                    knowledge_graph_inst=self.chunk_entity_relation_graph,
+                    entity_vdb=self.entities_vdb,
+                    relationships_vdb=self.relationships_vdb,
+                    llm_model_func=self.llm_model_func,
+                    tokenizer=self.tokenizer,
+                    llm_model_max_token_size=self.llm_model_max_token_size,
+                    summary_to_max_tokens=self.summary_to_max_tokens,
+                    addon_params=self.addon_params or PROMPTS["DEFAULT_LANGUAGE"],
+                    force_llm_summary_on_merge=self.force_llm_summary_on_merge,
+                    lightrag_logger=lightrag_logger,
+                )
+
+            # Count entities and relations in this component
+            component_entity_count = sum(len(nodes) for nodes, _ in component_chunk_results)
+            component_relation_count = sum(len(edges) for _, edges in component_chunk_results)
+
+            total_entities += component_entity_count
+            total_relations += component_relation_count
+            processed_groups += 1
+
+            lightrag_logger.info(
+                f"Completed component {i + 1}: {component_entity_count} entities, {component_relation_count} relations"
+            )
+
+        return {
+            "groups_processed": processed_groups,
+            "total_entities": total_entities,
+            "total_relations": total_relations,
+            "collection_id": collection_id,
+        }
+
     async def ainsert_and_chunk_document(
         self,
         documents: list[str],
@@ -593,51 +743,27 @@ class LightRAG:
                 lightrag_logger=lightrag_logger,
             )
 
-            # 2. Collect all entity names involved
-            all_entity_names = set()
-            for maybe_nodes, maybe_edges in chunk_results:
-                # Collect node entities
-                all_entity_names.update(maybe_nodes.keys())
-                # Collect edge source and target entities
-                for edge_key in maybe_edges.keys():
-                    all_entity_names.update(edge_key)
+            # 2. Find connected components in the extracted entities and relationships
+            components = self._find_connected_components(chunk_results)
 
-            # 3. Create locks for all entities and sort by name (prevent deadlock)
-            entity_locks = []
-            for entity_name in sorted(all_entity_names):
-                lock = get_or_create_lock(f"entity:{entity_name}:{self.workspace}")
-                entity_locks.append(lock)
+            # 3. Process each component group with its own lock scope
+            result = await self._process_entity_groups(chunk_results, components, collection_id)
 
-            lightrag_logger.info(f"Created {len(entity_locks)} entity locks for Multi-Lock control")
-
-            # 4. Use MultiLock to acquire all relevant locks, then perform merge
-            async with MultiLock(entity_locks):
-                # Merge nodes and edges
-                await merge_nodes_and_edges(
-                    chunk_results=chunk_results,
-                    knowledge_graph_inst=self.chunk_entity_relation_graph,
-                    entity_vdb=self.entities_vdb,
-                    relationships_vdb=self.relationships_vdb,
-                    llm_model_func=self.llm_model_func,
-                    tokenizer=self.tokenizer,
-                    llm_model_max_token_size=self.llm_model_max_token_size,
-                    summary_to_max_tokens=self.summary_to_max_tokens,
-                    addon_params=self.addon_params or PROMPTS["DEFAULT_LANGUAGE"],
-                    force_llm_summary_on_merge=self.force_llm_summary_on_merge,
-                    lightrag_logger=lightrag_logger,
-                )
-
-            # Count results
+            # Count total results
             entity_count = sum(len(nodes) for nodes, _ in chunk_results)
             relation_count = sum(len(edges) for _, edges in chunk_results)
 
-            lightrag_logger.info(f"Graph indexing completed: {entity_count} entities, {relation_count} relations")
+            lightrag_logger.info(
+                f"Graph indexing completed: {entity_count} entities, {relation_count} relations "
+                f"in {result['groups_processed']} groups"
+            )
 
             return {
                 "status": "success",
                 "chunks_processed": len(chunks),
                 "entities_extracted": entity_count,
                 "relations_extracted": relation_count,
+                "groups_processed": result["groups_processed"],
                 "collection_id": collection_id,
             }
 
