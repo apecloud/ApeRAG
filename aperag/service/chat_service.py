@@ -136,7 +136,7 @@ class ChatService:
             raise ResourceNotFoundException("Bot", bot_id)
 
         # Direct call to repository method, which handles its own transaction
-        chat = await self.db_ops.create_chat(user=user, bot_id=bot_id, title="")
+        chat = await self.db_ops.create_chat(user=user, bot_id=bot_id)
 
         return self.build_chat_response(chat)
 

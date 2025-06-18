@@ -15,7 +15,7 @@
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Request, UploadFile, WebSocket
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Request, Response, UploadFile, WebSocket
 
 from aperag.db.models import User
 from aperag.schema import view_models
@@ -195,8 +195,9 @@ async def feedback_message_view(
 @router.delete("/bots/{bot_id}/chats/{chat_id}")
 async def delete_chat_view(
     request: Request, bot_id: str, chat_id: str, user: User = Depends(current_user)
-) -> view_models.Chat:
-    return await chat_service_global.delete_chat(str(user.id), bot_id, chat_id)
+):
+    await chat_service_global.delete_chat(str(user.id), bot_id, chat_id)
+    return Response(status_code=204)
 
 
 @router.post("/bots")
@@ -229,8 +230,9 @@ async def update_bot_view(
 
 
 @router.delete("/bots/{bot_id}")
-async def delete_bot_view(request: Request, bot_id: str, user: User = Depends(current_user)) -> view_models.Bot:
-    return await bot_service.delete_bot(str(user.id), bot_id)
+async def delete_bot_view(request: Request, bot_id: str, user: User = Depends(current_user)):
+    await bot_service.delete_bot(str(user.id), bot_id)
+    return Response(status_code=204)
 
 
 @router.post("/available_models")

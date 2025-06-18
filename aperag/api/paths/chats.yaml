@@ -143,7 +143,7 @@ chat:
               $ref: '../components/schemas/common.yaml#/failResponse'
   delete:
     summary: Delete a chat
-    description: Delete a chat
+    description: Delete a chat (idempotent operation)
     security:
       - BearerAuth: []
     parameters:
@@ -159,15 +159,9 @@ chat:
           type: string
     responses:
       '204':
-        description: Chat deleted successfully
+        description: Chat deleted successfully (or already deleted)
       '401':
         description: Unauthorized
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/common.yaml#/failResponse'
-      '404':
-        description: Chat not found
         content:
           application/json:
             schema:

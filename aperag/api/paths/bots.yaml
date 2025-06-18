@@ -87,7 +87,7 @@ bot:
               $ref: '../components/schemas/common.yaml#/failResponse'
   delete:
     summary: Delete a bot
-    description: Delete a bot
+    description: Delete a bot (idempotent operation)
     security:
       - BearerAuth: []
     parameters:
@@ -98,7 +98,7 @@ bot:
           type: string
     responses:
       '204':
-        description: Bot deleted successfully
+        description: Bot deleted successfully (or already deleted)
 
   put:
     summary: Update a bot
