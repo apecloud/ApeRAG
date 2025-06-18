@@ -14,7 +14,6 @@
 
 import random
 import uuid
-from datetime import datetime, timezone
 from enum import Enum
 
 from pgvector.sqlalchemy import Vector
