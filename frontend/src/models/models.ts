@@ -16,6 +16,57 @@ export default () => {
     setAvailableModels(res.data.items || []);
   };
 
+  // get default models from already loaded availableModels
+  const getDefaultModelsFromAvailable = (): {
+    defaultEmbeddingModel?: string;
+    defaultCompletionModel?: string;
+  } => {
+    let defaultEmbeddingModel: string | undefined;
+    let defaultCompletionModel: string | undefined;
+
+    if (!availableModels?.length) {
+      return { defaultEmbeddingModel, defaultCompletionModel };
+    }
+
+    // Find default embedding model, fallback to first available
+    for (const provider of availableModels) {
+      if (provider?.embedding?.length) {
+        // Try to find model with default tag first
+        const defaultModel = provider.embedding.find(
+          model => model?.tags?.includes('default_for_embedding')
+        );
+        if (defaultModel?.model) {
+          defaultEmbeddingModel = defaultModel.model;
+          break;
+        }
+        // Fallback to first model if no default found
+        if (!defaultEmbeddingModel && provider.embedding[0]?.model) {
+          defaultEmbeddingModel = provider.embedding[0].model;
+        }
+      }
+    }
+
+    // Find default completion model, fallback to first available
+    for (const provider of availableModels) {
+      if (provider?.completion?.length) {
+        // Try to find model with default tag first
+        const defaultModel = provider.completion.find(
+          model => model?.tags?.includes('default_for_indexing')
+        );
+        if (defaultModel?.model) {
+          defaultCompletionModel = defaultModel.model;
+          break;
+        }
+        // Fallback to first model if no default found
+        if (!defaultCompletionModel && provider.completion[0]?.model) {
+          defaultCompletionModel = provider.completion[0].model;
+        }
+      }
+    }
+
+    return { defaultEmbeddingModel, defaultCompletionModel };
+  };
+
   const getProviderByModelName = (
     name: string = '',
     type: 'embedding' | 'completion' | 'rerank',
@@ -48,6 +99,7 @@ export default () => {
 
     availableModels,
     getAvailableModels,
+    getDefaultModelsFromAvailable,
     getProviderByModelName,
   };
 };

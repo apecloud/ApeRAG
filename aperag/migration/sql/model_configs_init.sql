@@ -1,5 +1,5 @@
 -- Model configuration initialization SQL script
--- Generated directly from configuration data on 2025-06-19 02:28:52
+-- Generated directly from configuration data on 2025-06-19 02:32:30
 -- This script populates llm_provider and llm_provider_models tables
 
 BEGIN;
@@ -3024,7 +3024,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, max_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'alibabacloud', 'embedding', 'text-embedding-v4', 'openai', NULL, '["recommend", "default"]'::jsonb,
+    'alibabacloud', 'embedding', 'text-embedding-v4', 'openai', NULL, '["recommend", "default_for_embedding"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -3038,7 +3038,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, max_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'alibabacloud', 'rerank', 'gte-rerank-v2', 'openai', 30000, '["recommend", "default"]'::jsonb,
+    'alibabacloud', 'rerank', 'gte-rerank-v2', 'openai', 30000, '["recommend", "default_for_rerank"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -7330,6 +7330,6 @@ ON CONFLICT (provider_name, api, model) DO UPDATE SET
 
 COMMIT;
 
--- Script completed. Generated on 2025-06-19 02:28:52
+-- Script completed. Generated on 2025-06-19 02:32:30
 -- Total providers: 8
 -- Total models: 551
