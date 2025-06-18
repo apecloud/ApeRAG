@@ -519,11 +519,11 @@ def create_alibabacloud_config():
     }
     embedding_tag_rules = {
         'recommend': ['*'],  # All embedding models get recommend tag
-        'default': ['text-embedding-v4'],
+        'default_for_embedding': ['text-embedding-v4'],
     }
     rerank_tag_rules = {
         'recommend': ['*'],  # All rerank models get recommend tag
-        'default': ['gte-rerank-v2'],
+        'default_for_rerank': ['gte-rerank-v2'],
     }
     
     # Setup file paths - now that the script is in models directory, use current directory
