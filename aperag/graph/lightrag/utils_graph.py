@@ -913,3 +913,11 @@ async def get_relation_info(
 def get_graph_db_lock(workspace: str):
     """Get the graph database lock for a specific workspace"""
     return get_or_create_lock(f"lightrag_graph_db_{workspace}")
+
+
+def get_lock_by_workspace_entity(workspace: str, entity: str):
+    return get_or_create_lock(f"lightrag_graph_db_workspace_{workspace}_entity_{entity}")
+
+
+def get_lock_by_workspace_relation(workspace: str, relation: str):
+    return get_or_create_lock(f"lightrag_graph_db_workspace_{workspace}_relation_{relation}")

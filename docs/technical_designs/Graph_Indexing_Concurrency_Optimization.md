@@ -218,3 +218,181 @@ async def update_entity_optimistic(self, entity_name: str, new_data: dict):
 ## 7. 总结
 
 当前的全局锁机制严重限制了系统的并发处理能力。通过将耗时的计算操作（LLM 调用、Embedding 生成）移出锁的保护范围，可以将锁持有时间减少 99% 以上，从而实现真正的高并发处理。这种优化在保证数据一致性的同时，能够充分利用系统资源，大幅提升处理效率。
+
+---
+
+## 8. 最终推荐方案：Multi-Lock 实体级并发控制
+
+经过深入分析，确定采用 **Multi-Lock 实体级并发控制方案**。这是在保证数据一致性前提下，实现最佳并发性能的方案。
+
+### 8.1 方案核心思想
+
+```python
+# 核心思想：只锁定当前文档涉及的具体实体
+async def aprocess_graph_indexing(self, chunks: dict[str, Any]):
+    # 阶段1：提取实体和关系（完全并行，无锁）
+    chunk_results = await extract_entities(chunks, ...)
+    
+    # 阶段2：收集所有涉及的实体名称
+    all_entity_names = set()
+    for maybe_nodes, maybe_edges in chunk_results:
+        # 收集节点实体
+        all_entity_names.update(maybe_nodes.keys())
+        # 收集边的源实体和目标实体
+        for edge_key in maybe_edges.keys():
+            all_entity_names.update(edge_key)
+    
+    # 阶段3：为所有实体创建锁，并按名称排序（防止死锁）
+    entity_locks = [
+        get_or_create_lock(f"entity:{entity_name}:{self.workspace}")
+        for entity_name in sorted(all_entity_names)
+    ]
+    
+    # 阶段4：使用 MultiLock 获取所有相关锁，然后执行合并
+    async with MultiLock(entity_locks):
+        await merge_nodes_and_edges(
+            chunk_results,
+            self.knowledge_graph_inst,
+            self.entity_vdb,
+            self.relationships_vdb,
+            # ... 其他参数
+        )
+```
+
+### 8.2 方案优势
+
+1. **精确并发控制**：
+   - 只锁定当前文档涉及的具体实体
+   - 不同文档如果涉及不同实体，可以完全并行处理
+   - 相同实体的更新严格串行，保证数据一致性
+
+2. **防止死锁**：
+   - 通过实体名称排序，保证所有worker按相同顺序获取锁
+   - 使用 MultiLock 统一管理多个锁的获取和释放
+
+3. **性能可预期**：
+   - 并发度 = min(worker数量, 不重叠实体组合数)
+   - 对于实体重叠度低的文档集，接近完全并行
+   - 对于实体重叠度高的文档集，仍有显著改善
+
+### 8.3 实现步骤
+
+#### 步骤1：实现 MultiLock 类
+
+在 `aperag/concurrent_control/core.py` 中添加：
+
+```python
+class MultiLock:
+    """多重锁管理器，按排序顺序获取多个锁以防止死锁"""
+    
+    def __init__(self, locks: list[LockProtocol]):
+        # 按锁名称排序，确保获取顺序一致
+        self._locks = sorted(locks, key=lambda lock: getattr(lock, "_name", str(id(lock))))
+        self._acquired_locks = []
+    
+    async def __aenter__(self):
+        """按顺序获取所有锁"""
+        for lock in self._locks:
+            await lock.acquire()
+            self._acquired_locks.append(lock)
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """按相反顺序释放所有锁"""
+        for lock in reversed(self._acquired_locks):
+            await lock.release()
+        self._acquired_locks.clear()
+```
+
+#### 步骤2：修改 LightRAG 类
+
+在 `aperag/graph/lightrag/lightrag.py` 中：
+
+```python
+from aperag.concurrent_control import MultiLock, get_or_create_lock
+
+class LightRAG:
+    def __post_init__(self):
+        # 移除全局锁
+        # self._graph_db_lock = get_graph_db_lock(self.workspace)
+        pass
+    
+    async def aprocess_graph_indexing(self, chunks: dict[str, Any]):
+        # 实体提取阶段（无锁，完全并行）
+        chunk_results = await extract_entities(chunks, ...)
+        
+        # 收集所有涉及的实体
+        all_entity_names = set()
+        for maybe_nodes, maybe_edges in chunk_results:
+            all_entity_names.update(maybe_nodes.keys())
+            for edge_key in maybe_edges.keys():
+                all_entity_names.update(edge_key)
+        
+        # 创建实体锁并排序
+        entity_locks = [
+            get_or_create_lock(f"entity:{name}:{self.workspace}")
+            for name in sorted(all_entity_names)
+        ]
+        
+        # 使用 MultiLock 进行合并操作
+        async with MultiLock(entity_locks):
+            await merge_nodes_and_edges(
+                chunk_results,
+                self.knowledge_graph_inst,
+                self.entity_vdb,
+                self.relationships_vdb,
+                # ... 其他参数，不再传递 graph_db_lock
+            )
+```
+
+#### 步骤3：清理 operate.py
+
+移除 `merge_nodes_and_edges` 函数的 `graph_db_lock` 参数及相关逻辑。
+
+### 8.4 性能分析
+
+假设120个文档的实体重叠情况：
+
+**场景1：低重叠度（如不同领域文档）**
+- 实体重叠率：10%
+- 预期并发度：接近48（几乎完全并行）
+- 性能提升：45倍以上
+
+**场景2：中等重叠度（如同领域不同公司）**
+- 实体重叠率：50%
+- 预期并发度：15-25
+- 性能提升：15-25倍
+
+**场景3：高重叠度（如同一公司的多篇报告）**
+- 实体重叠率：80%
+- 预期并发度：5-10
+- 性能提升：5-10倍
+
+即使在最坏情况下，仍有5倍以上的性能提升。
+
+### 8.5 风险评估
+
+1. **锁数量增加**：每个实体一个锁，但Redis锁管理开销很小
+2. **内存占用**：MultiLock需要维护锁列表，但影响微乎其微
+3. **实现复杂度**：相比分组方案，实现更简洁直观
+
+### 8.6 监控指标
+
+建议添加以下监控：
+- 平均实体重叠度
+- 平均锁等待时间
+- 并发任务数分布
+- 单个文档处理时间分布
+
+---
+
+## 9. 总结
+
+Multi-Lock 实体级并发控制方案是解决当前性能瓶颈的最佳选择：
+
+1. **精确性**：只锁定必要的实体，最小化锁竞争
+2. **安全性**：通过排序防止死锁，保证数据一致性
+3. **可预测性**：性能提升直接与实体重叠度相关
+4. **简洁性**：实现简单，易于维护和调试
+
+相比全局锁的"一刀切"和分组锁的"跨组冲突"，Multi-Lock实现了"精确制导"的并发控制，是在数据一致性和性能之间的最佳平衡点。
