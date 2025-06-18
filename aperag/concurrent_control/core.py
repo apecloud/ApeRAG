@@ -520,6 +520,9 @@ class MultiLock:
         # All locks are automatically released
     """
 
+    # Class-level logger for MultiLock operations
+    _logger = logging.getLogger(__name__ + ".MultiLock")
+
     def __init__(self, locks: list[LockProtocol]):
         """
         Initialize MultiLock with a list of locks.
@@ -530,6 +533,7 @@ class MultiLock:
         # Sort locks by name to ensure consistent acquisition order
         self._locks = sorted(locks, key=lambda lock: getattr(lock, "_name", str(id(lock))))
         self._acquired_locks: list[LockProtocol] = []
+        self._lock_names = [getattr(lock, "_name", str(id(lock))) for lock in self._locks]
 
     async def acquire_all(self, timeout: Optional[float] = None) -> bool:
         """
@@ -541,32 +545,76 @@ class MultiLock:
         Returns:
             True if all locks were acquired, False otherwise
         """
-        for lock in self._locks:
+        import time
+
+        # Log all locks that are about to be acquired
+        self._logger.info(f"MultiLock attempting to acquire {len(self._locks)} locks: {self._lock_names}")
+
+        # Record start time for measuring wait duration
+        start_time = time.time()
+
+        for i, lock in enumerate(self._locks):
             try:
+                lock_name = self._lock_names[i]
+                self._logger.debug(f"Acquiring lock {i + 1}/{len(self._locks)}: {lock_name}")
+
                 success = await lock.acquire(timeout=timeout)
                 if not success:
                     # Failed to acquire this lock, release all previously acquired
+                    elapsed_time = time.time() - start_time
+                    self._logger.warning(
+                        f"MultiLock failed to acquire lock '{lock_name}' after {elapsed_time:.3f}s, "
+                        f"releasing {len(self._acquired_locks)} already acquired locks"
+                    )
                     await self._release_acquired()
                     return False
+
                 self._acquired_locks.append(lock)
+                self._logger.debug(f"Successfully acquired lock: {lock_name}")
+
             except Exception as e:
-                logger.error(f"Error acquiring lock in MultiLock: {e}")
+                elapsed_time = time.time() - start_time
+                lock_name = self._lock_names[i] if i < len(self._lock_names) else "unknown"
+                self._logger.error(f"Error acquiring lock '{lock_name}' in MultiLock after {elapsed_time:.3f}s: {e}")
                 await self._release_acquired()
                 return False
+
+        # All locks acquired successfully
+        elapsed_time = time.time() - start_time
+        self._logger.info(
+            f"MultiLock successfully acquired all {len(self._locks)} locks in {elapsed_time:.3f}s: {self._lock_names}"
+        )
         return True
 
     async def release_all(self) -> None:
         """Release all locks in reverse order of acquisition."""
+        if self._acquired_locks:
+            self._logger.info(f"MultiLock releasing {len(self._acquired_locks)} locks")
         await self._release_acquired()
 
     async def _release_acquired(self) -> None:
         """Release all acquired locks in reverse order."""
+        if not self._acquired_locks:
+            return
+
+        # Log the locks being released
+        released_lock_names = []
+        for lock in self._acquired_locks:
+            released_lock_names.append(getattr(lock, "_name", str(id(lock))))
+
+        self._logger.debug(f"Releasing locks in reverse order: {list(reversed(released_lock_names))}")
+
         # Release in reverse order to minimize contention
-        for lock in reversed(self._acquired_locks):
+        for i, lock in enumerate(reversed(self._acquired_locks)):
             try:
+                lock_name = getattr(lock, "_name", str(id(lock)))
+                self._logger.debug(f"Releasing lock {i + 1}/{len(self._acquired_locks)}: {lock_name}")
                 await lock.release()
             except Exception as e:
-                logger.error(f"Error releasing lock in MultiLock: {e}")
+                lock_name = getattr(lock, "_name", str(id(lock)))
+                self._logger.error(f"Error releasing lock '{lock_name}' in MultiLock: {e}")
+
+        self._logger.info(f"MultiLock released all {len(self._acquired_locks)} locks successfully")
         self._acquired_locks.clear()
 
     async def __aenter__(self) -> "MultiLock":
