@@ -15,7 +15,7 @@
 import base64
 import hashlib
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 from Crypto.Cipher import AES
 
@@ -34,7 +34,7 @@ def extract_bot_and_chat_id(path: str):
 
 
 def now_unix_milliseconds():
-    return int(datetime.utcnow().timestamp() * 1e3)
+    return int(utc_now().timestamp() * 1e3)
 
 
 def generate_fulltext_index_name(collection_id) -> str:
@@ -45,12 +45,12 @@ def generate_vector_db_collection_name(collection_id) -> str:
     return str(collection_id)
 
 
-def generate_qa_vector_db_collection_name(collection) -> str:
-    return str(collection) + "-qa"
-
-
 def generate_lightrag_namespace_prefix(collection_id) -> str:
     return str(collection_id)
+
+
+def utc_now():
+    return datetime.now(timezone.utc)
 
 
 class AESCipher(object):

@@ -15,28 +15,12 @@
 
 from fastapi import APIRouter, Depends, Request
 
-from aperag.db.models import ApiKey, User
-from aperag.schema.view_models import ApiKey as ApiKeyModel
+from aperag.db.models import User
 from aperag.schema.view_models import ApiKeyCreate, ApiKeyList, ApiKeyUpdate
 from aperag.service.api_key_service import api_key_service
 from aperag.views.auth import current_user
-from aperag.views.utils import success
 
 router = APIRouter()
-
-
-def to_api_key_model(apikey: ApiKey) -> ApiKeyModel:
-    """Convert database ApiKey model to API response model"""
-    return success(
-        ApiKeyModel(
-            id=str(apikey.id),
-            key=apikey.key,
-            description=apikey.description,
-            created_at=apikey.gmt_created,
-            updated_at=apikey.gmt_updated,
-            last_used_at=apikey.last_used_at,
-        )
-    )
 
 
 @router.get("/apikeys")

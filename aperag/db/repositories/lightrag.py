@@ -26,6 +26,7 @@ from aperag.db.models import (
     LightRAGVDBRelationModel,
 )
 from aperag.db.repositories.base import SyncRepositoryProtocol
+from aperag.utils.utils import utc_now
 
 
 class LightragRepositoryMixin(SyncRepositoryProtocol):
@@ -42,13 +43,13 @@ class LightragRepositoryMixin(SyncRepositoryProtocol):
                 if isinstance(created_at, str):
                     created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
                 elif created_at is None:
-                    created_at = datetime.utcnow()
+                    created_at = utc_now()
 
                 updated_at = status_data.get("updated_at")
                 if isinstance(updated_at, str):
                     updated_at = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
                 elif updated_at is None:
-                    updated_at = datetime.utcnow()
+                    updated_at = utc_now()
 
                 stmt = insert(LightRAGDocStatusModel).values(
                     workspace=workspace,
@@ -189,7 +190,7 @@ class LightragRepositoryMixin(SyncRepositoryProtocol):
                     existing.doc_name = doc_content.get("doc_name")
                     existing.content = doc_content.get("content", "")
                     existing.meta = doc_content.get("meta")
-                    existing.update_time = datetime.utcnow()
+                    existing.update_time = utc_now()
                     session.add(existing)
                 else:
                     # Create new record
@@ -199,8 +200,8 @@ class LightragRepositoryMixin(SyncRepositoryProtocol):
                         doc_name=doc_content.get("doc_name"),
                         content=doc_content.get("content", ""),
                         meta=doc_content.get("meta"),
-                        create_time=datetime.utcnow(),
-                        update_time=datetime.utcnow(),
+                        create_time=utc_now(),
+                        update_time=utc_now(),
                     )
                     session.add(new_doc)
 
@@ -318,8 +319,8 @@ class LightragRepositoryMixin(SyncRepositoryProtocol):
                         "content": chunk_data.get("content", ""),
                         "content_vector": vector_data,
                         "file_path": chunk_data.get("file_path"),
-                        "create_time": datetime.utcnow(),
-                        "update_time": datetime.utcnow(),
+                        "create_time": utc_now(),
+                        "update_time": utc_now(),
                     },
                 )
 
@@ -397,8 +398,8 @@ class LightragRepositoryMixin(SyncRepositoryProtocol):
                         "content_vector": vector_data,
                         "chunk_ids": entity_info.get("chunk_ids"),
                         "file_path": entity_info.get("file_path"),
-                        "create_time": datetime.utcnow(),
-                        "update_time": datetime.utcnow(),
+                        "create_time": utc_now(),
+                        "update_time": utc_now(),
                     },
                 )
 
@@ -478,8 +479,8 @@ class LightragRepositoryMixin(SyncRepositoryProtocol):
                         "content_vector": vector_data,
                         "chunk_ids": relation_info.get("chunk_ids"),
                         "file_path": relation_info.get("file_path"),
-                        "create_time": datetime.utcnow(),
-                        "update_time": datetime.utcnow(),
+                        "create_time": utc_now(),
+                        "update_time": utc_now(),
                     },
                 )
 
@@ -544,7 +545,7 @@ class LightragRepositoryMixin(SyncRepositoryProtocol):
                     # Update existing record
                     existing.original_prompt = cache_info.get("original_prompt")
                     existing.return_value = cache_info.get("return_value")
-                    existing.update_time = datetime.utcnow()
+                    existing.update_time = utc_now()
                     session.add(existing)
                 else:
                     # Create new record
@@ -554,8 +555,8 @@ class LightragRepositoryMixin(SyncRepositoryProtocol):
                         mode=mode,
                         original_prompt=cache_info.get("original_prompt"),
                         return_value=cache_info.get("return_value"),
-                        create_time=datetime.utcnow(),
-                        update_time=datetime.utcnow(),
+                        create_time=utc_now(),
+                        update_time=utc_now(),
                     )
                     session.add(new_cache)
 

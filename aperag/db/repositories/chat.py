@@ -19,6 +19,7 @@ from sqlalchemy import desc, select
 
 from aperag.db.models import Chat, ChatStatus, MessageFeedback
 from aperag.db.repositories.base import AsyncRepositoryProtocol
+from aperag.utils.utils import utc_now
 
 
 class AsyncChatRepositoryMixin(AsyncRepositoryProtocol):
@@ -136,7 +137,7 @@ class AsyncChatRepositoryMixin(AsyncRepositoryProtocol):
 
             if instance:
                 instance.status = ChatStatus.DELETED
-                instance.gmt_deleted = datetime.utcnow()
+                instance.gmt_deleted = utc_now()
                 session.add(instance)
                 await session.flush()
                 await session.refresh(instance)
@@ -217,7 +218,7 @@ class AsyncChatRepositoryMixin(AsyncRepositoryProtocol):
                 if original_answer is not None:
                     feedback.original_answer = original_answer
 
-                feedback.gmt_updated = datetime.utcnow()
+                feedback.gmt_updated = utc_now()
                 session.add(feedback)
                 await session.flush()
                 await session.refresh(feedback)
@@ -240,7 +241,7 @@ class AsyncChatRepositoryMixin(AsyncRepositoryProtocol):
             feedback = result.scalars().first()
 
             if feedback:
-                feedback.gmt_deleted = datetime.utcnow()
+                feedback.gmt_deleted = utc_now()
                 session.add(feedback)
                 await session.flush()
                 return True
@@ -285,7 +286,7 @@ class AsyncChatRepositoryMixin(AsyncRepositoryProtocol):
                     feedback.question = question
                 if original_answer is not None:
                     feedback.original_answer = original_answer
-                feedback.gmt_updated = datetime.utcnow()
+                feedback.gmt_updated = utc_now()
             else:
                 # Create new
                 from aperag.db.models import MessageFeedbackStatus

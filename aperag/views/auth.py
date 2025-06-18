@@ -26,6 +26,7 @@ from aperag.config import AsyncSessionDep, settings
 from aperag.db.models import ApiKey, ApiKeyStatus, Invitation, Role, User
 from aperag.db.ops import async_db_ops
 from aperag.schema import view_models
+from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -248,12 +249,12 @@ async def create_invitation_view(
     if result.scalars().first():
         raise HTTPException(status_code=400, detail="User with this email or username already exists")
     token = secrets.token_urlsafe(32)
-    expires_at = datetime.utcnow() + timedelta(days=7)
+    expires_at = utc_now() + timedelta(days=7)
     invitation = Invitation(
         email=data.email,
         token=token,
         created_by=str(user.id),
-        created_at=datetime.utcnow(),
+        created_at=utc_now(),
         role=data.role,
         expires_at=expires_at,
         is_used=False,
@@ -326,7 +327,7 @@ async def register_view(
         "role": invitation.role if invitation else Role.ADMIN,
         "is_active": True,
         "is_verified": True,
-        "date_joined": datetime.utcnow(),
+        "date_joined": utc_now(),
     }
 
     user = User(**user_create)
@@ -337,7 +338,7 @@ async def register_view(
 
     if invitation:
         invitation.is_used = True
-        invitation.used_at = datetime.utcnow()
+        invitation.used_at = utc_now()
         session.add(invitation)
         await session.commit()
 

@@ -24,6 +24,7 @@ from jinja2 import Environment, StrictUndefined
 import aperag.flow.runners  # noqa: F401
 from aperag.flow.base.exceptions import CycleError, ValidationError
 from aperag.flow.base.models import NODE_RUNNER_REGISTRY, ExecutionContext, FlowInstance, NodeInstance, SystemInput
+from aperag.utils.utils import utc_now
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ class FlowEvent:
         self.event_type = event_type
         self.node_id = node_id
         self.execution_id = execution_id
-        self.timestamp = datetime.utcnow().isoformat()
+        self.timestamp = utc_now().isoformat()
         self.data = data or {}
 
     def to_dict(self) -> Dict[str, Any]:

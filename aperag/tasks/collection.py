@@ -26,7 +26,6 @@ from aperag.schema.utils import parseCollectionConfig
 from aperag.tasks.models import TaskResult
 from aperag.utils.utils import (
     generate_fulltext_index_name,
-    generate_qa_vector_db_collection_name,
     generate_vector_db_collection_name,
 )
 from config.vector_db import get_vector_db_connector
@@ -188,12 +187,6 @@ class CollectionTask:
             collection=generate_vector_db_collection_name(collection_id=collection_id)
         )
         vector_db_conn.connector.delete_collection()
-
-        # Delete QA vector database collection
-        qa_vector_db_conn = get_vector_db_connector(
-            collection=generate_qa_vector_db_collection_name(collection=collection_id)
-        )
-        qa_vector_db_conn.connector.delete_collection()
 
         logger.debug(f"Deleted vector database collections for collection {collection_id}")
 

@@ -27,6 +27,7 @@ from aperag.db.repositories.base import (
     AsyncRepositoryProtocol,
     SyncRepositoryProtocol,
 )
+from aperag.utils.utils import utc_now
 
 
 class LlmProviderRepositoryMixin(SyncRepositoryProtocol):
@@ -172,7 +173,7 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
             if msp:
                 # Update existing
                 msp.api_key = api_key
-                msp.gmt_updated = datetime.utcnow()
+                msp.gmt_updated = utc_now()
                 session.add(msp)
             else:
                 # Create new
@@ -394,7 +395,7 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
                 if extra is not None:
                     provider.extra = extra
 
-                provider.gmt_updated = datetime.utcnow()
+                provider.gmt_updated = utc_now()
                 session.add(provider)
                 await session.flush()
                 await session.refresh(provider)
@@ -413,8 +414,8 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
 
             if provider:
                 # Soft delete the provider
-                provider.gmt_deleted = datetime.utcnow()
-                provider.gmt_updated = datetime.utcnow()
+                provider.gmt_deleted = utc_now()
+                provider.gmt_updated = utc_now()
                 session.add(provider)
 
                 # Also soft delete all models for this provider
@@ -424,8 +425,8 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
                 models_result = await session.execute(models_stmt)
                 models = models_result.scalars().all()
                 for model in models:
-                    model.gmt_deleted = datetime.utcnow()
-                    model.gmt_updated = datetime.utcnow()
+                    model.gmt_deleted = utc_now()
+                    model.gmt_updated = utc_now()
                     session.add(model)
 
                 await session.flush()
@@ -445,7 +446,7 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
 
             if provider:
                 provider.gmt_deleted = None
-                provider.gmt_updated = datetime.utcnow()
+                provider.gmt_updated = utc_now()
                 session.add(provider)
 
                 # Also restore all models for this provider
@@ -456,7 +457,7 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
                 models = models_result.scalars().all()
                 for model in models:
                     model.gmt_deleted = None
-                    model.gmt_updated = datetime.utcnow()
+                    model.gmt_updated = utc_now()
                     session.add(model)
 
                 await session.flush()
@@ -555,7 +556,7 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
                 if tags is not None:
                     model_obj.tags = tags
 
-                model_obj.gmt_updated = datetime.utcnow()
+                model_obj.gmt_updated = utc_now()
                 session.add(model_obj)
                 await session.flush()
                 await session.refresh(model_obj)
@@ -578,8 +579,8 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
             model_obj = result.scalars().first()
 
             if model_obj:
-                model_obj.gmt_deleted = datetime.utcnow()
-                model_obj.gmt_updated = datetime.utcnow()
+                model_obj.gmt_deleted = utc_now()
+                model_obj.gmt_updated = utc_now()
                 session.add(model_obj)
                 await session.flush()
                 await session.refresh(model_obj)
@@ -603,7 +604,7 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
 
             if model_obj:
                 model_obj.gmt_deleted = None
-                model_obj.gmt_updated = datetime.utcnow()
+                model_obj.gmt_updated = utc_now()
                 session.add(model_obj)
                 await session.flush()
                 await session.refresh(model_obj)

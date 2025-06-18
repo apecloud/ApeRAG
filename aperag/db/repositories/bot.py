@@ -22,6 +22,7 @@ from aperag.db.models import (
     BotStatus,
 )
 from aperag.db.repositories.base import AsyncRepositoryProtocol
+from aperag.utils.utils import utc_now
 
 
 class AsyncBotRepositoryMixin(AsyncRepositoryProtocol):
@@ -105,7 +106,7 @@ class AsyncBotRepositoryMixin(AsyncRepositoryProtocol):
 
             if instance:
                 instance.status = BotStatus.DELETED
-                instance.gmt_deleted = datetime.utcnow()
+                instance.gmt_deleted = utc_now()
                 session.add(instance)
                 await session.flush()
                 await session.refresh(instance)
@@ -137,7 +138,7 @@ class AsyncBotRepositoryMixin(AsyncRepositoryProtocol):
             result = await session.execute(stmt)
             relations = result.scalars().all()
             for rel in relations:
-                rel.gmt_deleted = datetime.utcnow()
+                rel.gmt_deleted = utc_now()
                 session.add(rel)
             await session.flush()
             return len(relations)

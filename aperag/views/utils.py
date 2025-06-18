@@ -15,10 +15,8 @@
 import json
 import logging
 import uuid
-from http import HTTPStatus
 from typing import Dict, Tuple
 
-from fastapi import HTTPException, Request, Response
 from langchain_core.prompts import PromptTemplate
 from pydantic import ValidationError
 
@@ -135,30 +133,6 @@ def validate_url(url):
         return True
     except Exception:
         return False
-
-
-def success(data):
-    return data
-
-
-def fail(status: HTTPStatus, message: str, raise_exception: bool = True):
-    if raise_exception:
-        raise HTTPException(status_code=status, detail=message)
-    return status, view_models.FailResponse(code=status.name, message=message)
-
-
-def validation_errors(request: Request, exc: ValidationError) -> Response:
-    msgs = []
-    for err in exc.errors:
-        for field in err["loc"]:
-            msgs.append(f"{err['msg']}: {field}")
-    status, content = fail(HTTPStatus.UNPROCESSABLE_ENTITY, ", ".join(msgs), raise_exception=False)
-    return Response(status_code=status, content=content.model_dump_json())
-
-
-def auth_errors(request: Request, exc: HTTPException) -> Response:
-    status, content = fail(HTTPStatus.UNAUTHORIZED, "Unauthorized", raise_exception=False)
-    return Response(status_code=status, content=content.model_dump_json())
 
 
 def mask_api_key(api_key: str) -> str:
