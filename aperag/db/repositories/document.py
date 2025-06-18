@@ -26,7 +26,11 @@ from aperag.db.repositories.base import (
 class DocumentRepositoryMixin(SyncRepositoryProtocol):
     def query_document_by_id(self, document_id: str) -> Document:
         def _query(session):
-            return session.get(Document, document_id)
+            stmt = select(Document).where(
+                Document.id == document_id, Document.status != DocumentStatus.DELETED, Document.gmt_deleted.is_(None)
+            )
+            result = session.execute(stmt)
+            return result.scalars().first()
 
         return self._execute_query(_query)
 
@@ -47,6 +51,7 @@ class DocumentRepositoryMixin(SyncRepositoryProtocol):
                     Document.user.in_(users),
                     Document.collection_id == collection_id,
                     Document.status != DocumentStatus.DELETED,
+                    Document.gmt_deleted.is_(None),
                 )
                 .order_by(desc(Document.gmt_created))
             )
@@ -91,6 +96,7 @@ class AsyncDocumentRepositoryMixin(AsyncRepositoryProtocol):
                 Document.collection_id == collection_id,
                 Document.user == user,
                 Document.status != DocumentStatus.DELETED,
+                Document.gmt_deleted.is_(None),
             )
             result = await session.execute(stmt)
             instance = result.scalars().first()
@@ -115,6 +121,7 @@ class AsyncDocumentRepositoryMixin(AsyncRepositoryProtocol):
                 Document.collection_id == collection_id,
                 Document.user == user,
                 Document.status != DocumentStatus.DELETED,
+                Document.gmt_deleted.is_(None),
             )
             result = await session.execute(stmt)
             instance = result.scalars().first()
@@ -142,6 +149,7 @@ class AsyncDocumentRepositoryMixin(AsyncRepositoryProtocol):
                 Document.collection_id == collection_id,
                 Document.user == user,
                 Document.status != DocumentStatus.DELETED,
+                Document.gmt_deleted.is_(None),
             )
             result = await session.execute(stmt)
             instances = result.scalars().all()
@@ -173,6 +181,7 @@ class AsyncDocumentRepositoryMixin(AsyncRepositoryProtocol):
                 Document.collection_id == collection_id,
                 Document.user == user,
                 Document.status != DocumentStatus.DELETED,
+                Document.gmt_deleted.is_(None),
             )
             result = await session.execute(stmt)
             return result.scalars().first()
@@ -185,6 +194,7 @@ class AsyncDocumentRepositoryMixin(AsyncRepositoryProtocol):
                 Document.user.in_(users),
                 Document.collection_id == collection_id,
                 Document.status != DocumentStatus.DELETED,
+                Document.gmt_deleted.is_(None),
             )
             result = await session.execute(stmt)
             return result.scalars().all()
@@ -202,6 +212,7 @@ class AsyncDocumentRepositoryMixin(AsyncRepositoryProtocol):
                     Document.user == user,
                     Document.collection_id == collection_id,
                     Document.status != DocumentStatus.DELETED,
+                    Document.gmt_deleted.is_(None),
                 )
             )
             return await session.scalar(stmt)

@@ -25,7 +25,11 @@ class AsyncChatRepositoryMixin(AsyncRepositoryProtocol):
     async def query_chat(self, user: str, bot_id: str, chat_id: str):
         async def _query(session):
             stmt = select(Chat).where(
-                Chat.id == chat_id, Chat.bot_id == bot_id, Chat.user == user, Chat.status != ChatStatus.DELETED
+                Chat.id == chat_id,
+                Chat.bot_id == bot_id,
+                Chat.user == user,
+                Chat.status != ChatStatus.DELETED,
+                Chat.gmt_deleted.is_(None),
             )
             result = await session.execute(stmt)
             return result.scalars().first()
@@ -39,6 +43,7 @@ class AsyncChatRepositoryMixin(AsyncRepositoryProtocol):
                 Chat.peer_type == peer_type,
                 Chat.peer_id == peer_id,
                 Chat.status != ChatStatus.DELETED,
+                Chat.gmt_deleted.is_(None),
             )
             result = await session.execute(stmt)
             return result.scalars().first()
@@ -49,7 +54,12 @@ class AsyncChatRepositoryMixin(AsyncRepositoryProtocol):
         async def _query(session):
             stmt = (
                 select(Chat)
-                .where(Chat.user == user, Chat.bot_id == bot_id, Chat.status != ChatStatus.DELETED)
+                .where(
+                    Chat.user == user,
+                    Chat.bot_id == bot_id,
+                    Chat.status != ChatStatus.DELETED,
+                    Chat.gmt_deleted.is_(None),
+                )
                 .order_by(desc(Chat.gmt_created))
             )
             result = await session.execute(stmt)
@@ -114,7 +124,11 @@ class AsyncChatRepositoryMixin(AsyncRepositoryProtocol):
 
         async def _operation(session):
             stmt = select(Chat).where(
-                Chat.id == chat_id, Chat.bot_id == bot_id, Chat.user == user, Chat.status != ChatStatus.DELETED
+                Chat.id == chat_id,
+                Chat.bot_id == bot_id,
+                Chat.user == user,
+                Chat.status != ChatStatus.DELETED,
+                Chat.gmt_deleted.is_(None),
             )
             result = await session.execute(stmt)
             instance = result.scalars().first()
@@ -134,7 +148,11 @@ class AsyncChatRepositoryMixin(AsyncRepositoryProtocol):
 
         async def _operation(session):
             stmt = select(Chat).where(
-                Chat.id == chat_id, Chat.bot_id == bot_id, Chat.user == user, Chat.status != ChatStatus.DELETED
+                Chat.id == chat_id,
+                Chat.bot_id == bot_id,
+                Chat.user == user,
+                Chat.status != ChatStatus.DELETED,
+                Chat.gmt_deleted.is_(None),
             )
             result = await session.execute(stmt)
             instance = result.scalars().first()

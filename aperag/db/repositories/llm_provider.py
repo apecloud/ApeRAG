@@ -42,7 +42,7 @@ class LlmProviderRepositoryMixin(SyncRepositoryProtocol):
         return self._execute_query(_query)
 
     def query_provider_api_key(self, provider_name: str, user_id: str = None, need_public: bool = True) -> str:
-        """Query provider API key with user access control using single SQL JOIN (sync version)
+        """Query provider API key with user access control using single SQL JOIN
 
         Args:
             provider_name: Provider name to query
@@ -51,6 +51,15 @@ class LlmProviderRepositoryMixin(SyncRepositoryProtocol):
 
         Returns:
             API key string if found, None otherwise
+
+            SELECT model_service_provider.api_key
+                FROM llm_provider
+                JOIN model_service_provider ON llm_provider.name = model_service_provider.name
+                WHERE llm_provider.name = :provider_name
+                AND llm_provider.gmt_deleted IS NULL
+                AND model_service_provider.status != 'DELETED'
+                AND model_service_provider.gmt_deleted IS NULL
+                AND (llm_provider.user_id = 'public' OR llm_provider.user_id = :user_id)
         """
 
         def _query(session):
