@@ -593,8 +593,6 @@ class LightRAG:
                 lightrag_logger=lightrag_logger,
             )
 
-            lightrag_logger.info(f"Extracted entities and relations from {len(chunks)} chunks")
-
             # 2. Collect all entity names involved
             all_entity_names = set()
             for maybe_nodes, maybe_edges in chunk_results:
@@ -611,7 +609,6 @@ class LightRAG:
                 entity_locks.append(lock)
 
             lightrag_logger.info(f"Created {len(entity_locks)} entity locks for Multi-Lock control")
-            lightrag_logger.info(f"MultiLock sorted(all_entity_names): {sorted(all_entity_names)}")
 
             # 4. Use MultiLock to acquire all relevant locks, then perform merge
             async with MultiLock(entity_locks):
@@ -632,8 +629,6 @@ class LightRAG:
                     file_path="stateless_processing",
                     lightrag_logger=lightrag_logger,
                 )
-
-            lightrag_logger.info("Completed merging entities and relations")
 
             # Count results
             entity_count = sum(len(nodes) for nodes, _ in chunk_results)

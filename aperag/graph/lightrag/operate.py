@@ -61,6 +61,7 @@ from .utils import (
     pack_user_ass_to_openai_messages,
     process_combine_contexts,
     split_string_by_multi_markers,
+    timing_wrapper,
     truncate_list_by_token_size,
 )
 
@@ -442,6 +443,7 @@ async def _merge_edges_then_upsert(
     return edge_data
 
 
+@timing_wrapper("Merge & Update")
 async def merge_nodes_and_edges(
     chunk_results: list,
     knowledge_graph_inst: BaseGraphStorage,
@@ -478,13 +480,6 @@ async def merge_nodes_and_edges(
     entities_data = []
     relationships_data = []
 
-    # Merge nodes and edges
-    # Note: The locking is now handled at a higher level using Multi-Lock
-    if lightrag_logger:
-        lightrag_logger.log_stage_progress("Merging", current_file_number, total_files, file_path)
-    else:
-        log_message = f"Merging stage {current_file_number}/{total_files}: {file_path}"
-        logger.info(log_message)
     # Process and update all entities at once
     for entity_name, entities in all_nodes.items():
         entity_data = await _merge_nodes_then_upsert(
@@ -500,6 +495,7 @@ async def merge_nodes_and_edges(
             lightrag_logger,
         )
         entities_data.append(entity_data)
+
     # Process and update all relationships at once
     for edge_key, edges in all_edges.items():
         edge_data = await _merge_edges_then_upsert(
@@ -517,16 +513,7 @@ async def merge_nodes_and_edges(
         )
         if edge_data is not None:
             relationships_data.append(edge_data)
-    # Update total counts
-    total_entities_count = len(entities_data)
-    total_relations_count = len(relationships_data)
-    if lightrag_logger:
-        lightrag_logger.info(
-            f"Updating {total_entities_count} entities {current_file_number}/{total_files}: {file_path}"
-        )
-    else:
-        log_message = f"Updating {total_entities_count} entities  {current_file_number}/{total_files}: {file_path}"
-        logger.info(log_message)
+
     # Update vector databases with all collected data
     if entity_vdb is not None and entities_data:
         data_for_vdb = {
@@ -540,13 +527,7 @@ async def merge_nodes_and_edges(
             for dp in entities_data
         }
         await entity_vdb.upsert(data_for_vdb)
-    if lightrag_logger:
-        lightrag_logger.info(
-            f"Updating {total_relations_count} relations {current_file_number}/{total_files}: {file_path}"
-        )
-    else:
-        log_message = f"Updating {total_relations_count} relations {current_file_number}/{total_files}: {file_path}"
-        logger.info(log_message)
+
     if relationships_vdb is not None and relationships_data:
         data_for_vdb = {
             compute_mdhash_id(dp["src_id"] + dp["tgt_id"], prefix="rel-"): {
@@ -562,6 +543,7 @@ async def merge_nodes_and_edges(
         await relationships_vdb.upsert(data_for_vdb)
 
 
+@timing_wrapper("Entity Extraction")
 async def extract_entities(
     chunks: dict[str, TextChunkSchema],
     use_llm_func: callable,

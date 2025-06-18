@@ -583,6 +583,48 @@ class LightRAGLogger:
         message = f"{prefix}: {src_id} - {tgt_id} | {new_fragments}+{total_fragments - new_fragments}"
         self.info(message)
 
+    def log_timing(self, operation: str, duration: float, details: str = ""):
+        """Log operation timing with emoji and formatted duration."""
+        details_str = f" ({details})" if details else ""
+        self.info(f"⏱️  {operation}: {duration:.3f}s{details_str}")
+
+
+def timing_wrapper(operation_name: str):
+    """Simple timing decorator for async functions that auto-detects lightrag_logger from function arguments"""
+    import time
+
+    def decorator(func):
+        async def wrapper(*args, **kwargs):
+            # Try to find lightrag_logger in function arguments
+            lightrag_logger = kwargs.get("lightrag_logger")
+            if not lightrag_logger and args:
+                # Search in args for LightRAGLogger instance
+                for arg in args:
+                    if isinstance(arg, LightRAGLogger):
+                        lightrag_logger = arg
+                        break
+
+            start_time = time.time()
+            try:
+                result = await func(*args, **kwargs)
+                duration = time.time() - start_time
+                if lightrag_logger:
+                    lightrag_logger.log_timing(operation_name, duration)
+                else:
+                    logger.info(f"⏱️  {operation_name}: {duration:.3f}s")
+                return result
+            except Exception:
+                duration = time.time() - start_time
+                if lightrag_logger:
+                    lightrag_logger.log_timing(f"{operation_name} (FAILED)", duration)
+                else:
+                    logger.info(f"⏱️  {operation_name} (FAILED): {duration:.3f}s")
+                raise
+
+        return wrapper
+
+    return decorator
+
 
 def create_lightrag_logger(prefix: str = "LightRAG", workspace: str = "default") -> LightRAGLogger:
     """Create a LightRAGLogger instance with specified prefix and workspace."""
