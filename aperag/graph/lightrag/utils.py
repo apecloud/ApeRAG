@@ -78,11 +78,22 @@ def get_env_value(env_key: str, default: any, value_type: type = str, special_no
 # if TYPE_CHECKING:
 #     from aperag.graph.lightrag.base import BaseKVStorage
 
-# Initialize logger
+# Initialize logger - smart configuration that follows system defaults
 logger = logging.getLogger("lightrag")
-logger.propagate = False  # prevent log message send to root loggger
-# Let the main application configure the handlers
-logger.setLevel(logging.INFO)
+
+# Let it propagate to parent loggers (respects system configuration)
+logger.propagate = True
+
+# Only add a simple handler if root logger has no handlers (fallback for console output)
+root_logger = logging.getLogger()
+if not root_logger.handlers:
+    # Add a basic console handler only as fallback
+    console_handler = logging.StreamHandler()
+    formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    # Use INFO level as reasonable default, but it will be overridden by system config when available
+    logger.setLevel(logging.INFO)
 
 # Set httpx logging level to WARNING
 logging.getLogger("httpx").setLevel(logging.WARNING)
