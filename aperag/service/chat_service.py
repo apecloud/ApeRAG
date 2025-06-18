@@ -230,26 +230,14 @@ class ChatService:
         chat = await self.db_ops.query_chat_by_peer(bot.user, db_models.ChatPeerType.FEISHU, chat_id)
 
         if chat is None:
-            # Direct call to repository method for chat creation
-            chat = await self.db_ops.create_chat(user=bot.user, bot_id=bot.id, title="Feishu Chat")
-
-            # Set peer info manually using a query operation
-            async def _set_peer_info(session):
-                # Get the chat instance and update peer info
-                from sqlalchemy import select
-
-                stmt = select(db_models.Chat).where(db_models.Chat.id == chat.id)
-                result = await session.execute(stmt)
-                chat_instance = result.scalars().first()
-                if chat_instance:
-                    chat_instance.peer_type = db_models.ChatPeerType.FEISHU
-                    chat_instance.peer_id = chat_id
-                    session.add(chat_instance)
-                    await session.flush()
-                    await session.refresh(chat_instance)
-                return chat_instance
-
-            chat = await self.db_ops._execute_query(_set_peer_info)
+            # Create chat with peer info atomically in single transaction
+            chat = await self.db_ops.create_chat(
+                user=bot.user,
+                bot_id=bot.id,
+                title="Feishu Chat",
+                peer_type=db_models.ChatPeerType.FEISHU,
+                peer_id=chat_id,
+            )
 
         # Use flow engine instead of MessageProcessor/pipeline
         formatter = FrontendFormatter()

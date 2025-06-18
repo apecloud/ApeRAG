@@ -64,11 +64,7 @@ class BotService:
             if await self.db_ops.query_bots_count(user) >= bot_limit:
                 raise QuotaExceededException("bot", bot_limit)
 
-        # Direct call to repository method, which handles its own transaction
-        bot = await self.db_ops.create_bot(
-            user=user, title=bot_in.title, description=bot_in.description, bot_type=bot_in.type, config="{}"
-        )
-
+        # Validate collections before starting transaction
         collection_ids = []
         if bot_in.collection_ids is not None:
             for cid in bot_in.collection_ids:
@@ -77,9 +73,34 @@ class BotService:
                     raise ResourceNotFoundException("Collection", cid)
                 if collection.status == db_models.CollectionStatus.INACTIVE:
                     raise CollectionInactiveException(cid)
-
-                await self.db_ops.create_bot_collection_relation(bot.id, cid)
                 collection_ids.append(cid)
+
+        # Create bot and collection relations atomically in a single transaction
+        async def _create_bot_atomically(session):
+            from aperag.db.models import Bot, BotCollectionRelation, BotStatus
+
+            # Create bot in database directly using session
+            bot = Bot(
+                user=user,
+                title=bot_in.title,
+                type=bot_in.type,
+                status=BotStatus.ACTIVE,
+                description=bot_in.description,
+                config="{}",
+            )
+            session.add(bot)
+            await session.flush()
+            await session.refresh(bot)
+
+            # Create collection relations
+            for cid in collection_ids:
+                relation = BotCollectionRelation(bot_id=bot.id, collection_id=cid)
+                session.add(relation)
+                await session.flush()
+
+            return bot
+
+        bot = await self.db_ops.execute_with_transaction(_create_bot_atomically)
 
         return self.build_bot_response(bot, collection_ids=collection_ids)
 
@@ -156,42 +177,69 @@ class BotService:
         if not valid:
             raise invalid_param("config", msg)
 
-        # Direct calls to repository methods
-        old_config = json.loads(bot.config)
-        old_config.update(new_config)
-        config_str = json.dumps(old_config)
-
-        updated_bot = await self.db_ops.update_bot_by_id(
-            user=user,
-            bot_id=bot_id,
-            title=bot_in.title,
-            description=bot_in.description,
-            bot_type=bot_in.type,
-            config=config_str,
-        )
-
-        if not updated_bot:
-            raise ResourceNotFoundException("Bot", bot_id)
-
-        # Handle collection relations update
+        # Validate collections before starting transaction
+        validated_collection_ids = []
         if bot_in.collection_ids is not None:
-            # Delete old relations
-            await self.db_ops.delete_bot_collection_relations(bot_id)
-
-            # Add new relations
             for cid in bot_in.collection_ids:
                 collection = await self.db_ops.query_collection(user, cid)
                 if not collection:
                     raise ResourceNotFoundException("Collection", cid)
                 if collection.status == db_models.CollectionStatus.INACTIVE:
                     raise CollectionInactiveException(cid)
-                await self.db_ops.create_bot_collection_relation(bot_id, cid)
+                validated_collection_ids.append(cid)
 
-        # Get collection IDs for response
-        async def _get_collections(session):
-            return await updated_bot.collections(session, only_ids=True)
+        # Update bot and collection relations atomically in a single transaction
+        async def _update_bot_atomically(session):
+            from sqlalchemy import select
 
-        collection_ids = await self.db_ops._execute_query(_get_collections)
+            from aperag.db.models import Bot, BotCollectionRelation, BotStatus, utc_now
+
+            # Update bot
+            stmt = select(Bot).where(Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED)
+            result = await session.execute(stmt)
+            bot_to_update = result.scalars().first()
+
+            if not bot_to_update:
+                raise ResourceNotFoundException("Bot", bot_id)
+
+            old_config = json.loads(bot_to_update.config)
+            old_config.update(new_config)
+            config_str = json.dumps(old_config)
+
+            bot_to_update.title = bot_in.title
+            bot_to_update.description = bot_in.description
+            bot_to_update.type = bot_in.type
+            bot_to_update.config = config_str
+            session.add(bot_to_update)
+            await session.flush()
+            await session.refresh(bot_to_update)
+
+            # Handle collection relations update
+            collection_ids = []
+            if bot_in.collection_ids is not None:
+                # Delete old relations
+                stmt = select(BotCollectionRelation).where(
+                    BotCollectionRelation.bot_id == bot_id, BotCollectionRelation.gmt_deleted.is_(None)
+                )
+                result = await session.execute(stmt)
+                relations = result.scalars().all()
+                for rel in relations:
+                    rel.gmt_deleted = utc_now()
+                    session.add(rel)
+
+                # Add new relations
+                for cid in validated_collection_ids:
+                    relation = BotCollectionRelation(bot_id=bot_id, collection_id=cid)
+                    session.add(relation)
+                    collection_ids.append(cid)
+                    await session.flush()
+            else:
+                # Get existing collection IDs for response
+                collection_ids = await bot_to_update.collections(session, only_ids=True)
+
+            return bot_to_update, collection_ids
+
+        updated_bot, collection_ids = await self.db_ops.execute_with_transaction(_update_bot_atomically)
 
         return self.build_bot_response(updated_bot, collection_ids=collection_ids)
 
@@ -205,19 +253,46 @@ class BotService:
         if bot is None:
             return None
 
-        # Direct calls to repository methods
-        deleted_bot = await self.db_ops.delete_bot_by_id(user, bot_id)
+        # Delete bot and collection relations atomically in a single transaction
+        async def _delete_bot_atomically(session):
+            from sqlalchemy import select
+
+            from aperag.db.models import Bot, BotCollectionRelation, BotStatus, utc_now
+
+            # Get and delete bot
+            stmt = select(Bot).where(Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED)
+            result = await session.execute(stmt)
+            bot_to_delete = result.scalars().first()
+
+            if not bot_to_delete:
+                return None, []
+
+            # Get collection IDs before deleting relations
+            collection_ids = await bot_to_delete.collections(session, only_ids=True)
+
+            # Soft delete bot
+            bot_to_delete.status = BotStatus.DELETED
+            bot_to_delete.gmt_deleted = utc_now()
+            session.add(bot_to_delete)
+            await session.flush()
+            await session.refresh(bot_to_delete)
+
+            # Delete all relations
+            stmt = select(BotCollectionRelation).where(
+                BotCollectionRelation.bot_id == bot_id, BotCollectionRelation.gmt_deleted.is_(None)
+            )
+            result = await session.execute(stmt)
+            relations = result.scalars().all()
+            for rel in relations:
+                rel.gmt_deleted = utc_now()
+                session.add(rel)
+            await session.flush()
+
+            return bot_to_delete, collection_ids
+
+        deleted_bot, collection_ids = await self.db_ops.execute_with_transaction(_delete_bot_atomically)
 
         if deleted_bot:
-            # Delete all relations
-            await self.db_ops.delete_bot_collection_relations(bot_id)
-
-            # Get collection IDs for response
-            async def _get_collections(session):
-                return await deleted_bot.collections(session, only_ids=True)
-
-            collection_ids = await self.db_ops._execute_query(_get_collections)
-
             return self.build_bot_response(deleted_bot, collection_ids=collection_ids)
 
         return None

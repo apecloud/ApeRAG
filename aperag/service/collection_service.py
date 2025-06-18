@@ -60,10 +60,12 @@ class CollectionService:
 
     async def create_collection(self, user: str, collection: view_models.CollectionCreate) -> view_models.Collection:
         collection_config = collection.config
-        if collection.type == db_models.CollectionType.DOCUMENT:
-            is_validate, error_msg = validate_source_connect_config(collection_config)
-            if not is_validate:
-                raise ValidationException(error_msg)
+        if collection.type != db_models.CollectionType.DOCUMENT:
+            raise ValidationException("collection type is not supported")
+
+        is_validate, error_msg = validate_source_connect_config(collection_config)
+        if not is_validate:
+            raise ValidationException(error_msg)
 
         # Check quota limit on collection
         if settings.max_collection_count:

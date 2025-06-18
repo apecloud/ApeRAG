@@ -133,13 +133,10 @@ class FlowService:
         flow = data.model_dump(exclude_unset=True, by_alias=True)
         config["flow"] = flow
 
-        # Update bot config directly using repository method
-        updated_bot = await self.db_ops.update_bot_by_id(
+        # Update only bot config to avoid overwriting concurrently updated metadata
+        updated_bot = await self.db_ops.update_bot_config_by_id(
             user=user,
             bot_id=bot_id,
-            title=bot.title,
-            description=bot.description,
-            bot_type=bot.type,
             config=json.dumps(config, ensure_ascii=False),
         )
 

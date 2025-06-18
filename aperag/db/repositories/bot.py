@@ -95,6 +95,24 @@ class AsyncBotRepositoryMixin(AsyncRepositoryProtocol):
 
         return await self.execute_with_transaction(_operation)
 
+    async def update_bot_config_by_id(self, user: str, bot_id: str, config: str) -> Optional[Bot]:
+        """Update bot config by ID without affecting other fields"""
+
+        async def _operation(session):
+            stmt = select(Bot).where(Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED)
+            result = await session.execute(stmt)
+            instance = result.scalars().first()
+
+            if instance:
+                instance.config = config
+                session.add(instance)
+                await session.flush()
+                await session.refresh(instance)
+
+            return instance
+
+        return await self.execute_with_transaction(_operation)
+
     async def delete_bot_by_id(self, user: str, bot_id: str) -> Optional[Bot]:
         """Soft delete bot by ID"""
 

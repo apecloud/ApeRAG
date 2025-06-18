@@ -137,6 +137,8 @@ class DocumentService:
 
         response = []
 
+        # Prepare file data and validate all files before starting any database operations
+        file_data = []
         for item in files:
             file_suffix = os.path.splitext(item.filename)[1].lower()
             if file_suffix not in supported_file_extensions:
@@ -144,43 +146,75 @@ class DocumentService:
             if item.size > settings.max_document_size:
                 raise invalid_param("file_size", "file size is too large")
 
-            # Direct call to repository method, which handles its own transaction
-            document_instance = await self.db_ops.create_document(
-                user=user, collection_id=collection.id, name=item.filename, size=item.size
-            )
-
-            obj_store = get_object_store()
-            upload_path = f"{document_instance.object_store_base_path()}/original{file_suffix}"
-
             # Read file content from UploadFile
             file_content = await item.read()
             # Reset file pointer for potential future use
             await item.seek(0)
 
-            # Use sync_to_async to call the synchronous put method with file content
-            await sync_to_async(obj_store.put)(upload_path, file_content)
+            file_data.append(
+                {"filename": item.filename, "size": item.size, "suffix": file_suffix, "content": file_content}
+            )
 
-            # Update document with object path
-            metadata = json.dumps({"object_path": upload_path})
-            updated_doc = await self.db_ops.update_document_by_id(user, collection_id, document_instance.id, metadata)
+        # Process all files in a single transaction for atomicity
+        async def _create_documents_atomically(session):
+            from aperag.db.models import Document, DocumentStatus
 
-            # Get document response
-            async def _get_doc_response(session):
-                return await self.build_document_response(updated_doc, session)
+            documents_created = []
+            obj_store = get_object_store()
+            uploaded_files = []  # Track uploaded files for cleanup
 
-            doc_response = await self.db_ops._execute_query(_get_doc_response)
-            response.append(doc_response)
+            try:
+                for file_info in file_data:
+                    # Create document in database directly using session
+                    document_instance = Document(
+                        user=user,
+                        name=file_info["filename"],
+                        status=DocumentStatus.PENDING,
+                        size=file_info["size"],
+                        collection_id=collection.id,
+                    )
+                    session.add(document_instance)
+                    await session.flush()
+                    await session.refresh(document_instance)
 
-            # Create index specs for the new document
-            index_types = [db_models.DocumentIndexType.VECTOR, db_models.DocumentIndexType.FULLTEXT]
-            collection_config = json.loads(collection.config)
-            if collection_config.get("enable_knowledge_graph", False):
-                index_types.append(db_models.DocumentIndexType.GRAPH)
+                    # Upload to object store
+                    upload_path = f"{document_instance.object_store_base_path()}/original{file_info['suffix']}"
+                    await sync_to_async(obj_store.put)(upload_path, file_info["content"])
+                    uploaded_files.append(upload_path)
 
-            async def _create_indexes(session):
-                await document_index_manager.create_document_indexes(session, updated_doc.id, user, index_types)
+                    # Update document with object path
+                    metadata = json.dumps({"object_path": upload_path})
+                    document_instance.doc_metadata = metadata
+                    session.add(document_instance)
+                    await session.flush()
+                    await session.refresh(document_instance)
 
-            await self.db_ops.execute_with_transaction(_create_indexes)
+                    # Create index specs for the new document
+                    index_types = [db_models.DocumentIndexType.VECTOR, db_models.DocumentIndexType.FULLTEXT]
+                    collection_config = json.loads(collection.config)
+                    if collection_config.get("enable_knowledge_graph", False):
+                        index_types.append(db_models.DocumentIndexType.GRAPH)
+
+                    await document_index_manager.create_document_indexes(
+                        session, document_instance.id, user, index_types
+                    )
+
+                    # Build response object
+                    doc_response = await self.build_document_response(document_instance, session)
+                    documents_created.append(doc_response)
+
+                return documents_created
+
+            except Exception as e:
+                # Clean up uploaded files on database transaction failure
+                for upload_path in uploaded_files:
+                    try:
+                        await sync_to_async(obj_store.delete_objects_by_prefix)(upload_path)
+                    except Exception as cleanup_error:
+                        logger.warning(f"Failed to cleanup uploaded file during rollback: {cleanup_error}")
+                raise e
+
+        response = await self.db_ops.execute_with_transaction(_create_documents_atomically)
 
         # Trigger index reconciliation after successful document creation
         _trigger_index_reconciliation()
@@ -212,29 +246,41 @@ class DocumentService:
         if document_in.config:
             try:
                 config = json.loads(document_in.config)
-                metadata = json.loads(instance.metadata)
+                metadata = json.loads(instance.doc_metadata or "{}")
                 metadata["labels"] = config["labels"]
                 updated_metadata = json.dumps(metadata)
 
-                # Direct call to repository method, which handles its own transaction
-                updated_doc = await self.db_ops.update_document_by_id(
-                    user, collection_id, document_id, updated_metadata
-                )
+                # Update document and indexes atomically in a single transaction
+                async def _update_document_atomically(session):
+                    from sqlalchemy import select
 
-                if not updated_doc:
-                    raise DocumentNotFoundException(document_id)
+                    from aperag.db.models import Document, DocumentStatus
 
-                # Update index specs to trigger re-indexing
-                async def _update_indexes(session):
-                    await document_index_manager.update_document_indexes(session, updated_doc.id)
+                    # Update document metadata
+                    stmt = select(Document).where(
+                        Document.id == document_id,
+                        Document.collection_id == collection_id,
+                        Document.user == user,
+                        Document.status != DocumentStatus.DELETED,
+                    )
+                    result = await session.execute(stmt)
+                    document = result.scalars().first()
 
-                await self.db_ops.execute_with_transaction(_update_indexes)
+                    if not document:
+                        raise DocumentNotFoundException(document_id)
 
-                # Get document response
-                async def _get_doc_response(session):
-                    return await self.build_document_response(updated_doc, session)
+                    document.doc_metadata = updated_metadata
+                    session.add(document)
+                    await session.flush()
+                    await session.refresh(document)
 
-                result = await self.db_ops._execute_query(_get_doc_response)
+                    # Update index specs to trigger re-indexing
+                    await document_index_manager.update_document_indexes(session, document.id)
+
+                    # Build response object
+                    return await self.build_document_response(document, session)
+
+                result = await self.db_ops.execute_with_transaction(_update_document_atomically)
             except json.JSONDecodeError:
                 raise invalid_param("config", "invalid document config")
         else:
@@ -259,25 +305,47 @@ class DocumentService:
             # Document already deleted or never existed - idempotent operation
             return None
 
-        # Delete object storage files
-        obj_store = get_object_store()
-        await sync_to_async(obj_store.delete_objects_by_prefix)(f"{document.object_store_base_path()}/")
+        # Delete document and indexes atomically in a single transaction
+        async def _delete_document_atomically(session):
+            from sqlalchemy import select
 
-        # Direct call to repository method, which handles its own transaction
-        deleted_doc = await self.db_ops.delete_document_by_id(user, collection_id, document_id)
+            from aperag.db.models import Document, DocumentStatus, utc_now
 
-        if deleted_doc:
+            # Get and delete document
+            stmt = select(Document).where(
+                Document.id == document_id,
+                Document.collection_id == collection_id,
+                Document.user == user,
+                Document.status != DocumentStatus.DELETED,
+            )
+            result = await session.execute(stmt)
+            doc_to_delete = result.scalars().first()
+
+            if not doc_to_delete:
+                return None
+
+            # Soft delete document
+            doc_to_delete.status = DocumentStatus.DELETED
+            doc_to_delete.gmt_deleted = utc_now()
+            session.add(doc_to_delete)
+            await session.flush()
+            await session.refresh(doc_to_delete)
+
             # Mark index specs for deletion
-            async def _delete_indexes(session):
-                await document_index_manager.delete_document_indexes(session, document_id)
+            await document_index_manager.delete_document_indexes(session, document_id)
 
-            await self.db_ops.execute_with_transaction(_delete_indexes)
+            # Build response object
+            return await self.build_document_response(doc_to_delete, session)
 
-            # Get document response
-            async def _get_doc_response(session):
-                return await self.build_document_response(deleted_doc, session)
+        result = await self.db_ops.execute_with_transaction(_delete_document_atomically)
 
-            result = await self.db_ops._execute_query(_get_doc_response)
+        if result:
+            # Delete object storage files after successful database transaction
+            obj_store = get_object_store()
+            try:
+                await sync_to_async(obj_store.delete_objects_by_prefix)(f"{document.object_store_base_path()}/")
+            except Exception as e:
+                logger.warning(f"Failed to delete object storage files for document {document_id}: {e}")
 
             # Trigger index reconciliation after successful document deletion
             _trigger_index_reconciliation()
@@ -287,16 +355,44 @@ class DocumentService:
         return None
 
     async def delete_documents(self, user: str, collection_id: str, document_ids: List[str]) -> dict:
-        # Direct call to repository method, which handles its own transaction
-        success_ids, failed_ids = await self.db_ops.delete_documents_by_ids(user, collection_id, document_ids)
+        # Delete documents and indexes atomically in a single transaction
+        async def _delete_documents_atomically(session):
+            from sqlalchemy import select
 
-        # Delete indexes for successful deletions
-        for doc_id in success_ids:
+            from aperag.db.models import Document, DocumentStatus, utc_now
 
-            async def _delete_indexes(session):
+            # Get documents to delete
+            stmt = select(Document).where(
+                Document.id.in_(document_ids),
+                Document.collection_id == collection_id,
+                Document.user == user,
+                Document.status != DocumentStatus.DELETED,
+            )
+            result = await session.execute(stmt)
+            documents_to_delete = result.scalars().all()
+
+            if not documents_to_delete:
+                return [], list(document_ids)
+
+            # Soft delete documents
+            success_ids = []
+            for doc in documents_to_delete:
+                doc.status = DocumentStatus.DELETED
+                doc.gmt_deleted = utc_now()
+                session.add(doc)
+                success_ids.append(doc.id)
+
+            await session.flush()
+
+            # Delete indexes for all successful deletions
+            for doc_id in success_ids:
                 await document_index_manager.delete_document_indexes(session, doc_id)
 
-            await self.db_ops.execute_with_transaction(_delete_indexes)
+            # Calculate failed IDs
+            failed_ids = list(set(document_ids) - set(success_ids))
+            return success_ids, failed_ids
+
+        success_ids, failed_ids = await self.db_ops.execute_with_transaction(_delete_documents_atomically)
 
         result = {"success": success_ids, "failed": failed_ids}
 
