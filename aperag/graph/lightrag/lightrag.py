@@ -624,9 +624,6 @@ class LightRAG:
                     summary_to_max_tokens=self.summary_to_max_tokens,
                     addon_params=self.addon_params or PROMPTS["DEFAULT_LANGUAGE"],
                     force_llm_summary_on_merge=self.force_llm_summary_on_merge,
-                    current_file_number=0,
-                    total_files=0,
-                    file_path="stateless_processing",
                     lightrag_logger=lightrag_logger,
                 )
 

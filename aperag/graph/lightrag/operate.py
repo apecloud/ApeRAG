@@ -455,9 +455,6 @@ async def merge_nodes_and_edges(
     summary_to_max_tokens,
     addon_params,
     force_llm_summary_on_merge,
-    current_file_number: int = 0,
-    total_files: int = 0,
-    file_path: str = "unknown_source",
     lightrag_logger: LightRAGLogger | None = None,
 ) -> None:
     """Merge nodes and edges from extraction results"""
