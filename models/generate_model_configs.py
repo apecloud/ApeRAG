@@ -518,10 +518,12 @@ def create_alibabacloud_config():
         'recommend': ['deepseek-r1-distill-qwen-32b', 'qwen-max']
     }
     embedding_tag_rules = {
-        'recommend': ['*']  # All embedding models get recommend tag
+        'recommend': ['*'],  # All embedding models get recommend tag
+        'default': ['text-embedding-v4'],
     }
     rerank_tag_rules = {
-        'recommend': ['*']  # All rerank models get recommend tag
+        'recommend': ['*'],  # All rerank models get recommend tag
+        'default': ['gte-rerank-v2'],
     }
     
     # Setup file paths - now that the script is in models directory, use current directory
@@ -693,7 +695,9 @@ def create_openrouter_config():
             'deepseek/deepseek-r1:free',
             'deepseek/deepseek-r1-distill-qwen-32b:free',
             'google/gemini-2.0-flash-exp:free',
-            'google/gemini-2.5-pro-preview-05-06',
+            'google/gemini-2.5-flash-lite-preview-06-17',
+            'google/gemini-2.5-flash',
+            'google/gemini-2.5-pro',
             'openai/gpt-4o',
             'openai/gpt-4o-mini',
             'openai/o3',
@@ -703,7 +707,9 @@ def create_openrouter_config():
             'qwen/qwen-plus',
             'x-ai/grok-3-beta',
             'x-ai/grok-3-mini-beta'
-        ]
+        ],
+        'default_for_indexing': ['google/gemini-2.5-flash'],
+        'default_for_generation': ['google/gemini-2.5-flash'],
     }
     embedding_tag_rules = {
         'recommend': ['*']  # All embedding models get recommend tag
