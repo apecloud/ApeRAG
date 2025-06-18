@@ -48,6 +48,7 @@ from typing import (
     final,
 )
 
+from aperag.concurrent_control import MultiLock, get_or_create_lock
 from aperag.graph.lightrag.constants import (
     DEFAULT_FORCE_LLM_SUMMARY_ON_MERGE,
     DEFAULT_MAX_TOKEN_SUMMARY,
@@ -91,7 +92,6 @@ from .utils import (
     lazy_external_import,
     logger,
 )
-from .utils_graph import get_graph_db_lock
 
 
 @final
@@ -250,9 +250,6 @@ class LightRAG:
     _storages_status: StoragesStatus = field(default=StoragesStatus.NOT_CREATED)
 
     def __post_init__(self):
-        self._graph_db_lock = get_graph_db_lock(self.workspace)
-        logger.info(f"Using universal concurrent control for graph operations: workspace={self.workspace}")
-
         # Verify storage implementation compatibility and environment variables
         storage_configs = [
             ("KV_STORAGE", self.kv_storage),
@@ -586,7 +583,7 @@ class LightRAG:
 
             lightrag_logger.info(f"Starting graph indexing for {len(chunks)} chunks")
 
-            # 1. Extract entities and relations from chunks
+            # 1. Extract entities and relations from chunks (completely parallel, no lock)
             chunk_results = await extract_entities(
                 chunks,
                 use_llm_func=self.llm_model_func,
@@ -598,24 +595,43 @@ class LightRAG:
 
             lightrag_logger.info(f"Extracted entities and relations from {len(chunks)} chunks")
 
-            # 2. Merge nodes and edges (using instance-level lock)
-            await merge_nodes_and_edges(
-                chunk_results=chunk_results,
-                knowledge_graph_inst=self.chunk_entity_relation_graph,
-                entity_vdb=self.entities_vdb,
-                relationships_vdb=self.relationships_vdb,
-                llm_model_func=self.llm_model_func,
-                tokenizer=self.tokenizer,
-                llm_model_max_token_size=self.llm_model_max_token_size,
-                summary_to_max_tokens=self.summary_to_max_tokens,
-                addon_params=self.addon_params or PROMPTS["DEFAULT_LANGUAGE"],
-                force_llm_summary_on_merge=self.force_llm_summary_on_merge,
-                current_file_number=0,
-                total_files=0,
-                file_path="stateless_processing",
-                lightrag_logger=lightrag_logger,
-                graph_db_lock=self._graph_db_lock,
-            )
+            # 2. Collect all entity names involved
+            all_entity_names = set()
+            for maybe_nodes, maybe_edges in chunk_results:
+                # Collect node entities
+                all_entity_names.update(maybe_nodes.keys())
+                # Collect edge source and target entities
+                for edge_key in maybe_edges.keys():
+                    all_entity_names.update(edge_key)
+
+            # 3. Create locks for all entities and sort by name (prevent deadlock)
+            entity_locks = []
+            for entity_name in sorted(all_entity_names):
+                lock = get_or_create_lock(f"entity:{entity_name}:{self.workspace}")
+                entity_locks.append(lock)
+
+            lightrag_logger.info(f"Created {len(entity_locks)} entity locks for Multi-Lock control")
+            lightrag_logger.info(f"MultiLock sorted(all_entity_names): {sorted(all_entity_names)}")
+
+            # 4. Use MultiLock to acquire all relevant locks, then perform merge
+            async with MultiLock(entity_locks):
+                # Merge nodes and edges
+                await merge_nodes_and_edges(
+                    chunk_results=chunk_results,
+                    knowledge_graph_inst=self.chunk_entity_relation_graph,
+                    entity_vdb=self.entities_vdb,
+                    relationships_vdb=self.relationships_vdb,
+                    llm_model_func=self.llm_model_func,
+                    tokenizer=self.tokenizer,
+                    llm_model_max_token_size=self.llm_model_max_token_size,
+                    summary_to_max_tokens=self.summary_to_max_tokens,
+                    addon_params=self.addon_params or PROMPTS["DEFAULT_LANGUAGE"],
+                    force_llm_summary_on_merge=self.force_llm_summary_on_merge,
+                    current_file_number=0,
+                    total_files=0,
+                    file_path="stateless_processing",
+                    lightrag_logger=lightrag_logger,
+                )
 
             lightrag_logger.info("Completed merging entities and relations")
 

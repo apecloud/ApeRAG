@@ -44,6 +44,7 @@ Quick Start:
 from .core import (
     LockManager,  # noqa: F401  # Available for testing and advanced usage
     LockProtocol,  # noqa: F401  # Available for testing and advanced usage
+    MultiLock,  # Multi-lock manager for preventing deadlocks
     RedisLock,  # noqa: F401  # Available for testing and advanced usage
     # Internal classes (for testing and advanced usage only - not in __all__)
     ThreadingLock,  # noqa: F401  # Available for testing and advanced usage
@@ -62,6 +63,7 @@ __all__ = [
     "get_lock",  # Get existing lock only
     "create_lock",  # Create new locks
     "lock_context",  # ⭐ Timeout support for locks
+    "MultiLock",  # Multi-lock manager for acquiring multiple locks
     # Advanced/internal (use sparingly)
     "get_default_lock_manager",  # Advanced lock management
 ]

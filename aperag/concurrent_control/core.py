@@ -402,7 +402,7 @@ def create_lock(lock_type: str = "threading", **kwargs) -> LockProtocol:
     # Auto-register named locks in default manager
     lock_name = kwargs.get("name") or getattr(lock_instance, "_name", None)
     if lock_name and hasattr(lock_instance, "_name"):
-        default_lock_manager._locks[lock_instance._name] = lock_instance
+        default_lock_manager._locks[lock_name] = lock_instance
 
     return lock_instance
 
@@ -497,3 +497,85 @@ def get_default_lock_manager() -> LockManager:
         LockManager: Default lock manager instance
     """
     return default_lock_manager
+
+
+class MultiLock:
+    """
+    Multi-lock manager for acquiring multiple locks in a sorted order to prevent deadlocks.
+
+    This class ensures that multiple locks are always acquired in the same order
+    (sorted by lock name) across all workers, preventing circular wait conditions
+    that could lead to deadlocks.
+
+    Example:
+        locks = [
+            get_or_create_lock("entity:Apple:workspace1"),
+            get_or_create_lock("entity:Google:workspace1"),
+            get_or_create_lock("entity:Microsoft:workspace1")
+        ]
+
+        async with MultiLock(locks):
+            # All locks are held here
+            await process_entities()
+        # All locks are automatically released
+    """
+
+    def __init__(self, locks: list[LockProtocol]):
+        """
+        Initialize MultiLock with a list of locks.
+
+        Args:
+            locks: List of lock instances to manage
+        """
+        # Sort locks by name to ensure consistent acquisition order
+        self._locks = sorted(locks, key=lambda lock: getattr(lock, "_name", str(id(lock))))
+        self._acquired_locks: list[LockProtocol] = []
+
+    async def acquire_all(self, timeout: Optional[float] = None) -> bool:
+        """
+        Acquire all locks in sorted order.
+
+        Args:
+            timeout: Maximum time to wait for each lock
+
+        Returns:
+            True if all locks were acquired, False otherwise
+        """
+        for lock in self._locks:
+            try:
+                success = await lock.acquire(timeout=timeout)
+                if not success:
+                    # Failed to acquire this lock, release all previously acquired
+                    await self._release_acquired()
+                    return False
+                self._acquired_locks.append(lock)
+            except Exception as e:
+                logger.error(f"Error acquiring lock in MultiLock: {e}")
+                await self._release_acquired()
+                return False
+        return True
+
+    async def release_all(self) -> None:
+        """Release all locks in reverse order of acquisition."""
+        await self._release_acquired()
+
+    async def _release_acquired(self) -> None:
+        """Release all acquired locks in reverse order."""
+        # Release in reverse order to minimize contention
+        for lock in reversed(self._acquired_locks):
+            try:
+                await lock.release()
+            except Exception as e:
+                logger.error(f"Error releasing lock in MultiLock: {e}")
+        self._acquired_locks.clear()
+
+    async def __aenter__(self) -> "MultiLock":
+        """Async context manager entry - acquire all locks."""
+        success = await self.acquire_all()
+        if not success:
+            raise RuntimeError("Failed to acquire all locks in MultiLock")
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Async context manager exit - release all locks."""
+        await self.release_all()
