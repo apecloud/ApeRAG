@@ -27,9 +27,7 @@ from aperag.utils.utils import utc_now
 class AsyncBotRepositoryMixin(AsyncRepositoryProtocol):
     async def query_bot(self, user: str, bot_id: str):
         async def _query(session):
-            stmt = select(Bot).where(
-                Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED, Bot.gmt_deleted.is_(None)
-            )
+            stmt = select(Bot).where(Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED)
             result = await session.execute(stmt)
             return result.scalars().first()
 
@@ -38,9 +36,7 @@ class AsyncBotRepositoryMixin(AsyncRepositoryProtocol):
     async def query_bots(self, users: List[str]):
         async def _query(session):
             stmt = (
-                select(Bot)
-                .where(Bot.user.in_(users), Bot.status != BotStatus.DELETED, Bot.gmt_deleted.is_(None))
-                .order_by(desc(Bot.gmt_created))
+                select(Bot).where(Bot.user.in_(users), Bot.status != BotStatus.DELETED).order_by(desc(Bot.gmt_created))
             )
             result = await session.execute(stmt)
             return result.scalars().all()
@@ -51,11 +47,7 @@ class AsyncBotRepositoryMixin(AsyncRepositoryProtocol):
         async def _query(session):
             from sqlalchemy import func
 
-            stmt = (
-                select(func.count())
-                .select_from(Bot)
-                .where(Bot.user == user, Bot.status != BotStatus.DELETED, Bot.gmt_deleted.is_(None))
-            )
+            stmt = select(func.count()).select_from(Bot).where(Bot.user == user, Bot.status != BotStatus.DELETED)
             return await session.scalar(stmt)
 
         return await self._execute_query(_query)
@@ -86,9 +78,7 @@ class AsyncBotRepositoryMixin(AsyncRepositoryProtocol):
         """Update bot by ID"""
 
         async def _operation(session):
-            stmt = select(Bot).where(
-                Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED, Bot.gmt_deleted.is_(None)
-            )
+            stmt = select(Bot).where(Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED)
             result = await session.execute(stmt)
             instance = result.scalars().first()
 
@@ -109,9 +99,7 @@ class AsyncBotRepositoryMixin(AsyncRepositoryProtocol):
         """Update bot config by ID without affecting other fields"""
 
         async def _operation(session):
-            stmt = select(Bot).where(
-                Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED, Bot.gmt_deleted.is_(None)
-            )
+            stmt = select(Bot).where(Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED)
             result = await session.execute(stmt)
             instance = result.scalars().first()
 
@@ -129,9 +117,7 @@ class AsyncBotRepositoryMixin(AsyncRepositoryProtocol):
         """Soft delete bot by ID"""
 
         async def _operation(session):
-            stmt = select(Bot).where(
-                Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED, Bot.gmt_deleted.is_(None)
-            )
+            stmt = select(Bot).where(Bot.id == bot_id, Bot.user == user, Bot.status != BotStatus.DELETED)
             result = await session.execute(stmt)
             instance = result.scalars().first()
 

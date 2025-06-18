@@ -193,7 +193,9 @@ async def feedback_message_view(
 
 
 @router.delete("/bots/{bot_id}/chats/{chat_id}")
-async def delete_chat_view(request: Request, bot_id: str, chat_id: str, user: User = Depends(current_user)):
+async def delete_chat_view(
+    request: Request, bot_id: str, chat_id: str, user: User = Depends(current_user)
+):
     await chat_service_global.delete_chat(str(user.id), bot_id, chat_id)
     return Response(status_code=204)
 

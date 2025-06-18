@@ -27,13 +27,7 @@ from aperag.utils.utils import utc_now
 class CollectionRepositoryMixin(SyncRepositoryProtocol):
     def query_collection_by_id(self, collection_id: str) -> Collection:
         def _query(session):
-            stmt = select(Collection).where(
-                Collection.id == collection_id,
-                Collection.status != CollectionStatus.DELETED,
-                Collection.gmt_deleted.is_(None),
-            )
-            result = session.execute(stmt)
-            return result.scalars().first()
+            return session.get(Collection, collection_id)
 
         return self._execute_query(_query)
 
@@ -75,10 +69,7 @@ class AsyncCollectionRepositoryMixin(AsyncRepositoryProtocol):
 
         async def _operation(session):
             stmt = select(Collection).where(
-                Collection.id == collection_id,
-                Collection.user == user,
-                Collection.status != CollectionStatus.DELETED,
-                Collection.gmt_deleted.is_(None),
+                Collection.id == collection_id, Collection.user == user, Collection.status != CollectionStatus.DELETED
             )
             result = await session.execute(stmt)
             instance = result.scalars().first()
@@ -100,10 +91,7 @@ class AsyncCollectionRepositoryMixin(AsyncRepositoryProtocol):
 
         async def _operation(session):
             stmt = select(Collection).where(
-                Collection.id == collection_id,
-                Collection.user == user,
-                Collection.status != CollectionStatus.DELETED,
-                Collection.gmt_deleted.is_(None),
+                Collection.id == collection_id, Collection.user == user, Collection.status != CollectionStatus.DELETED
             )
             result = await session.execute(stmt)
             instance = result.scalars().first()
@@ -127,10 +115,7 @@ class AsyncCollectionRepositoryMixin(AsyncRepositoryProtocol):
     async def query_collection(self, user: str, collection_id: str):
         async def _query(session):
             stmt = select(Collection).where(
-                Collection.id == collection_id,
-                Collection.user == user,
-                Collection.status != CollectionStatus.DELETED,
-                Collection.gmt_deleted.is_(None),
+                Collection.id == collection_id, Collection.user == user, Collection.status != CollectionStatus.DELETED
             )
             result = await session.execute(stmt)
             return result.scalars().first()
@@ -141,11 +126,7 @@ class AsyncCollectionRepositoryMixin(AsyncRepositoryProtocol):
         async def _query(session):
             stmt = (
                 select(Collection)
-                .where(
-                    Collection.user.in_(users),
-                    Collection.status != CollectionStatus.DELETED,
-                    Collection.gmt_deleted.is_(None),
-                )
+                .where(Collection.user.in_(users), Collection.status != CollectionStatus.DELETED)
                 .order_by(desc(Collection.gmt_created))
             )
             result = await session.execute(stmt)
@@ -158,11 +139,7 @@ class AsyncCollectionRepositoryMixin(AsyncRepositoryProtocol):
             stmt = (
                 select(func.count())
                 .select_from(Collection)
-                .where(
-                    Collection.user == user,
-                    Collection.status != CollectionStatus.DELETED,
-                    Collection.gmt_deleted.is_(None),
-                )
+                .where(Collection.user == user, Collection.status != CollectionStatus.DELETED)
             )
             return await session.scalar(stmt)
 
@@ -171,9 +148,7 @@ class AsyncCollectionRepositoryMixin(AsyncRepositoryProtocol):
     async def query_collection_without_user(self, collection_id: str):
         async def _query(session):
             stmt = select(Collection).where(
-                Collection.id == collection_id,
-                Collection.status != CollectionStatus.DELETED,
-                Collection.gmt_deleted.is_(None),
+                Collection.id == collection_id, Collection.status != CollectionStatus.DELETED
             )
             result = await session.execute(stmt)
             return result.scalars().first()
