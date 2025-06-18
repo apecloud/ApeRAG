@@ -58,12 +58,13 @@ class AsyncChatRepositoryMixin(AsyncRepositoryProtocol):
         return await self._execute_query(_query)
 
     async def query_chat_feedbacks(self, user: str, chat_id: str):
+        """Query all active feedback for a chat (no soft delete check needed)"""
+
         async def _query(session):
             stmt = (
                 select(MessageFeedback)
                 .where(
                     MessageFeedback.chat_id == chat_id,
-                    MessageFeedback.gmt_deleted.is_(None),
                     MessageFeedback.user == user,
                 )
                 .order_by(desc(MessageFeedback.gmt_created))
@@ -74,11 +75,12 @@ class AsyncChatRepositoryMixin(AsyncRepositoryProtocol):
         return await self._execute_query(_query)
 
     async def query_message_feedback(self, user: str, chat_id: str, message_id: str):
+        """Query specific message feedback (no soft delete check needed)"""
+
         async def _query(session):
             stmt = select(MessageFeedback).where(
                 MessageFeedback.chat_id == chat_id,
                 MessageFeedback.message_id == message_id,
-                MessageFeedback.gmt_deleted.is_(None),
                 MessageFeedback.user == user,
             )
             result = await session.execute(stmt)
@@ -231,29 +233,33 @@ class AsyncChatRepositoryMixin(AsyncRepositoryProtocol):
 
         return await self.execute_with_transaction(_operation)
 
-    async def delete_message_feedback(self, user: str, chat_id: str, message_id: str) -> bool:
-        """Delete message feedback (soft delete)"""
+    async def remove_message_feedback(self, user: str, chat_id: str, message_id: str) -> bool:
+        """Remove message feedback completely (hard delete)
+
+        UX Design Philosophy:
+        - "Cancel like" means "no feedback state" - clean slate
+        - Users don't need feedback history
+        - Next feedback should be fresh, not restoration
+        """
 
         async def _operation(session):
-            stmt = select(MessageFeedback).where(
+            from sqlalchemy import delete
+
+            # Hard delete - clean removal for better UX
+            stmt = delete(MessageFeedback).where(
                 MessageFeedback.user == user,
                 MessageFeedback.chat_id == chat_id,
                 MessageFeedback.message_id == message_id,
-                MessageFeedback.gmt_deleted.is_(None),
             )
             result = await session.execute(stmt)
-            feedback = result.scalars().first()
+            await session.flush()
 
-            if feedback:
-                feedback.gmt_deleted = utc_now()
-                session.add(feedback)
-                await session.flush()
-                return True
-            return False
+            # Return True if any row was deleted
+            return result.rowcount > 0
 
         return await self.execute_with_transaction(_operation)
 
-    async def upsert_message_feedback(
+    async def set_message_feedback_state(
         self,
         user: str,
         chat_id: str,
@@ -265,52 +271,62 @@ class AsyncChatRepositoryMixin(AsyncRepositoryProtocol):
         original_answer: str = None,
         collection_id: str = None,
     ) -> MessageFeedback:
-        """Create or update message feedback (upsert operation)"""
+        """Set message feedback state using PostgreSQL UPSERT for atomic operation
+
+        UX Design Philosophy:
+        - Feedback is a STATE, not a history record
+        - Users want simple toggle behavior (like/unlike)
+        - System should handle all edge cases gracefully
+        - No technical errors should reach users
+        """
 
         async def _operation(session):
-            # Try to find existing feedback
-            stmt = select(MessageFeedback).where(
-                MessageFeedback.user == user,
-                MessageFeedback.chat_id == chat_id,
-                MessageFeedback.message_id == message_id,
-                MessageFeedback.gmt_deleted.is_(None),
+            from sqlalchemy.dialects.postgresql import insert
+
+            from aperag.db.models import MessageFeedbackStatus
+
+            current_time = utc_now()
+
+            # Prepare feedback state data
+            feedback_data = {
+                "user": user,
+                "chat_id": chat_id,
+                "message_id": message_id,
+                "type": feedback_type,
+                "tag": feedback_tag,
+                "message": feedback_message,
+                "question": question,
+                "original_answer": original_answer,
+                "collection_id": collection_id,
+                "status": MessageFeedbackStatus.PENDING,
+                "gmt_created": current_time,
+                "gmt_updated": current_time,
+                "gmt_deleted": None,  # Always active state
+            }
+
+            # PostgreSQL UPSERT - atomic operation
+            stmt = insert(MessageFeedback).values(**feedback_data)
+
+            # On primary key conflict, update to new state
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["chat_id", "message_id"],
+                set_={
+                    "user": stmt.excluded.user,  # Ensure user consistency
+                    "type": stmt.excluded.type,
+                    "tag": stmt.excluded.tag,
+                    "message": stmt.excluded.message,
+                    "question": stmt.excluded.question,
+                    "original_answer": stmt.excluded.original_answer,
+                    "collection_id": stmt.excluded.collection_id,
+                    "status": stmt.excluded.status,
+                    "gmt_updated": stmt.excluded.gmt_updated,
+                    "gmt_deleted": None,  # Reset to active state
+                },
             )
+
+            # Return the final state
+            stmt = stmt.returning(MessageFeedback)
             result = await session.execute(stmt)
-            feedback = result.scalars().first()
-
-            if feedback:
-                # Update existing
-                if feedback_type is not None:
-                    feedback.type = feedback_type
-                if feedback_tag is not None:
-                    feedback.tag = feedback_tag
-                if feedback_message is not None:
-                    feedback.message = feedback_message
-                if question is not None:
-                    feedback.question = question
-                if original_answer is not None:
-                    feedback.original_answer = original_answer
-                feedback.gmt_updated = utc_now()
-            else:
-                # Create new
-                from aperag.db.models import MessageFeedbackStatus
-
-                feedback = MessageFeedback(
-                    user=user,
-                    chat_id=chat_id,
-                    message_id=message_id,
-                    type=feedback_type,
-                    tag=feedback_tag,
-                    message=feedback_message,
-                    question=question,
-                    original_answer=original_answer,
-                    collection_id=collection_id,
-                    status=MessageFeedbackStatus.PENDING,
-                )
-
-            session.add(feedback)
-            await session.flush()
-            await session.refresh(feedback)
-            return feedback
+            return result.scalars().first()
 
         return await self.execute_with_transaction(_operation)

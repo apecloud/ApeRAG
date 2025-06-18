@@ -320,14 +320,14 @@ class ChatService:
         if msg is None:
             raise ResourceNotFoundException("Message", message_id)
 
-        # Direct calls to repository methods
+        # Handle feedback state change based on UX design principles
         if feedback_type is None:
-            # Delete the feedback record
-            success_deleted = await self.db_ops.delete_message_feedback(user, chat_id, message_id)
-            result = {"action": "deleted", "success": success_deleted}
+            # User wants to remove feedback (cancel like/dislike)
+            success_removed = await self.db_ops.remove_message_feedback(user, chat_id, message_id)
+            result = {"action": "deleted", "success": success_removed}
         else:
-            # Create or update the feedback record
-            feedback = await self.db_ops.upsert_message_feedback(
+            # User wants to set feedback state (like/dislike)
+            feedback = await self.db_ops.set_message_feedback_state(
                 user=user,
                 chat_id=chat_id,
                 message_id=message_id,
