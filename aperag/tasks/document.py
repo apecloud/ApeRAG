@@ -151,7 +151,7 @@ class DocumentIndexTask:
 
         from aperag.tasks.utils import get_document_and_collection
 
-        _, collection = get_document_and_collection(document_id)
+        _, collection = get_document_and_collection(document_id, ignore_deleted=False)
 
         try:
             if index_type == DocumentIndexType.VECTOR.value:

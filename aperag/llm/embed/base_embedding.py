@@ -192,7 +192,7 @@ def get_collection_embedding_service_sync(collection) -> tuple[Embeddings, int]:
             "base_url", embedding_service_url, f"Base URL not configured for provider '{embedding_msp}'"
         )
 
-    logger.info("get_collection_embedding_model %s %s", embedding_service_url, embedding_service_api_key)
+    logger.info("get_collection_embedding_model %s", embedding_service_url)
 
     try:
         return _get_embedding_model(

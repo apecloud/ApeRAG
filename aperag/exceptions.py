@@ -14,6 +14,7 @@
 
 from enum import Enum
 from http import HTTPStatus
+import traceback
 from typing import Any, Dict, Optional
 
 
@@ -89,6 +90,7 @@ class BusinessException(Exception):
         self.error_code = error_code
         self.message = message or error_code.error_name.replace("_", " ").title()
         self.details = details or {}
+        traceback.print_stack()
         super().__init__(self.message)
 
     @property

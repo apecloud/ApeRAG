@@ -14,6 +14,7 @@
 
 # Configuration constants
 import json
+from aperag.exceptions import DocumentNotFoundException, CollectionNotFoundException
 from typing import Any, List, Tuple
 
 
@@ -56,16 +57,16 @@ def cleanup_local_document(local_doc, collection):
     source.cleanup_document(local_doc.path)
 
 
-def get_document_and_collection(document_id: str):
+def get_document_and_collection(document_id: str, ignore_deleted: bool = True):
     """Get document and collection objects"""
     from aperag.db.ops import db_ops
 
-    document = db_ops.query_document_by_id(document_id)
+    document = db_ops.query_document_by_id(document_id, ignore_deleted)
     if not document:
-        raise ValueError(f"Document {document_id} not found")
+        raise DocumentNotFoundException(f"Document {document_id} not found")
 
-    collection = db_ops.query_collection_by_id(document.collection_id)
+    collection = db_ops.query_collection_by_id(document.collection_id, ignore_deleted)
     if not collection:
-        raise ValueError(f"Collection {document.collection_id} not found")
+        raise CollectionNotFoundException(f"Collection {document.collection_id} not found")
 
     return document, collection

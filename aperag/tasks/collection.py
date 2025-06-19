@@ -88,7 +88,7 @@ class CollectionTask:
         """
         try:
             # Get collection from database
-            collection = db_ops.query_collection_by_id(collection_id)
+            collection = db_ops.query_collection_by_id(collection_id, ignore_deleted=False)
 
             if not collection:
                 return TaskResult(success=False, error=f"Collection {collection_id} not found")

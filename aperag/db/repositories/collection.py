@@ -25,11 +25,11 @@ from aperag.utils.utils import utc_now
 
 
 class CollectionRepositoryMixin(SyncRepositoryProtocol):
-    def query_collection_by_id(self, collection_id: str) -> Collection:
+    def query_collection_by_id(self, collection_id: str, ignore_deleted: bool = True) -> Collection:
         def _query(session):
-            stmt = select(Collection).where(
-                Collection.id == collection_id, Collection.status != CollectionStatus.DELETED
-            )
+            stmt = select(Collection).where( Collection.id == collection_id)
+            if ignore_deleted:
+                stmt = stmt.where(Collection.status != CollectionStatus.DELETED)
             result = session.execute(stmt)
             return result.scalars().first()
 
