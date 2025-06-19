@@ -63,10 +63,10 @@ def get_document_and_collection(document_id: str, ignore_deleted: bool = True):
 
     document = db_ops.query_document_by_id(document_id, ignore_deleted)
     if not document:
-        raise DocumentNotFoundException(f"Document {document_id} not found")
+        raise DocumentNotFoundException(document_id)
 
     collection = db_ops.query_collection_by_id(document.collection_id, ignore_deleted)
     if not collection:
-        raise CollectionNotFoundException(f"Collection {document.collection_id} not found")
+        raise CollectionNotFoundException(document.collection_id)
 
     return document, collection

@@ -38,6 +38,47 @@ class BackendIndexReconciler:
 
     def __init__(self, task_scheduler: Optional[TaskScheduler] = None, scheduler_type: str = "celery"):
         self.task_scheduler = task_scheduler or create_task_scheduler(scheduler_type)
+    
+    @staticmethod
+    def _get_reconciliation_conditions(operation_type: str, document_ids: List[str] = None):
+        """
+        Get all conditions for indexes that need reconciliation based on operation type.
+        This is the authoritative source for determining which indexes can be processed.
+        
+        Args:
+            operation_type: 'create', 'update', or 'delete'
+            document_ids: Optional list of document IDs to filter by
+            
+        Returns:
+            List of SQLAlchemy conditions
+        """
+        if operation_type in ["create", "update"]:
+            conditions = [
+                DocumentIndex.desired_state == IndexDesiredState.PRESENT,
+                # Need reconciliation: either version mismatch or state mismatch
+                or_(
+                    DocumentIndex.observed_version < DocumentIndex.version,
+                    DocumentIndex.actual_state.in_([IndexActualState.ABSENT, IndexActualState.FAILED]),
+                ),
+                # For create/update operations, exclude both CREATING and DELETING states
+                DocumentIndex.actual_state.notin_([IndexActualState.CREATING, IndexActualState.DELETING]),
+            ]
+        elif operation_type == "delete":
+            conditions = [
+                DocumentIndex.desired_state == IndexDesiredState.ABSENT,
+                # Only delete indexes that actually exist or are being created
+                DocumentIndex.actual_state.in_([IndexActualState.CREATING, IndexActualState.PRESENT]),
+                # For delete operations, allow claiming indexes in CREATING state to enable deletion override
+                # Only exclude DELETING state to prevent concurrent deletions
+                DocumentIndex.actual_state != IndexActualState.DELETING,
+            ]
+        else:
+            raise ValueError(f"Unknown operation_type: {operation_type}")
+        
+        if document_ids:
+            conditions.append(DocumentIndex.document_id.in_(document_ids))
+        
+        return conditions
 
     def reconcile_all(self, document_ids: List[str] = None):
         """
@@ -96,30 +137,9 @@ class BackendIndexReconciler:
         Get all indexes that need reconciliation without modifying their state.
         State modifications will happen in individual document transactions.
         """
-        # Build the WHERE conditions for indexes that need creating
-        create_conditions = [
-            DocumentIndex.desired_state == IndexDesiredState.PRESENT,
-            # Need reconciliation: either version mismatch or state mismatch
-            or_(
-                DocumentIndex.observed_version < DocumentIndex.version,
-                DocumentIndex.actual_state.in_([IndexActualState.ABSENT, IndexActualState.FAILED]),
-            ),
-            # Not currently being processed
-            DocumentIndex.actual_state.notin_([IndexActualState.CREATING, IndexActualState.DELETING]),
-        ]
-
-        # Build the WHERE conditions for indexes that need deleting
-        delete_conditions = [
-            DocumentIndex.desired_state == IndexDesiredState.ABSENT,
-            # Only delete indexes that actually exist or are being created
-            DocumentIndex.actual_state.in_([IndexActualState.CREATING, IndexActualState.PRESENT]),
-            # Not currently being processed for deletion
-            DocumentIndex.actual_state != IndexActualState.DELETING,
-        ]
-
-        if document_ids:
-            create_conditions.append(DocumentIndex.document_id.in_(document_ids))
-            delete_conditions.append(DocumentIndex.document_id.in_(document_ids))
+        # Use shared reconciliation conditions
+        create_conditions = self._get_reconciliation_conditions("create", document_ids)
+        delete_conditions = self._get_reconciliation_conditions("delete", document_ids)
 
         # Query for indexes that need creating
         create_stmt = select(DocumentIndex).where(and_(*create_conditions))
@@ -174,16 +194,17 @@ class BackendIndexReconciler:
                     continue
 
                 # Try to claim this specific index
+                # Use all reconciliation conditions plus specific index/document filters
+                # This ensures claiming conditions are a superset of reconciliation conditions
+                base_conditions = self._get_reconciliation_conditions(operation_type)
+                where_conditions = [
+                    DocumentIndex.id == index_id,
+                    DocumentIndex.document_id == document_id,
+                ] + base_conditions
+                
                 update_stmt = (
                     update(DocumentIndex)
-                    .where(
-                        and_(
-                            DocumentIndex.id == index_id,
-                            DocumentIndex.document_id == document_id,
-                            # Ensure the index is still in a claimable state
-                            DocumentIndex.actual_state.notin_([IndexActualState.CREATING, IndexActualState.DELETING])
-                        )
-                    )
+                    .where(and_(*where_conditions))
                     .values(
                         actual_state=target_state,
                         gmt_updated=func.now(),
