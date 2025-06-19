@@ -47,50 +47,57 @@ class BackendIndexReconciler:
         Args:
             document_ids: Optional list of specific document IDs to reconcile. If None, reconcile all.
         """
+        # Get all indexes that need reconciliation first
+        all_indexes_needing_reconciliation = []
         for session in get_sync_session():
-            # Get indexes needing reconciliation with atomic state checking
-            indexes_needing_reconciliation = self._get_and_lock_indexes_needing_reconciliation(session, document_ids)
+            all_indexes_needing_reconciliation = self._get_indexes_needing_reconciliation(session, document_ids)
+            break  # Only need to query once
 
-            if not indexes_needing_reconciliation:
-                logger.debug("No indexes need reconciliation")
-                return
+        if not all_indexes_needing_reconciliation:
+            logger.debug("No indexes need reconciliation")
+            return
 
-            # Group by document ID and operation type for batch processing
-            self._reconcile_grouped(session, indexes_needing_reconciliation)
+        # Group by document ID and operation type for batch processing
+        from collections import defaultdict
+        doc_operations = defaultdict(lambda: {"create": [], "update": [], "delete": []})
 
-            session.commit()
+        for doc_index in all_indexes_needing_reconciliation:
+            # Group operations by document and type
+            if doc_index.desired_state == IndexDesiredState.PRESENT:
+                # Check if this is an update (version mismatch with existing index data) or creation
+                if doc_index.index_data and doc_index.observed_version > 0:
+                    # Index has data and was observed before - this is an update
+                    operation_type = "update"
+                else:
+                    # No existing data or never observed - this is a creation
+                    operation_type = "create"
+                doc_operations[doc_index.document_id][operation_type].append(doc_index)
+            elif doc_index.desired_state == IndexDesiredState.ABSENT:
+                doc_operations[doc_index.document_id]["delete"].append(doc_index)
 
-    def _get_and_lock_indexes_needing_reconciliation(
-        self, session: Session, document_ids: List[str] = None
-    ) -> List[DocumentIndex]:
+        logger.info(f"Found {len(doc_operations)} documents need to be reconciled")
+
+        # Process each document with its own transaction
+        successful_docs = 0
+        failed_docs = 0
+        for document_id, operations in doc_operations.items():
+            try:
+                self._reconcile_single_document(document_id, operations)
+                successful_docs += 1
+            except Exception as e:
+                failed_docs += 1
+                logger.error(f"Failed to reconcile document {document_id}: {e}", exc_info=True)
+                # Continue processing other documents - don't let one failure stop everything
+
+        logger.info(f"Reconciliation completed: {successful_docs} successful, {failed_docs} failed")
+
+    def _get_indexes_needing_reconciliation(self, session: Session, document_ids: List[str] = None) -> List[DocumentIndex]:
         """
-        Get all indexes that need reconciliation and atomically update their state to prevent
-        duplicate processing in concurrent scenarios. All filtering and state updates are done
-        at the database level for maximum efficiency and concurrency safety.
-
-        Args:
-            document_ids: Optional list of specific document IDs to process
-        """
-        indexes_to_process = []
-
-        # Process indexes that need CREATING (desired=PRESENT, actual=ABSENT/FAILED, not currently processing)
-        create_claimed = self._claim_indexes_for_creating(session, document_ids)
-        indexes_to_process.extend(create_claimed)
-
-        # Process indexes that need DELETING (desired=ABSENT, actual=CREATING/PRESENT, not currently processing)
-        delete_claimed = self._claim_indexes_for_deleting(session, document_ids)
-        indexes_to_process.extend(delete_claimed)
-
-        logger.info(f"Claimed {len(indexes_to_process)} indexes for reconciliation")
-        return indexes_to_process
-
-    def _claim_indexes_for_creating(self, session: Session, document_ids: List[str] = None) -> List[DocumentIndex]:
-        """
-        Atomically claim indexes that need CREATING by updating their state to CREATING.
-        Uses database-level filtering and atomic updates for maximum efficiency.
+        Get all indexes that need reconciliation without modifying their state.
+        State modifications will happen in individual document transactions.
         """
         # Build the WHERE conditions for indexes that need creating
-        conditions = [
+        create_conditions = [
             DocumentIndex.desired_state == IndexDesiredState.PRESENT,
             # Need reconciliation: either version mismatch or state mismatch
             or_(
@@ -101,88 +108,100 @@ class BackendIndexReconciler:
             DocumentIndex.actual_state.notin_([IndexActualState.CREATING, IndexActualState.DELETING]),
         ]
 
-        if document_ids:
-            conditions.append(DocumentIndex.document_id.in_(document_ids))
-
-        # Atomic update: claim these indexes by setting state to CREATING
-        update_stmt = (
-            update(DocumentIndex)
-            .where(and_(*conditions))
-            .values(actual_state=IndexActualState.CREATING, gmt_updated=func.now(), gmt_last_reconciled=func.now())
-            .returning(DocumentIndex)
-        )
-
-        result = session.execute(update_stmt)
-        claimed_indexes = result.scalars().all()
-        session.flush()  # Ensure changes are visible
-
-        logger.debug(f"Claimed {len(claimed_indexes)} indexes for CREATING")
-        return claimed_indexes
-
-    def _claim_indexes_for_deleting(self, session: Session, document_ids: List[str] = None) -> List[DocumentIndex]:
-        """
-        Atomically claim indexes that need DELETING by updating their state to DELETING.
-        Uses database-level filtering and atomic updates for maximum efficiency.
-        """
         # Build the WHERE conditions for indexes that need deleting
-        conditions = [
+        delete_conditions = [
             DocumentIndex.desired_state == IndexDesiredState.ABSENT,
-            # Need reconciliation: either version mismatch or state mismatch
-            or_(
-                DocumentIndex.observed_version < DocumentIndex.version,
-                DocumentIndex.actual_state.in_([IndexActualState.CREATING, IndexActualState.PRESENT]),
-            ),
-            # Not currently being processed
-            DocumentIndex.actual_state.notin_([IndexActualState.CREATING, IndexActualState.DELETING]),
+            # Only delete indexes that actually exist or are being created
+            DocumentIndex.actual_state.in_([IndexActualState.CREATING, IndexActualState.PRESENT]),
+            # Not currently being processed for deletion
+            DocumentIndex.actual_state != IndexActualState.DELETING,
         ]
 
         if document_ids:
-            conditions.append(DocumentIndex.document_id.in_(document_ids))
+            create_conditions.append(DocumentIndex.document_id.in_(document_ids))
+            delete_conditions.append(DocumentIndex.document_id.in_(document_ids))
 
-        # Atomic update: claim these indexes by setting state to DELETING
-        update_stmt = (
-            update(DocumentIndex)
-            .where(and_(*conditions))
-            .values(actual_state=IndexActualState.DELETING, gmt_updated=func.now(), gmt_last_reconciled=func.now())
-            .returning(DocumentIndex)
-        )
+        # Query for indexes that need creating
+        create_stmt = select(DocumentIndex).where(and_(*create_conditions))
+        create_result = session.execute(create_stmt)
+        create_indexes = create_result.scalars().all()
 
-        result = session.execute(update_stmt)
-        claimed_indexes = result.scalars().all()
-        session.flush()  # Ensure changes are visible
+        # Query for indexes that need deleting
+        delete_stmt = select(DocumentIndex).where(and_(*delete_conditions))
+        delete_result = session.execute(delete_stmt)
+        delete_indexes = delete_result.scalars().all()
 
-        logger.debug(f"Claimed {len(claimed_indexes)} indexes for DELETING")
-        return claimed_indexes
+        all_indexes = list(create_indexes) + list(delete_indexes)
+        logger.debug(f"Found {len(all_indexes)} indexes needing reconciliation")
+        return all_indexes
 
-    def _reconcile_grouped(self, session: Session, indexes_needing_reconciliation):
-        """Group reconciliation operations by document for batch processing"""
-        from collections import defaultdict
+    def _reconcile_single_document(self, document_id: str, operations: dict):
+        """
+        Reconcile operations for a single document within its own transaction
+        """
+        for session in get_sync_session():
+            # Get the specific indexes for this document and claim them atomically
+            indexes_to_claim = []
+            
+            # Collect indexes for this document that need claiming
+            for operation_type, doc_indexes in operations.items():
+                for doc_index in doc_indexes:
+                    indexes_to_claim.append((doc_index.id, operation_type))
 
-        # Group by document_id and operation type
-        doc_operations = defaultdict(lambda: {"create": [], "update": [], "delete": []})
+            # Atomically claim the indexes for this document
+            claimed_successfully = self._claim_document_indexes(session, document_id, indexes_to_claim)
+            
+            if claimed_successfully:
+                # Schedule tasks for successfully claimed indexes
+                self._reconcile_document_operations(document_id, operations)
+                session.commit()
+            else:
+                # Some indexes couldn't be claimed (likely already being processed), skip this document
+                logger.debug(f"Skipping document {document_id} - indexes already being processed")
 
-        for doc_index in indexes_needing_reconciliation:
-            # At this point, states should already be updated to CREATING/DELETING
-            # Determine operation type based on the nature of the reconciliation needed
-            if doc_index.desired_state == IndexDesiredState.PRESENT:
-                if doc_index.actual_state == IndexActualState.CREATING:
-                    # Check if this is an update (version mismatch with existing index data) or creation
-                    if doc_index.index_data and doc_index.observed_version > 0:
-                        # Index has data and was observed before - this is an update
-                        operation_type = "update"
-                    else:
-                        # No existing data or never observed - this is a creation
-                        operation_type = "create"
-                    doc_operations[doc_index.document_id][operation_type].append(doc_index)
-            elif doc_index.desired_state == IndexDesiredState.ABSENT:
-                if doc_index.actual_state == IndexActualState.DELETING:
-                    doc_operations[doc_index.document_id]["delete"].append(doc_index)
+    def _claim_document_indexes(self, session: Session, document_id: str, indexes_to_claim: List[tuple]) -> bool:
+        """
+        Atomically claim indexes for a document by updating their state.
+        Returns True if all indexes were successfully claimed, False otherwise.
+        """
+        try:
+            for index_id, operation_type in indexes_to_claim:
+                if operation_type in ["create", "update"]:
+                    target_state = IndexActualState.CREATING
+                elif operation_type == "delete":
+                    target_state = IndexActualState.DELETING
+                else:
+                    continue
 
-        logger.info(f"Found {len(doc_operations)} documents need to be reconciled")
+                # Try to claim this specific index
+                update_stmt = (
+                    update(DocumentIndex)
+                    .where(
+                        and_(
+                            DocumentIndex.id == index_id,
+                            DocumentIndex.document_id == document_id,
+                            # Ensure the index is still in a claimable state
+                            DocumentIndex.actual_state.notin_([IndexActualState.CREATING, IndexActualState.DELETING])
+                        )
+                    )
+                    .values(
+                        actual_state=target_state,
+                        gmt_updated=func.now(),
+                        gmt_last_reconciled=func.now()
+                    )
+                )
+                
+                result = session.execute(update_stmt)
+                if result.rowcount == 0:
+                    # This index couldn't be claimed (already being processed)
+                    logger.debug(f"Could not claim index {index_id} for document {document_id}")
+                    return False
 
-        # Process each document's operations
-        for document_id, operations in doc_operations.items():
-            self._reconcile_document_operations(document_id, operations)
+            session.flush()  # Ensure changes are visible
+            return True
+        except Exception as e:
+            logger.error(f"Failed to claim indexes for document {document_id}: {e}")
+            return False
 
     def _reconcile_document_operations(self, document_id: str, operations: dict):
         """
