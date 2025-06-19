@@ -785,23 +785,23 @@ class LightRAG:
 
         context = f"""-----Entities(KG)-----
 
-        ```json
-        {entities_str}
-        ```
+```json
+{entities_str}
+```
 
-        -----Relationships(KG)-----
+-----Relationships(KG)-----
 
-        ```json
-        {relations_str}
-        ```
+```json
+{relations_str}
+```
 
-        -----Document Chunks(DC)-----
+-----Document Chunks(DC)-----
 
-        ```json
-        {text_units_str}
-        ```
+```json
+{text_units_str}
+```
 
-        """
+"""
         return context
 
     async def aquery(
