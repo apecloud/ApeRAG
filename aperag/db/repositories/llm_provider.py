@@ -565,7 +565,7 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
         return await self.execute_with_transaction(_operation)
 
     async def delete_llm_provider_model(self, provider_name: str, api: str, model: str) -> Optional[LLMProviderModel]:
-        """Soft delete LLM provider model"""
+        """Soft delete a specific LLM provider model"""
 
         async def _operation(session):
             stmt = select(LLMProviderModel).where(
@@ -611,3 +611,71 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
             return model_obj
 
         return await self.execute_with_transaction(_operation)
+
+    async def query_available_providers_with_models(self, user_id: str = None, need_public: bool = True):
+        """Query available providers with their models in a single optimized query
+
+        This method uses JOIN queries to efficiently get:
+        1. Providers that user can access (public + user's private)
+        2. Only providers that have configured API keys
+        3. All models for those providers
+
+        Args:
+            user_id: User ID for private provider access
+            need_public: Whether to include public providers
+
+        Returns:
+            Dict with 'providers' and 'models' keys containing the data
+        """
+
+        async def _query(session):
+            from sqlalchemy import join, or_
+
+            # First query: Get providers with API keys using JOIN
+            provider_stmt = (
+                select(LLMProvider, ModelServiceProvider.api_key)
+                .select_from(join(LLMProvider, ModelServiceProvider, LLMProvider.name == ModelServiceProvider.name))
+                .where(
+                    LLMProvider.gmt_deleted.is_(None),
+                    ModelServiceProvider.status != ModelServiceProviderStatus.DELETED,
+                    ModelServiceProvider.gmt_deleted.is_(None),
+                )
+            )
+
+            # Add user access control conditions
+            conditions = []
+            if need_public:
+                conditions.append(LLMProvider.user_id == "public")
+            if user_id:
+                conditions.append(LLMProvider.user_id == user_id)
+
+            if conditions:
+                if len(conditions) == 1:
+                    provider_stmt = provider_stmt.where(conditions[0])
+                else:
+                    provider_stmt = provider_stmt.where(or_(*conditions))
+
+            # Execute provider query
+            provider_result = await session.execute(provider_stmt)
+            provider_rows = provider_result.all()
+
+            # Extract provider names for model query
+            available_provider_names = [row[0].name for row in provider_rows]
+
+            if not available_provider_names:
+                return {"providers": [], "models": []}
+
+            # Second query: Get models for available providers only
+            model_stmt = select(LLMProviderModel).where(
+                LLMProviderModel.provider_name.in_(available_provider_names), LLMProviderModel.gmt_deleted.is_(None)
+            )
+
+            model_result = await session.execute(model_stmt)
+            models = model_result.scalars().all()
+
+            # Return structured data
+            providers = [row[0] for row in provider_rows]  # LLMProvider objects
+
+            return {"providers": providers, "models": models}
+
+        return await self._execute_query(_query)
