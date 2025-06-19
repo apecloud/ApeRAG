@@ -756,6 +756,27 @@ class LightRAG:
             chunks_vdb=self.chunks_vdb,
         )
 
+        # Remove file_path from all contexts before serialization
+        def remove_file_path_from_context(context_list):
+            """Remove file_path field from each item in the context list"""
+            if not context_list:
+                return context_list
+
+            cleaned_context = []
+            for item in context_list:
+                if isinstance(item, dict) and "file_path" in item:
+                    # Create a copy without file_path
+                    cleaned_item = {k: v for k, v in item.items() if k != "file_path"}
+                    cleaned_context.append(cleaned_item)
+                else:
+                    cleaned_context.append(item)
+            return cleaned_context
+
+        # Clean all contexts
+        entities_context = remove_file_path_from_context(entities_context)
+        relations_context = remove_file_path_from_context(relations_context)
+        text_units_context = remove_file_path_from_context(text_units_context)
+
         import json
 
         entities_str = json.dumps(entities_context, ensure_ascii=False)
