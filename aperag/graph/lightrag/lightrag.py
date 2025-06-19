@@ -756,7 +756,6 @@ class LightRAG:
             chunks_vdb=self.chunks_vdb,
         )
 
-        # 转换为 JSON 字符串
         import json
 
         entities_str = json.dumps(entities_context, ensure_ascii=False)
