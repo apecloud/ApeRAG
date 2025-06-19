@@ -31,18 +31,11 @@ class LlmAvailableModelService:
             self.db_ops = AsyncDatabaseOps(session)  # Create custom instance for transaction control
 
     async def get_available_models(
-        self, user: str, tag_filter_request: view_models.TagFilterRequest
+        self, user_id: str, tag_filter_request: view_models.TagFilterRequest
     ) -> view_models.ModelConfigList:
         """Get available models with optional tag filtering"""
         # Get all supported providers from model configs
-        supported_providers = await self._build_model_config_objects()
-
-        # Check which providers have API keys configured
-        available_providers = []
-        for provider in supported_providers:
-            api_key = await self.db_ops.query_provider_api_key(provider.name, user)
-            if api_key:  # Only include providers that have API keys configured
-                available_providers.append(provider)
+        available_providers = await self._build_model_config_objects(user_id)
 
         # Apply tag filtering based on request
         if tag_filter_request.tag_filters is None or len(tag_filter_request.tag_filters) == 0:
@@ -100,13 +93,21 @@ class LlmAvailableModelService:
 
         return filtered_models
 
-    async def _build_model_config_objects(self) -> List[view_models.ModelConfig]:
+    async def _build_model_config_objects(self, user_id: str) -> List[view_models.ModelConfig]:
         """Build ModelConfig objects from database data
 
         This function replaces the functionality from llm_config_service.py
         """
         # Get providers and provider models from database
-        providers = await self.db_ops.query_llm_providers()
+        all_providers = await self.db_ops.query_llm_providers(user_id, True)
+
+        # Check which providers have API keys configured
+        available_providers = []
+        for provider in all_providers:
+            api_key = await self.db_ops.query_provider_api_key(provider.name, user_id, True)
+            if api_key:  # Only include providers that have API keys configured
+                available_providers.append(provider)
+
         provider_models = await self.db_ops.query_llm_provider_models()
 
         # Group models by provider and API type
@@ -128,7 +129,7 @@ class LlmAvailableModelService:
 
         # Build the final configuration list
         config_list = []
-        for provider in providers:
+        for provider in available_providers:
             provider_config = {
                 "name": provider.name,
                 "label": provider.label,
