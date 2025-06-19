@@ -180,6 +180,13 @@ class ValidationException(BusinessException):
         super().__init__(ErrorCode.INVALID_PARAMETER, message, details)
 
 
+class PermissionDeniedError(BusinessException):
+    """Permission denied exception"""
+
+    def __init__(self, message: str = None):
+        super().__init__(ErrorCode.FORBIDDEN, message or "Permission denied")
+
+
 # Convenience functions for common exceptions
 def not_found(resource_type: str, resource_id: str = None) -> ResourceNotFoundException:
     """Create a resource not found exception"""

@@ -316,7 +316,10 @@ async def websocket_chat_endpoint(
 @router.get("/llm_configuration")
 async def get_llm_configuration_view(request: Request, user: User = Depends(current_user)):
     """Get complete LLM configuration including providers and models"""
-    return await get_llm_configuration(str(user.id))
+    from aperag.db.models import Role
+
+    is_admin = user.role == Role.ADMIN
+    return await get_llm_configuration(str(user.id), is_admin)
 
 
 @router.post("/llm_providers")
@@ -326,13 +329,19 @@ async def create_llm_provider_view(
     user: User = Depends(current_user),
 ):
     """Create a new LLM provider with optional API key"""
-    return await create_llm_provider(provider_data.model_dump(), str(user.id))
+    from aperag.db.models import Role
+
+    is_admin = user.role == Role.ADMIN
+    return await create_llm_provider(provider_data.model_dump(), str(user.id), is_admin)
 
 
 @router.get("/llm_providers/{provider_name}")
 async def get_llm_provider_view(request: Request, provider_name: str, user: User = Depends(current_user)):
     """Get a specific LLM provider"""
-    return await get_llm_provider(provider_name, str(user.id))
+    from aperag.db.models import Role
+
+    is_admin = user.role == Role.ADMIN
+    return await get_llm_provider(provider_name, str(user.id), is_admin)
 
 
 @router.put("/llm_providers/{provider_name}")
@@ -343,13 +352,19 @@ async def update_llm_provider_view(
     user: User = Depends(current_user),
 ):
     """Update an existing LLM provider with optional API key"""
-    return await update_llm_provider(provider_name, provider_data.model_dump(), str(user.id))
+    from aperag.db.models import Role
+
+    is_admin = user.role == Role.ADMIN
+    return await update_llm_provider(provider_name, provider_data.model_dump(), str(user.id), is_admin)
 
 
 @router.delete("/llm_providers/{provider_name}")
 async def delete_llm_provider_view(request: Request, provider_name: str, user: User = Depends(current_user)):
     """Delete an LLM provider"""
-    return await delete_llm_provider(provider_name)
+    from aperag.db.models import Role
+
+    is_admin = user.role == Role.ADMIN
+    return await delete_llm_provider(provider_name, str(user.id), is_admin)
 
 
 @router.get("/llm_provider_models")
@@ -357,13 +372,19 @@ async def list_llm_provider_models_view(
     request: Request, provider_name: str = None, user: User = Depends(current_user)
 ):
     """List LLM provider models, optionally filtered by provider"""
-    return await list_llm_provider_models(provider_name)
+    from aperag.db.models import Role
+
+    is_admin = user.role == Role.ADMIN
+    return await list_llm_provider_models(provider_name, str(user.id), is_admin)
 
 
 @router.get("/llm_providers/{provider_name}/models")
 async def get_provider_models_view(request: Request, provider_name: str, user: User = Depends(current_user)):
     """Get all models for a specific provider"""
-    return await list_llm_provider_models(provider_name=provider_name)
+    from aperag.db.models import Role
+
+    is_admin = user.role == Role.ADMIN
+    return await list_llm_provider_models(provider_name=provider_name, user_id=str(user.id), is_admin=is_admin)
 
 
 @router.post("/llm_providers/{provider_name}/models")
@@ -371,9 +392,12 @@ async def create_provider_model_view(request: Request, provider_name: str, user:
     """Create a new model for a specific provider"""
     import json
 
+    from aperag.db.models import Role
+
     body = await request.body()
     data = json.loads(body.decode("utf-8"))
-    return await create_llm_provider_model(provider_name, data)
+    is_admin = user.role == Role.ADMIN
+    return await create_llm_provider_model(provider_name, data, str(user.id), is_admin)
 
 
 @router.put("/llm_providers/{provider_name}/models/{api}/{model}")
@@ -383,9 +407,12 @@ async def update_provider_model_view(
     """Update a specific model"""
     import json
 
+    from aperag.db.models import Role
+
     body = await request.body()
     data = json.loads(body.decode("utf-8"))
-    return await update_llm_provider_model(provider_name, api, model, data)
+    is_admin = user.role == Role.ADMIN
+    return await update_llm_provider_model(provider_name, api, model, data, str(user.id), is_admin)
 
 
 @router.delete("/llm_providers/{provider_name}/models/{api}/{model}")
@@ -393,4 +420,7 @@ async def delete_provider_model_view(
     request: Request, provider_name: str, api: str, model: str, user: User = Depends(current_user)
 ):
     """Delete a specific model"""
-    return await delete_llm_provider_model(provider_name, api, model)
+    from aperag.db.models import Role
+
+    is_admin = user.role == Role.ADMIN
+    return await delete_llm_provider_model(provider_name, api, model, str(user.id), is_admin)

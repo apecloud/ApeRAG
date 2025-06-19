@@ -15,17 +15,66 @@
 from typing import Optional
 
 from aperag.db.ops import async_db_ops
-from aperag.exceptions import ResourceNotFoundException, invalid_param
+from aperag.exceptions import PermissionDeniedError, ResourceNotFoundException, invalid_param
 from aperag.views.utils import generate_random_provider_name, mask_api_key
 
+# Constants
+PUBLIC_USER_ID = "public"
 
-async def get_llm_configuration(user_id: str = None):
-    """Get complete LLM configuration including providers and models"""
-    # Get providers (public + user's private if user_id provided)
-    providers = await async_db_ops.query_llm_providers(user_id)
+
+def _can_access_provider(user_id: str, is_admin: bool, target_user_id: str) -> bool:
+    """Check if user can access a provider based on ownership
+
+    Args:
+        user_id: Current user ID
+        is_admin: Whether current user is admin
+        target_user_id: The user_id field of the provider
+
+    Returns:
+        True if user can access the provider
+    """
+    if is_admin:
+        return target_user_id in (PUBLIC_USER_ID, user_id)
+    else:
+        return target_user_id == user_id
+
+
+def _check_edit_permission(user_id: str, is_admin: bool, target_user_id: str = None, provider_name: str = None):
+    """Check if user has permission to edit the resource
+
+    Args:
+        user_id: Current user ID
+        is_admin: Whether current user is admin
+        target_user_id: The user_id field of the resource being edited
+        provider_name: Provider name for error message
+
+    Raises:
+        PermissionDeniedError: If user doesn't have permission
+    """
+    if not _can_access_provider(user_id, is_admin, target_user_id):
+        if target_user_id == PUBLIC_USER_ID:
+            error_msg = "You don't have permission to edit public provider"
+        else:
+            error_msg = "You don't have permission to edit another user's provider"
+
+        if provider_name:
+            error_msg += f" '{provider_name}'"
+
+        raise PermissionDeniedError(error_msg)
+
+
+async def get_llm_configuration(user_id: str, is_admin: bool = False):
+    """Get complete LLM configuration including providers and models
+
+    Args:
+        user_id: User ID requesting the configuration
+        is_admin: Whether the user is an admin
+    """
+    # Admin can see public + their own providers, non-admin can only see their own
+    need_public = is_admin
+    providers = await async_db_ops.query_llm_providers(user_id=user_id, need_public=need_public)
 
     providers_data = []
-
     for provider in providers:
         provider_data = {
             "name": provider.name,
@@ -41,15 +90,14 @@ async def get_llm_configuration(user_id: str = None):
             "updated": provider.gmt_updated,
         }
 
-        # Add masked API key if available (for security)
-        if user_id:
-            api_key = await async_db_ops.query_provider_api_key(provider.name, user_id)
-            if api_key:
-                provider_data["api_key"] = mask_api_key(api_key)
+        # Add masked API key (query_llm_providers already filtered by access permissions)
+        api_key = await async_db_ops.query_provider_api_key(provider.name, user_id)
+        if api_key:
+            provider_data["api_key"] = mask_api_key(api_key)
 
         providers_data.append(provider_data)
 
-    # Get all models
+    # Get all models (models are not user-specific)
     models = await async_db_ops.query_llm_provider_models()
     models_data = []
 
@@ -73,8 +121,14 @@ async def get_llm_configuration(user_id: str = None):
     }
 
 
-async def create_llm_provider(provider_data: dict, user_id: str):
-    """Create a new LLM provider or restore a soft-deleted one with the same name"""
+async def create_llm_provider(provider_data: dict, user_id: str, is_admin: bool = False):
+    """Create a new LLM provider or restore a soft-deleted one with the same name
+
+    Args:
+        provider_data: Provider configuration data
+        user_id: User ID creating the provider
+        is_admin: Whether the user is an admin
+    """
     # Generate a random provider name if not provided
     if "name" not in provider_data or not provider_data["name"]:
         # Generate random name and ensure it doesn't conflict
@@ -145,9 +199,17 @@ async def create_llm_provider(provider_data: dict, user_id: str):
     }
 
 
-async def get_llm_provider(provider_name: str, user_id: str = None):
-    """Get a specific LLM provider by name"""
-    provider = await async_db_ops.query_llm_provider_by_name_user(provider_name, user_id)
+async def get_llm_provider(provider_name: str, user_id: str, is_admin: bool = False):
+    """Get a specific LLM provider by name
+
+    Args:
+        provider_name: Name of the provider to get
+        user_id: User ID requesting the provider
+        is_admin: Whether the user is an admin
+    """
+    provider = await async_db_ops.query_llm_provider_by_name(provider_name)
+    if provider and not _can_access_provider(user_id, is_admin, provider.user_id):
+        raise PermissionDeniedError(f"You don't have permission to access provider '{provider_name}'")
 
     if not provider:
         raise ResourceNotFoundException("Provider", provider_name)
@@ -166,7 +228,7 @@ async def get_llm_provider(provider_name: str, user_id: str = None):
         "updated": provider.gmt_updated,
     }
 
-    # Get masked API key if user_id is provided (for security)
+    # Get masked API key (access already verified above)
     api_key = await async_db_ops.query_provider_api_key(provider_name, user_id)
     if api_key:
         provider_data["api_key"] = mask_api_key(api_key)
@@ -174,12 +236,22 @@ async def get_llm_provider(provider_name: str, user_id: str = None):
     return provider_data
 
 
-async def update_llm_provider(provider_name: str, update_data: dict, user_id: str):
-    """Update an existing LLM provider"""
+async def update_llm_provider(provider_name: str, update_data: dict, user_id: str, is_admin: bool = False):
+    """Update an existing LLM provider
+
+    Args:
+        provider_name: Name of the provider to update
+        update_data: Data to update
+        user_id: User ID making the update
+        is_admin: Whether the user is an admin
+    """
     existing_provider = await async_db_ops.query_llm_provider_by_name(provider_name)
 
     if not existing_provider:
         raise ResourceNotFoundException("Provider", provider_name)
+
+    # Check edit permission
+    _check_edit_permission(user_id, is_admin, existing_provider.user_id, provider_name)
 
     # Update provider using the DatabaseOps method
     provider = await async_db_ops.update_llm_provider(
@@ -214,15 +286,24 @@ async def update_llm_provider(provider_name: str, update_data: dict, user_id: st
     }
 
 
-async def delete_llm_provider(provider_name: str) -> Optional[bool]:
+async def delete_llm_provider(provider_name: str, user_id: str, is_admin: bool = False) -> Optional[bool]:
     """Delete an LLM provider (soft delete, idempotent operation)
 
-    Returns True if deleted, None if already deleted/not found
+    Args:
+        provider_name: Name of the provider to delete
+        user_id: User ID making the deletion
+        is_admin: Whether the user is an admin
+
+    Returns:
+        True if deleted, None if already deleted/not found
     """
     provider = await async_db_ops.query_llm_provider_by_name(provider_name)
 
     if not provider:
         return None  # Idempotent operation, not found is success
+
+    # Check edit permission
+    _check_edit_permission(user_id, is_admin, provider.user_id, provider_name)
 
     # Soft delete the provider and its models
     await async_db_ops.delete_llm_provider(provider_name)
@@ -233,42 +314,27 @@ async def delete_llm_provider(provider_name: str) -> Optional[bool]:
     return True
 
 
-async def list_llm_provider_models(provider_name: Optional[str] = None):
-    """List LLM provider models, optionally filtered by provider"""
-    models = await async_db_ops.query_llm_provider_models(provider_name)
-
-    models_data = []
-    for model in models:
-        models_data.append(
-            {
-                "provider_name": model.provider_name,
-                "api": model.api,
-                "model": model.model,
-                "custom_llm_provider": model.custom_llm_provider,
-                "max_tokens": model.max_tokens,
-                "tags": model.tags or [],
-                "created": model.gmt_created,
-                "updated": model.gmt_updated,
-            }
-        )
-
-    return {
-        "items": models_data,
-        "pageResult": {
-            "page_number": 1,
-            "page_size": len(models_data),
-            "count": len(models_data),
-        },
-    }
+async def list_llm_provider_models(provider_name: Optional[str] = None, user_id: str = None, is_admin: bool = False):
+    raise NotImplementedError
 
 
-async def create_llm_provider_model(provider_name: str, model_data: dict):
-    """Create a new model for a specific provider or restore a soft-deleted one with the same combination"""
+async def create_llm_provider_model(provider_name: str, model_data: dict, user_id: str, is_admin: bool = False):
+    """Create a new model for a specific provider or restore a soft-deleted one with the same combination
+
+    Args:
+        provider_name: Name of the provider
+        model_data: Model configuration data
+        user_id: User ID creating the model
+        is_admin: Whether the user is an admin
+    """
     # Check if provider exists
     provider = await async_db_ops.query_llm_provider_by_name(provider_name)
 
     if not provider:
         raise ResourceNotFoundException("Provider", provider_name)
+
+    # Check edit permission for the provider
+    _check_edit_permission(user_id, is_admin, provider.user_id, provider_name)
 
     # First check if there's an active model with the same combination
     active_existing = await async_db_ops.query_llm_provider_model(provider_name, model_data["api"], model_data["model"])
@@ -315,12 +381,31 @@ async def create_llm_provider_model(provider_name: str, model_data: dict):
     }
 
 
-async def update_llm_provider_model(provider_name: str, api: str, model: str, update_data: dict):
-    """Update a specific model of a provider"""
+async def update_llm_provider_model(
+    provider_name: str, api: str, model: str, update_data: dict, user_id: str, is_admin: bool = False
+):
+    """Update a specific model of a provider
+
+    Args:
+        provider_name: Name of the provider
+        api: API type of the model
+        model: Model name
+        update_data: Data to update
+        user_id: User ID making the update
+        is_admin: Whether the user is an admin
+    """
     existing_model = await async_db_ops.query_llm_provider_model(provider_name, api, model)
 
     if not existing_model:
         raise ResourceNotFoundException(f"Model '{model}' for API '{api}'", f"provider '{provider_name}'")
+
+    # Check if provider exists and permission to edit
+    provider = await async_db_ops.query_llm_provider_by_name(provider_name)
+    if not provider:
+        raise ResourceNotFoundException("Provider", provider_name)
+
+    # Check edit permission for the provider
+    _check_edit_permission(user_id, is_admin, provider.user_id, provider_name)
 
     # Update model using the DatabaseOps method
     model_obj = await async_db_ops.update_llm_provider_model(
@@ -344,15 +429,33 @@ async def update_llm_provider_model(provider_name: str, api: str, model: str, up
     }
 
 
-async def delete_llm_provider_model(provider_name: str, api: str, model: str) -> Optional[bool]:
+async def delete_llm_provider_model(
+    provider_name: str, api: str, model: str, user_id: str, is_admin: bool = False
+) -> Optional[bool]:
     """Delete a specific model of a provider (idempotent operation)
 
-    Returns True if deleted, None if already deleted/not found
+    Args:
+        provider_name: Name of the provider
+        api: API type of the model
+        model: Model name
+        user_id: User ID making the deletion
+        is_admin: Whether the user is an admin
+
+    Returns:
+        True if deleted, None if already deleted/not found
     """
     model_obj = await async_db_ops.query_llm_provider_model(provider_name, api, model)
 
     if not model_obj:
         return None  # Idempotent operation, not found is success
+
+    # Check if provider exists and permission to edit
+    provider = await async_db_ops.query_llm_provider_by_name(provider_name)
+    if not provider:
+        raise ResourceNotFoundException("Provider", provider_name)
+
+    # Check edit permission for the provider
+    _check_edit_permission(user_id, is_admin, provider.user_id, provider_name)
 
     # Soft delete the model
     await async_db_ops.delete_llm_provider_model(provider_name, api, model)
