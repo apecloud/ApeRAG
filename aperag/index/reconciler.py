@@ -182,31 +182,7 @@ class BackendIndexReconciler:
 
         # Process each document's operations
         for document_id, operations in doc_operations.items():
-            try:
-                self._reconcile_document_operations(document_id, operations)
-            except Exception as e:
-                logger.error(f"Failed to reconcile operations for document {document_id}: {e}")
-                # Revert states for failed operations
-                self._revert_failed_operations(session, document_id, operations, e)
-
-    def _revert_failed_operations(self, session: Session, document_id: str, operations: dict, error: Exception):
-        """Revert states for operations that failed to schedule"""
-        for operation_type, doc_indexes in operations.items():
-            for doc_index in doc_indexes:
-                try:
-                    if operation_type == "create":
-                        doc_index.mark_failed(f"Failed to schedule task: {str(error)}")
-                    elif operation_type == "update":
-                        # Revert to PRESENT state - it was updating an existing index
-                        doc_index.actual_state = IndexActualState.PRESENT
-                    elif operation_type == "delete":
-                        # Revert to previous state - assume it was PRESENT
-                        doc_index.actual_state = IndexActualState.PRESENT
-                    session.add(doc_index)
-                except Exception as revert_error:
-                    logger.error(
-                        f"Failed to revert state for {doc_index.document_id}:{doc_index.index_type}: {revert_error}"
-                    )
+            self._reconcile_document_operations(document_id, operations)
 
     def _reconcile_document_operations(self, document_id: str, operations: dict):
         """
