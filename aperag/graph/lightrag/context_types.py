@@ -3,6 +3,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+from aperag.graph.lightrag.prompt import GRAPH_FIELD_SEP
+
 
 class LightRagEntityContext(BaseModel):
     id: str = Field(..., description="Unique identifier for the entity.")
@@ -52,3 +54,107 @@ class LightRagTextUnitContext(BaseModel):
     file_path: Optional[List[str]] = Field(
         None, description="A list of file paths where the entity information originated."
     )
+
+
+# Conversion functions from LightRAG JSON format to Pydantic models
+
+
+def json_to_entity_context(json_data: dict) -> LightRagEntityContext:
+    """
+    Convert LightRAG entity JSON to LightRagEntityContext.
+
+    Args:
+        json_data: Dict with keys like 'id', 'entity', 'type', 'description',
+                  'rank', 'created_at', 'file_path'
+
+    Returns:
+        LightRagEntityContext instance
+    """
+    # Parse datetime from string
+    created_at = datetime.strptime(json_data["created_at"], "%Y-%m-%d %H:%M:%S")
+
+    # Parse file_path - split by <SEP> if it's a string, or keep as list if already a list
+    file_path = None
+    if json_data.get("file_path"):
+        if isinstance(json_data["file_path"], str):
+            file_path = json_data["file_path"].split(GRAPH_FIELD_SEP)
+        elif isinstance(json_data["file_path"], list):
+            file_path = json_data["file_path"]
+
+    return LightRagEntityContext(
+        id=json_data["id"],
+        entity=json_data["entity"],
+        type=json_data["type"],
+        description=json_data.get("description"),
+        rank=json_data.get("rank"),
+        created_at=created_at,
+        file_path=file_path,
+    )
+
+
+def json_to_relation_context(json_data: dict) -> LightRagRelationContext:
+    """
+    Convert LightRAG relation JSON to LightRagRelationContext.
+
+    Args:
+        json_data: Dict with keys like 'id', 'entity1', 'entity2', 'description',
+                  'keywords', 'weight', 'rank', 'created_at', 'file_path'
+
+    Returns:
+        LightRagRelationContext instance
+    """
+    # Parse datetime from string
+    created_at = datetime.strptime(json_data["created_at"], "%Y-%m-%d %H:%M:%S")
+
+    # Parse file_path - split by <SEP> if it's a string, or keep as list if already a list
+    file_path = None
+    if json_data.get("file_path"):
+        if isinstance(json_data["file_path"], str):
+            file_path = json_data["file_path"].split(GRAPH_FIELD_SEP)
+        elif isinstance(json_data["file_path"], list):
+            file_path = json_data["file_path"]
+
+    return LightRagRelationContext(
+        id=json_data["id"],
+        entity1=json_data["entity1"],
+        entity2=json_data["entity2"],
+        description=json_data.get("description"),
+        keywords=json_data.get("keywords"),
+        weight=json_data.get("weight"),
+        rank=json_data.get("rank"),
+        created_at=created_at,
+        file_path=file_path,
+    )
+
+
+def json_to_text_unit_context(json_data: dict) -> LightRagTextUnitContext:
+    """
+    Convert LightRAG text unit JSON to LightRagTextUnitContext.
+
+    Args:
+        json_data: Dict with keys like 'id', 'content', 'file_path'
+
+    Returns:
+        LightRagTextUnitContext instance
+    """
+    # Parse file_path - split by <SEP> if it's a string, or keep as list if already a list
+    file_path = None
+    if json_data.get("file_path"):
+        if isinstance(json_data["file_path"], str):
+            file_path = json_data["file_path"].split(GRAPH_FIELD_SEP)
+        elif isinstance(json_data["file_path"], list):
+            file_path = json_data["file_path"]
+
+    return LightRagTextUnitContext(id=json_data["id"], content=json_data["content"], file_path=file_path)
+
+
+def json_list_to_entity_contexts(json_list: List[dict]) -> List[LightRagEntityContext]:
+    return [json_to_entity_context(json_data) for json_data in json_list]
+
+
+def json_list_to_relation_contexts(json_list: List[dict]) -> List[LightRagRelationContext]:
+    return [json_to_relation_context(json_data) for json_data in json_list]
+
+
+def json_list_to_text_unit_contexts(json_list: List[dict]) -> List[LightRagTextUnitContext]:
+    return [json_to_text_unit_context(json_data) for json_data in json_list]
