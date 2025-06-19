@@ -354,7 +354,6 @@ class IndexTaskCallbacks:
     def on_index_failed(document_id: str, index_type: str, error_message: str):
         """任务失败回调"""
         # 更新数据库状态
-        doc_index.mark_failed(error_message)
         doc_index.actual_state = IndexActualState.FAILED
         doc_index.error_message = error_message
         

@@ -29,6 +29,7 @@ from aperag.db.models import (
     IndexDesiredState,
 )
 from aperag.tasks.scheduler import TaskScheduler, create_task_scheduler
+from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -207,8 +208,8 @@ class BackendIndexReconciler:
                     .where(and_(*where_conditions))
                     .values(
                         actual_state=target_state,
-                        gmt_updated=func.now(),
-                        gmt_last_reconciled=func.now()
+                        gmt_updated=utc_now(),
+                        gmt_last_reconciled=utc_now()
                     )
                 )
                 
@@ -291,61 +292,99 @@ class IndexTaskCallbacks:
     def on_index_created(document_id: str, index_type: str, index_data: str = None):
         """Called when index creation succeeds"""
         for session in get_sync_session():
-            stmt = select(DocumentIndex).where(
-                and_(
-                    DocumentIndex.document_id == document_id,
-                    DocumentIndex.index_type == DocumentIndexType(index_type),
+            # Use atomic update with state validation
+            update_stmt = (
+                update(DocumentIndex)
+                .where(
+                    and_(
+                        DocumentIndex.document_id == document_id,
+                        DocumentIndex.index_type == DocumentIndexType(index_type),
+                        DocumentIndex.actual_state == IndexActualState.CREATING,  # Only allow transition from CREATING
+                    )
+                )
+                .values(
+                    actual_state=IndexActualState.PRESENT,
+                    observed_version=DocumentIndex.version,  # Mark as processed
+                    index_data=index_data,
+                    error_message=None,
+                    gmt_updated=utc_now(),
+                    gmt_last_reconciled=utc_now(),
                 )
             )
-            result = session.execute(stmt)
-            doc_index = result.scalar_one_or_none()
-
-            if doc_index:
-                doc_index.mark_present(index_data)
-            IndexTaskCallbacks._update_document_status(document_id, session)
-
-            logger.info(f"{index_type} index creation completed for document {document_id}")
-            session.commit()
+            
+            result = session.execute(update_stmt)
+            if result.rowcount > 0:
+                IndexTaskCallbacks._update_document_status(document_id, session)
+                logger.info(f"{index_type} index creation completed for document {document_id}")
+                session.commit()
+            else:
+                logger.warning(f"Index creation callback ignored for document {document_id} type {index_type} - not in CREATING state")
+                session.rollback()
 
     @staticmethod
     def on_index_failed(document_id: str, index_type: str, error_message: str):
         """Called when index operation fails"""
         for session in get_sync_session():
-            stmt = select(DocumentIndex).where(
-                and_(
-                    DocumentIndex.document_id == document_id,
-                    DocumentIndex.index_type == DocumentIndexType(index_type),
+            # Use atomic update with state validation
+            update_stmt = (
+                update(DocumentIndex)
+                .where(
+                    and_(
+                        DocumentIndex.document_id == document_id,
+                        DocumentIndex.index_type == DocumentIndexType(index_type),
+                        # Only allow transition from CREATING or DELETING states
+                        DocumentIndex.actual_state.in_([IndexActualState.CREATING, IndexActualState.DELETING]),
+                    )
+                )
+                .values(
+                    actual_state=IndexActualState.FAILED,
+                    error_message=error_message,
+                    gmt_updated=utc_now(),
+                    gmt_last_reconciled=utc_now(),
                 )
             )
-            result = session.execute(stmt)
-            doc_index = result.scalar_one_or_none()
-
-            if doc_index:
-                doc_index.mark_failed(error_message)
-            IndexTaskCallbacks._update_document_status(document_id, session)
-
-            logger.error(f"{index_type} index operation failed for document {document_id}: {error_message}")
-            session.commit()
+            
+            result = session.execute(update_stmt)
+            if result.rowcount > 0:
+                IndexTaskCallbacks._update_document_status(document_id, session)
+                logger.error(f"{index_type} index operation failed for document {document_id}: {error_message}")
+                session.commit()
+            else:
+                logger.warning(f"Index failure callback ignored for document {document_id} type {index_type} - not in CREATING or DELETING state")
+                session.rollback()
 
     @staticmethod
     def on_index_deleted(document_id: str, index_type: str):
         """Called when index deletion succeeds"""
         for session in get_sync_session():
-            stmt = select(DocumentIndex).where(
-                and_(
-                    DocumentIndex.document_id == document_id,
-                    DocumentIndex.index_type == DocumentIndexType(index_type),
+            # Use atomic update with state validation
+            update_stmt = (
+                update(DocumentIndex)
+                .where(
+                    and_(
+                        DocumentIndex.document_id == document_id,
+                        DocumentIndex.index_type == DocumentIndexType(index_type),
+                        DocumentIndex.actual_state == IndexActualState.DELETING,  # Only allow transition from DELETING
+                    )
+                )
+                .values(
+                    actual_state=IndexActualState.ABSENT,
+                    observed_version=DocumentIndex.version,  # Mark as processed
+                    index_data=None,
+                    error_message=None,
+                    gmt_updated=utc_now(),
+                    gmt_last_reconciled=utc_now(),
                 )
             )
-            result = session.execute(stmt)
-            doc_index = result.scalar_one_or_none()
-
-            if doc_index:
-                doc_index.mark_absent()
-            IndexTaskCallbacks._update_document_status(document_id, session)
-
-            logger.info(f"{index_type} index deletion completed for document {document_id}")
-            session.commit()
+            
+            result = session.execute(update_stmt)
+            if result.rowcount > 0:
+                IndexTaskCallbacks._update_document_status(document_id, session)
+                logger.info(f"{index_type} index deletion completed for document {document_id}")
+                session.commit()
+            else:
+                logger.warning(f"Index deletion callback ignored for document {document_id} type {index_type} - not in DELETING state")
+                session.rollback()
 
 
 # Global instance

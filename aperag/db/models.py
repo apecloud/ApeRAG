@@ -727,19 +727,6 @@ class DocumentIndex(Base):
     def __repr__(self):
         return f"<DocumentIndex(id={self.id}, document_id={self.document_id}, type={self.index_type}, desired={self.desired_state}, actual={self.actual_state})>"
 
-    def needs_reconciliation(self) -> bool:
-        """Check if this index needs reconciliation"""
-        # Check version first - if observed_version < version, need reconciliation
-        if self.observed_version < self.version:
-            return True
-
-        # Then check state consistency
-        if self.desired_state == IndexDesiredState.PRESENT:
-            return self.actual_state in [IndexActualState.ABSENT, IndexActualState.FAILED]
-        elif self.desired_state == IndexDesiredState.ABSENT:
-            return self.actual_state in [IndexActualState.CREATING, IndexActualState.PRESENT]
-        return False
-
     def is_in_sync(self) -> bool:
         """Check if desired and actual states are in sync"""
         if self.observed_version < self.version:
@@ -759,41 +746,3 @@ class DocumentIndex(Base):
             self.created_by = created_by
         self.version += 1
         self.gmt_updated = utc_now()
-
-    def mark_creating(self):
-        """Mark as creating"""
-        self.actual_state = IndexActualState.CREATING
-        self.gmt_updated = utc_now()
-        self.gmt_last_reconciled = utc_now()
-
-    def mark_present(self, index_data: str = None):
-        """Mark as present (successfully created)"""
-        self.actual_state = IndexActualState.PRESENT
-        self.observed_version = self.version  # Mark as processed
-        self.error_message = None
-        if index_data:
-            self.index_data = index_data
-        self.gmt_updated = utc_now()
-        self.gmt_last_reconciled = utc_now()
-
-    def mark_deleting(self):
-        """Mark as deleting"""
-        self.actual_state = IndexActualState.DELETING
-        self.gmt_updated = utc_now()
-        self.gmt_last_reconciled = utc_now()
-
-    def mark_absent(self):
-        """Mark as absent (successfully deleted)"""
-        self.actual_state = IndexActualState.ABSENT
-        self.observed_version = self.version  # Mark as processed
-        self.index_data = None
-        self.error_message = None
-        self.gmt_updated = utc_now()
-        self.gmt_last_reconciled = utc_now()
-
-    def mark_failed(self, error_message: str):
-        """Mark as failed"""
-        self.actual_state = IndexActualState.FAILED
-        self.error_message = error_message
-        self.gmt_updated = utc_now()
-        self.gmt_last_reconciled = utc_now()
