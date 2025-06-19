@@ -41,9 +41,9 @@ from typing import (
     AsyncIterator,
     Callable,
     Dict,
-    Iterator,
     List,
     Optional,
+    Tuple,
     final,
 )
 
@@ -67,6 +67,7 @@ from .base import (
 )
 from .namespace import NameSpace
 from .operate import (
+    build_query_context,
     chunking_by_token_size,
     extract_entities,
     kg_query,
@@ -79,7 +80,6 @@ from .utils import (
     EmbeddingFunc,
     TiktokenTokenizer,
     Tokenizer,
-    always_get_an_event_loop,
     check_storage_env_vars,
     clean_text,
     compute_mdhash_id,
@@ -737,33 +737,59 @@ class LightRAG:
 
     # ============= End of New Stateless Interfaces =============
 
-    def query(
+    async def aquery_context(
         self,
         query: str,
         param: QueryParam = QueryParam(),
-        system_prompt: str | None = None,
-    ) -> str | Iterator[str]:
+    ):
+        param.original_query = query
+        entities_context, relations_context, text_units_context = await build_query_context(
+            query.strip(),
+            self.chunk_entity_relation_graph,
+            self.entities_vdb,
+            self.relationships_vdb,
+            self.text_chunks,
+            param,
+            self.tokenizer,
+            self.llm_model_func,
+            self.addon_params,
+            chunks_vdb=self.chunks_vdb,
+        )
+
+        # 转换为 JSON 字符串
+        import json
+
+        entities_str = json.dumps(entities_context, ensure_ascii=False)
+        relations_str = json.dumps(relations_context, ensure_ascii=False)
+        text_units_str = json.dumps(text_units_context, ensure_ascii=False)
+
+        context = f"""-----Entities(KG)-----
+
+        ```json
+        {entities_str}
+        ```
+
+        -----Relationships(KG)-----
+
+        ```json
+        {relations_str}
+        ```
+
+        -----Document Chunks(DC)-----
+
+        ```json
+        {text_units_str}
+        ```
+
         """
-        Perform a sync query.
-
-        Args:
-            query (str): The query to be executed.
-            param (QueryParam): Configuration parameters for query execution.
-            prompt (Optional[str]): Custom prompts for fine-tuned control over the system's behavior. Defaults to None, which uses PROMPTS["rag_response"].
-
-        Returns:
-            str: The result of the query execution.
-        """
-        loop = always_get_an_event_loop()
-
-        return loop.run_until_complete(self.aquery(query, param, system_prompt))  # type: ignore
+        return context
 
     async def aquery(
         self,
         query: str,
         param: QueryParam = QueryParam(),
         system_prompt: str | None = None,
-    ) -> str | AsyncIterator[str]:
+    ) -> str | AsyncIterator[str] | Tuple[dict, dict, dict]:
         """
         Perform a async query.
 
