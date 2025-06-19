@@ -479,6 +479,28 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
 
         return await self._execute_query(_query)
 
+    async def query_llm_provider_models_by_provider_list(self, provider_names: list):
+        """Get all active LLM provider models for a list of providers
+
+        Args:
+            provider_names: List of provider names to filter by
+
+        Returns:
+            List of LLMProviderModel objects
+        """
+
+        async def _query(session):
+            if not provider_names:
+                return []
+
+            stmt = select(LLMProviderModel).where(
+                LLMProviderModel.provider_name.in_(provider_names), LLMProviderModel.gmt_deleted.is_(None)
+            )
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+        return await self._execute_query(_query)
+
     async def query_llm_provider_model(self, provider_name: str, api: str, model: str):
         """Get a specific LLM provider model"""
 

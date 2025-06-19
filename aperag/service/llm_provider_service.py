@@ -75,6 +75,8 @@ async def get_llm_configuration(user_id: str, is_admin: bool = False):
     providers = await async_db_ops.query_llm_providers(user_id=user_id, need_public=need_public)
 
     providers_data = []
+    provider_names = []
+
     for provider in providers:
         provider_data = {
             "name": provider.name,
@@ -90,15 +92,16 @@ async def get_llm_configuration(user_id: str, is_admin: bool = False):
             "updated": provider.gmt_updated,
         }
 
-        # Add masked API key (query_llm_providers already filtered by access permissions)
+        # Add masked API key (providers already filtered by access permissions)
         api_key = await async_db_ops.query_provider_api_key(provider.name, user_id)
         if api_key:
             provider_data["api_key"] = mask_api_key(api_key)
 
         providers_data.append(provider_data)
+        provider_names.append(provider.name)
 
-    # Get all models (models are not user-specific)
-    models = await async_db_ops.query_llm_provider_models()
+    # Get models only for the providers user has access to
+    models = await async_db_ops.query_llm_provider_models_by_provider_list(provider_names)
     models_data = []
 
     for model in models:
