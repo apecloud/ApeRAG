@@ -70,10 +70,9 @@ async def create_lightrag_instance(collection: Collection) -> LightRAG:
         kv_storage = os.environ.get("LIGHTRAG_KV_STORAGE")
         vector_storage = os.environ.get("LIGHTRAG_VECTOR_STORAGE")
         graph_storage = os.environ.get("LIGHTRAG_GRAPH_STORAGE")
-        doc_status_storage = os.environ.get("LIGHTRAG_DOC_STATUS_STORAGE")
 
         # Configure storage backends
-        await _configure_storage_backends(kv_storage, vector_storage, graph_storage, doc_status_storage)
+        await _configure_storage_backends(kv_storage, vector_storage, graph_storage)
 
         # Create LightRAG instance
         rag = LightRAG(
@@ -94,7 +93,6 @@ async def create_lightrag_instance(collection: Collection) -> LightRAG:
             kv_storage=kv_storage,
             vector_storage=vector_storage,
             graph_storage=graph_storage,
-            doc_status_storage=doc_status_storage,
         )
 
         await rag.initialize_storages()
@@ -292,7 +290,7 @@ async def _gen_llm_func(collection: Collection) -> Callable[..., Awaitable[str]]
         raise LightRAGError(f"Failed to create LLM function: {str(e)}") from e
 
 
-async def _configure_storage_backends(kv_storage, vector_storage, graph_storage, doc_status_storage):
+async def _configure_storage_backends(kv_storage, vector_storage, graph_storage):
     """Configure storage backends based on environment variables"""
 
     # Configure PostgreSQL if needed
@@ -301,7 +299,6 @@ async def _configure_storage_backends(kv_storage, vector_storage, graph_storage,
             kv_storage in ["PGKVStorage", "PGSyncKVStorage", "PGOpsSyncKVStorage"],
             vector_storage in ["PGVectorStorage", "PGSyncVectorStorage", "PGOpsSyncVectorStorage"],
             graph_storage == "PGGraphStorage",
-            doc_status_storage in ["PGDocStatusStorage", "PGSyncDocStatusStorage", "PGOpsSyncDocStatusStorage"],
         ]
     )
 

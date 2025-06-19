@@ -93,13 +93,6 @@ STORAGE_IMPLEMENTATIONS = {
         ],
         "required_methods": ["query", "upsert"],
     },
-    "DOC_STATUS_STORAGE": {
-        "implementations": [
-            "PGDocStatusStorage",
-            "PGOpsSyncDocStatusStorage",
-        ],
-        "required_methods": ["get_docs_by_status"],
-    },
 }
 
 # Storage implementation environment variable without default value

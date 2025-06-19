@@ -35,7 +35,6 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from functools import partial
 from typing import (
     Any,
@@ -63,8 +62,6 @@ from .base import (
     BaseGraphStorage,
     BaseKVStorage,
     BaseVectorStorage,
-    DocStatus,
-    DocStatusStorage,
     QueryParam,
     StoragesStatus,
 )
@@ -87,7 +84,6 @@ from .utils import (
     clean_text,
     compute_mdhash_id,
     create_lightrag_logger,
-    get_content_summary,
     lazy_external_import,
     logger,
 )
@@ -109,9 +105,6 @@ class LightRAG:
 
     graph_storage: str = field(default="Neo4JSyncStorage")
     """Storage backend for knowledge graphs."""
-
-    doc_status_storage: str = field(default="PGOpsSyncDocStatusStorage")
-    """Storage type for tracking document processing statuses."""
 
     # Entity extraction
     # ---
@@ -254,7 +247,6 @@ class LightRAG:
             ("KV_STORAGE", self.kv_storage),
             ("VECTOR_STORAGE", self.vector_storage),
             ("GRAPH_STORAGE", self.graph_storage),
-            ("DOC_STATUS_STORAGE", self.doc_status_storage),
         ]
 
         for storage_type, storage_name in storage_configs:
@@ -283,15 +275,6 @@ class LightRAG:
         )
         self.graph_storage_cls = partial(  # type: ignore
             self.graph_storage_cls
-        )
-
-        # Initialize document status storage
-        self.doc_status_storage_cls = self._get_storage_class(self.doc_status_storage)
-
-        self.full_docs: BaseKVStorage = self.key_string_value_json_storage_cls(  # type: ignore
-            namespace=NameSpace.KV_STORE_FULL_DOCS,
-            workspace=self.workspace,
-            embedding_func=self.embedding_func,
         )
 
         # TODO: deprecating, text_chunks is redundant with chunks_vdb
@@ -331,13 +314,6 @@ class LightRAG:
             meta_fields={"full_doc_id", "content", "file_path"},
         )
 
-        # Initialize document status storage
-        self.doc_status: DocStatusStorage = self.doc_status_storage_cls(
-            namespace=NameSpace.DOC_STATUS,
-            workspace=self.workspace,
-            embedding_func=None,
-        )
-
         self._storages_status = StoragesStatus.CREATED
 
     async def initialize_storages(self):
@@ -346,13 +322,11 @@ class LightRAG:
             tasks = []
 
             for storage in (
-                self.full_docs,
                 self.text_chunks,
                 self.entities_vdb,
                 self.relationships_vdb,
                 self.chunks_vdb,
                 self.chunk_entity_relation_graph,
-                self.doc_status,
             ):
                 if storage:
                     tasks.append(storage.initialize())
@@ -368,13 +342,11 @@ class LightRAG:
             tasks = []
 
             for storage in (
-                self.full_docs,
                 self.text_chunks,
                 self.entities_vdb,
                 self.relationships_vdb,
                 self.chunks_vdb,
                 self.chunk_entity_relation_graph,
-                self.doc_status,
             ):
                 if storage:
                     tasks.append(storage.finalize())
@@ -655,27 +627,12 @@ class LightRAG:
             if not chunks:
                 raise ValueError(f"No valid chunks created for document {doc_id}")
 
-            # Prepare complete status data
-            status_data = {
-                "status": DocStatus.PROCESSING,
-                "content": cleaned_content,
-                "content_summary": get_content_summary(cleaned_content),
-                "content_length": len(cleaned_content),
-                "chunks_count": len(chunks),
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-                "file_path": file_path,
-            }
-
             # Write to storage (avoid concurrent operations on same connection)
-            doc_data = {doc_id: {"content": cleaned_content}}
             logger.info(f"LightRAG: About to upsert {len(chunks)} chunks to storages")
-            await self.full_docs.upsert(doc_data)
             logger.info(f"LightRAG: Calling chunks_vdb.upsert with {len(chunks)} chunks")
             await self.chunks_vdb.upsert(chunks)
             logger.info(f"LightRAG: Calling text_chunks.upsert with {len(chunks)} chunks")
             await self.text_chunks.upsert(chunks)
-            await self.doc_status.upsert({doc_id: status_data})
             logger.info(f"LightRAG: Completed all upsert operations for {doc_id}")
 
             logger.info(f"Inserted and chunked document {doc_id}: {len(chunks)} chunks")
@@ -869,11 +826,6 @@ class LightRAG:
             doc_id: Document ID to delete
         """
         try:
-            # 1. Get the document status and related data
-            if not await self.doc_status.get_by_id(doc_id):
-                logger.warning(f"Document {doc_id} not found")
-                return
-
             logger.debug(f"Starting deletion for document {doc_id}")
 
             # 2. Get all chunks related to this document
@@ -991,10 +943,6 @@ class LightRAG:
                     await self.chunk_entity_relation_graph.upsert_edge(src, tgt, edge_data)
                     logger.debug(f"Updated relationship {src}-{tgt} with new source_id: {new_source_id}")
 
-            # 6. Delete original document and status
-            await self.full_docs.delete([doc_id])
-            await self.doc_status.delete([doc_id])
-
             logger.info(
                 f"Successfully deleted document {doc_id} and related data. "
                 f"Deleted {len(entities_to_delete)} entities and {len(relationships_to_delete)} relationships. "
@@ -1043,10 +991,6 @@ class LightRAG:
 
             # Add verification step
             async def verify_deletion():
-                # Verify if the document has been deleted
-                if await self.full_docs.get_by_id(doc_id):
-                    logger.warning(f"Document {doc_id} still exists in full_docs")
-
                 # Verify if chunks have been deleted
                 all_remaining_chunks = await self.text_chunks.get_all()
                 remaining_related_chunks = {
