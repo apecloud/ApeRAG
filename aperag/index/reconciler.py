@@ -38,17 +38,17 @@ class BackendIndexReconciler:
 
     def __init__(self, task_scheduler: Optional[TaskScheduler] = None, scheduler_type: str = "celery"):
         self.task_scheduler = task_scheduler or create_task_scheduler(scheduler_type)
-    
+
     @staticmethod
     def _get_reconciliation_conditions(operation_type: str, document_ids: List[str] = None):
         """
         Get all conditions for indexes that need reconciliation based on operation type.
         This is the authoritative source for determining which indexes can be processed.
-        
+
         Args:
             operation_type: 'create', 'update', or 'delete'
             document_ids: Optional list of document IDs to filter by
-            
+
         Returns:
             List of SQLAlchemy conditions
         """
@@ -74,10 +74,10 @@ class BackendIndexReconciler:
             ]
         else:
             raise ValueError(f"Unknown operation_type: {operation_type}")
-        
+
         if document_ids:
             conditions.append(DocumentIndex.document_id.in_(document_ids))
-        
+
         return conditions
 
     def reconcile_all(self, document_ids: List[str] = None):
@@ -100,6 +100,7 @@ class BackendIndexReconciler:
 
         # Group by document ID and operation type for batch processing
         from collections import defaultdict
+
         doc_operations = defaultdict(lambda: {"create": [], "update": [], "delete": []})
 
         for doc_index in all_indexes_needing_reconciliation:
@@ -132,7 +133,9 @@ class BackendIndexReconciler:
 
         logger.info(f"Reconciliation completed: {successful_docs} successful, {failed_docs} failed")
 
-    def _get_indexes_needing_reconciliation(self, session: Session, document_ids: List[str] = None) -> List[DocumentIndex]:
+    def _get_indexes_needing_reconciliation(
+        self, session: Session, document_ids: List[str] = None
+    ) -> List[DocumentIndex]:
         """
         Get all indexes that need reconciliation without modifying their state.
         State modifications will happen in individual document transactions.
@@ -162,7 +165,7 @@ class BackendIndexReconciler:
         for session in get_sync_session():
             # Get the specific indexes for this document and claim them atomically
             indexes_to_claim = []
-            
+
             # Collect indexes for this document that need claiming
             for operation_type, doc_indexes in operations.items():
                 for doc_index in doc_indexes:
@@ -170,7 +173,7 @@ class BackendIndexReconciler:
 
             # Atomically claim the indexes for this document
             claimed_successfully = self._claim_document_indexes(session, document_id, indexes_to_claim)
-            
+
             if claimed_successfully:
                 # Schedule tasks for successfully claimed indexes
                 self._reconcile_document_operations(document_id, operations)
@@ -201,17 +204,13 @@ class BackendIndexReconciler:
                     DocumentIndex.id == index_id,
                     DocumentIndex.document_id == document_id,
                 ] + base_conditions
-                
+
                 update_stmt = (
                     update(DocumentIndex)
                     .where(and_(*where_conditions))
-                    .values(
-                        actual_state=target_state,
-                        gmt_updated=func.now(),
-                        gmt_last_reconciled=func.now()
-                    )
+                    .values(actual_state=target_state, gmt_updated=func.now(), gmt_last_reconciled=func.now())
                 )
-                
+
                 result = session.execute(update_stmt)
                 if result.rowcount == 0:
                     # This index couldn't be claimed (already being processed)

@@ -611,14 +611,14 @@ def timing_wrapper(operation_name: str):
                 if lightrag_logger:
                     lightrag_logger.log_timing(operation_name, duration)
                 else:
-                    logger.info(f"⏱️  {operation_name}: {duration:.3f}s")
+                    logger.info(f"LightRAG Timing:  {operation_name}: {duration:.3f}s")
                 return result
             except Exception:
                 duration = time.time() - start_time
                 if lightrag_logger:
                     lightrag_logger.log_timing(f"{operation_name} (FAILED)", duration)
                 else:
-                    logger.info(f"⏱️  {operation_name} (FAILED): {duration:.3f}s")
+                    logger.info(f"LightRAG Timing:️  {operation_name} (FAILED): {duration:.3f}s")
                 raise
 
         return wrapper
