@@ -41,6 +41,8 @@ import time
 from collections import Counter, defaultdict
 from typing import Any, AsyncIterator
 
+from aperag.concurrent_control import MultiLock, get_or_create_lock
+
 from .base import (
     BaseGraphStorage,
     BaseKVStorage,
@@ -500,6 +502,8 @@ async def _merge_edges_then_upsert(
 @timing_wrapper("Merge & Update")
 async def merge_nodes_and_edges(
     chunk_results: list,
+    component: list[str] | None,
+    workspace: str,
     knowledge_graph_inst: BaseGraphStorage,
     entity_vdb: BaseVectorStorage,
     relationships_vdb: BaseVectorStorage,
@@ -510,8 +514,81 @@ async def merge_nodes_and_edges(
     addon_params,
     force_llm_summary_on_merge,
     lightrag_logger: LightRAGLogger | None = None,
-) -> None:
-    """Merge nodes and edges from extraction results"""
+) -> dict[str, int]:
+    """Merge nodes and edges from extraction results
+
+    Args:
+        chunk_results: List of (nodes_dict, edges_dict) tuples
+        component: List of entity names in this component (for locking)
+        workspace: Workspace identifier for lock creation
+        knowledge_graph_inst: Knowledge graph storage
+        entity_vdb: Entity vector database
+        relationships_vdb: Relationships vector database
+        llm_model_func: LLM function
+        tokenizer: Tokenizer
+        llm_model_max_token_size: Max token size for LLM
+        summary_to_max_tokens: Max tokens for summary
+        addon_params: Additional parameters
+        force_llm_summary_on_merge: Force LLM summary threshold
+        lightrag_logger: Optional logger
+
+    Returns:
+        Dict with entity_count and relation_count
+    """
+
+    # Create locks for all entities in this component if component is provided
+    if component:
+        entity_locks = []
+        for entity_name in sorted(component):  # Sort to prevent deadlock
+            lock = get_or_create_lock(f"entity:{entity_name}:{workspace}")
+            entity_locks.append(lock)
+
+        # Use MultiLock to acquire all locks for this component
+        async with MultiLock(entity_locks):
+            return await _merge_nodes_and_edges_impl(
+                chunk_results,
+                knowledge_graph_inst,
+                entity_vdb,
+                relationships_vdb,
+                llm_model_func,
+                tokenizer,
+                llm_model_max_token_size,
+                summary_to_max_tokens,
+                addon_params,
+                force_llm_summary_on_merge,
+                lightrag_logger,
+            )
+    else:
+        # No locking if no component specified (backward compatibility)
+        return await _merge_nodes_and_edges_impl(
+            chunk_results,
+            knowledge_graph_inst,
+            entity_vdb,
+            relationships_vdb,
+            llm_model_func,
+            tokenizer,
+            llm_model_max_token_size,
+            summary_to_max_tokens,
+            addon_params,
+            force_llm_summary_on_merge,
+            lightrag_logger,
+        )
+
+
+async def _merge_nodes_and_edges_impl(
+    chunk_results: list,
+    knowledge_graph_inst: BaseGraphStorage,
+    entity_vdb: BaseVectorStorage,
+    relationships_vdb: BaseVectorStorage,
+    llm_model_func,
+    tokenizer,
+    llm_model_max_token_size,
+    summary_to_max_tokens,
+    addon_params,
+    force_llm_summary_on_merge,
+    lightrag_logger: LightRAGLogger | None = None,
+) -> dict[str, int]:
+    """Internal implementation of merge_nodes_and_edges"""
 
     # Collect all nodes and edges from all chunks
     all_nodes = defaultdict(list)
@@ -592,6 +669,10 @@ async def merge_nodes_and_edges(
             for dp in relationships_data
         }
         await relationships_vdb.upsert(data_for_vdb)
+
+    entity_count = len(entities_data)
+    relation_count = len(relationships_data)
+    return {"entity_count": entity_count, "relation_count": relation_count}
 
 
 @timing_wrapper("Entity Extraction")

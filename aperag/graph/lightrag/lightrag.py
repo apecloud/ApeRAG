@@ -47,7 +47,6 @@ from typing import (
     final,
 )
 
-from aperag.concurrent_control import MultiLock, get_or_create_lock
 from aperag.graph.lightrag.constants import (
     DEFAULT_FORCE_LLM_SUMMARY_ON_MERGE,
     DEFAULT_MAX_TOKEN_SUMMARY,
@@ -450,7 +449,6 @@ class LightRAG:
 
         Args:
             chunk_results: List of (nodes_dict, edges_dict) from entity extraction
-            components: List of entity groups (connected components)
             collection_id: Optional collection ID for logging
 
         Returns:
@@ -461,9 +459,8 @@ class LightRAG:
         workspace = self.workspace if self.workspace else "default"
         lightrag_logger = create_lightrag_logger(prefix="LightRAG-GraphIndex", workspace=workspace)
 
-        total_entities = 0
-        total_relations = 0
-        processed_groups = 0
+        # Prepare component data for parallel processing
+        component_tasks = []
 
         for i, component in enumerate(components):
             # Create a set for quick lookup
@@ -493,19 +490,31 @@ class LightRAG:
             if not component_chunk_results:
                 continue
 
-            # Create locks for all entities in this component
-            entity_locks = []
-            for entity_name in sorted(component):  # Sort to prevent deadlock
-                lock = get_or_create_lock(f"entity:{entity_name}:{self.workspace}")
-                entity_locks.append(lock)
+            # Add task data for this component
+            component_tasks.append(
+                {
+                    "index": i,
+                    "component": component,
+                    "component_chunk_results": component_chunk_results,
+                    "total_components": len(components),
+                }
+            )
 
-            lightrag_logger.info(f"Processing component {i + 1}/{len(components)} with {len(component)} entities")
+        # Process components concurrently with semaphore
+        semaphore = asyncio.Semaphore(self.llm_model_max_async)
 
-            # Use MultiLock to acquire all locks for this component
-            async with MultiLock(entity_locks):
-                # Merge nodes and edges for this component
-                await merge_nodes_and_edges(
-                    chunk_results=component_chunk_results,
+        async def _process_component_with_semaphore(task_data):
+            async with semaphore:
+                lightrag_logger.info(
+                    f"Processing component {task_data['index'] + 1}/{task_data['total_components']} "
+                    f"with {len(task_data['component'])} entities"
+                )
+
+                # Call merge_nodes_and_edges with component information
+                result = await merge_nodes_and_edges(
+                    chunk_results=task_data["component_chunk_results"],
+                    component=task_data["component"],
+                    workspace=self.workspace,
                     knowledge_graph_inst=self.chunk_entity_relation_graph,
                     entity_vdb=self.entities_vdb,
                     relationships_vdb=self.relationships_vdb,
@@ -518,17 +527,43 @@ class LightRAG:
                     lightrag_logger=lightrag_logger,
                 )
 
-            # Count entities and relations in this component
-            component_entity_count = sum(len(nodes) for nodes, _ in component_chunk_results)
-            component_relation_count = sum(len(edges) for _, edges in component_chunk_results)
+                lightrag_logger.info(
+                    f"Completed component {task_data['index'] + 1}: "
+                    f"{result['entity_count']} entities, {result['relation_count']} relations"
+                )
 
-            total_entities += component_entity_count
-            total_relations += component_relation_count
-            processed_groups += 1
+                return result
 
-            lightrag_logger.info(
-                f"Completed component {i + 1}: {component_entity_count} entities, {component_relation_count} relations"
-            )
+        # Create tasks for concurrent processing
+        tasks = []
+        for task_data in component_tasks:
+            task = asyncio.create_task(_process_component_with_semaphore(task_data))
+            tasks.append(task)
+
+        # Wait for all tasks to complete or for the first exception
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
+
+        # Check if any task raised an exception
+        for task in done:
+            if task.exception():
+                # Cancel all pending tasks
+                for pending_task in pending:
+                    pending_task.cancel()
+
+                # Wait for cancellation to complete
+                if pending:
+                    await asyncio.wait(pending)
+
+                # Re-raise the exception
+                raise task.exception()
+
+        # Collect results from all tasks
+        results = [task.result() for task in tasks]
+
+        # Calculate totals
+        total_entities = sum(r["entity_count"] for r in results)
+        total_relations = sum(r["relation_count"] for r in results)
+        processed_groups = len(results)
 
         return {
             "groups_processed": processed_groups,
