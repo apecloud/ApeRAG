@@ -110,7 +110,16 @@ async def get_audit_log(
         # Extract resource_id for this specific log
         resource_id = None
         if audit_log.resource_type and audit_log.path:
-            resource_id = audit_service.extract_resource_id_from_path(audit_log.path, audit_log.resource_type)
+            # Convert string to enum if needed
+            resource_type_enum = audit_log.resource_type
+            if isinstance(audit_log.resource_type, str):
+                try:
+                    resource_type_enum = AuditResource(audit_log.resource_type)
+                except ValueError:
+                    resource_type_enum = None
+            
+            if resource_type_enum:
+                resource_id = audit_service.extract_resource_id_from_path(audit_log.path, resource_type_enum)
         
         # Calculate duration if both times are available
         duration_ms = None
@@ -121,7 +130,7 @@ async def get_audit_log(
             id=str(audit_log.id),
             user_id=audit_log.user_id,
             username=audit_log.username,
-            resource_type=audit_log.resource_type.value if audit_log.resource_type else None,
+            resource_type=audit_log.resource_type.value if hasattr(audit_log.resource_type, 'value') else audit_log.resource_type,
             resource_id=resource_id,
             api_name=audit_log.api_name,
             http_method=audit_log.http_method,

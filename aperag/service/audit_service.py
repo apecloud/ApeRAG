@@ -270,7 +270,18 @@ class AuditService:
             # Extract resource_id for each log during query time
             for log in audit_logs:
                 if log.resource_type and log.path:
-                    log.resource_id = self.extract_resource_id_from_path(log.path, log.resource_type)
+                    # Convert string to enum if needed
+                    resource_type_enum = log.resource_type
+                    if isinstance(log.resource_type, str):
+                        try:
+                            resource_type_enum = AuditResource(log.resource_type)
+                        except ValueError:
+                            resource_type_enum = None
+                    
+                    if resource_type_enum:
+                        log.resource_id = self.extract_resource_id_from_path(log.path, resource_type_enum)
+                    else:
+                        log.resource_id = None
                 
                 # Calculate duration if both times are available
                 if log.start_time and log.end_time:
