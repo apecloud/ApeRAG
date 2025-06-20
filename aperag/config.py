@@ -60,6 +60,9 @@ class Config(BaseSettings):
     logto_domain: str = Field("aperag.authing.cn", alias="LOGTO_DOMAIN")
     logto_app_id: str = Field("", alias="LOGTO_APP_ID")
 
+    # Task Scheduler
+    task_scheduler_type: str = Field("celery", alias="TASK_SCHEDULER_TYPE")  # Options: celery, prefect, local
+
     # Celery
     celery_broker_url: str = Field("redis://localhost:6379/0", alias="CELERY_BROKER_URL")
     celery_result_backend: Optional[str] = None  # Will be set in __post_init__
@@ -222,3 +225,13 @@ def with_async_session(func):
 
 AsyncSessionDep = Annotated[AsyncSession, Depends(get_async_session)]
 SyncSessionDep = Annotated[Session, Depends(get_sync_session)]
+
+
+def get_config() -> Config:
+    """
+    Get the global configuration instance.
+    
+    Returns:
+        Config: The application configuration
+    """
+    return settings

@@ -32,7 +32,8 @@ from aperag.schema.view_models import (
 )
 from aperag.utils.constant import QuotaType
 from aperag.views.utils import validate_source_connect_config
-from config.celery_tasks import collection_delete_task, collection_init_task
+from aperag.tasks.scheduler import create_task_scheduler
+from aperag.config import settings
 
 
 class CollectionService:
@@ -88,7 +89,12 @@ class CollectionService:
 
         # Initialize collection based on type
         document_user_quota = await self.db_ops.query_user_quota(user, QuotaType.MAX_DOCUMENT_COUNT)
-        collection_init_task.delay(instance.id, document_user_quota)
+        if not document_user_quota:
+            document_user_quota = 100
+        
+        # Use task scheduler to initialize collection
+        task_scheduler = create_task_scheduler(settings.task_scheduler_type)
+        task_scheduler.schedule_collection_init(instance.id, document_user_quota)
 
         return self.build_collection_response(instance)
 
@@ -148,7 +154,8 @@ class CollectionService:
 
         if deleted_instance:
             # Clean up related resources
-            collection_delete_task.delay(collection_id)
+            task_scheduler = create_task_scheduler(settings.task_scheduler_type)
+            task_scheduler.schedule_collection_delete(collection_id)
             return self.build_collection_response(deleted_instance)
 
         return None

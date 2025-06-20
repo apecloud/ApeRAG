@@ -55,14 +55,16 @@ def _trigger_index_reconciliation():
     we have real-time triggering.
     """
     try:
-        # Import here to avoid circular dependencies and handle missing celery gracefully
-        from config.celery_tasks import reconcile_indexes_task
+        # Import here to avoid circular dependencies
+        from aperag.tasks.scheduler import create_task_scheduler
+        from aperag.config import settings
 
-        # Trigger the reconciliation task asynchronously
-        reconcile_indexes_task.delay()
+        # Use task scheduler to trigger reconciliation
+        task_scheduler = create_task_scheduler(settings.task_scheduler_type)
+        task_scheduler.schedule_reconcile_indexes()
         logger.debug("Index reconciliation task triggered for real-time processing")
     except ImportError:
-        logger.warning("Celery not available, skipping index reconciliation trigger")
+        logger.warning("Task scheduler not available, skipping index reconciliation trigger")
     except Exception as e:
         logger.warning(f"Failed to trigger index reconciliation task: {e}")
 

@@ -28,6 +28,7 @@ from aperag.db.models import (
     IndexActualState,
     IndexDesiredState,
 )
+from aperag.config import settings
 from aperag.tasks.scheduler import TaskScheduler, create_task_scheduler
 from aperag.utils.utils import utc_now
 
@@ -391,5 +392,5 @@ class IndexTaskCallbacks:
 
 
 # Global instance
-index_reconciler = BackendIndexReconciler()
+index_reconciler = BackendIndexReconciler(scheduler_type=settings.task_scheduler_type)
 index_task_callbacks = IndexTaskCallbacks()

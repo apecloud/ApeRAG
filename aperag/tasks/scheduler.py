@@ -80,6 +80,48 @@ class TaskScheduler(ABC):
         pass
 
     @abstractmethod
+    def schedule_collection_init(self, collection_id: str, document_user_quota: int, **kwargs) -> str:
+        """
+        Schedule collection initialization task
+
+        Args:
+            collection_id: Collection ID to initialize
+            document_user_quota: User quota for documents
+            **kwargs: Additional arguments
+
+        Returns:
+            Task ID for tracking
+        """
+        pass
+
+    @abstractmethod
+    def schedule_collection_delete(self, collection_id: str, **kwargs) -> str:
+        """
+        Schedule collection deletion task
+
+        Args:
+            collection_id: Collection ID to delete
+            **kwargs: Additional arguments
+
+        Returns:
+            Task ID for tracking
+        """
+        pass
+
+    @abstractmethod
+    def schedule_reconcile_indexes(self, **kwargs) -> str:
+        """
+        Schedule index reconciliation task
+
+        Args:
+            **kwargs: Additional arguments
+
+        Returns:
+            Task ID for tracking
+        """
+        pass
+
+    @abstractmethod
     def get_task_status(self, task_id: str) -> Optional[TaskResult]:
         """
         Get task execution status
@@ -228,6 +270,37 @@ class LocalTaskScheduler(TaskScheduler):
 
         return self._execute_task(delete_single_index)
 
+    def schedule_collection_init(self, collection_id: str, document_user_quota: int, **kwargs) -> str:
+        """Schedule collection initialization task"""
+        def init_collection():
+            from aperag.tasks.collection import collection_task
+            result = collection_task.initialize_collection(collection_id, document_user_quota)
+            if not result.success:
+                raise Exception(result.error)
+            return result.to_dict()
+
+        return self._execute_task(init_collection)
+
+    def schedule_collection_delete(self, collection_id: str, **kwargs) -> str:
+        """Schedule collection deletion task"""
+        def delete_collection():
+            from aperag.tasks.collection import collection_task
+            result = collection_task.delete_collection(collection_id)
+            if not result.success:
+                raise Exception(result.error)
+            return result.to_dict()
+
+        return self._execute_task(delete_collection)
+
+    def schedule_reconcile_indexes(self, **kwargs) -> str:
+        """Schedule index reconciliation task"""
+        def reconcile_indexes():
+            from aperag.index.reconciler import index_reconciler
+            index_reconciler.reconcile_all()
+            return "Index reconciliation completed"
+
+        return self._execute_task(reconcile_indexes)
+
     def get_task_status(self, task_id: str) -> Optional[TaskResult]:
         """Get local task status"""
         return self._results.get(task_id)
@@ -310,22 +383,193 @@ class CeleryTaskScheduler(TaskScheduler):
             logger.error(f"Failed to get workflow status for {task_id}: {str(e)}")
             return TaskResult(task_id, success=False, error=str(e))
 
+    def schedule_collection_init(self, collection_id: str, document_user_quota: int, **kwargs) -> str:
+        """Schedule collection initialization task"""
+        from config.celery_tasks import collection_init_task
+        
+        try:
+            task_result = collection_init_task.delay(collection_id, document_user_quota)
+            task_id = task_result.id
+            logger.debug(f"Scheduled collection init task {task_id} for collection {collection_id}")
+            return task_id
+        except Exception as e:
+            logger.error(f"Failed to schedule collection init task for collection {collection_id}: {str(e)}")
+            raise
+
+    def schedule_collection_delete(self, collection_id: str, **kwargs) -> str:
+        """Schedule collection deletion task"""
+        from config.celery_tasks import collection_delete_task
+        
+        try:
+            task_result = collection_delete_task.delay(collection_id)
+            task_id = task_result.id
+            logger.debug(f"Scheduled collection delete task {task_id} for collection {collection_id}")
+            return task_id
+        except Exception as e:
+            logger.error(f"Failed to schedule collection delete task for collection {collection_id}: {str(e)}")
+            raise
+
+    def schedule_reconcile_indexes(self, **kwargs) -> str:
+        """Schedule index reconciliation task"""
+        from config.celery_tasks import reconcile_indexes_task
+        
+        try:
+            task_result = reconcile_indexes_task.delay()
+            task_id = task_result.id
+            logger.debug(f"Scheduled reconcile indexes task {task_id}")
+            return task_id
+        except Exception as e:
+            logger.error(f"Failed to schedule reconcile indexes task: {str(e)}")
+            raise
+
 
 class PrefectTaskScheduler(TaskScheduler):
     """Prefect implementation of TaskScheduler - Direct workflow execution"""
 
     def schedule_create_index(self, document_id: str, index_types: List[str], **kwargs) -> str:
         """Schedule index creation workflow"""
-        raise NotImplementedError("Prefect task scheduler is not implemented")
+        from config.prefect_tasks import create_document_indexes_flow
+
+        try:
+            # Execute workflow and return flow run ID
+            flow_state = create_document_indexes_flow(document_id, index_types)
+            flow_run_id = flow_state.id if hasattr(flow_state, 'id') else str(flow_state)
+            logger.debug(
+                f"Scheduled create indexes flow {flow_run_id} for document {document_id} with types {index_types}"
+            )
+            return flow_run_id
+        except Exception as e:
+            logger.error(f"Failed to schedule create indexes flow for document {document_id}: {str(e)}")
+            raise
 
     def schedule_update_index(self, document_id: str, index_types: List[str], **kwargs) -> str:
         """Schedule index update workflow"""
-        raise NotImplementedError("Prefect task scheduler is not implemented")
+        from config.prefect_tasks import update_document_indexes_flow
+
+        try:
+            # Execute workflow and return flow run ID
+            flow_state = update_document_indexes_flow(document_id, index_types)
+            flow_run_id = flow_state.id if hasattr(flow_state, 'id') else str(flow_state)
+            logger.debug(
+                f"Scheduled update indexes flow {flow_run_id} for document {document_id} with types {index_types}"
+            )
+            return flow_run_id
+        except Exception as e:
+            logger.error(f"Failed to schedule update indexes flow for document {document_id}: {str(e)}")
+            raise
 
     def schedule_delete_index(self, document_id: str, index_types: List[str], **kwargs) -> str:
         """Schedule index deletion workflow"""
-        raise NotImplementedError("Prefect task scheduler is not implemented")
+        from config.prefect_tasks import delete_document_indexes_flow
+
+        try:
+            # Execute workflow and return flow run ID
+            flow_state = delete_document_indexes_flow(document_id, index_types)
+            flow_run_id = flow_state.id if hasattr(flow_state, 'id') else str(flow_state)
+            logger.debug(
+                f"Scheduled delete indexes flow {flow_run_id} for document {document_id} with types {index_types}"
+            )
+            return flow_run_id
+        except Exception as e:
+            logger.error(f"Failed to schedule delete indexes flow for document {document_id}: {str(e)}")
+            raise
+
+    def schedule_collection_init(self, collection_id: str, document_user_quota: int, **kwargs) -> str:
+        """Schedule collection initialization workflow"""
+        from config.prefect_tasks import collection_init_flow
+
+        try:
+            flow_state = collection_init_flow(collection_id, document_user_quota)
+            flow_run_id = flow_state.id if hasattr(flow_state, 'id') else str(flow_state)
+            logger.debug(f"Scheduled collection init flow {flow_run_id} for collection {collection_id}")
+            return flow_run_id
+        except Exception as e:
+            logger.error(f"Failed to schedule collection init flow for collection {collection_id}: {str(e)}")
+            raise
+
+    def schedule_collection_delete(self, collection_id: str, **kwargs) -> str:
+        """Schedule collection deletion workflow"""
+        from config.prefect_tasks import collection_delete_flow
+
+        try:
+            flow_state = collection_delete_flow(collection_id)
+            flow_run_id = flow_state.id if hasattr(flow_state, 'id') else str(flow_state)
+            logger.debug(f"Scheduled collection delete flow {flow_run_id} for collection {collection_id}")
+            return flow_run_id
+        except Exception as e:
+            logger.error(f"Failed to schedule collection delete flow for collection {collection_id}: {str(e)}")
+            raise
+
+    def schedule_reconcile_indexes(self, **kwargs) -> str:
+        """Schedule index reconciliation workflow"""
+        from config.prefect_tasks import reconcile_indexes_flow
+
+        try:
+            flow_state = reconcile_indexes_flow()
+            flow_run_id = flow_state.id if hasattr(flow_state, 'id') else str(flow_state)
+            logger.debug(f"Scheduled reconcile indexes flow {flow_run_id}")
+            return flow_run_id
+        except Exception as e:
+            logger.error(f"Failed to schedule reconcile indexes flow: {str(e)}")
+            raise
 
     def get_task_status(self, task_id: str) -> Optional[TaskResult]:
-        """Get workflow status using Prefect AsyncResult (non-blocking)"""
-        raise NotImplementedError("Prefect task scheduler is not implemented")
+        """Get workflow status using Prefect flow run state (non-blocking)"""
+        try:
+            from prefect.client.schemas import FlowRun
+            from prefect import get_client
+            import asyncio
+
+            async def _get_flow_status():
+                async with get_client() as client:
+                    try:
+                        flow_run = await client.read_flow_run(task_id)
+                        
+                        if flow_run.state.is_pending():
+                            return TaskResult(task_id, success=False, error="Flow is pending")
+                        elif flow_run.state.is_running():
+                            return TaskResult(task_id, success=False, error="Flow is running")
+                        elif flow_run.state.is_completed():
+                            return TaskResult(task_id, success=True, data=flow_run.state.data)
+                        elif flow_run.state.is_failed():
+                            return TaskResult(task_id, success=False, error=str(flow_run.state.message))
+                        else:
+                            return TaskResult(task_id, success=False, error=f"Unknown state: {flow_run.state.type}")
+                    except Exception as e:
+                        return TaskResult(task_id, success=False, error=f"Failed to read flow run: {str(e)}")
+
+            # Run async function in current event loop or create new one
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If we're in an async context, we can't use asyncio.run()
+                    # Instead, we'll return a placeholder result
+                    return TaskResult(task_id, success=False, error="Status check not available in async context")
+                else:
+                    return loop.run_until_complete(_get_flow_status())
+            except RuntimeError:
+                # No event loop, create one
+                return asyncio.run(_get_flow_status())
+
+        except Exception as e:
+            logger.error(f"Failed to get flow status for {task_id}: {str(e)}")
+            return TaskResult(task_id, success=False, error=str(e))
+
+
+def get_task_scheduler() -> TaskScheduler:
+    """
+    Factory function to get the appropriate task scheduler based on configuration.
+    
+    Returns:
+        TaskScheduler: The configured task scheduler instance
+    """
+    try:
+        from aperag.config import get_config
+        config = get_config()
+        scheduler_type = config.task_scheduler_type
+        
+        logger.debug(f"Creating task scheduler of type: {scheduler_type}")
+        return create_task_scheduler(scheduler_type)
+    except Exception as e:
+        logger.warning(f"Failed to get scheduler type from config, falling back to local: {str(e)}")
+        return LocalTaskScheduler()

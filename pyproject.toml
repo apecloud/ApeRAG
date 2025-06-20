@@ -60,6 +60,7 @@ dependencies = [
     "sqlalchemy>=2.0.40",
     "pgvector>=0.3.6",
     "opik>=1.7.34",
+    "prefect>=3.4.7.dev4",
 ]
 name = "aperag"
 version = "0.1.0"

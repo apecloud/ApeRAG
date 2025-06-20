@@ -65,6 +65,35 @@ run-beat:
 run-flower:
 	celery -A config.celery flower --conf/flowerconfig.py
 
+# Prefect services - Only the essential ones
+.PHONY: run-prefect-server run-prefect-worker run-prefect-embedded
+run-prefect-server:
+	@echo "Starting Prefect server..."
+	@python -c "from config.prefect_database import initialize_prefect_database; initialize_prefect_database()" 2>/dev/null || echo "Database config skipped"
+	prefect server start --host 0.0.0.0 --port 4200
+
+run-prefect-worker:
+	@echo "Starting Prefect worker..."
+	@if [ -z "$$PREFECT_API_URL" ]; then \
+		export PREFECT_API_URL=http://127.0.0.1:4200/api; \
+	fi && \
+	prefect worker start --pool default-agent-pool --limit 20
+
+# Prefect utilities
+.PHONY: prefect-status prefect-ui
+prefect-status:
+	@echo "Checking Prefect system status..."
+	@if [ -z "$$PREFECT_API_URL" ]; then \
+		export PREFECT_API_URL=http://127.0.0.1:4200/api; \
+	fi && \
+	prefect work-pool ls && \
+	echo "---" && \
+	prefect deployment ls
+
+prefect-ui:
+	@echo "Prefect UI is available at: http://localhost:4200"
+	@command -v open >/dev/null && open http://localhost:4200 || echo "Please open http://localhost:4200 in your browser"
+
 run-frontend:
 	cp ./frontend/deploy/env.local.template ./frontend/.env
 	cd ./frontend && yarn dev
