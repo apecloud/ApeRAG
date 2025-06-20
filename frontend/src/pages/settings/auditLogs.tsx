@@ -5,20 +5,17 @@ import {
   Form,
   Input,
   Button,
-  Select,
   DatePicker,
   Space,
   Tag,
-  Modal,
+  Drawer,
   message,
   Typography,
   Descriptions,
-  Row,
-  Col,
   Divider,
   Tooltip,
 } from 'antd';
-import { SearchOutlined, ReloadOutlined, EyeOutlined, ClearOutlined } from '@ant-design/icons';
+import { SearchOutlined, EyeOutlined } from '@ant-design/icons';
 import { useIntl } from 'umi';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -27,7 +24,6 @@ import type { AuditLog } from '@/api/models';
 
 const { RangePicker } = DatePicker;
 const { Text, Title } = Typography;
-const { Option } = Select;
 
 const AuditLogsPage: React.FC = () => {
   const intl = useIntl();
@@ -35,13 +31,7 @@ const AuditLogsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<AuditLog[]>([]);
   const [selectedRecord, setSelectedRecord] = useState<AuditLog | null>(null);
-  const [detailModalVisible, setDetailModalVisible] = useState(false);
-
-  const resourceTypes = [
-    'collection', 'document', 'bot', 'chat', 'message', 
-    'api_key', 'llm_provider', 'llm_provider_model', 
-    'model_service_provider', 'user', 'config'
-  ];
+  const [detailDrawerVisible, setDetailDrawerVisible] = useState(false);
 
   // Format duration
   const formatDuration = (ms?: number): string => {
@@ -50,21 +40,22 @@ const AuditLogsPage: React.FC = () => {
     return `${(ms / 1000).toFixed(2)}s`;
   };
 
-  // Format JSON data
-  const formatJsonData = (data?: string): string => {
-    if (!data) return '';
-    try {
-      return JSON.stringify(JSON.parse(data), null, 2);
-    } catch {
-      return data;
-    }
-  };
+
 
   // Get status display
   const getStatusDisplay = (statusCode?: number): { text: string; color: string } => {
-    if (!statusCode) return { text: '未知', color: 'default' };
-    if (statusCode >= 200 && statusCode < 300) return { text: '成功', color: 'success' };
-    return { text: '失败', color: 'error' };
+    if (!statusCode) return { 
+      text: intl.formatMessage({ id: 'common.status.unknown', defaultMessage: 'Unknown' }), 
+      color: 'default' 
+    };
+    if (statusCode >= 200 && statusCode < 300) return { 
+      text: intl.formatMessage({ id: 'common.status.success', defaultMessage: 'Success' }), 
+      color: 'success' 
+    };
+    return { 
+      text: intl.formatMessage({ id: 'common.status.failed', defaultMessage: 'Failed' }), 
+      color: 'error' 
+    };
   };
 
   // Fetch audit logs
@@ -76,7 +67,7 @@ const AuditLogsPage: React.FC = () => {
       setData(response.data.items || []);
     } catch (error) {
       console.error('Failed to fetch audit logs:', error);
-      message.error('获取审计日志失败');
+      message.error(intl.formatMessage({ id: 'audit.logs.fetchError', defaultMessage: 'Failed to fetch audit logs' }));
     } finally {
       setLoading(false);
     }
@@ -114,37 +105,35 @@ const AuditLogsPage: React.FC = () => {
     fetchData(params);
   };
 
-  // Handle reset
-  const handleReset = () => {
-    form.resetFields();
-    fetchData({ limit: 100 });
-  };
-
   // Handle view details
   const handleViewDetails = async (record: AuditLog) => {
     try {
       const api = new AuditApi();
       const log = await api.getAuditLog({ auditId: record.id! });
+      console.log('Audit log details:', log.data);
+      console.log('Request data:', log.data.request_data);
+      console.log('Response data:', log.data.response_data);
       setSelectedRecord(log.data);
-      setDetailModalVisible(true);
+      setDetailDrawerVisible(true);
     } catch (error) {
-      message.error('获取详细信息失败');
+      console.error('Failed to get audit details:', error);
+      message.error(intl.formatMessage({ id: 'audit.logs.detailError', defaultMessage: 'Failed to get audit details' }));
     }
   };
 
   // Table columns
   const columns: ColumnsType<AuditLog> = [
     {
-      title: '用户名',
+      title: intl.formatMessage({ id: 'audit.logs.username', defaultMessage: 'Username' }),
       dataIndex: 'username',
       key: 'username',
       width: 120,
       render: (text?: string) => (
-        <Text strong>{text || '-'}</Text>
+        <Text strong>{text || intl.formatMessage({ id: 'common.system', defaultMessage: 'System' })}</Text>
       ),
     },
     {
-      title: 'API 名称',
+      title: intl.formatMessage({ id: 'audit.logs.apiName', defaultMessage: 'API Name' }),
       dataIndex: 'api_name',
       key: 'api_name',
       width: 200,
@@ -157,7 +146,7 @@ const AuditLogsPage: React.FC = () => {
       ),
     },
     {
-      title: '资源类型',
+      title: intl.formatMessage({ id: 'audit.logs.resourceType', defaultMessage: 'Resource Type' }),
       dataIndex: 'resource_type',
       key: 'resource_type',
       width: 120,
@@ -170,7 +159,7 @@ const AuditLogsPage: React.FC = () => {
       },
     },
     {
-      title: '资源 ID',
+      title: intl.formatMessage({ id: 'audit.logs.resourceId', defaultMessage: 'Resource ID' }),
       dataIndex: 'resource_id',
       key: 'resource_id',
       width: 140,
@@ -185,11 +174,11 @@ const AuditLogsPage: React.FC = () => {
       ),
     },
     {
-      title: '状态',
+      title: intl.formatMessage({ id: 'audit.logs.status', defaultMessage: 'Status' }),
       dataIndex: 'status_code',
       key: 'status_code',
       width: 100,
-      align: 'center',
+      align: 'center' as const,
       render: (code?: number) => {
         const status = getStatusDisplay(code);
         return (
@@ -200,7 +189,7 @@ const AuditLogsPage: React.FC = () => {
       },
     },
     {
-      title: '开始时间',
+      title: intl.formatMessage({ id: 'audit.logs.startTime', defaultMessage: 'Start Time' }),
       dataIndex: 'start_time',
       key: 'start_time',
       width: 160,
@@ -213,7 +202,7 @@ const AuditLogsPage: React.FC = () => {
       ),
     },
     {
-      title: '结束时间',
+      title: intl.formatMessage({ id: 'audit.logs.endTime', defaultMessage: 'End Time' }),
       dataIndex: 'end_time',
       key: 'end_time',
       width: 160,
@@ -226,10 +215,10 @@ const AuditLogsPage: React.FC = () => {
       ),
     },
     {
-      title: '操作',
+      title: intl.formatMessage({ id: 'common.actions', defaultMessage: 'Actions' }),
       key: 'actions',
       width: 80,
-      align: 'center',
+      align: 'center' as const,
       render: (_, record) => (
         <Button
           type="link"
@@ -237,7 +226,7 @@ const AuditLogsPage: React.FC = () => {
           icon={<EyeOutlined />}
           onClick={() => handleViewDetails(record)}
         >
-          详情
+          {intl.formatMessage({ id: 'common.detail', defaultMessage: 'Detail' })}
         </Button>
       ),
     },
@@ -248,10 +237,10 @@ const AuditLogsPage: React.FC = () => {
       <Card>
         <div style={{ marginBottom: '24px' }}>
           <Title level={4} style={{ margin: 0 }}>
-            审计日志
+            {intl.formatMessage({ id: 'audit.logs.title', defaultMessage: 'Audit Logs' })}
           </Title>
           <Text type="secondary">
-            查看系统操作的详细审计记录
+            {intl.formatMessage({ id: 'audit.logs.description', defaultMessage: 'View detailed audit records of system operations' })}
           </Text>
         </div>
 
@@ -262,69 +251,35 @@ const AuditLogsPage: React.FC = () => {
           style={{ marginBottom: '24px' }}
         >
           <Space wrap style={{ width: '100%' }}>
-            <Form.Item name="apiName" label="API 名称" style={{ marginBottom: 0 }}>
+            <Form.Item name="apiName" label={intl.formatMessage({ id: 'audit.logs.apiName', defaultMessage: 'API Name' })} style={{ marginBottom: 0 }}>
               <Input 
-                placeholder="输入API名称" 
+                placeholder={intl.formatMessage({ id: 'audit.logs.apiNamePlaceholder', defaultMessage: 'Enter API name' })} 
                 allowClear
                 style={{ width: 200 }}
               />
             </Form.Item>
 
-            <Form.Item name="resourceType" label="资源类型" style={{ marginBottom: 0 }}>
-              <Select
-                placeholder="选择资源类型"
-                allowClear
-                style={{ width: 150 }}
-              >
-                {resourceTypes.map(type => (
-                  <Option key={type} value={type}>
-                    {type}
-                  </Option>
-                ))}
-              </Select>
-            </Form.Item>
-
-            <Form.Item name="dateRange" label="时间范围" style={{ marginBottom: 0 }}>
+            <Form.Item name="dateRange" label={intl.formatMessage({ id: 'audit.logs.timeRange', defaultMessage: 'Time Range' })} style={{ marginBottom: 0 }}>
               <RangePicker
                 showTime
                 format="YYYY-MM-DD HH:mm:ss"
-                placeholder={['开始时间', '结束时间']}
+                placeholder={[
+                  intl.formatMessage({ id: 'audit.logs.startTime', defaultMessage: 'Start Time' }),
+                  intl.formatMessage({ id: 'audit.logs.endTime', defaultMessage: 'End Time' })
+                ]}
                 style={{ width: 350 }}
               />
             </Form.Item>
 
             <Form.Item style={{ marginBottom: 0 }}>
-              <Space>
-                <Button 
-                  type="primary" 
-                  htmlType="submit" 
-                  icon={<SearchOutlined />}
-                  loading={loading}
-                >
-                  搜索
-                </Button>
-                <Button 
-                  onClick={handleReset}
-                  icon={<ClearOutlined />}
-                >
-                  重置
-                </Button>
-                <Button 
-                  icon={<ReloadOutlined />} 
-                  onClick={() => {
-                    const endTime = dayjs();
-                    const startTime = endTime.subtract(1, 'day');
-                    fetchData({ 
-                      limit: 100,
-                      startDate: startTime.toISOString(),
-                      endDate: endTime.toISOString()
-                    });
-                  }}
-                  loading={loading}
-                >
-                  刷新
-                </Button>
-              </Space>
+              <Button 
+                type="primary" 
+                htmlType="submit" 
+                icon={<SearchOutlined />}
+                loading={loading}
+              >
+                {intl.formatMessage({ id: 'common.search', defaultMessage: 'Search' })}
+              </Button>
             </Form.Item>
           </Space>
         </Form>
@@ -340,7 +295,10 @@ const AuditLogsPage: React.FC = () => {
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total, range) =>
-              `显示 ${range[0] || 0}-${range[1] || 0} 条，共 ${total} 条记录`,
+              intl.formatMessage(
+                { id: 'common.pagination.total', defaultMessage: 'Showing {start}-{end} of {total} records' },
+                { start: range[0] || 0, end: range[1] || 0, total }
+              ),
             pageSizeOptions: ['20', '50', '100'],
             defaultPageSize: 20,
           }}
@@ -350,153 +308,89 @@ const AuditLogsPage: React.FC = () => {
         />
       </Card>
 
-      <Modal
-        title="审计日志详情"
-        open={detailModalVisible}
-        onCancel={() => setDetailModalVisible(false)}
-        footer={[
-          <Button key="close" onClick={() => setDetailModalVisible(false)}>
-            关闭
-          </Button>
-        ]}
-        width={900}
-        style={{ top: 20 }}
+      <Drawer
+        title={intl.formatMessage({ id: 'audit.logs.detail.title', defaultMessage: 'Audit Log Details' })}
+        open={detailDrawerVisible}
+        onClose={() => setDetailDrawerVisible(false)}
+        width={800}
+        destroyOnClose
       >
         {selectedRecord && (
-          <Descriptions column={2} bordered size="small">
-            <Descriptions.Item label="日志 ID" span={2}>
-              <Text code>{selectedRecord.id}</Text>
-            </Descriptions.Item>
-            
-            <Descriptions.Item label="用户名">
-              <Text strong>{selectedRecord.username || '-'}</Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="用户 ID">
-              <Text code>{selectedRecord.user_id || '-'}</Text>
-            </Descriptions.Item>
-            
-            <Descriptions.Item label="API 名称" span={2}>
-              <Text code>{selectedRecord.api_name || '-'}</Text>
-            </Descriptions.Item>
-            
-            <Descriptions.Item label="状态">
-              {(() => {
-                const status = getStatusDisplay(selectedRecord.status_code || undefined);
-                return (
-                  <Tag color={status.color}>
-                    {status.text}
-                  </Tag>
-                );
-              })()}
-            </Descriptions.Item>
-            <Descriptions.Item label="状态码">
-              <Text code>{selectedRecord.status_code || '-'}</Text>
-            </Descriptions.Item>
-            
-            <Descriptions.Item label="请求路径" span={2}>
-              <Text code style={{ fontSize: '12px', wordBreak: 'break-all' }}>
-                {selectedRecord.path}
-              </Text>
-            </Descriptions.Item>
-            
-            <Descriptions.Item label="资源类型">
-              {selectedRecord.resource_type ? (
-                <Tag color="blue">{selectedRecord.resource_type}</Tag>
-              ) : '-'}
-            </Descriptions.Item>
-            <Descriptions.Item label="资源 ID">
-              <Text code style={{ fontSize: '12px' }}>
-                {selectedRecord.resource_id || '-'}
-              </Text>
-            </Descriptions.Item>
-            
-            <Descriptions.Item label="开始时间">
-              {selectedRecord.start_time ? 
-                dayjs(selectedRecord.start_time).format('YYYY-MM-DD HH:mm:ss') : '-'
-              }
-            </Descriptions.Item>
-            <Descriptions.Item label="结束时间">
-              {selectedRecord.end_time ? 
-                dayjs(selectedRecord.end_time).format('YYYY-MM-DD HH:mm:ss') : '-'
-              }
-            </Descriptions.Item>
-            
-            <Descriptions.Item label="持续时间">
-              <Text strong>
-                {formatDuration(selectedRecord.duration_ms || undefined)}
-              </Text>
-            </Descriptions.Item>
-            <Descriptions.Item label="IP 地址">
-              <Text code>{selectedRecord.ip_address || '-'}</Text>
-            </Descriptions.Item>
-            
-            <Descriptions.Item label="User Agent" span={2}>
-              <Text 
-                ellipsis={{ tooltip: true }} 
-                style={{ maxWidth: '100%', fontSize: '12px' }}
-              >
-                {selectedRecord.user_agent || '-'}
-              </Text>
-            </Descriptions.Item>
-            
-            <Descriptions.Item label="请求 ID" span={2}>
-              <Text code style={{ fontSize: '12px' }}>
-                {selectedRecord.request_id || '-'}
-              </Text>
-            </Descriptions.Item>
-            
-            <Descriptions.Item label="创建时间" span={2}>
-              {selectedRecord.created ? 
-                dayjs(selectedRecord.created).format('YYYY-MM-DD HH:mm:ss') : '-'
-              }
-            </Descriptions.Item>
-            
-            {selectedRecord.error_message && (
-              <Descriptions.Item label="错误信息" span={2}>
-                <Text type="danger" style={{ fontSize: '12px' }}>
-                  {selectedRecord.error_message}
-                </Text>
-              </Descriptions.Item>
-            )}
-            
-            {selectedRecord.request_data && (
-              <Descriptions.Item label="请求数据" span={2}>
-                <pre style={{ 
-                  fontSize: '11px', 
-                  maxHeight: '200px', 
-                  overflow: 'auto',
-                  backgroundColor: '#f5f5f5',
-                  padding: '8px',
-                  borderRadius: '4px',
+          <Space direction="vertical" size="large" style={{ width: '100%' }}>
+            <div>
+              <Title level={5} style={{ marginBottom: 16 }}>
+                {intl.formatMessage({ id: 'audit.logs.detail.requestData', defaultMessage: 'Request Data' })}
+              </Title>
+              <div style={{
+                maxHeight: '400px',
+                overflow: 'auto',
+                border: '1px solid #434343',
+                borderRadius: '6px',
+                backgroundColor: '#1f1f1f',
+                padding: '16px',
+                minHeight: '120px',
+              }}>
+                <pre style={{
+                  fontSize: '12px',
+                  lineHeight: '1.5',
                   margin: 0,
                   whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-all'
+                  wordBreak: 'break-word',
+                  fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, monospace',
+                  color: '#d4d4d4',
                 }}>
-                  {formatJsonData(selectedRecord.request_data)}
+                  {selectedRecord?.request_data ? 
+                    ((() => {
+                      try {
+                        return JSON.stringify(JSON.parse(selectedRecord.request_data), null, 2);
+                      } catch {
+                        return selectedRecord.request_data;
+                      }
+                    })()) : 
+                    intl.formatMessage({ id: 'audit.logs.detail.noData', defaultMessage: 'No data' })
+                  }
                 </pre>
-              </Descriptions.Item>
-            )}
+              </div>
+            </div>
             
-            {selectedRecord.response_data && (
-              <Descriptions.Item label="响应数据" span={2}>
-                <pre style={{ 
-                  fontSize: '11px', 
-                  maxHeight: '200px', 
-                  overflow: 'auto',
-                  backgroundColor: '#f5f5f5',
-                  padding: '8px',
-                  borderRadius: '4px',
+            <div>
+              <Title level={5} style={{ marginBottom: 16 }}>
+                {intl.formatMessage({ id: 'audit.logs.detail.responseData', defaultMessage: 'Response Data' })}
+              </Title>
+              <div style={{
+                maxHeight: '400px',
+                overflow: 'auto',
+                border: '1px solid #434343',
+                borderRadius: '6px',
+                backgroundColor: '#1f1f1f',
+                padding: '16px',
+                minHeight: '120px',
+              }}>
+                <pre style={{
+                  fontSize: '12px',
+                  lineHeight: '1.5',
                   margin: 0,
                   whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-all'
+                  wordBreak: 'break-word',
+                  fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, monospace',
+                  color: '#d4d4d4',
                 }}>
-                  {formatJsonData(selectedRecord.response_data)}
+                  {selectedRecord?.response_data ? 
+                    ((() => {
+                      try {
+                        return JSON.stringify(JSON.parse(selectedRecord.response_data), null, 2);
+                      } catch {
+                        return selectedRecord.response_data;
+                      }
+                    })()) : 
+                    intl.formatMessage({ id: 'audit.logs.detail.noData', defaultMessage: 'No data' })
+                  }
                 </pre>
-              </Descriptions.Item>
-            )}
-          </Descriptions>
+              </div>
+            </div>
+          </Space>
         )}
-      </Modal>
+      </Drawer>
     </div>
   );
 };

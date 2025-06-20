@@ -142,13 +142,20 @@ class AuditMiddleware(BaseHTTPMiddleware):
             # Only proceed with audit if we have both api_name and resource_type
             if api_name and resource_type:
                 # Try to extract response data for non-streaming responses
-                if hasattr(response, 'body'):
-                    try:
-                        response_body = response.body.decode() if response.body else None
-                        if response_body:
-                            response_data = json.loads(response_body)
-                    except:
-                        pass
+                try:
+                    # For FastAPI Response objects, we need to read the response body
+                    if hasattr(response, 'body') and response.body:
+                        response_body = response.body.decode('utf-8')
+                        response_data = json.loads(response_body)
+                    elif hasattr(response, '_body') and response._body:
+                        response_body = response._body.decode('utf-8')
+                        response_data = json.loads(response_body)
+                    # Skip streaming responses and large responses
+                    elif response.status_code < 400 and response.headers.get('content-type', '').startswith('application/json'):
+                        # For successful JSON responses, record a simplified response
+                        response_data = {"status": "success", "code": response.status_code}
+                except Exception as e:
+                    logger.debug(f"Could not extract response data: {e}")
                 
                 # Log audit asynchronously
                 try:

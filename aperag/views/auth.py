@@ -207,11 +207,13 @@ async def current_user(
     api_user = await authenticate_api_key(request, session)
     if api_user:
         request.state.user_id = api_user.id
+        request.state.username = api_user.username
         return api_user
 
     # Then try JWT/Cookie authentication
     if user:
         request.state.user_id = user.id
+        request.state.username = user.username
         return user
 
     raise HTTPException(status_code=401, detail="Unauthorized")
