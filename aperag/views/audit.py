@@ -99,7 +99,7 @@ async def get_audit_log(
 ):
     """Get a specific audit log by ID"""
     
-    async with get_async_session() as session:
+    async for session in get_async_session():
         stmt = select(AuditLog).where(AuditLog.id == audit_id)
         result = await session.execute(stmt)
         audit_log = result.scalar_one_or_none()
