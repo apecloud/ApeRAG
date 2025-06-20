@@ -14,6 +14,7 @@ import {
   Descriptions,
   Divider,
   Tooltip,
+  theme,
 } from 'antd';
 import { SearchOutlined, EyeOutlined } from '@ant-design/icons';
 import { useIntl } from 'umi';
@@ -27,6 +28,7 @@ const { Text, Title } = Typography;
 
 const AuditLogsPage: React.FC = () => {
   const intl = useIntl();
+  const { token } = theme.useToken();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<AuditLog[]>([]);
@@ -192,11 +194,11 @@ const AuditLogsPage: React.FC = () => {
       title: intl.formatMessage({ id: 'audit.logs.startTime', defaultMessage: 'Start Time' }),
       dataIndex: 'start_time',
       key: 'start_time',
-      width: 160,
+      width: 180,
       render: (time?: number) => (
         time ? (
           <Text style={{ fontSize: '12px' }}>
-            {dayjs(time).format('MM-DD HH:mm:ss')}
+            {dayjs(time).format('YYYY-MM-DD HH:mm:ss.SSS')}
           </Text>
         ) : '-'
       ),
@@ -205,11 +207,11 @@ const AuditLogsPage: React.FC = () => {
       title: intl.formatMessage({ id: 'audit.logs.endTime', defaultMessage: 'End Time' }),
       dataIndex: 'end_time',
       key: 'end_time',
-      width: 160,
+      width: 180,
       render: (time?: number) => (
         time ? (
           <Text style={{ fontSize: '12px' }}>
-            {dayjs(time).format('MM-DD HH:mm:ss')}
+            {dayjs(time).format('YYYY-MM-DD HH:mm:ss.SSS')}
           </Text>
         ) : '-'
       ),
@@ -302,7 +304,7 @@ const AuditLogsPage: React.FC = () => {
             pageSizeOptions: ['20', '50', '100'],
             defaultPageSize: 20,
           }}
-          scroll={{ x: 1200 }}
+          scroll={{ x: 1240 }}
           size="small"
           bordered
         />
@@ -324,9 +326,9 @@ const AuditLogsPage: React.FC = () => {
               <div style={{
                 maxHeight: '400px',
                 overflow: 'auto',
-                border: '1px solid #434343',
+                border: `1px solid ${token.colorBorder}`,
                 borderRadius: '6px',
-                backgroundColor: '#1f1f1f',
+                backgroundColor: token.colorBgContainer,
                 padding: '16px',
                 minHeight: '120px',
               }}>
@@ -337,7 +339,7 @@ const AuditLogsPage: React.FC = () => {
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
                   fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, monospace',
-                  color: '#d4d4d4',
+                  color: token.colorText,
                 }}>
                   {selectedRecord?.request_data ? 
                     ((() => {
@@ -360,9 +362,9 @@ const AuditLogsPage: React.FC = () => {
               <div style={{
                 maxHeight: '400px',
                 overflow: 'auto',
-                border: '1px solid #434343',
+                border: `1px solid ${token.colorBorder}`,
                 borderRadius: '6px',
-                backgroundColor: '#1f1f1f',
+                backgroundColor: token.colorBgContainer,
                 padding: '16px',
                 minHeight: '120px',
               }}>
@@ -373,7 +375,7 @@ const AuditLogsPage: React.FC = () => {
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
                   fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, monospace',
-                  color: '#d4d4d4',
+                  color: token.colorText,
                 }}>
                   {selectedRecord?.response_data ? 
                     ((() => {
