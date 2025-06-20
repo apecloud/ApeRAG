@@ -22,16 +22,9 @@ from aperag.db.models import AuditLog, AuditResource, User
 from aperag.config import get_async_session
 from aperag.schema import view_models
 from aperag.service.audit_service import audit_service
-from aperag.views.auth import get_current_active_user, get_current_admin
+from aperag.views.auth import current_user, get_current_admin
 
 router = APIRouter()
-
-
-async def verify_admin_user(current_user: User = Depends(get_current_active_user)) -> User:
-    """Verify that the current user is an admin"""
-    if not current_user.is_superuser:
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return current_user
 
 
 @router.get("/audit-logs", tags=["audit"], name="ListAuditLogs", response_model=view_models.AuditLogList)
@@ -46,7 +39,7 @@ async def list_audit_logs(
     start_date: Optional[datetime] = Query(None, description="Filter by start date"),
     end_date: Optional[datetime] = Query(None, description="Filter by end date"),
     limit: int = Query(1000, le=5000, description="Maximum number of records"),
-    current_user: User = Depends(verify_admin_user)
+    user: User = Depends(current_user)
 ):
     """List audit logs with filtering"""
     
@@ -66,8 +59,8 @@ async def list_audit_logs(
         api_name=api_name,
         http_method=http_method,
         status_code=status_code,
-        start_date=start_date.isoformat() if start_date else None,
-        end_date=end_date.isoformat() if end_date else None,
+        start_date=start_date,
+        end_date=end_date,
         limit=limit
     )
 
@@ -78,7 +71,7 @@ async def list_audit_logs(
             id=str(log.id),
             user_id=log.user_id,
             username=log.username,
-            resource_type=log.resource_type.value if log.resource_type else None,
+            resource_type=log.resource_type.value if hasattr(log.resource_type, 'value') else log.resource_type,
             resource_id=getattr(log, 'resource_id', None),  # This is set during query
             api_name=log.api_name,
             http_method=log.http_method,
@@ -102,7 +95,7 @@ async def list_audit_logs(
 @router.get("/audit-logs/{audit_id}", tags=["audit"], name="GetAuditLog", response_model=view_models.AuditLog)
 async def get_audit_log(
     audit_id: str,
-    current_user: User = Depends(verify_admin_user)
+    user: User = Depends(current_user)
 ):
     """Get a specific audit log by ID"""
     
@@ -153,7 +146,7 @@ async def list_audit_logs_view(
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
     resource_type: Optional[str] = Query(None, description="Filter by resource type"),
     api_name: Optional[str] = Query(None, description="Filter by API name"),
-    user: User = Depends(get_current_admin),
+    user: User = Depends(current_user),
 ) -> view_models.AuditLogList:
     """List audit logs with filtering and pagination"""
     return await audit_service.list_audit_logs(

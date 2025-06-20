@@ -17,6 +17,7 @@ import logging
 import re
 import time
 import uuid
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import and_, desc, select
@@ -40,14 +41,24 @@ class AuditService:
         
         # Map FastAPI tags to audit resources
         self.tag_resource_map = {
+            # Support both singular and plural forms
+            "collection": AuditResource.COLLECTION,
             "collections": AuditResource.COLLECTION,
+            "document": AuditResource.DOCUMENT,
             "documents": AuditResource.DOCUMENT,
+            "bot": AuditResource.BOT,
             "bots": AuditResource.BOT,
+            "chat": AuditResource.CHAT,
             "chats": AuditResource.CHAT,
+            "message": AuditResource.MESSAGE,
             "messages": AuditResource.MESSAGE,
+            "apikey": AuditResource.API_KEY,
             "apikeys": AuditResource.API_KEY,
+            "llm_provider": AuditResource.LLM_PROVIDER,
             "llm_providers": AuditResource.LLM_PROVIDER,
+            "llm_provider_model": AuditResource.LLM_PROVIDER_MODEL,
             "llm_provider_models": AuditResource.LLM_PROVIDER_MODEL,
+            "user": AuditResource.USER,
             "users": AuditResource.USER,
             "config": AuditResource.CONFIG,
         }
@@ -206,7 +217,7 @@ class AuditService:
             )
 
             # Save to database asynchronously
-            async with get_async_session() as session:
+            async for session in get_async_session():
                 session.add(audit_log)
                 await session.commit()
 
@@ -220,12 +231,12 @@ class AuditService:
         api_name: Optional[str] = None,
         http_method: Optional[str] = None,
         status_code: Optional[int] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
         limit: int = 1000
     ) -> List[AuditLog]:
         """List audit logs with filtering"""
-        async with get_async_session() as session:
+        async for session in get_async_session():
             # Build query
             stmt = select(AuditLog)
             

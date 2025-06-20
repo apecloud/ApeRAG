@@ -774,7 +774,7 @@ class AuditLog(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String(36), nullable=True, comment="User ID")
     username = Column(String(255), nullable=True, comment="Username")
-    resource_type = Column(Enum(AuditResource), nullable=True, comment="Resource type")
+    resource_type = Column(EnumColumn(AuditResource), nullable=True, comment="Resource type")
     resource_id = Column(String(255), nullable=True, comment="Resource ID (extracted at query time)")
     api_name = Column(String(255), nullable=False, comment="API operation name")
     http_method = Column(String(10), nullable=False, comment="HTTP method (POST, PUT, DELETE)")

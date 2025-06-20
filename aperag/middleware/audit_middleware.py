@@ -74,9 +74,15 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 if hasattr(route, 'tags') and route.tags:
                     resource_type = audit_service.get_resource_type_from_tags(route.tags)
                 
+                # Debug logging
+                logger.debug(f"Route info - Path: {request.url.path}, API name: {api_name}, Tags: {getattr(route, 'tags', None)}, Resource type: {resource_type}")
+                
                 # Both API name and resource type are required
                 if api_name and resource_type:
                     return api_name, resource_type
+                elif api_name or resource_type:
+                    # Log when we have partial info to help debugging
+                    logger.warning(f"Partial audit info - Path: {request.url.path}, API name: {api_name}, Resource type: {resource_type}, Tags: {getattr(route, 'tags', None)}")
                         
         except Exception as e:
             logger.warning(f"Failed to get audit info from route: {e}")
@@ -111,13 +117,6 @@ class AuditMiddleware(BaseHTTPMiddleware):
         if not self._should_audit(request.url.path, request.method):
             return await call_next(request)
 
-        # Get audit info from route
-        api_name, resource_type = self._get_audit_info_from_route(request)
-        
-        if not api_name or not resource_type:
-            # No matching operation found, skip audit
-            return await call_next(request)
-
         # Record start time in milliseconds
         start_time_ms = int(time.time() * 1000)
         request_data = None
@@ -127,7 +126,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
         end_time_ms = None
 
         try:
-            # Extract request data
+            # Extract request data before calling next
             request_data = await self._extract_request_data(request)
             
             # Call the actual endpoint
@@ -137,52 +136,92 @@ class AuditMiddleware(BaseHTTPMiddleware):
             # Record end time
             end_time_ms = int(time.time() * 1000)
             
-            # Try to extract response data for non-streaming responses
-            if hasattr(response, 'body'):
+            # Get audit info from route (now available after call_next)
+            api_name, resource_type = self._get_audit_info_from_route(request)
+            
+            # Only proceed with audit if we have both api_name and resource_type
+            if api_name and resource_type:
+                # Try to extract response data for non-streaming responses
+                if hasattr(response, 'body'):
+                    try:
+                        response_body = response.body.decode() if response.body else None
+                        if response_body:
+                            response_data = json.loads(response_body)
+                    except:
+                        pass
+                
+                # Log audit asynchronously
                 try:
-                    response_body = response.body.decode() if response.body else None
-                    if response_body:
-                        response_data = json.loads(response_body)
-                except:
-                    pass
+                    # Get user info from request state (set by auth middleware)
+                    user_id = getattr(request.state, 'user_id', None)
+                    username = getattr(request.state, 'username', None)
+                    
+                    # Extract client info
+                    ip_address, user_agent = audit_service._extract_client_info(request)
+                    
+                    # Log audit in background (don't await to avoid blocking)
+                    import asyncio
+                    asyncio.create_task(
+                        audit_service.log_audit(
+                            user_id=user_id,
+                            username=username,
+                            resource_type=resource_type,
+                            api_name=api_name,
+                            http_method=request.method,
+                            path=request.url.path,
+                            status_code=status_code,
+                            start_time=start_time_ms,
+                            end_time=end_time_ms,
+                            request_data=request_data,
+                            response_data=response_data,
+                            error_message=error_message,
+                            ip_address=ip_address,
+                            user_agent=user_agent
+                        )
+                    )
+                except Exception as audit_error:
+                    logger.error(f"Failed to log audit: {audit_error}")
                     
         except Exception as e:
             error_message = str(e)
             status_code = 500
             end_time_ms = int(time.time() * 1000)
+            
+            # Still try to log the error audit if route info is available
+            try:
+                api_name, resource_type = self._get_audit_info_from_route(request)
+                if api_name and resource_type:
+                    # Get user info from request state (set by auth middleware)
+                    user_id = getattr(request.state, 'user_id', None)
+                    username = getattr(request.state, 'username', None)
+                    
+                    # Extract client info
+                    ip_address, user_agent = audit_service._extract_client_info(request)
+                    
+                    # Log audit in background (don't await to avoid blocking)
+                    import asyncio
+                    asyncio.create_task(
+                        audit_service.log_audit(
+                            user_id=user_id,
+                            username=username,
+                            resource_type=resource_type,
+                            api_name=api_name,
+                            http_method=request.method,
+                            path=request.url.path,
+                            status_code=status_code,
+                            start_time=start_time_ms,
+                            end_time=end_time_ms,
+                            request_data=request_data,
+                            response_data=response_data,
+                            error_message=error_message,
+                            ip_address=ip_address,
+                            user_agent=user_agent
+                        )
+                    )
+            except Exception as audit_error:
+                logger.error(f"Failed to log error audit: {audit_error}")
+            
             # Re-raise for normal error handling
             raise
-        finally:
-            # Log audit asynchronously
-            try:
-                # Get user info from request state (set by auth middleware)
-                user_id = getattr(request.state, 'user_id', None)
-                username = getattr(request.state, 'username', None)
-                
-                # Extract client info
-                ip_address, user_agent = audit_service._extract_client_info(request)
-                
-                # Log audit in background (don't await to avoid blocking)
-                import asyncio
-                asyncio.create_task(
-                    audit_service.log_audit(
-                        user_id=user_id,
-                        username=username,
-                        resource_type=resource_type,
-                        api_name=api_name,
-                        http_method=request.method,
-                        path=request.url.path,
-                        status_code=status_code,
-                        start_time=start_time_ms,
-                        end_time=end_time_ms,
-                        request_data=request_data,
-                        response_data=response_data,
-                        error_message=error_message,
-                        ip_address=ip_address,
-                        user_agent=user_agent
-                    )
-                )
-            except Exception as audit_error:
-                logger.error(f"Failed to log audit: {audit_error}")
 
         return response 

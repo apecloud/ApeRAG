@@ -368,7 +368,7 @@ export default {
   'settings.title': '设置',
   'settings.profile': '个人资料',
   'settings.apiKeys': 'API 密钥',
-  'settings.auditLogs': '审计日志',
+  'settings.auditLogs': '操作日志',
   'settings.models': '模型管理',
   'settings.invitations': '邀请管理',
 
