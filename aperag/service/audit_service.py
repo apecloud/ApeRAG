@@ -61,6 +61,13 @@ class AuditService:
             "user": AuditResource.USER,
             "users": AuditResource.USER,
             "config": AuditResource.CONFIG,
+            "invitation": AuditResource.INVITATION,
+            "invitations": AuditResource.INVITATION,
+            "auth": AuditResource.AUTH,
+            "chat_completion": AuditResource.CHAT_COMPLETION,
+            "search_test": AuditResource.SEARCH_TEST,
+            "llm": AuditResource.LLM,
+            "flow": AuditResource.FLOW,
         }
 
     def _filter_sensitive_data(self, data: Dict[str, Any]) -> Dict[str, Any]:

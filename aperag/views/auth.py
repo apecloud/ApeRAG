@@ -26,6 +26,7 @@ from aperag.config import AsyncSessionDep, settings
 from aperag.db.models import ApiKey, ApiKeyStatus, Invitation, Role, User
 from aperag.db.ops import async_db_ops
 from aperag.schema import view_models
+from aperag.utils.audit_decorator import audit_api
 from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
@@ -241,8 +242,9 @@ router = APIRouter()
 
 
 @router.post("/invite", tags=["invitation"], name="CreateInvitation")
+@audit_api(resource_type="invitation", api_name="CreateInvitation")
 async def create_invitation_view(
-    data: view_models.InvitationCreate, session: AsyncSessionDep, user: User = Depends(get_current_admin)
+    request: Request, data: view_models.InvitationCreate, session: AsyncSessionDep, user: User = Depends(get_current_admin)
 ) -> view_models.Invitation:
     # Check if user already exists
     from sqlalchemy import select
@@ -299,8 +301,9 @@ async def list_invitations_view(
 
 
 @router.post("/register", tags=["auth"], name="Register")
+@audit_api(resource_type="user", api_name="Register")
 async def register_view(
-    data: view_models.Register, session: AsyncSessionDep, user_manager: UserManager = Depends(get_user_manager)
+    request: Request, data: view_models.Register, session: AsyncSessionDep, user_manager: UserManager = Depends(get_user_manager)
 ) -> view_models.User:
     from sqlalchemy import select
 
@@ -440,7 +443,9 @@ async def list_users_view(session: AsyncSessionDep, user: User = Depends(get_cur
 
 
 @router.post("/change-password", tags=["user"], name="ChangePassword")
+@audit_api(resource_type="user", api_name="ChangePassword")
 async def change_password_view(
+    request: Request,
     data: view_models.ChangePassword,
     session: AsyncSessionDep,
     user_manager: UserManager = Depends(get_user_manager),
@@ -470,7 +475,8 @@ async def change_password_view(
 
 
 @router.delete("/users/{user_id}", tags=["user"], name="DeleteUser")
-async def delete_user_view(user_id: str, session: AsyncSessionDep, user: User = Depends(get_current_admin)):
+@audit_api(resource_type="user", api_name="DeleteUser")
+async def delete_user_view(request: Request, user_id: str, session: AsyncSessionDep, user: User = Depends(get_current_admin)):
     from sqlalchemy import select
 
     result = await session.execute(select(User).where(User.id == user_id))

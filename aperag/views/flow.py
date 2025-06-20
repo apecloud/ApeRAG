@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, Request
 from aperag.db.models import User
 from aperag.schema.view_models import WorkflowDefinition
 from aperag.service.flow_service import flow_service_global
+from aperag.utils.audit_decorator import audit_api
 from aperag.views.auth import current_user
 
 router = APIRouter()
@@ -32,6 +33,7 @@ async def get_flow_view(
 
 
 @router.put("/bots/{bot_id}/flow", tags=["flow"], name="UpdateFlow")
+@audit_api(resource_type="flow", api_name="UpdateFlow")
 async def update_flow_view(
     request: Request,
     bot_id: str,

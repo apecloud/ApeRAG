@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: 3369b50dc810
+Revision ID: 2768dfee8bbc
 Revises: 12ea6d2bf365
-Create Date: 2025-06-20 17:22:42.655570
+Create Date: 2025-06-21 00:28:36.443046
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '3369b50dc810'
+revision: str = '2768dfee8bbc'
 down_revision: Union[str, None] = '12ea6d2bf365'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -25,7 +25,7 @@ def upgrade() -> None:
     sa.Column('id', sa.String(length=36), nullable=False),
     sa.Column('user_id', sa.String(length=36), nullable=True, comment='User ID'),
     sa.Column('username', sa.String(length=255), nullable=True, comment='Username'),
-    sa.Column('resource_type', sa.Enum('collection', 'document', 'bot', 'chat', 'message', 'api_key', 'llm_provider', 'llm_provider_model', 'model_service_provider', 'user', 'config', name='auditresource'), nullable=True, comment='Resource type'),
+    sa.Column('resource_type', sa.Enum('collection', 'document', 'bot', 'chat', 'message', 'api_key', 'llm_provider', 'llm_provider_model', 'model_service_provider', 'user', 'config', 'invitation', 'auth', 'chat_completion', 'search_test', 'llm', 'flow', 'system', name='auditresource'), nullable=True, comment='Resource type'),
     sa.Column('resource_id', sa.String(length=255), nullable=True, comment='Resource ID (extracted at query time)'),
     sa.Column('api_name', sa.String(length=255), nullable=False, comment='API operation name'),
     sa.Column('http_method', sa.String(length=10), nullable=False, comment='HTTP method (POST, PUT, DELETE)'),

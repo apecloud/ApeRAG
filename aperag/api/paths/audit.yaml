@@ -6,50 +6,12 @@ audit_logs:
     description: List audit logs with filtering options
     operationId: list_audit_logs
     parameters:
-      - name: user_id
-        in: query
-        required: false
-        schema:
-          type: string
-        description: Filter by user ID
-      - name: username
-        in: query
-        required: false
-        schema:
-          type: string
-        description: Filter by username
-      - name: resource_type
-        in: query
-        required: false
-        schema:
-          type: string
-          enum: [collection, document, bot, chat, message, api_key, llm_provider, llm_provider_model, model_service_provider, user, config]
-        description: Filter by resource type
-      - name: resource_id
-        in: query
-        required: false
-        schema:
-          type: string
-        description: Filter by resource ID
       - name: api_name
         in: query
         required: false
         schema:
           type: string
         description: Filter by API name
-      - name: http_method
-        in: query
-        required: false
-        schema:
-          type: string
-          enum: [POST, PUT, DELETE]
-        description: Filter by HTTP method
-      - name: status_code
-        in: query
-        required: false
-        schema:
-          type: integer
-        description: Filter by status code
       - name: start_date
         in: query
         required: false

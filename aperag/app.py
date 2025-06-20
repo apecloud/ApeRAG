@@ -16,7 +16,6 @@ from fastapi import FastAPI
 
 from aperag.exception_handlers import register_exception_handlers
 from aperag.llm.litellm_track import register_opik_llm_track
-from aperag.middleware.audit_middleware import AuditMiddleware
 from aperag.views.api_key import router as api_key_router
 from aperag.views.audit import router as audit_router
 from aperag.views.auth import router as auth_router
@@ -36,9 +35,6 @@ app = FastAPI(
 register_exception_handlers(app)
 
 register_opik_llm_track()
-
-# Add audit middleware - should be added before other middlewares/routers
-app.add_middleware(AuditMiddleware, enabled=True)
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(main_router, prefix="/api/v1")

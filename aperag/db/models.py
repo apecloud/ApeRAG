@@ -764,6 +764,13 @@ class AuditResource(str, Enum):
     MODEL_SERVICE_PROVIDER = "model_service_provider"
     USER = "user"
     CONFIG = "config"
+    INVITATION = "invitation"
+    AUTH = "auth"
+    CHAT_COMPLETION = "chat_completion"
+    SEARCH_TEST = "search_test"
+    LLM = "llm"
+    FLOW = "flow"
+    SYSTEM = "system"
 
 
 class AuditLog(Base):
