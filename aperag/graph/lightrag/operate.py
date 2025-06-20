@@ -41,7 +41,7 @@ import time
 from collections import Counter, defaultdict
 from typing import Any, AsyncIterator
 
-from aperag.concurrent_control import MultiLock, get_or_create_lock
+from aperag.concurrent_control import get_or_create_lock
 
 from .base import (
     BaseGraphStorage,
@@ -535,32 +535,26 @@ async def merge_nodes_and_edges(
     Returns:
         Dict with entity_count and relation_count
     """
-
-    # Create locks for all entities in this component
-    entity_locks = []
-    for entity_name in sorted(component):  # Sort to prevent deadlock
-        lock = get_or_create_lock(f"entity:{entity_name}:{workspace}")
-        entity_locks.append(lock)
-
-    # Use MultiLock to acquire all locks for this component
-    async with MultiLock(entity_locks):
-        return await _merge_nodes_and_edges_impl(
-            chunk_results,
-            knowledge_graph_inst,
-            entity_vdb,
-            relationships_vdb,
-            llm_model_func,
-            tokenizer,
-            llm_model_max_token_size,
-            summary_to_max_tokens,
-            addon_params,
-            force_llm_summary_on_merge,
-            lightrag_logger,
-        )
+    # Now using fine-grained locking inside _merge_nodes_and_edges_impl
+    return await _merge_nodes_and_edges_impl(
+        chunk_results,
+        workspace,
+        knowledge_graph_inst,
+        entity_vdb,
+        relationships_vdb,
+        llm_model_func,
+        tokenizer,
+        llm_model_max_token_size,
+        summary_to_max_tokens,
+        addon_params,
+        force_llm_summary_on_merge,
+        lightrag_logger,
+    )
 
 
 async def _merge_nodes_and_edges_impl(
     chunk_results: list,
+    workspace: str,
     knowledge_graph_inst: BaseGraphStorage,
     entity_vdb: BaseVectorStorage,
     relationships_vdb: BaseVectorStorage,
@@ -572,7 +566,10 @@ async def _merge_nodes_and_edges_impl(
     force_llm_summary_on_merge,
     lightrag_logger: LightRAGLogger | None = None,
 ) -> dict[str, int]:
-    """Internal implementation of merge_nodes_and_edges"""
+    """Internal implementation of merge_nodes_and_edges with fine-grained locking"""
+
+    # Extract language from addon_params
+    language = addon_params.get("language", "English")
 
     # Collect all nodes and edges from all chunks
     all_nodes = defaultdict(list)
@@ -588,74 +585,85 @@ async def _merge_nodes_and_edges_impl(
             sorted_edge_key = tuple(sorted(edge_key))
             all_edges[sorted_edge_key].extend(edges)
 
-    # Centralized processing of all nodes and edges
-    entities_data = []
-    relationships_data = []
+    # Process entities with fine-grained locking
+    entity_count = 0
 
-    # Process and update all entities at once
     for entity_name, entities in all_nodes.items():
-        entity_data = await _merge_nodes_then_upsert(
-            entity_name,
-            entities,
-            knowledge_graph_inst,
-            llm_model_func,
-            tokenizer,
-            llm_model_max_token_size,
-            summary_to_max_tokens,
-            addon_params,
-            force_llm_summary_on_merge,
-            lightrag_logger,
-        )
-        entities_data.append(entity_data)
+        # Create lock for this specific entity
+        entity_lock = get_or_create_lock(f"entity:{entity_name}:{workspace}")
 
-    # Process and update all relationships at once
+        async with entity_lock:
+            # Process and update entity in graph db
+            entity_data = await _merge_nodes_then_upsert(
+                entity_name,
+                entities,
+                knowledge_graph_inst,
+                llm_model_func,
+                tokenizer,
+                llm_model_max_token_size,
+                summary_to_max_tokens,
+                language,  # Pass language instead of addon_params
+                force_llm_summary_on_merge,
+                lightrag_logger,
+            )
+
+            # Update entity in vector db immediately under the same lock
+            if entity_vdb is not None and entity_data:
+                vdb_data = {
+                    compute_mdhash_id(entity_data["entity_name"], prefix="ent-"): {
+                        "entity_name": entity_data["entity_name"],
+                        "entity_type": entity_data["entity_type"],
+                        "content": f"{entity_data['entity_name']}\n{entity_data['description']}",
+                        "source_id": entity_data["source_id"],
+                        "file_path": entity_data.get("file_path", "unknown_source"),
+                    }
+                }
+                await entity_vdb.upsert(vdb_data)
+
+            entity_count += 1
+
+    # Process relationships with fine-grained locking
+    relation_count = 0
+
     for edge_key, edges in all_edges.items():
-        edge_data = await _merge_edges_then_upsert(
-            edge_key[0],
-            edge_key[1],
-            edges,
-            knowledge_graph_inst,
-            llm_model_func,
-            tokenizer,
-            llm_model_max_token_size,
-            summary_to_max_tokens,
-            addon_params,
-            force_llm_summary_on_merge,
-            lightrag_logger,
-        )
-        if edge_data is not None:
-            relationships_data.append(edge_data)
+        # Create lock for this specific relationship
+        # Sort edge key to ensure consistent lock naming
+        sorted_edge_key = tuple(sorted(edge_key))
+        relationship_lock = get_or_create_lock(f"relationship:{sorted_edge_key[0]}:{sorted_edge_key[1]}:{workspace}")
 
-    # Update vector databases with all collected data
-    if entity_vdb is not None and entities_data:
-        data_for_vdb = {
-            compute_mdhash_id(dp["entity_name"], prefix="ent-"): {
-                "entity_name": dp["entity_name"],
-                "entity_type": dp["entity_type"],
-                "content": f"{dp['entity_name']}\n{dp['description']}",
-                "source_id": dp["source_id"],
-                "file_path": dp.get("file_path", "unknown_source"),
-            }
-            for dp in entities_data
-        }
-        await entity_vdb.upsert(data_for_vdb)
+        async with relationship_lock:
+            # Process and update relationship in graph db
+            edge_data = await _merge_edges_then_upsert(
+                edge_key[0],
+                edge_key[1],
+                edges,
+                knowledge_graph_inst,
+                llm_model_func,
+                tokenizer,
+                llm_model_max_token_size,
+                summary_to_max_tokens,
+                language,  # Pass language instead of addon_params
+                force_llm_summary_on_merge,
+                lightrag_logger,
+            )
 
-    if relationships_vdb is not None and relationships_data:
-        data_for_vdb = {
-            compute_mdhash_id(dp["src_id"] + dp["tgt_id"], prefix="rel-"): {
-                "src_id": dp["src_id"],
-                "tgt_id": dp["tgt_id"],
-                "keywords": dp["keywords"],
-                "content": f"{dp['src_id']}\t{dp['tgt_id']}\n{dp['keywords']}\n{dp['description']}",
-                "source_id": dp["source_id"],
-                "file_path": dp.get("file_path", "unknown_source"),
-            }
-            for dp in relationships_data
-        }
-        await relationships_vdb.upsert(data_for_vdb)
+            # Update relationship in vector db immediately under the same lock
+            if relationships_vdb is not None and edge_data is not None:
+                vdb_data = {
+                    compute_mdhash_id(edge_data["src_id"] + edge_data["tgt_id"], prefix="rel-"): {
+                        "src_id": edge_data["src_id"],
+                        "tgt_id": edge_data["tgt_id"],
+                        "keywords": edge_data["keywords"],
+                        "content": f"{edge_data['src_id']}\t{edge_data['tgt_id']}\n{edge_data['keywords']}\n{edge_data['description']}",
+                        "source_id": edge_data["source_id"],
+                        "file_path": edge_data.get("file_path", "unknown_source"),
+                    }
+                }
+                await relationships_vdb.upsert(vdb_data)
 
-    entity_count = len(entities_data)
-    relation_count = len(relationships_data)
+            if edge_data is not None:
+                relation_count += 1
+
     return {"entity_count": entity_count, "relation_count": relation_count}
 
 

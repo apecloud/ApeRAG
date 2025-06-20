@@ -501,7 +501,7 @@ class LightRAG:
             )
 
         # Process components concurrently with semaphore
-        semaphore = asyncio.Semaphore(self.llm_model_max_async)
+        semaphore = asyncio.Semaphore(1)
 
         async def _process_component_with_semaphore(task_data):
             async with semaphore:
@@ -761,12 +761,7 @@ class LightRAG:
                 lightrag_logger.error(f"Graph indexing failed: {str(e)}")
             else:
                 logger.error(f"Graph indexing failed: {str(e)}", exc_info=True)
-            return {
-                "status": "error",
-                "error": str(e),
-                "chunks_processed": 0,
-                "collection_id": collection_id,
-            }
+            raise e
 
     # ============= End of New Stateless Interfaces =============
 
