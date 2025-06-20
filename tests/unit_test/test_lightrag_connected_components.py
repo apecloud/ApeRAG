@@ -110,7 +110,7 @@ class TestConnectedComponents:
         with patch("aperag.graph.lightrag.lightrag.merge_nodes_and_edges") as mock_merge:
             mock_merge.return_value = None
 
-            result = await mock_lightrag._process_entity_groups(chunk_results, components, "test_collection")
+            result = await mock_lightrag._grouping_process_chunk_results(chunk_results, components, "test_collection")
 
         assert result["groups_processed"] == 2
         assert result["total_entities"] == 4
@@ -140,7 +140,7 @@ class TestConnectedComponents:
         with patch("aperag.graph.lightrag.lightrag.merge_nodes_and_edges") as mock_merge:
             mock_merge.return_value = None
 
-            await mock_lightrag._process_entity_groups(chunk_results, components, None)
+            await mock_lightrag._grouping_process_chunk_results(chunk_results, components, None)
 
         # Check that merge was called with correct filtered data
         assert mock_merge.call_count == 2

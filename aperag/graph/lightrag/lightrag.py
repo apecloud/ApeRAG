@@ -440,10 +440,9 @@ class LightRAG:
         logger.info(f"Found {len(components)} connected components from {len(adjacency)} entities")
         return components
 
-    async def _process_entity_groups(
+    async def _grouping_process_chunk_results(
         self,
         chunk_results: List[tuple[dict, dict]],
-        components: List[List[str]],
         collection_id: str | None = None,
     ) -> dict[str, Any]:
         """
@@ -457,6 +456,8 @@ class LightRAG:
         Returns:
             Dict with processing results
         """
+        components = self._find_connected_components(chunk_results)
+
         workspace = self.workspace if self.workspace else "default"
         lightrag_logger = create_lightrag_logger(prefix="LightRAG-GraphIndex", workspace=workspace)
 
@@ -699,11 +700,8 @@ class LightRAG:
                 lightrag_logger=lightrag_logger,
             )
 
-            # 2. Find connected components in the extracted entities and relationships
-            components = self._find_connected_components(chunk_results)
-
-            # 3. Process each component group with its own lock scope
-            result = await self._process_entity_groups(chunk_results, components, collection_id)
+            # 2. Process each component group with its own lock scope
+            result = await self._grouping_process_chunk_results(chunk_results, collection_id)
 
             # Count total results
             entity_count = sum(len(nodes) for nodes, _ in chunk_results)
