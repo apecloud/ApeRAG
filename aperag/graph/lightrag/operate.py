@@ -502,7 +502,7 @@ async def _merge_edges_then_upsert(
 @timing_wrapper("Merge & Update")
 async def merge_nodes_and_edges(
     chunk_results: list,
-    component: list[str],
+    component: list[str] | None,
     workspace: str,
     knowledge_graph_inst: BaseGraphStorage,
     entity_vdb: BaseVectorStorage,
@@ -536,14 +536,30 @@ async def merge_nodes_and_edges(
         Dict with entity_count and relation_count
     """
 
-    # Create locks for all entities in this component
-    entity_locks = []
-    for entity_name in sorted(component):  # Sort to prevent deadlock
-        lock = get_or_create_lock(f"entity:{entity_name}:{workspace}")
-        entity_locks.append(lock)
+    # Create locks for all entities in this component if component is provided
+    if component:
+        entity_locks = []
+        for entity_name in sorted(component):  # Sort to prevent deadlock
+            lock = get_or_create_lock(f"entity:{entity_name}:{workspace}")
+            entity_locks.append(lock)
 
-    # Use MultiLock to acquire all locks for this component
-    async with MultiLock(entity_locks):
+        # Use MultiLock to acquire all locks for this component
+        async with MultiLock(entity_locks):
+            return await _merge_nodes_and_edges_impl(
+                chunk_results,
+                knowledge_graph_inst,
+                entity_vdb,
+                relationships_vdb,
+                llm_model_func,
+                tokenizer,
+                llm_model_max_token_size,
+                summary_to_max_tokens,
+                addon_params,
+                force_llm_summary_on_merge,
+                lightrag_logger,
+            )
+    else:
+        # No locking if no component specified (backward compatibility)
         return await _merge_nodes_and_edges_impl(
             chunk_results,
             knowledge_graph_inst,
