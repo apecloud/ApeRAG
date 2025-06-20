@@ -30,6 +30,7 @@ app = Celery("aperag")
 
 # Configure celery
 app.conf.update(
+    task_acks_late=True,
     broker_url=settings.celery_broker_url,
     result_backend=settings.celery_result_backend,
     task_serializer='json',
