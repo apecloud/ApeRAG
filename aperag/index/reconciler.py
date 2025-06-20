@@ -16,7 +16,7 @@ import logging
 import time
 from typing import List, Optional
 
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.orm import Session
 
 from aperag.config import get_sync_session
@@ -209,11 +209,7 @@ class BackendIndexReconciler:
                 update_stmt = (
                     update(DocumentIndex)
                     .where(and_(*where_conditions))
-                    .values(
-                        actual_state=target_state,
-                        gmt_updated=utc_now(),
-                        gmt_last_reconciled=utc_now()
-                    )
+                    .values(actual_state=target_state, gmt_updated=utc_now(), gmt_last_reconciled=utc_now())
                 )
 
                 result = session.execute(update_stmt)
@@ -314,14 +310,16 @@ class IndexTaskCallbacks:
                     gmt_last_reconciled=utc_now(),
                 )
             )
-            
+
             result = session.execute(update_stmt)
             if result.rowcount > 0:
                 IndexTaskCallbacks._update_document_status(document_id, session)
                 logger.info(f"{index_type} index creation completed for document {document_id}")
                 session.commit()
             else:
-                logger.warning(f"Index creation callback ignored for document {document_id} type {index_type} - not in CREATING state")
+                logger.warning(
+                    f"Index creation callback ignored for document {document_id} type {index_type} - not in CREATING state"
+                )
                 session.rollback()
 
     @staticmethod
@@ -346,14 +344,16 @@ class IndexTaskCallbacks:
                     gmt_last_reconciled=utc_now(),
                 )
             )
-            
+
             result = session.execute(update_stmt)
             if result.rowcount > 0:
                 IndexTaskCallbacks._update_document_status(document_id, session)
                 logger.error(f"{index_type} index operation failed for document {document_id}: {error_message}")
                 session.commit()
             else:
-                logger.warning(f"Index failure callback ignored for document {document_id} type {index_type} - not in CREATING or DELETING state")
+                logger.warning(
+                    f"Index failure callback ignored for document {document_id} type {index_type} - not in CREATING or DELETING state"
+                )
                 session.rollback()
 
     @staticmethod
@@ -379,14 +379,16 @@ class IndexTaskCallbacks:
                     gmt_last_reconciled=utc_now(),
                 )
             )
-            
+
             result = session.execute(update_stmt)
             if result.rowcount > 0:
                 IndexTaskCallbacks._update_document_status(document_id, session)
                 logger.info(f"{index_type} index deletion completed for document {document_id}")
                 session.commit()
             else:
-                logger.warning(f"Index deletion callback ignored for document {document_id} type {index_type} - not in DELETING state")
+                logger.warning(
+                    f"Index deletion callback ignored for document {document_id} type {index_type} - not in DELETING state"
+                )
                 session.rollback()
 
 

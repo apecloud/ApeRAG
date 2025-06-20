@@ -214,7 +214,7 @@ class LightRAG:
     llm_model_max_token_size: int = field(default=32768)
     """Maximum number of tokens allowed per LLM response."""
 
-    llm_model_max_async: int = field(default=4)
+    llm_model_max_async: int = field(default=8)
     """Maximum number of concurrent LLM calls."""
 
     llm_model_kwargs: dict[str, Any] = field(default_factory=dict)

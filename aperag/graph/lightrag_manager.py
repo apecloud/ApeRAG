@@ -43,6 +43,8 @@ class LightRAGConfig:
     COSINE_BETTER_THAN_THRESHOLD = 0.2
     MAX_BATCH_SIZE = 32
     ENTITY_EXTRACT_MAX_GLEANING = 0
+    SUMMARY_TO_MAX_TOKENS = 2000
+    FORCE_LLM_SUMMARY_ON_MERGE = 10
     EMBEDDING_MAX_TOKEN_SIZE = 8192
     DEFAULT_LANGUAGE = "Simplified Chinese"
 
@@ -89,6 +91,8 @@ async def create_lightrag_instance(collection: Collection) -> LightRAG:
             max_batch_size=LightRAGConfig.MAX_BATCH_SIZE,
             llm_model_max_async=LightRAGConfig.LLM_MODEL_MAX_ASYNC,
             entity_extract_max_gleaning=LightRAGConfig.ENTITY_EXTRACT_MAX_GLEANING,
+            summary_to_max_tokens=LightRAGConfig.SUMMARY_TO_MAX_TOKENS,
+            force_llm_summary_on_merge=LightRAGConfig.FORCE_LLM_SUMMARY_ON_MERGE,
             addon_params={"language": LightRAGConfig.DEFAULT_LANGUAGE},
             kv_storage=kv_storage,
             vector_storage=vector_storage,
