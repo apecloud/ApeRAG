@@ -722,7 +722,7 @@ async def extract_entities(
     return chunk_results
 
 
-async def kg_query(
+async def build_query_context(
     query: str,
     knowledge_graph_inst: BaseGraphStorage,
     entities_vdb: BaseVectorStorage,
@@ -732,16 +732,15 @@ async def kg_query(
     tokenizer: Tokenizer,
     llm_model_func: callable,
     addon_params: dict,
-    system_prompt: str | None = None,
     chunks_vdb: BaseVectorStorage = None,
-) -> str | AsyncIterator[str]:
+):
     if query_param.model_func:
         use_model_func = query_param.model_func
     else:
         use_model_func = llm_model_func
 
     hl_keywords, ll_keywords = await get_keywords_from_query(
-        query, query_param, tokenizer, llm_model_func, addon_params
+        query, query_param, tokenizer, use_model_func, addon_params
     )
 
     logger.debug(f"High-level keywords: {hl_keywords}")
@@ -768,7 +767,7 @@ async def kg_query(
     hl_keywords_str = ", ".join(hl_keywords) if hl_keywords else ""
 
     # Build context
-    context = await _build_query_context(
+    return await _build_query_context_from_keywords(
         ll_keywords_str,
         hl_keywords_str,
         knowledge_graph_inst,
@@ -779,6 +778,64 @@ async def kg_query(
         tokenizer,
         chunks_vdb,
     )
+
+
+async def kg_query(
+    query: str,
+    knowledge_graph_inst: BaseGraphStorage,
+    entities_vdb: BaseVectorStorage,
+    relationships_vdb: BaseVectorStorage,
+    text_chunks_db: BaseKVStorage,
+    query_param: QueryParam,
+    tokenizer: Tokenizer,
+    llm_model_func: callable,
+    addon_params: dict,
+    system_prompt: str | None = None,
+    chunks_vdb: BaseVectorStorage = None,
+) -> str | AsyncIterator[str]:
+    if query_param.model_func:
+        use_model_func = query_param.model_func
+    else:
+        use_model_func = llm_model_func
+
+    # Build context
+    entities_context, relations_context, text_units_context = await build_query_context(
+        query,
+        knowledge_graph_inst,
+        entities_vdb,
+        relationships_vdb,
+        text_chunks_db,
+        query_param,
+        tokenizer,
+        llm_model_func,
+        addon_params,
+        chunks_vdb,
+    )
+
+    # 转换为 JSON 字符串
+    entities_str = json.dumps(entities_context, ensure_ascii=False)
+    relations_str = json.dumps(relations_context, ensure_ascii=False)
+    text_units_str = json.dumps(text_units_context, ensure_ascii=False)
+
+    context = f"""-----Entities(KG)-----
+
+    ```json
+    {entities_str}
+    ```
+
+    -----Relationships(KG)-----
+
+    ```json
+    {relations_str}
+    ```
+
+    -----Document Chunks(DC)-----
+
+    ```json
+    {text_units_str}
+    ```
+
+    """
 
     if query_param.only_need_context:
         return context
@@ -985,7 +1042,7 @@ async def _get_vector_context(
         return [], [], []
 
 
-async def _build_query_context(
+async def _build_query_context_from_keywords(
     ll_keywords: str,
     hl_keywords: str,
     knowledge_graph_inst: BaseGraphStorage,
@@ -1084,31 +1141,7 @@ async def _build_query_context(
     if not entities_context and not relations_context:
         return None
 
-    # 转换为 JSON 字符串
-    entities_str = json.dumps(entities_context, ensure_ascii=False)
-    relations_str = json.dumps(relations_context, ensure_ascii=False)
-    text_units_str = json.dumps(text_units_context, ensure_ascii=False)
-
-    result = f"""-----Entities(KG)-----
-
-```json
-{entities_str}
-```
-
------Relationships(KG)-----
-
-```json
-{relations_str}
-```
-
------Document Chunks(DC)-----
-
-```json
-{text_units_str}
-```
-
-"""
-    return result
+    return entities_context, relations_context, text_units_context
 
 
 async def _get_node_data(

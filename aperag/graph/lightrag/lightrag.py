@@ -35,16 +35,15 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from functools import partial
 from typing import (
     Any,
     AsyncIterator,
     Callable,
     Dict,
-    Iterator,
     List,
     Optional,
+    Tuple,
     final,
 )
 
@@ -63,14 +62,12 @@ from .base import (
     BaseGraphStorage,
     BaseKVStorage,
     BaseVectorStorage,
-    DocProcessingStatus,
-    DocStatus,
-    DocStatusStorage,
     QueryParam,
     StoragesStatus,
 )
 from .namespace import NameSpace
 from .operate import (
+    build_query_context,
     chunking_by_token_size,
     extract_entities,
     kg_query,
@@ -83,12 +80,10 @@ from .utils import (
     EmbeddingFunc,
     TiktokenTokenizer,
     Tokenizer,
-    always_get_an_event_loop,
     check_storage_env_vars,
     clean_text,
     compute_mdhash_id,
     create_lightrag_logger,
-    get_content_summary,
     lazy_external_import,
     logger,
 )
@@ -110,9 +105,6 @@ class LightRAG:
 
     graph_storage: str = field(default="Neo4JSyncStorage")
     """Storage backend for knowledge graphs."""
-
-    doc_status_storage: str = field(default="PGOpsSyncDocStatusStorage")
-    """Storage type for tracking document processing statuses."""
 
     # Entity extraction
     # ---
@@ -255,7 +247,6 @@ class LightRAG:
             ("KV_STORAGE", self.kv_storage),
             ("VECTOR_STORAGE", self.vector_storage),
             ("GRAPH_STORAGE", self.graph_storage),
-            ("DOC_STATUS_STORAGE", self.doc_status_storage),
         ]
 
         for storage_type, storage_name in storage_configs:
@@ -284,15 +275,6 @@ class LightRAG:
         )
         self.graph_storage_cls = partial(  # type: ignore
             self.graph_storage_cls
-        )
-
-        # Initialize document status storage
-        self.doc_status_storage_cls = self._get_storage_class(self.doc_status_storage)
-
-        self.full_docs: BaseKVStorage = self.key_string_value_json_storage_cls(  # type: ignore
-            namespace=NameSpace.KV_STORE_FULL_DOCS,
-            workspace=self.workspace,
-            embedding_func=self.embedding_func,
         )
 
         # TODO: deprecating, text_chunks is redundant with chunks_vdb
@@ -332,13 +314,6 @@ class LightRAG:
             meta_fields={"full_doc_id", "content", "file_path"},
         )
 
-        # Initialize document status storage
-        self.doc_status: DocStatusStorage = self.doc_status_storage_cls(
-            namespace=NameSpace.DOC_STATUS,
-            workspace=self.workspace,
-            embedding_func=None,
-        )
-
         self._storages_status = StoragesStatus.CREATED
 
     async def initialize_storages(self):
@@ -347,13 +322,11 @@ class LightRAG:
             tasks = []
 
             for storage in (
-                self.full_docs,
                 self.text_chunks,
                 self.entities_vdb,
                 self.relationships_vdb,
                 self.chunks_vdb,
                 self.chunk_entity_relation_graph,
-                self.doc_status,
             ):
                 if storage:
                     tasks.append(storage.initialize())
@@ -369,13 +342,11 @@ class LightRAG:
             tasks = []
 
             for storage in (
-                self.full_docs,
                 self.text_chunks,
                 self.entities_vdb,
                 self.relationships_vdb,
                 self.chunks_vdb,
                 self.chunk_entity_relation_graph,
-                self.doc_status,
             ):
                 if storage:
                     tasks.append(storage.finalize())
@@ -656,27 +627,12 @@ class LightRAG:
             if not chunks:
                 raise ValueError(f"No valid chunks created for document {doc_id}")
 
-            # Prepare complete status data
-            status_data = {
-                "status": DocStatus.PROCESSING,
-                "content": cleaned_content,
-                "content_summary": get_content_summary(cleaned_content),
-                "content_length": len(cleaned_content),
-                "chunks_count": len(chunks),
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-                "file_path": file_path,
-            }
-
             # Write to storage (avoid concurrent operations on same connection)
-            doc_data = {doc_id: {"content": cleaned_content}}
             logger.info(f"LightRAG: About to upsert {len(chunks)} chunks to storages")
-            await self.full_docs.upsert(doc_data)
             logger.info(f"LightRAG: Calling chunks_vdb.upsert with {len(chunks)} chunks")
             await self.chunks_vdb.upsert(chunks)
             logger.info(f"LightRAG: Calling text_chunks.upsert with {len(chunks)} chunks")
             await self.text_chunks.upsert(chunks)
-            await self.doc_status.upsert({doc_id: status_data})
             logger.info(f"LightRAG: Completed all upsert operations for {doc_id}")
 
             logger.info(f"Inserted and chunked document {doc_id}: {len(chunks)} chunks")
@@ -781,33 +737,79 @@ class LightRAG:
 
     # ============= End of New Stateless Interfaces =============
 
-    def query(
+    async def aquery_context(
         self,
         query: str,
         param: QueryParam = QueryParam(),
-        system_prompt: str | None = None,
-    ) -> str | Iterator[str]:
-        """
-        Perform a sync query.
+    ):
+        param.original_query = query
+        entities_context, relations_context, text_units_context = await build_query_context(
+            query.strip(),
+            self.chunk_entity_relation_graph,
+            self.entities_vdb,
+            self.relationships_vdb,
+            self.text_chunks,
+            param,
+            self.tokenizer,
+            self.llm_model_func,
+            self.addon_params,
+            chunks_vdb=self.chunks_vdb,
+        )
 
-        Args:
-            query (str): The query to be executed.
-            param (QueryParam): Configuration parameters for query execution.
-            prompt (Optional[str]): Custom prompts for fine-tuned control over the system's behavior. Defaults to None, which uses PROMPTS["rag_response"].
+        # Remove file_path from all contexts before serialization
+        def remove_file_path_from_context(context_list):
+            """Remove file_path field from each item in the context list"""
+            if not context_list:
+                return context_list
 
-        Returns:
-            str: The result of the query execution.
-        """
-        loop = always_get_an_event_loop()
+            cleaned_context = []
+            for item in context_list:
+                if isinstance(item, dict) and "file_path" in item:
+                    # Create a copy without file_path
+                    cleaned_item = {k: v for k, v in item.items() if k != "file_path"}
+                    cleaned_context.append(cleaned_item)
+                else:
+                    cleaned_context.append(item)
+            return cleaned_context
 
-        return loop.run_until_complete(self.aquery(query, param, system_prompt))  # type: ignore
+        # Clean all contexts
+        entities_context = remove_file_path_from_context(entities_context)
+        relations_context = remove_file_path_from_context(relations_context)
+        text_units_context = remove_file_path_from_context(text_units_context)
+
+        import json
+
+        entities_str = json.dumps(entities_context, ensure_ascii=False)
+        relations_str = json.dumps(relations_context, ensure_ascii=False)
+        text_units_str = json.dumps(text_units_context, ensure_ascii=False)
+
+        context = f"""-----Entities(KG)-----
+
+```json
+{entities_str}
+```
+
+-----Relationships(KG)-----
+
+```json
+{relations_str}
+```
+
+-----Document Chunks(DC)-----
+
+```json
+{text_units_str}
+```
+
+"""
+        return context
 
     async def aquery(
         self,
         query: str,
         param: QueryParam = QueryParam(),
         system_prompt: str | None = None,
-    ) -> str | AsyncIterator[str]:
+    ) -> str | AsyncIterator[str] | Tuple[dict, dict, dict]:
         """
         Perform a async query.
 
@@ -861,68 +863,6 @@ class LightRAG:
             raise ValueError(f"Unknown mode {param.mode}")
         return response
 
-    async def get_docs_by_status(self, status: DocStatus) -> dict[str, DocProcessingStatus]:
-        """Get documents by status
-
-        Returns:
-            Dict with document id is keys and document status is values
-        """
-        return await self.doc_status.get_docs_by_status(status)
-
-    async def aget_docs_by_ids(self, ids: str | list[str]) -> dict[str, DocProcessingStatus]:
-        """Retrieves the processing status for one or more documents by their IDs.
-
-        Args:
-            ids: A single document ID (string) or a list of document IDs (list of strings).
-
-        Returns:
-            A dictionary where keys are the document IDs for which a status was found,
-            and values are the corresponding DocProcessingStatus objects. IDs that
-            are not found in the storage will be omitted from the result dictionary.
-        """
-        if isinstance(ids, str):
-            # Ensure input is always a list of IDs for uniform processing
-            id_list = [ids]
-        elif ids is None:  # Handle potential None input gracefully, although type hint suggests str/list
-            logger.warning("aget_docs_by_ids called with None input, returning empty dict.")
-            return {}
-        else:
-            # Assume input is already a list if not a string
-            id_list = ids
-
-        # Return early if the final list of IDs is empty
-        if not id_list:
-            logger.debug("aget_docs_by_ids called with an empty list of IDs.")
-            return {}
-
-        # Create tasks to fetch document statuses concurrently using the doc_status storage
-        tasks = [self.doc_status.get_by_id(doc_id) for doc_id in id_list]
-        # Execute tasks concurrently and gather the results. Results maintain order.
-        # Type hint indicates results can be DocProcessingStatus or None if not found.
-        results_list: list[Optional[DocProcessingStatus]] = await asyncio.gather(*tasks)
-
-        # Build the result dictionary, mapping found IDs to their statuses
-        found_statuses: dict[str, DocProcessingStatus] = {}
-        # Keep track of IDs for which no status was found (for logging purposes)
-        not_found_ids: list[str] = []
-
-        # Iterate through the results, correlating them back to the original IDs
-        for i, status_obj in enumerate(results_list):
-            doc_id = id_list[i]  # Get the original ID corresponding to this result index
-            if status_obj:
-                # If a status object was returned (not None), add it to the result dict
-                found_statuses[doc_id] = status_obj
-            else:
-                # If status_obj is None, the document ID was not found in storage
-                not_found_ids.append(doc_id)
-
-        # Log a warning if any of the requested document IDs were not found
-        if not_found_ids:
-            logger.warning(f"Document statuses not found for the following IDs: {not_found_ids}")
-
-        # Return the dictionary containing statuses only for the found document IDs
-        return found_statuses
-
     # TODO: Deprecated (Deleting documents can cause hallucinations in RAG.)
     # Document delete is not working properly for most of the storage implementations.
     async def adelete_by_doc_id(self, doc_id: str) -> None:
@@ -932,11 +872,6 @@ class LightRAG:
             doc_id: Document ID to delete
         """
         try:
-            # 1. Get the document status and related data
-            if not await self.doc_status.get_by_id(doc_id):
-                logger.warning(f"Document {doc_id} not found")
-                return
-
             logger.debug(f"Starting deletion for document {doc_id}")
 
             # 2. Get all chunks related to this document
@@ -1054,10 +989,6 @@ class LightRAG:
                     await self.chunk_entity_relation_graph.upsert_edge(src, tgt, edge_data)
                     logger.debug(f"Updated relationship {src}-{tgt} with new source_id: {new_source_id}")
 
-            # 6. Delete original document and status
-            await self.full_docs.delete([doc_id])
-            await self.doc_status.delete([doc_id])
-
             logger.info(
                 f"Successfully deleted document {doc_id} and related data. "
                 f"Deleted {len(entities_to_delete)} entities and {len(relationships_to_delete)} relationships. "
@@ -1106,10 +1037,6 @@ class LightRAG:
 
             # Add verification step
             async def verify_deletion():
-                # Verify if the document has been deleted
-                if await self.full_docs.get_by_id(doc_id):
-                    logger.warning(f"Document {doc_id} still exists in full_docs")
-
                 # Verify if chunks have been deleted
                 all_remaining_chunks = await self.text_chunks.get_all()
                 remaining_related_chunks = {

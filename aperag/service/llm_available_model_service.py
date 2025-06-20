@@ -41,57 +41,11 @@ class LlmAvailableModelService:
         if tag_filter_request.tag_filters is None or len(tag_filter_request.tag_filters) == 0:
             # Default to showing only models with 'recommend' tag when no filters are provided
             default_filter = [view_models.TagFilterCondition(tags=["recommend"], operation="AND")]
-            filtered_providers = self._filter_providers_by_tags(available_providers, default_filter)
+            filtered_providers = filter_providers_by_tags(available_providers, default_filter)
         else:
-            filtered_providers = self._filter_providers_by_tags(available_providers, tag_filter_request.tag_filters)
+            filtered_providers = filter_providers_by_tags(available_providers, tag_filter_request.tag_filters)
 
         return view_models.ModelConfigList(items=filtered_providers, pageResult=None)
-
-    def _filter_models_by_tags(
-        self, models: List[dict], tag_filters: Optional[List[view_models.TagFilterCondition]]
-    ) -> List[dict]:
-        """Filter models by tag conditions
-
-        Args:
-            models: List of model dictionaries with 'tags' field
-            tag_filters: List of TagFilterCondition objects
-
-        Returns:
-            Filtered list of models
-        """
-        if not tag_filters:
-            return models
-
-        filtered_models = []
-
-        for model in models:
-            model_tags = set(model.get("tags", []) or [])
-
-            # Check if model matches any of the filter conditions (OR between conditions)
-            matches_any_condition = False
-
-            for condition in tag_filters:
-                operation = condition.operation.upper() if condition.operation else "AND"
-                required_tags = set(condition.tags or [])
-
-                if not required_tags:
-                    continue
-
-                if operation == "AND":
-                    # All tags must be present
-                    if required_tags.issubset(model_tags):
-                        matches_any_condition = True
-                        break
-                elif operation == "OR":
-                    # At least one tag must be present
-                    if required_tags.intersection(model_tags):
-                        matches_any_condition = True
-                        break
-
-            if matches_any_condition:
-                filtered_models.append(model)
-
-        return filtered_models
 
     async def _build_model_config_objects(self, user_id: str) -> List[view_models.ModelConfig]:
         """Build ModelConfig objects from database data using optimized single query
@@ -110,7 +64,7 @@ class LlmAvailableModelService:
         provider_model_map = defaultdict(lambda: {"completion": [], "embedding": [], "rerank": []})
 
         for model in provider_models:
-            model_dict = self._build_model_dict(model)
+            model_dict = _build_model_dict(model)
             provider_model_map[model.provider_name][model.api].append(model_dict)
 
         # Build the final configuration list
@@ -128,50 +82,99 @@ class LlmAvailableModelService:
             for provider in available_providers
         ]
 
-    def _build_model_dict(self, model) -> dict:
-        """Build model dictionary from LLMProviderModel object"""
-        model_dict = {
-            "model": model.model,
-            "custom_llm_provider": model.custom_llm_provider,
-        }
-        if model.max_tokens:
-            model_dict["max_tokens"] = model.max_tokens
-        if model.tags:
-            model_dict["tags"] = model.tags
-        return model_dict
 
-    def _filter_providers_by_tags(
-        self, providers: List[view_models.ModelConfig], tag_filters: Optional[List[view_models.TagFilterCondition]]
-    ) -> List[view_models.ModelConfig]:
-        """Helper function to filter providers by tags - filters at model level"""
-        filtered_providers = []
+def _build_model_dict(model) -> dict:
+    """Build model dictionary from LLMProviderModel object"""
+    model_dict = {
+        "model": model.model,
+        "custom_llm_provider": model.custom_llm_provider,
+    }
+    if model.max_tokens:
+        model_dict["max_tokens"] = model.max_tokens
+    if model.tags:
+        model_dict["tags"] = model.tags
+    return model_dict
 
-        for provider in providers:
-            provider_dict = provider.model_dump()
 
-            # Filter each model type separately
-            has_any_models = False
-            for model_type in ["completion", "embedding", "rerank"]:
-                models = provider_dict.get(model_type, [])
-                if models:
-                    # Filter out None values and ensure we only process valid models
-                    valid_models = [model for model in models if model is not None]
+def filter_models_by_tags(
+    models: List[dict], tag_filters: Optional[List[view_models.TagFilterCondition]]
+) -> List[dict]:
+    """Filter models by tag conditions
 
-                    # Apply tag filtering to each model
-                    filtered_models = self._filter_models_by_tags(valid_models, tag_filters)
+    Args:
+        models: List of model dictionaries with 'tags' field
+        tag_filters: List of TagFilterCondition objects
 
-                    # Update the provider with filtered models
-                    provider_dict[model_type] = filtered_models
+    Returns:
+        Filtered list of models
+    """
+    if not tag_filters:
+        return models
 
-                    # Track if we have any models left
-                    if filtered_models:
-                        has_any_models = True
+    filtered_models = []
 
-            # Only include provider if it has at least one matching model
-            if has_any_models:
-                filtered_providers.append(view_models.ModelConfig(**provider_dict))
+    for model in models:
+        model_tags = set(model.get("tags", []) or [])
 
-        return filtered_providers
+        # Check if model matches any of the filter conditions (OR between conditions)
+        matches_any_condition = False
+
+        for condition in tag_filters:
+            operation = condition.operation.upper() if condition.operation else "AND"
+            required_tags = set(condition.tags or [])
+
+            if not required_tags:
+                continue
+
+            if operation == "AND":
+                # All tags must be present
+                if required_tags.issubset(model_tags):
+                    matches_any_condition = True
+                    break
+            elif operation == "OR":
+                # At least one tag must be present
+                if required_tags.intersection(model_tags):
+                    matches_any_condition = True
+                    break
+
+        if matches_any_condition:
+            filtered_models.append(model)
+
+    return filtered_models
+
+
+def filter_providers_by_tags(
+    providers: List[view_models.ModelConfig], tag_filters: Optional[List[view_models.TagFilterCondition]]
+) -> List[view_models.ModelConfig]:
+    """Helper function to filter providers by tags - filters at model level"""
+    filtered_providers = []
+
+    for provider in providers:
+        provider_dict = provider.model_dump()
+
+        # Filter each model type separately
+        has_any_models = False
+        for model_type in ["completion", "embedding", "rerank"]:
+            models = provider_dict.get(model_type, [])
+            if models:
+                # Filter out None values and ensure we only process valid models
+                valid_models = [model for model in models if model is not None]
+
+                # Apply tag filtering to each model
+                filtered_models = filter_models_by_tags(valid_models, tag_filters)
+
+                # Update the provider with filtered models
+                provider_dict[model_type] = filtered_models
+
+                # Track if we have any models left
+                if filtered_models:
+                    has_any_models = True
+
+        # Only include provider if it has at least one matching model
+        if has_any_models:
+            filtered_providers.append(view_models.ModelConfig(**provider_dict))
+
+    return filtered_providers
 
 
 # Create a global service instance for easy access

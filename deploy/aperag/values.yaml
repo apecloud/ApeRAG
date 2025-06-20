@@ -164,7 +164,6 @@ api:
     LIGHTRAG_KV_STORAGE: PGOpsSyncKVStorage
     LIGHTRAG_VECTOR_STORAGE: PGOpsSyncVectorStorage
     LIGHTRAG_GRAPH_STORAGE: Neo4JSyncStorage
-    LIGHTRAG_DOC_STATUS_STORAGE: PGOpsSyncDocStatusStorage
 
 
 celery-worker:

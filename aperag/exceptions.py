@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import traceback
 from enum import Enum
 from http import HTTPStatus
-import traceback
 from typing import Any, Dict, Optional
 
 

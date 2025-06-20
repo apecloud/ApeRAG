@@ -14,8 +14,9 @@
 
 # Configuration constants
 import json
-from aperag.exceptions import DocumentNotFoundException, CollectionNotFoundException
 from typing import Any, List, Tuple
+
+from aperag.exceptions import CollectionNotFoundException, DocumentNotFoundException
 
 
 class TaskConfig:

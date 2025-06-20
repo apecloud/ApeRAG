@@ -55,7 +55,7 @@ except ImportError:
     PGDocStatusStorage = None
 
 try:
-    from .postgres_sync_impl import PGOpsSyncDocStatusStorage, PGOpsSyncKVStorage, PGOpsSyncVectorStorage
+    from .postgres_sync_impl import PGOpsSyncKVStorage, PGOpsSyncVectorStorage
 except ImportError:
     PGOpsSyncDocStatusStorage = None
     PGOpsSyncKVStorage = None
@@ -92,13 +92,6 @@ STORAGE_IMPLEMENTATIONS = {
             "QdrantVectorDBStorage",
         ],
         "required_methods": ["query", "upsert"],
-    },
-    "DOC_STATUS_STORAGE": {
-        "implementations": [
-            "PGDocStatusStorage",
-            "PGOpsSyncDocStatusStorage",
-        ],
-        "required_methods": ["get_docs_by_status"],
     },
 }
 
@@ -137,9 +130,6 @@ if PGVectorStorage is not None:
 
 if PGDocStatusStorage is not None:
     STORAGES["PGDocStatusStorage"] = ".kg.postgres_impl"
-
-if PGOpsSyncDocStatusStorage is not None:
-    STORAGES["PGOpsSyncDocStatusStorage"] = ".kg.postgres_sync_impl"
 
 if PGOpsSyncKVStorage is not None:
     STORAGES["PGOpsSyncKVStorage"] = ".kg.postgres_sync_impl"
