@@ -238,7 +238,7 @@ router = APIRouter()
 # --- API Implementation ---
 
 
-@router.post("/invite")
+@router.post("/invite", tags=["invitation"], name="CreateInvitation")
 async def create_invitation_view(
     data: view_models.InvitationCreate, session: AsyncSessionDep, user: User = Depends(get_current_admin)
 ) -> view_models.Invitation:
@@ -272,7 +272,7 @@ async def create_invitation_view(
     )
 
 
-@router.get("/invitations")
+@router.get("/invitations", tags=["invitation"], name="ListInvitations")
 async def list_invitations_view(
     session: AsyncSessionDep, user: User = Depends(get_current_admin)
 ) -> view_models.InvitationList:
@@ -296,7 +296,7 @@ async def list_invitations_view(
     return view_models.InvitationList(items=invitations)
 
 
-@router.post("/register")
+@router.post("/register", tags=["auth"], name="Register")
 async def register_view(
     data: view_models.Register, session: AsyncSessionDep, user_manager: UserManager = Depends(get_user_manager)
 ) -> view_models.User:
@@ -352,7 +352,7 @@ async def register_view(
     )
 
 
-@router.post("/login")
+@router.post("/login", tags=["auth"], name="Login")
 async def login_view(
     request: Request,
     response: Response,
@@ -395,14 +395,14 @@ async def login_view(
     )
 
 
-@router.post("/logout")
+@router.post("/logout", tags=["auth"], name="Logout")
 async def logout_view(response: Response):
     # Clear authentication cookie
     response.delete_cookie(key="session")
     return {"success": True}
 
 
-@router.get("/user")
+@router.get("/user", tags=["user"], name="GetCurrentUser")
 async def get_user_view(request: Request, session: AsyncSessionDep, user: Optional[User] = Depends(current_user)):
     """Get user info, return 401 if not authenticated"""
     if not user:
@@ -418,7 +418,7 @@ async def get_user_view(request: Request, session: AsyncSessionDep, user: Option
     )
 
 
-@router.get("/users")
+@router.get("/users", tags=["user"], name="ListUsers")
 async def list_users_view(session: AsyncSessionDep, user: User = Depends(get_current_admin)) -> view_models.UserList:
     from sqlalchemy import select
 
@@ -437,7 +437,7 @@ async def list_users_view(session: AsyncSessionDep, user: User = Depends(get_cur
     return view_models.UserList(items=users)
 
 
-@router.post("/change-password")
+@router.post("/change-password", tags=["user"], name="ChangePassword")
 async def change_password_view(
     data: view_models.ChangePassword,
     session: AsyncSessionDep,
@@ -467,7 +467,7 @@ async def change_password_view(
     )
 
 
-@router.delete("/users/{user_id}")
+@router.delete("/users/{user_id}", tags=["user"], name="DeleteUser")
 async def delete_user_view(user_id: str, session: AsyncSessionDep, user: User = Depends(get_current_admin)):
     from sqlalchemy import select
 

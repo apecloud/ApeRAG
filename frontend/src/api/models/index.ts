@@ -2,6 +2,8 @@ export * from './api-key';
 export * from './api-key-create';
 export * from './api-key-list';
 export * from './api-key-update';
+export * from './audit-log';
+export * from './audit-log-list';
 export * from './bot';
 export * from './bot-create';
 export * from './bot-list';
