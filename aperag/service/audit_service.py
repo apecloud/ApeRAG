@@ -115,44 +115,6 @@ class AuditService:
             logger.warning(f"Failed to serialize data: {e}")
             return str(data)
 
-    def _extract_client_info(self, request) -> tuple[Optional[str], Optional[str]]:
-        """Extract client IP and User-Agent from request"""
-        try:
-            # Get IP address
-            ip_address = None
-            if hasattr(request, 'client') and request.client:
-                ip_address = request.client.host
-            
-            # Check for forwarded headers
-            if hasattr(request, 'headers'):
-                forwarded_for = request.headers.get('X-Forwarded-For')
-                if forwarded_for:
-                    ip_address = forwarded_for.split(',')[0].strip()
-                elif request.headers.get('X-Real-IP'):
-                    ip_address = request.headers.get('X-Real-IP')
-            
-            # Get User-Agent
-            user_agent = None
-            if hasattr(request, 'headers'):
-                user_agent = request.headers.get('User-Agent')
-            
-            return ip_address, user_agent
-        except Exception as e:
-            logger.warning(f"Failed to extract client info: {e}")
-            return None, None
-
-    def get_resource_type_from_tags(self, tags: List[str]) -> Optional[AuditResource]:
-        """Get resource type from FastAPI tags"""
-        if not tags:
-            return None
-            
-        # Find the first tag that matches our resource mapping
-        for tag in tags:
-            if tag in self.tag_resource_map:
-                return self.tag_resource_map[tag]
-        
-        return None
-
     def extract_resource_id_from_path(self, path: str, resource_type: AuditResource) -> Optional[str]:
         """Extract resource ID from path - called during query time"""
         try:
