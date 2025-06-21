@@ -210,68 +210,6 @@ def _clean_data_for_audit(data):
         return data
 
 
-async def _extract_request_data(request: Request) -> Optional[Dict[str, Any]]:
-    """Extract request data safely without consuming the body"""
-    try:
-        request_data = {
-            "method": request.method,
-            "path": request.url.path,
-        }
-        
-        # Add query parameters if present
-        if request.query_params:
-            request_data["query_params"] = dict(request.query_params)
-        
-        # For POST/PUT/PATCH requests, try to extract JSON body
-        if request.method.upper() in ["POST", "PUT", "PATCH"]:
-            try:
-                # Check if content type is JSON
-                content_type = request.headers.get("content-type", "")
-                if "application/json" in content_type:
-                    # Read the body - this is safe in FastAPI decorators
-                    # because the body will be re-read by FastAPI's dependency injection
-                    body = await request.body()
-                    if body:
-                        import json
-                        body_data = json.loads(body.decode('utf-8'))
-                        request_data["body"] = body_data
-                elif "application/x-www-form-urlencoded" in content_type:
-                    # Handle form data
-                    form_data = await request.form()
-                    request_data["form_data"] = dict(form_data)
-                elif "multipart/form-data" in content_type:
-                    # Handle multipart form data (files)
-                    form_data = await request.form()
-                    form_dict = {}
-                    for key, value in form_data.items():
-                        if hasattr(value, 'filename'):  # File upload
-                            form_dict[key] = f"<file: {value.filename}>"
-                        else:
-                            form_dict[key] = str(value)
-                    request_data["form_data"] = form_dict
-            except Exception as body_error:
-                logger.debug(f"Failed to extract request body: {body_error}")
-                request_data["body_error"] = str(body_error)
-        
-        # Add relevant headers (filter out sensitive ones)
-        filtered_headers = {}
-        for key, value in request.headers.items():
-            key_lower = key.lower()
-            if key_lower not in ['authorization', 'cookie', 'x-api-key']:
-                filtered_headers[key] = value
-        request_data["headers"] = filtered_headers
-        
-        return request_data
-            
-    except Exception as e:
-        logger.warning(f"Failed to extract request data: {e}")
-        return {
-            "method": request.method,
-            "path": request.url.path,
-            "error": str(e)
-        }
-
-
 def _extract_response_data(response: Any) -> Optional[Dict[str, Any]]:
     """Extract response data from the returned response object"""
     try:
