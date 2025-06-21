@@ -795,7 +795,7 @@ class AuditLog(Base):
     request_id = Column(String(255), nullable=False, comment="Request ID for tracking")
     start_time = Column(BigInteger, nullable=False, comment="Request start time (milliseconds since epoch)")
     end_time = Column(BigInteger, nullable=True, comment="Request end time (milliseconds since epoch)")
-    gmt_created = Column(DateTime(timezone=True), nullable=False, default=func.now(), comment="Created time")
+    gmt_created = Column(DateTime(timezone=True), nullable=False, default=utc_now, comment="Created time")
 
     # Index for better query performance
     __table_args__ = (

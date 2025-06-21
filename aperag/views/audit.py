@@ -149,21 +149,3 @@ async def get_audit_log(
         )
 
 
-@router.get("/audit/logs", tags=["audit"], name="ListAuditLogs")
-async def list_audit_logs_view(
-    page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(20, ge=1, le=100, description="Items per page"),
-    resource_type: Optional[str] = Query(None, description="Filter by resource type"),
-    api_name: Optional[str] = Query(None, description="Filter by API name"),
-    user: User = Depends(current_user),
-) -> view_models.AuditLogList:
-    """List audit logs with filtering and pagination"""
-    return await audit_service.list_audit_logs(
-        page=page,
-        limit=limit,
-        resource_type=resource_type,
-        api_name=api_name,
-    )
-
-
- 
