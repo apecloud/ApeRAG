@@ -288,10 +288,14 @@ class TestIntegrationScenarios:
         async with lock_context(threading_lock):
             assert threading_lock.is_locked()
 
-        # Redis lock should raise NotImplementedError (not implemented yet)
-        with pytest.raises(NotImplementedError):
+        # Redis lock should also work (but may fail without Redis server)
+        # We expect either success or connection error (not NotImplementedError)
+        try:
             async with lock_context(redis_lock):
-                pass
+                assert redis_lock.is_locked()
+        except (ConnectionError, ImportError):
+            # Expected if Redis is not available or not running
+            pass
 
     @pytest.mark.asyncio
     async def test_real_world_usage_pattern(self):

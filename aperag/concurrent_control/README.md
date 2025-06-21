@@ -22,13 +22,14 @@ A flexible and reusable concurrent control system that provides unified locking 
   - Lower overhead than distributed locks
 - **Limitations**: Does NOT work across multiple processes
 
-### RedisLock (Future)
+### RedisLock
 - **Best for**: Multi-process environments (Celery `--pool=prefork`, distributed deployment)
-- **Implementation**: Redis-based distributed locking (TODO)
+- **Implementation**: Redis-based distributed locking
 - **Features**: 
   - Works across processes, containers, and machines
   - Automatic lock expiration to prevent deadlocks
   - Retry mechanisms for lock acquisition
+  - Safe release using Lua scripts
 - **Trade-offs**: Network overhead, Redis dependency
 
 ## Quick Start
@@ -180,7 +181,7 @@ manager.remove_lock("some_lock_name")
 
 | Pool Type | Recommended Lock | Use Case |
 |-----------|------------------|----------|
-| `--pool=prefork` | `RedisLock` (Future) | Production multi-process |
+| `--pool=prefork` | `RedisLock` | Production multi-process |
 | `--pool=threads` | `ThreadingLock` | Single-process multi-thread |
 | `--pool=gevent` | `ThreadingLock` | Single-process async |
 | `--pool=solo` | `ThreadingLock` | Development/testing |
@@ -371,10 +372,121 @@ pytest tests/unit_test/concurrent_control/
 
 ## Future Enhancements
 
-1. **RedisLock Implementation**: Complete Redis-based distributed locking
-2. **Lock Monitoring**: Usage metrics and performance monitoring
-3. **Advanced Features**: Lock priorities, deadlock detection
+1. **Lock Monitoring**: Usage metrics and performance monitoring
+2. **Advanced Features**: Lock priorities, deadlock detection
+3. **Connection Pooling**: Optimize Redis connection management
 
 ## License
 
-This module is part of the ApeRAG project and follows the same license terms. 
+This module is part of the ApeRAG project and follows the same license terms.
+
+# Usage Examples
+
+## Basic RedisLock Usage
+
+### Direct Usage
+
+```python
+import asyncio
+from aperag.concurrent_control import RedisLock
+
+async def example():
+    # Create a Redis lock
+    lock = RedisLock(
+        key="my_resource",
+        redis_url="redis://localhost:6379",
+        expire_time=30,  # Lock expires in 30 seconds
+        retry_times=3,
+        retry_delay=0.1
+    )
+    
+    # Acquire the lock
+    if await lock.acquire(timeout=5.0):
+        try:
+            print("Lock acquired! Doing critical work...")
+            await asyncio.sleep(2)  # Simulate work
+        finally:
+            await lock.release()
+            print("Lock released!")
+    else:
+        print("Failed to acquire lock")
+    
+    # Clean up
+    await lock.close()
+
+# Run the example
+asyncio.run(example())
+```
+
+### Context Manager Usage
+
+```python
+import asyncio
+from aperag.concurrent_control import RedisLock
+
+async def example_with_context():
+    lock = RedisLock(key="my_resource", expire_time=60)
+    
+    # Use as context manager for automatic cleanup
+    async with lock:
+        print("Lock acquired automatically!")
+        await asyncio.sleep(1)
+        # Lock will be released automatically
+
+asyncio.run(example_with_context())
+```
+
+### Factory and Manager Usage
+
+```python
+import asyncio
+from aperag.concurrent_control import create_lock, get_default_lock_manager, lock_context
+
+async def example_factory():
+    # Create lock using factory
+    redis_lock = create_lock(
+        "redis",
+        key="shared_resource",
+        redis_url="redis://localhost:6379",
+        expire_time=120
+    )
+    
+    # Use with lock context for timeout support
+    try:
+        async with lock_context(redis_lock, timeout=10.0):
+            print("Processing with distributed lock...")
+            await asyncio.sleep(5)
+    except TimeoutError:
+        print("Could not acquire lock within timeout")
+    
+    # Use lock manager for reuse
+    manager = get_default_lock_manager()
+    managed_lock = manager.get_or_create_lock(
+        "distributed_task", 
+        "redis",
+        key="task_queue",
+        redis_url="redis://localhost:6379"
+    )
+    
+    async with lock_context(managed_lock, timeout=5.0):
+        print("Using managed Redis lock...")
+
+asyncio.run(example_factory())
+```
+
+## ThreadingLock Usage
+
+```python
+import asyncio
+from aperag.concurrent_control import ThreadingLock, lock_context
+
+async def example_threading():
+    # For single-process, multi-thread scenarios
+    lock = ThreadingLock(name="local_resource")
+    
+    async with lock_context(lock, timeout=2.0):
+        print("Processing with threading lock...")
+        await asyncio.sleep(1)
+
+asyncio.run(example_threading())
+``` 

@@ -23,14 +23,15 @@
     * 开销低于分布式锁
 * **限制**：**不支持**跨多个进程
 
-#### RedisLock (未来功能)
+#### RedisLock
 
 * **最适合**：多进程环境（Celery `--pool=prefork`, 分布式部署）
-* **实现**：基于 Redis 的分布式锁（TODO）
+* **实现**：基于 Redis 的分布式锁
 * **特点**：
     * 支持跨进程、容器和机器
     * 自动锁过期，防止死锁
     * 锁获取重试机制
+    * 使用Lua脚本安全释放锁
 * **权衡**：网络开销，依赖 Redis
 
 ### 快速开始
@@ -193,7 +194,7 @@ manager.remove_lock("some_lock_name")
 
 | 池类型           | 推荐锁           | 用例                 |
 | :--------------- | :--------------- | :------------------- |
-| `--pool=prefork` | `RedisLock` (未来) | 生产多进程           |
+| `--pool=prefork` | `RedisLock` | 生产多进程           |
 | `--pool=threads` | `ThreadingLock`  | 单进程多线程         |
 | `--pool=gevent`  | `ThreadingLock`  | 单进程异步           |
 | `--pool=solo`    | `ThreadingLock`  | 开发/测试            |
@@ -392,9 +393,9 @@ pytest tests/unit_test/concurrent_control/
 
 ### 未来增强
 
-1.  **RedisLock 实现**：完成基于 Redis 的分布式锁
-2.  **锁监控**：使用指标和性能监控
-3.  **高级功能**：锁优先级，死锁检测
+1.  **锁监控**：使用指标和性能监控
+2.  **高级功能**：锁优先级，死锁检测
+3.  **连接池优化**：优化Redis连接管理
 
 ### 许可证
 
