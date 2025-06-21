@@ -301,7 +301,7 @@ async def list_invitations_view(
 
 
 @router.post("/register", tags=["auth"], name="Register")
-@audit_api(resource_type="user", api_name="Register")
+@audit_api(resource_type="user", api_name="RegisterUser")
 async def register_view(
     request: Request, data: view_models.Register, session: AsyncSessionDep, user_manager: UserManager = Depends(get_user_manager)
 ) -> view_models.User:

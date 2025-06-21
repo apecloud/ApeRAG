@@ -16,7 +16,7 @@ import {
   Tooltip,
   theme,
 } from 'antd';
-import { SearchOutlined, EyeOutlined } from '@ant-design/icons';
+import { SearchOutlined, EyeOutlined, CopyOutlined } from '@ant-design/icons';
 import { useIntl } from 'umi';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -120,6 +120,34 @@ const AuditLogsPage: React.FC = () => {
     } catch (error) {
       console.error('Failed to get audit details:', error);
       message.error(intl.formatMessage({ id: 'audit.logs.detailError', defaultMessage: 'Failed to get audit details' }));
+    }
+  };
+
+  // Handle copy to clipboard
+  const handleCopy = async (text: string, type: 'request' | 'response') => {
+    try {
+      await navigator.clipboard.writeText(text);
+      message.success(
+        intl.formatMessage(
+          { id: 'audit.logs.copySuccess', defaultMessage: '{type} data copied to clipboard' },
+          { type: type === 'request' ? 'Request' : 'Response' }
+        )
+      );
+    } catch (error) {
+      message.error(intl.formatMessage({ id: 'audit.logs.copyError', defaultMessage: 'Failed to copy to clipboard' }));
+    }
+  };
+
+  // Format JSON data for display
+  const formatJsonData = (data: any): string => {
+    if (!data) return '';
+    try {
+      if (typeof data === 'string') {
+        return JSON.stringify(JSON.parse(data), null, 2);
+      }
+      return JSON.stringify(data, null, 2);
+    } catch {
+      return typeof data === 'string' ? data : JSON.stringify(data);
     }
   };
 
@@ -269,7 +297,7 @@ const AuditLogsPage: React.FC = () => {
                   intl.formatMessage({ id: 'audit.logs.startTime', defaultMessage: 'Start Time' }),
                   intl.formatMessage({ id: 'audit.logs.endTime', defaultMessage: 'End Time' })
                 ]}
-                style={{ width: 350 }}
+                style={{ width: 420 }}
               />
             </Form.Item>
 
@@ -320,9 +348,20 @@ const AuditLogsPage: React.FC = () => {
         {selectedRecord && (
           <Space direction="vertical" size="large" style={{ width: '100%' }}>
             <div>
-              <Title level={5} style={{ marginBottom: 16 }}>
-                {intl.formatMessage({ id: 'audit.logs.detail.requestData', defaultMessage: 'Request Data' })}
-              </Title>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <Title level={5} style={{ margin: 0 }}>
+                  {intl.formatMessage({ id: 'audit.logs.detail.requestData', defaultMessage: 'Request Data' })}
+                </Title>
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<CopyOutlined />}
+                  onClick={() => handleCopy(selectedRecord.request_data || '', 'request')}
+                  disabled={!selectedRecord.request_data}
+                >
+                  {intl.formatMessage({ id: 'common.copy', defaultMessage: 'Copy' })}
+                </Button>
+              </div>
               <div style={{
                 maxHeight: '400px',
                 overflow: 'auto',
@@ -341,24 +380,26 @@ const AuditLogsPage: React.FC = () => {
                   fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, monospace',
                   color: token.colorText,
                 }}>
-                  {selectedRecord?.request_data ? 
-                    ((() => {
-                      try {
-                        return JSON.stringify(JSON.parse(selectedRecord.request_data), null, 2);
-                      } catch {
-                        return selectedRecord.request_data;
-                      }
-                    })()) : 
-                    intl.formatMessage({ id: 'audit.logs.detail.noData', defaultMessage: 'No data' })
-                  }
+                  {formatJsonData(selectedRecord.request_data)}
                 </pre>
               </div>
             </div>
             
             <div>
-              <Title level={5} style={{ marginBottom: 16 }}>
-                {intl.formatMessage({ id: 'audit.logs.detail.responseData', defaultMessage: 'Response Data' })}
-              </Title>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <Title level={5} style={{ margin: 0 }}>
+                  {intl.formatMessage({ id: 'audit.logs.detail.responseData', defaultMessage: 'Response Data' })}
+                </Title>
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<CopyOutlined />}
+                  onClick={() => handleCopy(selectedRecord.response_data || '', 'response')}
+                  disabled={!selectedRecord.response_data}
+                >
+                  {intl.formatMessage({ id: 'common.copy', defaultMessage: 'Copy' })}
+                </Button>
+              </div>
               <div style={{
                 maxHeight: '400px',
                 overflow: 'auto',
@@ -377,16 +418,7 @@ const AuditLogsPage: React.FC = () => {
                   fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, monospace',
                   color: token.colorText,
                 }}>
-                  {selectedRecord?.response_data ? 
-                    ((() => {
-                      try {
-                        return JSON.stringify(JSON.parse(selectedRecord.response_data), null, 2);
-                      } catch {
-                        return selectedRecord.response_data;
-                      }
-                    })()) : 
-                    intl.formatMessage({ id: 'audit.logs.detail.noData', defaultMessage: 'No data' })
-                  }
+                  {formatJsonData(selectedRecord.response_data)}
                 </pre>
               </div>
             </div>

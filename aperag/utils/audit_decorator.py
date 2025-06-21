@@ -56,14 +56,14 @@ def audit_api(resource_type: str, api_name: str = None):
             actual_api_name = api_name or func.__name__
             
             try:
-                # Extract request data
-                request_data = await _extract_request_data(request)
-                
-                # Call the original function
+                # Call the original function first to get the parsed data
                 response = await func(*args, **kwargs)
                 
                 # Record end time
                 end_time_ms = int(time.time() * 1000)
+                
+                # Extract request data from function arguments (after parsing)
+                request_data = _extract_request_data_from_args(request, kwargs)
                 
                 # Extract response data
                 response_data = _extract_response_data(response)
@@ -87,11 +87,11 @@ def audit_api(resource_type: str, api_name: str = None):
                 # Record end time for error case
                 end_time_ms = int(time.time() * 1000)
                 
-                # Extract request data if not already done
+                # Extract request data if possible
                 try:
-                    request_data = await _extract_request_data(request)
+                    request_data = _extract_request_data_from_args(request, kwargs)
                 except:
-                    request_data = None
+                    request_data = {"method": request.method, "path": request.url.path}
                 
                 # Log audit for error case
                 await _log_audit_async(
@@ -113,30 +113,163 @@ def audit_api(resource_type: str, api_name: str = None):
     return decorator
 
 
+def _extract_request_data_from_args(request: Request, kwargs: dict) -> Optional[Dict[str, Any]]:
+    """Extract request data from function arguments (after FastAPI parsing)"""
+    try:
+        # Extract parsed data from function arguments
+        # FastAPI injects parsed JSON data as function parameters
+        parsed_data = {}
+        for key, value in kwargs.items():
+            # Skip the request object itself
+            if isinstance(value, Request):
+                continue
+            
+            # Skip User objects and other database model objects
+            if hasattr(value, '__tablename__'):  # SQLAlchemy model
+                continue
+                
+            # Try to serialize the value
+            try:
+                if hasattr(value, 'dict'):  # Pydantic model
+                    serialized = value.dict()
+                    # Clean up the serialized data - remove null values and filter sensitive data
+                    cleaned_data = _clean_data_for_audit(serialized)
+                    if cleaned_data:  # Only add if there's actual data
+                        parsed_data[key] = cleaned_data
+                elif hasattr(value, 'model_dump'):  # Pydantic v2
+                    serialized = value.model_dump()
+                    # Clean up the serialized data
+                    cleaned_data = _clean_data_for_audit(serialized)
+                    if cleaned_data:  # Only add if there's actual data
+                        parsed_data[key] = cleaned_data
+                elif isinstance(value, (dict, list, str, int, float, bool)):
+                    # For basic types, also clean the data
+                    cleaned_data = _clean_data_for_audit(value)
+                    if cleaned_data is not None:  # Allow False, 0, empty string but not None
+                        parsed_data[key] = cleaned_data
+                else:
+                    # For other types, convert to string but skip if it looks like an object
+                    str_value = str(value)
+                    if not (' object at 0x' in str_value):  # Skip object representations
+                        parsed_data[key] = str_value
+            except Exception:
+                # Skip problematic values
+                continue
+        
+        # Return the actual data directly, not wrapped in any structure
+        # If there's only one main data object, return it directly
+        if len(parsed_data) == 1:
+            return list(parsed_data.values())[0]
+        elif len(parsed_data) > 1:
+            return parsed_data
+        else:
+            return None
+            
+    except Exception as e:
+        logger.warning(f"Failed to extract request data from args: {e}")
+        return None
+
+
+def _clean_data_for_audit(data):
+    """Clean data for audit logging - remove null values and sensitive information"""
+    if data is None:
+        return None
+    
+    if isinstance(data, dict):
+        cleaned = {}
+        for key, value in data.items():
+            # Skip null/None values
+            if value is None:
+                continue
+            
+            # Filter out sensitive fields
+            key_lower = key.lower()
+            if any(sensitive in key_lower for sensitive in ['password', 'secret', 'token', 'key']):
+                cleaned[key] = "***FILTERED***"
+            else:
+                # Recursively clean nested data
+                cleaned_value = _clean_data_for_audit(value)
+                if cleaned_value is not None or isinstance(cleaned_value, (bool, int, float, str)):
+                    # Keep non-null values and primitive types (including False, 0, empty string)
+                    if not (isinstance(cleaned_value, dict) and len(cleaned_value) == 0):
+                        # Don't add empty dicts
+                        cleaned[key] = cleaned_value
+        
+        return cleaned if cleaned else None
+    
+    elif isinstance(data, list):
+        cleaned = []
+        for item in data:
+            cleaned_item = _clean_data_for_audit(item)
+            if cleaned_item is not None:
+                cleaned.append(cleaned_item)
+        return cleaned if cleaned else None
+    
+    else:
+        # For primitive types, return as-is
+        return data
+
+
 async def _extract_request_data(request: Request) -> Optional[Dict[str, Any]]:
     """Extract request data safely without consuming the body"""
     try:
-        # Try to get the body if it hasn't been consumed yet
-        # In FastAPI, we need to be careful not to consume the body
-        # that's needed by the actual endpoint
-        
-        # Get query parameters (safe to read multiple times)
-        if request.query_params:
-            return dict(request.query_params)
-        
-        # For now, let's just extract safe data to avoid body consumption issues
-        # We can enhance this later if needed
-        return {
+        request_data = {
             "method": request.method,
             "path": request.url.path,
-            "query_params": dict(request.query_params) if request.query_params else None,
-            "headers": dict(request.headers) if hasattr(request, 'headers') else None
         }
+        
+        # Add query parameters if present
+        if request.query_params:
+            request_data["query_params"] = dict(request.query_params)
+        
+        # For POST/PUT/PATCH requests, try to extract JSON body
+        if request.method.upper() in ["POST", "PUT", "PATCH"]:
+            try:
+                # Check if content type is JSON
+                content_type = request.headers.get("content-type", "")
+                if "application/json" in content_type:
+                    # Read the body - this is safe in FastAPI decorators
+                    # because the body will be re-read by FastAPI's dependency injection
+                    body = await request.body()
+                    if body:
+                        import json
+                        body_data = json.loads(body.decode('utf-8'))
+                        request_data["body"] = body_data
+                elif "application/x-www-form-urlencoded" in content_type:
+                    # Handle form data
+                    form_data = await request.form()
+                    request_data["form_data"] = dict(form_data)
+                elif "multipart/form-data" in content_type:
+                    # Handle multipart form data (files)
+                    form_data = await request.form()
+                    form_dict = {}
+                    for key, value in form_data.items():
+                        if hasattr(value, 'filename'):  # File upload
+                            form_dict[key] = f"<file: {value.filename}>"
+                        else:
+                            form_dict[key] = str(value)
+                    request_data["form_data"] = form_dict
+            except Exception as body_error:
+                logger.debug(f"Failed to extract request body: {body_error}")
+                request_data["body_error"] = str(body_error)
+        
+        # Add relevant headers (filter out sensitive ones)
+        filtered_headers = {}
+        for key, value in request.headers.items():
+            key_lower = key.lower()
+            if key_lower not in ['authorization', 'cookie', 'x-api-key']:
+                filtered_headers[key] = value
+        request_data["headers"] = filtered_headers
+        
+        return request_data
             
     except Exception as e:
         logger.warning(f"Failed to extract request data: {e}")
-        
-    return None
+        return {
+            "method": request.method,
+            "path": request.url.path,
+            "error": str(e)
+        }
 
 
 def _extract_response_data(response: Any) -> Optional[Dict[str, Any]]:
