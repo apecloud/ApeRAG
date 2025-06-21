@@ -1,0 +1,89 @@
+auditLog:
+  type: object
+  description: Audit log entry
+  properties:
+    id:
+      type: string
+      description: Audit log ID
+    user_id:
+      type: string
+      nullable: true
+      description: User ID who performed the action
+    username:
+      type: string
+      nullable: true
+      description: Username for display
+    resource_type:
+      type: string
+      enum: [collection, document, bot, chat, message, api_key, llm_provider, llm_provider_model, model_service_provider, user, flow, search_test]
+      nullable: true
+      description: Type of resource
+    resource_id:
+      type: string
+      nullable: true
+      description: ID of the resource (extracted at query time)
+    api_name:
+      type: string
+      description: API operation name
+    http_method:
+      type: string
+      description: HTTP method (POST, PUT, DELETE)
+    path:
+      type: string
+      description: API path
+    status_code:
+      type: integer
+      nullable: true
+      description: HTTP status code
+    start_time:
+      type: integer
+      format: int64
+      description: Request start time (milliseconds since epoch)
+    end_time:
+      type: integer
+      format: int64
+      nullable: true
+      description: Request end time (milliseconds since epoch)
+    duration_ms:
+      type: integer
+      nullable: true
+      description: Request duration in milliseconds (calculated)
+    request_data:
+      type: string
+      nullable: true
+      description: Request data (JSON string)
+    response_data:
+      type: string
+      nullable: true
+      description: Response data (JSON string)
+    error_message:
+      type: string
+      nullable: true
+      description: Error message if failed
+    ip_address:
+      type: string
+      nullable: true
+      description: Client IP address
+    user_agent:
+      type: string
+      nullable: true
+      description: User agent string
+    request_id:
+      type: string
+      description: Request ID for tracking
+    created:
+      type: string
+      format: date-time
+      description: Created timestamp
+
+auditLogList:
+  type: object
+  description: List of audit logs
+  properties:
+    items:
+      type: array
+      description: Audit log entries
+      items:
+        $ref: '#/auditLog'
+
+ 

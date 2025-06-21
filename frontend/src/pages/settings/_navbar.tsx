@@ -22,6 +22,10 @@ export const NavbarSettings = () => {
         label: <FormattedMessage id="apiKeys.title" />,
         key: `/settings/apiKeys`,
       },
+      {
+        label: <FormattedMessage id="audit.logs.title" />,
+        key: `/settings/auditLogs`,
+      },
     ],
     [],
   );

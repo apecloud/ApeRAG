@@ -310,7 +310,7 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
-         * Delete a chat
+         * Delete a chat (idempotent operation)
          * @summary Delete a chat
          * @param {string} botId 
          * @param {string} chatId 
@@ -582,7 +582,7 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
-         * Delete a bot
+         * Delete a bot (idempotent operation)
          * @summary Delete a bot
          * @param {string} botId 
          * @param {*} [options] Override http request option.
@@ -2266,7 +2266,7 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Delete a chat
+         * Delete a chat (idempotent operation)
          * @summary Delete a chat
          * @param {string} botId 
          * @param {string} chatId 
@@ -2354,7 +2354,7 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Delete a bot
+         * Delete a bot (idempotent operation)
          * @summary Delete a bot
          * @param {string} botId 
          * @param {*} [options] Override http request option.
@@ -2974,7 +2974,7 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.availableModelsPost(requestParameters.tagFilterRequest, options).then((request) => request(axios, basePath));
         },
         /**
-         * Delete a chat
+         * Delete a chat (idempotent operation)
          * @summary Delete a chat
          * @param {DefaultApiBotsBotIdChatsChatIdDeleteRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
@@ -3034,7 +3034,7 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.botsBotIdChatsPost(requestParameters.botId, requestParameters.chatCreate, options).then((request) => request(axios, basePath));
         },
         /**
-         * Delete a bot
+         * Delete a bot (idempotent operation)
          * @summary Delete a bot
          * @param {DefaultApiBotsBotIdDeleteRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
@@ -3505,7 +3505,7 @@ export interface DefaultApiInterface {
     availableModelsPost(requestParameters?: DefaultApiAvailableModelsPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<ModelConfigList>;
 
     /**
-     * Delete a chat
+     * Delete a chat (idempotent operation)
      * @summary Delete a chat
      * @param {DefaultApiBotsBotIdChatsChatIdDeleteRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -3565,7 +3565,7 @@ export interface DefaultApiInterface {
     botsBotIdChatsPost(requestParameters: DefaultApiBotsBotIdChatsPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<Chat>;
 
     /**
-     * Delete a bot
+     * Delete a bot (idempotent operation)
      * @summary Delete a bot
      * @param {DefaultApiBotsBotIdDeleteRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -4907,7 +4907,7 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
     }
 
     /**
-     * Delete a chat
+     * Delete a chat (idempotent operation)
      * @summary Delete a chat
      * @param {DefaultApiBotsBotIdChatsChatIdDeleteRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -4979,7 +4979,7 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
     }
 
     /**
-     * Delete a bot
+     * Delete a bot (idempotent operation)
      * @summary Delete a bot
      * @param {DefaultApiBotsBotIdDeleteRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.

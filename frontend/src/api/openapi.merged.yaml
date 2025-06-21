@@ -94,7 +94,7 @@ paths:
                 $ref: '#/components/schemas/failResponse'
     delete:
       summary: Delete a bot
-      description: Delete a bot
+      description: Delete a bot (idempotent operation)
       security:
         - BearerAuth: []
       parameters:
@@ -105,7 +105,7 @@ paths:
             type: string
       responses:
         '204':
-          description: Bot deleted successfully
+          description: Bot deleted successfully (or already deleted)
     put:
       summary: Update a bot
       description: Update a bot
@@ -344,7 +344,7 @@ paths:
                 $ref: '#/components/schemas/failResponse'
     delete:
       summary: Delete a chat
-      description: Delete a chat
+      description: Delete a chat (idempotent operation)
       security:
         - BearerAuth: []
       parameters:
@@ -360,15 +360,9 @@ paths:
             type: string
       responses:
         '204':
-          description: Chat deleted successfully
+          description: Chat deleted successfully (or already deleted)
         '401':
           description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/failResponse'
-        '404':
-          description: Chat not found
           content:
             application/json:
               schema:
@@ -1667,6 +1661,128 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
+  /audit-logs:
+    get:
+      tags:
+        - audit
+      summary: List audit logs
+      description: List audit logs with filtering options
+      operationId: list_audit_logs
+      parameters:
+        - name: user_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by user ID
+        - name: username
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by username
+        - name: resource_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - collection
+              - document
+              - bot
+              - chat
+              - message
+              - api_key
+              - llm_provider
+              - llm_provider_model
+              - model_service_provider
+              - user
+              - config
+          description: Filter by resource type
+        - name: resource_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by resource ID
+        - name: api_name
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by API name
+        - name: http_method
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - POST
+              - PUT
+              - DELETE
+          description: Filter by HTTP method
+        - name: status_code
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Filter by status code
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter by start date
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Filter by end date
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 5000
+            default: 1000
+          description: Maximum number of records
+      responses:
+        '200':
+          description: Audit logs retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/auditLogList'
+        '403':
+          description: Admin access required
+  /audit-logs/{audit_id}:
+    get:
+      tags:
+        - audit
+      summary: Get audit log detail
+      description: Get a specific audit log by ID
+      operationId: get_audit_log
+      parameters:
+        - name: audit_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Audit log ID
+      responses:
+        '200':
+          description: Audit log retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/auditLog'
+        '403':
+          description: Admin access required
+        '404':
+          description: Audit log not found
   /invite:
     post:
       summary: Create an invitation
@@ -3461,6 +3577,103 @@ components:
             $ref: '#/components/schemas/promptTemplate'
         pageResult:
           $ref: '#/components/schemas/pageResult'
+    auditLog:
+      type: object
+      description: Audit log entry
+      properties:
+        id:
+          type: string
+          description: Audit log ID
+        user_id:
+          type: string
+          nullable: true
+          description: User ID who performed the action
+        username:
+          type: string
+          nullable: true
+          description: Username for display
+        resource_type:
+          type: string
+          enum:
+            - collection
+            - document
+            - bot
+            - chat
+            - message
+            - api_key
+            - llm_provider
+            - llm_provider_model
+            - model_service_provider
+            - user
+            - config
+          nullable: true
+          description: Type of resource
+        resource_id:
+          type: string
+          nullable: true
+          description: ID of the resource (extracted at query time)
+        api_name:
+          type: string
+          description: API operation name
+        http_method:
+          type: string
+          description: HTTP method (POST, PUT, DELETE)
+        path:
+          type: string
+          description: API path
+        status_code:
+          type: integer
+          nullable: true
+          description: HTTP status code
+        start_time:
+          type: integer
+          format: int64
+          description: Request start time (milliseconds since epoch)
+        end_time:
+          type: integer
+          format: int64
+          nullable: true
+          description: Request end time (milliseconds since epoch)
+        duration_ms:
+          type: integer
+          nullable: true
+          description: Request duration in milliseconds (calculated)
+        request_data:
+          type: string
+          nullable: true
+          description: Request data (JSON string)
+        response_data:
+          type: string
+          nullable: true
+          description: Response data (JSON string)
+        error_message:
+          type: string
+          nullable: true
+          description: Error message if failed
+        ip_address:
+          type: string
+          nullable: true
+          description: Client IP address
+        user_agent:
+          type: string
+          nullable: true
+          description: User agent string
+        request_id:
+          type: string
+          description: Request ID for tracking
+        created:
+          type: string
+          format: date-time
+          description: Created timestamp
+    auditLogList:
+      type: object
+      description: List of audit logs
+      properties:
+        items:
+          type: array
+          description: Audit log entries
+          items:
+            $ref: '#/components/schemas/auditLog'
     invitationCreate:
       type: object
       properties:

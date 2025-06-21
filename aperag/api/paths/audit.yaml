@@ -1,0 +1,73 @@
+audit_logs:
+  get:
+    tags:
+      - audit
+    summary: List audit logs
+    description: List audit logs with filtering options
+    operationId: list_audit_logs
+    parameters:
+      - name: api_name
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Filter by API name
+      - name: start_date
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+        description: Filter by start date
+      - name: end_date
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+        description: Filter by end date
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 5000
+          default: 1000
+        description: Maximum number of records
+    responses:
+      "200":
+        description: Audit logs retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/audit.yaml#/auditLogList"
+      "403":
+        description: Admin access required
+
+audit_log_detail:
+  get:
+    tags:
+      - audit
+    summary: Get audit log detail
+    description: Get a specific audit log by ID
+    operationId: get_audit_log
+    parameters:
+      - name: audit_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Audit log ID
+    responses:
+      "200":
+        description: Audit log retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/audit.yaml#/auditLog"
+      "403":
+        description: Admin access required
+      "404":
+        description: Audit log not found
+
+ 

@@ -88,6 +88,12 @@ paths:
   /prompt-templates:
     $ref: './paths/prompt_templates.yaml#/promptTemplates'
   
+  # audit
+  /audit-logs:
+    $ref: './paths/audit.yaml#/audit_logs'
+  /audit-logs/{audit_id}:
+    $ref: './paths/audit.yaml#/audit_log_detail'
+  
   # users
   /invite:
     $ref: './paths/auth.yaml#/invite'
