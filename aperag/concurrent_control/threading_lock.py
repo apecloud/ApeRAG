@@ -19,8 +19,10 @@ This module contains the ThreadingLock implementation that uses threading.Lock
 wrapped with asyncio.to_thread for async compatibility.
 """
 
+import asyncio
 import logging
 import threading
+import time
 import uuid
 from typing import Any, Optional
 
@@ -62,7 +64,7 @@ class ThreadingLock(LockProtocol):
 
     async def acquire(self, timeout: Optional[float] = None) -> bool:
         """
-        Acquire the lock directly without thread wrapping.
+        Acquire the lock using non-blocking polling to avoid blocking the event loop.
 
         Args:
             timeout: Maximum time to wait for the lock (seconds).
@@ -71,22 +73,31 @@ class ThreadingLock(LockProtocol):
         Returns:
             True if lock was acquired, False if timeout occurred.
         """
-        try:
-            # Use threading.Lock.acquire with timeout parameter
-            if timeout is not None:
-                acquired = self._lock.acquire(blocking=True, timeout=timeout)
-            else:
-                acquired = self._lock.acquire(blocking=True)
+        start_time = time.time() if timeout is not None else None
 
-            if acquired:
-                self._holder_info = f"Thread-{threading.get_ident()}"
-                logger.debug(f"Lock '{self._name}' acquired by {self._holder_info}")
+        while True:
+            try:
+                # Try non-blocking acquire
+                acquired = self._lock.acquire(blocking=False)
 
-            return acquired
+                if acquired:
+                    self._holder_info = f"Thread-{threading.get_ident()}"
+                    logger.debug(f"Lock '{self._name}' acquired by {self._holder_info}")
+                    return True
 
-        except Exception as e:
-            logger.error(f"Error acquiring lock '{self._name}': {e}")
-            return False
+                # Check timeout
+                if timeout is not None:
+                    elapsed = time.time() - start_time
+                    if elapsed >= timeout:
+                        logger.debug(f"Lock '{self._name}' acquisition timed out after {elapsed:.3f}s")
+                        return False
+
+                # Sleep briefly before retrying (non-blocking for event loop)
+                await asyncio.sleep(0.001)  # 1ms polling interval
+
+            except Exception as e:
+                logger.error(f"Error acquiring lock '{self._name}': {e}")
+                return False
 
     async def release(self) -> None:
         """Release the lock directly."""

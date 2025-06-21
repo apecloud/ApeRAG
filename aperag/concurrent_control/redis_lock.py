@@ -25,8 +25,6 @@ import time
 import uuid
 from typing import Any, Optional
 
-import redis.asyncio as redis
-
 from .protocols import LockProtocol
 
 logger = logging.getLogger(__name__)
@@ -47,6 +45,7 @@ class RedisLock(LockProtocol):
     - Automatic lock expiration to prevent deadlocks
     - Retry mechanisms for lock acquisition
     - Safe lock release using Lua scripts
+    - Shared connection pool for efficiency
 
     Performance considerations:
     - Network round-trip overhead for each lock operation
@@ -66,8 +65,7 @@ class RedisLock(LockProtocol):
     def __init__(
         self,
         key: str,
-        redis_url: str = "redis://localhost:6379",
-        expire_time: int = 30,
+        expire_time: int = 120,
         retry_times: int = 3,
         retry_delay: float = 0.1,
         name: str = None,
@@ -77,7 +75,6 @@ class RedisLock(LockProtocol):
 
         Args:
             key: Redis key for the lock (required)
-            redis_url: Redis connection URL
             expire_time: Lock expiration time in seconds (prevents deadlocks)
             retry_times: Number of retry attempts for lock acquisition
             retry_delay: Delay between retry attempts in seconds
@@ -88,41 +85,17 @@ class RedisLock(LockProtocol):
 
         self._key = key
         self._name = name or f"redis_lock_{key}"
-        self._redis_url = redis_url
         self._expire_time = expire_time
         self._retry_times = retry_times
         self._retry_delay = retry_delay
-        self._redis_client: Optional[redis.Redis] = None
         self._lock_value: Optional[str] = None
         self._is_locked = False
 
-        # Pre-compile Lua script
-        self._release_script_sha: Optional[str] = None
+    async def _get_redis_client(self):
+        """Get Redis client from shared connection manager."""
+        from aperag.db.redis_manager import RedisConnectionManager
 
-    async def _get_redis_client(self) -> redis.Redis:
-        """Get or create Redis client connection."""
-        if self._redis_client is None:
-            try:
-                self._redis_client = redis.from_url(
-                    self._redis_url,
-                    encoding="utf-8",
-                    decode_responses=True,
-                    socket_connect_timeout=5,
-                    socket_timeout=5,
-                    retry_on_timeout=True,
-                )
-                # Test connection
-                await self._redis_client.ping()
-
-                # Load Lua script
-                self._release_script_sha = await self._redis_client.script_load(self.RELEASE_SCRIPT)
-
-                logger.debug(f"Redis connection established for lock '{self._key}'")
-            except Exception as e:
-                logger.error(f"Failed to connect to Redis for lock '{self._key}': {e}")
-                raise ConnectionError(f"Cannot connect to Redis: {e}")
-
-        return self._redis_client
+        return await RedisConnectionManager.get_client()
 
     async def acquire(self, timeout: Optional[float] = None) -> bool:
         """
@@ -217,23 +190,13 @@ class RedisLock(LockProtocol):
         try:
             redis_client = await self._get_redis_client()
 
-            # Use Lua script for atomic release
-            if self._release_script_sha:
-                # Use pre-loaded script
-                result = await redis_client.evalsha(
-                    self._release_script_sha,
-                    1,  # Number of keys
-                    self._key,  # KEYS[1]
-                    self._lock_value,  # ARGV[1]
-                )
-            else:
-                # Fallback to direct script execution
-                result = await redis_client.eval(
-                    self.RELEASE_SCRIPT,
-                    1,  # Number of keys
-                    self._key,  # KEYS[1]
-                    self._lock_value,  # ARGV[1]
-                )
+            # Use Lua script for atomic release - simplified to always use eval
+            result = await redis_client.eval(
+                self.RELEASE_SCRIPT,
+                1,  # Number of keys
+                self._key,  # KEYS[1]
+                self._lock_value,  # ARGV[1]
+            )
 
             if result == 1:
                 logger.debug(f"Redis lock '{self._key}' released successfully")
@@ -272,19 +235,10 @@ class RedisLock(LockProtocol):
         await self.release()
 
     async def close(self) -> None:
-        """Close Redis connection and clean up resources."""
+        """Close and clean up resources. Connection pool is managed globally."""
         if self._is_locked:
             await self.release()
-
-        if self._redis_client:
-            try:
-                await self._redis_client.close()
-                logger.debug(f"Redis connection closed for lock '{self._key}'")
-            except Exception as e:
-                logger.error(f"Error closing Redis connection for lock '{self._key}': {e}")
-            finally:
-                self._redis_client = None
-                self._release_script_sha = None
+        # Note: We don't close the Redis client here since it's shared via connection manager
 
     def __del__(self):
         """Destructor to ensure cleanup."""

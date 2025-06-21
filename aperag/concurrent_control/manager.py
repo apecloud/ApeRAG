@@ -35,14 +35,8 @@ class LockManager:
     of locks with consistent configuration and naming conventions.
     """
 
-    def __init__(self, default_redis_url: str = "redis://localhost:6379"):
-        """
-        Initialize the lock manager.
-
-        Args:
-            default_redis_url: Default Redis URL for distributed locks
-        """
-        self.default_redis_url = default_redis_url
+    def __init__(self):
+        """Initialize the lock manager."""
         self._locks: Dict[str, LockProtocol] = {}
         self._lock = threading.Lock()  # Thread safety for _locks dict operations
 
@@ -59,14 +53,13 @@ class LockManager:
         return ThreadingLock(name=name)
 
     def create_redis_lock(
-        self, key: str, redis_url: str = None, expire_time: int = 30, retry_times: int = 3, retry_delay: float = 0.1
+        self, key: str, expire_time: int = 120, retry_times: int = 3, retry_delay: float = 0.1
     ) -> RedisLock:
         """
         Create a Redis lock for distributed scenarios.
 
         Args:
             key: Redis key for the lock (required)
-            redis_url: Redis connection URL (uses default if None)
             expire_time: Lock expiration time in seconds
             retry_times: Number of retry attempts
             retry_delay: Delay between retry attempts
@@ -76,7 +69,6 @@ class LockManager:
         """
         return RedisLock(
             key=key,
-            redis_url=redis_url or self.default_redis_url,
             expire_time=expire_time,
             retry_times=retry_times,
             retry_delay=retry_delay,
