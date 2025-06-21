@@ -16,12 +16,7 @@ class TestLockManager:
     def test_lock_manager_creation(self):
         """Test basic LockManager creation."""
         manager = LockManager()
-        assert manager.default_redis_url == "redis://localhost:6379"
         assert manager._locks == {}
-
-        # Test with custom Redis URL
-        custom_manager = LockManager(default_redis_url="redis://custom:6379")
-        assert custom_manager.default_redis_url == "redis://custom:6379"
 
     def test_create_threading_lock(self):
         """Test creating threading locks through manager."""
@@ -45,12 +40,9 @@ class TestLockManager:
         manager = LockManager()
 
         # Create with all parameters
-        lock1 = manager.create_redis_lock(
-            key="test_key_1", redis_url="redis://test:6379", expire_time=60, retry_times=5, retry_delay=0.2
-        )
+        lock1 = manager.create_redis_lock(key="test_key_1", expire_time=60, retry_times=5, retry_delay=0.2)
         assert isinstance(lock1, RedisLock)
         assert lock1._key == "test_key_1"
-        assert lock1._redis_url == "redis://test:6379"
         assert lock1._expire_time == 60
         assert lock1._retry_times == 5
         assert lock1._retry_delay == 0.2
@@ -59,8 +51,7 @@ class TestLockManager:
         lock2 = manager.create_redis_lock(key="test_key_2")
         assert isinstance(lock2, RedisLock)
         assert lock2._key == "test_key_2"
-        assert lock2._redis_url == "redis://localhost:6379"  # Manager default
-        assert lock2._expire_time == 30  # Default
+        assert lock2._expire_time == 120  # Default
         assert lock2._retry_times == 3  # Default
         assert lock2._retry_delay == 0.1  # Default
 

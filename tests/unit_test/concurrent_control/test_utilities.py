@@ -43,17 +43,13 @@ class TestCreateLockFactory:
         lock1 = create_lock("redis", key="test_key")
         assert isinstance(lock1, RedisLock)
         assert lock1._key == "test_key"
-        assert lock1._redis_url == "redis://localhost:6379"
-        assert lock1._expire_time == 30
+        assert lock1._expire_time == 120
 
         # Redis lock with custom parameters
-        lock2 = create_lock(
-            "redis", key="custom_key", redis_url="redis://custom:6379", expire_time=120, retry_times=5, retry_delay=0.5
-        )
+        lock2 = create_lock("redis", key="custom_key", expire_time=60, retry_times=5, retry_delay=0.5)
         assert isinstance(lock2, RedisLock)
         assert lock2._key == "custom_key"
-        assert lock2._redis_url == "redis://custom:6379"
-        assert lock2._expire_time == 120
+        assert lock2._expire_time == 60
         assert lock2._retry_times == 5
         assert lock2._retry_delay == 0.5
 
@@ -124,7 +120,7 @@ class TestLockContext:
         await asyncio.sleep(0.05)  # Ensure blocking task gets the lock
 
         # Try to acquire with timeout
-        with pytest.raises(TimeoutError, match="Failed to acquire lock within 0.1 seconds"):
+        with pytest.raises(TimeoutError, match="Failed to acquire lock .* within 0.1 seconds"):
             await timeout_task()
 
         # Wait for blocking task to complete
@@ -288,10 +284,14 @@ class TestIntegrationScenarios:
         async with lock_context(threading_lock):
             assert threading_lock.is_locked()
 
-        # Redis lock should raise NotImplementedError (not implemented yet)
-        with pytest.raises(NotImplementedError):
+        # Redis lock should also work (but may fail without Redis server)
+        # We expect either success or connection error (not NotImplementedError)
+        try:
             async with lock_context(redis_lock):
-                pass
+                assert redis_lock.is_locked()
+        except (ConnectionError, ImportError):
+            # Expected if Redis is not available or not running
+            pass
 
     @pytest.mark.asyncio
     async def test_real_world_usage_pattern(self):

@@ -1,313 +1,288 @@
 """
-Unit tests for RedisLock implementation.
+Unit tests for RedisLock implementation with new connection manager.
 
-This module tests the RedisLock structure, initialization, and error handling.
-Since RedisLock is not fully implemented yet, these tests focus on the
-interface compliance and expected error behaviors.
+This module provides tests for the Redis-based distributed lock
+implementation using the new Redis connection manager architecture.
 """
+
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from aperag.concurrent_control import RedisLock, create_lock
+from aperag.concurrent_control.redis_lock import RedisLock
 
 
-class TestRedisLockStructure:
-    """Test suite for RedisLock basic structure and initialization."""
+class TestRedisLockWithConnectionManager:
+    """Test RedisLock using the new connection manager."""
+
+    @pytest.fixture
+    def mock_redis_client(self):
+        """Create a mock Redis client."""
+        client = AsyncMock()
+        client.set = AsyncMock()
+        client.eval = AsyncMock()
+        client.ping = AsyncMock()
+        return client
+
+    @pytest.fixture
+    def mock_connection_manager(self, mock_redis_client):
+        """Create a mock Redis connection manager."""
+        with patch("aperag.db.redis_manager.RedisConnectionManager") as mock_manager:
+            mock_manager.get_client = AsyncMock(return_value=mock_redis_client)
+            yield mock_manager, mock_redis_client
 
     def test_redis_lock_creation(self):
-        """Test basic RedisLock creation."""
-        # Test with required key
+        """Test RedisLock creation with new architecture."""
         lock = RedisLock(key="test_key")
         assert lock._key == "test_key"
-        assert lock._redis_url == "redis://localhost:6379"
-        assert lock._expire_time == 30
+        assert lock._name == "redis_lock_test_key"
+
+        assert lock._expire_time == 120
         assert lock._retry_times == 3
         assert lock._retry_delay == 0.1
-        assert lock._redis_client is None
+        assert not lock._is_locked
         assert lock._lock_value is None
 
-    def test_redis_lock_creation_with_custom_params(self):
+    def test_redis_lock_with_custom_params(self):
         """Test RedisLock creation with custom parameters."""
-        lock = RedisLock(
-            key="custom_key", redis_url="redis://custom-host:6380", expire_time=60, retry_times=5, retry_delay=0.2
-        )
+        lock = RedisLock(key="custom_key", expire_time=60, retry_times=5, retry_delay=0.2, name="custom_lock")
         assert lock._key == "custom_key"
-        assert lock._redis_url == "redis://custom-host:6380"
+        assert lock._name == "custom_lock"
         assert lock._expire_time == 60
         assert lock._retry_times == 5
         assert lock._retry_delay == 0.2
 
-    def test_redis_lock_creation_missing_key(self):
-        """Test RedisLock creation without required key."""
+    def test_get_name(self):
+        """Test lock name retrieval."""
+        lock = RedisLock(key="test_key", name="my_lock")
+        assert lock.get_name() == "my_lock"
+
+        lock2 = RedisLock(key="test_key2")
+        assert lock2.get_name() == "redis_lock_test_key2"
+
+    @pytest.mark.asyncio
+    async def test_successful_acquire_and_release(self, mock_connection_manager):
+        """Test successful lock acquisition and release."""
+        mock_manager, mock_client = mock_connection_manager
+        mock_client.set.return_value = True  # Lock acquired
+        mock_client.eval.return_value = 1  # Lock released
+
+        lock = RedisLock(key="test_acquire")
+
+        # Test acquire
+        success = await lock.acquire()
+        assert success is True
+        assert lock.is_locked() is True
+        assert lock._lock_value is not None
+
+        # Verify Redis SET was called with correct parameters
+        mock_client.set.assert_called_once()
+        call_args = mock_client.set.call_args
+        assert call_args[0][0] == "test_acquire"  # key
+        assert call_args[1]["nx"] is True
+        assert call_args[1]["ex"] == 120
+
+        # Test release
+        await lock.release()
+        assert lock.is_locked() is False
+        assert lock._lock_value is None
+
+        # Verify Lua script was called
+        mock_client.eval.assert_called_once()
+        eval_args = mock_client.eval.call_args
+        assert "test_acquire" in eval_args[0]
+
+    @pytest.mark.asyncio
+    async def test_acquire_failure(self, mock_connection_manager):
+        """Test lock acquisition failure."""
+        mock_manager, mock_client = mock_connection_manager
+        mock_client.set.return_value = False  # Lock not acquired
+
+        lock = RedisLock(key="test_fail", retry_times=1)
+
+        success = await lock.acquire(timeout=0.5)
+        assert success is False
+        assert lock.is_locked() is False
+        assert lock._lock_value is None
+
+    @pytest.mark.asyncio
+    async def test_context_manager(self, mock_connection_manager):
+        """Test using RedisLock as async context manager."""
+        mock_manager, mock_client = mock_connection_manager
+        mock_client.set.return_value = True
+        mock_client.eval.return_value = 1
+
+        lock = RedisLock(key="test_context")
+
+        async with lock:
+            assert lock.is_locked() is True
+
+        assert lock.is_locked() is False
+
+    @pytest.mark.asyncio
+    async def test_context_manager_acquire_failure(self, mock_connection_manager):
+        """Test context manager when acquire fails."""
+        mock_manager, mock_client = mock_connection_manager
+        mock_client.set.return_value = False
+
+        lock = RedisLock(key="test_context_fail", retry_times=0)
+
+        with pytest.raises(RuntimeError, match="Failed to acquire Redis lock"):
+            async with lock:
+                pass
+
+    @pytest.mark.asyncio
+    async def test_retry_mechanism(self, mock_connection_manager):
+        """Test retry mechanism."""
+        mock_manager, mock_client = mock_connection_manager
+        # First two calls fail, third succeeds
+        mock_client.set.side_effect = [False, False, True]
+
+        lock = RedisLock(key="test_retry", retry_times=3, retry_delay=0.01)
+
+        success = await lock.acquire()
+        assert success is True
+        assert mock_client.set.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_timeout_respected(self, mock_connection_manager):
+        """Test that timeout is respected."""
+        mock_manager, mock_client = mock_connection_manager
+        mock_client.set.return_value = False
+
+        lock = RedisLock(key="test_timeout", retry_times=10, retry_delay=0.1)
+
+        import time
+
+        start_time = time.time()
+        success = await lock.acquire(timeout=0.2)
+        elapsed = time.time() - start_time
+
+        assert success is False
+        assert elapsed < 0.5  # Should timeout quickly, not wait for all retries
+
+    @pytest.mark.asyncio
+    async def test_release_safety(self, mock_connection_manager):
+        """Test release safety mechanisms."""
+        mock_manager, mock_client = mock_connection_manager
+
+        lock = RedisLock(key="test_safety")
+
+        # Test release without acquire (should not crash)
+        await lock.release()  # Should log warning but not crash
+
+        # Test release with no lock value (should not crash)
+        lock._is_locked = True
+        lock._lock_value = None
+        await lock.release()  # Should log error but not crash
+
+    @pytest.mark.asyncio
+    async def test_connection_manager_integration(self):
+        """Test integration with Redis connection manager."""
+        lock = RedisLock(key="test_integration")
+
+        # Test that _get_redis_client calls the connection manager
+        with patch("aperag.db.redis_manager.RedisConnectionManager.get_client") as mock_get:
+            mock_client = AsyncMock()
+            mock_get.return_value = mock_client
+
+            client = await lock._get_redis_client()
+            assert client is mock_client
+            mock_get.assert_called_once_with()  # Uses default settings
+
+    @pytest.mark.asyncio
+    async def test_close_method(self, mock_connection_manager):
+        """Test close method behavior."""
+        mock_manager, mock_client = mock_connection_manager
+        mock_client.set.return_value = True
+        mock_client.eval.return_value = 1
+
+        lock = RedisLock(key="test_close")
+
+        # Acquire lock then close
+        await lock.acquire()
+        assert lock.is_locked() is True
+
+        await lock.close()
+        assert lock.is_locked() is False
+        # Connection manager handles connection, so no client.close() call
+
+    def test_invalid_key(self):
+        """Test creation with invalid key."""
         with pytest.raises(ValueError, match="Redis lock key is required"):
             RedisLock(key="")
 
         with pytest.raises(ValueError, match="Redis lock key is required"):
             RedisLock(key=None)
 
-    def test_redis_lock_creation_via_factory(self):
-        """Test RedisLock creation through create_lock factory."""
-        lock = create_lock("redis", key="factory_test_key")
-        assert isinstance(lock, RedisLock)
-        assert lock._key == "factory_test_key"
 
-    def test_redis_lock_attributes(self):
-        """Test that RedisLock has all required attributes."""
-        lock = RedisLock(key="attr_test")
-
-        # Required attributes
-        assert hasattr(lock, "_key")
-        assert hasattr(lock, "_redis_url")
-        assert hasattr(lock, "_expire_time")
-        assert hasattr(lock, "_retry_times")
-        assert hasattr(lock, "_retry_delay")
-        assert hasattr(lock, "_redis_client")
-        assert hasattr(lock, "_lock_value")
-
-        # Required methods from LockProtocol
-        assert hasattr(lock, "acquire")
-        assert hasattr(lock, "release")
-        assert hasattr(lock, "is_locked")
-        assert hasattr(lock, "__aenter__")
-        assert hasattr(lock, "__aexit__")
-
-
-class TestRedisLockInterface:
-    """Test suite for RedisLock interface compliance."""
+class TestRedisLockErrorHandling:
+    """Test error handling scenarios."""
 
     @pytest.mark.asyncio
-    async def test_acquire_not_implemented(self):
-        """Test that acquire method raises NotImplementedError."""
-        lock = RedisLock(key="test_acquire")
+    async def test_redis_operation_error_during_acquire(self):
+        """Test Redis operation errors during acquire."""
+        with patch("aperag.db.redis_manager.RedisConnectionManager.get_client") as mock_get:
+            mock_client = AsyncMock()
+            mock_client.set.side_effect = Exception("Redis error")
+            mock_get.return_value = mock_client
 
-        with pytest.raises(NotImplementedError, match="RedisLock is not yet implemented"):
+            lock = RedisLock(key="test_error", retry_times=1, retry_delay=0.01)
+
+            success = await lock.acquire()
+            assert success is False
+            assert not lock.is_locked()
+
+    @pytest.mark.asyncio
+    async def test_redis_operation_error_during_release(self):
+        """Test Redis operation errors during release."""
+        with patch("aperag.db.redis_manager.RedisConnectionManager.get_client") as mock_get:
+            mock_client = AsyncMock()
+            mock_client.set.return_value = True
+            mock_client.eval.side_effect = Exception("Redis error")
+            mock_get.return_value = mock_client
+
+            lock = RedisLock(key="test_release_error")
+
+            # Acquire successfully
             await lock.acquire()
+            assert lock.is_locked()
+
+            # Release with error should still clean up local state
+            await lock.release()
+            assert not lock.is_locked()
+            assert lock._lock_value is None
+
+
+class TestRedisLockLuaScript:
+    """Test Lua script execution."""
 
     @pytest.mark.asyncio
-    async def test_release_not_implemented(self):
-        """Test that release method raises NotImplementedError."""
-        lock = RedisLock(key="test_release")
+    async def test_lua_script_execution(self):
+        """Test that Lua script is executed with correct parameters."""
+        with patch("aperag.db.redis_manager.RedisConnectionManager.get_client") as mock_get:
+            mock_client = AsyncMock()
+            mock_client.set.return_value = True
+            mock_client.eval.return_value = 1
+            mock_get.return_value = mock_client
 
-        with pytest.raises(NotImplementedError, match="RedisLock is not yet implemented"):
+            lock = RedisLock(key="test_lua")
+
+            await lock.acquire()
+            lock_value = lock._lock_value
             await lock.release()
 
-    def test_is_locked_not_implemented(self):
-        """Test that is_locked method raises NotImplementedError."""
-        lock = RedisLock(key="test_is_locked")
+            # Verify Lua script execution
+            mock_client.eval.assert_called_once()
+            call_args = mock_client.eval.call_args
 
-        with pytest.raises(NotImplementedError, match="RedisLock is not yet implemented"):
-            lock.is_locked()
+            # Check script content
+            script = call_args[0][0]
+            assert "redis.call" in script
+            assert "get" in script
+            assert "del" in script
 
-    @pytest.mark.asyncio
-    async def test_context_manager_not_implemented(self):
-        """Test that context manager raises NotImplementedError."""
-        lock = RedisLock(key="test_context")
-
-        with pytest.raises(NotImplementedError, match="RedisLock is not yet implemented"):
-            async with lock:
-                pass
-
-    @pytest.mark.asyncio
-    async def test_acquire_with_timeout_not_implemented(self):
-        """Test that acquire with timeout raises NotImplementedError."""
-        lock = RedisLock(key="test_timeout")
-
-        with pytest.raises(NotImplementedError, match="RedisLock is not yet implemented"):
-            await lock.acquire(timeout=5.0)
-
-
-class TestRedisLockParameterValidation:
-    """Test suite for RedisLock parameter validation."""
-
-    def test_key_validation(self):
-        """Test key parameter validation."""
-        # Valid keys should work
-        valid_keys = [
-            "simple_key",
-            "key:with:colons",
-            "key-with-dashes",
-            "key_with_underscores",
-            "key.with.dots",
-            "key/with/slashes",
-            "app:user:123:lock",
-            "namespace::resource::operation",
-        ]
-
-        for key in valid_keys:
-            lock = RedisLock(key=key)
-            assert lock._key == key
-
-    def test_redis_url_validation(self):
-        """Test Redis URL parameter handling."""
-        # Different URL formats should be accepted
-        urls = [
-            "redis://localhost:6379",
-            "redis://redis-server:6379",
-            "redis://user:pass@host:6379",
-            "redis://host:6379/0",
-            "redis://host:6379/1?encoding=utf-8",
-        ]
-
-        for url in urls:
-            lock = RedisLock(key="test", redis_url=url)
-            assert lock._redis_url == url
-
-    def test_expire_time_validation(self):
-        """Test expire_time parameter validation."""
-        # Positive integers should work
-        for expire_time in [1, 30, 60, 300, 3600]:
-            lock = RedisLock(key="test", expire_time=expire_time)
-            assert lock._expire_time == expire_time
-
-    def test_retry_parameters_validation(self):
-        """Test retry parameters validation."""
-        # Test retry_times
-        for retry_times in [1, 3, 5, 10]:
-            lock = RedisLock(key="test", retry_times=retry_times)
-            assert lock._retry_times == retry_times
-
-        # Test retry_delay
-        for retry_delay in [0.1, 0.5, 1.0, 2.0]:
-            lock = RedisLock(key="test", retry_delay=retry_delay)
-            assert lock._retry_delay == retry_delay
-
-
-class TestRedisLockConfiguration:
-    """Test suite for RedisLock configuration scenarios."""
-
-    def test_default_configuration(self):
-        """Test default configuration values."""
-        lock = RedisLock(key="test")
-
-        assert lock._redis_url == "redis://localhost:6379"
-        assert lock._expire_time == 30
-        assert lock._retry_times == 3
-        assert lock._retry_delay == 0.1
-
-    def test_production_configuration(self):
-        """Test production-like configuration."""
-        lock = RedisLock(
-            key="prod:app:critical_section",
-            redis_url="redis://redis-cluster:6379",
-            expire_time=300,  # 5 minutes
-            retry_times=10,
-            retry_delay=0.5,
-        )
-
-        assert lock._key == "prod:app:critical_section"
-        assert lock._redis_url == "redis://redis-cluster:6379"
-        assert lock._expire_time == 300
-        assert lock._retry_times == 10
-        assert lock._retry_delay == 0.5
-
-    def test_development_configuration(self):
-        """Test development-like configuration."""
-        lock = RedisLock(
-            key="dev:quick_test",
-            redis_url="redis://localhost:6379",
-            expire_time=10,  # Short timeout for dev
-            retry_times=1,  # Quick failure
-            retry_delay=0.1,
-        )
-
-        assert lock._key == "dev:quick_test"
-        assert lock._expire_time == 10
-        assert lock._retry_times == 1
-
-
-class TestRedisLockFutureInterface:
-    """Test suite for expected future interface of RedisLock."""
-
-    def test_expected_interface_methods(self):
-        """Test that RedisLock has the expected interface methods."""
-        lock = RedisLock(key="interface_test")
-
-        # Should have all LockProtocol methods
-        protocol_methods = ["acquire", "release", "is_locked", "__aenter__", "__aexit__"]
-        for method in protocol_methods:
-            assert hasattr(lock, method)
-            assert callable(getattr(lock, method))
-
-    def test_initialization_warning(self):
-        """Test that RedisLock initialization shows warning."""
-        # Note: The warning is logged via logger.warning, not Python warnings
-        # So we just check that the lock was created properly
-        lock = RedisLock(key="warning_test")
-        assert lock._key == "warning_test"
-
-    @pytest.mark.asyncio
-    async def test_error_messages_consistency(self):
-        """Test that error messages are consistent across methods."""
-        lock = RedisLock(key="error_test")
-
-        expected_message = "RedisLock is not yet implemented"
-
-        # All methods should raise the same error message
-        with pytest.raises(NotImplementedError, match=expected_message):
-            await lock.acquire()
-
-        with pytest.raises(NotImplementedError, match=expected_message):
-            await lock.release()
-
-        with pytest.raises(NotImplementedError, match=expected_message):
-            lock.is_locked()
-
-    def test_redis_lock_string_representation(self):
-        """Test string representation of RedisLock."""
-        lock = RedisLock(key="repr_test", redis_url="redis://test:6379")
-
-        # Should be able to get string representation
-        str_repr = str(lock)
-        assert "RedisLock" in str_repr or "repr_test" in str_repr
-
-        # Should be able to get repr
-        repr_str = repr(lock)
-        assert isinstance(repr_str, str)
-
-
-class TestRedisLockIntegration:
-    """Test suite for RedisLock integration with other components."""
-
-    def test_redis_lock_with_lock_manager(self):
-        """Test RedisLock integration with LockManager."""
-        from aperag.concurrent_control import LockManager
-
-        manager = LockManager()
-
-        # Should be able to create Redis lock through manager
-        lock = manager.create_redis_lock(key="manager_test")
-        assert isinstance(lock, RedisLock)
-        assert lock._key == "manager_test"
-
-        # Should be able to use get_or_create_lock
-        lock2 = manager.get_or_create_lock("redis_managed", "redis", key="managed_key")
-        assert isinstance(lock2, RedisLock)
-        assert lock2._key == "managed_key"
-
-    def test_redis_lock_with_factory(self):
-        """Test RedisLock integration with create_lock factory."""
-        # Should be able to create through factory
-        lock = create_lock("redis", key="factory_integration")
-        assert isinstance(lock, RedisLock)
-        assert lock._key == "factory_integration"
-
-        # Should be able to create with all parameters
-        lock2 = create_lock(
-            "redis", key="full_params", redis_url="redis://test:6379", expire_time=120, retry_times=5, retry_delay=0.3
-        )
-        assert isinstance(lock2, RedisLock)
-        assert lock2._key == "full_params"
-        assert lock2._redis_url == "redis://test:6379"
-        assert lock2._expire_time == 120
-
-    @pytest.mark.asyncio
-    async def test_redis_lock_with_lock_context(self):
-        """Test RedisLock integration with lock_context."""
-        from aperag.concurrent_control import lock_context
-
-        lock = RedisLock(key="context_integration")
-
-        # Should raise NotImplementedError when used with lock_context
-        with pytest.raises(NotImplementedError):
-            async with lock_context(lock):
-                pass
+            # Check parameters
+            assert call_args[0][1] == 1  # Number of keys
+            assert call_args[0][2] == "test_lua"  # Key
+            assert call_args[0][3] == lock_value  # Lock value

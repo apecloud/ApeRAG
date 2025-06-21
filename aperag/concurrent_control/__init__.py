@@ -41,21 +41,17 @@ Quick Start:
         await critical_work()
 """
 
-from .core import (
+from .manager import (
     LockManager,  # noqa: F401  # Available for testing and advanced usage
-    LockProtocol,  # noqa: F401  # Available for testing and advanced usage
-    MultiLock,  # Multi-lock manager for preventing deadlocks
-    RedisLock,  # noqa: F401  # Available for testing and advanced usage
-    # Internal classes (for testing and advanced usage only - not in __all__)
-    ThreadingLock,  # noqa: F401  # Available for testing and advanced usage
-    # Main factory functions
     create_lock,  # Create new locks
     get_default_lock_manager,  # Access default manager for advanced operations
     get_lock,  # Retrieve existing locks
     get_or_create_lock,  # Get existing or create new (recommended)
-    # Utility functions
-    lock_context,  # Async context manager with timeout support
 )
+from .protocols import LockProtocol  # noqa: F401  # Available for testing and advanced usage
+from .redis_lock import RedisLock  # noqa: F401  # Available for testing and advanced usage
+from .threading_lock import ThreadingLock  # noqa: F401  # Available for testing and advanced usage
+from .utils import lock_context  # ⭐ Timeout support for locks
 
 __all__ = [
     # Main interface (recommended)
@@ -63,7 +59,6 @@ __all__ = [
     "get_lock",  # Get existing lock only
     "create_lock",  # Create new locks
     "lock_context",  # ⭐ Timeout support for locks
-    "MultiLock",  # Multi-lock manager for acquiring multiple locks
     # Advanced/internal (use sparingly)
     "get_default_lock_manager",  # Advanced lock management
 ]
