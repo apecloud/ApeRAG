@@ -137,23 +137,6 @@ RERANK_MODEL_PROVIDER=siliconflow
 RERANK_MODEL_NAME=BAAI/bge-large-zh-1.5
 ```
 
-## 🧪 Available Test Suites
-
-### Audit Logging Tests
-Comprehensive tests for the audit logging functionality:
-- **File**: `test_audit.py`
-- **Documentation**: See `README_AUDIT.md` for detailed information
-- **Coverage**: Collection, Document, Bot, Chat, LLM Provider, and LLM Provider Model operations
-- **Features**: Sensitive data filtering, timestamp validation, user tracking
-
-```bash
-# Run all audit tests
-pytest tests/e2e_test/test_audit.py -v
-
-# Run specific audit test class
-pytest tests/e2e_test/test_audit.py::TestCollectionAudit -v
-```
-
 ## 🧪 Available Fixtures
 
 The E2E tests provide the following pytest fixtures that can be used directly in tests:
