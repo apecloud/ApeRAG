@@ -159,7 +159,7 @@ const AuditLogsPage: React.FC = () => {
       key: 'username',
       width: 120,
       render: (text?: string) => (
-        <Text strong>{text || intl.formatMessage({ id: 'common.system', defaultMessage: 'System' })}</Text>
+        <Text strong>{text || '-'}</Text>
       ),
     },
     {
