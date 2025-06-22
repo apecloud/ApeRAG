@@ -24,14 +24,12 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
     select,
-    Index,
-    Float,
-    func,
 )
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.ext.declarative import declarative_base
@@ -753,6 +751,7 @@ class DocumentIndex(Base):
 
 class AuditResource(str, Enum):
     """Audit resource types"""
+
     COLLECTION = "collection"
     DOCUMENT = "document"
     BOT = "bot"

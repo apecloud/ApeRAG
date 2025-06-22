@@ -15,7 +15,6 @@
 import json
 import logging
 import re
-import time
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -35,10 +34,17 @@ class AuditService:
         self.enabled = True
         # Sensitive fields that should be filtered from logs
         self.sensitive_fields = {
-            "password", "token", "api_key", "secret", "authorization",
-            "access_token", "refresh_token", "private_key", "credential"
+            "password",
+            "token",
+            "api_key",
+            "secret",
+            "authorization",
+            "access_token",
+            "refresh_token",
+            "private_key",
+            "credential",
         }
-        
+
         # Map FastAPI tags to audit resources
         self.tag_resource_map = {
             # Support both singular and plural forms
@@ -84,8 +90,7 @@ class AuditService:
                 filtered[key] = self._filter_sensitive_data(value)
             elif isinstance(value, list):
                 filtered[key] = [
-                    self._filter_sensitive_data(item) if isinstance(item, dict) else item
-                    for item in value
+                    self._filter_sensitive_data(item) if isinstance(item, dict) else item for item in value
                 ]
             else:
                 filtered[key] = value
@@ -95,21 +100,21 @@ class AuditService:
         """Safely serialize data to JSON string"""
         if data is None:
             return None
-        
+
         try:
             # Filter sensitive data first
             if isinstance(data, dict):
                 data = self._filter_sensitive_data(data)
-            
+
             # Handle special types that aren't JSON serializable
             def json_serializer(obj):
-                if hasattr(obj, 'dict'):  # Pydantic models
+                if hasattr(obj, "dict"):  # Pydantic models
                     return obj.dict()
-                elif hasattr(obj, '__dict__'):  # Regular objects
+                elif hasattr(obj, "__dict__"):  # Regular objects
                     return obj.__dict__
                 else:
                     return str(obj)
-            
+
             return json.dumps(data, default=json_serializer, ensure_ascii=False)
         except Exception as e:
             logger.warning(f"Failed to serialize data: {e}")
@@ -120,15 +125,15 @@ class AuditService:
         try:
             # Define ID extraction patterns for different resource types
             id_patterns = {
-                AuditResource.MESSAGE: r'/messages/([^/]+)',
-                AuditResource.CHAT: r'/chats/([^/]+)',
-                AuditResource.DOCUMENT: r'/documents/([^/]+)',
-                AuditResource.BOT: r'/bots/([^/]+)',
-                AuditResource.COLLECTION: r'/collections/([^/]+)',
-                AuditResource.API_KEY: r'/apikeys/([^/]+)',
-                AuditResource.LLM_PROVIDER: r'/llm_providers/([^/]+)',
-                AuditResource.LLM_PROVIDER_MODEL: r'/models/([^/]+/[^/]+)',
-                AuditResource.USER: r'/users/([^/]+)',
+                AuditResource.MESSAGE: r"/messages/([^/]+)",
+                AuditResource.CHAT: r"/chats/([^/]+)",
+                AuditResource.DOCUMENT: r"/documents/([^/]+)",
+                AuditResource.BOT: r"/bots/([^/]+)",
+                AuditResource.COLLECTION: r"/collections/([^/]+)",
+                AuditResource.API_KEY: r"/apikeys/([^/]+)",
+                AuditResource.LLM_PROVIDER: r"/llm_providers/([^/]+)",
+                AuditResource.LLM_PROVIDER_MODEL: r"/models/([^/]+/[^/]+)",
+                AuditResource.USER: r"/users/([^/]+)",
             }
 
             pattern = id_patterns.get(resource_type)
@@ -136,10 +141,10 @@ class AuditService:
                 match = re.search(pattern, path)
                 if match:
                     return match.group(1)
-                    
+
         except Exception as e:
             logger.warning(f"Failed to extract resource ID: {e}")
-            
+
         return None
 
     async def log_audit(
@@ -158,7 +163,7 @@ class AuditService:
         error_message: Optional[str] = None,
         ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
-        request_id: Optional[str] = None
+        request_id: Optional[str] = None,
     ):
         """Log an audit entry"""
         if not self.enabled:
@@ -182,7 +187,7 @@ class AuditService:
                 error_message=error_message,
                 ip_address=ip_address,
                 user_agent=user_agent,
-                request_id=request_id or str(uuid.uuid4())
+                request_id=request_id or str(uuid.uuid4()),
             )
 
             # Save to database asynchronously
@@ -202,13 +207,13 @@ class AuditService:
         status_code: Optional[int] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-        limit: int = 1000
+        limit: int = 1000,
     ) -> List[AuditLog]:
         """List audit logs with filtering"""
         async for session in get_async_session():
             # Build query
             stmt = select(AuditLog)
-            
+
             # Add filters
             conditions = []
             if user_id:
@@ -225,17 +230,17 @@ class AuditService:
                 conditions.append(AuditLog.gmt_created >= start_date)
             if end_date:
                 conditions.append(AuditLog.gmt_created <= end_date)
-            
+
             if conditions:
                 stmt = stmt.where(and_(*conditions))
-            
+
             # Order by creation time (newest first) and limit
             stmt = stmt.order_by(desc(AuditLog.gmt_created)).limit(limit)
-            
+
             # Execute query
             result = await session.execute(stmt)
             audit_logs = result.scalars().all()
-            
+
             # Extract resource_id for each log during query time
             for log in audit_logs:
                 if log.resource_type and log.path:
@@ -246,20 +251,20 @@ class AuditService:
                             resource_type_enum = AuditResource(log.resource_type)
                         except ValueError:
                             resource_type_enum = None
-                    
+
                     if resource_type_enum:
                         log.resource_id = self.extract_resource_id_from_path(log.path, resource_type_enum)
                     else:
                         log.resource_id = None
-                
+
                 # Calculate duration if both times are available
                 if log.start_time and log.end_time:
                     log.duration_ms = log.end_time - log.start_time
                 else:
                     log.duration_ms = None
-            
+
             return audit_logs
 
 
 # Global audit service instance
-audit_service = AuditService() 
+audit_service = AuditService()

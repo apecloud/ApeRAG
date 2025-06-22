@@ -26,7 +26,7 @@ from aperag.config import AsyncSessionDep, settings
 from aperag.db.models import ApiKey, ApiKeyStatus, Invitation, Role, User
 from aperag.db.ops import async_db_ops
 from aperag.schema import view_models
-from aperag.utils.audit_decorator import audit_api
+from aperag.utils.audit_decorator import audit
 from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
@@ -241,10 +241,13 @@ router = APIRouter()
 # --- API Implementation ---
 
 
-@router.post("/invite", tags=["invitation"], name="CreateInvitation")
-@audit_api(resource_type="invitation", api_name="CreateInvitation")
+@router.post("/invite")
+@audit(resource_type="invitation", api_name="CreateInvitation")
 async def create_invitation_view(
-    request: Request, data: view_models.InvitationCreate, session: AsyncSessionDep, user: User = Depends(get_current_admin)
+    request: Request,
+    data: view_models.InvitationCreate,
+    session: AsyncSessionDep,
+    user: User = Depends(get_current_admin),
 ) -> view_models.Invitation:
     # Check if user already exists
     from sqlalchemy import select
@@ -276,7 +279,7 @@ async def create_invitation_view(
     )
 
 
-@router.get("/invitations", tags=["invitation"], name="ListInvitations")
+@router.get("/invitations")
 async def list_invitations_view(
     session: AsyncSessionDep, user: User = Depends(get_current_admin)
 ) -> view_models.InvitationList:
@@ -300,10 +303,13 @@ async def list_invitations_view(
     return view_models.InvitationList(items=invitations)
 
 
-@router.post("/register", tags=["auth"], name="Register")
-@audit_api(resource_type="user", api_name="RegisterUser")
+@router.post("/register")
+@audit(resource_type="user", api_name="RegisterUser")
 async def register_view(
-    request: Request, data: view_models.Register, session: AsyncSessionDep, user_manager: UserManager = Depends(get_user_manager)
+    request: Request,
+    data: view_models.Register,
+    session: AsyncSessionDep,
+    user_manager: UserManager = Depends(get_user_manager),
 ) -> view_models.User:
     from sqlalchemy import select
 
@@ -357,7 +363,7 @@ async def register_view(
     )
 
 
-@router.post("/login", tags=["auth"], name="Login")
+@router.post("/login")
 async def login_view(
     request: Request,
     response: Response,
@@ -400,14 +406,14 @@ async def login_view(
     )
 
 
-@router.post("/logout", tags=["auth"], name="Logout")
+@router.post("/logout")
 async def logout_view(response: Response):
     # Clear authentication cookie
     response.delete_cookie(key="session")
     return {"success": True}
 
 
-@router.get("/user", tags=["user"], name="GetCurrentUser")
+@router.get("/user")
 async def get_user_view(request: Request, session: AsyncSessionDep, user: Optional[User] = Depends(current_user)):
     """Get user info, return 401 if not authenticated"""
     if not user:
@@ -423,7 +429,7 @@ async def get_user_view(request: Request, session: AsyncSessionDep, user: Option
     )
 
 
-@router.get("/users", tags=["user"], name="ListUsers")
+@router.get("/users")
 async def list_users_view(session: AsyncSessionDep, user: User = Depends(get_current_admin)) -> view_models.UserList:
     from sqlalchemy import select
 
@@ -442,8 +448,8 @@ async def list_users_view(session: AsyncSessionDep, user: User = Depends(get_cur
     return view_models.UserList(items=users)
 
 
-@router.post("/change-password", tags=["user"], name="ChangePassword")
-@audit_api(resource_type="user", api_name="ChangePassword")
+@router.post("/change-password")
+@audit(resource_type="user", api_name="ChangePassword")
 async def change_password_view(
     request: Request,
     data: view_models.ChangePassword,
@@ -474,9 +480,11 @@ async def change_password_view(
     )
 
 
-@router.delete("/users/{user_id}", tags=["user"], name="DeleteUser")
-@audit_api(resource_type="user", api_name="DeleteUser")
-async def delete_user_view(request: Request, user_id: str, session: AsyncSessionDep, user: User = Depends(get_current_admin)):
+@router.delete("/users/{user_id}")
+@audit(resource_type="user", api_name="DeleteUser")
+async def delete_user_view(
+    request: Request, user_id: str, session: AsyncSessionDep, user: User = Depends(get_current_admin)
+):
     from sqlalchemy import select
 
     result = await session.execute(select(User).where(User.id == user_id))
