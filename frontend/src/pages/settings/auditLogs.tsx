@@ -157,7 +157,7 @@ const AuditLogsPage: React.FC = () => {
       title: intl.formatMessage({ id: 'audit.logs.username', defaultMessage: 'Username' }),
       dataIndex: 'username',
       key: 'username',
-      width: 120,
+      width: 180,
       render: (text?: string) => (
         <Text strong>{text || '-'}</Text>
       ),
@@ -192,14 +192,12 @@ const AuditLogsPage: React.FC = () => {
       title: intl.formatMessage({ id: 'audit.logs.resourceId', defaultMessage: 'Resource ID' }),
       dataIndex: 'resource_id',
       key: 'resource_id',
-      width: 140,
+      width: 240,
       render: (id?: string) => (
         id ? (
-          <Tooltip title={id}>
-            <Text code style={{ fontSize: '11px' }}>
-              {id.length > 18 ? `${id.substring(0, 18)}...` : id}
-            </Text>
-          </Tooltip>
+          <Text code style={{ fontSize: '11px' }}>
+            {id}
+          </Text>
         ) : '-'
       ),
     },

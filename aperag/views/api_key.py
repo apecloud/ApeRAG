@@ -31,7 +31,7 @@ async def list_api_keys_view(request: Request, user: User = Depends(current_user
 
 
 @router.post("/apikeys")
-@audit(resource_type="apikey", api_name="CreateApiKey")
+@audit(resource_type="api_key", api_name="CreateApiKey")
 async def create_api_key_view(
     request: Request,
     api_key_create: ApiKeyCreate,
@@ -42,14 +42,14 @@ async def create_api_key_view(
 
 
 @router.delete("/apikeys/{apikey_id}")
-@audit(resource_type="apikey", api_name="DeleteApiKey")
+@audit(resource_type="api_key", api_name="DeleteApiKey")
 async def delete_api_key_view(request: Request, apikey_id: str, user: User = Depends(current_user)):
     """Delete an API key"""
     return await api_key_service.delete_api_key(str(user.id), apikey_id)
 
 
 @router.put("/apikeys/{apikey_id}")
-@audit(resource_type="apikey", api_name="UpdateApiKey")
+@audit(resource_type="api_key", api_name="UpdateApiKey")
 async def update_api_key_view(
     request: Request,
     apikey_id: str,
