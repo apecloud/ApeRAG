@@ -45,37 +45,6 @@ class AuditService:
             "credential",
         }
 
-        # Map FastAPI tags to audit resources
-        self.tag_resource_map = {
-            # Support both singular and plural forms
-            "collection": AuditResource.COLLECTION,
-            "collections": AuditResource.COLLECTION,
-            "document": AuditResource.DOCUMENT,
-            "documents": AuditResource.DOCUMENT,
-            "bot": AuditResource.BOT,
-            "bots": AuditResource.BOT,
-            "chat": AuditResource.CHAT,
-            "chats": AuditResource.CHAT,
-            "message": AuditResource.MESSAGE,
-            "messages": AuditResource.MESSAGE,
-            "apikey": AuditResource.API_KEY,
-            "apikeys": AuditResource.API_KEY,
-            "llm_provider": AuditResource.LLM_PROVIDER,
-            "llm_providers": AuditResource.LLM_PROVIDER,
-            "llm_provider_model": AuditResource.LLM_PROVIDER_MODEL,
-            "llm_provider_models": AuditResource.LLM_PROVIDER_MODEL,
-            "user": AuditResource.USER,
-            "users": AuditResource.USER,
-            "config": AuditResource.CONFIG,
-            "invitation": AuditResource.INVITATION,
-            "invitations": AuditResource.INVITATION,
-            "auth": AuditResource.AUTH,
-            "chat_completion": AuditResource.CHAT_COMPLETION,
-            "search_test": AuditResource.SEARCH_TEST,
-            "llm": AuditResource.LLM,
-            "flow": AuditResource.FLOW,
-        }
-
     def _filter_sensitive_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Filter sensitive information from data"""
         if not isinstance(data, dict):
