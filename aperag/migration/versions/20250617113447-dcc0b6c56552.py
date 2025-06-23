@@ -122,7 +122,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_document_gmt_deleted'), 'document', ['gmt_deleted'], unique=False)
     op.create_index(op.f('ix_document_status'), 'document', ['status'], unique=False)
     op.create_index(op.f('ix_document_user'), 'document', ['user'], unique=False)
-    op.create_table('document_indexes',
+    op.create_table('document_index',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('document_id', sa.String(length=24), nullable=False),
     sa.Column('index_type', sa.Enum('vector', 'fulltext', 'graph', name='documentindextype'), nullable=False),
@@ -139,11 +139,11 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('document_id', 'index_type', name='uq_document_index')
     )
-    op.create_index(op.f('ix_document_indexes_actual_state'), 'document_indexes', ['actual_state'], unique=False)
-    op.create_index(op.f('ix_document_indexes_desired_state'), 'document_indexes', ['desired_state'], unique=False)
-    op.create_index(op.f('ix_document_indexes_document_id'), 'document_indexes', ['document_id'], unique=False)
-    op.create_index(op.f('ix_document_indexes_id'), 'document_indexes', ['id'], unique=False)
-    op.create_index(op.f('ix_document_indexes_index_type'), 'document_indexes', ['index_type'], unique=False)
+    op.create_index(op.f('ix_document_index_actual_state'), 'document_index', ['actual_state'], unique=False)
+    op.create_index(op.f('ix_document_index_desired_state'), 'document_index', ['desired_state'], unique=False)
+    op.create_index(op.f('ix_document_index_document_id'), 'document_index', ['document_id'], unique=False)
+    op.create_index(op.f('ix_document_index_id'), 'document_index', ['id'], unique=False)
+    op.create_index(op.f('ix_document_index_index_type'), 'document_index', ['index_type'], unique=False)
     op.create_table('invitation',
     sa.Column('id', sa.String(length=24), nullable=False),
     sa.Column('email', sa.String(length=254), nullable=False),
@@ -367,12 +367,12 @@ def downgrade() -> None:
     op.drop_table('lightrag_doc_full')
     op.drop_table('lightrag_doc_chunks')
     op.drop_table('invitation')
-    op.drop_index(op.f('ix_document_indexes_index_type'), table_name='document_indexes')
-    op.drop_index(op.f('ix_document_indexes_id'), table_name='document_indexes')
-    op.drop_index(op.f('ix_document_indexes_document_id'), table_name='document_indexes')
-    op.drop_index(op.f('ix_document_indexes_desired_state'), table_name='document_indexes')
-    op.drop_index(op.f('ix_document_indexes_actual_state'), table_name='document_indexes')
-    op.drop_table('document_indexes')
+    op.drop_index(op.f('ix_document_index_index_type'), table_name='document_index')
+    op.drop_index(op.f('ix_document_index_id'), table_name='document_index')
+    op.drop_index(op.f('ix_document_index_document_id'), table_name='document_index')
+    op.drop_index(op.f('ix_document_index_desired_state'), table_name='document_index')
+    op.drop_index(op.f('ix_document_index_actual_state'), table_name='document_index')
+    op.drop_table('document_index')
     op.drop_index(op.f('ix_document_user'), table_name='document')
     op.drop_index(op.f('ix_document_status'), table_name='document')
     op.drop_index(op.f('ix_document_gmt_deleted'), table_name='document')

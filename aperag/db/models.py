@@ -702,7 +702,7 @@ class LightRAGLLMCacheModel(Base):
 class DocumentIndex(Base):
     """Document index - combines spec and status into single table"""
 
-    __tablename__ = "document_indexes"
+    __tablename__ = "document_index"
     __table_args__ = (UniqueConstraint("document_id", "index_type", name="uq_document_index"),)
 
     id = Column(Integer, primary_key=True, index=True)

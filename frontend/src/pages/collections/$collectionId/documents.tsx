@@ -29,7 +29,6 @@ import {
   Dropdown,
   Input,
   Modal,
-  Popover,
   Space,
   Table,
   TableProps,
@@ -93,23 +92,54 @@ export default () => {
     graphStatus?: DocumentGraphIndexStatusEnum,
   ) => {
     const indexTypes = [
-      { name: 'vector_search', status: vectorStatus },
-      { name: 'fulltext_search', status: fulltextStatus },
-      { name: 'graph_search', status: graphStatus },
+      { nameKey: 'document.index.type.vector', status: vectorStatus },
+      { nameKey: 'document.index.type.fulltext', status: fulltextStatus },
+      { nameKey: 'document.index.type.graph', status: graphStatus },
     ];
     return (
       <Space direction="vertical" size="small">
-        {indexTypes.map(({ name, status }, index) => (
-          <Badge
-            key={index}
-            status={UI_INDEX_STATUS[status as keyof typeof UI_INDEX_STATUS]}
-            text={
-              <span style={{ fontSize: '0.9em' }}>
-                {formatMessage({ id: `searchTest.type.${name}` })}:&nbsp;
-                {formatMessage({ id: `document.index.status.${status}` })}
-              </span>
-            }
-          />
+        {indexTypes.map(({ nameKey, status }, index) => (
+          <div 
+            key={index} 
+            style={{ 
+              fontSize: '12px', 
+              lineHeight: '18px',
+              display: 'flex',
+              alignItems: 'center',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <span 
+              style={{ 
+                color: '#666',
+                width: '100px',
+                textAlign: 'right',
+                display: 'inline-block'
+              }}
+            >
+              {formatMessage({ id: nameKey })}
+            </span>
+            <span 
+              style={{ 
+                color: '#666',
+                width: '12px',
+                textAlign: 'center',
+                display: 'inline-block'
+              }}
+            >
+              ：
+            </span>
+            <div style={{ width: '80px' }}>
+              <Badge
+                status={UI_INDEX_STATUS[status as keyof typeof UI_INDEX_STATUS]}
+                text={
+                  <span style={{ display: 'inline-block', width: '70px' }}>
+                    {formatMessage({ id: `document.index.status.${status}` })}
+                  </span>
+                }
+              />
+            </div>
+          </div>
         ))}
       </Space>
     );
@@ -149,29 +179,13 @@ export default () => {
     {
       title: formatMessage({ id: 'document.status' }),
       dataIndex: 'status',
-      width: 120,
+      width: 190,
+      align: 'center',
       render: (value, record) => {
-        return (
-          <Popover
-            content={renderIndexStatus(
-              record.vector_index_status,
-              record.fulltext_index_status,
-              record.graph_index_status,
-            )}
-            styles={{
-              root: {
-                minWidth: 200,
-              },
-            }}
-          >
-            <Badge
-              status={
-                record.status ? UI_DOCUMENT_STATUS[record.status] : 'default'
-              }
-              text={formatMessage({ id: `document.status.${value}` })}
-              style={{ cursor: 'pointer' }}
-            />
-          </Popover>
+        return renderIndexStatus(
+          record.vector_index_status,
+          record.fulltext_index_status,
+          record.graph_index_status,
         );
       },
     },

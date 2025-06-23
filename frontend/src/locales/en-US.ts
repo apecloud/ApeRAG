@@ -227,6 +227,9 @@ export default {
   'document.index.status.COMPLETE': 'Completed',
   'document.index.status.FAILED': 'Failed',
   'document.index.status.SKIPPED': 'Skipped',
+  'document.index.type.vector': 'Vector Index',
+  'document.index.type.fulltext': 'Fulltext Index',
+  'document.index.type.graph': 'Graph Index',
 
   flow: '---------------',
   'flow.name': 'Workflow',

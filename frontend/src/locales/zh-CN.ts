@@ -225,6 +225,9 @@ export default {
   'document.index.status.COMPLETE': '已完成',
   'document.index.status.FAILED': '失败',
   'document.index.status.SKIPPED': '已跳过',
+  'document.index.type.vector': '向量索引',
+  'document.index.type.fulltext': '全文索引',
+  'document.index.type.graph': '图索引',
 
   flow: '---------------',
   'flow.name': '任务流',
