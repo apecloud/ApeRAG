@@ -25,7 +25,7 @@ from tests.e2e_test.config import (
     EMBEDDING_MODEL_NAME,
     EMBEDDING_MODEL_PROVIDER,
 )
-from tests.e2e_test.utils import assert_collection_config, assert_search_test_result
+from tests.e2e_test.utils import assert_collection_config, assert_search_result
 
 
 def test_list_collections(benchmark, client, collection):
@@ -73,19 +73,19 @@ def test_update_collection(benchmark, client, collection):
 
 
 def run_search_test(client, collection, document, search_data):
-    resp = client.post(f"/api/v1/collections/{collection['id']}/searchTests", json=search_data)
+    resp = client.post(f"/api/v1/collections/{collection['id']}/searches", json=search_data)
     assert resp.status_code == HTTPStatus.OK, resp.text
     result = resp.json()
-    assert_search_test_result(search_data, result)
+    assert_search_result(search_data, result)
 
-    resp = client.get(f"/api/v1/collections/{collection['id']}/searchTests")
+    resp = client.get(f"/api/v1/collections/{collection['id']}/searches")
     assert resp.status_code == HTTPStatus.OK, resp.text
     data = resp.json()
     assert len(data["items"]) == 1
     assert data["items"][0]["id"] == result["id"]
 
     test_id = result["id"]
-    resp = client.delete(f"/api/v1/collections/{collection['id']}/searchTests/{test_id}")
+    resp = client.delete(f"/api/v1/collections/{collection['id']}/searches/{test_id}")
     assert resp.status_code == HTTPStatus.OK, resp.text
 
 

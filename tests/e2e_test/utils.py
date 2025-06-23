@@ -46,7 +46,7 @@ def assert_collection_config(expected, actual):
             assert expected["config"]["completion"][key] == actual["config"]["completion"][key]
 
 
-def assert_search_test_result(expected, actual):
+def assert_search_result(expected, actual):
     """
     Assert that result contains all the expected values from search_data, key by key.
     """
@@ -55,7 +55,7 @@ def assert_search_test_result(expected, actual):
     if "vector_search" not in expected and "fulltext_search" not in expected and "graph_search" not in expected:
         pytest.fail("No search type specified")
 
-    def assert_search_test_result_item(search_type, items):
+    def assert_search_result_item(search_type, items):
         for item in items:
             if search_type != "graph_search":
                 assert isinstance(item["score"], float)
@@ -66,16 +66,25 @@ def assert_search_test_result(expected, actual):
         assert actual["vector_search"] is not None
         for key in ["topk", "similarity"]:
             assert expected["vector_search"][key] == actual["vector_search"][key]
-        assert_search_test_result_item("vector_search", actual["items"])
+        assert_search_result_item("vector_search", actual["items"])
 
     if "fulltext_search" in expected:
         assert actual["fulltext_search"] is not None
         for key in ["topk"]:
             assert expected["fulltext_search"][key] == actual["fulltext_search"][key]
-        assert_search_test_result_item("fulltext_search", actual["items"])
+        assert_search_result_item("fulltext_search", actual["items"])
 
     if "graph_search" in expected:
         assert actual["graph_search"] is not None
         for key in ["topk"]:
             assert expected["graph_search"][key] == actual["graph_search"][key]
-        assert_search_test_result_item("graph_search", actual["items"])
+        assert_search_result_item("graph_search", actual["items"])
+
+
+def assert_search_result_item(search_type, items):
+    found = False
+    for item in items:
+        if item.get("recall_type") == search_type:
+            found = True
+            break
+    assert found, f"No {search_type} item found in search results"

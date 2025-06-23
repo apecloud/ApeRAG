@@ -302,7 +302,7 @@ export default {
   'feedback.tag.unhelpful': 'Not Helpful',
   'feedback.tag.other': 'Other Issue',
 
-  'search.title': 'Search Test',
+  'search.title': 'Search',
   'search.pleaseInputQuestion': 'Please enter your question',
   'search.test': 'Test',
   'search.type.vector_search': 'Vector Search',
