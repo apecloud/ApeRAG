@@ -17,47 +17,47 @@
 /**
  * 
  * @export
- * @interface SearchTestResultItem
+ * @interface SearchResultItem
  */
-export interface SearchTestResultItem {
+export interface SearchResultItem {
     /**
      * Result rank
      * @type {number}
-     * @memberof SearchTestResultItem
+     * @memberof SearchResultItem
      */
     'rank'?: number;
     /**
      * Result score
      * @type {number}
-     * @memberof SearchTestResultItem
+     * @memberof SearchResultItem
      */
     'score'?: number;
     /**
      * Result content
      * @type {string}
-     * @memberof SearchTestResultItem
+     * @memberof SearchResultItem
      */
     'content'?: string;
     /**
      * Source document or metadata
      * @type {string}
-     * @memberof SearchTestResultItem
+     * @memberof SearchResultItem
      */
     'source'?: string;
     /**
      * Recall type
      * @type {string}
-     * @memberof SearchTestResultItem
+     * @memberof SearchResultItem
      */
-    'recall_type'?: SearchTestResultItemRecallTypeEnum;
+    'recall_type'?: SearchResultItemRecallTypeEnum;
 }
 
-export const SearchTestResultItemRecallTypeEnum = {
+export const SearchResultItemRecallTypeEnum = {
     vector_search: 'vector_search',
     graph_search: 'graph_search',
     fulltext_search: 'fulltext_search'
 } as const;
 
-export type SearchTestResultItemRecallTypeEnum = typeof SearchTestResultItemRecallTypeEnum[keyof typeof SearchTestResultItemRecallTypeEnum];
+export type SearchResultItemRecallTypeEnum = typeof SearchResultItemRecallTypeEnum[keyof typeof SearchResultItemRecallTypeEnum];
 
 

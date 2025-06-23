@@ -68,20 +68,14 @@ export const AuditApiAxiosParamCreator = function (configuration?: Configuration
         /**
          * List audit logs with filtering options
          * @summary List audit logs
-         * @param {string} [userId] Filter by user ID
-         * @param {string} [username] Filter by username
-         * @param {ListAuditLogsResourceTypeEnum} [resourceType] Filter by resource type
-         * @param {string} [resourceId] Filter by resource ID
          * @param {string} [apiName] Filter by API name
-         * @param {ListAuditLogsHttpMethodEnum} [httpMethod] Filter by HTTP method
-         * @param {number} [statusCode] Filter by status code
          * @param {string} [startDate] Filter by start date
          * @param {string} [endDate] Filter by end date
          * @param {number} [limit] Maximum number of records
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        listAuditLogs: async (userId?: string, username?: string, resourceType?: ListAuditLogsResourceTypeEnum, resourceId?: string, apiName?: string, httpMethod?: ListAuditLogsHttpMethodEnum, statusCode?: number, startDate?: string, endDate?: string, limit?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        listAuditLogs: async (apiName?: string, startDate?: string, endDate?: string, limit?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             const localVarPath = `/audit-logs`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
@@ -94,32 +88,8 @@ export const AuditApiAxiosParamCreator = function (configuration?: Configuration
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
 
-            if (userId !== undefined) {
-                localVarQueryParameter['user_id'] = userId;
-            }
-
-            if (username !== undefined) {
-                localVarQueryParameter['username'] = username;
-            }
-
-            if (resourceType !== undefined) {
-                localVarQueryParameter['resource_type'] = resourceType;
-            }
-
-            if (resourceId !== undefined) {
-                localVarQueryParameter['resource_id'] = resourceId;
-            }
-
             if (apiName !== undefined) {
                 localVarQueryParameter['api_name'] = apiName;
-            }
-
-            if (httpMethod !== undefined) {
-                localVarQueryParameter['http_method'] = httpMethod;
-            }
-
-            if (statusCode !== undefined) {
-                localVarQueryParameter['status_code'] = statusCode;
             }
 
             if (startDate !== undefined) {
@@ -175,21 +145,15 @@ export const AuditApiFp = function(configuration?: Configuration) {
         /**
          * List audit logs with filtering options
          * @summary List audit logs
-         * @param {string} [userId] Filter by user ID
-         * @param {string} [username] Filter by username
-         * @param {ListAuditLogsResourceTypeEnum} [resourceType] Filter by resource type
-         * @param {string} [resourceId] Filter by resource ID
          * @param {string} [apiName] Filter by API name
-         * @param {ListAuditLogsHttpMethodEnum} [httpMethod] Filter by HTTP method
-         * @param {number} [statusCode] Filter by status code
          * @param {string} [startDate] Filter by start date
          * @param {string} [endDate] Filter by end date
          * @param {number} [limit] Maximum number of records
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async listAuditLogs(userId?: string, username?: string, resourceType?: ListAuditLogsResourceTypeEnum, resourceId?: string, apiName?: string, httpMethod?: ListAuditLogsHttpMethodEnum, statusCode?: number, startDate?: string, endDate?: string, limit?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<AuditLogList>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.listAuditLogs(userId, username, resourceType, resourceId, apiName, httpMethod, statusCode, startDate, endDate, limit, options);
+        async listAuditLogs(apiName?: string, startDate?: string, endDate?: string, limit?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<AuditLogList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.listAuditLogs(apiName, startDate, endDate, limit, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['AuditApi.listAuditLogs']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -222,7 +186,7 @@ export const AuditApiFactory = function (configuration?: Configuration, basePath
          * @throws {RequiredError}
          */
         listAuditLogs(requestParameters: AuditApiListAuditLogsRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<AuditLogList> {
-            return localVarFp.listAuditLogs(requestParameters.userId, requestParameters.username, requestParameters.resourceType, requestParameters.resourceId, requestParameters.apiName, requestParameters.httpMethod, requestParameters.statusCode, requestParameters.startDate, requestParameters.endDate, requestParameters.limit, options).then((request) => request(axios, basePath));
+            return localVarFp.listAuditLogs(requestParameters.apiName, requestParameters.startDate, requestParameters.endDate, requestParameters.limit, options).then((request) => request(axios, basePath));
         },
     };
 };
@@ -276,53 +240,11 @@ export interface AuditApiGetAuditLogRequest {
  */
 export interface AuditApiListAuditLogsRequest {
     /**
-     * Filter by user ID
-     * @type {string}
-     * @memberof AuditApiListAuditLogs
-     */
-    readonly userId?: string
-
-    /**
-     * Filter by username
-     * @type {string}
-     * @memberof AuditApiListAuditLogs
-     */
-    readonly username?: string
-
-    /**
-     * Filter by resource type
-     * @type {'collection' | 'document' | 'bot' | 'chat' | 'message' | 'api_key' | 'llm_provider' | 'llm_provider_model' | 'model_service_provider' | 'user' | 'config'}
-     * @memberof AuditApiListAuditLogs
-     */
-    readonly resourceType?: ListAuditLogsResourceTypeEnum
-
-    /**
-     * Filter by resource ID
-     * @type {string}
-     * @memberof AuditApiListAuditLogs
-     */
-    readonly resourceId?: string
-
-    /**
      * Filter by API name
      * @type {string}
      * @memberof AuditApiListAuditLogs
      */
     readonly apiName?: string
-
-    /**
-     * Filter by HTTP method
-     * @type {'POST' | 'PUT' | 'DELETE'}
-     * @memberof AuditApiListAuditLogs
-     */
-    readonly httpMethod?: ListAuditLogsHttpMethodEnum
-
-    /**
-     * Filter by status code
-     * @type {number}
-     * @memberof AuditApiListAuditLogs
-     */
-    readonly statusCode?: number
 
     /**
      * Filter by start date
@@ -374,33 +296,7 @@ export class AuditApi extends BaseAPI implements AuditApiInterface {
      * @memberof AuditApi
      */
     public listAuditLogs(requestParameters: AuditApiListAuditLogsRequest = {}, options?: RawAxiosRequestConfig) {
-        return AuditApiFp(this.configuration).listAuditLogs(requestParameters.userId, requestParameters.username, requestParameters.resourceType, requestParameters.resourceId, requestParameters.apiName, requestParameters.httpMethod, requestParameters.statusCode, requestParameters.startDate, requestParameters.endDate, requestParameters.limit, options).then((request) => request(this.axios, this.basePath));
+        return AuditApiFp(this.configuration).listAuditLogs(requestParameters.apiName, requestParameters.startDate, requestParameters.endDate, requestParameters.limit, options).then((request) => request(this.axios, this.basePath));
     }
 }
 
-/**
- * @export
- */
-export const ListAuditLogsResourceTypeEnum = {
-    collection: 'collection',
-    document: 'document',
-    bot: 'bot',
-    chat: 'chat',
-    message: 'message',
-    api_key: 'api_key',
-    llm_provider: 'llm_provider',
-    llm_provider_model: 'llm_provider_model',
-    model_service_provider: 'model_service_provider',
-    user: 'user',
-    config: 'config'
-} as const;
-export type ListAuditLogsResourceTypeEnum = typeof ListAuditLogsResourceTypeEnum[keyof typeof ListAuditLogsResourceTypeEnum];
-/**
- * @export
- */
-export const ListAuditLogsHttpMethodEnum = {
-    POST: 'POST',
-    PUT: 'PUT',
-    DELETE: 'DELETE'
-} as const;
-export type ListAuditLogsHttpMethodEnum = typeof ListAuditLogsHttpMethodEnum[keyof typeof ListAuditLogsHttpMethodEnum];

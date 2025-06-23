@@ -25,7 +25,7 @@ def upgrade() -> None:
     sa.Column('id', sa.String(length=36), nullable=False),
     sa.Column('user_id', sa.String(length=36), nullable=True, comment='User ID'),
     sa.Column('username', sa.String(length=255), nullable=True, comment='Username'),
-    sa.Column('resource_type', sa.Enum('collection', 'document', 'bot', 'chat', 'message', 'api_key', 'llm_provider', 'llm_provider_model', 'model_service_provider', 'user', 'config', 'invitation', 'auth', 'chat_completion', 'search_test', 'llm', 'flow', 'system', name='auditresource'), nullable=True, comment='Resource type'),
+    sa.Column('resource_type', sa.Enum('collection', 'document', 'bot', 'chat', 'message', 'api_key', 'llm_provider', 'llm_provider_model', 'model_service_provider', 'user', 'config', 'invitation', 'auth', 'chat_completion', 'search', 'llm', 'flow', 'system', name='auditresource'), nullable=True, comment='Resource type'),
     sa.Column('resource_id', sa.String(length=255), nullable=True, comment='Resource ID (extracted at query time)'),
     sa.Column('api_name', sa.String(length=255), nullable=False, comment='API operation name'),
     sa.Column('http_method', sa.String(length=10), nullable=False, comment='HTTP method (POST, PUT, DELETE)'),

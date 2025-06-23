@@ -15,19 +15,19 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { SearchTestResult } from './search-test-result';
+import type { SearchResult } from './search-result';
 
 /**
- * A list of search test results
+ * A list of search results
  * @export
- * @interface SearchTestResultList
+ * @interface SearchResultList
  */
-export interface SearchTestResultList {
+export interface SearchResultList {
     /**
      * 
-     * @type {Array<SearchTestResult>}
-     * @memberof SearchTestResultList
+     * @type {Array<SearchResult>}
+     * @memberof SearchResultList
      */
-    'items'?: Array<SearchTestResult>;
+    'items'?: Array<SearchResult>;
 }
 

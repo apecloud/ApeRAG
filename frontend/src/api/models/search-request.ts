@@ -24,33 +24,33 @@ import type { GraphSearchParams } from './graph-search-params';
 import type { VectorSearchParams } from './vector-search-params';
 
 /**
- * 
+ * Search request
  * @export
- * @interface SearchTestRequest
+ * @interface SearchRequest
  */
-export interface SearchTestRequest {
+export interface SearchRequest {
     /**
-     * The user input query
+     * 
      * @type {string}
-     * @memberof SearchTestRequest
+     * @memberof SearchRequest
      */
     'query'?: string;
     /**
      * 
      * @type {VectorSearchParams}
-     * @memberof SearchTestRequest
+     * @memberof SearchRequest
      */
     'vector_search'?: VectorSearchParams;
     /**
      * 
      * @type {FulltextSearchParams}
-     * @memberof SearchTestRequest
+     * @memberof SearchRequest
      */
     'fulltext_search'?: FulltextSearchParams;
     /**
      * 
      * @type {GraphSearchParams}
-     * @memberof SearchTestRequest
+     * @memberof SearchRequest
      */
     'graph_search'?: GraphSearchParams;
 }

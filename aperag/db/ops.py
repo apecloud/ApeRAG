@@ -31,7 +31,7 @@ from aperag.db.repositories.llm_provider import (
     AsyncLlmProviderRepositoryMixin,
     LlmProviderRepositoryMixin,
 )
-from aperag.db.repositories.search_test import AsyncSearchTestRepositoryMixin
+from aperag.db.repositories.search import AsyncSearchRepositoryMixin
 from aperag.db.repositories.system import AsyncSystemRepositoryMixin
 from aperag.db.repositories.user import AsyncUserRepositoryMixin
 
@@ -58,7 +58,7 @@ class AsyncDatabaseOps(
     AsyncUserRepositoryMixin,
     AsyncLlmProviderRepositoryMixin,
     AsyncSystemRepositoryMixin,
-    AsyncSearchTestRepositoryMixin,
+    AsyncSearchRepositoryMixin,
 ):
     pass
 

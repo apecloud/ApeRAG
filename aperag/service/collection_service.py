@@ -26,9 +26,9 @@ from aperag.schema import view_models
 from aperag.schema.utils import dumpCollectionConfig, parseCollectionConfig
 from aperag.schema.view_models import (
     Collection,
-    SearchTestResult,
-    SearchTestResultItem,
-    SearchTestResultList,
+    SearchResult,
+    SearchResultItem,
+    SearchResultList,
 )
 from aperag.utils.constant import QuotaType
 from aperag.views.utils import validate_source_connect_config
@@ -153,16 +153,16 @@ class CollectionService:
 
         return None
 
-    async def create_search_test(
-        self, user: str, collection_id: str, data: view_models.SearchTestRequest
-    ) -> view_models.SearchTestResult:
+    async def create_search(
+        self, user: str, collection_id: str, data: view_models.SearchRequest
+    ) -> view_models.SearchResult:
         from aperag.exceptions import CollectionNotFoundException
 
         collection = await self.db_ops.query_collection(user, collection_id)
         if not collection:
             raise CollectionNotFoundException(collection_id)
 
-        # Build flow for search test execution
+        # Build flow for search execution
         nodes = {}
         edges = []
         end_node_id = "merge"
@@ -223,8 +223,8 @@ class CollectionService:
 
         # Execute search flow
         flow = FlowInstance(
-            name="search_test",
-            title="Search Test",
+            name="search",
+            title="Search",
             nodes=nodes,
             edges=edges,
         )
@@ -240,7 +240,7 @@ class CollectionService:
         items = []
         for idx, doc in enumerate(docs):
             items.append(
-                SearchTestResultItem(
+                SearchResultItem(
                     rank=idx + 1,
                     score=doc.score,
                     content=doc.text,
@@ -249,7 +249,7 @@ class CollectionService:
                 )
             )
 
-        record = await self.db_ops.create_search_test(
+        record = await self.db_ops.create_search(
             user=user,
             collection_id=collection_id,
             query=data.query,
@@ -258,7 +258,7 @@ class CollectionService:
             graph_search=data.graph_search.dict() if data.graph_search else None,
             items=[item.dict() for item in items],
         )
-        return SearchTestResult(
+        return SearchResult(
             id=record.id,
             query=record.query,
             vector_search=record.vector_search,
@@ -268,36 +268,36 @@ class CollectionService:
             created=record.gmt_created.isoformat(),
         )
 
-    async def list_search_tests(self, user: str, collection_id: str) -> view_models.SearchTestResultList:
+    async def list_searches(self, user: str, collection_id: str) -> view_models.SearchResultList:
         from aperag.exceptions import CollectionNotFoundException
 
         collection = await self.db_ops.query_collection(user, collection_id)
         if not collection:
             raise CollectionNotFoundException(collection_id)
 
-        # Use DatabaseOps to query search tests
-        search_tests = await self.db_ops.query_search_tests(user, collection_id)
+        # Use DatabaseOps to query searches
+        searches = await self.db_ops.query_searches(user, collection_id)
 
         items = []
-        for search_test in search_tests:
-            test_result_items = []
-            for item_data in search_test.items:
-                test_result_items.append(SearchTestResultItem(**item_data))
+        for search in searches:
+            search_result_items = []
+            for item_data in search.items:
+                search_result_items.append(SearchResultItem(**item_data))
             items.append(
-                SearchTestResult(
-                    id=search_test.id,
-                    query=search_test.query,
-                    vector_search=search_test.vector_search,
-                    fulltext_search=search_test.fulltext_search,
-                    graph_search=search_test.graph_search,
-                    items=test_result_items,
-                    created=search_test.gmt_created.isoformat(),
+                SearchResult(
+                    id=search.id,
+                    query=search.query,
+                    vector_search=search.vector_search,
+                    fulltext_search=search.fulltext_search,
+                    graph_search=search.graph_search,
+                    items=search_result_items,
+                    created=search.gmt_created.isoformat(),
                 )
             )
-        return SearchTestResultList(items=items)
+        return SearchResultList(items=items)
 
-    async def delete_search_test(self, user: str, collection_id: str, search_test_id: str) -> Optional[bool]:
-        """Delete search test by ID (idempotent operation)
+    async def delete_search(self, user: str, collection_id: str, search_id: str) -> Optional[bool]:
+        """Delete search by ID (idempotent operation)
 
         Returns True if deleted, None if already deleted/not found
         """
@@ -307,7 +307,7 @@ class CollectionService:
         if not collection:
             raise CollectionNotFoundException(collection_id)
 
-        return await self.db_ops.delete_search_test(user, collection_id, search_test_id)
+        return await self.db_ops.delete_search(user, collection_id, search_id)
 
 
 # Create a global service instance for easy access

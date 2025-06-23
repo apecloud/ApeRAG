@@ -313,12 +313,12 @@ graphSearchParams:
       type: integer
       description: Top K results
 
-searchTestRequest:
+searchRequest:
   type: object
+  description: Search request
   properties:
     query:
       type: string
-      description: The user input query
     vector_search:
       $ref: '#/vectorSearchParams'
     fulltext_search:
@@ -326,7 +326,7 @@ searchTestRequest:
     graph_search:
       $ref: '#/graphSearchParams'
 
-searchTestResultItem:
+searchResultItem:
   type: object
   properties:
     rank:
@@ -349,12 +349,12 @@ searchTestResultItem:
         - graph_search
         - fulltext_search
 
-searchTestResult:
+searchResult:
   type: object
   properties:
     id:
       type: string
-      description: The id of the search test result
+      description: The id of the search result
     query:
       type: string
     vector_search:
@@ -366,17 +366,17 @@ searchTestResult:
     items:
       type: array
       items:
-        $ref: '#/searchTestResultItem'
+        $ref: '#/searchResultItem'
     created:
       type: string
       format: date-time
-      description: The creation time of the search test result
+      description: The creation time of the search result
 
-searchTestResultList:
+searchResultList:
   type: object
-  description: A list of search test results
+  description: A list of search results
   properties:
     items:
       type: array
       items:
-        $ref: '#/searchTestResult'
+        $ref: '#/searchResult'

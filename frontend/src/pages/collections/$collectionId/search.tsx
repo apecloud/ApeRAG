@@ -1,4 +1,4 @@
-import { SearchTestRequest, SearchTestResult } from '@/api';
+import { SearchRequest, SearchResult } from '@/api';
 import { ApeMarkdown } from '@/components';
 import { DATETIME_FORMAT } from '@/constants';
 import { api } from '@/services';
@@ -34,7 +34,7 @@ type SearchTypeEnum = 'vector_search' | 'fulltext_search' | 'graph_search';
 
 export default () => {
   const { formatMessage } = useIntl();
-  const [form] = Form.useForm<SearchTestRequest>();
+  const [form] = Form.useForm<SearchRequest>();
   const { collectionId } = useParams();
   const { loading, setLoading } = useModel('global');
   const [modal, contextHolder] = Modal.useModal();
@@ -43,16 +43,16 @@ export default () => {
     'vector_search',
   ]);
 
-  const [records, setRecords] = useState<SearchTestResult[]>([]);
+  const [records, setRecords] = useState<SearchResult[]>([]);
   const [historyModal, setHistoryModal] = useState<{
     visible: boolean;
-    record: SearchTestResult | undefined;
+    record: SearchResult | undefined;
   }>();
   const { token } = theme.useToken();
 
   const fetchHistory = async () => {
     if (!collectionId) return;
-    const res = await api.collectionsCollectionIdSearchTestsGet({
+    const res = await api.collectionsCollectionIdSearchesGet({
       collectionId,
     });
     setRecords(res?.data?.items || []);
@@ -63,10 +63,10 @@ export default () => {
     const values = await form.validateFields();
     setLoading(true);
     api
-      .collectionsCollectionIdSearchTestsPost(
+      .collectionsCollectionIdSearchesPost(
         {
           collectionId,
-          searchTestRequest: values,
+          searchRequest: values,
         },
         {
           timeout: 30 * 1000,
@@ -86,29 +86,29 @@ export default () => {
       });
   };
 
-  const onDeleteRecord = async (record: SearchTestResult) => {
+  const onDeleteRecord = async (record: SearchResult) => {
     if (!collectionId || !record.id) return;
     const confirmed = await modal.confirm({
       title: formatMessage({ id: 'action.confirm' }),
-      content: formatMessage({ id: 'searchTest.confirmDeleteHistory' }),
+      content: formatMessage({ id: 'search.confirmDeleteHistory' }),
       okButtonProps: {
         danger: true,
         loading,
       },
     });
     if (confirmed) {
-      await api.collectionsCollectionIdSearchTestsSearchTestIdDelete({
+      await api.collectionsCollectionIdSearchesSearchIdDelete({
         collectionId,
-        searchTestId: record.id,
+        searchId: record.id,
       });
       toast.success(formatMessage({ id: 'tips.delete.success' }));
       fetchHistory();
     }
   };
 
-  const columns: TableProps<SearchTestResult>['columns'] = [
+  const columns: TableProps<SearchResult>['columns'] = [
     {
-      title: formatMessage({ id: 'searchTest.history_question' }),
+      title: formatMessage({ id: 'search.history_question' }),
       dataIndex: 'query',
       render: (_value, record) => {
         return (
@@ -131,7 +131,7 @@ export default () => {
       },
     },
     {
-      title: formatMessage({ id: 'searchTest.searchResults' }),
+      title: formatMessage({ id: 'search.searchResults' }),
       align: 'center',
       render: (text, record) => (
         <Button
@@ -144,7 +144,7 @@ export default () => {
       ),
     },
     {
-      title: formatMessage({ id: 'searchTest.vectorTopK' }),
+      title: formatMessage({ id: 'search.vectorTopK' }),
       width: 130,
       render: (text, record) => {
         return (
@@ -161,7 +161,7 @@ export default () => {
       },
     },
     {
-      title: formatMessage({ id: 'searchTest.similarity' }),
+      title: formatMessage({ id: 'search.similarity' }),
       width: 130,
       render: (text, record) => {
         return (
@@ -177,7 +177,7 @@ export default () => {
       },
     },
     {
-      title: formatMessage({ id: 'searchTest.fulltextTopK' }),
+      title: formatMessage({ id: 'search.fulltextTopK' }),
       width: 130,
       render: (text, record) => {
         return (
@@ -193,7 +193,7 @@ export default () => {
       },
     },
     {
-      title: formatMessage({ id: 'searchTest.graphsearchTopK' }),
+      title: formatMessage({ id: 'search.graphsearchTopK' }),
       width: 130,
       render: (text, record) => {
         return (
@@ -258,14 +258,14 @@ export default () => {
               {
                 required: true,
                 message: formatMessage({
-                  id: 'searchTest.pleaseInputQuestion',
+                  id: 'search.pleaseInputQuestion',
                 }),
               },
             ]}
           >
             <Input.TextArea
               placeholder={formatMessage({
-                id: 'searchTest.pleaseInputQuestion',
+                id: 'search.pleaseInputQuestion',
               })}
               rows={3}
             />
@@ -278,19 +278,19 @@ export default () => {
                 [
                   {
                     label: formatMessage({
-                      id: 'searchTest.type.vector_search',
+                      id: 'search.type.vector_search',
                     }),
                     value: 'vector_search',
                   },
                   {
                     label: formatMessage({
-                      id: 'searchTest.type.fulltext_search',
+                      id: 'search.type.fulltext_search',
                     }),
                     value: 'fulltext_search',
                   },
                   {
                     label: formatMessage({
-                      id: 'searchTest.type.graph_search',
+                      id: 'search.type.graph_search',
                     }),
                     value: 'graph_search',
                   },
@@ -308,7 +308,7 @@ export default () => {
             {searchType.find((item) => item === 'vector_search') && (
               <>
                 <Form.Item
-                  label={formatMessage({ id: 'searchTest.vectorTopK' })}
+                  label={formatMessage({ id: 'search.vectorTopK' })}
                   name={['vector_search', 'topk']}
                 >
                   <Slider style={{ width: 80 }} min={0} max={20} />
@@ -316,7 +316,7 @@ export default () => {
 
                 <Form.Item
                   label={formatMessage({
-                    id: 'searchTest.similarityThreshold',
+                    id: 'search.similarityThreshold',
                   })}
                   name={['vector_search', 'similarity']}
                 >
@@ -328,7 +328,7 @@ export default () => {
             {searchType.find((item) => item === 'fulltext_search') && (
               <>
                 <Form.Item
-                  label={formatMessage({ id: 'searchTest.fulltextTopK' })}
+                  label={formatMessage({ id: 'search.fulltextTopK' })}
                   name={['fulltext_search', 'topk']}
                 >
                   <Slider style={{ width: 80 }} min={0} max={20} />
@@ -339,7 +339,7 @@ export default () => {
             {searchType.find((item) => item === 'graph_search') && (
               <>
                 <Form.Item
-                  label={formatMessage({ id: 'searchTest.graphsearchTopK' })}
+                  label={formatMessage({ id: 'search.graphsearchTopK' })}
                   name={['graph_search', 'topk']}
                 >
                   <Slider style={{ width: 80 }} min={0} max={20} />
@@ -353,7 +353,7 @@ export default () => {
             onClick={onSearch}
             type="primary"
           >
-            {formatMessage({ id: 'searchTest.test' })}
+            {formatMessage({ id: 'search.test' })}
           </Button>
         </Space>
       </Card>
@@ -362,7 +362,7 @@ export default () => {
 
       <Drawer
         open={historyModal?.visible}
-        title={formatMessage({ id: 'searchTest.searchResults' })}
+        title={formatMessage({ id: 'search.searchResults' })}
         onClose={() => setHistoryModal({ visible: false, record: undefined })}
         footer={false}
         size="large"
@@ -375,7 +375,7 @@ export default () => {
         extra={
           <Typography.Text type="secondary">
             {formatMessage(
-              { id: 'searchTest.searchResults.detail' },
+              { id: 'search.searchResults.detail' },
               { count: _.size(historyModal?.record?.items) },
             )}
           </Typography.Text>
@@ -411,7 +411,7 @@ export default () => {
                     {item.recall_type ? (
                       <Typography.Text>
                         {formatMessage({
-                          id: `searchTest.type.${item.recall_type}`,
+                          id: `search.type.${item.recall_type}`,
                         })}
                       </Typography.Text>
                     ) : null}
@@ -439,7 +439,7 @@ export default () => {
             icon={
               <UndrawScience primaryColor={token.colorPrimary} height="200px" />
             }
-            subTitle={<FormattedMessage id="searchTest.searchResults.empty" />}
+            subTitle={<FormattedMessage id="search.searchResults.empty" />}
           />
         )}
       </Drawer>

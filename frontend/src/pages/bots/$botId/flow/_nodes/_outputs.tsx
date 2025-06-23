@@ -63,7 +63,7 @@ export const NodeOutputs = ({ node }: OutputProps) => {
           {output.metadata?.recall_type ? (
             <Typography.Text>
               {formatMessage({
-                id: `searchTest.type.${output.metadata.recall_type}`,
+                id: `search.type.${output.metadata.recall_type}`,
               })}
             </Typography.Text>
           ) : null}

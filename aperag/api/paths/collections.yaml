@@ -296,33 +296,10 @@ document:
             schema:
               $ref: '../components/schemas/common.yaml#/failResponse'
 
-searchTest:
-  delete:
-    summary: Delete a search test
-    description: Delete a search test
-    security:
-      - BearerAuth: []
-    parameters:
-      - name: collection_id
-        in: path
-        required: true
-        schema:
-          type: string
-      - name: search_test_id
-        in: path
-        required: true
-        schema:
-          type: string
-    responses:
-      '204':
-        description: Search test deleted successfully
-      '401':
-        description: Unauthorized
-
-searchTests:
+searches:
   get:
-    summary: Get search test history
-    description: Get the history of search tests
+    summary: Get search history
+    description: Get the history of searches
     security:
       - BearerAuth: []
     parameters:
@@ -333,11 +310,11 @@ searchTests:
           type: string
     responses:
       '200':
-        description: Search test history
+        description: Search history
         content:
           application/json:
             schema:
-              $ref: '../components/schemas/collection.yaml#/searchTestResultList'
+              $ref: '../components/schemas/collection.yaml#/searchResultList'
       '401':
         description: Unauthorized
         content:
@@ -346,8 +323,8 @@ searchTests:
               $ref: '../components/schemas/common.yaml#/failResponse'
 
   post:
-    summary: Test search in collection
-    description: Test search in a collection with different search types
+    summary: Search in collection
+    description: Search in a collection with different search types
     security:
       - BearerAuth: []
     parameters:
@@ -361,14 +338,41 @@ searchTests:
       content:
         application/json:
           schema:
-            $ref: '../components/schemas/collection.yaml#/searchTestRequest'
+            $ref: '../components/schemas/collection.yaml#/searchRequest'
     responses:
       '200':
         description: Search results
         content:
           application/json:
             schema:
-              $ref: '../components/schemas/collection.yaml#/searchTestResult'
+              $ref: '../components/schemas/collection.yaml#/searchResult'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
+search_detail:
+  delete:
+    summary: Delete a search
+    description: Delete a search
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: search_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Search deleted successfully
       '401':
         description: Unauthorized
         content:

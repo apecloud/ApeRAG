@@ -686,10 +686,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
-  /collections/{collection_id}/searchTests:
+  /collections/{collection_id}/searches:
     get:
-      summary: Get search test history
-      description: Get the history of search tests
+      summary: Get search history
+      description: Get the history of searches
       security:
         - BearerAuth: []
       parameters:
@@ -700,11 +700,11 @@ paths:
             type: string
       responses:
         '200':
-          description: Search test history
+          description: Search history
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/searchTestResultList'
+                $ref: '#/components/schemas/searchResultList'
         '401':
           description: Unauthorized
           content:
@@ -712,8 +712,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/failResponse'
     post:
-      summary: Test search in collection
-      description: Test search in a collection with different search types
+      summary: Search in collection
+      description: Search in a collection with different search types
       security:
         - BearerAuth: []
       parameters:
@@ -727,24 +727,24 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/searchTestRequest'
+              $ref: '#/components/schemas/searchRequest'
       responses:
         '200':
           description: Search results
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/searchTestResult'
+                $ref: '#/components/schemas/searchResult'
         '401':
           description: Unauthorized
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
-  /collections/{collection_id}/searchTests/{search_test_id}:
+  /collections/{collection_id}/searches/{search_id}:
     delete:
-      summary: Delete a search test
-      description: Delete a search test
+      summary: Delete a search
+      description: Delete a search
       security:
         - BearerAuth: []
       parameters:
@@ -753,16 +753,20 @@ paths:
           required: true
           schema:
             type: string
-        - name: search_test_id
+        - name: search_id
           in: path
           required: true
           schema:
             type: string
       responses:
-        '204':
-          description: Search test deleted successfully
+        '200':
+          description: Search deleted successfully
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
   /apikeys:
     get:
       summary: Get API keys
@@ -1669,64 +1673,12 @@ paths:
       description: List audit logs with filtering options
       operationId: list_audit_logs
       parameters:
-        - name: user_id
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Filter by user ID
-        - name: username
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Filter by username
-        - name: resource_type
-          in: query
-          required: false
-          schema:
-            type: string
-            enum:
-              - collection
-              - document
-              - bot
-              - chat
-              - message
-              - api_key
-              - llm_provider
-              - llm_provider_model
-              - model_service_provider
-              - user
-              - config
-          description: Filter by resource type
-        - name: resource_id
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Filter by resource ID
         - name: api_name
           in: query
           required: false
           schema:
             type: string
           description: Filter by API name
-        - name: http_method
-          in: query
-          required: false
-          schema:
-            type: string
-            enum:
-              - POST
-              - PUT
-              - DELETE
-          description: Filter by HTTP method
-        - name: status_code
-          in: query
-          required: false
-          schema:
-            type: integer
-          description: Filter by status code
         - name: start_date
           in: query
           required: false
@@ -2866,7 +2818,7 @@ components:
         topk:
           type: integer
           description: Top K results
-    searchTestResultItem:
+    searchResultItem:
       type: object
       properties:
         rank:
@@ -2888,12 +2840,12 @@ components:
             - vector_search
             - graph_search
             - fulltext_search
-    searchTestResult:
+    searchResult:
       type: object
       properties:
         id:
           type: string
-          description: The id of the search test result
+          description: The id of the search result
         query:
           type: string
         vector_search:
@@ -2905,25 +2857,25 @@ components:
         items:
           type: array
           items:
-            $ref: '#/components/schemas/searchTestResultItem'
+            $ref: '#/components/schemas/searchResultItem'
         created:
           type: string
           format: date-time
-          description: The creation time of the search test result
-    searchTestResultList:
+          description: The creation time of the search result
+    searchResultList:
       type: object
-      description: A list of search test results
+      description: A list of search results
       properties:
         items:
           type: array
           items:
-            $ref: '#/components/schemas/searchTestResult'
-    searchTestRequest:
+            $ref: '#/components/schemas/searchResult'
+    searchRequest:
       type: object
+      description: Search request
       properties:
         query:
           type: string
-          description: The user input query
         vector_search:
           $ref: '#/components/schemas/vectorSearchParams'
         fulltext_search:
@@ -3605,7 +3557,8 @@ components:
             - llm_provider_model
             - model_service_provider
             - user
-            - config
+            - flow
+            - search_test
           nullable: true
           description: Type of resource
         resource_id:

@@ -21,7 +21,7 @@ import type { FulltextSearchParams } from './fulltext-search-params';
 import type { GraphSearchParams } from './graph-search-params';
 // May contain unused imports in some cases
 // @ts-ignore
-import type { SearchTestResultItem } from './search-test-result-item';
+import type { SearchResultItem } from './search-result-item';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { VectorSearchParams } from './vector-search-params';
@@ -29,49 +29,49 @@ import type { VectorSearchParams } from './vector-search-params';
 /**
  * 
  * @export
- * @interface SearchTestResult
+ * @interface SearchResult
  */
-export interface SearchTestResult {
+export interface SearchResult {
     /**
-     * The id of the search test result
+     * The id of the search result
      * @type {string}
-     * @memberof SearchTestResult
+     * @memberof SearchResult
      */
     'id'?: string;
     /**
      * 
      * @type {string}
-     * @memberof SearchTestResult
+     * @memberof SearchResult
      */
     'query'?: string;
     /**
      * 
      * @type {VectorSearchParams}
-     * @memberof SearchTestResult
+     * @memberof SearchResult
      */
     'vector_search'?: VectorSearchParams;
     /**
      * 
      * @type {FulltextSearchParams}
-     * @memberof SearchTestResult
+     * @memberof SearchResult
      */
     'fulltext_search'?: FulltextSearchParams;
     /**
      * 
      * @type {GraphSearchParams}
-     * @memberof SearchTestResult
+     * @memberof SearchResult
      */
     'graph_search'?: GraphSearchParams;
     /**
      * 
-     * @type {Array<SearchTestResultItem>}
-     * @memberof SearchTestResult
+     * @type {Array<SearchResultItem>}
+     * @memberof SearchResult
      */
-    'items'?: Array<SearchTestResultItem>;
+    'items'?: Array<SearchResultItem>;
     /**
-     * The creation time of the search test result
+     * The creation time of the search result
      * @type {string}
-     * @memberof SearchTestResult
+     * @memberof SearchResult
      */
     'created'?: string;
 }

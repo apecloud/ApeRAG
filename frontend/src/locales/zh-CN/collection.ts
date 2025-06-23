@@ -2,7 +2,7 @@ export const collection = {
   'collection.name': '知识库',
   'collection.files': '全部文件',
   'collection.settings': '设置',
-  'collection.search_test': '检索测试',
+  'collection.search': '检索测试',
   'collection.add': '添加知识库',
   'collection.select': '请选择知识库',
   'collection.tips': '你可以在知识库里导入和管理你的数据源以增强LLM的上下文。',
@@ -31,4 +31,9 @@ export const collection = {
   'collection.embedding_model.required': '请选择嵌入模型',
   'collection.lightrag_model': 'Light RAG模型',
   'collection.lightrag_model.required': '请选择Light RAG模型',
+};
+
+export default {
+  'collection.documents': '文档管理',
+  'collection.flow': '流程编辑器',
 };

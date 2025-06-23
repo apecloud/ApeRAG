@@ -16,12 +16,12 @@ from typing import List
 
 from sqlalchemy import desc, select
 
-from aperag.db.models import SearchTestHistory
+from aperag.db.models import SearchHistory
 from aperag.db.repositories.base import AsyncRepositoryProtocol
 
 
-class AsyncSearchTestRepositoryMixin(AsyncRepositoryProtocol):
-    async def create_search_test(
+class AsyncSearchRepositoryMixin(AsyncRepositoryProtocol):
+    async def create_search(
         self,
         user: str,
         collection_id: str,
@@ -30,9 +30,9 @@ class AsyncSearchTestRepositoryMixin(AsyncRepositoryProtocol):
         fulltext_search: dict = None,
         graph_search: dict = None,
         items: List[dict] = None,
-    ) -> SearchTestHistory:
+    ) -> SearchHistory:
         async def _operation(session):
-            instance = SearchTestHistory(
+            instance = SearchHistory(
                 user=user,
                 collection_id=collection_id,
                 query=query,
@@ -48,28 +48,28 @@ class AsyncSearchTestRepositoryMixin(AsyncRepositoryProtocol):
 
         return await self.execute_with_transaction(_operation)
 
-    async def query_search_tests(self, user: str, collection_id: str) -> List[SearchTestHistory]:
-        """Query search tests by user and collection"""
+    async def query_searches(self, user: str, collection_id: str) -> List[SearchHistory]:
+        """Query searches by user and collection"""
 
         async def _query(session):
             stmt = (
-                select(SearchTestHistory)
-                .where(SearchTestHistory.user == user, SearchTestHistory.collection_id == collection_id)
-                .order_by(desc(SearchTestHistory.gmt_created))
+                select(SearchHistory)
+                .where(SearchHistory.user == user, SearchHistory.collection_id == collection_id)
+                .order_by(desc(SearchHistory.gmt_created))
             )
             result = await session.execute(stmt)
             return result.scalars().all()
 
         return await self._execute_query(_query)
 
-    async def delete_search_test(self, user: str, collection_id: str, search_test_id: str) -> bool:
-        """Delete search test by ID"""
+    async def delete_search(self, user: str, collection_id: str, search_id: str) -> bool:
+        """Delete search by ID"""
 
         async def _operation(session):
-            stmt = select(SearchTestHistory).where(
-                SearchTestHistory.id == search_test_id,
-                SearchTestHistory.user == user,
-                SearchTestHistory.collection_id == collection_id,
+            stmt = select(SearchHistory).where(
+                SearchHistory.id == search_id,
+                SearchHistory.user == user,
+                SearchHistory.collection_id == collection_id,
             )
             result = await session.execute(stmt)
             instance = result.scalars().first()

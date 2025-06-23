@@ -274,35 +274,35 @@ async def frontend_chat_completions_view(request: Request, user: User = Depends(
     return await chat_service_global.frontend_chat_completions(str(user.id), message, stream, bot_id, chat_id, msg_id)
 
 
-@router.post("/collections/{collection_id}/searchTests")
-@audit(resource_type="search_test", api_name="CreateSearchTest")
-async def create_search_test_view(
+@router.post("/collections/{collection_id}/searches")
+@audit(resource_type="search", api_name="CreateSearch")
+async def create_search_view(
     request: Request,
     collection_id: str,
-    data: view_models.SearchTestRequest,
+    data: view_models.SearchRequest,
     user: User = Depends(current_user),
-) -> view_models.SearchTestResult:
-    return await collection_service.create_search_test(str(user.id), collection_id, data)
+) -> view_models.SearchResult:
+    return await collection_service.create_search(str(user.id), collection_id, data)
 
 
 @router.delete(
-    "/collections/{collection_id}/searchTests/{search_test_id}", tags=["search_test"], name="DeleteSearchTest"
+    "/collections/{collection_id}/searches/{search_id}", tags=["search"], name="DeleteSearch"
 )
-@audit(resource_type="search_test", api_name="DeleteSearchTest")
-async def delete_search_test_view(
+@audit(resource_type="search", api_name="DeleteSearch")
+async def delete_search_view(
     request: Request,
     collection_id: str,
-    search_test_id: str,
+    search_id: str,
     user: User = Depends(current_user),
 ):
-    return await collection_service.delete_search_test(str(user.id), collection_id, search_test_id)
+    return await collection_service.delete_search(str(user.id), collection_id, search_id)
 
 
-@router.get("/collections/{collection_id}/searchTests")
-async def list_search_tests_view(
+@router.get("/collections/{collection_id}/searches")
+async def list_searches_view(
     request: Request, collection_id: str, user: User = Depends(current_user)
-) -> view_models.SearchTestResultList:
-    return await collection_service.list_search_tests(str(user.id), collection_id)
+) -> view_models.SearchResultList:
+    return await collection_service.list_searches(str(user.id), collection_id)
 
 
 @router.post("/bots/{bot_id}/flow/debug")

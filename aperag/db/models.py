@@ -588,10 +588,10 @@ class Invitation(Base):
         # self.expires_at = utc_now()
 
 
-class SearchTestHistory(Base):
-    __tablename__ = "searchtesthistory"
+class SearchHistory(Base):
+    __tablename__ = "searchhistory"
 
-    id = Column(String(24), primary_key=True, default=lambda: "sth" + random_id())
+    id = Column(String(24), primary_key=True, default=lambda: "sh" + random_id())
     user = Column(String(256), nullable=False, index=True)  # Add index for user queries
     collection_id = Column(String(24), nullable=True, index=True)  # Add index for collection queries
     query = Column(Text, nullable=False)
@@ -766,7 +766,7 @@ class AuditResource(str, Enum):
     INVITATION = "invitation"
     AUTH = "auth"
     CHAT_COMPLETION = "chat_completion"
-    SEARCH_TEST = "search_test"
+    SEARCH = "search"
     LLM = "llm"
     FLOW = "flow"
     SYSTEM = "system"
