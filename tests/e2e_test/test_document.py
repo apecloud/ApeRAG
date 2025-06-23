@@ -179,7 +179,7 @@ def test_rebuild_index_invalid_index_type(client, document, collection):
         f"/api/v1/collections/{collection_id}/documents/{doc_id}/rebuild_indexes",
         json=rebuild_request
     )
-    assert response.status_code == HTTPStatus.BAD_REQUEST, response.text
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY, response.text
 
 
 def test_rebuild_index_empty_index_types(client, document, collection):

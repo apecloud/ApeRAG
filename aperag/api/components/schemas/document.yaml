@@ -95,5 +95,6 @@ rebuildIndexesRequest:
           - fulltext
           - graph
       description: Types of indexes to rebuild
+      minItems: 1
   required:
     - index_types
