@@ -419,7 +419,21 @@ class DocumentService:
         """
         logger.info(f"Rebuilding indexes for document {document_id} with types: {index_types}")
         
-        async for session in get_async_session():
+        # Convert index types to enum values outside transaction
+        from aperag.db.models import DocumentIndexType
+        index_type_enums = []
+        for index_type in index_types:
+            if index_type == 'vector':
+                index_type_enums.append(DocumentIndexType.VECTOR)
+            elif index_type == 'fulltext':
+                index_type_enums.append(DocumentIndexType.FULLTEXT)
+            elif index_type == 'graph':
+                index_type_enums.append(DocumentIndexType.GRAPH)
+            else:
+                raise invalid_param("index_type", f"Invalid index type: {index_type}")
+        
+        # Execute all operations atomically in a single transaction
+        async def _rebuild_document_indexes_atomically(session):
             # Verify document exists and user has access
             document = await self.db_ops.query_document(user_id, collection_id, document_id)
             if not document:
@@ -433,31 +447,22 @@ class DocumentService:
             if not collection or collection.user != user_id:
                 raise ResourceNotFoundException(f"Collection {collection_id} not found or access denied")
             
-            # Convert index types to enum values
-            from aperag.db.models import DocumentIndexType
-            index_type_enums = []
-            for index_type in index_types:
-                if index_type == 'vector':
-                    index_type_enums.append(DocumentIndexType.VECTOR)
-                elif index_type == 'fulltext':
-                    index_type_enums.append(DocumentIndexType.FULLTEXT)
-                elif index_type == 'graph':
-                    index_type_enums.append(DocumentIndexType.GRAPH)
-                else:
-                    raise invalid_param(f"Invalid index type: {index_type}")
-            
             # Trigger index rebuild by incrementing version for selected index types
             await document_index_manager.rebuild_document_indexes(session, document_id, index_type_enums)
-            await session.commit()
-        
+            
             logger.info(f"Successfully triggered rebuild for document {document_id} indexes: {index_types}")
+            
+            return {
+                "code": "200",
+                "message": f"Index rebuild initiated for types: {', '.join(index_types)}"
+            }
         
+        result = await self.db_ops.execute_with_transaction(_rebuild_document_indexes_atomically)
+        
+        # Trigger index reconciliation after successful rebuild initiation
         _trigger_index_reconciliation()
 
-        return {
-            "code": "200",
-            "message": f"Index rebuild initiated for types: {', '.join(index_types)}"
-        }
+        return result
 
 
 # Create a global service instance for easy access
