@@ -120,6 +120,9 @@ class FrontendIndexManager:
             document_id: Document ID
             index_types: List of index types to rebuild
         """
+        if len(set(index_types)) != len(index_types):
+            raise Exception("Duplicate index types are not allowed")
+
         for index_type in index_types:
             stmt = select(DocumentIndex).where(
                 and_(DocumentIndex.document_id == document_id, DocumentIndex.index_type == index_type)

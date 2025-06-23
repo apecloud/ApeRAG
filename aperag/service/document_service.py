@@ -417,6 +417,9 @@ class DocumentService:
         Returns:
             dict: Success response
         """
+        if len(set(index_types)) != len(index_types):
+            raise invalid_param("index_types", "duplicate index types are not allowed")
+
         logger.info(f"Rebuilding indexes for document {document_id} with types: {index_types}")
         
         # Convert index types to enum values outside transaction
