@@ -20,12 +20,14 @@ import {
   DeleteOutlined,
   MoreOutlined,
   SearchOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import { useRequest } from 'ahooks';
 import {
   Avatar,
   Badge,
   Button,
+  Checkbox,
   Dropdown,
   Input,
   Modal,
@@ -56,6 +58,9 @@ export default () => {
   const { token } = theme.useToken();
   const [modal, contextHolder] = Modal.useModal();
   const { formatMessage } = useIntl();
+  const [rebuildModalVisible, setRebuildModalVisible] = useState(false);
+  const [rebuildSelectedDocument, setRebuildSelectedDocument] = useState<ApeDocument | null>(null);
+  const [rebuildSelectedTypes, setRebuildSelectedTypes] = useState<string[]>([]);
   const {
     data: documentsRes,
     run: getDocuments,
@@ -85,6 +90,48 @@ export default () => {
     },
     [collectionId],
   );
+
+  const rebuildIndexes = useCallback(
+    async (documentId: string, indexTypes: string[]) => {
+      if (!collectionId || !documentId || indexTypes.length === 0) return;
+      
+      try {
+        await api.collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost({
+          collectionId,
+          documentId,
+          rebuildIndexesRequest: {
+            index_types: indexTypes as any,
+          },
+        });
+        toast.success(formatMessage({ id: 'document.index.rebuild.success' }));
+        getDocuments();
+      } catch (error) {
+        toast.error(formatMessage({ id: 'document.index.rebuild.failed' }));
+      }
+    },
+    [collectionId, formatMessage],
+  );
+
+  const handleRebuildIndex = useCallback((record: ApeDocument) => {
+    setRebuildSelectedDocument(record);
+    setRebuildSelectedTypes([]);
+    setRebuildModalVisible(true);
+  }, []);
+
+  const handleRebuildConfirm = useCallback(() => {
+    if (rebuildSelectedDocument && rebuildSelectedTypes.length > 0) {
+      rebuildIndexes(rebuildSelectedDocument.id!, rebuildSelectedTypes);
+      setRebuildModalVisible(false);
+      setRebuildSelectedDocument(null);
+      setRebuildSelectedTypes([]);
+    }
+  }, [rebuildSelectedDocument, rebuildSelectedTypes, rebuildIndexes]);
+
+  const indexTypeOptions = [
+    { label: formatMessage({ id: 'document.index.type.vector' }), value: 'vector' },
+    { label: formatMessage({ id: 'document.index.type.fulltext' }), value: 'fulltext' },
+    { label: formatMessage({ id: 'document.index.type.graph' }), value: 'graph' },
+  ];
 
   const renderIndexStatus = (
     vectorStatus?: DocumentVectorIndexStatusEnum,
@@ -207,6 +254,13 @@ export default () => {
             menu={{
               items: [
                 {
+                  key: 'rebuild',
+                  label: formatMessage({ id: 'document.index.rebuild' }),
+                  icon: <ReloadOutlined />,
+                  disabled: record.status === 'DELETING' || record.status === 'DELETED',
+                  onClick: () => handleRebuildIndex(record),
+                },
+                {
                   key: 'delete',
                   label: formatMessage({ id: 'action.delete' }),
                   danger: true,
@@ -273,15 +327,15 @@ export default () => {
 
   const documents = useMemo(
     () =>
-      documentsRes?.data.items
-        ?.map((document) => {
+      documentsRes?.data?.items
+        ?.map((document: any) => {
           const item: ApeDocument = {
             ...document,
             config: parseConfig(document.config),
           };
           return item;
         })
-        .filter((item) => {
+        .filter((item: ApeDocument) => {
           const titleMatch = searchParams?.name
             ? item.name?.includes(searchParams.name)
             : true;
@@ -330,6 +384,59 @@ export default () => {
       </Space>
       <Table rowKey="id" bordered columns={columns} dataSource={documents} />
       {contextHolder}
+      
+      <Modal
+        title={formatMessage({ id: 'document.index.rebuild.title' })}
+        open={rebuildModalVisible}
+        onCancel={() => {
+          setRebuildModalVisible(false);
+          setRebuildSelectedDocument(null);
+          setRebuildSelectedTypes([]);
+        }}
+        onOk={handleRebuildConfirm}
+        okText={formatMessage({ id: 'document.index.rebuild.confirm' })}
+        cancelText={formatMessage({ id: 'action.cancel' })}
+        okButtonProps={{
+          disabled: rebuildSelectedTypes.length === 0,
+        }}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Typography.Text type="secondary">
+            {formatMessage({ id: 'document.index.rebuild.description' })}
+          </Typography.Text>
+        </div>
+        
+        {rebuildSelectedDocument && (
+          <div style={{ marginBottom: 16 }}>
+            <Typography.Text strong>
+              {rebuildSelectedDocument.name}
+            </Typography.Text>
+          </div>
+        )}
+        
+        <div style={{ marginBottom: 16 }}>
+          <Checkbox
+            indeterminate={rebuildSelectedTypes.length > 0 && rebuildSelectedTypes.length < indexTypeOptions.length}
+            checked={rebuildSelectedTypes.length === indexTypeOptions.length}
+            onChange={(e) => {
+              if (e.target.checked) {
+                setRebuildSelectedTypes(indexTypeOptions.map(option => option.value));
+              } else {
+                setRebuildSelectedTypes([]);
+              }
+            }}
+          >
+            {formatMessage({ id: 'document.index.rebuild.select.all' })}
+          </Checkbox>
+        </div>
+        
+        <Checkbox.Group
+          options={indexTypeOptions}
+          value={rebuildSelectedTypes}
+          onChange={(values) => setRebuildSelectedTypes(values as string[])}
+          style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+        />
+      </Modal>
     </>
   );
 };

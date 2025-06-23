@@ -230,6 +230,13 @@ export default {
   'document.index.type.vector': 'Vector Index',
   'document.index.type.fulltext': 'Fulltext Index',
   'document.index.type.graph': 'Graph Index',
+  'document.index.rebuild': 'Rebuild Index',
+  'document.index.rebuild.title': 'Rebuild Index',
+  'document.index.rebuild.description': 'Select index types to rebuild',
+  'document.index.rebuild.select.all': 'Select All',
+  'document.index.rebuild.confirm': 'Confirm Rebuild',
+  'document.index.rebuild.success': 'Index rebuild task initiated',
+  'document.index.rebuild.failed': 'Index rebuild failed',
 
   flow: '---------------',
   'flow.name': 'Workflow',

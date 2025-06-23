@@ -102,6 +102,8 @@ import type { ModelConfigList } from '../models';
 // @ts-ignore
 import type { PromptTemplateList } from '../models';
 // @ts-ignore
+import type { RebuildIndexesRequest } from '../models';
+// @ts-ignore
 import type { Register } from '../models';
 // @ts-ignore
 import type { SearchRequest } from '../models';
@@ -109,6 +111,8 @@ import type { SearchRequest } from '../models';
 import type { SearchResult } from '../models';
 // @ts-ignore
 import type { SearchResultList } from '../models';
+// @ts-ignore
+import type { SuccessResponse } from '../models';
 // @ts-ignore
 import type { TagFilterRequest } from '../models';
 // @ts-ignore
@@ -1103,6 +1107,54 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
             localVarRequestOptions.data = serializeDataIfNeeded(documentUpdate, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Rebuild specified types of indexes for a document
+         * @summary Rebuild document indexes
+         * @param {string} collectionId 
+         * @param {string} documentId 
+         * @param {RebuildIndexesRequest} rebuildIndexesRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost: async (collectionId: string, documentId: string, rebuildIndexesRequest: RebuildIndexesRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost', 'collectionId', collectionId)
+            // verify required parameter 'documentId' is not null or undefined
+            assertParamExists('collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost', 'documentId', documentId)
+            // verify required parameter 'rebuildIndexesRequest' is not null or undefined
+            assertParamExists('collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost', 'rebuildIndexesRequest', rebuildIndexesRequest)
+            const localVarPath = `/collections/{collection_id}/documents/{document_id}/rebuild_indexes`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)))
+                .replace(`{${"document_id"}}`, encodeURIComponent(String(documentId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(rebuildIndexesRequest, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -2531,6 +2583,21 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Rebuild specified types of indexes for a document
+         * @summary Rebuild document indexes
+         * @param {string} collectionId 
+         * @param {string} documentId 
+         * @param {RebuildIndexesRequest} rebuildIndexesRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost(collectionId: string, documentId: string, rebuildIndexesRequest: RebuildIndexesRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SuccessResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost(collectionId, documentId, rebuildIndexesRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Get a list of documents
          * @summary List documents
          * @param {string} collectionId 
@@ -3164,6 +3231,16 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.collectionsCollectionIdDocumentsDocumentIdPut(requestParameters.collectionId, requestParameters.documentId, requestParameters.documentUpdate, options).then((request) => request(axios, basePath));
         },
         /**
+         * Rebuild specified types of indexes for a document
+         * @summary Rebuild document indexes
+         * @param {DefaultApiCollectionsCollectionIdDocumentsDocumentIdRebuildIndexesPostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost(requestParameters: DefaultApiCollectionsCollectionIdDocumentsDocumentIdRebuildIndexesPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<SuccessResponse> {
+            return localVarFp.collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost(requestParameters.collectionId, requestParameters.documentId, requestParameters.rebuildIndexesRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Get a list of documents
          * @summary List documents
          * @param {DefaultApiCollectionsCollectionIdDocumentsGetRequest} requestParameters Request parameters.
@@ -3693,6 +3770,16 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     collectionsCollectionIdDocumentsDocumentIdPut(requestParameters: DefaultApiCollectionsCollectionIdDocumentsDocumentIdPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<Document>;
+
+    /**
+     * Rebuild specified types of indexes for a document
+     * @summary Rebuild document indexes
+     * @param {DefaultApiCollectionsCollectionIdDocumentsDocumentIdRebuildIndexesPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost(requestParameters: DefaultApiCollectionsCollectionIdDocumentsDocumentIdRebuildIndexesPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<SuccessResponse>;
 
     /**
      * Get a list of documents
@@ -4435,6 +4522,34 @@ export interface DefaultApiCollectionsCollectionIdDocumentsDocumentIdPutRequest 
 }
 
 /**
+ * Request parameters for collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost operation in DefaultApi.
+ * @export
+ * @interface DefaultApiCollectionsCollectionIdDocumentsDocumentIdRebuildIndexesPostRequest
+ */
+export interface DefaultApiCollectionsCollectionIdDocumentsDocumentIdRebuildIndexesPostRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof DefaultApiCollectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost
+     */
+    readonly collectionId: string
+
+    /**
+     * 
+     * @type {string}
+     * @memberof DefaultApiCollectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost
+     */
+    readonly documentId: string
+
+    /**
+     * 
+     * @type {RebuildIndexesRequest}
+     * @memberof DefaultApiCollectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost
+     */
+    readonly rebuildIndexesRequest: RebuildIndexesRequest
+}
+
+/**
  * Request parameters for collectionsCollectionIdDocumentsGet operation in DefaultApi.
  * @export
  * @interface DefaultApiCollectionsCollectionIdDocumentsGetRequest
@@ -5132,6 +5247,18 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      */
     public collectionsCollectionIdDocumentsDocumentIdPut(requestParameters: DefaultApiCollectionsCollectionIdDocumentsDocumentIdPutRequest, options?: RawAxiosRequestConfig) {
         return DefaultApiFp(this.configuration).collectionsCollectionIdDocumentsDocumentIdPut(requestParameters.collectionId, requestParameters.documentId, requestParameters.documentUpdate, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Rebuild specified types of indexes for a document
+     * @summary Rebuild document indexes
+     * @param {DefaultApiCollectionsCollectionIdDocumentsDocumentIdRebuildIndexesPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost(requestParameters: DefaultApiCollectionsCollectionIdDocumentsDocumentIdRebuildIndexesPostRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost(requestParameters.collectionId, requestParameters.documentId, requestParameters.rebuildIndexesRequest, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

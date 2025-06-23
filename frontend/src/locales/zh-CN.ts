@@ -228,6 +228,13 @@ export default {
   'document.index.type.vector': '向量索引',
   'document.index.type.fulltext': '全文索引',
   'document.index.type.graph': '图索引',
+  'document.index.rebuild': '重建索引',
+  'document.index.rebuild.title': '重建索引',
+  'document.index.rebuild.description': '选择要重建的索引类型',
+  'document.index.rebuild.select.all': '全选',
+  'document.index.rebuild.confirm': '确认重建',
+  'document.index.rebuild.success': '索引重建任务已启动',
+  'document.index.rebuild.failed': '索引重建失败',
 
   flow: '---------------',
   'flow.name': '任务流',
