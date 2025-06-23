@@ -136,12 +136,11 @@ def test_rebuild_single_index_type(client, document, collection):
     """Test rebuilding a single index type (vector)"""
     doc_id = document["id"]
     collection_id = collection["id"]
-    
+
     # Test rebuilding vector index
     rebuild_request = {"index_types": ["vector"]}
     response = client.post(
-        f"/api/v1/collections/{collection_id}/documents/{doc_id}/rebuild_indexes",
-        json=rebuild_request
+        f"/api/v1/collections/{collection_id}/documents/{doc_id}/rebuild_indexes", json=rebuild_request
     )
     assert response.status_code == HTTPStatus.OK, response.text
     data = response.json()
@@ -153,12 +152,11 @@ def test_rebuild_all_index_types(client, document, collection):
     """Test rebuilding all supported index types"""
     doc_id = document["id"]
     collection_id = collection["id"]
-    
+
     # Test rebuilding all index types
     rebuild_request = {"index_types": ["vector", "fulltext", "graph"]}
     response = client.post(
-        f"/api/v1/collections/{collection_id}/documents/{doc_id}/rebuild_indexes",
-        json=rebuild_request
+        f"/api/v1/collections/{collection_id}/documents/{doc_id}/rebuild_indexes", json=rebuild_request
     )
     assert response.status_code == HTTPStatus.OK, response.text
     data = response.json()
@@ -172,12 +170,11 @@ def test_rebuild_index_invalid_index_type(client, document, collection):
     """Test rebuilding with invalid index type"""
     doc_id = document["id"]
     collection_id = collection["id"]
-    
+
     # Test with invalid index type
     rebuild_request = {"index_types": ["invalid_type"]}
     response = client.post(
-        f"/api/v1/collections/{collection_id}/documents/{doc_id}/rebuild_indexes",
-        json=rebuild_request
+        f"/api/v1/collections/{collection_id}/documents/{doc_id}/rebuild_indexes", json=rebuild_request
     )
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY, response.text
 
@@ -186,12 +183,11 @@ def test_rebuild_index_empty_index_types(client, document, collection):
     """Test rebuilding with empty index types array"""
     doc_id = document["id"]
     collection_id = collection["id"]
-    
+
     # Test with empty index types
     rebuild_request = {"index_types": []}
     response = client.post(
-        f"/api/v1/collections/{collection_id}/documents/{doc_id}/rebuild_indexes",
-        json=rebuild_request
+        f"/api/v1/collections/{collection_id}/documents/{doc_id}/rebuild_indexes", json=rebuild_request
     )
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY, response.text
 
@@ -201,11 +197,10 @@ def test_rebuild_individual_index_types(client, document, collection, index_type
     """Test rebuilding each individual index type"""
     doc_id = document["id"]
     collection_id = collection["id"]
-    
+
     rebuild_request = {"index_types": [index_type]}
     response = client.post(
-        f"/api/v1/collections/{collection_id}/documents/{doc_id}/rebuild_indexes",
-        json=rebuild_request
+        f"/api/v1/collections/{collection_id}/documents/{doc_id}/rebuild_indexes", json=rebuild_request
     )
     assert response.status_code == HTTPStatus.OK, response.text
     data = response.json()
@@ -217,12 +212,11 @@ def test_rebuild_index_duplicate_types(client, document, collection):
     """Test rebuilding with duplicate index types in request"""
     doc_id = document["id"]
     collection_id = collection["id"]
-    
+
     # Test with duplicate index types
     rebuild_request = {"index_types": ["vector", "vector", "fulltext"]}
     response = client.post(
-        f"/api/v1/collections/{collection_id}/documents/{doc_id}/rebuild_indexes",
-        json=rebuild_request
+        f"/api/v1/collections/{collection_id}/documents/{doc_id}/rebuild_indexes", json=rebuild_request
     )
     # Should fail
     assert response.status_code == HTTPStatus.BAD_REQUEST, response.text
@@ -232,11 +226,10 @@ def test_rebuild_index_case_sensitivity(client, document, collection):
     """Test rebuilding with different case index types"""
     doc_id = document["id"]
     collection_id = collection["id"]
-    
+
     # Test with uppercase index type (should fail)
     rebuild_request = {"index_types": ["VECTOR"]}
     response = client.post(
-        f"/api/v1/collections/{collection_id}/documents/{doc_id}/rebuild_indexes",
-        json=rebuild_request
+        f"/api/v1/collections/{collection_id}/documents/{doc_id}/rebuild_indexes", json=rebuild_request
     )
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY, response.text

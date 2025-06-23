@@ -300,9 +300,7 @@ async def create_search_view(
     return await collection_service.create_search(str(user.id), collection_id, data)
 
 
-@router.delete(
-    "/collections/{collection_id}/searches/{search_id}", tags=["search"], name="DeleteSearch"
-)
+@router.delete("/collections/{collection_id}/searches/{search_id}", tags=["search"], name="DeleteSearch")
 @audit(resource_type="search", api_name="DeleteSearch")
 async def delete_search_view(
     request: Request,

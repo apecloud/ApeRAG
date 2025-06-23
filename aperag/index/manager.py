@@ -137,7 +137,9 @@ class FrontendIndexManager:
                     doc_index.gmt_updated = utc_now()
                     logger.info(f"Triggered rebuild for {index_type.value} index of document {document_id}")
                 else:
-                    logger.warning(f"Cannot rebuild {index_type.value} index for document {document_id}: index not present")
+                    logger.warning(
+                        f"Cannot rebuild {index_type.value} index for document {document_id}: index not present"
+                    )
             else:
                 logger.warning(f"No {index_type.value} index found for document {document_id}")
 
