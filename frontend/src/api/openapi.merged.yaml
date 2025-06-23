@@ -3558,7 +3558,7 @@ components:
             - model_service_provider
             - user
             - flow
-            - search_test
+            - search
           nullable: true
           description: Type of resource
         resource_id:
