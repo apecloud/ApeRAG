@@ -82,3 +82,18 @@ documentUpdate:
       type: string
     source:
       type: string
+
+rebuildIndexesRequest:
+  type: object
+  properties:
+    index_types:
+      type: array
+      items:
+        type: string
+        enum:
+          - vector
+          - fulltext
+          - graph
+      description: Types of indexes to rebuild
+  required:
+    - index_types

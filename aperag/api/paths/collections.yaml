@@ -296,6 +296,49 @@ document:
             schema:
               $ref: '../components/schemas/common.yaml#/failResponse'
 
+rebuild_indexes:
+  post:
+    summary: Rebuild document indexes
+    description: Rebuild specified types of indexes for a document
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/document.yaml#/rebuildIndexesRequest'
+    responses:
+      '200':
+        description: Index rebuild initiated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/successResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Document not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
 searches:
   get:
     summary: Get search history

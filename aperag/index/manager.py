@@ -107,6 +107,37 @@ class FrontendIndexManager:
             if doc_index:
                 doc_index.update_spec(IndexDesiredState.ABSENT)
 
+    async def rebuild_document_indexes(
+        self, session: AsyncSession, document_id: str, index_types: List[DocumentIndexType]
+    ):
+        """
+        Rebuild specified document indexes (called when user requests index rebuild)
+
+        This increments the version of specified indexes to trigger reconciliation.
+
+        Args:
+            session: Database session
+            document_id: Document ID
+            index_types: List of index types to rebuild
+        """
+        for index_type in index_types:
+            stmt = select(DocumentIndex).where(
+                and_(DocumentIndex.document_id == document_id, DocumentIndex.index_type == index_type)
+            )
+            result = await session.execute(stmt)
+            doc_index = result.scalar_one_or_none()
+
+            if doc_index:
+                # Only rebuild if the index is present or failed
+                if doc_index.desired_state == IndexDesiredState.PRESENT:
+                    doc_index.version += 1  # Increment version to trigger re-indexing
+                    doc_index.gmt_updated = utc_now()
+                    logger.info(f"Triggered rebuild for {index_type.value} index of document {document_id}")
+                else:
+                    logger.warning(f"Cannot rebuild {index_type.value} index for document {document_id}: index not present")
+            else:
+                logger.warning(f"No {index_type.value} index found for document {document_id}")
+
     async def get_document_index_status(self, session: AsyncSession, document_id: str) -> dict:
         """
         Get current index status for a document

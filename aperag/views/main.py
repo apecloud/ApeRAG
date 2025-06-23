@@ -158,6 +158,21 @@ async def delete_documents_view(
     return await document_service.delete_documents(str(user.id), collection_id, document_ids)
 
 
+@router.post("/collections/{collection_id}/documents/{document_id}/rebuild_indexes")
+@audit(resource_type="document", api_name="RebuildDocumentIndexes")
+async def rebuild_document_indexes_view(
+    request: Request,
+    collection_id: str,
+    document_id: str,
+    rebuild_request: view_models.RebuildIndexesRequest,
+    user: User = Depends(current_user),
+):
+    """Rebuild specified indexes for a document"""
+    return await document_service.rebuild_document_indexes(
+        str(user.id), collection_id, document_id, rebuild_request.index_types
+    )
+
+
 @router.post("/bots/{bot_id}/chats")
 @audit(resource_type="chat", api_name="CreateChat")
 async def create_chat_view(request: Request, bot_id: str, user: User = Depends(current_user)) -> view_models.Chat:
