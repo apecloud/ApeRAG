@@ -15,7 +15,7 @@
 from fastapi import FastAPI
 
 from aperag.exception_handlers import register_exception_handlers
-from aperag.llm.litellm_track import register_opik_llm_track
+from aperag.llm.litellm_track import register_custom_llm_track
 from aperag.views.api_key import router as api_key_router
 from aperag.views.auth import router as auth_router
 from aperag.views.chat_completion import router as chat_completion_router
@@ -33,7 +33,7 @@ app = FastAPI(
 # Register global exception handlers
 register_exception_handlers(app)
 
-register_opik_llm_track()
+register_custom_llm_track()
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(main_router, prefix="/api/v1")

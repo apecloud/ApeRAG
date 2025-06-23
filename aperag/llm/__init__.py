@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 # Export all LLM error types for easy access
 # Export services
 from aperag.llm.completion.completion_service import CompletionService
@@ -84,3 +83,8 @@ __all__ = [
     "EmbeddingService",
     "RerankService",
 ]
+
+# Initialize cache when module is imported
+from aperag.llm import litellm_cache
+
+litellm_cache.setup_litellm_cache()

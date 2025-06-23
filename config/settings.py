@@ -331,8 +331,6 @@ MAX_DOCUMENT_COUNT = env.int("MAX_DOCUMENT_COUNT", default=1000)
 MAX_DOCUMENT_SIZE = env.int('MAX_DOCUMENT_SIZE', default=100 * 1024 * 1024)
 MAX_CONVERSATION_COUNT = env.int("MAX_CONVERSATION_COUNT", default=100)
 
-RETRIEVE_MODE = "classic" # todo delete me
-
 # Chunking Settings
 CHUNK_SIZE = env.int("CHUNK_SIZE", default=400)
 CHUNK_OVERLAP_SIZE = env.int("CHUNK_OVERLAP_SIZE", default=20)
@@ -369,3 +367,7 @@ REGISTER_MODE = env.str('REGISTER_MODE', default='unlimited')
 
 OPIK_API_KEY = env.str('OPIK_API_KEY', default='')
 OPIK_WORKSPACE = env.str('OPIK_WORKSPACE', default='')
+
+# Cache Settings
+CACHE_ENABLED = env.bool('CACHE_ENABLED', default=True)
+CACHE_TTL = env.int('CACHE_TTL', default=86400)

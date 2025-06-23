@@ -211,7 +211,7 @@ async def create_rerank(request: RerankRequest, user: User = Depends(current_use
         )
 
         # Perform reranking
-        reranked_documents = await rerank_service.rank(request.query, input_documents)
+        reranked_documents = await rerank_service.async_rerank(request.query, input_documents)
 
         # Apply top_k limit
         reranked_documents = reranked_documents[:top_k]

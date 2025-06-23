@@ -31,52 +31,24 @@ logger = logging.getLogger(__name__)
 
 
 class RerankService:
-    """
-    Rerank service that supports dynamic model configuration.
-    Similar to EmbeddingService, this service accepts provider and model information
-    at runtime instead of relying on environment variables.
-    """
-
     def __init__(
         self,
         rerank_provider: str,
         rerank_model: str,
         rerank_service_url: str,
         rerank_service_api_key: str,
+        caching: bool = True,
     ):
-        """
-        Initialize the rerank service with dynamic configuration.
-
-        Args:
-            rerank_provider: The custom LLM provider (e.g., 'jina_ai', 'openai')
-            rerank_model: The model name to use for reranking
-            rerank_service_url: The API base URL for the rerank service
-            rerank_service_api_key: The API key for authentication
-        """
         self.rerank_provider = rerank_provider
         self.model = rerank_model
         self.api_base = rerank_service_url
         self.api_key = rerank_service_api_key
+        self.caching = caching
 
         # Set document limit based on provider
         self.max_documents = 1000
 
-    async def rank(self, query: str, results: List[DocumentWithScore]) -> List[DocumentWithScore]:
-        """
-        Rerank documents based on relevance to the query.
-
-        Args:
-            query: The search query
-            results: List of documents with scores to rerank
-
-        Returns:
-            List of documents reordered by relevance
-
-        Raises:
-            InvalidDocumentError: If documents are invalid
-            TooManyDocumentsError: If too many documents provided
-            RerankError: If reranking fails
-        """
+    async def async_rerank(self, query: str, results: List[DocumentWithScore]) -> List[DocumentWithScore]:
         try:
             # Validate inputs
             if not query or not query.strip():
@@ -92,54 +64,74 @@ class RerankService:
                     document_count=len(results), max_documents=self.max_documents, model_name=self.model
                 )
 
-            # Validate documents
-            documents = []
+            # Extract texts and validate documents
+            texts = []
             invalid_indices = []
             for i, doc in enumerate(results):
                 if not doc or not hasattr(doc, "text") or not doc.text or not doc.text.strip():
                     invalid_indices.append(i)
-                    documents.append(" ")  # Use placeholder for empty docs
+                    texts.append(" ")  # Use placeholder for empty docs
                 else:
-                    documents.append(doc.text)
+                    texts.append(doc.text)
 
             if invalid_indices:
                 logger.warning(f"Found {len(invalid_indices)} invalid documents at indices: {invalid_indices}")
                 if len(invalid_indices) == len(results):
                     raise InvalidDocumentError("All documents are empty or invalid", document_count=len(results))
 
+            # Call the cached internal method with simple types
+            reranked_indices = await self._rank_texts(query, texts)
+
+            # Reconstruct DocumentWithScore objects in the new order
+            reranked_results = [results[i] for i in reranked_indices if 0 <= i < len(results)]
+
+            logger.info(f"Successfully reranked {len(reranked_results)} documents")
+            return reranked_results
+
+        except (InvalidDocumentError, TooManyDocumentsError, RerankError):
+            # Re-raise our custom rerank errors
+            raise
+        except Exception as e:
+            logger.error(f"Rerank operation failed: {str(e)}")
+            # Convert litellm errors to our custom types
+            raise wrap_litellm_error(e, "rerank", self.rerank_provider, self.model) from e
+
+    async def _rank_texts(self, query: str, texts: List[str]) -> List[int]:
+        try:
             # Handle different providers
             if self.rerank_provider == "alibabacloud" or "alibabacloud" in self.rerank_provider.lower():
                 # Use Alibaba Cloud DashScope API format
-                resp = await self._call_alibabacloud_rerank_api(query, documents)
+                resp = await self._call_alibabacloud_rerank_api(query, texts)
             else:
                 # Use litellm for other providers
                 resp = await litellm.arerank(
                     custom_llm_provider=self.rerank_provider,
                     model=self.model,
                     query=query,
-                    documents=documents,
+                    documents=texts,
                     api_key=self.api_key,
                     api_base=self.api_base,
                     return_documents=False,
+                    caching=self.caching,
                 )
 
             # Validate response
             if not resp or "results" not in resp:
                 raise RerankError(
                     "Invalid response format from rerank API",
-                    {"provider": self.rerank_provider, "model": self.model, "document_count": len(documents)},
+                    {"provider": self.rerank_provider, "model": self.model, "document_count": len(texts)},
                 )
 
-            # Reorder documents based on the returned indices
+            # Extract and validate indices
             try:
                 indices = [item["index"] for item in resp["results"]]
 
                 # Validate indices
-                if len(indices) != len(results):
-                    logger.warning(f"Rerank returned {len(indices)} indices for {len(results)} documents")
+                if len(indices) != len(texts):
+                    logger.warning(f"Rerank returned {len(indices)} indices for {len(texts)} documents")
 
                 # Check for invalid indices
-                invalid_rerank_indices = [idx for idx in indices if idx < 0 or idx >= len(results)]
+                invalid_rerank_indices = [idx for idx in indices if idx < 0 or idx >= len(texts)]
                 if invalid_rerank_indices:
                     raise RerankError(
                         f"Invalid rerank indices: {invalid_rerank_indices}",
@@ -150,11 +142,9 @@ class RerankService:
                         },
                     )
 
-                # Reorder results
-                reranked_results = [results[i] for i in indices if 0 <= i < len(results)]
-
-                logger.info(f"Successfully reranked {len(reranked_results)} documents")
-                return reranked_results
+                # Return the valid indices
+                valid_indices = [idx for idx in indices if 0 <= idx < len(texts)]
+                return valid_indices
 
             except (KeyError, IndexError, TypeError) as e:
                 raise RerankError(
@@ -166,28 +156,15 @@ class RerankService:
                     },
                 ) from e
 
-        except (InvalidDocumentError, TooManyDocumentsError, RerankError):
+        except RerankError:
             # Re-raise our custom rerank errors
             raise
         except Exception as e:
-            logger.error(f"Rerank operation failed: {str(e)}")
+            logger.error(f"Internal rerank operation failed: {str(e)}")
             # Convert litellm errors to our custom types
             raise wrap_litellm_error(e, "rerank", self.rerank_provider, self.model) from e
 
     async def _call_alibabacloud_rerank_api(self, query: str, documents: List[str]) -> dict:
-        """
-        Call Alibaba Cloud DashScope rerank API with their specific format.
-
-        Args:
-            query: The search query
-            documents: List of documents to rerank
-
-        Returns:
-            Response in litellm-compatible format
-
-        Raises:
-            RerankError: If the API call fails
-        """
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 url = "https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank"
@@ -205,20 +182,6 @@ class RerankService:
                 response.raise_for_status()
 
                 result = response.json()
-
-                # Convert Alibaba Cloud response format to litellm format
-                # Alibaba Cloud response structure:
-                # {
-                #   "output": {
-                #     "results": [
-                #       {
-                #         "index": 0,
-                #         "relevance_score": 0.95,
-                #         "document": {...}  # if return_documents=true
-                #       }
-                #     ]
-                #   }
-                # }
 
                 if "output" in result and "results" in result["output"]:
                     # Convert to litellm format
@@ -266,12 +229,6 @@ class RerankService:
             ) from e
 
     def validate_configuration(self) -> None:
-        """
-        Validate the rerank service configuration.
-
-        Raises:
-            InvalidConfigurationError: If configuration is invalid
-        """
         from aperag.llm.llm_error_types import InvalidConfigurationError
 
         if not self.rerank_provider:

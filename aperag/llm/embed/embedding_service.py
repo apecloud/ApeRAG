@@ -39,6 +39,7 @@ class EmbeddingService(Embeddings):
         embedding_service_url: str,
         embedding_service_api_key: str,
         embedding_max_chunks_in_batch: int,
+        caching: bool = True,
     ):
         self.embedding_provider = embedding_provider
         self.model = embedding_model
@@ -46,6 +47,7 @@ class EmbeddingService(Embeddings):
         self.api_key = embedding_service_api_key
         self.max_chunks = embedding_max_chunks_in_batch
         self.max_workers = 8
+        self.caching = caching
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """
@@ -168,6 +170,7 @@ class EmbeddingService(Embeddings):
                 api_base=self.api_base,
                 api_key=self.api_key,
                 input=list(batch),
+                caching=self.caching,
             )
 
             if not response or "data" not in response:

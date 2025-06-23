@@ -114,7 +114,7 @@ class RerankNodeRunner(BaseNodeRunner):
             )
 
             # Perform reranking
-            result = await rerank_service.rank(query, docs)
+            result = await rerank_service.async_rerank(query, docs)
             logger.info(f"Successfully reranked {len(result)} documents")
 
         except (InvalidConfigurationError, ProviderNotFoundError) as e:
