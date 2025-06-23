@@ -100,6 +100,34 @@ class DocumentService:
             else:
                 return "PENDING"
 
+        # Get individual index update times from DocumentIndex table
+        from sqlalchemy import select
+        from aperag.db.models import DocumentIndex, DocumentIndexType
+        
+        vector_updated = None
+        fulltext_updated = None
+        graph_updated = None
+        
+        # Query for each index type's update time
+        for index_type, var_name in [
+            (DocumentIndexType.VECTOR, 'vector_updated'),
+            (DocumentIndexType.FULLTEXT, 'fulltext_updated'),
+            (DocumentIndexType.GRAPH, 'graph_updated')
+        ]:
+            stmt = select(DocumentIndex).where(
+                DocumentIndex.document_id == document.id,
+                DocumentIndex.index_type == index_type
+            )
+            result = await session.execute(stmt)
+            index_record = result.scalar_one_or_none()
+            if index_record:
+                if var_name == 'vector_updated':
+                    vector_updated = index_record.gmt_updated
+                elif var_name == 'fulltext_updated':
+                    fulltext_updated = index_record.gmt_updated
+                elif var_name == 'graph_updated':
+                    graph_updated = index_record.gmt_updated
+
         return Document(
             id=document.id,
             name=document.name,
@@ -107,6 +135,9 @@ class DocumentService:
             vector_index_status=map_state_to_old_enum(indexes.get("vector", {}).get("actual_state", "absent")),
             fulltext_index_status=map_state_to_old_enum(indexes.get("fulltext", {}).get("actual_state", "absent")),
             graph_index_status=map_state_to_old_enum(indexes.get("graph", {}).get("actual_state", "absent")),
+            vector_index_updated=vector_updated,
+            fulltext_index_updated=fulltext_updated,
+            graph_index_updated=graph_updated,
             size=document.size,
             created=document.gmt_created,
             updated=document.gmt_updated,

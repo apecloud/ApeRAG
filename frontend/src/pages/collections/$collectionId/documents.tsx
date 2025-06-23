@@ -38,6 +38,7 @@ import {
   Typography,
   Upload,
   UploadProps,
+  Tooltip,
 } from 'antd';
 import byteSize from 'byte-size';
 import alpha from 'color-alpha';
@@ -91,41 +92,35 @@ export default () => {
     [collectionId],
   );
 
-  const rebuildIndexes = useCallback(
-    async (documentId: string, indexTypes: string[]) => {
-      if (!collectionId || !documentId || indexTypes.length === 0) return;
-      
-      try {
-        await api.collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost({
-          collectionId,
-          documentId,
-          rebuildIndexesRequest: {
-            index_types: indexTypes as any,
-          },
-        });
-        toast.success(formatMessage({ id: 'document.index.rebuild.success' }));
-        getDocuments();
-      } catch (error) {
-        toast.error(formatMessage({ id: 'document.index.rebuild.failed' }));
-      }
-    },
-    [collectionId, formatMessage],
-  );
-
-  const handleRebuildIndex = useCallback((record: ApeDocument) => {
-    setRebuildSelectedDocument(record);
-    setRebuildSelectedTypes([]);
+  const handleRebuildIndex = (document: ApeDocument) => {
+    setRebuildSelectedDocument(document);
+    setRebuildSelectedTypes(['vector', 'fulltext', 'graph']);
     setRebuildModalVisible(true);
-  }, []);
+  };
 
-  const handleRebuildConfirm = useCallback(() => {
-    if (rebuildSelectedDocument && rebuildSelectedTypes.length > 0) {
-      rebuildIndexes(rebuildSelectedDocument.id!, rebuildSelectedTypes);
+  const handleRebuildConfirm = async () => {
+    if (!rebuildSelectedDocument || rebuildSelectedTypes.length === 0) return;
+
+    try {
+      setLoading(true);
+      await api.collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost({
+        collectionId: collectionId!,
+        documentId: rebuildSelectedDocument.id!,
+        rebuildIndexesRequest: {
+          index_types: rebuildSelectedTypes as ('vector' | 'fulltext' | 'graph')[],
+        },
+      });
+      toast.success(formatMessage({ id: 'document.index.rebuild.success' }));
       setRebuildModalVisible(false);
       setRebuildSelectedDocument(null);
       setRebuildSelectedTypes([]);
+      getDocuments();
+    } catch (error) {
+      toast.error(formatMessage({ id: 'document.index.rebuild.failed' }));
+    } finally {
+      setLoading(false);
     }
-  }, [rebuildSelectedDocument, rebuildSelectedTypes, rebuildIndexes]);
+  };
 
   const indexTypeOptions = [
     { label: formatMessage({ id: 'document.index.type.vector' }), value: 'vector' },
@@ -134,62 +129,25 @@ export default () => {
   ];
 
   const renderIndexStatus = (
-    vectorStatus?: DocumentVectorIndexStatusEnum,
-    fulltextStatus?: DocumentFulltextIndexStatusEnum,
-    graphStatus?: DocumentGraphIndexStatusEnum,
+    status?: DocumentVectorIndexStatusEnum | DocumentFulltextIndexStatusEnum | DocumentGraphIndexStatusEnum,
+    updatedTime?: string
   ) => {
-    const indexTypes = [
-      { nameKey: 'document.index.type.vector', status: vectorStatus },
-      { nameKey: 'document.index.type.fulltext', status: fulltextStatus },
-      { nameKey: 'document.index.type.graph', status: graphStatus },
-    ];
-    return (
-      <Space direction="vertical" size="small">
-        {indexTypes.map(({ nameKey, status }, index) => (
-          <div 
-            key={index} 
-            style={{ 
-              fontSize: '12px', 
-              lineHeight: '18px',
-              display: 'flex',
-              alignItems: 'center',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            <span 
-              style={{ 
-                color: '#666',
-                width: '100px',
-                textAlign: 'right',
-                display: 'inline-block'
-              }}
-            >
-              {formatMessage({ id: nameKey })}
-            </span>
-            <span 
-              style={{ 
-                color: '#666',
-                width: '12px',
-                textAlign: 'center',
-                display: 'inline-block'
-              }}
-            >
-              ：
-            </span>
-            <div style={{ width: '80px' }}>
-              <Badge
-                status={UI_INDEX_STATUS[status as keyof typeof UI_INDEX_STATUS]}
-                text={
-                  <span style={{ display: 'inline-block', width: '70px' }}>
-                    {formatMessage({ id: `document.index.status.${status}` })}
-                  </span>
-                }
-              />
-            </div>
-          </div>
-        ))}
-      </Space>
+    const statusBadge = (
+      <Badge
+        status={UI_INDEX_STATUS[status as keyof typeof UI_INDEX_STATUS]}
+        text={formatMessage({ id: `document.index.status.${status}` })}
+      />
     );
+
+    if (updatedTime) {
+      return (
+        <Tooltip title={`${formatMessage({ id: 'text.updatedAt' })}: ${moment(updatedTime).format(DATETIME_FORMAT)}`}>
+          {statusBadge}
+        </Tooltip>
+      );
+    }
+
+    return statusBadge;
   };
 
   const columns: TableProps<ApeDocument>['columns'] = [
@@ -224,16 +182,30 @@ export default () => {
       },
     },
     {
-      title: formatMessage({ id: 'document.status' }),
-      dataIndex: 'status',
-      width: 190,
+      title: formatMessage({ id: 'document.index.type.vector' }),
+      dataIndex: 'vector_index_status',
+      width: 120,
       align: 'center',
       render: (value, record) => {
-        return renderIndexStatus(
-          record.vector_index_status,
-          record.fulltext_index_status,
-          record.graph_index_status,
-        );
+        return renderIndexStatus(record.vector_index_status, record.vector_index_updated);
+      },
+    },
+    {
+      title: formatMessage({ id: 'document.index.type.fulltext' }),
+      dataIndex: 'fulltext_index_status',
+      width: 120,
+      align: 'center',
+      render: (value, record) => {
+        return renderIndexStatus(record.fulltext_index_status, record.fulltext_index_updated);
+      },
+    },
+    {
+      title: formatMessage({ id: 'document.index.type.graph' }),
+      dataIndex: 'graph_index_status',
+      width: 120,
+      align: 'center',
+      render: (value, record) => {
+        return renderIndexStatus(record.graph_index_status, record.graph_index_updated);
       },
     },
     {

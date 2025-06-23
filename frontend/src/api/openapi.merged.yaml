@@ -2793,6 +2793,18 @@ components:
             - COMPLETE
             - FAILED
             - SKIPPED
+        vector_index_updated:
+          type: string
+          format: date-time
+          description: Vector index last updated time
+        fulltext_index_updated:
+          type: string
+          format: date-time
+          description: Fulltext index last updated time
+        graph_index_updated:
+          type: string
+          format: date-time
+          description: Graph index last updated time
         config:
           type: string
         size:
@@ -2845,6 +2857,7 @@ components:
               - fulltext
               - graph
           description: Types of indexes to rebuild
+          minItems: 1
       required:
         - index_types
     vectorSearchParams:

@@ -57,6 +57,24 @@ export interface Document {
      */
     'graph_index_status'?: DocumentGraphIndexStatusEnum;
     /**
+     * Vector index last updated time
+     * @type {string}
+     * @memberof Document
+     */
+    'vector_index_updated'?: string;
+    /**
+     * Fulltext index last updated time
+     * @type {string}
+     * @memberof Document
+     */
+    'fulltext_index_updated'?: string;
+    /**
+     * Graph index last updated time
+     * @type {string}
+     * @memberof Document
+     */
+    'graph_index_updated'?: string;
+    /**
      * 
      * @type {string}
      * @memberof Document
