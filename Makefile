@@ -176,6 +176,7 @@ merge-openapi:
 	@cd aperag && redocly bundle ./api/openapi.yaml > ./api/openapi.merged.yaml
 
 generate-models: merge-openapi
+	@echo "Generating backend models..."
 	@datamodel-codegen \
 		--input aperag/api/openapi.merged.yaml \
 		--input-file-type openapi \
@@ -185,6 +186,15 @@ generate-models: merge-openapi
 		--use-standard-collections \
 		--use-schema-description \
 		--enum-field-as-literal all
+	@echo "Generating frontend SDK..."
+	@openapi-generator-cli generate \
+		--input-spec="aperag/api/openapi.merged.yaml" \
+		--generator-name="typescript-axios" \
+		--output="frontend/src/api" \
+		--api-package="apis" \
+		--model-package="models" \
+		--model-name-prefix="" \
+		--skip-validate-spec --additional-properties="enumPropertyNaming=original,supportsES6=true,withInterfaces=true,prependFormOrBodyParameters=false,withoutPrefixEnums=false,withSeparateModelsAndApi=true,useSingleRequestParameter=true"
 	@rm aperag/api/openapi.merged.yaml
 
 generate-frontend-sdk:

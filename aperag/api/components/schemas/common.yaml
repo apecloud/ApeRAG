@@ -23,15 +23,3 @@ pageResult:
       type: integer
       description: The total count of items
   type: object
-
-successResponse:
-  type: object
-  properties:
-    code:
-      type: string
-      description: Success code
-      example: "200"
-    message:
-      type: string
-      description: Success message
-      example: "Operation completed successfully"

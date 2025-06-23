@@ -434,7 +434,7 @@ export default () => {
           options={indexTypeOptions}
           value={rebuildSelectedTypes}
           onChange={(values) => setRebuildSelectedTypes(values as string[])}
-          style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+          style={{ display: 'flex', flexDirection: 'row', gap: 16 }}
         />
       </Modal>
     </>

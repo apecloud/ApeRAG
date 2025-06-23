@@ -112,8 +112,6 @@ import type { SearchResult } from '../models';
 // @ts-ignore
 import type { SearchResultList } from '../models';
 // @ts-ignore
-import type { SuccessResponse } from '../models';
-// @ts-ignore
 import type { TagFilterRequest } from '../models';
 // @ts-ignore
 import type { User } from '../models';
@@ -2591,7 +2589,7 @@ export const DefaultApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost(collectionId: string, documentId: string, rebuildIndexesRequest: RebuildIndexesRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SuccessResponse>> {
+        async collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost(collectionId: string, documentId: string, rebuildIndexesRequest: RebuildIndexesRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<void>> {
             const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost(collectionId, documentId, rebuildIndexesRequest, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost']?.[localVarOperationServerIndex]?.url;
@@ -3237,7 +3235,7 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost(requestParameters: DefaultApiCollectionsCollectionIdDocumentsDocumentIdRebuildIndexesPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<SuccessResponse> {
+        collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost(requestParameters: DefaultApiCollectionsCollectionIdDocumentsDocumentIdRebuildIndexesPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<void> {
             return localVarFp.collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost(requestParameters.collectionId, requestParameters.documentId, requestParameters.rebuildIndexesRequest, options).then((request) => request(axios, basePath));
         },
         /**
@@ -3779,7 +3777,7 @@ export interface DefaultApiInterface {
      * @throws {RequiredError}
      * @memberof DefaultApiInterface
      */
-    collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost(requestParameters: DefaultApiCollectionsCollectionIdDocumentsDocumentIdRebuildIndexesPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<SuccessResponse>;
+    collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost(requestParameters: DefaultApiCollectionsCollectionIdDocumentsDocumentIdRebuildIndexesPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
 
     /**
      * Get a list of documents

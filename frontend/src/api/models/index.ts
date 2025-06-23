@@ -91,7 +91,6 @@ export * from './search-request';
 export * from './search-result';
 export * from './search-result-item';
 export * from './search-result-list';
-export * from './success-response';
 export * from './tag-filter-condition';
 export * from './tag-filter-request';
 export * from './user';

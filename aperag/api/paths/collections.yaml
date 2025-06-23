@@ -320,12 +320,8 @@ rebuild_indexes:
           schema:
             $ref: '../components/schemas/document.yaml#/rebuildIndexesRequest'
     responses:
-      '200':
+      '204':
         description: Index rebuild initiated successfully
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/common.yaml#/successResponse'
       '401':
         description: Unauthorized
         content:

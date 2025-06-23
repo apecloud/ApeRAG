@@ -710,12 +710,8 @@ paths:
             schema:
               $ref: '#/components/schemas/rebuildIndexesRequest'
       responses:
-        '200':
+        '204':
           description: Index rebuild initiated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/successResponse'
         '401':
           description: Unauthorized
           content:
@@ -2851,17 +2847,6 @@ components:
           description: Types of indexes to rebuild
       required:
         - index_types
-    successResponse:
-      type: object
-      properties:
-        code:
-          type: string
-          description: Success code
-          example: '200'
-        message:
-          type: string
-          description: Success message
-          example: Operation completed successfully
     vectorSearchParams:
       type: object
       properties:
