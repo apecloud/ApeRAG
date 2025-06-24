@@ -68,8 +68,6 @@ import type { DocumentCreate } from '../models';
 // @ts-ignore
 import type { DocumentList } from '../models';
 // @ts-ignore
-import type { DocumentUpdate } from '../models';
-// @ts-ignore
 import type { FailResponse } from '../models';
 // @ts-ignore
 import type { Feedback } from '../models';
@@ -1057,54 +1055,6 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             setSearchParams(localVarUrlObj, localVarQueryParameter);
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
-
-            return {
-                url: toPathString(localVarUrlObj),
-                options: localVarRequestOptions,
-            };
-        },
-        /**
-         * Update a document
-         * @summary Update a document
-         * @param {string} collectionId 
-         * @param {string} documentId 
-         * @param {DocumentUpdate} documentUpdate 
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        collectionsCollectionIdDocumentsDocumentIdPut: async (collectionId: string, documentId: string, documentUpdate: DocumentUpdate, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
-            // verify required parameter 'collectionId' is not null or undefined
-            assertParamExists('collectionsCollectionIdDocumentsDocumentIdPut', 'collectionId', collectionId)
-            // verify required parameter 'documentId' is not null or undefined
-            assertParamExists('collectionsCollectionIdDocumentsDocumentIdPut', 'documentId', documentId)
-            // verify required parameter 'documentUpdate' is not null or undefined
-            assertParamExists('collectionsCollectionIdDocumentsDocumentIdPut', 'documentUpdate', documentUpdate)
-            const localVarPath = `/collections/{collection_id}/documents/{document_id}`
-                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)))
-                .replace(`{${"document_id"}}`, encodeURIComponent(String(documentId)));
-            // use dummy base URL string because the URL constructor only accepts absolute URLs.
-            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
-            let baseOptions;
-            if (configuration) {
-                baseOptions = configuration.baseOptions;
-            }
-
-            const localVarRequestOptions = { method: 'PUT', ...baseOptions, ...options};
-            const localVarHeaderParameter = {} as any;
-            const localVarQueryParameter = {} as any;
-
-            // authentication BearerAuth required
-            // http bearer authentication required
-            await setBearerAuthToObject(localVarHeaderParameter, configuration)
-
-
-    
-            localVarHeaderParameter['Content-Type'] = 'application/json';
-
-            setSearchParams(localVarUrlObj, localVarQueryParameter);
-            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
-            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
-            localVarRequestOptions.data = serializeDataIfNeeded(documentUpdate, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -2566,21 +2516,6 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Update a document
-         * @summary Update a document
-         * @param {string} collectionId 
-         * @param {string} documentId 
-         * @param {DocumentUpdate} documentUpdate 
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        async collectionsCollectionIdDocumentsDocumentIdPut(collectionId: string, documentId: string, documentUpdate: DocumentUpdate, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<Document>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdDocumentsDocumentIdPut(collectionId, documentId, documentUpdate, options);
-            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
-            const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdDocumentsDocumentIdPut']?.[localVarOperationServerIndex]?.url;
-            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
-        },
-        /**
          * Rebuild specified types of indexes for a document
          * @summary Rebuild document indexes
          * @param {string} collectionId 
@@ -3219,16 +3154,6 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.collectionsCollectionIdDocumentsDocumentIdGet(requestParameters.collectionId, requestParameters.documentId, options).then((request) => request(axios, basePath));
         },
         /**
-         * Update a document
-         * @summary Update a document
-         * @param {DefaultApiCollectionsCollectionIdDocumentsDocumentIdPutRequest} requestParameters Request parameters.
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        collectionsCollectionIdDocumentsDocumentIdPut(requestParameters: DefaultApiCollectionsCollectionIdDocumentsDocumentIdPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<Document> {
-            return localVarFp.collectionsCollectionIdDocumentsDocumentIdPut(requestParameters.collectionId, requestParameters.documentId, requestParameters.documentUpdate, options).then((request) => request(axios, basePath));
-        },
-        /**
          * Rebuild specified types of indexes for a document
          * @summary Rebuild document indexes
          * @param {DefaultApiCollectionsCollectionIdDocumentsDocumentIdRebuildIndexesPostRequest} requestParameters Request parameters.
@@ -3758,16 +3683,6 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     collectionsCollectionIdDocumentsDocumentIdGet(requestParameters: DefaultApiCollectionsCollectionIdDocumentsDocumentIdGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<Document>;
-
-    /**
-     * Update a document
-     * @summary Update a document
-     * @param {DefaultApiCollectionsCollectionIdDocumentsDocumentIdPutRequest} requestParameters Request parameters.
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof DefaultApiInterface
-     */
-    collectionsCollectionIdDocumentsDocumentIdPut(requestParameters: DefaultApiCollectionsCollectionIdDocumentsDocumentIdPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<Document>;
 
     /**
      * Rebuild specified types of indexes for a document
@@ -4492,34 +4407,6 @@ export interface DefaultApiCollectionsCollectionIdDocumentsDocumentIdGetRequest 
 }
 
 /**
- * Request parameters for collectionsCollectionIdDocumentsDocumentIdPut operation in DefaultApi.
- * @export
- * @interface DefaultApiCollectionsCollectionIdDocumentsDocumentIdPutRequest
- */
-export interface DefaultApiCollectionsCollectionIdDocumentsDocumentIdPutRequest {
-    /**
-     * 
-     * @type {string}
-     * @memberof DefaultApiCollectionsCollectionIdDocumentsDocumentIdPut
-     */
-    readonly collectionId: string
-
-    /**
-     * 
-     * @type {string}
-     * @memberof DefaultApiCollectionsCollectionIdDocumentsDocumentIdPut
-     */
-    readonly documentId: string
-
-    /**
-     * 
-     * @type {DocumentUpdate}
-     * @memberof DefaultApiCollectionsCollectionIdDocumentsDocumentIdPut
-     */
-    readonly documentUpdate: DocumentUpdate
-}
-
-/**
  * Request parameters for collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost operation in DefaultApi.
  * @export
  * @interface DefaultApiCollectionsCollectionIdDocumentsDocumentIdRebuildIndexesPostRequest
@@ -5233,18 +5120,6 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      */
     public collectionsCollectionIdDocumentsDocumentIdGet(requestParameters: DefaultApiCollectionsCollectionIdDocumentsDocumentIdGetRequest, options?: RawAxiosRequestConfig) {
         return DefaultApiFp(this.configuration).collectionsCollectionIdDocumentsDocumentIdGet(requestParameters.collectionId, requestParameters.documentId, options).then((request) => request(this.axios, this.basePath));
-    }
-
-    /**
-     * Update a document
-     * @summary Update a document
-     * @param {DefaultApiCollectionsCollectionIdDocumentsDocumentIdPutRequest} requestParameters Request parameters.
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof DefaultApi
-     */
-    public collectionsCollectionIdDocumentsDocumentIdPut(requestParameters: DefaultApiCollectionsCollectionIdDocumentsDocumentIdPutRequest, options?: RawAxiosRequestConfig) {
-        return DefaultApiFp(this.configuration).collectionsCollectionIdDocumentsDocumentIdPut(requestParameters.collectionId, requestParameters.documentId, requestParameters.documentUpdate, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

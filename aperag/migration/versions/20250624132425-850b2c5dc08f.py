@@ -159,7 +159,6 @@ def upgrade() -> None:
     sa.Column('status', sa.Enum('PENDING', 'CREATING', 'ACTIVE', 'DELETING', 'DELETION_IN_PROGRESS', 'FAILED', name='documentindexstatus'), nullable=False),
     sa.Column('version', sa.Integer(), nullable=False),
     sa.Column('observed_version', sa.Integer(), nullable=False),
-    sa.Column('created_by', sa.String(length=256), nullable=False),
     sa.Column('index_data', sa.Text(), nullable=True),
     sa.Column('error_message', sa.Text(), nullable=True),
     sa.Column('gmt_created', sa.DateTime(timezone=True), nullable=False),

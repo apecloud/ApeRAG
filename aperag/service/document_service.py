@@ -207,10 +207,9 @@ class DocumentService:
                         index_types.append(db_models.DocumentIndexType.GRAPH)
 
                     # Use index manager to create indexes with new status model
-                    await document_index_manager.create_document_indexes(
+                    await document_index_manager.create_or_update_document_indexes(
                         document_id=document_instance.id,
                         index_types=index_types,
-                        user=user,
                         session=session
                     )
 
@@ -250,65 +249,6 @@ class DocumentService:
             raise DocumentNotFoundException(document_id)
         async for session in get_async_session():
             return await self.build_document_response(document, session)
-
-    async def update_document(
-        self, user: str, collection_id: str, document_id: str, document_in: view_models.DocumentUpdate
-    ) -> view_models.Document:
-        instance = await self.db_ops.query_document(user, collection_id, document_id)
-        if instance is None:
-            raise DocumentNotFoundException(document_id)
-
-        if document_in.config:
-            try:
-                config = json.loads(document_in.config)
-                metadata = json.loads(instance.doc_metadata or "{}")
-                metadata["labels"] = config["labels"]
-                updated_metadata = json.dumps(metadata)
-
-                # Update document and indexes atomically in a single transaction
-                async def _update_document_atomically(session):
-                    from sqlalchemy import select
-
-                    from aperag.db.models import Document, DocumentStatus
-
-                    # Update document metadata
-                    stmt = select(Document).where(
-                        Document.id == document_id,
-                        Document.collection_id == collection_id,
-                        Document.user == user,
-                        Document.status != DocumentStatus.DELETED,
-                    )
-                    result = await session.execute(stmt)
-                    document = result.scalars().first()
-
-                    if not document:
-                        raise DocumentNotFoundException(document_id)
-
-                    document.doc_metadata = updated_metadata
-                    session.add(document)
-                    await session.flush()
-                    await session.refresh(document)
-
-                    # Update index specs to trigger re-indexing
-                    await document_index_manager.update_document_indexes(session, document.id)
-
-                    # Build response object
-                    return await self.build_document_response(document, session)
-
-                result = await self.db_ops.execute_with_transaction(_update_document_atomically)
-            except json.JSONDecodeError:
-                raise invalid_param("config", "invalid document config")
-        else:
-
-            async def _get_doc_response(session):
-                return await self.build_document_response(instance, session)
-
-            result = await self.db_ops._execute_query(_get_doc_response)
-
-        # Trigger index reconciliation after successful document update
-        _trigger_index_reconciliation()
-
-        return result
 
     async def delete_document(self, user: str, collection_id: str, document_id: str) -> Optional[view_models.Document]:
         """Delete document by ID (idempotent operation)
@@ -467,7 +407,7 @@ class DocumentService:
                 raise ResourceNotFoundException(f"Collection {collection_id} not found or access denied")
 
             # Trigger index rebuild by incrementing version for selected index types
-            await document_index_manager.rebuild_document_indexes(session, document_id, index_type_enums)
+            await document_index_manager.create_or_update_document_indexes(session, document_id, index_type_enums)
 
             logger.info(f"Successfully triggered rebuild for document {document_id} indexes: {index_types}")
 

@@ -645,47 +645,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
-    put:
-      summary: Update a document
-      description: Update a document
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: collection_id
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: document_id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/documentUpdate'
-      responses:
-        '200':
-          description: Document updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/document'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/failResponse'
-        '404':
-          description: Document not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/failResponse'
   /collections/{collection_id}/documents/{document_id}/rebuild_indexes:
     post:
       summary: Rebuild document indexes
@@ -2768,29 +2727,34 @@ components:
             - FAILED
             - DELETING
             - DELETED
-            - WARNING
         vector_index_status:
           type: string
           enum:
             - PENDING
-            - RUNNING
-            - COMPLETE
+            - CREATING
+            - ACTIVE
+            - DELETING
+            - DELETING_IN_PROGRESS
             - FAILED
             - SKIPPED
         fulltext_index_status:
           type: string
           enum:
             - PENDING
-            - RUNNING
-            - COMPLETE
+            - CREATING
+            - ACTIVE
+            - DELETING
+            - DELETING_IN_PROGRESS
             - FAILED
             - SKIPPED
         graph_index_status:
           type: string
           enum:
             - PENDING
-            - RUNNING
-            - COMPLETE
+            - CREATING
+            - ACTIVE
+            - DELETING
+            - DELETING_IN_PROGRESS
             - FAILED
             - SKIPPED
         vector_index_updated:
@@ -2835,15 +2799,6 @@ components:
         source:
           type: string
         collection_id:
-          type: string
-    documentUpdate:
-      type: object
-      properties:
-        title:
-          type: string
-        description:
-          type: string
-        source:
           type: string
     rebuildIndexesRequest:
       type: object

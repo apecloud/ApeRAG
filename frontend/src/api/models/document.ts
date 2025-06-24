@@ -106,15 +106,16 @@ export const DocumentStatusEnum = {
     COMPLETE: 'COMPLETE',
     FAILED: 'FAILED',
     DELETING: 'DELETING',
-    DELETED: 'DELETED',
-    WARNING: 'WARNING'
+    DELETED: 'DELETED'
 } as const;
 
 export type DocumentStatusEnum = typeof DocumentStatusEnum[keyof typeof DocumentStatusEnum];
 export const DocumentVectorIndexStatusEnum = {
     PENDING: 'PENDING',
-    RUNNING: 'RUNNING',
-    COMPLETE: 'COMPLETE',
+    CREATING: 'CREATING',
+    ACTIVE: 'ACTIVE',
+    DELETING: 'DELETING',
+    DELETING_IN_PROGRESS: 'DELETING_IN_PROGRESS',
     FAILED: 'FAILED',
     SKIPPED: 'SKIPPED'
 } as const;
@@ -122,8 +123,10 @@ export const DocumentVectorIndexStatusEnum = {
 export type DocumentVectorIndexStatusEnum = typeof DocumentVectorIndexStatusEnum[keyof typeof DocumentVectorIndexStatusEnum];
 export const DocumentFulltextIndexStatusEnum = {
     PENDING: 'PENDING',
-    RUNNING: 'RUNNING',
-    COMPLETE: 'COMPLETE',
+    CREATING: 'CREATING',
+    ACTIVE: 'ACTIVE',
+    DELETING: 'DELETING',
+    DELETING_IN_PROGRESS: 'DELETING_IN_PROGRESS',
     FAILED: 'FAILED',
     SKIPPED: 'SKIPPED'
 } as const;
@@ -131,8 +134,10 @@ export const DocumentFulltextIndexStatusEnum = {
 export type DocumentFulltextIndexStatusEnum = typeof DocumentFulltextIndexStatusEnum[keyof typeof DocumentFulltextIndexStatusEnum];
 export const DocumentGraphIndexStatusEnum = {
     PENDING: 'PENDING',
-    RUNNING: 'RUNNING',
-    COMPLETE: 'COMPLETE',
+    CREATING: 'CREATING',
+    ACTIVE: 'ACTIVE',
+    DELETING: 'DELETING',
+    DELETING_IN_PROGRESS: 'DELETING_IN_PROGRESS',
     FAILED: 'FAILED',
     SKIPPED: 'SKIPPED'
 } as const;

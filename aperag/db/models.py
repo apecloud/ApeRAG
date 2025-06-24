@@ -705,7 +705,6 @@ class DocumentIndex(Base):
     status = Column(EnumColumn(DocumentIndexStatus), nullable=False, default=DocumentIndexStatus.PENDING, index=True)
     version = Column(Integer, nullable=False, default=1)  # Incremented on each spec change
     observed_version = Column(Integer, nullable=False, default=0)  # Last processed spec version
-    created_by = Column(String(256), nullable=False)  # User who created this spec
 
     # Index data and task tracking
     index_data = Column(Text, nullable=True)  # JSON string for index-specific data
@@ -719,14 +718,8 @@ class DocumentIndex(Base):
     def __repr__(self):
         return f"<DocumentIndex(id={self.id}, document_id={self.document_id}, type={self.index_type}, status={self.status}, version={self.version})>"
 
-    def is_out_of_sync(self) -> bool:
-        """Check if this index needs reconciliation"""
-        return self.observed_version < self.version
-
-    def update_version(self, created_by: str = None):
+    def update_version(self):
         """Update the version to trigger reconciliation"""
-        if created_by is not None:
-            self.created_by = created_by
         self.version += 1
         self.gmt_updated = utc_now()
 

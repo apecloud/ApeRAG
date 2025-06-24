@@ -124,18 +124,6 @@ async def get_document_view(
     return await document_service.get_document(str(user.id), collection_id, document_id)
 
 
-@router.put("/collections/{collection_id}/documents/{document_id}")
-@audit(resource_type="document", api_name="UpdateDocument")
-async def update_document_view(
-    request: Request,
-    collection_id: str,
-    document_id: str,
-    document: view_models.DocumentUpdate,
-    user: User = Depends(current_user),
-) -> view_models.Document:
-    return await document_service.update_document(str(user.id), collection_id, document_id, document)
-
-
 @router.delete("/collections/{collection_id}/documents/{document_id}")
 @audit(resource_type="document", api_name="DeleteDocument")
 async def delete_document_view(

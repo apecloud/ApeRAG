@@ -254,47 +254,6 @@ document:
           application/json:
             schema:
               $ref: '../components/schemas/common.yaml#/failResponse'
-  put:
-    summary: Update a document
-    description: Update a document
-    security:
-      - BearerAuth: []
-    parameters:
-      - name: collection_id
-        in: path
-        required: true
-        schema:
-          type: string
-      - name: document_id
-        in: path
-        required: true
-        schema:
-          type: string
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '../components/schemas/document.yaml#/documentUpdate'
-    responses:
-      '200':
-        description: Document updated successfully
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/document.yaml#/document'
-      '401':
-        description: Unauthorized
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/common.yaml#/failResponse'
-      '404':
-        description: Document not found
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/common.yaml#/failResponse'
 
 rebuild_indexes:
   post:

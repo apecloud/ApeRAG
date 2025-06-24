@@ -37,7 +37,6 @@ export * from './debug-flow-request';
 export * from './document';
 export * from './document-create';
 export * from './document-list';
-export * from './document-update';
 export * from './edge';
 export * from './embedding-data';
 export * from './embedding-request';

@@ -124,16 +124,7 @@ class BaseIndexTask(Task):
 
     abstract = True
 
-    def _handle_index_success(self, document_id: str, index_type: str, index_data: dict = None):
-        try:
-            from aperag.index.reconciler import index_task_callbacks
-            index_data_json = json.dumps(index_data) if index_data else None
-            index_task_callbacks.on_index_created(document_id, index_type, 1, index_data_json)  # Default version 1 for backward compatibility
-            logger.info(f"Index success callback executed for {index_type} index of document {document_id}")
-        except Exception as e:
-            logger.warning(f"Failed to execute index success callback for {index_type} of {document_id}: {e}", exc_info=True)
-
-    def _handle_index_success_with_version(self, document_id: str, index_type: str, target_version: int, index_data: dict = None):
+    def _handle_index_success(self, document_id: str, index_type: str, target_version: int, index_data: dict = None):
         try:
             from aperag.index.reconciler import index_task_callbacks
             index_data_json = json.dumps(index_data) if index_data else None
@@ -249,7 +240,7 @@ def create_index_task(self, document_id: str, index_type: str, parsed_data_dict:
         
         # Handle success callback with version validation
         logger.info(f"Successfully created {index_type} index for document {document_id} (v{target_version})")
-        self._handle_index_success_with_version(document_id, index_type, target_version, result.data)
+        self._handle_index_success(document_id, index_type, target_version, result.data)
         
         return result.to_dict()
         
@@ -396,7 +387,7 @@ def update_index_task(self, document_id: str, index_type: str, parsed_data_dict:
         
         # Handle success callback with version validation
         logger.info(f"Successfully updated {index_type} index for document {document_id} (v{target_version})")
-        self._handle_index_success_with_version(document_id, index_type, target_version, result.data)
+        self._handle_index_success(document_id, index_type, target_version, result.data)
         
         return result.to_dict()
         

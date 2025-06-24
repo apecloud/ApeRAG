@@ -90,16 +90,6 @@ documentCreate:
     collection_id:
       type: string
 
-documentUpdate:
-  type: object
-  properties:
-    title:
-      type: string
-    description:
-      type: string
-    source:
-      type: string
-
 rebuildIndexesRequest:
   type: object
   properties:
