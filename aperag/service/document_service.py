@@ -361,6 +361,9 @@ class DocumentService:
             collection = await self.db_ops.query_collection(user_id, collection_id)
             if not collection or collection.user != user_id:
                 raise ResourceNotFoundException(f"Collection {collection_id} not found or access denied")
+            collection_config = json.loads(collection.config)
+            if not collection_config.get("enable_knowledge_graph", False):
+                index_type_enums.remove(db_models.DocumentIndexType.GRAPH)
 
             # Trigger index rebuild by incrementing version for selected index types
             await document_index_manager.create_or_update_document_indexes(session, document_id, index_type_enums)

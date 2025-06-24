@@ -216,9 +216,11 @@ export const UI_INDEX_STATUS: {
     | 'warning';
 } = {
   PENDING: 'warning',
-  RUNNING: 'processing',
+  CREATING: 'processing',
+  ACTIVE: 'success',
+  DELETING: 'warning',
+  DELETION_IN_PROGRESS: 'processing',
   FAILED: 'error',
-  COMPLETE: 'success',
   SKIPPED: 'default',
 };
 

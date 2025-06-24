@@ -2734,7 +2734,7 @@ components:
             - CREATING
             - ACTIVE
             - DELETING
-            - DELETING_IN_PROGRESS
+            - DELETION_IN_PROGRESS
             - FAILED
             - SKIPPED
         fulltext_index_status:
@@ -2744,7 +2744,7 @@ components:
             - CREATING
             - ACTIVE
             - DELETING
-            - DELETING_IN_PROGRESS
+            - DELETION_IN_PROGRESS
             - FAILED
             - SKIPPED
         graph_index_status:
@@ -2754,7 +2754,7 @@ components:
             - CREATING
             - ACTIVE
             - DELETING
-            - DELETING_IN_PROGRESS
+            - DELETION_IN_PROGRESS
             - FAILED
             - SKIPPED
         vector_index_updated:
