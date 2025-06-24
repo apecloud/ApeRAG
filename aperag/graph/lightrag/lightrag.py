@@ -55,7 +55,7 @@ from aperag.graph.lightrag.kg import (
     STORAGES,
     verify_storage_implementation,
 )
-from aperag.graph.lightrag.utils import get_env_value
+from aperag.graph.lightrag.utils import LightRAGLogger, get_env_value
 
 from .base import (
     BaseGraphStorage,
@@ -240,6 +240,8 @@ class LightRAG:
 
     _storages_status: StoragesStatus = field(default=StoragesStatus.NOT_CREATED)
 
+    lightrag_logger: LightRAGLogger = field(default=create_lightrag_logger(workspace=workspace))
+
     def __post_init__(self):
         # Verify storage implementation compatibility and environment variables
         storage_configs = [
@@ -314,6 +316,7 @@ class LightRAG:
         )
 
         self._storages_status = StoragesStatus.CREATED
+        self.lightrag_logger = create_lightrag_logger(workspace=self.workspace)
 
     async def initialize_storages(self):
         """Asynchronously initialize the storages"""
@@ -436,7 +439,7 @@ class LightRAG:
 
                 components.append(component)
 
-        logger.info(f"Found {len(components)} connected components from {len(adjacency)} entities")
+        self.lightrag_logger.debug(f"Found {len(components)} connected components from {len(adjacency)} entities")
         return components
 
     async def _grouping_process_chunk_results(
@@ -455,9 +458,6 @@ class LightRAG:
             Dict with processing results
         """
         components = self._find_connected_components(chunk_results)
-
-        workspace = self.workspace if self.workspace else "default"
-        lightrag_logger = create_lightrag_logger(prefix="LightRAG-GraphIndex", workspace=workspace)
 
         # Prepare component data for parallel processing
         component_tasks = []
@@ -505,7 +505,7 @@ class LightRAG:
 
         async def _process_component_with_semaphore(task_data):
             async with semaphore:
-                lightrag_logger.info(
+                self.lightrag_logger.debug(
                     f"Processing component {task_data['index'] + 1}/{task_data['total_components']} "
                     f"with {len(task_data['component'])} entities"
                 )
@@ -524,10 +524,10 @@ class LightRAG:
                     summary_to_max_tokens=self.summary_to_max_tokens,
                     addon_params=self.addon_params or PROMPTS["DEFAULT_LANGUAGE"],
                     force_llm_summary_on_merge=self.force_llm_summary_on_merge,
-                    lightrag_logger=lightrag_logger,
+                    lightrag_logger=self.lightrag_logger,
                 )
 
-                lightrag_logger.info(
+                self.lightrag_logger.debug(
                     f"Completed component {task_data['index'] + 1}: "
                     f"{result['entity_count']} entities, {result['relation_count']} relations"
                 )
@@ -664,14 +664,14 @@ class LightRAG:
                 raise ValueError(f"No valid chunks created for document {doc_id}")
 
             # Write to storage (avoid concurrent operations on same connection)
-            logger.info(f"LightRAG: About to upsert {len(chunks)} chunks to storages")
-            logger.info(f"LightRAG: Calling chunks_vdb.upsert with {len(chunks)} chunks")
+            self.lightrag_logger.debug(f"LightRAG: About to upsert {len(chunks)} chunks to storages")
+            self.lightrag_logger.debug(f"LightRAG: Calling chunks_vdb.upsert with {len(chunks)} chunks")
             await self.chunks_vdb.upsert(chunks)
-            logger.info(f"LightRAG: Calling text_chunks.upsert with {len(chunks)} chunks")
+            self.lightrag_logger.debug(f"LightRAG: Calling text_chunks.upsert with {len(chunks)} chunks")
             await self.text_chunks.upsert(chunks)
-            logger.info(f"LightRAG: Completed all upsert operations for {doc_id}")
+            self.lightrag_logger.debug(f"LightRAG: Completed all upsert operations for {doc_id}")
 
-            logger.info(f"Inserted and chunked document {doc_id}: {len(chunks)} chunks")
+            self.lightrag_logger.debug(f"Inserted and chunked document {doc_id}: {len(chunks)} chunks")
 
             results.append(
                 {
@@ -705,9 +705,6 @@ class LightRAG:
         Returns:
             Dict with extraction results
         """
-        # Create logger for this processing session
-        workspace = self.workspace if self.workspace else "default"
-        lightrag_logger = create_lightrag_logger(prefix="LightRAG-GraphIndex", workspace=workspace)
 
         try:
             # Validate chunks input
@@ -723,7 +720,7 @@ class LightRAG:
                 if not chunk_data["content"]:
                     raise ValueError(f"Chunk {chunk_id} has empty content")
 
-            lightrag_logger.info(f"Starting graph indexing for {len(chunks)} chunks")
+            self.lightrag_logger.debug(f"Starting graph indexing for {len(chunks)} chunks")
 
             # 1. Extract entities and relations from chunks (completely parallel, no lock)
             chunk_results = await extract_entities(
@@ -732,7 +729,7 @@ class LightRAG:
                 entity_extract_max_gleaning=self.entity_extract_max_gleaning,
                 addon_params=self.addon_params,
                 llm_model_max_async=self.llm_model_max_async,
-                lightrag_logger=lightrag_logger,
+                lightrag_logger=self.lightrag_logger,
             )
 
             # 2. Process each component group with its own lock scope
@@ -742,7 +739,7 @@ class LightRAG:
             entity_count = sum(len(nodes) for nodes, _ in chunk_results)
             relation_count = sum(len(edges) for _, edges in chunk_results)
 
-            lightrag_logger.info(
+            self.lightrag_logger.info(
                 f"Graph indexing completed: {entity_count} entities, {relation_count} relations "
                 f"in {result['groups_processed']} groups"
             )
@@ -758,7 +755,7 @@ class LightRAG:
 
         except Exception as e:
             if "lightrag_logger" in locals():
-                lightrag_logger.error(f"Graph indexing failed: {str(e)}")
+                self.lightrag_logger.error(f"Graph indexing failed: {str(e)}")
             else:
                 logger.error(f"Graph indexing failed: {str(e)}", exc_info=True)
             raise e
@@ -899,7 +896,7 @@ class LightRAG:
             doc_id: Document ID to delete
         """
         try:
-            logger.debug(f"Starting deletion for document {doc_id}")
+            self.lightrag_logger.info(f"Starting deletion for document {doc_id}")
 
             # ========== STEP 1: Get all chunks related to this document ==========
             all_chunks = await self.text_chunks.get_all()
@@ -914,7 +911,7 @@ class LightRAG:
                 return
 
             chunk_ids = set(related_chunks.keys())
-            logger.info(f"Found {len(chunk_ids)} chunks to delete for document {doc_id}")
+            self.lightrag_logger.info(f"Found {len(chunk_ids)} chunks to delete for document {doc_id}")
 
             # ========== STEP 2: Handle Vector Storage References (chunk_ids arrays) ==========
             # Process entities in vector storage
@@ -936,13 +933,15 @@ class LightRAG:
                         entity_name = entity_data.get("entity_name")
                         if entity_name:
                             entities_to_delete_from_vdb.append(entity_name)
-                            logger.debug(f"Entity {entity_name} marked for deletion from VDB - no remaining chunks")
+                            self.lightrag_logger.debug(
+                                f"Entity {entity_name} marked for deletion from VDB - no remaining chunks"
+                            )
                     elif len(new_chunk_ids) != len(old_chunk_ids):
                         # Entity has some remaining chunks, update chunk_ids array
                         entity_data["chunk_ids"] = list(new_chunk_ids)
                         entity_data["source_id"] = GRAPH_FIELD_SEP.join(new_chunk_ids)
                         entities_to_update_in_vdb[entity_id] = entity_data
-                        logger.debug(
+                        self.lightrag_logger.debug(
                             f"Entity {entity_data.get('entity_name')} chunk_ids updated: {len(old_chunk_ids)} -> {len(new_chunk_ids)}"
                         )
 
@@ -966,7 +965,7 @@ class LightRAG:
                         tgt_id = rel_data.get("tgt_id") or rel_data.get("target_id")
                         if src_id and tgt_id:
                             relationships_to_delete_from_vdb.append((src_id, tgt_id))
-                            logger.debug(
+                            self.lightrag_logger.debug(
                                 f"Relationship {src_id}-{tgt_id} marked for deletion from VDB - no remaining chunks"
                             )
                     elif len(new_chunk_ids) != len(old_chunk_ids):
@@ -974,7 +973,7 @@ class LightRAG:
                         rel_data["chunk_ids"] = list(new_chunk_ids)
                         rel_data["source_id"] = GRAPH_FIELD_SEP.join(new_chunk_ids)
                         relationships_to_update_in_vdb[rel_id] = rel_data
-                        logger.debug(
+                        self.lightrag_logger.debug(
                             f"Relationship {rel_data.get('src_id')}-{rel_data.get('tgt_id')} chunk_ids updated: {len(old_chunk_ids)} -> {len(new_chunk_ids)}"
                         )
 
@@ -1001,12 +1000,14 @@ class LightRAG:
                     if not sources:
                         # Entity has no remaining source chunks
                         entities_to_delete_from_graph.add(node_label)
-                        logger.debug(f"Entity {node_label} marked for deletion from graph - no remaining sources")
+                        self.lightrag_logger.debug(
+                            f"Entity {node_label} marked for deletion from graph - no remaining sources"
+                        )
                     else:
                         # Entity has some remaining source chunks
                         new_source_id = GRAPH_FIELD_SEP.join(sources)
                         entities_to_update_in_graph[node_label] = new_source_id
-                        logger.debug(f"Entity {node_label} source_id will be updated in graph")
+                        self.lightrag_logger.debug(f"Entity {node_label} source_id will be updated in graph")
 
                 # Process relationships for this entity
                 node_edges = await self.chunk_entity_relation_graph.get_node_edges(node_label)
@@ -1021,14 +1022,16 @@ class LightRAG:
                             if not sources:
                                 # Relationship has no remaining source chunks
                                 relationships_to_delete_from_graph.add((src, tgt))
-                                logger.debug(
+                                self.lightrag_logger.debug(
                                     f"Relationship {src}-{tgt} marked for deletion from graph - no remaining sources"
                                 )
                             else:
                                 # Relationship has some remaining source chunks
                                 new_source_id = GRAPH_FIELD_SEP.join(sources)
                                 relationships_to_update_in_graph[(src, tgt)] = new_source_id
-                                logger.debug(f"Relationship {src}-{tgt} source_id will be updated in graph")
+                                self.lightrag_logger.debug(
+                                    f"Relationship {src}-{tgt} source_id will be updated in graph"
+                                )
 
             # ========== STEP 4: Execute all deletions and updates ==========
 
@@ -1036,11 +1039,11 @@ class LightRAG:
             if entities_to_delete_from_vdb:
                 for entity_name in entities_to_delete_from_vdb:
                     await self.entities_vdb.delete_entity(entity_name)
-                logger.info(f"Deleted {len(entities_to_delete_from_vdb)} entities from vector storage")
+                self.lightrag_logger.info(f"Deleted {len(entities_to_delete_from_vdb)} entities from vector storage")
 
             if entities_to_update_in_vdb:
                 await self.entities_vdb.upsert(entities_to_update_in_vdb)
-                logger.info(f"Updated {len(entities_to_update_in_vdb)} entities in vector storage")
+                self.lightrag_logger.info(f"Updated {len(entities_to_update_in_vdb)} entities in vector storage")
 
             # 4.2 Delete and update relationships in vector storage
             if relationships_to_delete_from_vdb:
@@ -1050,16 +1053,20 @@ class LightRAG:
                     rel_id_1 = compute_mdhash_id(tgt + src, prefix="rel-", workspace=self.workspace)
                     rel_ids_to_delete.extend([rel_id_0, rel_id_1])
                 await self.relationships_vdb.delete(rel_ids_to_delete)
-                logger.info(f"Deleted {len(relationships_to_delete_from_vdb)} relationships from vector storage")
+                self.lightrag_logger.info(
+                    f"Deleted {len(relationships_to_delete_from_vdb)} relationships from vector storage"
+                )
 
             if relationships_to_update_in_vdb:
                 await self.relationships_vdb.upsert(relationships_to_update_in_vdb)
-                logger.info(f"Updated {len(relationships_to_update_in_vdb)} relationships in vector storage")
+                self.lightrag_logger.info(
+                    f"Updated {len(relationships_to_update_in_vdb)} relationships in vector storage"
+                )
 
             # 4.3 Delete and update entities in graph storage
             if entities_to_delete_from_graph:
                 await self.chunk_entity_relation_graph.remove_nodes(list(entities_to_delete_from_graph))
-                logger.info(f"Deleted {len(entities_to_delete_from_graph)} entities from graph storage")
+                self.lightrag_logger.info(f"Deleted {len(entities_to_delete_from_graph)} entities from graph storage")
 
             for entity_name, new_source_id in entities_to_update_in_graph.items():
                 node_data = await self.chunk_entity_relation_graph.get_node(entity_name)
@@ -1067,12 +1074,14 @@ class LightRAG:
                     node_data["source_id"] = new_source_id
                     await self.chunk_entity_relation_graph.upsert_node(entity_name, node_data)
             if entities_to_update_in_graph:
-                logger.info(f"Updated {len(entities_to_update_in_graph)} entities in graph storage")
+                self.lightrag_logger.info(f"Updated {len(entities_to_update_in_graph)} entities in graph storage")
 
             # 4.4 Delete and update relationships in graph storage
             if relationships_to_delete_from_graph:
                 await self.chunk_entity_relation_graph.remove_edges(list(relationships_to_delete_from_graph))
-                logger.info(f"Deleted {len(relationships_to_delete_from_graph)} relationships from graph storage")
+                self.lightrag_logger.info(
+                    f"Deleted {len(relationships_to_delete_from_graph)} relationships from graph storage"
+                )
 
             for (src, tgt), new_source_id in relationships_to_update_in_graph.items():
                 edge_data = await self.chunk_entity_relation_graph.get_edge(src, tgt)
@@ -1080,12 +1089,14 @@ class LightRAG:
                     edge_data["source_id"] = new_source_id
                     await self.chunk_entity_relation_graph.upsert_edge(src, tgt, edge_data)
             if relationships_to_update_in_graph:
-                logger.info(f"Updated {len(relationships_to_update_in_graph)} relationships in graph storage")
+                self.lightrag_logger.info(
+                    f"Updated {len(relationships_to_update_in_graph)} relationships in graph storage"
+                )
 
             # 4.5 Finally, delete the chunks themselves
             await self.chunks_vdb.delete(list(chunk_ids))
             await self.text_chunks.delete(list(chunk_ids))
-            logger.info(f"Deleted {len(chunk_ids)} chunks from storages")
+            self.lightrag_logger.info(f"Deleted {len(chunk_ids)} chunks from storages")
 
             # ========== STEP 5: Simple verification ==========
             # Verify chunks were actually deleted
@@ -1097,13 +1108,15 @@ class LightRAG:
             }
 
             if remaining_related_chunks:
-                logger.warning(
+                self.lightrag_logger.warning(
                     f"Verification failed: {len(remaining_related_chunks)} chunks still exist for document {doc_id}"
                 )
             else:
-                logger.info(f"Verification successful: All chunks for document {doc_id} have been deleted")
+                self.lightrag_logger.info(
+                    f"Verification successful: All chunks for document {doc_id} have been deleted"
+                )
 
-            logger.info(
+            self.lightrag_logger.info(
                 f"Document deletion completed for {doc_id}. "
                 f"Summary: {len(chunk_ids)} chunks, "
                 f"{len(entities_to_delete_from_vdb)} entities deleted from VDB, "
@@ -1113,5 +1126,5 @@ class LightRAG:
             )
 
         except Exception as e:
-            logger.error(f"Error while deleting document {doc_id}: {e}")
+            self.lightrag_logger.error(f"Error while deleting document {doc_id}: {e}")
             raise

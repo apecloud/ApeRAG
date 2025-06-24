@@ -36,7 +36,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from ...concurrent_control import LockProtocol, get_or_create_lock
+from ...concurrent_control import LockProtocol
 from .prompt import GRAPH_FIELD_SEP
 from .utils import compute_mdhash_id, logger
 
@@ -924,16 +924,3 @@ async def get_relation_info(
         result["vector_data"] = vector_data
 
     return result
-
-
-def get_graph_db_lock(workspace: str):
-    """Get the graph database lock for a specific workspace"""
-    return get_or_create_lock(f"lightrag_graph_db_{workspace}")
-
-
-def get_lock_by_workspace_entity(workspace: str, entity: str):
-    return get_or_create_lock(f"lightrag_graph_db_workspace_{workspace}_entity_{entity}")
-
-
-def get_lock_by_workspace_relation(workspace: str, relation: str):
-    return get_or_create_lock(f"lightrag_graph_db_workspace_{workspace}_relation_{relation}")

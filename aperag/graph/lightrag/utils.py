@@ -79,17 +79,17 @@ def get_env_value(env_key: str, default: any, value_type: type = str, special_no
 #     from aperag.graph.lightrag.base import BaseKVStorage
 
 # Initialize logger - smart configuration that follows system defaults
-logger = logging.getLogger("lightrag")
+logger = logging.getLogger("GraphIndex")
 
 # Let it propagate to parent loggers (respects system configuration)
-logger.propagate = True
+logger.propagate = False
 
 # Only add a simple handler if root logger has no handlers (fallback for console output)
 root_logger = logging.getLogger()
 if not root_logger.handlers:
     # Add a basic console handler only as fallback
     console_handler = logging.StreamHandler()
-    formatter = logging.Formatter("%(name)s - %(levelname)s - %(message)s")
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
     # Use INFO level as reasonable default, but it will be overridden by system config when available
@@ -503,7 +503,7 @@ class LightRAGLogger:
     Replaces the legacy pipeline_status system with structured logging.
     """
 
-    def __init__(self, prefix: str = "LightRAG", workspace: str = "default"):
+    def __init__(self, prefix: str = "Graph Index", workspace: str = "default"):
         """
         Initialize the logger with custom prefix and workspace.
 
@@ -513,18 +513,12 @@ class LightRAGLogger:
         """
         self.prefix = prefix
         self.workspace = workspace
-        self._current_job = None
-        self._current_progress = {"current": 0, "total": 0}
 
     def _format_message(self, message: str, level: str = "INFO") -> str:
         """Format log message with prefix and workspace."""
-        workspace_info = f"[{self.workspace}]" if self.workspace != "default" else ""
-        job_info = f"[{self._current_job}]" if self._current_job else ""
-        progress_info = ""
-        if self._current_progress["total"] > 0:
-            progress_info = f"[{self._current_progress['current']}/{self._current_progress['total']}]"
+        workspace_info = f"[{self.workspace}]"
 
-        return f"{self.prefix}{workspace_info}{job_info}{progress_info} {message}"
+        return f"{self.prefix}{workspace_info} {message}"
 
     def info(self, message: str):
         """Log info level message."""
@@ -546,40 +540,10 @@ class LightRAGLogger:
         formatted_msg = self._format_message(message, "DEBUG")
         logger.debug(formatted_msg)
 
-    def start_job(self, job_name: str, total_items: int = 0):
-        """Start a new job with progress tracking."""
-        self._current_job = job_name
-        self._current_progress = {"current": 0, "total": total_items}
-        self.info(f"Starting job: {job_name}" + (f" ({total_items} items)" if total_items > 0 else ""))
-
-    def update_progress(self, current: int, message: str = ""):
-        """Update current progress."""
-        self._current_progress["current"] = current
-        if message:
-            self.info(message)
-
-    def increment_progress(self, message: str = ""):
-        """Increment progress by 1."""
-        self._current_progress["current"] += 1
-        if message:
-            self.info(message)
-
-    def finish_job(self, message: str = ""):
-        """Finish current job."""
-        final_message = message or f"Completed job: {self._current_job}"
-        self.info(final_message)
-        self._current_job = None
-        self._current_progress = {"current": 0, "total": 0}
-
     def log_extraction_progress(self, current_chunk: int, total_chunks: int, entities_count: int, relations_count: int):
         """Log chunk extraction progress."""
         message = f"Chunk {current_chunk} of {total_chunks} extracted {entities_count} Ent + {relations_count} Rel"
-        self.info(message)
-
-    def log_stage_progress(self, stage: str, current_file: int, total_files: int, file_path: str):
-        """Log stage progress for file processing."""
-        message = f"{stage} stage {current_file}/{total_files}: {file_path}"
-        self.info(message)
+        self.debug(message)
 
     def log_entity_merge(
         self, entity_name: str, total_fragments: int, new_fragments: int, is_llm_summary: bool = False
@@ -587,7 +551,7 @@ class LightRAGLogger:
         """Log entity merge operations."""
         prefix = "LLM merge N" if is_llm_summary else "Merge N"
         message = f"{prefix}: {entity_name} | {new_fragments}+{total_fragments - new_fragments}"
-        self.info(message)
+        self.debug(message)
 
     def log_relation_merge(
         self, src_id: str, tgt_id: str, total_fragments: int, new_fragments: int, is_llm_summary: bool = False
@@ -595,12 +559,12 @@ class LightRAGLogger:
         """Log relation merge operations."""
         prefix = "LLM merge E" if is_llm_summary else "Merge E"
         message = f"{prefix}: {src_id} - {tgt_id} | {new_fragments}+{total_fragments - new_fragments}"
-        self.info(message)
+        self.debug(message)
 
     def log_timing(self, operation: str, duration: float, details: str = ""):
         """Log operation timing with emoji and formatted duration."""
         details_str = f" ({details})" if details else ""
-        self.info(f"⏱️  {operation}: {duration:.3f}s{details_str}")
+        self.info(f"Graph Index function duration:  {operation}: {duration:.3f}s{details_str}")
 
 
 def timing_wrapper(operation_name: str):
@@ -622,17 +586,18 @@ def timing_wrapper(operation_name: str):
             try:
                 result = await func(*args, **kwargs)
                 duration = time.time() - start_time
-                if lightrag_logger:
-                    lightrag_logger.log_timing(operation_name, duration)
-                else:
-                    logger.info(f"LightRAG Timing:  {operation_name}: {duration:.3f}s")
+                if duration > 5:
+                    if lightrag_logger:
+                        lightrag_logger.log_timing(operation_name, duration)
+                    else:
+                        logger.info(f"Graph Index function duration:️  {operation_name}: {duration:.3f}s")
                 return result
             except Exception:
                 duration = time.time() - start_time
                 if lightrag_logger:
                     lightrag_logger.log_timing(f"{operation_name} (FAILED)", duration)
                 else:
-                    logger.info(f"LightRAG Timing:️  {operation_name} (FAILED): {duration:.3f}s")
+                    logger.info(f"Graph Index function duration:️  {operation_name} (FAILED): {duration:.3f}s")
                 raise
 
         return wrapper
@@ -640,6 +605,6 @@ def timing_wrapper(operation_name: str):
     return decorator
 
 
-def create_lightrag_logger(prefix: str = "LightRAG", workspace: str = "default") -> LightRAGLogger:
+def create_lightrag_logger(prefix: str = "Graph Index", workspace: str = "default") -> LightRAGLogger:
     """Create a LightRAGLogger instance with specified prefix and workspace."""
     return LightRAGLogger(prefix=prefix, workspace=workspace)

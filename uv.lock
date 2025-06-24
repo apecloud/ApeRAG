@@ -309,7 +309,7 @@ requires-dist = [
     { name = "jsonref", specifier = ">=1.1.0" },
     { name = "langchain", specifier = ">=0.3.23,<1.0.0" },
     { name = "langchain-huggingface", specifier = ">=0.1.2,<1.0.0" },
-    { name = "litellm", specifier = ">=1.72.6" },
+    { name = "litellm", specifier = ">=1.73.0rc1" },
     { name = "llama-index", specifier = ">=0.12.28,<1.0.0" },
     { name = "llama-index-embeddings-google", specifier = ">=0.3.1,<1.0.0" },
     { name = "llama-index-embeddings-langchain", specifier = ">=0.3.0,<1.0.0" },
@@ -2589,7 +2589,7 @@ wheels = [
 
 [[package]]
 name = "litellm"
-version = "1.72.6"
+version = "1.73.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -2604,9 +2604,9 @@ dependencies = [
     { name = "tiktoken" },
     { name = "tokenizers" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8d/15/df75f278fd998f6d6900f692b9de2fba2814b316c123c99072a813668aac/litellm-1.72.6.tar.gz", hash = "sha256:4e5c7e4273b09b765302d2faaec30f77b42255c0055b427b55ea02b8092b8582", size = 8393603, upload-time = "2025-06-14T21:43:11.023Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3e/5e/e110a45916b18ac93234e1b76a6ca57e7a3f9d38c4b9c004b68aedcddf41/litellm-1.73.0.tar.gz", hash = "sha256:4fdbb86f349be2038068827517786f6f7e7f761528d8f5d4b941b406d33bb8c3", size = 8553383, upload-time = "2025-06-22T00:56:14.44Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/96/c9/4aae0b77632279eef9716dbcb98edd8b36c08a9da070e2470ca9c410c0f8/litellm-1.72.6-py3-none-any.whl", hash = "sha256:e0ae98d25db4910e78b1a0a604f24c0d6875f6cdea02426b264a45d4fbdb8c46", size = 8302810, upload-time = "2025-06-14T21:43:08.628Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/ef/a788e2aca00e1afa97e07a14e85b9a1189498bbd424be7e1aea57cc5a831/litellm-1.73.0-py3-none-any.whl", hash = "sha256:0a0a14c2f2522ffaf6cfbea043108d837047ee2b8dff5fb1dc14a7bd3cea0118", size = 8358192, upload-time = "2025-06-22T00:56:12.15Z" },
 ]
 
 [[package]]

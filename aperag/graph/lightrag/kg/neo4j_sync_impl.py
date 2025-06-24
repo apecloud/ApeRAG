@@ -82,7 +82,7 @@ class Neo4JSyncStorage(BaseGraphStorage):
         # Prepare database in thread to avoid blocking
         self._DATABASE = await asyncio.to_thread(Neo4jSyncConnectionManager.prepare_database, self.workspace)
 
-        logger.info(f"Neo4JSyncStorage initialized for workspace '{self.workspace}', database '{self._DATABASE}'")
+        logger.debug(f"Neo4JSyncStorage initialized for workspace '{self.workspace}', database '{self._DATABASE}'")
 
     async def finalize(self):
         """Clean up resources."""

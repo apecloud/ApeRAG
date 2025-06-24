@@ -85,6 +85,7 @@ __all__ = [
 ]
 
 # Initialize cache when module is imported
-from aperag.llm import litellm_cache
+from aperag.llm import litellm_cache, litellm_logging
 
 litellm_cache.setup_litellm_cache()
+litellm_logging.setup_litellm_logging()

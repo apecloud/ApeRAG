@@ -115,6 +115,7 @@ def chunking_by_token_size(
     return results
 
 
+@timing_wrapper("_handle_entity_relation_summary")
 async def _handle_entity_relation_summary(
     entity_or_relation_name: str,
     description: str,
@@ -123,7 +124,7 @@ async def _handle_entity_relation_summary(
     llm_model_max_token_size: int,
     summary_to_max_tokens: int,
     language: str,
-    lightrag_logger: LightRAGLogger | None = None,
+    lightrag_logger: LightRAGLogger,
 ) -> str:
     """Handle entity relation summary
     For each entity or relation, input is the combined description of already existing description and new description.
@@ -142,10 +143,7 @@ async def _handle_entity_relation_summary(
     )
     use_prompt = prompt_template.format(**context_base)
 
-    if lightrag_logger:
-        lightrag_logger.debug(f"Trigger summary: {entity_or_relation_name}")
-    else:
-        logger.debug(f"Trigger summary: {entity_or_relation_name}")
+    lightrag_logger.debug(f"Trigger summary: {entity_or_relation_name}")
 
     summary = await use_llm_func(use_prompt, max_tokens=summary_to_max_tokens)
     return summary
@@ -320,10 +318,7 @@ async def _merge_nodes_then_upsert(
         # 5.1. Check if LLM summarization is needed based on fragment count threshold
         if num_fragment >= force_llm_summary_on_merge:
             # 5.1.1. Log LLM summarization decision
-            if lightrag_logger:
-                lightrag_logger.log_entity_merge(entity_name, num_fragment, num_new_fragment, is_llm_summary=True)
-            else:
-                logger.info(f"LLM merge N: {entity_name} | {num_new_fragment}+{num_fragment - num_new_fragment}")
+            lightrag_logger.log_entity_merge(entity_name, num_fragment, num_new_fragment, is_llm_summary=True)
 
             # 5.1.2. Use LLM to summarize lengthy descriptions
             description = await _handle_entity_relation_summary(
@@ -338,10 +333,7 @@ async def _merge_nodes_then_upsert(
             )
         else:
             # 5.2. Simple merge without LLM summarization (fragment count below threshold)
-            if lightrag_logger:
-                lightrag_logger.log_entity_merge(entity_name, num_fragment, num_new_fragment, is_llm_summary=False)
-            else:
-                logger.info(f"Merge N: {entity_name} | {num_new_fragment}+{num_fragment - num_new_fragment}")
+            lightrag_logger.log_entity_merge(entity_name, num_fragment, num_new_fragment, is_llm_summary=False)
 
     # 6. Create final node data structure
     node_data = dict(
@@ -375,7 +367,7 @@ async def _merge_edges_then_upsert(
     summary_to_max_tokens: int,
     language: str,
     force_llm_summary_on_merge: int,
-    lightrag_logger: LightRAGLogger | None = None,
+    lightrag_logger: LightRAGLogger,
     workspace: str = "",
 ):
     if src_id == tgt_id:
@@ -455,10 +447,7 @@ async def _merge_edges_then_upsert(
 
     if num_fragment > 1:
         if num_fragment >= force_llm_summary_on_merge:
-            if lightrag_logger:
-                lightrag_logger.log_relation_merge(src_id, tgt_id, num_fragment, num_new_fragment, is_llm_summary=True)
-            else:
-                logger.info(f"LLM merge E: {src_id} - {tgt_id} | {num_new_fragment}+{num_fragment - num_new_fragment}")
+            lightrag_logger.log_relation_merge(src_id, tgt_id, num_fragment, num_new_fragment, is_llm_summary=True)
 
             description = await _handle_entity_relation_summary(
                 f"({src_id}, {tgt_id})",
@@ -471,10 +460,7 @@ async def _merge_edges_then_upsert(
                 lightrag_logger,
             )
         else:
-            if lightrag_logger:
-                lightrag_logger.log_relation_merge(src_id, tgt_id, num_fragment, num_new_fragment, is_llm_summary=False)
-            else:
-                logger.info(f"Merge E: {src_id} - {tgt_id} | {num_new_fragment}+{num_fragment - num_new_fragment}")
+            lightrag_logger.log_relation_merge(src_id, tgt_id, num_fragment, num_new_fragment, is_llm_summary=False)
 
     await knowledge_graph_inst.upsert_edge(
         src_id,
@@ -502,7 +488,7 @@ async def _merge_edges_then_upsert(
     return edge_data
 
 
-@timing_wrapper("Merge & Update")
+@timing_wrapper("merge_nodes_and_edges")
 async def merge_nodes_and_edges(
     chunk_results: list,
     component: list[str],
@@ -516,28 +502,8 @@ async def merge_nodes_and_edges(
     summary_to_max_tokens,
     addon_params,
     force_llm_summary_on_merge,
-    lightrag_logger: LightRAGLogger | None = None,
+    lightrag_logger: LightRAGLogger,
 ) -> dict[str, int]:
-    """Merge nodes and edges from extraction results
-
-    Args:
-        chunk_results: List of (nodes_dict, edges_dict) tuples
-        component: List of entity names in this component (for locking)
-        workspace: Workspace identifier for lock creation
-        knowledge_graph_inst: Knowledge graph storage
-        entity_vdb: Entity vector database
-        relationships_vdb: Relationships vector database
-        llm_model_func: LLM function
-        tokenizer: Tokenizer
-        llm_model_max_token_size: Max token size for LLM
-        summary_to_max_tokens: Max tokens for summary
-        addon_params: Additional parameters
-        force_llm_summary_on_merge: Force LLM summary threshold
-        lightrag_logger: Optional logger
-
-    Returns:
-        Dict with entity_count and relation_count
-    """
     # Now using fine-grained locking inside _merge_nodes_and_edges_impl
     return await _merge_nodes_and_edges_impl(
         chunk_results,
@@ -567,7 +533,7 @@ async def _merge_nodes_and_edges_impl(
     summary_to_max_tokens,
     addon_params,
     force_llm_summary_on_merge,
-    lightrag_logger: LightRAGLogger | None = None,
+    lightrag_logger: LightRAGLogger,
 ) -> dict[str, int]:
     """Internal implementation of merge_nodes_and_edges with fine-grained locking"""
 
@@ -672,14 +638,14 @@ async def _merge_nodes_and_edges_impl(
     return {"entity_count": entity_count, "relation_count": relation_count}
 
 
-@timing_wrapper("Entity Extraction")
+@timing_wrapper("extract_entities")
 async def extract_entities(
     chunks: dict[str, TextChunkSchema],
     use_llm_func: callable,
     entity_extract_max_gleaning: int,
     addon_params: dict,
     llm_model_max_async: int,
-    lightrag_logger: LightRAGLogger | None = None,
+    lightrag_logger: LightRAGLogger,
 ) -> list:
     ordered_chunks = list(chunks.items())
     # add language and example number params to prompt
@@ -805,13 +771,7 @@ async def extract_entities(
         entities_count = len(maybe_nodes)
         relations_count = len(maybe_edges)
 
-        if lightrag_logger:
-            lightrag_logger.log_extraction_progress(processed_chunks, total_chunks, entities_count, relations_count)
-        else:
-            log_message = (
-                f"Chunk {processed_chunks} of {total_chunks} extracted {entities_count} Ent + {relations_count} Rel"
-            )
-            logger.info(log_message)
+        lightrag_logger.log_extraction_progress(processed_chunks, total_chunks, entities_count, relations_count)
 
         # Return the extracted nodes and edges for centralized processing
         return maybe_nodes, maybe_edges

@@ -61,7 +61,6 @@ async def create_lightrag_instance(collection: Collection) -> LightRAG:
     Since LightRAG is now stateless, we create a fresh instance each time.
     """
     collection_id = str(collection.id)
-    logger.info(f"Creating LightRAG instance for collection: {collection_id}")
 
     try:
         # Generate embedding and LLM functions
@@ -259,6 +258,7 @@ async def _gen_llm_func(collection: Collection) -> Callable[..., Awaitable[str]]
             prompt: str,
             system_prompt: Optional[str] = None,
             history_messages: List = [],
+            max_tokens: Optional[int] = None,
             **kwargs,
         ) -> str:
             from aperag.llm.completion.completion_service import CompletionService
@@ -269,7 +269,7 @@ async def _gen_llm_func(collection: Collection) -> Callable[..., Awaitable[str]]
                 base_url=base_url,
                 api_key=api_key,
                 temperature=config.completion.temperature,
-                max_tokens=None,
+                max_tokens=max_tokens,
             )
 
             messages = []
@@ -278,12 +278,7 @@ async def _gen_llm_func(collection: Collection) -> Callable[..., Awaitable[str]]
             if history_messages:
                 messages.extend(history_messages)
 
-            full_response = ""
-            async for chunk in completion_service.agenerate_stream(
-                history=messages, prompt=prompt, memory=bool(messages)
-            ):
-                if chunk:
-                    full_response += chunk
+            full_response = await completion_service.agenerate(history=messages, prompt=prompt, memory=bool(messages))
 
             return full_response
 

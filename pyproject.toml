@@ -44,7 +44,7 @@ dependencies = [
     "pipmaster<1.0.0,>=0.5.4",
     "graspologic<4.0.0,>=3.4.1",
     "pytablewriter<2.0.0,>=1.2.1",
-    "litellm>=v1.72.6",
+    "litellm>=v1.73.0.rc.1",
     "requests",
     "asyncpg>=0.30.0",
     "markitdown[all]>=0.1.1",

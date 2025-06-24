@@ -301,6 +301,8 @@ async def test_merge_nodes_and_edges_with_locking():
             mock_multilock.return_value.__aexit__ = AsyncMock()
 
             # Call merge_nodes_and_edges with component
+            from aperag.graph.lightrag.utils import create_lightrag_logger
+
             result = await merge_nodes_and_edges(
                 chunk_results=chunk_results,
                 component=component,
@@ -314,6 +316,7 @@ async def test_merge_nodes_and_edges_with_locking():
                 summary_to_max_tokens=500,
                 addon_params={"language": "English"},
                 force_llm_summary_on_merge=5,
+                lightrag_logger=create_lightrag_logger(workspace="test_workspace"),
             )
 
     # Verify locks were created for all entities in sorted order

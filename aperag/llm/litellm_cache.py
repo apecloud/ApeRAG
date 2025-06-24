@@ -131,7 +131,12 @@ def setup_custom_get_cache():
         _cache_stats["total_requests"] += 1
         if result is not None:
             _cache_stats["hits"] += 1
-            logger.info("LiteLLM Cache HIT")
+            logger.debug("LiteLLM Cache HIT")
+            if _cache_stats["hits"] % 100 == 0:
+                logger.info(
+                    f"Cache HIT count: {_cache_stats['hits']}, total requests: {_cache_stats['total_requests']}"
+                )
+                logger.info(f"Cache HIT rate: {_cache_stats['hits'] / _cache_stats['total_requests']:.2%}")
         else:
             _cache_stats["misses"] += 1
             logger.debug("LiteLLM Cache MISS")

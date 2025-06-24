@@ -53,7 +53,7 @@ class PGOpsSyncKVStorage(BaseKVStorage):
 
     async def initialize(self):
         """Initialize storage."""
-        logger.info(f"PGOpsSyncKVStorage initialized for workspace '{self.workspace}'")
+        logger.debug(f"PGOpsSyncKVStorage initialized for workspace '{self.workspace}'")
 
     async def finalize(self):
         """Clean up resources."""
@@ -240,7 +240,7 @@ class PGOpsSyncVectorStorage(BaseVectorStorage):
 
     async def initialize(self):
         """Initialize storage."""
-        logger.info(f"PGOpsSyncVectorStorage initialized for workspace '{self.workspace}'")
+        logger.debug(f"PGOpsSyncVectorStorage initialized for workspace '{self.workspace}'")
 
     async def finalize(self):
         """Clean up resources."""

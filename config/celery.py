@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
+from logging.config import dictConfig
+
 from celery import Celery
 from celery.signals import worker_process_init, worker_process_shutdown
 from aperag.config import settings
@@ -45,7 +48,7 @@ app.conf.update(
     include=['config.celery_tasks'],
     # Enable detailed logging for celery workers
     worker_log_format='[%(asctime)s: %(levelname)s/%(processName)s] %(name)s - %(message)s',
-    task_log_format='[%(asctime)s: %(levelname)s/%(processName)s] %(name)s - %(message)s',
+    worker_task_log_format='[%(asctime)s: %(levelname)s/%(processName)s] %(name)s - %(message)s',
     worker_hijack_root_logger=False,  # Don't hijack root logger
 )
 
@@ -69,10 +72,36 @@ if neo4j_available and setup_worker_neo4j is not None:
 if neo4j_available and cleanup_worker_neo4j is not None:
     worker_process_shutdown.connect(cleanup_worker_neo4j)
 
+# Simple logging configuration for Celery workers
+CELERY_LOGGING_CONFIG = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'console': {
+            'format': '[%(asctime)s: %(levelname)s/%(processName)s] %(name)s - %(message)s'
+        }
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'console',
+            'level': 'INFO',
+        }
+    },
+    'loggers': {
+        'LiteLLM': {
+            'level': 'WARNING',
+            'handlers': ['console'],
+            'propagate': False,
+        }
+    }
+}
+
 @worker_process_init.connect
 def setup_worker(**kwargs):
-    """Additional worker setup if needed"""
-    pass
+    """Setup logging and other worker initialization"""
+    # Configure logging for this worker process
+    dictConfig(CELERY_LOGGING_CONFIG)
 
 @worker_process_shutdown.connect
 def shutdown_worker(**kwargs):
