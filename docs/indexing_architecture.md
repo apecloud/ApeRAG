@@ -9,14 +9,14 @@ ApeRAG's indexing pipeline architecture adopts a dual-chain design pattern, sepa
 ```mermaid
 graph TB
     subgraph "Frontend Chain (Synchronous Fast Response)"
-        A[API Request] --> B[FrontendIndexManager]
+        A[API Request] --> B[IndexManager]
         B --> C[Write to DocumentIndex Table]
-        C --> D[Set desired_state=PRESENT]
+        C --> D[Set status=PENDING, version++]
     end
     
     subgraph "Backend Chain (Asynchronous Task Processing)"
-        E[Periodic Task reconcile_indexes_task] --> F[BackendIndexReconciler.reconcile_all]
-        F --> G[Detect desired_state != actual_state]
+        E[Periodic Task reconcile_indexes_task] --> F[IndexReconciler.reconcile_all]
+        F --> G[Detect version mismatch or status change needed]
         G --> H[TaskScheduler schedules async tasks]
     end
     
@@ -25,9 +25,9 @@ graph TB
         I --> J[parse_document_task]
         J --> K[trigger_create_indexes_workflow]
         K --> L[group parallel execution]
-        L --> M[create_index_task.vector]
-        L --> N[create_index_task.fulltext] 
-        L --> O[create_index_task.graph]
+        L --> M[create_index_task.VECTOR]
+        L --> N[create_index_task.FULLTEXT] 
+        L --> O[create_index_task.GRAPH]
         M --> P[chord callback]
         N --> P
         O --> P
@@ -36,7 +36,7 @@ graph TB
     
     subgraph "State Feedback"
         Q --> R[IndexTaskCallbacks]
-        R --> S[Update actual_state=PRESENT]
+        R --> S[Update status=ACTIVE, observed_version]
         S --> T[Next reconciliation check]
     end
     
@@ -51,57 +51,86 @@ graph TB
 **Frontend Chain**：
 - **Goal**: Fast response to user operations without blocking API requests
 - **Implementation**: Only operates on database tables, sets desired state, returns immediately
-- **Code**: `FrontendIndexManager` in `aperag/index/manager.py`
+- **Code**: `IndexManager` in `aperag/index/manager.py`
 
 **Backend Chain**：
 - **Goal**: Asynchronously execute time-consuming indexing operations with retry and error recovery support
 - **Implementation**: Continuously scans state differences through periodic tasks and schedules async tasks
-- **Code**: `BackendIndexReconciler` in `aperag/index/reconciler.py`
+- **Code**: `IndexReconciler` in `aperag/index/reconciler.py`
 
-### 2. State-Driven Reconciliation
+### 2. Single Status State-Driven Reconciliation
 
-Records desired and actual states for each document index through the `DocumentIndex` database table:
+Records index state and version for each document index through the `DocumentIndex` database table:
 
 ```python
 class DocumentIndex(BaseModel):
     document_id: str
-    index_type: DocumentIndexType  # vector/fulltext/graph
-    desired_state: IndexDesiredState  # PRESENT/ABSENT
-    actual_state: IndexActualState    # ABSENT/CREATING/PRESENT/DELETING/FAILED
-    version: int                     # Version number, increment to trigger rebuild
+    index_type: DocumentIndexType  # VECTOR/FULLTEXT/GRAPH
+    status: DocumentIndexStatus    # PENDING/CREATING/ACTIVE/DELETING/DELETION_IN_PROGRESS/FAILED
+    version: int                   # Version number, increment to trigger rebuild
+    observed_version: int          # Last processed version
 ```
 
-The reconciler periodically scans all records and triggers corresponding operations when `desired_state != actual_state`.
+Key Status Meanings:
+- **PENDING**: Awaiting processing (create/update needed)
+- **CREATING**: Task claimed, creation/update in progress
+- **ACTIVE**: Index is up-to-date and ready for use
+- **DELETING**: Deletion has been requested
+- **DELETION_IN_PROGRESS**: Task claimed, deletion in progress
+- **FAILED**: The last operation failed
+
+The reconciler periodically scans all records and triggers corresponding operations based on:
+- Version mismatch: `observed_version < version` indicates need for update
+- Version = 1 with observed_version = 0: indicates need for initial creation
+- Status = DELETING: indicates need for deletion
 
 ### 3. TaskScheduler Abstraction Layer Design
 
 **Design Advantages**：
 - **Business Logic and Task System Decoupling**: Reconciler only cares about "what operations to execute", not "what system to execute with"
-- **Multi-scheduler Support**: Can switch between Celery, local synchronous, Prefect/Airflow and other workflow engines
-- **Test-friendly**: Can use LocalTaskScheduler for synchronous execution during testing, facilitating debugging
+- **Multi-scheduler Support**: Can switch between Celery, Prefect/Airflow and other workflow engines
+- **Test-friendly**: Can use different schedulers for testing environments
 
 ```python
 # Abstract interface
 class TaskScheduler(ABC):
-    def schedule_create_index(self, document_id: str, index_types: List[str]) -> str
-    def schedule_update_index(self, document_id: str, index_types: List[str]) -> str  
+    def schedule_create_index(self, document_id: str, index_types: List[str], context: dict = None) -> str
+    def schedule_update_index(self, document_id: str, index_types: List[str], context: dict = None) -> str  
     def schedule_delete_index(self, document_id: str, index_types: List[str]) -> str
 
 # Reconciler uses abstract interface
-class BackendIndexReconciler:
+class IndexReconciler:
     def __init__(self, scheduler_type: str = "celery"):
         self.task_scheduler = create_task_scheduler(scheduler_type)
     
-    def _reconcile_document_operations(self, document_id: str, operations: dict):
-        if create_index_types:
-            # Only calls abstract interface, doesn't care about specific implementation
-            self.task_scheduler.schedule_create_index(document_id, create_index_types)
+    def _reconcile_document_operations(self, document_id: str, claimed_indexes: List[dict]):
+        # Only calls abstract interface, doesn't care about specific implementation
+        if create_types:
+            self.task_scheduler.schedule_create_index(document_id, create_types, context)
+        if update_types:
+            self.task_scheduler.schedule_update_index(document_id, update_types, context)
 ```
 
 **Celery Task Entry Point and Business Code Separation**：
 - Celery task functions (`config/celery_tasks.py`): Handle task scheduling, parameter serialization, error retry
 - Business logic (`aperag/tasks/document.py`): Handle specific index creation logic
 - This separation enables independent testing of business logic and facilitates migration between different task systems
+
+### 4. Create vs Update Operation Distinction
+
+The system clearly distinguishes between create and update operations:
+
+**Create Operations** (version = 1, observed_version = 0):
+- For new documents or new index types
+- Uses `schedule_create_index` and `create_index_task`
+- Initial index creation from scratch
+
+**Update Operations** (version > 1, observed_version < version):
+- For existing indexes that need rebuilding
+- Uses `schedule_update_index` and `update_index_task`
+- Updates existing index with new content
+
+This distinction allows for different processing strategies and optimizations for each operation type.
 
 ## Asynchronous Task System
 
@@ -112,7 +141,7 @@ ApeRAG currently defines the following asynchronous tasks, each with clear respo
 | Task Name | Function | Retry Count | Location |
 |-----------|----------|-------------|----------|
 | `parse_document_task` | Parse document content, extract text and metadata | 3 times | config/celery_tasks.py |
-| `create_index_task` | Create single type index (vector/fulltext/graph) | 3 times | config/celery_tasks.py |
+| `create_index_task` | Create single type index (VECTOR/FULLTEXT/GRAPH) | 3 times | config/celery_tasks.py |
 | `update_index_task` | Update single type index | 3 times | config/celery_tasks.py |
 | `delete_index_task` | Delete single type index | 3 times | config/celery_tasks.py |
 | `trigger_create_indexes_workflow` | Dynamic fan-out for index creation tasks | No retry | config/celery_tasks.py |
@@ -123,10 +152,11 @@ ApeRAG currently defines the following asynchronous tasks, each with clear respo
 
 ### Task Design Principles
 
-1. **Fine-grained Tasks**: Each index type (vector/fulltext/graph) is an independent task, supporting individual retries
+1. **Fine-grained Tasks**: Each index type (VECTOR/FULLTEXT/GRAPH) is an independent task, supporting individual retries
 2. **Dynamic Orchestration**: Use trigger tasks to decide which index tasks to execute at runtime
 3. **Layered Retry**: Business tasks support retry, orchestration tasks don't retry
 4. **State Callbacks**: Each task calls back to update database state upon completion
+5. **Version Validation**: Tasks validate version numbers to prevent stale operations
 
 ### Concurrent Execution Design
 
@@ -135,17 +165,16 @@ ApeRAG currently defines the following asynchronous tasks, each with clear respo
 Use Celery's `group` for parallel execution and `chord` for result aggregation:
 
 ```python
-# Group: Execute multiple index tasks in parallel
+# Group: Execute multiple index tasks in parallel with context
 parallel_index_tasks = group([
-    create_index_task.s(document_id, "vector", parsed_data_dict),
-    create_index_task.s(document_id, "fulltext", parsed_data_dict),
-    create_index_task.s(document_id, "graph", parsed_data_dict)
+    create_index_task.s(document_id, index_type, parsed_data_dict, context)
+    for index_type in index_types
 ])
 
 # Chord: Execute callback after all parallel tasks complete
 workflow_chord = chord(
     parallel_index_tasks,
-    notify_workflow_complete.s(document_id, "create", ["vector", "fulltext", "graph"])
+    notify_workflow_complete.s(document_id, "create", index_types)
 )
 ```
 
@@ -154,32 +183,27 @@ workflow_chord = chord(
 Use Celery's `chain` for task chaining and `signature` for parameter passing:
 
 ```python
-# Chained execution: parse -> dynamic fan-out
+# Chained execution: parse -> dynamic fan-out with context
 workflow_chain = chain(
-    parse_document_task.s(document_id),  # First task
-    trigger_create_indexes_workflow.s(document_id, index_types)  # Second task, receives first task's result
+    parse_document_task.s(document_id),
+    trigger_create_indexes_workflow.s(document_id, index_types, context)
 )
-
-# Signature mechanism for parameter passing
-# parse_document_task's return value becomes the first parameter of trigger_create_indexes_workflow
 ```
 
-#### Parameter Passing and Data Flow
+#### Parameter Passing and Context Flow
 
 ```python
-# Data flow:
-# 1. parse_document_task returns ParsedDocumentData.to_dict()
-# 2. trigger_create_indexes_workflow receives parsing result
-# 3. Dynamically creates parallel tasks, each task receives complete parsing data
-# 4. notify_workflow_complete aggregates all index task results
+# Context includes version information for each index type
+context = {
+    "VECTOR_version": 2,
+    "FULLTEXT_version": 1,
+    "GRAPH_version": 3
+}
 
-def trigger_create_indexes_workflow(self, parsed_data_dict: dict, document_id: str, index_types: List[str]):
-    # parsed_data_dict is the previous task's return value
-    parallel_index_tasks = group([
-        # Each parallel task can access complete parsing data
-        create_index_task.s(document_id, index_type, parsed_data_dict)
-        for index_type in index_types
-    ])
+# Each index task extracts its specific version from context
+def create_index_task(document_id, index_type, parsed_data_dict, context):
+    target_version = context.get(f'{index_type}_version')
+    # Validate version before processing
 ```
 
 ## Specific Execution Flow Examples
@@ -190,15 +214,15 @@ Taking user document upload triggering index creation as example:
 
 ```python
 # 1. Frontend Chain (Synchronous, millisecond-level)
-API Call -> FrontendIndexManager.create_document_indexes()
+API Call -> IndexManager.create_indexes()
     ↓
 Write DocumentIndex table records:
 {
     document_id: "doc123",
-    index_type: "vector", 
-    desired_state: "PRESENT",
-    actual_state: "ABSENT",
-    version: 1
+    index_type: "VECTOR", 
+    status: "PENDING",
+    version: 1,
+    observed_version: 0
 }
     ↓ 
 API returns 200 immediately
@@ -206,11 +230,11 @@ API returns 200 immediately
 # 2. Backend Chain (Asynchronous, minute-level)
 Periodic task reconcile_indexes_task (executes every 30 seconds) 
     ↓
-BackendIndexReconciler.reconcile_all()
+IndexReconciler.reconcile_all()
     ↓
-Detects desired_state=PRESENT, actual_state=ABSENT
+Detects version=1, observed_version=0 (create operation needed)
     ↓
-CeleryTaskScheduler.schedule_create_index(doc123, ["vector", "fulltext", "graph"])
+CeleryTaskScheduler.schedule_create_index(doc123, ["VECTOR", "FULLTEXT", "GRAPH"], context)
     ↓
 create_document_indexes_workflow.delay()
 
@@ -219,27 +243,33 @@ parse_document_task("doc123")
 ├── Download document file to local temp directory
 ├── Call docparser to parse document content  
 ├── Return ParsedDocumentData.to_dict()
-└── Update actual_state="CREATING"
+└── Update status="CREATING"
     ↓
-trigger_create_indexes_workflow(parsed_data, "doc123", ["vector", "fulltext", "graph"])
-├── Create group parallel tasks
+trigger_create_indexes_workflow(parsed_data, "doc123", ["VECTOR", "FULLTEXT", "GRAPH"], context)
+├── Create group parallel tasks with version context
 └── Start chord waiting
     ↓
 Parallel execution:
-├── create_index_task("doc123", "vector", parsed_data)
+├── create_index_task("doc123", "VECTOR", parsed_data, context)
+│   ├── Extract VECTOR_version from context
+│   ├── Validate version still matches database
 │   ├── Call vector_indexer.create_index()
 │   ├── Generate embeddings and store in vector database
-│   └── Callback IndexTaskCallbacks.on_index_created()
-├── create_index_task("doc123", "fulltext", parsed_data)  
+│   └── Callback IndexTaskCallbacks.on_index_created(target_version)
+├── create_index_task("doc123", "FULLTEXT", parsed_data, context)  
+│   ├── Extract FULLTEXT_version from context
+│   ├── Validate version still matches database
 │   ├── Call fulltext_indexer.create_index()
 │   ├── Build full-text search index
-│   └── Callback IndexTaskCallbacks.on_index_created()
-└── create_index_task("doc123", "graph", parsed_data)
+│   └── Callback IndexTaskCallbacks.on_index_created(target_version)
+└── create_index_task("doc123", "GRAPH", parsed_data, context)
+    ├── Extract GRAPH_version from context
+    ├── Validate version still matches database
     ├── Call graph_indexer.create_index()
     ├── Build knowledge graph
-    └── Callback IndexTaskCallbacks.on_index_created()
+    └── Callback IndexTaskCallbacks.on_index_created(target_version)
     ↓
-notify_workflow_complete([result1, result2, result3], "doc123", "create", ["vector", "fulltext", "graph"])
+notify_workflow_complete([result1, result2, result3], "doc123", "create", ["VECTOR", "FULLTEXT", "GRAPH"])
 ├── Aggregate all index task results
 ├── Log workflow completion
 └── Return WorkflowResult
@@ -251,7 +281,7 @@ User modifies document content triggering index update:
 
 ```python
 # 1. Frontend Chain
-API Call -> FrontendIndexManager.update_document_indexes()
+API Call -> IndexManager.rebuild_indexes()
     ↓
 All existing index records version field +1:
 version: 1 -> 2 (triggers rebuild)
@@ -261,11 +291,11 @@ API returns immediately
 # 2. Backend Chain
 reconcile_indexes_task detects version mismatch
     ↓
-actual_state=PRESENT but version outdated, determined as needing update
+version=2, observed_version=1, version > 1 (update operation needed)
     ↓
 schedule_update_index() -> update_document_indexes_workflow()
 
-# 3. Task Execution (similar to creation)
+# 3. Task Execution (similar to creation but with update tasks)
 parse_document_task -> trigger_update_indexes_workflow -> parallel update_index_task
 ```
 
@@ -275,14 +305,14 @@ User deletes document triggering index deletion:
 
 ```python
 # 1. Frontend Chain  
-API Call -> FrontendIndexManager.delete_document_indexes()
+API Call -> IndexManager.delete_indexes()
     ↓
-Set desired_state="ABSENT"
+Set status="DELETING"
     ↓
 API returns immediately
 
 # 2. Backend Chain
-Detects desired_state=ABSENT, actual_state=PRESENT
+Detects status=DELETING
     ↓
 schedule_delete_index() -> delete_document_indexes_workflow()
 
@@ -301,21 +331,27 @@ Each Celery task is configured with automatic retry:
 
 ```python
 @current_app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3, 'countdown': 60})
-def create_index_task(self, document_id: str, index_type: str, parsed_data_dict: dict):
+def create_index_task(self, document_id: str, index_type: str, parsed_data_dict: dict, context: dict = None):
     try:
+        # Extract and validate version from context
+        target_version = context.get(f'{index_type}_version') if context else None
+        
+        # Double-check version still matches database before processing
+        # ... version validation logic ...
+        
         # Business logic
         result = document_index_task.create_index(document_id, index_type, parsed_data)
         if result.success:
-            self._handle_index_success(document_id, index_type, result.data)
+            self._handle_index_success(document_id, index_type, target_version, result.data)
         else:
             # Business logic failure but don't throw exception to avoid meaningless retry
             if self.request.retries >= self.max_retries:
-                self._handle_index_failure(document_id, [index_type], result.error)
+                self._handle_index_failure(document_id, index_type, result.error)
         return result.to_dict()
     except Exception as e:
         # Only mark as failed after retry attempts are exhausted
         if self.request.retries >= self.max_retries:
-            self._handle_index_failure(document_id, [index_type], str(e))
+            self._handle_index_failure(document_id, index_type, str(e))
         raise  # Continue throwing exception to trigger retry
 ```
 
@@ -346,33 +382,40 @@ def notify_workflow_complete(self, index_results: List[dict], document_id: str, 
 
 ### State Management and Error Recovery
 
-Track errors through database state:
+Track errors through database state with version validation:
 
 ```python
 class IndexTaskCallbacks:
     @staticmethod
-    def on_index_failed(document_id: str, index_type: str, error_message: str):
-        """Task failure callback"""
-        # Update database state
-        doc_index.actual_state = IndexActualState.FAILED
-        doc_index.error_message = error_message
-        
-        # Will retry on next reconcile
+    def on_index_created(document_id: str, index_type: str, target_version: int, index_data: str = None):
+        """Task success callback with version validation"""
+        # Use atomic update with version validation
+        update_stmt = (
+            update(DocumentIndex)
+            .where(
+                and_(
+                    DocumentIndex.document_id == document_id,
+                    DocumentIndex.index_type == DocumentIndexType(index_type),
+                    DocumentIndex.status == DocumentIndexStatus.CREATING,
+                    DocumentIndex.version == target_version,  # Critical: validate version
+                )
+            )
+            .values(
+                status=DocumentIndexStatus.ACTIVE,
+                observed_version=target_version,  # Mark this version as processed
+                index_data=index_data,
+                error_message=None,
+            )
+        )
 ```
 
 ### Error Recovery Strategies
 
 1. **Automatic Retry**: Task-level 3 automatic retries to handle temporary network or resource issues
-2. **State Reset**: Users can manually reset failed state to trigger re-execution
-3. **Partial Retry**: Only retry failed index types without affecting successful indexes
-4. **Degraded Handling**: Some index failures don't affect document searchability (e.g., graph index failure but vector index success)
-
-### Monitoring and Alerting
-
-- **Task Execution Logs**: Each task records detailed execution logs
-- **Failure Rate Statistics**: View task failure rates through Celery monitoring tools  
-- **State Inconsistency Detection**: Periodically check tasks in CREATING state for extended periods
-- **Resource Usage Monitoring**: Monitor memory and CPU usage during task execution
+2. **Version Validation**: Prevents stale operations through version checking at task execution time
+3. **State Reset**: Users can manually reset failed state to trigger re-execution
+4. **Partial Retry**: Only retry failed index types without affecting successful indexes
+5. **Degraded Handling**: Some index failures don't affect document searchability (e.g., graph index failure but vector index success)
 
 ## Code Organization Structure
 
@@ -381,7 +424,7 @@ class IndexTaskCallbacks:
 ```
 aperag/
 ├── index/                    # Index management core module
-│   ├── manager.py           # Frontend index manager
+│   ├── manager.py           # Index manager (frontend operations)
 │   ├── reconciler.py        # Backend reconciler
 │   ├── base.py             # Indexer base class definition
 │   ├── vector_index.py     # Vector index implementation
@@ -401,23 +444,22 @@ config/
 
 ### Core Interface Design
 
-#### Frontend Management Interface
+#### Index Management Interface
 ```python
 # aperag/index/manager.py
-class FrontendIndexManager:
-    async def create_document_indexes(self, session, document_id, user, index_types)
-    async def update_document_indexes(self, session, document_id) 
-    async def delete_document_indexes(self, session, document_id, index_types)
-    async def get_document_index_status(self, session, document_id)
+class IndexManager:
+    def create_indexes(self, document_id, index_types, created_by, session)
+    def rebuild_indexes(self, document_id, index_types, created_by, session) 
+    def delete_indexes(self, document_id, index_types, session)
 ```
 
 #### Reconciler Interface
 ```python
 # aperag/index/reconciler.py
-class BackendIndexReconciler:
+class IndexReconciler:
     def reconcile_all(self)  # Main reconciliation loop
     def _get_indexes_needing_reconciliation(self, session)  # Get indexes needing reconciliation
-    def _reconcile_grouped(self, indexes_needing_reconciliation)  # Batch reconciliation processing
+    def _reconcile_single_document(self, document_id, operations)  # Process single document
 ```
 
 #### Indexer Interface
@@ -467,6 +509,21 @@ class WorkflowResult:
     index_results: List[IndexTaskResult]
 ```
 
+## Current Implementation Status
+
+### Simplified Architecture Features
+
+1. **Removed Distributed Locking**: Current implementation focuses on correctness through version validation rather than distributed locks for external resource concurrency
+2. **Single Status Model**: Simplified from dual-state (desired/actual) to single status with version tracking
+3. **Clear Operation Separation**: Explicit distinction between create (v=1) and update (v>1) operations
+4. **Version-based Validation**: Prevents stale operations through version checking at task execution time
+
+### Future Considerations
+
+1. **Concurrency Control**: While distributed locking has been removed for simplicity, future implementations may need to address concurrent operations on external systems (vector databases, search engines, etc.)
+2. **Performance Optimization**: The current architecture prioritizes correctness and simplicity over maximum performance
+3. **Monitoring Enhancements**: Additional monitoring and alerting capabilities may be added as the system scales
+
 ## Summary
 
 ApeRAG's indexing pipeline architecture achieves efficient document indexing through the following technical design:
@@ -475,15 +532,16 @@ ApeRAG's indexing pipeline architecture achieves efficient document indexing thr
 
 1. **Fast Response**: Frontend chain only operates on database, API response time controlled at millisecond level
 2. **Strong Processing Capability**: Backend asynchronous processing supports large-scale document indexing, improving throughput through parallel tasks
-3. **Good Error Recovery**: Multi-level retry mechanisms and state management, supporting graceful handling of partial failure scenarios
+3. **Good Error Recovery**: Multi-level retry mechanisms and version-based state management, supporting graceful handling of partial failure scenarios
 4. **Strong System Decoupling**: TaskScheduler abstraction layer decouples business logic from specific task systems
-5. **Comprehensive Monitoring**: Full-chain state tracking and logging for easy troubleshooting and performance optimization
+5. **Version Consistency**: Version validation prevents stale operations and ensures data consistency
 
 ### Technical Features
 
-1. **State-driven**: Achieves eventual consistency through detection of differences between desired and actual states
+1. **State-driven**: Achieves eventual consistency through detection of version mismatches and status changes
 2. **Dynamic Orchestration**: Dynamically creates index tasks at runtime based on document parsing results, avoiding static workflow limitations
 3. **Batch Optimization**: Multiple index tasks for the same document share parsing results, reducing redundant computation
 4. **Layered Design**: Task scheduling, business logic, and index implementation are decoupled in layers for easy testing and maintenance
+5. **Operation Distinction**: Clear separation of create vs update operations allows for optimized processing strategies
 
-This architecture provides good performance and scalability support for high-concurrency document indexing scenarios while ensuring system reliability. 
+This architecture provides good performance and scalability support for high-concurrency document indexing scenarios while ensuring system reliability and maintainability. 

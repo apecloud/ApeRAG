@@ -39,3 +39,9 @@ class QuotaType:
     MAX_COLLECTION_COUNT = "max_collection_count"
     MAX_DOCUMENT_COUNT = "max_document_count"
     MAX_CONVERSATION_COUNT = "max_conversation_count"
+
+
+class IndexAction:
+    CREATE = "create"
+    UPDATE = "update"
+    DELETE = "delete"

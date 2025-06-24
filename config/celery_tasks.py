@@ -110,12 +110,48 @@ from aperag.tasks.models import (
     ParsedDocumentData,
     IndexTaskResult, 
     WorkflowResult,
-    TaskStatus
+    TaskStatus,
 )
+from aperag.utils.constant import IndexAction
 from config.celery import app
 
 
 logger = logging.getLogger()
+
+def _validate_task_relevance(document_id: str, index_type: str, target_version: int, expected_status: "DocumentIndexStatus"):
+    """
+    Double-check the database to ensure the task is still valid.
+    
+    Returns a dictionary with a 'skipped' status if the task is no longer relevant,
+    otherwise returns None.
+    """
+    from aperag.db.models import DocumentIndex, DocumentIndexType
+    from aperag.config import get_sync_session
+    from sqlalchemy import select, and_
+
+    for session in get_sync_session():
+        stmt = select(DocumentIndex).where(
+            and_(
+                DocumentIndex.document_id == document_id,
+                DocumentIndex.index_type == DocumentIndexType(index_type)
+            )
+        )
+        result = session.execute(stmt)
+        db_index = result.scalar_one_or_none()
+
+        if not db_index:
+            logger.info(f"Index record not found for {document_id}:{index_type}, skipping task.")
+            return {"status": "skipped", "reason": "index_record_not_found"}
+
+        if db_index.status != expected_status:
+            logger.info(f"Index status for {document_id}:{index_type} changed to {db_index.status} (expected {expected_status}), skipping task.")
+            return {"status": "skipped", "reason": f"status_changed_to_{db_index.status}"}
+
+        if target_version and db_index.version != target_version:
+            logger.info(f"Version mismatch for {document_id}:{index_type}, expected: {target_version}, current: {db_index.version}, skipping task.")
+            return {"status": "skipped", "reason": f"version_mismatch_expected_{target_version}_current_{db_index.version}"}
+        
+        return None  # Task is still relevant
 
 class BaseIndexTask(Task):
     """
@@ -201,30 +237,9 @@ def create_index_task(self, document_id: str, index_type: str, parsed_data_dict:
         logger.info(f"Starting to create {index_type} index for document {document_id} (v{target_version})")
         
         # Double-check: verify task is still valid
-        for session in get_sync_session():
-            stmt = select(DocumentIndex).where(
-                and_(
-                    DocumentIndex.document_id == document_id,
-                    DocumentIndex.index_type == DocumentIndexType(index_type)
-                )
-            )
-            result = session.execute(stmt)
-            db_index = result.scalar_one_or_none()
-            
-            # Validate task is still relevant
-            if not db_index:
-                logger.info(f"Index record not found for {document_id}:{index_type}, skipping task")
-                return {"status": "skipped", "reason": "index_record_not_found"}
-                
-            if db_index.status != DocumentIndexStatus.CREATING:
-                logger.info(f"Index status changed for {document_id}:{index_type}, current: {db_index.status}, skipping task")
-                return {"status": "skipped", "reason": f"status_changed_to_{db_index.status}"}
-                
-            if target_version and db_index.version != target_version:
-                logger.info(f"Version mismatch for {document_id}:{index_type}, expected: {target_version}, current: {db_index.version}, skipping task")
-                return {"status": "skipped", "reason": f"version_mismatch_expected_{target_version}_current_{db_index.version}"}
-            
-            break
+        skip_reason = _validate_task_relevance(document_id, index_type, target_version, DocumentIndexStatus.CREATING)
+        if skip_reason:
+            return skip_reason
         
         # Convert dict back to structured data
         parsed_data = ParsedDocumentData.from_dict(parsed_data_dict)
@@ -348,30 +363,9 @@ def update_index_task(self, document_id: str, index_type: str, parsed_data_dict:
         logger.info(f"Starting to update {index_type} index for document {document_id} (v{target_version})")
         
         # Double-check: verify task is still valid
-        for session in get_sync_session():
-            stmt = select(DocumentIndex).where(
-                and_(
-                    DocumentIndex.document_id == document_id,
-                    DocumentIndex.index_type == DocumentIndexType(index_type)
-                )
-            )
-            result = session.execute(stmt)
-            db_index = result.scalar_one_or_none()
-            
-            # Validate task is still relevant
-            if not db_index:
-                logger.info(f"Index record not found for {document_id}:{index_type}, skipping task")
-                return {"status": "skipped", "reason": "index_record_not_found"}
-                
-            if db_index.status != DocumentIndexStatus.CREATING:
-                logger.info(f"Index status changed for {document_id}:{index_type}, current: {db_index.status}, skipping task")
-                return {"status": "skipped", "reason": f"status_changed_to_{db_index.status}"}
-                
-            if target_version and db_index.version != target_version:
-                logger.info(f"Version mismatch for {document_id}:{index_type}, expected: {target_version}, current: {db_index.version}, skipping task")
-                return {"status": "skipped", "reason": f"version_mismatch_expected_{target_version}_current_{db_index.version}"}
-            
-            break
+        skip_reason = _validate_task_relevance(document_id, index_type, target_version, DocumentIndexStatus.CREATING)
+        if skip_reason:
+            return skip_reason
         
         # Convert dict back to structured data
         parsed_data = ParsedDocumentData.from_dict(parsed_data_dict)
@@ -429,15 +423,16 @@ def trigger_create_indexes_workflow(self, parsed_data_dict: dict, document_id: s
             for index_type in index_types
         ])
         
-        # Create chord: parallel tasks + completion notification
+        # Create a chord that executes the completion notification after all create tasks are done
         workflow_chord = chord(
             parallel_index_tasks,
-            notify_workflow_complete.s(document_id, "create", index_types)
+            notify_workflow_complete.s(document_id, IndexAction.CREATE, index_types)
         )
 
-        chord_async_result = workflow_chord.apply_async()
+        # Execute the chord
+        workflow_chord.apply_async()
         
-        return chord_async_result
+        return workflow_chord
         
     except Exception as e:
         error_msg = f"Failed to trigger create indexes workflow: {str(e)}"
@@ -466,15 +461,16 @@ def trigger_delete_indexes_workflow(self, document_id: str, index_types: List[st
             for index_type in index_types
         ])
         
-        # Create chord: parallel tasks + completion notification
+        # Create a chord that executes the completion notification after all delete tasks are done
         workflow_chord = chord(
             parallel_delete_tasks,
-            notify_workflow_complete.s(document_id, "delete", index_types)
+            notify_workflow_complete.s(document_id, IndexAction.DELETE, index_types)
         )
 
-        chord_async_result = workflow_chord.apply_async()
+        # Execute the chord
+        workflow_chord.apply_async()
 
-        return chord_async_result
+        return workflow_chord
         
     except Exception as e:
         error_msg = f"Failed to trigger delete indexes workflow: {str(e)}"
@@ -507,7 +503,7 @@ def trigger_update_indexes_workflow(self, parsed_data_dict: dict, document_id: s
         # Create chord: parallel tasks + completion notification
         workflow_chord = chord(
             parallel_update_tasks,
-            notify_workflow_complete.s(document_id, "update", index_types)
+            notify_workflow_complete.s(document_id, IndexAction.UPDATE, index_types)
         )
         
         chord_async_result = workflow_chord.apply_async()

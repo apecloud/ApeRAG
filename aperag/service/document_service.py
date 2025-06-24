@@ -250,111 +250,67 @@ class DocumentService:
         async for session in get_async_session():
             return await self.build_document_response(document, session)
 
-    async def delete_document(self, user: str, collection_id: str, document_id: str) -> Optional[view_models.Document]:
-        """Delete document by ID (idempotent operation)
-
-        Returns the deleted document or None if already deleted/not found
+    async def _delete_document(self, session: AsyncSession, user: str, collection_id: str, document_id: str):
         """
+        Core logic to delete a single document and its associated resources.
+        This method is designed to be called within a transaction.
+        """
+        # Validate document existence and ownership
         document = await self.db_ops.query_document(user, collection_id, document_id)
         if document is None:
-            # Document already deleted or never existed - idempotent operation
-            return None
+            # Silently ignore if document not found, as it might have been deleted by another process
+            logger.warning(f"Document {document_id} not found for deletion, skipping.")
+            return
 
-        # Delete document and indexes atomically in a single transaction
-        async def _delete_document_atomically(session):
-            from sqlalchemy import select
+        # Use index manager to mark all related indexes for deletion
+        await document_index_manager.delete_document_indexes(
+            document_id=document.id, index_types=None, session=session
+        )
 
-            from aperag.db.models import Document, DocumentStatus, utc_now
+        # Delete from object store
+        obj_store = get_object_store()
+        metadata = json.loads(document.doc_metadata) if document.doc_metadata else {}
+        if object_path := metadata.get("object_path"):
+            try:
+                # Use delete_objects_by_prefix to remove all related files (original, chunks, etc.)
+                await sync_to_async(obj_store.delete_objects_by_prefix)(document.object_store_base_path())
+                logger.info(f"Deleted objects from object store with prefix: {document.object_store_base_path()}")
+            except Exception as e:
+                logger.warning(f"Failed to delete objects for document {document.id} from object store: {e}")
 
-            # Get and delete document
-            stmt = select(Document).where(
-                Document.id == document_id,
-                Document.collection_id == collection_id,
-                Document.user == user,
-                Document.status != DocumentStatus.DELETED,
-            )
-            result = await session.execute(stmt)
-            doc_to_delete = result.scalars().first()
+        # Delete the document record from the database
+        await session.delete(document)
+        await session.flush()
+        logger.info(f"Successfully marked document {document.id} and its indexes for deletion.")
 
-            if not doc_to_delete:
-                return None
+        return document
 
-            # Soft delete document
-            doc_to_delete.status = DocumentStatus.DELETED
-            doc_to_delete.gmt_deleted = utc_now()
-            session.add(doc_to_delete)
-            await session.flush()
-            await session.refresh(doc_to_delete)
+    async def delete_document(self, user: str, collection_id: str, document_id: str) -> dict:
+        """Delete a single document and trigger index reconciliation."""
 
-            # Mark index specs for deletion
-            await document_index_manager.delete_document_indexes(session, document_id)
-
-            # Build response object
-            return await self.build_document_response(doc_to_delete, session)
+        async def _delete_document_atomically(session: AsyncSession):
+            return await self._delete_document(session, user, collection_id, document_id)
 
         result = await self.db_ops.execute_with_transaction(_delete_document_atomically)
 
-        if result:
-            # Delete object storage files after successful database transaction
-            obj_store = get_object_store()
-            try:
-                await sync_to_async(obj_store.delete_objects_by_prefix)(f"{document.object_store_base_path()}/")
-            except Exception as e:
-                logger.warning(f"Failed to delete object storage files for document {document_id}: {e}")
-
-            # Trigger index reconciliation after successful document deletion
-            _trigger_index_reconciliation()
-
-            return result
-
-        return None
+        # Trigger reconciliation to process the deletion
+        _trigger_index_reconciliation()
+        return result
 
     async def delete_documents(self, user: str, collection_id: str, document_ids: List[str]) -> dict:
-        # Delete documents and indexes atomically in a single transaction
-        async def _delete_documents_atomically(session):
-            from sqlalchemy import select
+        """Delete multiple documents and trigger index reconciliation."""
 
-            from aperag.db.models import Document, DocumentStatus, utc_now
+        async def _delete_documents_atomically(session: AsyncSession):
+            deleted_ids = []
+            for doc_id in document_ids:
+                await self._delete_document(session, user, collection_id, doc_id)
+                deleted_ids.append(doc_id)
+            return {"deleted_ids": deleted_ids, "status": "success"}
 
-            # Get documents to delete
-            stmt = select(Document).where(
-                Document.id.in_(document_ids),
-                Document.collection_id == collection_id,
-                Document.user == user,
-                Document.status != DocumentStatus.DELETED,
-            )
-            result = await session.execute(stmt)
-            documents_to_delete = result.scalars().all()
+        result = await self.db_ops.execute_with_transaction(_delete_documents_atomically)
 
-            if not documents_to_delete:
-                return [], list(document_ids)
-
-            # Soft delete documents
-            success_ids = []
-            for doc in documents_to_delete:
-                doc.status = DocumentStatus.DELETED
-                doc.gmt_deleted = utc_now()
-                session.add(doc)
-                success_ids.append(doc.id)
-
-            await session.flush()
-
-            # Delete indexes for all successful deletions
-            for doc_id in success_ids:
-                await document_index_manager.delete_document_indexes(session, doc_id)
-
-            # Calculate failed IDs
-            failed_ids = list(set(document_ids) - set(success_ids))
-            return success_ids, failed_ids
-
-        success_ids, failed_ids = await self.db_ops.execute_with_transaction(_delete_documents_atomically)
-
-        result = {"success": success_ids, "failed": failed_ids}
-
-        # Trigger index reconciliation after successful batch document deletion
-        if result.get("success"):  # Only trigger if at least one document was deleted successfully
-            _trigger_index_reconciliation()
-
+        # Trigger reconciliation to process deletions
+        _trigger_index_reconciliation()
         return result
 
     async def rebuild_document_indexes(

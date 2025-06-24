@@ -29,6 +29,7 @@ from aperag.db.models import (
 )
 from aperag.tasks.scheduler import TaskScheduler, create_task_scheduler
 from aperag.utils.utils import utc_now
+from aperag.utils.constant import IndexAction
 
 logger = logging.getLogger(__name__)
 
@@ -71,30 +72,30 @@ class DocumentIndexReconciler:
         """
         from collections import defaultdict
 
-        operations = defaultdict(lambda: {"create": [], "update": [], "delete": []})
+        operations = defaultdict(lambda: {IndexAction.CREATE: [], IndexAction.UPDATE: [], IndexAction.DELETE: []})
 
         conditions = {
-            "create": and_(
+            IndexAction.CREATE: and_(
                 DocumentIndex.status == DocumentIndexStatus.PENDING,
                 DocumentIndex.observed_version < DocumentIndex.version,
                 DocumentIndex.version == 1,
             ),
-            "update": and_(
+            IndexAction.UPDATE: and_(
                 DocumentIndex.status == DocumentIndexStatus.PENDING,
                 DocumentIndex.observed_version < DocumentIndex.version,
                 DocumentIndex.version > 1,
             ),
-            "delete": and_(
+            IndexAction.DELETE: and_(
                 DocumentIndex.status == DocumentIndexStatus.DELETING,
             ),
         }
         
-        for operation_type, condition in conditions.items():
+        for action, condition in conditions.items():
             stmt = select(DocumentIndex).where(condition)
             result = session.execute(stmt)
             indexes = result.scalars().all()
             for index in indexes:
-                operations[index.document_id][operation_type].append(index)
+                operations[index.document_id][action].append(index)
 
         return operations
 
@@ -106,9 +107,9 @@ class DocumentIndexReconciler:
             # Collect indexes for this document that need claiming
             indexes_to_claim = []
 
-            for operation_type, doc_indexes in operations.items():
+            for action, doc_indexes in operations.items():
                 for doc_index in doc_indexes:
-                    indexes_to_claim.append((doc_index.id, doc_index.index_type, operation_type))
+                    indexes_to_claim.append((doc_index.id, doc_index.index_type, action))
 
             # Atomically claim the indexes for this document
             claimed_indexes = self._claim_document_indexes(session, document_id, indexes_to_claim)
@@ -129,10 +130,10 @@ class DocumentIndexReconciler:
         claimed_indexes = []
         
         try:
-            for index_id, index_type, operation_type in indexes_to_claim:
-                if operation_type in ["create", "update"]:
+            for index_id, index_type, action in indexes_to_claim:
+                if action in [IndexAction.CREATE, IndexAction.UPDATE]:
                     target_state = DocumentIndexStatus.CREATING
-                elif operation_type == "delete":
+                elif action == IndexAction.DELETE:
                     target_state = DocumentIndexStatus.DELETION_IN_PROGRESS
                 else:
                     continue
@@ -146,21 +147,21 @@ class DocumentIndexReconciler:
                     continue
 
                 # Build appropriate claiming conditions based on operation type
-                if operation_type == "create":
+                if action == IndexAction.CREATE:
                     claiming_conditions = [
                         DocumentIndex.id == index_id,
                         DocumentIndex.status == DocumentIndexStatus.PENDING,
                         DocumentIndex.observed_version < DocumentIndex.version,
                         DocumentIndex.version == 1,
                     ]
-                elif operation_type == "update":
+                elif action == IndexAction.UPDATE:
                     claiming_conditions = [
                         DocumentIndex.id == index_id,
                         DocumentIndex.status == DocumentIndexStatus.PENDING,
                         DocumentIndex.observed_version < DocumentIndex.version,
                         DocumentIndex.version > 1,
                     ]
-                elif operation_type == "delete":
+                elif action == IndexAction.DELETE:
                     claiming_conditions = [
                         DocumentIndex.id == index_id,
                         DocumentIndex.status == DocumentIndexStatus.DELETING,
@@ -180,10 +181,10 @@ class DocumentIndexReconciler:
                         'index_id': index_id,
                         'document_id': document_id,
                         'index_type': index_type,
-                        'operation_type': operation_type,
-                        'target_version': current_index.version if operation_type in ["create", "update"] else None,
+                        'action': action,
+                        'target_version': current_index.version if action in [IndexAction.CREATE, IndexAction.UPDATE] else None,
                     })
-                    logger.debug(f"Claimed index {index_id} for document {document_id} ({operation_type})")
+                    logger.debug(f"Claimed index {index_id} for document {document_id} ({action})")
                 else:
                     logger.debug(f"Could not claim index {index_id} for document {document_id}")
 
@@ -202,12 +203,12 @@ class DocumentIndexReconciler:
         # Group by operation type to batch operations
         operations_by_type = defaultdict(list)
         for claimed_index in claimed_indexes:
-            operation_type = claimed_index['operation_type']
-            operations_by_type[operation_type].append(claimed_index)
+            action = claimed_index['action']
+            operations_by_type[action].append(claimed_index)
 
         # Process create operations as a batch
-        if "create" in operations_by_type:
-            create_indexes = operations_by_type["create"]
+        if IndexAction.CREATE in operations_by_type:
+            create_indexes = operations_by_type[IndexAction.CREATE]
             create_types = [claimed_index['index_type'] for claimed_index in create_indexes]
             context = {}
             
@@ -227,8 +228,8 @@ class DocumentIndexReconciler:
             logger.info(f"Scheduled create task for document {document_id}, types: {create_types}")
         
         # Process update operations as a batch
-        if "update" in operations_by_type:
-            update_indexes = operations_by_type["update"]
+        if IndexAction.UPDATE in operations_by_type:
+            update_indexes = operations_by_type[IndexAction.UPDATE]
             update_types = [claimed_index['index_type'] for claimed_index in update_indexes]
             context = {}
 
@@ -248,8 +249,8 @@ class DocumentIndexReconciler:
             logger.info(f"Scheduled update task for document {document_id}, types: {update_types}")
 
         # Process delete operations as a batch
-        if "delete" in operations_by_type:
-            delete_indexes = operations_by_type["delete"]
+        if IndexAction.DELETE in operations_by_type:
+            delete_indexes = operations_by_type[IndexAction.DELETE]
             delete_types = [claimed_index['index_type'] for claimed_index in delete_indexes]
             
             task_id = self.task_scheduler.schedule_delete_index(
