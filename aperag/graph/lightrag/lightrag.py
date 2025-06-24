@@ -940,6 +940,7 @@ class LightRAG:
                     elif len(new_chunk_ids) != len(old_chunk_ids):
                         # Entity has some remaining chunks, update chunk_ids array
                         entity_data["chunk_ids"] = list(new_chunk_ids)
+                        entity_data["source_id"] = GRAPH_FIELD_SEP.join(new_chunk_ids)
                         entities_to_update_in_vdb[entity_id] = entity_data
                         logger.debug(
                             f"Entity {entity_data.get('entity_name')} chunk_ids updated: {len(old_chunk_ids)} -> {len(new_chunk_ids)}"
@@ -971,6 +972,7 @@ class LightRAG:
                     elif len(new_chunk_ids) != len(old_chunk_ids):
                         # Relationship has some remaining chunks, update chunk_ids array
                         rel_data["chunk_ids"] = list(new_chunk_ids)
+                        rel_data["source_id"] = GRAPH_FIELD_SEP.join(new_chunk_ids)
                         relationships_to_update_in_vdb[rel_id] = rel_data
                         logger.debug(
                             f"Relationship {rel_data.get('src_id')}-{rel_data.get('tgt_id')} chunk_ids updated: {len(old_chunk_ids)} -> {len(new_chunk_ids)}"
