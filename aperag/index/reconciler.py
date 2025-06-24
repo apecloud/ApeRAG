@@ -24,9 +24,8 @@ from aperag.db.models import (
     Document,
     DocumentIndex,
     DocumentIndexType,
+    DocumentIndexStatus,
     DocumentStatus,
-    IndexActualState,
-    IndexDesiredState,
 )
 from aperag.tasks.scheduler import TaskScheduler, create_task_scheduler
 from aperag.utils.utils import utc_now
@@ -34,98 +33,29 @@ from aperag.utils.utils import utc_now
 logger = logging.getLogger(__name__)
 
 
-class BackendIndexReconciler:
-    """Simple reconciler for document indexes (backend chain)"""
+class DocumentIndexReconciler:
+    """Reconciler for document indexes using single status model"""
 
     def __init__(self, task_scheduler: Optional[TaskScheduler] = None, scheduler_type: str = "celery"):
         self.task_scheduler = task_scheduler or create_task_scheduler(scheduler_type)
 
-    @staticmethod
-    def _get_reconciliation_conditions(operation_type: str, document_ids: List[str] = None):
+    def reconcile_all(self):
         """
-        Get all conditions for indexes that need reconciliation based on operation type.
-        This is the authoritative source for determining which indexes can be processed.
-
-        Args:
-            operation_type: 'create', 'update', or 'delete'
-            document_ids: Optional list of document IDs to filter by
-
-        Returns:
-            List of SQLAlchemy conditions
+        Main reconciliation loop - scan indexes and reconcile differences
+        Groups operations by document and index type for atomic processing
         """
-        if operation_type in ["create", "update"]:
-            conditions = [
-                DocumentIndex.desired_state == IndexDesiredState.PRESENT,
-                # Need reconciliation: either version mismatch or state mismatch
-                or_(
-                    DocumentIndex.observed_version < DocumentIndex.version,
-                    DocumentIndex.actual_state.in_([IndexActualState.ABSENT, IndexActualState.FAILED]),
-                ),
-                # For create/update operations, exclude both CREATING and DELETING states
-                DocumentIndex.actual_state.notin_([IndexActualState.CREATING, IndexActualState.DELETING]),
-            ]
-        elif operation_type == "delete":
-            conditions = [
-                DocumentIndex.desired_state == IndexDesiredState.ABSENT,
-                # Only delete indexes that actually exist or are being created
-                DocumentIndex.actual_state.in_([IndexActualState.CREATING, IndexActualState.PRESENT]),
-                # For delete operations, allow claiming indexes in CREATING state to enable deletion override
-                # Only exclude DELETING state to prevent concurrent deletions
-                DocumentIndex.actual_state != IndexActualState.DELETING,
-            ]
-        else:
-            raise ValueError(f"Unknown operation_type: {operation_type}")
-
-        if document_ids:
-            conditions.append(DocumentIndex.document_id.in_(document_ids))
-
-        return conditions
-
-    def reconcile_all(self, document_ids: List[str] = None):
-        """
-        Main reconciliation loop - scan specs and reconcile differences
-        Groups operations by document to enable batch processing
-
-        Args:
-            document_ids: Optional list of specific document IDs to reconcile. If None, reconcile all.
-        """
-        # Get all indexes that need reconciliation first
-        all_indexes_needing_reconciliation = []
+        # Get all indexes that need reconciliation
         for session in get_sync_session():
-            all_indexes_needing_reconciliation = self._get_indexes_needing_reconciliation(session, document_ids)
-            break  # Only need to query once
+            operations = self._get_indexes_needing_reconciliation(session)
 
-        if not all_indexes_needing_reconciliation:
-            logger.debug("No indexes need reconciliation")
-            return
-
-        # Group by document ID and operation type for batch processing
-        from collections import defaultdict
-
-        doc_operations = defaultdict(lambda: {"create": [], "update": [], "delete": []})
-
-        for doc_index in all_indexes_needing_reconciliation:
-            # Group operations by document and type
-            if doc_index.desired_state == IndexDesiredState.PRESENT:
-                # Check if this is an update (version mismatch with existing index data) or creation
-                if doc_index.index_data and doc_index.observed_version > 0:
-                    # Index has data and was observed before - this is an update
-                    operation_type = "update"
-                else:
-                    # No existing data or never observed - this is a creation
-                    operation_type = "create"
-                doc_operations[doc_index.document_id][operation_type].append(doc_index)
-            elif doc_index.desired_state == IndexDesiredState.ABSENT:
-                doc_operations[doc_index.document_id]["delete"].append(doc_index)
-
-        logger.info(f"Found {len(doc_operations)} documents need to be reconciled")
+        logger.info(f"Found {len(operations)} documents need to be reconciled")
 
         # Process each document with its own transaction
         successful_docs = 0
         failed_docs = 0
-        for document_id, operations in doc_operations.items():
+        for document_id, doc_operations in operations.items():
             try:
-                self._reconcile_single_document(document_id, operations)
+                self._reconcile_single_document(document_id, doc_operations)
                 successful_docs += 1
             except Exception as e:
                 failed_docs += 1
@@ -134,143 +64,199 @@ class BackendIndexReconciler:
 
         logger.info(f"Reconciliation completed: {successful_docs} successful, {failed_docs} failed")
 
-    def _get_indexes_needing_reconciliation(
-        self, session: Session, document_ids: List[str] = None
-    ) -> List[DocumentIndex]:
+    def _get_indexes_needing_reconciliation(self, session: Session) -> List[DocumentIndex]:
         """
         Get all indexes that need reconciliation without modifying their state.
         State modifications will happen in individual document transactions.
         """
-        # Use shared reconciliation conditions
-        create_conditions = self._get_reconciliation_conditions("create", document_ids)
-        delete_conditions = self._get_reconciliation_conditions("delete", document_ids)
+        from collections import defaultdict
 
-        # Query for indexes that need creating
-        create_stmt = select(DocumentIndex).where(and_(*create_conditions))
-        create_result = session.execute(create_stmt)
-        create_indexes = create_result.scalars().all()
+        operations = defaultdict(lambda: {"create": [], "update": [], "delete": []})
 
-        # Query for indexes that need deleting
-        delete_stmt = select(DocumentIndex).where(and_(*delete_conditions))
-        delete_result = session.execute(delete_stmt)
-        delete_indexes = delete_result.scalars().all()
+        conditions = {
+            "create": and_(
+                DocumentIndex.status == DocumentIndexStatus.PENDING,
+                DocumentIndex.observed_version < DocumentIndex.version,
+                DocumentIndex.version == 1,
+            ),
+            "update": and_(
+                DocumentIndex.status == DocumentIndexStatus.PENDING,
+                DocumentIndex.observed_version < DocumentIndex.version,
+                DocumentIndex.version > 1,
+            ),
+            "delete": and_(
+                DocumentIndex.status == DocumentIndexStatus.DELETING,
+            ),
+        }
+        
+        for operation_type, condition in conditions.items():
+            stmt = select(DocumentIndex).where(condition)
+            result = session.execute(stmt)
+            indexes = result.scalars().all()
+            for index in indexes:
+                operations[index.document_id][operation_type].append(index)
 
-        all_indexes = list(create_indexes) + list(delete_indexes)
-        logger.debug(f"Found {len(all_indexes)} indexes needing reconciliation")
-        return all_indexes
+        return operations
 
     def _reconcile_single_document(self, document_id: str, operations: dict):
         """
         Reconcile operations for a single document within its own transaction
         """
         for session in get_sync_session():
-            # Get the specific indexes for this document and claim them atomically
+            # Collect indexes for this document that need claiming
             indexes_to_claim = []
 
-            # Collect indexes for this document that need claiming
             for operation_type, doc_indexes in operations.items():
                 for doc_index in doc_indexes:
-                    indexes_to_claim.append((doc_index.id, operation_type))
+                    indexes_to_claim.append((doc_index.id, doc_index.index_type, operation_type))
 
             # Atomically claim the indexes for this document
-            claimed_successfully = self._claim_document_indexes(session, document_id, indexes_to_claim)
+            claimed_indexes = self._claim_document_indexes(session, document_id, indexes_to_claim)
 
-            if claimed_successfully:
+            if claimed_indexes:
                 # Schedule tasks for successfully claimed indexes
-                self._reconcile_document_operations(document_id, operations)
+                self._reconcile_document_operations(document_id, claimed_indexes)
                 session.commit()
             else:
                 # Some indexes couldn't be claimed (likely already being processed), skip this document
                 logger.debug(f"Skipping document {document_id} - indexes already being processed")
 
-    def _claim_document_indexes(self, session: Session, document_id: str, indexes_to_claim: List[tuple]) -> bool:
+    def _claim_document_indexes(self, session: Session, document_id: str, indexes_to_claim: List[tuple]) -> List[dict]:
         """
         Atomically claim indexes for a document by updating their state.
-        Returns True if all indexes were successfully claimed, False otherwise.
+        Returns list of successfully claimed indexes with their details.
         """
+        claimed_indexes = []
+        
         try:
-            for index_id, operation_type in indexes_to_claim:
+            for index_id, index_type, operation_type in indexes_to_claim:
                 if operation_type in ["create", "update"]:
-                    target_state = IndexActualState.CREATING
+                    target_state = DocumentIndexStatus.CREATING
                 elif operation_type == "delete":
-                    target_state = IndexActualState.DELETING
+                    target_state = DocumentIndexStatus.DELETION_IN_PROGRESS
                 else:
                     continue
 
-                # Try to claim this specific index
-                # Use all reconciliation conditions plus specific index/document filters
-                # This ensures claiming conditions are a superset of reconciliation conditions
-                base_conditions = self._get_reconciliation_conditions(operation_type)
-                where_conditions = [
-                    DocumentIndex.id == index_id,
-                    DocumentIndex.document_id == document_id,
-                ] + base_conditions
+                # Get the current index record to extract version info
+                stmt = select(DocumentIndex).where(DocumentIndex.id == index_id)
+                result = session.execute(stmt)
+                current_index = result.scalar_one_or_none()
+                
+                if not current_index:
+                    continue
 
+                # Build appropriate claiming conditions based on operation type
+                if operation_type == "create":
+                    claiming_conditions = [
+                        DocumentIndex.id == index_id,
+                        DocumentIndex.status == DocumentIndexStatus.PENDING,
+                        DocumentIndex.observed_version < DocumentIndex.version,
+                        DocumentIndex.version == 1,
+                    ]
+                elif operation_type == "update":
+                    claiming_conditions = [
+                        DocumentIndex.id == index_id,
+                        DocumentIndex.status == DocumentIndexStatus.PENDING,
+                        DocumentIndex.observed_version < DocumentIndex.version,
+                        DocumentIndex.version > 1,
+                    ]
+                elif operation_type == "delete":
+                    claiming_conditions = [
+                        DocumentIndex.id == index_id,
+                        DocumentIndex.status == DocumentIndexStatus.DELETING,
+                    ]
+
+                # Try to claim this specific index
                 update_stmt = (
                     update(DocumentIndex)
-                    .where(and_(*where_conditions))
-                    .values(actual_state=target_state, gmt_updated=utc_now(), gmt_last_reconciled=utc_now())
+                    .where(and_(*claiming_conditions))
+                    .values(status=target_state, gmt_updated=utc_now(), gmt_last_reconciled=utc_now())
                 )
 
                 result = session.execute(update_stmt)
-                if result.rowcount == 0:
-                    # This index couldn't be claimed (already being processed)
+                if result.rowcount > 0:
+                    # Successfully claimed this index
+                    claimed_indexes.append({
+                        'index_id': index_id,
+                        'document_id': document_id,
+                        'index_type': index_type,
+                        'operation_type': operation_type,
+                        'target_version': current_index.version if operation_type in ["create", "update"] else None,
+                    })
+                    logger.debug(f"Claimed index {index_id} for document {document_id} ({operation_type})")
+                else:
                     logger.debug(f"Could not claim index {index_id} for document {document_id}")
-                    return False
 
             session.flush()  # Ensure changes are visible
-            return True
+            return claimed_indexes
         except Exception as e:
             logger.error(f"Failed to claim indexes for document {document_id}: {e}")
-            return False
+            return []
 
-    def _reconcile_document_operations(self, document_id: str, operations: dict):
+    def _reconcile_document_operations(self, document_id: str, claimed_indexes: List[dict]):
         """
-        Reconcile operations for a single document, using batch processing when possible
-        States are already updated to CREATING/DELETING before calling this method
+        Reconcile operations for a single document, batching same operation types together
         """
+        from collections import defaultdict
+        
+        # Group by operation type to batch operations
+        operations_by_type = defaultdict(list)
+        for claimed_index in claimed_indexes:
+            operation_type = claimed_index['operation_type']
+            operations_by_type[operation_type].append(claimed_index)
 
-        create_index_types = []
-        for doc_index in operations["create"]:
-            create_index_types.append(doc_index.index_type)
-        if create_index_types:
-            # Add document_id to task for better idempotency checking
-            task_id = f"create_index_{document_id}_{int(time.time())}"
-            self.task_scheduler.schedule_create_index(
-                index_types=create_index_types, document_id=document_id, task_id=task_id
-            )
-            logger.info(
-                f"Scheduled create index task {task_id} for document {document_id} with types {create_index_types}"
-            )
-
-        update_index_types = []
-        for doc_index in operations["update"]:
-            update_index_types.append(doc_index.index_type)
-        if update_index_types:
-            task_id = f"update_index_{document_id}_{int(time.time())}"
-            self.task_scheduler.schedule_update_index(
-                index_types=update_index_types, document_id=document_id, task_id=task_id
-            )
-            logger.info(
-                f"Scheduled update index task {task_id} for document {document_id} with types {update_index_types}"
-            )
-
-        delete_index_types = []
-        for doc_index in operations["delete"]:
-            delete_index_types.append(doc_index.index_type)
-        if delete_index_types:
-            # Use the last index_data for the delete operation
-            index_data = operations["delete"][-1].index_data if operations["delete"] else None
-            task_id = f"delete_index_{document_id}_{int(time.time())}"
-            self.task_scheduler.schedule_delete_index(
-                index_types=delete_index_types,
+        # Process create operations as a batch
+        if "create" in operations_by_type:
+            create_indexes = operations_by_type["create"]
+            create_types = [claimed_index['index_type'] for claimed_index in create_indexes]
+            context = {}
+            
+            for claimed_index in create_indexes:
+                index_type = claimed_index['index_type']
+                target_version = claimed_index.get('target_version')
+                
+                # Store version info in context
+                if target_version is not None:
+                    context[f"{index_type}_version"] = target_version
+            
+            task_id = self.task_scheduler.schedule_create_index(
                 document_id=document_id,
-                index_data=index_data,
-                task_id=task_id,
+                index_types=create_types,
+                context=context
             )
-            logger.info(
-                f"Scheduled delete index task {task_id} for document {document_id} with types {delete_index_types}"
+            logger.info(f"Scheduled create task for document {document_id}, types: {create_types}")
+        
+        # Process update operations as a batch
+        if "update" in operations_by_type:
+            update_indexes = operations_by_type["update"]
+            update_types = [claimed_index['index_type'] for claimed_index in update_indexes]
+            context = {}
+
+            for claimed_index in update_indexes:
+                index_type = claimed_index['index_type']
+                target_version = claimed_index.get('target_version')
+                
+                # Store version info in context
+                if target_version is not None:
+                    context[f"{index_type}_version"] = target_version
+            
+            task_id = self.task_scheduler.schedule_update_index(
+                document_id=document_id,
+                index_types=update_types,
+                context=context
             )
+            logger.info(f"Scheduled update task for document {document_id}, types: {update_types}")
+
+        # Process delete operations as a batch
+        if "delete" in operations_by_type:
+            delete_indexes = operations_by_type["delete"]
+            delete_types = [claimed_index['index_type'] for claimed_index in delete_indexes]
+            
+            task_id = self.task_scheduler.schedule_delete_index(
+                document_id=document_id,
+                index_types=delete_types
+            )
+            logger.info(f"Scheduled delete task for document {document_id}, types: {delete_types}")
 
 
 # Index task completion callbacks
@@ -288,22 +274,23 @@ class IndexTaskCallbacks:
         session.add(document)
 
     @staticmethod
-    def on_index_created(document_id: str, index_type: str, index_data: str = None):
-        """Called when index creation succeeds"""
+    def on_index_created(document_id: str, index_type: str, target_version: int, index_data: str = None):
+        """Called when index creation/update succeeds"""
         for session in get_sync_session():
-            # Use atomic update with state validation
+            # Use atomic update with version validation
             update_stmt = (
                 update(DocumentIndex)
                 .where(
                     and_(
                         DocumentIndex.document_id == document_id,
                         DocumentIndex.index_type == DocumentIndexType(index_type),
-                        DocumentIndex.actual_state == IndexActualState.CREATING,  # Only allow transition from CREATING
+                        DocumentIndex.status == DocumentIndexStatus.CREATING,
+                        DocumentIndex.version == target_version,  # Critical: validate version
                     )
                 )
                 .values(
-                    actual_state=IndexActualState.PRESENT,
-                    observed_version=DocumentIndex.version,  # Mark as processed
+                    status=DocumentIndexStatus.ACTIVE,
+                    observed_version=target_version,  # Mark this version as processed
                     index_data=index_data,
                     error_message=None,
                     gmt_updated=utc_now(),
@@ -314,11 +301,11 @@ class IndexTaskCallbacks:
             result = session.execute(update_stmt)
             if result.rowcount > 0:
                 IndexTaskCallbacks._update_document_status(document_id, session)
-                logger.info(f"{index_type} index creation completed for document {document_id}")
+                logger.info(f"{index_type} index creation completed for document {document_id} (v{target_version})")
                 session.commit()
             else:
                 logger.warning(
-                    f"Index creation callback ignored for document {document_id} type {index_type} - not in CREATING state"
+                    f"Index creation callback ignored for document {document_id} type {index_type} v{target_version} - not in expected state"
                 )
                 session.rollback()
 
@@ -333,12 +320,12 @@ class IndexTaskCallbacks:
                     and_(
                         DocumentIndex.document_id == document_id,
                         DocumentIndex.index_type == DocumentIndexType(index_type),
-                        # Only allow transition from CREATING or DELETING states
-                        DocumentIndex.actual_state.in_([IndexActualState.CREATING, IndexActualState.DELETING]),
+                        # Allow transition from any in-progress state
+                        DocumentIndex.status.in_([DocumentIndexStatus.CREATING, DocumentIndexStatus.DELETION_IN_PROGRESS]),
                     )
                 )
                 .values(
-                    actual_state=IndexActualState.FAILED,
+                    status=DocumentIndexStatus.FAILED,
                     error_message=error_message,
                     gmt_updated=utc_now(),
                     gmt_last_reconciled=utc_now(),
@@ -352,46 +339,40 @@ class IndexTaskCallbacks:
                 session.commit()
             else:
                 logger.warning(
-                    f"Index failure callback ignored for document {document_id} type {index_type} - not in CREATING or DELETING state"
+                    f"Index failure callback ignored for document {document_id} type {index_type} - not in expected state"
                 )
                 session.rollback()
 
     @staticmethod
     def on_index_deleted(document_id: str, index_type: str):
-        """Called when index deletion succeeds"""
+        """Called when index deletion succeeds - hard delete the record"""
         for session in get_sync_session():
-            # Use atomic update with state validation
-            update_stmt = (
-                update(DocumentIndex)
+            # Delete the record entirely
+            from sqlalchemy import delete
+            
+            delete_stmt = (
+                delete(DocumentIndex)
                 .where(
                     and_(
                         DocumentIndex.document_id == document_id,
                         DocumentIndex.index_type == DocumentIndexType(index_type),
-                        DocumentIndex.actual_state == IndexActualState.DELETING,  # Only allow transition from DELETING
+                        DocumentIndex.status == DocumentIndexStatus.DELETION_IN_PROGRESS,
                     )
-                )
-                .values(
-                    actual_state=IndexActualState.ABSENT,
-                    observed_version=DocumentIndex.version,  # Mark as processed
-                    index_data=None,
-                    error_message=None,
-                    gmt_updated=utc_now(),
-                    gmt_last_reconciled=utc_now(),
                 )
             )
 
-            result = session.execute(update_stmt)
+            result = session.execute(delete_stmt)
             if result.rowcount > 0:
                 IndexTaskCallbacks._update_document_status(document_id, session)
-                logger.info(f"{index_type} index deletion completed for document {document_id}")
+                logger.info(f"{index_type} index deleted for document {document_id}")
                 session.commit()
             else:
                 logger.warning(
-                    f"Index deletion callback ignored for document {document_id} type {index_type} - not in DELETING state"
+                    f"Index deletion callback ignored for document {document_id} type {index_type} - not in expected state"
                 )
                 session.rollback()
 
 
-# Global instance
-index_reconciler = BackendIndexReconciler()
+# Global instances
+index_reconciler = DocumentIndexReconciler()
 index_task_callbacks = IndexTaskCallbacks()

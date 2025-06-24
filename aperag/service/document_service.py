@@ -80,64 +80,44 @@ class DocumentService:
     async def build_document_response(
         self, document: db_models.Document, session: AsyncSession
     ) -> view_models.Document:
-        """Build Document response object for API return."""
-        # Get index status from new tables
-        index_status_info = await document_index_manager.get_document_index_status(session, document.id)
-
-        # Convert new format to old API format for backward compatibility
-        indexes = index_status_info.get("indexes", {})
-
-        # Map new states to old enum values for API compatibility
-        def map_state_to_old_enum(actual_state: str):
-            if actual_state == "absent":
-                return "SKIPPED"
-            elif actual_state == "creating":
-                return "RUNNING"
-            elif actual_state == "present":
-                return "COMPLETE"
-            elif actual_state == "failed":
-                return "FAILED"
-            else:
-                return "PENDING"
-
-        # Get individual index update times from DocumentIndex table
+        """Build Document response object for API return using new status model."""
         from sqlalchemy import select
 
         from aperag.db.models import DocumentIndex, DocumentIndexType
-
-        vector_updated = None
-        fulltext_updated = None
-        graph_updated = None
-
-        # Query for each index type's update time
-        for index_type, var_name in [
-            (DocumentIndexType.VECTOR, "vector_updated"),
-            (DocumentIndexType.FULLTEXT, "fulltext_updated"),
-            (DocumentIndexType.GRAPH, "graph_updated"),
-        ]:
-            stmt = select(DocumentIndex).where(
-                DocumentIndex.document_id == document.id, DocumentIndex.index_type == index_type
+        # Get all document indexes for status calculation
+        document_indexes = await session.execute(
+            select(DocumentIndex).where(
+                DocumentIndex.document_id == document.id,
+                DocumentIndex.status != db_models.DocumentIndexStatus.DELETING,
+                DocumentIndex.status != db_models.DocumentIndexStatus.DELETION_IN_PROGRESS,
             )
-            result = await session.execute(stmt)
-            index_record = result.scalar_one_or_none()
-            if index_record:
-                if var_name == "vector_updated":
-                    vector_updated = index_record.gmt_updated
-                elif var_name == "fulltext_updated":
-                    fulltext_updated = index_record.gmt_updated
-                elif var_name == "graph_updated":
-                    graph_updated = index_record.gmt_updated
+        )
+        indexes = document_indexes.scalars().all()
 
-        return Document(
+        # Map index states to API response format
+        index_status = {}
+        index_updated = {}
+        
+        # Initialize all types as SKIPPED (when no record exists)
+        all_types = [db_models.DocumentIndexType.VECTOR, db_models.DocumentIndexType.FULLTEXT, db_models.DocumentIndexType.GRAPH]
+        for index_type in all_types:
+            index_status[index_type] = "SKIPPED"
+        
+        # Update with actual states from database
+        for index in indexes:
+            index_status[index.index_type] = index.status
+            index_updated[index.index_type] = index.gmt_updated
+
+        return view_models.Document(
             id=document.id,
             name=document.name,
             status=document.status,
-            vector_index_status=map_state_to_old_enum(indexes.get("VECTOR", {}).get("actual_state", "absent")),
-            fulltext_index_status=map_state_to_old_enum(indexes.get("FULLTEXT", {}).get("actual_state", "absent")),
-            graph_index_status=map_state_to_old_enum(indexes.get("GRAPH", {}).get("actual_state", "absent")),
-            vector_index_updated=vector_updated,
-            fulltext_index_updated=fulltext_updated,
-            graph_index_updated=graph_updated,
+            vector_index_status=index_status.get(db_models.DocumentIndexType.VECTOR, "SKIPPED"),
+            fulltext_index_status=index_status.get(db_models.DocumentIndexType.FULLTEXT, "SKIPPED"),
+            graph_index_status=index_status.get(db_models.DocumentIndexType.GRAPH, "SKIPPED"),
+            vector_index_updated=index_updated.get(db_models.DocumentIndexType.VECTOR, None),
+            fulltext_index_updated=index_updated.get(db_models.DocumentIndexType.FULLTEXT, None),
+            graph_index_updated=index_updated.get(db_models.DocumentIndexType.GRAPH, None),
             size=document.size,
             created=document.gmt_created,
             updated=document.gmt_updated,
@@ -226,8 +206,12 @@ class DocumentService:
                     if collection_config.get("enable_knowledge_graph", False):
                         index_types.append(db_models.DocumentIndexType.GRAPH)
 
+                    # Use index manager to create indexes with new status model
                     await document_index_manager.create_document_indexes(
-                        session, document_instance.id, user, index_types
+                        document_id=document_instance.id,
+                        index_types=index_types,
+                        user=user,
+                        session=session
                     )
 
                     # Build response object

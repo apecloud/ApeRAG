@@ -14,29 +14,34 @@ document:
         - FAILED
         - DELETING
         - DELETED
-        - WARNING
     vector_index_status:
       type: string
       enum:
         - PENDING
-        - RUNNING
-        - COMPLETE
+        - CREATING
+        - ACTIVE
+        - DELETING
+        - DELETING_IN_PROGRESS
         - FAILED
         - SKIPPED
     fulltext_index_status:
       type: string
       enum:
         - PENDING
-        - RUNNING
-        - COMPLETE
+        - CREATING
+        - ACTIVE
+        - DELETING
+        - DELETING_IN_PROGRESS
         - FAILED
         - SKIPPED
     graph_index_status:
       type: string
       enum:
         - PENDING
-        - RUNNING
-        - COMPLETE
+        - CREATING
+        - ACTIVE
+        - DELETING
+        - DELETING_IN_PROGRESS
         - FAILED
         - SKIPPED
     vector_index_updated:

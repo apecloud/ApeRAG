@@ -1,8 +1,8 @@
-"""Initialize model configurations data
+"""empty message
 
-Revision ID: dc0829e062eb
-Revises: eb8aa708478f
-Create Date: 2025-06-24 09:30:16.549135
+Revision ID: 66b96592c84a
+Revises: 850b2c5dc08f
+Create Date: 2025-06-24 13:26:01.031627
 
 """
 from typing import Sequence, Union
@@ -12,12 +12,12 @@ import sqlalchemy as sa
 
 from aperag.migration.utils import execute_sql_file
 
+
 # revision identifiers, used by Alembic.
-revision: str = 'dc0829e062eb'
-down_revision: Union[str, None] = 'eb8aa708478f'
+revision: str = '66b96592c84a'
+down_revision: Union[str, None] = '850b2c5dc08f'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
 
 def upgrade() -> None:
     """Initialize model configurations data."""

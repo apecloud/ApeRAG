@@ -128,10 +128,19 @@ class BaseIndexTask(Task):
         try:
             from aperag.index.reconciler import index_task_callbacks
             index_data_json = json.dumps(index_data) if index_data else None
-            index_task_callbacks.on_index_created(document_id, index_type, index_data_json)
+            index_task_callbacks.on_index_created(document_id, index_type, 1, index_data_json)  # Default version 1 for backward compatibility
             logger.info(f"Index success callback executed for {index_type} index of document {document_id}")
         except Exception as e:
             logger.warning(f"Failed to execute index success callback for {index_type} of {document_id}: {e}", exc_info=True)
+
+    def _handle_index_success_with_version(self, document_id: str, index_type: str, target_version: int, index_data: dict = None):
+        try:
+            from aperag.index.reconciler import index_task_callbacks
+            index_data_json = json.dumps(index_data) if index_data else None
+            index_task_callbacks.on_index_created(document_id, index_type, target_version, index_data_json)
+            logger.info(f"Index success callback executed for {index_type} index of document {document_id} (v{target_version})")
+        except Exception as e:
+            logger.warning(f"Failed to execute index success callback for {index_type} of {document_id} v{target_version}: {e}", exc_info=True)
 
     def _handle_index_deletion_success(self, document_id: str, index_type: str):
         try:
@@ -176,20 +185,55 @@ def parse_document_task(self, document_id: str) -> dict:
 
 
 @current_app.task(bind=True, base=BaseIndexTask, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3, 'countdown': 60})
-def create_index_task(self, document_id: str, index_type: str, parsed_data_dict: dict) -> dict:
+def create_index_task(self, document_id: str, index_type: str, parsed_data_dict: dict, context: dict = None) -> dict:
     """
-    Create a single index for a document
+    Create a single index for a document with distributed locking
     
     Args:
         document_id: Document ID to process
         index_type: Type of index to create ('vector', 'fulltext', 'graph')
         parsed_data_dict: Serialized ParsedDocumentData from parse_document_task
+        context: Task context including index version
         
     Returns:
         Serialized IndexTaskResult
     """
+    from aperag.db.models import DocumentIndex, DocumentIndexType, DocumentIndexStatus
+    from aperag.config import get_sync_session
+    from sqlalchemy import select, and_
+    
+    # Extract target version from context
+    context = context or {}
+    target_version = context.get(f'{index_type}_version')
+        
     try:
-        logger.info(f"Starting to create {index_type} index for document {document_id}")
+        logger.info(f"Starting to create {index_type} index for document {document_id} (v{target_version})")
+        
+        # Double-check: verify task is still valid
+        for session in get_sync_session():
+            stmt = select(DocumentIndex).where(
+                and_(
+                    DocumentIndex.document_id == document_id,
+                    DocumentIndex.index_type == DocumentIndexType(index_type)
+                )
+            )
+            result = session.execute(stmt)
+            db_index = result.scalar_one_or_none()
+            
+            # Validate task is still relevant
+            if not db_index:
+                logger.info(f"Index record not found for {document_id}:{index_type}, skipping task")
+                return {"status": "skipped", "reason": "index_record_not_found"}
+                
+            if db_index.status != DocumentIndexStatus.CREATING:
+                logger.info(f"Index status changed for {document_id}:{index_type}, current: {db_index.status}, skipping task")
+                return {"status": "skipped", "reason": f"status_changed_to_{db_index.status}"}
+                
+            if target_version and db_index.version != target_version:
+                logger.info(f"Version mismatch for {document_id}:{index_type}, expected: {target_version}, current: {db_index.version}, skipping task")
+                return {"status": "skipped", "reason": f"version_mismatch_expected_{target_version}_current_{db_index.version}"}
+            
+            break
         
         # Convert dict back to structured data
         parsed_data = ParsedDocumentData.from_dict(parsed_data_dict)
@@ -203,9 +247,9 @@ def create_index_task(self, document_id: str, index_type: str, parsed_data_dict:
             logger.error(error_msg)
             raise Exception(error_msg)
         
-        # Handle success callback
-        logger.info(f"Successfully created {index_type} index for document {document_id}")
-        self._handle_index_success(document_id, index_type, result.data)
+        # Handle success callback with version validation
+        logger.info(f"Successfully created {index_type} index for document {document_id} (v{target_version})")
+        self._handle_index_success_with_version(document_id, index_type, target_version, result.data)
         
         return result.to_dict()
         
@@ -232,8 +276,34 @@ def delete_index_task(self, document_id: str, index_type: str) -> dict:
     Returns:
         Serialized IndexTaskResult
     """
+    from aperag.db.models import DocumentIndex, DocumentIndexType, DocumentIndexStatus
+    from aperag.config import get_sync_session
+    from sqlalchemy import select, and_
+    
     try:
         logger.info(f"Starting to delete {index_type} index for document {document_id}")
+        
+        # Double-check: verify task is still valid
+        for session in get_sync_session():
+            stmt = select(DocumentIndex).where(
+                and_(
+                    DocumentIndex.document_id == document_id,
+                    DocumentIndex.index_type == DocumentIndexType(index_type)
+                )
+            )
+            result = session.execute(stmt)
+            db_index = result.scalar_one_or_none()
+            
+            # Validate task is still relevant
+            if not db_index:
+                logger.info(f"Index record not found for {document_id}:{index_type}, already deleted")
+                return {"status": "skipped", "reason": "index_record_not_found"}
+                
+            if db_index.status != DocumentIndexStatus.DELETION_IN_PROGRESS:
+                logger.info(f"Index status changed for {document_id}:{index_type}, current: {db_index.status}, skipping task")
+                return {"status": "skipped", "reason": f"status_changed_to_{db_index.status}"}
+            
+            break
         
         # Execute index deletion
         result = document_index_task.delete_index(document_id, index_type)
@@ -262,20 +332,55 @@ def delete_index_task(self, document_id: str, index_type: str) -> dict:
 
 
 @current_app.task(bind=True, base=BaseIndexTask, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3, 'countdown': 60})
-def update_index_task(self, document_id: str, index_type: str, parsed_data_dict: dict) -> dict:
+def update_index_task(self, document_id: str, index_type: str, parsed_data_dict: dict, context: dict = None) -> dict:
     """
-    Update a single index for a document
+    Update a single index for a document with distributed locking
     
     Args:
         document_id: Document ID to process
         index_type: Type of index to update ('vector', 'fulltext', 'graph')
         parsed_data_dict: Serialized ParsedDocumentData from parse_document_task
+        context: Task context including index version
         
     Returns:
         Serialized IndexTaskResult
     """
+    from aperag.db.models import DocumentIndex, DocumentIndexType, DocumentIndexStatus
+    from aperag.config import get_sync_session
+    from sqlalchemy import select, and_
+    
+    # Extract target version from context
+    context = context or {}
+    target_version = context.get(f'{index_type}_version')
+
     try:
-        logger.info(f"Starting to update {index_type} index for document {document_id}")
+        logger.info(f"Starting to update {index_type} index for document {document_id} (v{target_version})")
+        
+        # Double-check: verify task is still valid
+        for session in get_sync_session():
+            stmt = select(DocumentIndex).where(
+                and_(
+                    DocumentIndex.document_id == document_id,
+                    DocumentIndex.index_type == DocumentIndexType(index_type)
+                )
+            )
+            result = session.execute(stmt)
+            db_index = result.scalar_one_or_none()
+            
+            # Validate task is still relevant
+            if not db_index:
+                logger.info(f"Index record not found for {document_id}:{index_type}, skipping task")
+                return {"status": "skipped", "reason": "index_record_not_found"}
+                
+            if db_index.status != DocumentIndexStatus.CREATING:
+                logger.info(f"Index status changed for {document_id}:{index_type}, current: {db_index.status}, skipping task")
+                return {"status": "skipped", "reason": f"status_changed_to_{db_index.status}"}
+                
+            if target_version and db_index.version != target_version:
+                logger.info(f"Version mismatch for {document_id}:{index_type}, expected: {target_version}, current: {db_index.version}, skipping task")
+                return {"status": "skipped", "reason": f"version_mismatch_expected_{target_version}_current_{db_index.version}"}
+            
+            break
         
         # Convert dict back to structured data
         parsed_data = ParsedDocumentData.from_dict(parsed_data_dict)
@@ -289,9 +394,9 @@ def update_index_task(self, document_id: str, index_type: str, parsed_data_dict:
             logger.error(error_msg)
             raise Exception(error_msg)
         
-        # Handle success callback
-        logger.info(f"Successfully updated {index_type} index for document {document_id}")
-        self._handle_index_success(document_id, index_type, result.data)
+        # Handle success callback with version validation
+        logger.info(f"Successfully updated {index_type} index for document {document_id} (v{target_version})")
+        self._handle_index_success_with_version(document_id, index_type, target_version, result.data)
         
         return result.to_dict()
         
@@ -309,7 +414,7 @@ def update_index_task(self, document_id: str, index_type: str, parsed_data_dict:
 # ========== Dynamic Workflow Orchestration Tasks ==========
 
 @current_app.task(bind=True)
-def trigger_create_indexes_workflow(self, parsed_data_dict: dict, document_id: str, index_types: List[str]) -> Any:
+def trigger_create_indexes_workflow(self, parsed_data_dict: dict, document_id: str, index_types: List[str], context: dict = None) -> Any:
     """
     Dynamic orchestration task for index creation workflow.
     
@@ -329,7 +434,7 @@ def trigger_create_indexes_workflow(self, parsed_data_dict: dict, document_id: s
         
         # Dynamically create parallel index creation tasks
         parallel_index_tasks = group([
-            create_index_task.s(document_id, index_type, parsed_data_dict)
+            create_index_task.s(document_id, index_type, parsed_data_dict, context)
             for index_type in index_types
         ])
         
@@ -387,7 +492,7 @@ def trigger_delete_indexes_workflow(self, document_id: str, index_types: List[st
 
 
 @current_app.task(bind=True)
-def trigger_update_indexes_workflow(self, parsed_data_dict: dict, document_id: str, index_types: List[str]) -> Any:
+def trigger_update_indexes_workflow(self, parsed_data_dict: dict, document_id: str, index_types: List[str], context: dict = None) -> Any:
     """
     Dynamic orchestration task for index update workflow.
     
@@ -404,7 +509,7 @@ def trigger_update_indexes_workflow(self, parsed_data_dict: dict, document_id: s
         
         # Create parallel index update tasks
         parallel_update_tasks = group([
-            update_index_task.s(document_id, index_type, parsed_data_dict)
+            update_index_task.s(document_id, index_type, parsed_data_dict, context)
             for index_type in index_types
         ])
         
@@ -510,7 +615,7 @@ def notify_workflow_complete(self, index_results: List[dict], document_id: str, 
 
 # ========== Workflow Entry Point Functions ==========
 
-def create_document_indexes_workflow(document_id: str, index_types: List[str]):
+def create_document_indexes_workflow(document_id: str, index_types: List[str], context: dict = None):
     """
     Create indexes for a document using dynamic workflow orchestration.
     
@@ -530,7 +635,7 @@ def create_document_indexes_workflow(document_id: str, index_types: List[str]):
     # Create the workflow chain: parse -> dynamic trigger
     workflow_chain = chain(
         parse_document_task.s(document_id),
-        trigger_create_indexes_workflow.s(document_id, index_types)
+        trigger_create_indexes_workflow.s(document_id, index_types, context)
     )
     
     # Submit the workflow
@@ -560,7 +665,7 @@ def delete_document_indexes_workflow(document_id: str, index_types: List[str]):
     return workflow_result
 
 
-def update_document_indexes_workflow(document_id: str, index_types: List[str]):
+def update_document_indexes_workflow(document_id: str, index_types: List[str], context: dict = None):
     """
     Update indexes for a document using dynamic workflow orchestration.
     
@@ -581,7 +686,7 @@ def update_document_indexes_workflow(document_id: str, index_types: List[str]):
     # Create the workflow chain: parse -> dynamic trigger
     workflow_chain = chain(
         parse_document_task.s(document_id),
-        trigger_update_indexes_workflow.s(document_id, index_types)
+        trigger_update_indexes_workflow.s(document_id, index_types, context)
     )
     
     # Submit the workflow

@@ -138,14 +138,14 @@ def test_rebuild_single_index_type(client, document, collection):
     collection_id = collection["id"]
 
     # Test rebuilding vector index
-    rebuild_request = {"index_types": ["vector"]}
+    rebuild_request = {"index_types": ["VECTOR"]}
     response = client.post(
         f"/api/v1/collections/{collection_id}/documents/{doc_id}/rebuild_indexes", json=rebuild_request
     )
     assert response.status_code == HTTPStatus.OK, response.text
     data = response.json()
     assert data["code"] == "200"
-    assert "vector" in data["message"]
+    assert "VECTOR" in data["message"]
 
 
 def test_rebuild_all_index_types(client, document, collection):
@@ -154,16 +154,16 @@ def test_rebuild_all_index_types(client, document, collection):
     collection_id = collection["id"]
 
     # Test rebuilding all index types
-    rebuild_request = {"index_types": ["vector", "fulltext", "graph"]}
+    rebuild_request = {"index_types": ["VECTOR", "FULLTEXT", "GRAPH"]}
     response = client.post(
         f"/api/v1/collections/{collection_id}/documents/{doc_id}/rebuild_indexes", json=rebuild_request
     )
     assert response.status_code == HTTPStatus.OK, response.text
     data = response.json()
     assert data["code"] == "200"
-    assert "vector" in data["message"]
-    assert "fulltext" in data["message"]
-    assert "graph" in data["message"]
+    assert "VECTOR" in data["message"]
+    assert "FULLTEXT" in data["message"]
+    assert "GRAPH" in data["message"]
 
 
 def test_rebuild_index_invalid_index_type(client, document, collection):
@@ -192,7 +192,7 @@ def test_rebuild_index_empty_index_types(client, document, collection):
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY, response.text
 
 
-@pytest.mark.parametrize("index_type", ["vector", "fulltext", "graph"])
+@pytest.mark.parametrize("index_type", ["VECTOR", "FULLTEXT", "GRAPH"])
 def test_rebuild_individual_index_types(client, document, collection, index_type):
     """Test rebuilding each individual index type"""
     doc_id = document["id"]
@@ -205,7 +205,7 @@ def test_rebuild_individual_index_types(client, document, collection, index_type
     assert response.status_code == HTTPStatus.OK, response.text
     data = response.json()
     assert data["code"] == "200"
-    assert index_type in data["message"]
+    assert index_type.upper() in data["message"]
 
 
 def test_rebuild_index_duplicate_types(client, document, collection):
@@ -214,7 +214,7 @@ def test_rebuild_index_duplicate_types(client, document, collection):
     collection_id = collection["id"]
 
     # Test with duplicate index types
-    rebuild_request = {"index_types": ["vector", "vector", "fulltext"]}
+    rebuild_request = {"index_types": ["VECTOR", "VECTOR", "FULLTEXT"]}
     response = client.post(
         f"/api/v1/collections/{collection_id}/documents/{doc_id}/rebuild_indexes", json=rebuild_request
     )
@@ -228,7 +228,7 @@ def test_rebuild_index_case_sensitivity(client, document, collection):
     collection_id = collection["id"]
 
     # Test with uppercase index type (should fail)
-    rebuild_request = {"index_types": ["VECTOR"]}
+    rebuild_request = {"index_types": ["vector"]}
     response = client.post(
         f"/api/v1/collections/{collection_id}/documents/{doc_id}/rebuild_indexes", json=rebuild_request
     )

@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: eb8aa708478f
+Revision ID: 850b2c5dc08f
 Revises: 
-Create Date: 2025-06-24 09:30:05.267898
+Create Date: 2025-06-24 13:24:25.714734
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
 
 # revision identifiers, used by Alembic.
-revision: str = 'eb8aa708478f'
+revision: str = '850b2c5dc08f'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -156,11 +156,10 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('document_id', sa.String(length=24), nullable=False),
     sa.Column('index_type', sa.Enum('VECTOR', 'FULLTEXT', 'GRAPH', name='documentindextype'), nullable=False),
-    sa.Column('desired_state', sa.Enum('present', 'absent', name='indexdesiredstate'), nullable=False),
+    sa.Column('status', sa.Enum('PENDING', 'CREATING', 'ACTIVE', 'DELETING', 'DELETION_IN_PROGRESS', 'FAILED', name='documentindexstatus'), nullable=False),
     sa.Column('version', sa.Integer(), nullable=False),
-    sa.Column('created_by', sa.String(length=256), nullable=False),
-    sa.Column('actual_state', sa.Enum('absent', 'creating', 'present', 'deleting', 'failed', name='indexactualstate'), nullable=False),
     sa.Column('observed_version', sa.Integer(), nullable=False),
+    sa.Column('created_by', sa.String(length=256), nullable=False),
     sa.Column('index_data', sa.Text(), nullable=True),
     sa.Column('error_message', sa.Text(), nullable=True),
     sa.Column('gmt_created', sa.DateTime(timezone=True), nullable=False),
@@ -169,11 +168,10 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('document_id', 'index_type', name='uq_document_index')
     )
-    op.create_index(op.f('ix_document_index_actual_state'), 'document_index', ['actual_state'], unique=False)
-    op.create_index(op.f('ix_document_index_desired_state'), 'document_index', ['desired_state'], unique=False)
     op.create_index(op.f('ix_document_index_document_id'), 'document_index', ['document_id'], unique=False)
     op.create_index(op.f('ix_document_index_id'), 'document_index', ['id'], unique=False)
     op.create_index(op.f('ix_document_index_index_type'), 'document_index', ['index_type'], unique=False)
+    op.create_index(op.f('ix_document_index_status'), 'document_index', ['status'], unique=False)
     op.create_table('invitation',
     sa.Column('id', sa.String(length=24), nullable=False),
     sa.Column('email', sa.String(length=254), nullable=False),
@@ -397,11 +395,10 @@ def downgrade() -> None:
     op.drop_table('lightrag_doc_full')
     op.drop_table('lightrag_doc_chunks')
     op.drop_table('invitation')
+    op.drop_index(op.f('ix_document_index_status'), table_name='document_index')
     op.drop_index(op.f('ix_document_index_index_type'), table_name='document_index')
     op.drop_index(op.f('ix_document_index_id'), table_name='document_index')
     op.drop_index(op.f('ix_document_index_document_id'), table_name='document_index')
-    op.drop_index(op.f('ix_document_index_desired_state'), table_name='document_index')
-    op.drop_index(op.f('ix_document_index_actual_state'), table_name='document_index')
     op.drop_table('document_index')
     op.drop_index(op.f('ix_document_user'), table_name='document')
     op.drop_index(op.f('ix_document_status'), table_name='document')

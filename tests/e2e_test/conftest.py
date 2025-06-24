@@ -122,7 +122,7 @@ def document(client, collection):
         get_resp = client.get(f"/api/v1/collections/{collection['id']}/documents/{doc_id}")
         assert get_resp.status_code == HTTPStatus.OK, get_resp.text
         data = get_resp.json()
-        if data.get("vector_index_status") == "COMPLETE" and data.get("fulltext_index_status") == "COMPLETE":
+        if data.get("vector_index_status") == "ACTIVE" and data.get("fulltext_index_status") == "ACTIVE":
             break
         time.sleep(interval)
     else:
