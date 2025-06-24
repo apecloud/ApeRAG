@@ -29,9 +29,9 @@ export interface RebuildIndexesRequest {
 }
 
 export const RebuildIndexesRequestIndexTypesEnum = {
-    vector: 'vector',
-    fulltext: 'fulltext',
-    graph: 'graph'
+    VECTOR: 'VECTOR',
+    FULLTEXT: 'FULLTEXT',
+    GRAPH: 'GRAPH'
 } as const;
 
 export type RebuildIndexesRequestIndexTypesEnum = typeof RebuildIndexesRequestIndexTypesEnum[keyof typeof RebuildIndexesRequestIndexTypesEnum];

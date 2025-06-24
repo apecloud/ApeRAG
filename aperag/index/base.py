@@ -21,9 +21,9 @@ from typing import Any, Dict, List, Optional
 class IndexType(Enum):
     """Index type enumeration"""
 
-    VECTOR = "vector"
-    FULLTEXT = "fulltext"
-    GRAPH = "graph"
+    VECTOR = "VECTOR"
+    FULLTEXT = "FULLTEXT"
+    GRAPH = "GRAPH"
 
 
 class IndexStatus(Enum):

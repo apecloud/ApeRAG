@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: dcc0b6c56552
+Revision ID: eb8aa708478f
 Revises: 
-Create Date: 2025-06-17 11:34:47.015293
+Create Date: 2025-06-24 09:30:05.267898
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
 
 # revision identifiers, used by Alembic.
-revision: str = 'dcc0b6c56552'
+revision: str = 'eb8aa708478f'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -36,6 +36,36 @@ def upgrade() -> None:
     op.create_index(op.f('ix_api_key_gmt_deleted'), 'api_key', ['gmt_deleted'], unique=False)
     op.create_index(op.f('ix_api_key_status'), 'api_key', ['status'], unique=False)
     op.create_index(op.f('ix_api_key_user'), 'api_key', ['user'], unique=False)
+    op.create_table('audit_log',
+    sa.Column('id', sa.String(length=36), nullable=False),
+    sa.Column('user_id', sa.String(length=36), nullable=True, comment='User ID'),
+    sa.Column('username', sa.String(length=255), nullable=True, comment='Username'),
+    sa.Column('resource_type', sa.Enum('collection', 'document', 'bot', 'chat', 'message', 'api_key', 'llm_provider', 'llm_provider_model', 'model_service_provider', 'user', 'config', 'invitation', 'auth', 'chat_completion', 'search', 'llm', 'flow', 'system', name='auditresource'), nullable=True, comment='Resource type'),
+    sa.Column('resource_id', sa.String(length=255), nullable=True, comment='Resource ID (extracted at query time)'),
+    sa.Column('api_name', sa.String(length=255), nullable=False, comment='API operation name'),
+    sa.Column('http_method', sa.String(length=10), nullable=False, comment='HTTP method (POST, PUT, DELETE)'),
+    sa.Column('path', sa.String(length=512), nullable=False, comment='API path'),
+    sa.Column('status_code', sa.Integer(), nullable=True, comment='HTTP status code'),
+    sa.Column('request_data', sa.Text(), nullable=True, comment='Request data (JSON)'),
+    sa.Column('response_data', sa.Text(), nullable=True, comment='Response data (JSON)'),
+    sa.Column('error_message', sa.Text(), nullable=True, comment='Error message if failed'),
+    sa.Column('ip_address', sa.String(length=45), nullable=True, comment='Client IP address'),
+    sa.Column('user_agent', sa.String(length=500), nullable=True, comment='User agent string'),
+    sa.Column('request_id', sa.String(length=255), nullable=False, comment='Request ID for tracking'),
+    sa.Column('start_time', sa.BigInteger(), nullable=False, comment='Request start time (milliseconds since epoch)'),
+    sa.Column('end_time', sa.BigInteger(), nullable=True, comment='Request end time (milliseconds since epoch)'),
+    sa.Column('gmt_created', sa.DateTime(timezone=True), nullable=False, comment='Created time'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('idx_audit_api_name', 'audit_log', ['api_name'], unique=False)
+    op.create_index('idx_audit_gmt_created', 'audit_log', ['gmt_created'], unique=False)
+    op.create_index('idx_audit_http_method', 'audit_log', ['http_method'], unique=False)
+    op.create_index('idx_audit_request_id', 'audit_log', ['request_id'], unique=False)
+    op.create_index('idx_audit_resource_id', 'audit_log', ['resource_id'], unique=False)
+    op.create_index('idx_audit_resource_type', 'audit_log', ['resource_type'], unique=False)
+    op.create_index('idx_audit_start_time', 'audit_log', ['start_time'], unique=False)
+    op.create_index('idx_audit_status_code', 'audit_log', ['status_code'], unique=False)
+    op.create_index('idx_audit_user_id', 'audit_log', ['user_id'], unique=False)
     op.create_table('bot',
     sa.Column('id', sa.String(length=24), nullable=False),
     sa.Column('user', sa.String(length=256), nullable=False),
@@ -125,7 +155,7 @@ def upgrade() -> None:
     op.create_table('document_index',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('document_id', sa.String(length=24), nullable=False),
-    sa.Column('index_type', sa.Enum('vector', 'fulltext', 'graph', name='documentindextype'), nullable=False),
+    sa.Column('index_type', sa.Enum('VECTOR', 'FULLTEXT', 'GRAPH', name='documentindextype'), nullable=False),
     sa.Column('desired_state', sa.Enum('present', 'absent', name='indexdesiredstate'), nullable=False),
     sa.Column('version', sa.Integer(), nullable=False),
     sa.Column('created_by', sa.String(length=256), nullable=False),
@@ -293,7 +323,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_model_service_provider_gmt_deleted'), 'model_service_provider', ['gmt_deleted'], unique=False)
     op.create_index(op.f('ix_model_service_provider_name'), 'model_service_provider', ['name'], unique=False)
     op.create_index(op.f('ix_model_service_provider_status'), 'model_service_provider', ['status'], unique=False)
-    op.create_table('searchtesthistory',
+    op.create_table('searchhistory',
     sa.Column('id', sa.String(length=24), nullable=False),
     sa.Column('user', sa.String(length=256), nullable=False),
     sa.Column('collection_id', sa.String(length=24), nullable=True),
@@ -306,9 +336,9 @@ def upgrade() -> None:
     sa.Column('gmt_deleted', sa.DateTime(timezone=True), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_searchtesthistory_collection_id'), 'searchtesthistory', ['collection_id'], unique=False)
-    op.create_index(op.f('ix_searchtesthistory_gmt_deleted'), 'searchtesthistory', ['gmt_deleted'], unique=False)
-    op.create_index(op.f('ix_searchtesthistory_user'), 'searchtesthistory', ['user'], unique=False)
+    op.create_index(op.f('ix_searchhistory_collection_id'), 'searchhistory', ['collection_id'], unique=False)
+    op.create_index(op.f('ix_searchhistory_gmt_deleted'), 'searchhistory', ['gmt_deleted'], unique=False)
+    op.create_index(op.f('ix_searchhistory_user'), 'searchhistory', ['user'], unique=False)
     op.create_table('user',
     sa.Column('id', sa.String(length=24), nullable=False),
     sa.Column('username', sa.String(length=256), nullable=False),
@@ -344,10 +374,10 @@ def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
     op.drop_table('user_quota')
     op.drop_table('user')
-    op.drop_index(op.f('ix_searchtesthistory_user'), table_name='searchtesthistory')
-    op.drop_index(op.f('ix_searchtesthistory_gmt_deleted'), table_name='searchtesthistory')
-    op.drop_index(op.f('ix_searchtesthistory_collection_id'), table_name='searchtesthistory')
-    op.drop_table('searchtesthistory')
+    op.drop_index(op.f('ix_searchhistory_user'), table_name='searchhistory')
+    op.drop_index(op.f('ix_searchhistory_gmt_deleted'), table_name='searchhistory')
+    op.drop_index(op.f('ix_searchhistory_collection_id'), table_name='searchhistory')
+    op.drop_table('searchhistory')
     op.drop_index(op.f('ix_model_service_provider_status'), table_name='model_service_provider')
     op.drop_index(op.f('ix_model_service_provider_name'), table_name='model_service_provider')
     op.drop_index(op.f('ix_model_service_provider_gmt_deleted'), table_name='model_service_provider')
@@ -393,6 +423,16 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_bot_status'), table_name='bot')
     op.drop_index(op.f('ix_bot_gmt_deleted'), table_name='bot')
     op.drop_table('bot')
+    op.drop_index('idx_audit_user_id', table_name='audit_log')
+    op.drop_index('idx_audit_status_code', table_name='audit_log')
+    op.drop_index('idx_audit_start_time', table_name='audit_log')
+    op.drop_index('idx_audit_resource_type', table_name='audit_log')
+    op.drop_index('idx_audit_resource_id', table_name='audit_log')
+    op.drop_index('idx_audit_request_id', table_name='audit_log')
+    op.drop_index('idx_audit_http_method', table_name='audit_log')
+    op.drop_index('idx_audit_gmt_created', table_name='audit_log')
+    op.drop_index('idx_audit_api_name', table_name='audit_log')
+    op.drop_table('audit_log')
     op.drop_index(op.f('ix_api_key_user'), table_name='api_key')
     op.drop_index(op.f('ix_api_key_status'), table_name='api_key')
     op.drop_index(op.f('ix_api_key_gmt_deleted'), table_name='api_key')

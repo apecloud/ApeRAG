@@ -78,9 +78,9 @@ class DocumentStatus(str, Enum):
 class DocumentIndexType(str, Enum):
     """Document index type enumeration"""
 
-    VECTOR = "vector"
-    FULLTEXT = "fulltext"
-    GRAPH = "graph"
+    VECTOR = "VECTOR"
+    FULLTEXT = "FULLTEXT"
+    GRAPH = "GRAPH"
 
 
 class BotStatus(str, Enum):

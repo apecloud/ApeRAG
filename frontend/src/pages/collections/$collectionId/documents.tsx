@@ -94,7 +94,7 @@ export default () => {
 
   const handleRebuildIndex = (document: ApeDocument) => {
     setRebuildSelectedDocument(document);
-    setRebuildSelectedTypes(['vector', 'fulltext', 'graph']);
+    setRebuildSelectedTypes(['VECTOR', 'FULLTEXT', 'GRAPH']);
     setRebuildModalVisible(true);
   };
 
@@ -107,7 +107,7 @@ export default () => {
         collectionId: collectionId!,
         documentId: rebuildSelectedDocument.id!,
         rebuildIndexesRequest: {
-          index_types: rebuildSelectedTypes as ('vector' | 'fulltext' | 'graph')[],
+          index_types: rebuildSelectedTypes as ('VECTOR' | 'FULLTEXT' | 'GRAPH')[],
         },
       });
       toast.success(formatMessage({ id: 'document.index.rebuild.success' }));
@@ -123,9 +123,9 @@ export default () => {
   };
 
   const indexTypeOptions = [
-    { label: formatMessage({ id: 'document.index.type.vector' }), value: 'vector' },
-    { label: formatMessage({ id: 'document.index.type.fulltext' }), value: 'fulltext' },
-    { label: formatMessage({ id: 'document.index.type.graph' }), value: 'graph' },
+    { label: formatMessage({ id: 'document.index.type.vector' }), value: 'VECTOR' },
+    { label: formatMessage({ id: 'document.index.type.fulltext' }), value: 'FULLTEXT' },
+    { label: formatMessage({ id: 'document.index.type.graph' }), value: 'GRAPH' },
   ];
 
   const renderIndexStatus = (

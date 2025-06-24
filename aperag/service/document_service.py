@@ -132,9 +132,9 @@ class DocumentService:
             id=document.id,
             name=document.name,
             status=document.status,
-            vector_index_status=map_state_to_old_enum(indexes.get("vector", {}).get("actual_state", "absent")),
-            fulltext_index_status=map_state_to_old_enum(indexes.get("fulltext", {}).get("actual_state", "absent")),
-            graph_index_status=map_state_to_old_enum(indexes.get("graph", {}).get("actual_state", "absent")),
+            vector_index_status=map_state_to_old_enum(indexes.get("VECTOR", {}).get("actual_state", "absent")),
+            fulltext_index_status=map_state_to_old_enum(indexes.get("FULLTEXT", {}).get("actual_state", "absent")),
+            graph_index_status=map_state_to_old_enum(indexes.get("GRAPH", {}).get("actual_state", "absent")),
             vector_index_updated=vector_updated,
             fulltext_index_updated=fulltext_updated,
             graph_index_updated=graph_updated,
@@ -443,7 +443,7 @@ class DocumentService:
             user_id: User ID
             collection_id: Collection ID
             document_id: Document ID
-            index_types: List of index types to rebuild ('vector', 'fulltext', 'graph')
+            index_types: List of index types to rebuild ('VECTOR', 'FULLTEXT', 'GRAPH')
 
         Returns:
             dict: Success response
@@ -458,11 +458,11 @@ class DocumentService:
 
         index_type_enums = []
         for index_type in index_types:
-            if index_type == "vector":
+            if index_type == "VECTOR":
                 index_type_enums.append(DocumentIndexType.VECTOR)
-            elif index_type == "fulltext":
+            elif index_type == "FULLTEXT":
                 index_type_enums.append(DocumentIndexType.FULLTEXT)
-            elif index_type == "graph":
+            elif index_type == "GRAPH":
                 index_type_enums.append(DocumentIndexType.GRAPH)
             else:
                 raise invalid_param("index_type", f"Invalid index type: {index_type}")

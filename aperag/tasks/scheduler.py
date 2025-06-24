@@ -142,7 +142,7 @@ class LocalTaskScheduler(TaskScheduler):
             try:
                 # Process each requested index type
                 for index_type in index_types:
-                    if index_type == "vector":
+                    if index_type == "VECTOR":
                         try:
                             result = vector_indexer.create_index(
                                 document_id=document_id,
@@ -151,11 +151,11 @@ class LocalTaskScheduler(TaskScheduler):
                                 collection=collection,
                                 file_path=file_path,
                             )
-                            results["vector"] = {"success": result.success, "data": result.data}
+                            results["VECTOR"] = {"success": result.success, "data": result.data}
                         except Exception as e:
-                            results["vector"] = {"success": False, "error": str(e)}
+                            results["VECTOR"] = {"success": False, "error": str(e)}
 
-                    elif index_type == "fulltext":
+                    elif index_type == "FULLTEXT":
                         try:
                             result = fulltext_indexer.create_index(
                                 document_id=document_id,
@@ -164,11 +164,11 @@ class LocalTaskScheduler(TaskScheduler):
                                 collection=collection,
                                 file_path=file_path,
                             )
-                            results["fulltext"] = {"success": result.success, "data": result.data}
+                            results["FULLTEXT"] = {"success": result.success, "data": result.data}
                         except Exception as e:
-                            results["fulltext"] = {"success": False, "error": str(e)}
+                            results["FULLTEXT"] = {"success": False, "error": str(e)}
 
-                    elif index_type == "graph":
+                    elif index_type == "GRAPH":
                         if graph_indexer.is_enabled(collection):
                             try:
                                 from aperag.graph.lightrag_manager import process_document_for_celery
@@ -176,11 +176,11 @@ class LocalTaskScheduler(TaskScheduler):
                                 result = process_document_for_celery(
                                     collection=collection, content=content, doc_id=document_id, file_path=file_path
                                 )
-                                results["graph"] = {"success": True, "data": result}
+                                results["GRAPH"] = {"success": True, "data": result}
                             except Exception as e:
-                                results["graph"] = {"success": False, "error": str(e)}
+                                results["GRAPH"] = {"success": False, "error": str(e)}
                         else:
-                            results["graph"] = {"success": True, "data": None, "message": "Graph indexing disabled"}
+                            results["GRAPH"] = {"success": True, "data": None, "message": "Graph indexing disabled"}
 
             finally:
                 # Cleanup local document
@@ -206,15 +206,15 @@ class LocalTaskScheduler(TaskScheduler):
             document, collection = get_document_and_collection(document_id)
 
             for index_type in index_types:
-                if index_type == "vector":
+                if index_type == "VECTOR":
                     result = vector_indexer.delete_index(document_id, collection)
                     if not result.success:
                         raise Exception(result.error)
-                elif index_type == "fulltext":
+                elif index_type == "FULLTEXT":
                     result = fulltext_indexer.delete_index(document_id, collection)
                     if not result.success:
                         raise Exception(result.error)
-                elif index_type == "graph":
+                elif index_type == "GRAPH":
                     if graph_indexer.is_enabled(collection):
                         from aperag.graph.lightrag_manager import delete_document_for_celery
 

@@ -2853,9 +2853,9 @@ components:
           items:
             type: string
             enum:
-              - vector
-              - fulltext
-              - graph
+              - VECTOR
+              - FULLTEXT
+              - GRAPH
           description: Types of indexes to rebuild
           minItems: 1
       required:

@@ -144,7 +144,9 @@ class BaseIndexTask(Task):
     def _handle_index_failure(self, document_id: str, index_types: List[str], error_msg: str):
         try:
             from aperag.index.reconciler import index_task_callbacks
-            index_task_callbacks.on_index_failed(document_id, index_types, error_msg)
+            
+            for index_type in index_types:
+                index_task_callbacks.on_index_failed(document_id, index_type, error_msg)
             logger.info(f"Index failure callback executed for {index_types} indexes of document {document_id}")
         except Exception as e:
             logger.warning(f"Failed to execute index failure callback for {document_id}: {e}", exc_info=True)
@@ -195,15 +197,15 @@ def create_index_task(self, document_id: str, index_type: str, parsed_data_dict:
         # Execute index creation
         result = document_index_task.create_index(document_id, index_type, parsed_data)
         
-        # Handle success/failure callbacks
-        if result.success:
-            logger.info(f"Successfully created {index_type} index for document {document_id}")
-            self._handle_index_success(document_id, index_type, result.data)
-        else:
-            logger.error(f"Failed to create {index_type} index for document {document_id}: {result.error}")
-            # Only mark as failed if all retries are exhausted
-            if self.request.retries >= self.max_retries:
-                self._handle_index_failure(document_id, [index_type], result.error)
+        # Check if the operation failed and raise exception to trigger retry
+        if not result.success:
+            error_msg = f"Failed to create {index_type} index for document {document_id}: {result.error}"
+            logger.error(error_msg)
+            raise Exception(error_msg)
+        
+        # Handle success callback
+        logger.info(f"Successfully created {index_type} index for document {document_id}")
+        self._handle_index_success(document_id, index_type, result.data)
         
         return result.to_dict()
         
@@ -236,15 +238,15 @@ def delete_index_task(self, document_id: str, index_type: str) -> dict:
         # Execute index deletion
         result = document_index_task.delete_index(document_id, index_type)
         
-        # Handle success/failure callbacks
-        if result.success:
-            logger.info(f"Successfully deleted {index_type} index for document {document_id}")
-            self._handle_index_deletion_success(document_id, index_type)
-        else:
-            logger.error(f"Failed to delete {index_type} index for document {document_id}: {result.error}")
-            # Only mark as failed if all retries are exhausted
-            if self.request.retries >= self.max_retries:
-                self._handle_index_failure(document_id, [index_type], result.error)
+        # Check if the operation failed and raise exception to trigger retry
+        if not result.success:
+            error_msg = f"Failed to delete {index_type} index for document {document_id}: {result.error}"
+            logger.error(error_msg)
+            raise Exception(error_msg)
+        
+        # Handle success callback
+        logger.info(f"Successfully deleted {index_type} index for document {document_id}")
+        self._handle_index_deletion_success(document_id, index_type)
         
         return result.to_dict()
         
@@ -281,15 +283,15 @@ def update_index_task(self, document_id: str, index_type: str, parsed_data_dict:
         # Execute index update
         result = document_index_task.update_index(document_id, index_type, parsed_data)
         
-        # Handle success/failure callbacks
-        if result.success:
-            logger.info(f"Successfully updated {index_type} index for document {document_id}")
-            self._handle_index_success(document_id, index_type, result.data)
-        else:
-            logger.error(f"Failed to update {index_type} index for document {document_id}: {result.error}")
-            # Only mark as failed if all retries are exhausted
-            if self.request.retries >= self.max_retries:
-                self._handle_index_failure(document_id, [index_type], result.error)
+        # Check if the operation failed and raise exception to trigger retry
+        if not result.success:
+            error_msg = f"Failed to update {index_type} index for document {document_id}: {result.error}"
+            logger.error(error_msg)
+            raise Exception(error_msg)
+        
+        # Handle success callback
+        logger.info(f"Successfully updated {index_type} index for document {document_id}")
+        self._handle_index_success(document_id, index_type, result.data)
         
         return result.to_dict()
         
