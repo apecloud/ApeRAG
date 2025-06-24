@@ -878,3 +878,23 @@ class LightragRepositoryMixin(SyncRepositoryProtocol):
             return [row[0] for row in result.fetchall()]
 
         return self._execute_query(_query)
+
+    def query_lightrag_vdb_entity_all(self, workspace: str):
+        """Query all LightRAG VDB Entity records for workspace"""
+
+        def _query(session):
+            stmt = select(LightRAGVDBEntityModel).where(LightRAGVDBEntityModel.workspace == workspace)
+            result = session.execute(stmt)
+            return {entity.id: entity for entity in result.scalars().all()}
+
+        return self._execute_query(_query)
+
+    def query_lightrag_vdb_relation_all(self, workspace: str):
+        """Query all LightRAG VDB Relation records for workspace"""
+
+        def _query(session):
+            stmt = select(LightRAGVDBRelationModel).where(LightRAGVDBRelationModel.workspace == workspace)
+            result = session.execute(stmt)
+            return {relation.id: relation for relation in result.scalars().all()}
+
+        return self._execute_query(_query)

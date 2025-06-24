@@ -92,7 +92,9 @@ async def adelete_by_relation(
                 return
 
             # Delete relation from vector database
-            relation_id = compute_mdhash_id(source_entity + target_entity, prefix="rel-")
+            relation_id = compute_mdhash_id(
+                source_entity + target_entity, prefix="rel-", workspace=relationships_vdb.workspace
+            )
             await relationships_vdb.delete([relation_id])
 
             # Delete relation from knowledge graph
@@ -175,8 +177,12 @@ async def aedit_entity(
                     for source, target in edges:
                         edge_data = await chunk_entity_relation_graph.get_edge(source, target)
                         if edge_data:
-                            relations_to_delete.append(compute_mdhash_id(source + target, prefix="rel-"))
-                            relations_to_delete.append(compute_mdhash_id(target + source, prefix="rel-"))
+                            relations_to_delete.append(
+                                compute_mdhash_id(source + target, prefix="rel-", workspace=relationships_vdb.workspace)
+                            )
+                            relations_to_delete.append(
+                                compute_mdhash_id(target + source, prefix="rel-", workspace=relationships_vdb.workspace)
+                            )
                             if source == entity_name:
                                 await chunk_entity_relation_graph.upsert_edge(new_entity_name, target, edge_data)
                                 relations_to_update.append((new_entity_name, target, edge_data))
@@ -188,7 +194,7 @@ async def aedit_entity(
                 await chunk_entity_relation_graph.delete_node(entity_name)
 
                 # Delete old entity record from vector database
-                old_entity_id = compute_mdhash_id(entity_name, prefix="ent-")
+                old_entity_id = compute_mdhash_id(entity_name, prefix="ent-", workspace=entities_vdb.workspace)
                 await entities_vdb.delete([old_entity_id])
                 logger.info(f"Deleted old entity '{entity_name}' and its vector embedding from database")
 
@@ -209,7 +215,7 @@ async def aedit_entity(
                     content = f"{src}\t{tgt}\n{keywords}\n{description}"
 
                     # Calculate relationship ID
-                    relation_id = compute_mdhash_id(src + tgt, prefix="rel-")
+                    relation_id = compute_mdhash_id(src + tgt, prefix="rel-", workspace=relationships_vdb.workspace)
 
                     # Prepare data for vector database update
                     relation_data = {
@@ -240,7 +246,7 @@ async def aedit_entity(
             content = entity_name + "\n" + description
 
             # Calculate entity ID
-            entity_id = compute_mdhash_id(entity_name, prefix="ent-")
+            entity_id = compute_mdhash_id(entity_name, prefix="ent-", workspace=entities_vdb.workspace)
 
             # Prepare data for vector database update
             entity_data = {
@@ -303,7 +309,9 @@ async def aedit_relation(
                 raise ValueError(f"Relation from '{source_entity}' to '{target_entity}' does not exist")
             edge_data = await chunk_entity_relation_graph.get_edge(source_entity, target_entity)
             # Important: First delete the old relation record from the vector database
-            old_relation_id = compute_mdhash_id(source_entity + target_entity, prefix="rel-")
+            old_relation_id = compute_mdhash_id(
+                source_entity + target_entity, prefix="rel-", workspace=relationships_vdb.workspace
+            )
             await relationships_vdb.delete([old_relation_id])
             logger.info(
                 f"Deleted old relation record from vector database for relation {source_entity} -> {target_entity}"
@@ -323,7 +331,9 @@ async def aedit_relation(
             content = f"{source_entity}\t{target_entity}\n{keywords}\n{description}"
 
             # Calculate relation ID
-            relation_id = compute_mdhash_id(source_entity + target_entity, prefix="rel-")
+            relation_id = compute_mdhash_id(
+                source_entity + target_entity, prefix="rel-", workspace=relationships_vdb.workspace
+            )
 
             # Prepare data for vector database update
             relation_data = {
@@ -406,7 +416,7 @@ async def acreate_entity(
             content = entity_name + "\n" + description
 
             # Calculate entity ID
-            entity_id = compute_mdhash_id(entity_name, prefix="ent-")
+            entity_id = compute_mdhash_id(entity_name, prefix="ent-", workspace=entities_vdb.workspace)
 
             # Prepare data for vector database update
             entity_data_for_vdb = {
@@ -501,7 +511,9 @@ async def acreate_relation(
             content = f"{keywords}\t{source_entity}\n{target_entity}\n{description}"
 
             # Calculate relation ID
-            relation_id = compute_mdhash_id(source_entity + target_entity, prefix="rel-")
+            relation_id = compute_mdhash_id(
+                source_entity + target_entity, prefix="rel-", workspace=relationships_vdb.workspace
+            )
 
             # Prepare data for vector database update
             relation_data_for_vdb = {
@@ -633,8 +645,12 @@ async def amerge_entities(
             relations_to_delete = []
 
             for src, tgt, edge_data in all_relations:
-                relations_to_delete.append(compute_mdhash_id(src + tgt, prefix="rel-"))
-                relations_to_delete.append(compute_mdhash_id(tgt + src, prefix="rel-"))
+                relations_to_delete.append(
+                    compute_mdhash_id(src + tgt, prefix="rel-", workspace=relationships_vdb.workspace)
+                )
+                relations_to_delete.append(
+                    compute_mdhash_id(tgt + src, prefix="rel-", workspace=relationships_vdb.workspace)
+                )
                 new_src = target_entity if src in source_entities else src
                 new_tgt = target_entity if tgt in source_entities else tgt
 
@@ -681,7 +697,7 @@ async def amerge_entities(
             entity_type = merged_entity_data.get("entity_type", "")
             content = target_entity + "\n" + description
 
-            entity_id = compute_mdhash_id(target_entity, prefix="ent-")
+            entity_id = compute_mdhash_id(target_entity, prefix="ent-", workspace=entities_vdb.workspace)
             entity_data_for_vdb = {
                 entity_id: {
                     "content": content,
@@ -706,7 +722,7 @@ async def amerge_entities(
                 weight = float(edge_data.get("weight", 1.0))
 
                 content = f"{keywords}\t{src}\n{tgt}\n{description}"
-                relation_id = compute_mdhash_id(src + tgt, prefix="rel-")
+                relation_id = compute_mdhash_id(src + tgt, prefix="rel-", workspace=relationships_vdb.workspace)
 
                 relation_data_for_vdb = {
                     relation_id: {
@@ -732,7 +748,7 @@ async def amerge_entities(
                 await chunk_entity_relation_graph.delete_node(entity_name)
 
                 # Delete entity record from vector database
-                entity_id = compute_mdhash_id(entity_name, prefix="ent-")
+                entity_id = compute_mdhash_id(entity_name, prefix="ent-", workspace=entities_vdb.workspace)
                 await entities_vdb.delete([entity_id])
 
                 logger.info(f"Deleted source entity '{entity_name}' and its vector embedding from database")
@@ -874,7 +890,7 @@ async def get_entity_info(
 
     # Optional: Get vector database information
     if include_vector_data:
-        entity_id = compute_mdhash_id(entity_name, prefix="ent-")
+        entity_id = compute_mdhash_id(entity_name, prefix="ent-", workspace=entities_vdb.workspace)
         vector_data = await entities_vdb.get_by_id(entity_id)
         result["vector_data"] = vector_data
 
@@ -903,7 +919,7 @@ async def get_relation_info(
 
     # Optional: Get vector database information
     if include_vector_data:
-        rel_id = compute_mdhash_id(src_entity + tgt_entity, prefix="rel-")
+        rel_id = compute_mdhash_id(src_entity + tgt_entity, prefix="rel-", workspace=relationships_vdb.workspace)
         vector_data = await relationships_vdb.get_by_id(rel_id)
         result["vector_data"] = vector_data
 

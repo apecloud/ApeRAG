@@ -45,19 +45,27 @@ from ..base import BaseVectorStorage
 from ..utils import logger
 
 
-def compute_mdhash_id_for_qdrant(content: str, prefix: str = "", style: str = "simple") -> str:
+def compute_mdhash_id_for_qdrant(content: str, prefix: str = "", workspace: str = "", style: str = "simple") -> str:
     """
-    Generate a UUID based on the content and support multiple formats.
+    Generate a UUID based on the content with workspace isolation and support multiple formats.
 
     :param content: The content used to generate the UUID.
+    :param prefix: The prefix to add to the hash
+    :param workspace: The workspace identifier for data isolation
     :param style: The format of the UUID, optional values are "simple", "hyphenated", "urn".
     :return: A UUID that meets the requirements of Qdrant.
     """
     if not content:
         raise ValueError("Content must not be empty.")
 
+    # Combine content with workspace to ensure isolation
+    if workspace:
+        hash_input = f"{workspace}::{content}"
+    else:
+        hash_input = content
+
     # Use the hash value of the content to create a UUID.
-    hashed_content = hashlib.sha256((prefix + content).encode("utf-8")).digest()
+    hashed_content = hashlib.sha256((prefix + hash_input).encode("utf-8")).digest()
     generated_uuid = uuid.UUID(bytes=hashed_content[:16], version=4)
 
     # Return the UUID according to the specified format.
@@ -122,7 +130,7 @@ class QdrantVectorDBStorage(BaseVectorStorage):
         for i, d in enumerate(list_data):
             list_points.append(
                 models.PointStruct(
-                    id=compute_mdhash_id_for_qdrant(d["id"]),
+                    id=compute_mdhash_id_for_qdrant(d["id"], workspace=self.workspace),
                     vector=embeddings[i],
                     payload=d,
                 )
@@ -160,7 +168,7 @@ class QdrantVectorDBStorage(BaseVectorStorage):
         """
         try:
             # Convert regular ids to Qdrant compatible ids
-            qdrant_ids = [compute_mdhash_id_for_qdrant(id) for id in ids]
+            qdrant_ids = [compute_mdhash_id_for_qdrant(id, workspace=self.workspace) for id in ids]
             # Delete points from the collection
             self._client.delete(
                 collection_name=self._collection_name,
@@ -181,7 +189,7 @@ class QdrantVectorDBStorage(BaseVectorStorage):
         """
         try:
             # Generate the entity ID
-            entity_id = compute_mdhash_id_for_qdrant(entity_name, prefix="ent-")
+            entity_id = compute_mdhash_id_for_qdrant(entity_name, prefix="ent-", workspace=self.workspace)
             logger.debug(f"Attempting to delete entity {entity_name} with ID {entity_id}")
 
             # Delete the entity point from the collection
@@ -246,7 +254,7 @@ class QdrantVectorDBStorage(BaseVectorStorage):
         """
         try:
             # Convert to Qdrant compatible ID
-            qdrant_id = compute_mdhash_id_for_qdrant(id)
+            qdrant_id = compute_mdhash_id_for_qdrant(id, workspace=self.workspace)
 
             # Retrieve the point by ID
             result = self._client.retrieve(
@@ -282,7 +290,7 @@ class QdrantVectorDBStorage(BaseVectorStorage):
 
         try:
             # Convert to Qdrant compatible IDs
-            qdrant_ids = [compute_mdhash_id_for_qdrant(id) for id in ids]
+            qdrant_ids = [compute_mdhash_id_for_qdrant(id, workspace=self.workspace) for id in ids]
 
             # Retrieve the points by IDs
             results = self._client.retrieve(

@@ -243,6 +243,7 @@ async def _merge_nodes_then_upsert(
     language: str,
     force_llm_summary_on_merge: int,
     lightrag_logger: LightRAGLogger | None = None,
+    workspace: str = "",
 ):
     """
     Merge multiple entity nodes with the same name and upsert the result to knowledge graph.
@@ -265,6 +266,7 @@ async def _merge_nodes_then_upsert(
         language: Language for LLM summarization
         force_llm_summary_on_merge: Threshold for triggering LLM summarization
         lightrag_logger: Optional logger instance
+        workspace: Workspace identifier for lock creation
 
     Returns:
         dict: The merged node data that was upserted
@@ -374,6 +376,7 @@ async def _merge_edges_then_upsert(
     language: str,
     force_llm_summary_on_merge: int,
     lightrag_logger: LightRAGLogger | None = None,
+    workspace: str = "",
 ):
     if src_id == tgt_id:
         return None
@@ -605,12 +608,13 @@ async def _merge_nodes_and_edges_impl(
                 language,  # Pass language instead of addon_params
                 force_llm_summary_on_merge,
                 lightrag_logger,
+                workspace,
             )
 
             # Update entity in vector db immediately under the same lock
             if entity_vdb is not None and entity_data:
                 vdb_data = {
-                    compute_mdhash_id(entity_data["entity_name"], prefix="ent-"): {
+                    compute_mdhash_id(entity_data["entity_name"], prefix="ent-", workspace=workspace): {
                         "entity_name": entity_data["entity_name"],
                         "entity_type": entity_data["entity_type"],
                         "content": f"{entity_data['entity_name']}\n{entity_data['description']}",
@@ -645,12 +649,13 @@ async def _merge_nodes_and_edges_impl(
                 language,  # Pass language instead of addon_params
                 force_llm_summary_on_merge,
                 lightrag_logger,
+                workspace,
             )
 
             # Update relationship in vector db immediately under the same lock
             if relationships_vdb is not None and edge_data is not None:
                 vdb_data = {
-                    compute_mdhash_id(edge_data["src_id"] + edge_data["tgt_id"], prefix="rel-"): {
+                    compute_mdhash_id(edge_data["src_id"] + edge_data["tgt_id"], prefix="rel-", workspace=workspace): {
                         "src_id": edge_data["src_id"],
                         "tgt_id": edge_data["tgt_id"],
                         "keywords": edge_data["keywords"],

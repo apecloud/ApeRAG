@@ -110,13 +110,27 @@ class EmbeddingFunc:
         return await self.func(*args, **kwargs)
 
 
-def compute_mdhash_id(content: str, prefix: str = "") -> str:
+def compute_mdhash_id(content: str, prefix: str = "", workspace: str = "") -> str:
     """
-    Compute a unique ID for a given content string.
+    Compute a unique ID for a given content string with workspace isolation.
 
-    The ID is a combination of the given prefix and the MD5 hash of the content string.
+    The ID is a combination of the given prefix and the MD5 hash of the content string
+    combined with workspace information to ensure proper data isolation.
+
+    Args:
+        content: The content string to hash
+        prefix: The prefix to add to the hash
+        workspace: The workspace identifier for data isolation
+
+    Returns:
+        A unique ID string that includes workspace isolation
     """
-    return prefix + md5(content.encode()).hexdigest()
+    # Combine content with workspace to ensure isolation
+    if workspace:
+        hash_input = f"{workspace}::{content}"
+    else:
+        hash_input = content
+    return prefix + md5(hash_input.encode()).hexdigest()
 
 
 class TokenizerInterface(Protocol):

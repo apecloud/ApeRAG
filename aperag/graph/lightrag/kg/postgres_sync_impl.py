@@ -246,6 +246,68 @@ class PGOpsSyncVectorStorage(BaseVectorStorage):
         """Clean up resources."""
         logger.debug(f"PGOpsSyncVectorStorage finalized for workspace '{self.workspace}'")
 
+    async def get_all(self) -> dict[str, Any]:
+        """Get all data from vector storage"""
+
+        def _sync_get_all():
+            # Import here to avoid circular imports
+            from aperag.db.ops import db_ops
+            from aperag.graph.lightrag.namespace import NameSpace, is_namespace
+
+            # Determine which table to query based on namespace
+            if is_namespace(self.namespace, NameSpace.VECTOR_STORE_CHUNKS):
+                models = db_ops.query_lightrag_doc_chunks_all(self.workspace)
+                return {
+                    chunk_id: {
+                        "id": chunk_id,
+                        "tokens": model.tokens,
+                        "content": model.content or "",
+                        "chunk_order_index": model.chunk_order_index,
+                        "full_doc_id": model.full_doc_id,
+                        "content_vector": model.content_vector,
+                        "file_path": model.file_path,
+                        "created_at": int(model.create_time.timestamp()) if model.create_time else None,
+                    }
+                    for chunk_id, model in models.items()
+                }
+            elif is_namespace(self.namespace, NameSpace.VECTOR_STORE_ENTITIES):
+                models = db_ops.query_lightrag_vdb_entity_all(self.workspace)
+                return {
+                    entity_id: {
+                        "id": entity_id,
+                        "entity_name": model.entity_name,
+                        "content": model.content or "",
+                        "content_vector": model.content_vector,
+                        "chunk_ids": model.chunk_ids or [],
+                        "file_path": model.file_path,
+                        "created_at": int(model.create_time.timestamp()) if model.create_time else None,
+                    }
+                    for entity_id, model in models.items()
+                }
+            elif is_namespace(self.namespace, NameSpace.VECTOR_STORE_RELATIONSHIPS):
+                models = db_ops.query_lightrag_vdb_relation_all(self.workspace)
+                return {
+                    relation_id: {
+                        "id": relation_id,
+                        "source_id": model.source_id,
+                        "target_id": model.target_id,
+                        "content": model.content or "",
+                        "content_vector": model.content_vector,
+                        "chunk_ids": model.chunk_ids or [],
+                        "file_path": model.file_path,
+                        "created_at": int(model.create_time.timestamp()) if model.create_time else None,
+                        # Add additional fields that might be expected
+                        "src_id": model.source_id,
+                        "tgt_id": model.target_id,
+                    }
+                    for relation_id, model in models.items()
+                }
+            else:
+                logger.error(f"Unknown namespace for get_all: {self.namespace}")
+                return {}
+
+        return await asyncio.to_thread(_sync_get_all)
+
     def _prepare_vector_data(self, item: dict[str, Any], current_time: datetime.datetime) -> dict[str, Any]:
         """Prepare vector data based on namespace."""
         from aperag.graph.lightrag.namespace import NameSpace, is_namespace
