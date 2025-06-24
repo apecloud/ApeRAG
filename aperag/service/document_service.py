@@ -363,7 +363,9 @@ class DocumentService:
                 raise ResourceNotFoundException(f"Collection {collection_id} not found or access denied")
             collection_config = json.loads(collection.config)
             if not collection_config.get("enable_knowledge_graph", False):
-                index_type_enums.remove(db_models.DocumentIndexType.GRAPH)
+                # Only remove GRAPH type if it's actually in the list to avoid ValueError
+                if db_models.DocumentIndexType.GRAPH in index_type_enums:
+                    index_type_enums.remove(db_models.DocumentIndexType.GRAPH)
 
             # Trigger index rebuild by incrementing version for selected index types
             await document_index_manager.create_or_update_document_indexes(session, document_id, index_type_enums)
