@@ -15,7 +15,7 @@
 import json
 import logging
 import os
-from typing import List, Optional
+from typing import List
 
 from asgiref.sync import sync_to_async
 from fastapi import UploadFile
@@ -38,7 +38,7 @@ from aperag.exceptions import (
 from aperag.index.manager import document_index_manager
 from aperag.objectstore.base import get_object_store
 from aperag.schema import view_models
-from aperag.schema.view_models import Document, DocumentList
+from aperag.schema.view_models import DocumentList
 from aperag.utils.constant import QuotaType
 from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
 
@@ -83,7 +83,8 @@ class DocumentService:
         """Build Document response object for API return using new status model."""
         from sqlalchemy import select
 
-        from aperag.db.models import DocumentIndex, DocumentIndexType
+        from aperag.db.models import DocumentIndex
+
         # Get all document indexes for status calculation
         document_indexes = await session.execute(
             select(DocumentIndex).where(
@@ -97,12 +98,16 @@ class DocumentService:
         # Map index states to API response format
         index_status = {}
         index_updated = {}
-        
+
         # Initialize all types as SKIPPED (when no record exists)
-        all_types = [db_models.DocumentIndexType.VECTOR, db_models.DocumentIndexType.FULLTEXT, db_models.DocumentIndexType.GRAPH]
+        all_types = [
+            db_models.DocumentIndexType.VECTOR,
+            db_models.DocumentIndexType.FULLTEXT,
+            db_models.DocumentIndexType.GRAPH,
+        ]
         for index_type in all_types:
             index_status[index_type] = "SKIPPED"
-        
+
         # Update with actual states from database
         for index in indexes:
             index_status[index.index_type] = index.status
@@ -208,9 +213,7 @@ class DocumentService:
 
                     # Use index manager to create indexes with new status model
                     await document_index_manager.create_or_update_document_indexes(
-                        document_id=document_instance.id,
-                        index_types=index_types,
-                        session=session
+                        document_id=document_instance.id, index_types=index_types, session=session
                     )
 
                     # Build response object
@@ -263,14 +266,12 @@ class DocumentService:
             return
 
         # Use index manager to mark all related indexes for deletion
-        await document_index_manager.delete_document_indexes(
-            document_id=document.id, index_types=None, session=session
-        )
+        await document_index_manager.delete_document_indexes(document_id=document.id, index_types=None, session=session)
 
         # Delete from object store
         obj_store = get_object_store()
         metadata = json.loads(document.doc_metadata) if document.doc_metadata else {}
-        if object_path := metadata.get("object_path"):
+        if metadata.get("object_path"):
             try:
                 # Use delete_objects_by_prefix to remove all related files (original, chunks, etc.)
                 await sync_to_async(obj_store.delete_objects_by_prefix)(document.object_store_base_path())

@@ -86,12 +86,12 @@ class DocumentIndexType(str, Enum):
 class DocumentIndexStatus(str, Enum):
     """Document index lifecycle status"""
 
-    PENDING = "PENDING"                     # Awaiting processing (create/update)
-    CREATING = "CREATING"                   # Task claimed, creation/update in progress
-    ACTIVE = "ACTIVE"                       # Index is up-to-date and ready for use
-    DELETING = "DELETING"                   # Deletion has been requested
+    PENDING = "PENDING"  # Awaiting processing (create/update)
+    CREATING = "CREATING"  # Task claimed, creation/update in progress
+    ACTIVE = "ACTIVE"  # Index is up-to-date and ready for use
+    DELETING = "DELETING"  # Deletion has been requested
     DELETION_IN_PROGRESS = "DELETION_IN_PROGRESS"  # Task claimed, deletion in progress
-    FAILED = "FAILED"                       # The last operation failed
+    FAILED = "FAILED"  # The last operation failed
 
 
 class BotStatus(str, Enum):
@@ -240,7 +240,9 @@ class Document(Base):
 
         if any(status == DocumentIndexStatus.FAILED for status in statuses):
             return DocumentStatus.FAILED
-        elif any(status in [DocumentIndexStatus.CREATING, DocumentIndexStatus.DELETION_IN_PROGRESS] for status in statuses):
+        elif any(
+            status in [DocumentIndexStatus.CREATING, DocumentIndexStatus.DELETION_IN_PROGRESS] for status in statuses
+        ):
             return DocumentStatus.RUNNING
         elif all(status == DocumentIndexStatus.ACTIVE for status in statuses):
             return DocumentStatus.COMPLETE

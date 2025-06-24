@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
 from typing import List, Optional
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.db.models import DocumentIndex, DocumentIndexType, DocumentIndexStatus, utc_now
+from aperag.db.models import DocumentIndex, DocumentIndexStatus, DocumentIndexType, utc_now
 
 logger = logging.getLogger(__name__)
 

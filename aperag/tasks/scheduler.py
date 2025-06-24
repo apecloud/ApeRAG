@@ -16,8 +16,6 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional
 
-from aperag.tasks.utils import cleanup_local_document, parse_document_content
-
 logger = logging.getLogger(__name__)
 
 

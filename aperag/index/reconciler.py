@@ -13,23 +13,22 @@
 # limitations under the License.
 
 import logging
-import time
 from typing import List, Optional
 
-from sqlalchemy import and_, or_, select, update
+from sqlalchemy import and_, select, update
 from sqlalchemy.orm import Session
 
 from aperag.config import get_sync_session
 from aperag.db.models import (
     Document,
     DocumentIndex,
-    DocumentIndexType,
     DocumentIndexStatus,
+    DocumentIndexType,
     DocumentStatus,
 )
 from aperag.tasks.scheduler import TaskScheduler, create_task_scheduler
-from aperag.utils.utils import utc_now
 from aperag.utils.constant import IndexAction
+from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +88,7 @@ class DocumentIndexReconciler:
                 DocumentIndex.status == DocumentIndexStatus.DELETING,
             ),
         }
-        
+
         for action, condition in conditions.items():
             stmt = select(DocumentIndex).where(condition)
             result = session.execute(stmt)
@@ -128,7 +127,7 @@ class DocumentIndexReconciler:
         Returns list of successfully claimed indexes with their details.
         """
         claimed_indexes = []
-        
+
         try:
             for index_id, index_type, action in indexes_to_claim:
                 if action in [IndexAction.CREATE, IndexAction.UPDATE]:
@@ -142,7 +141,7 @@ class DocumentIndexReconciler:
                 stmt = select(DocumentIndex).where(DocumentIndex.id == index_id)
                 result = session.execute(stmt)
                 current_index = result.scalar_one_or_none()
-                
+
                 if not current_index:
                     continue
 
@@ -177,13 +176,17 @@ class DocumentIndexReconciler:
                 result = session.execute(update_stmt)
                 if result.rowcount > 0:
                     # Successfully claimed this index
-                    claimed_indexes.append({
-                        'index_id': index_id,
-                        'document_id': document_id,
-                        'index_type': index_type,
-                        'action': action,
-                        'target_version': current_index.version if action in [IndexAction.CREATE, IndexAction.UPDATE] else None,
-                    })
+                    claimed_indexes.append(
+                        {
+                            "index_id": index_id,
+                            "document_id": document_id,
+                            "index_type": index_type,
+                            "action": action,
+                            "target_version": current_index.version
+                            if action in [IndexAction.CREATE, IndexAction.UPDATE]
+                            else None,
+                        }
+                    )
                     logger.debug(f"Claimed index {index_id} for document {document_id} ({action})")
                 else:
                     logger.debug(f"Could not claim index {index_id} for document {document_id}")
@@ -199,64 +202,57 @@ class DocumentIndexReconciler:
         Reconcile operations for a single document, batching same operation types together
         """
         from collections import defaultdict
-        
+
         # Group by operation type to batch operations
         operations_by_type = defaultdict(list)
         for claimed_index in claimed_indexes:
-            action = claimed_index['action']
+            action = claimed_index["action"]
             operations_by_type[action].append(claimed_index)
 
         # Process create operations as a batch
         if IndexAction.CREATE in operations_by_type:
             create_indexes = operations_by_type[IndexAction.CREATE]
-            create_types = [claimed_index['index_type'] for claimed_index in create_indexes]
+            create_types = [claimed_index["index_type"] for claimed_index in create_indexes]
             context = {}
-            
+
             for claimed_index in create_indexes:
-                index_type = claimed_index['index_type']
-                target_version = claimed_index.get('target_version')
-                
+                index_type = claimed_index["index_type"]
+                target_version = claimed_index.get("target_version")
+
                 # Store version info in context
                 if target_version is not None:
                     context[f"{index_type}_version"] = target_version
-            
-            task_id = self.task_scheduler.schedule_create_index(
-                document_id=document_id,
-                index_types=create_types,
-                context=context
+
+            self.task_scheduler.schedule_create_index(
+                document_id=document_id, index_types=create_types, context=context
             )
             logger.info(f"Scheduled create task for document {document_id}, types: {create_types}")
-        
+
         # Process update operations as a batch
         if IndexAction.UPDATE in operations_by_type:
             update_indexes = operations_by_type[IndexAction.UPDATE]
-            update_types = [claimed_index['index_type'] for claimed_index in update_indexes]
+            update_types = [claimed_index["index_type"] for claimed_index in update_indexes]
             context = {}
 
             for claimed_index in update_indexes:
-                index_type = claimed_index['index_type']
-                target_version = claimed_index.get('target_version')
-                
+                index_type = claimed_index["index_type"]
+                target_version = claimed_index.get("target_version")
+
                 # Store version info in context
                 if target_version is not None:
                     context[f"{index_type}_version"] = target_version
-            
-            task_id = self.task_scheduler.schedule_update_index(
-                document_id=document_id,
-                index_types=update_types,
-                context=context
+
+            self.task_scheduler.schedule_update_index(
+                document_id=document_id, index_types=update_types, context=context
             )
             logger.info(f"Scheduled update task for document {document_id}, types: {update_types}")
 
         # Process delete operations as a batch
         if IndexAction.DELETE in operations_by_type:
             delete_indexes = operations_by_type[IndexAction.DELETE]
-            delete_types = [claimed_index['index_type'] for claimed_index in delete_indexes]
-            
-            task_id = self.task_scheduler.schedule_delete_index(
-                document_id=document_id,
-                index_types=delete_types
-            )
+            delete_types = [claimed_index["index_type"] for claimed_index in delete_indexes]
+
+            self.task_scheduler.schedule_delete_index(document_id=document_id, index_types=delete_types)
             logger.info(f"Scheduled delete task for document {document_id}, types: {delete_types}")
 
 
@@ -322,7 +318,9 @@ class IndexTaskCallbacks:
                         DocumentIndex.document_id == document_id,
                         DocumentIndex.index_type == DocumentIndexType(index_type),
                         # Allow transition from any in-progress state
-                        DocumentIndex.status.in_([DocumentIndexStatus.CREATING, DocumentIndexStatus.DELETION_IN_PROGRESS]),
+                        DocumentIndex.status.in_(
+                            [DocumentIndexStatus.CREATING, DocumentIndexStatus.DELETION_IN_PROGRESS]
+                        ),
                     )
                 )
                 .values(
@@ -350,15 +348,12 @@ class IndexTaskCallbacks:
         for session in get_sync_session():
             # Delete the record entirely
             from sqlalchemy import delete
-            
-            delete_stmt = (
-                delete(DocumentIndex)
-                .where(
-                    and_(
-                        DocumentIndex.document_id == document_id,
-                        DocumentIndex.index_type == DocumentIndexType(index_type),
-                        DocumentIndex.status == DocumentIndexStatus.DELETION_IN_PROGRESS,
-                    )
+
+            delete_stmt = delete(DocumentIndex).where(
+                and_(
+                    DocumentIndex.document_id == document_id,
+                    DocumentIndex.index_type == DocumentIndexType(index_type),
+                    DocumentIndex.status == DocumentIndexStatus.DELETION_IN_PROGRESS,
                 )
             )
 
