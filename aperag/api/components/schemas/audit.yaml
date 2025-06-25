@@ -15,7 +15,7 @@ auditLog:
       description: Username for display
     resource_type:
       type: string
-      enum: [collection, document, bot, chat, message, api_key, llm_provider, llm_provider_model, model_service_provider, user, flow, search]
+      enum: [collection, document, bot, chat, message, api_key, llm, llm_provider, llm_provider_model, model_service_provider, user, flow, search]
       nullable: true
       description: Type of resource
     resource_id:
