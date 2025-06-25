@@ -143,6 +143,7 @@ export const AuditLogResourceTypeEnum = {
     chat: 'chat',
     message: 'message',
     api_key: 'api_key',
+    llm: 'llm',
     llm_provider: 'llm_provider',
     llm_provider_model: 'llm_provider_model',
     model_service_provider: 'model_service_provider',

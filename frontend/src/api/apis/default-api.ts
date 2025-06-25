@@ -1765,7 +1765,7 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
          * @summary Delete a provider model
          * @param {string} providerName Provider name
          * @param {LlmProvidersProviderNameModelsApiModelDeleteApiEnum} api API type
-         * @param {string} model Model name
+         * @param {string} model Model name (supports names with slashes, will be URL decoded)
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
@@ -1807,7 +1807,7 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
          * @summary Update a provider model
          * @param {string} providerName Provider name
          * @param {LlmProvidersProviderNameModelsApiModelPutApiEnum} api API type
-         * @param {string} model Model name
+         * @param {string} model Model name (supports names with slashes, will be URL decoded)
          * @param {LlmProviderModelUpdate} llmProviderModelUpdate 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
@@ -2760,7 +2760,7 @@ export const DefaultApiFp = function(configuration?: Configuration) {
          * @summary Delete a provider model
          * @param {string} providerName Provider name
          * @param {LlmProvidersProviderNameModelsApiModelDeleteApiEnum} api API type
-         * @param {string} model Model name
+         * @param {string} model Model name (supports names with slashes, will be URL decoded)
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
@@ -2775,7 +2775,7 @@ export const DefaultApiFp = function(configuration?: Configuration) {
          * @summary Update a provider model
          * @param {string} providerName Provider name
          * @param {LlmProvidersProviderNameModelsApiModelPutApiEnum} api API type
-         * @param {string} model Model name
+         * @param {string} model Model name (supports names with slashes, will be URL decoded)
          * @param {LlmProviderModelUpdate} llmProviderModelUpdate 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
@@ -4700,7 +4700,7 @@ export interface DefaultApiLlmProvidersProviderNameModelsApiModelDeleteRequest {
     readonly api: LlmProvidersProviderNameModelsApiModelDeleteApiEnum
 
     /**
-     * Model name
+     * Model name (supports names with slashes, will be URL decoded)
      * @type {string}
      * @memberof DefaultApiLlmProvidersProviderNameModelsApiModelDelete
      */
@@ -4728,7 +4728,7 @@ export interface DefaultApiLlmProvidersProviderNameModelsApiModelPutRequest {
     readonly api: LlmProvidersProviderNameModelsApiModelPutApiEnum
 
     /**
-     * Model name
+     * Model name (supports names with slashes, will be URL decoded)
      * @type {string}
      * @memberof DefaultApiLlmProvidersProviderNameModelsApiModelPut
      */

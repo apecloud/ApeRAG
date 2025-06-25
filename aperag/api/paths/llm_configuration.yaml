@@ -228,7 +228,9 @@ llmProviderModel:
         required: true
         schema:
           type: string
-        description: Model name
+        description: Model name (supports names with slashes, will be URL decoded)
+        style: simple
+        explode: false
     requestBody:
       required: true
       content:
@@ -282,7 +284,9 @@ llmProviderModel:
         required: true
         schema:
           type: string
-        description: Model name
+        description: Model name (supports names with slashes, will be URL decoded)
+        style: simple
+        explode: false
     responses:
       '200':
         description: Model deleted successfully

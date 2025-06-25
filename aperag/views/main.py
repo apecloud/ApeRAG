@@ -15,7 +15,7 @@
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Request, Response, UploadFile, WebSocket
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Path, Request, Response, UploadFile, WebSocket
 
 from aperag.db.models import User
 from aperag.schema import view_models
@@ -424,10 +424,14 @@ async def create_provider_model_view(request: Request, provider_name: str, user:
     return await create_llm_provider_model(provider_name, data, str(user.id), is_admin)
 
 
-@router.put("/llm_providers/{provider_name}/models/{api}/{model}")
+@router.put("/llm_providers/{provider_name}/models/{api}/{model:path}")
 @audit(resource_type="llm_provider_model", api_name="UpdateProviderModel")
 async def update_provider_model_view(
-    request: Request, provider_name: str, api: str, model: str, user: User = Depends(current_user)
+    request: Request, 
+    provider_name: str, 
+    api: str, 
+    model: str = Path(..., description="Model name (supports names with slashes)"), 
+    user: User = Depends(current_user)
 ):
     """Update a specific model"""
     import json
@@ -440,10 +444,14 @@ async def update_provider_model_view(
     return await update_llm_provider_model(provider_name, api, model, data, str(user.id), is_admin)
 
 
-@router.delete("/llm_providers/{provider_name}/models/{api}/{model}")
+@router.delete("/llm_providers/{provider_name}/models/{api}/{model:path}")
 @audit(resource_type="llm_provider_model", api_name="DeleteProviderModel")
 async def delete_provider_model_view(
-    request: Request, provider_name: str, api: str, model: str, user: User = Depends(current_user)
+    request: Request, 
+    provider_name: str, 
+    api: str, 
+    model: str = Path(..., description="Model name (supports names with slashes)"), 
+    user: User = Depends(current_user)
 ):
     """Delete a specific model"""
     from aperag.db.models import Role

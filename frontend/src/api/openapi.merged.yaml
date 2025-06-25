@@ -1161,7 +1161,9 @@ paths:
           required: true
           schema:
             type: string
-          description: Model name
+          description: Model name (supports names with slashes, will be URL decoded)
+          style: simple
+          explode: false
       requestBody:
         required: true
         content:
@@ -1218,7 +1220,9 @@ paths:
           required: true
           schema:
             type: string
-          description: Model name
+          description: Model name (supports names with slashes, will be URL decoded)
+          style: simple
+          explode: false
       responses:
         '200':
           description: Model deleted successfully
@@ -3573,6 +3577,7 @@ components:
             - chat
             - message
             - api_key
+            - llm
             - llm_provider
             - llm_provider_model
             - model_service_provider
