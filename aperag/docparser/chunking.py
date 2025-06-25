@@ -15,7 +15,7 @@
 from dataclasses import dataclass
 from typing import Callable, List
 
-from aperag.docparser.base import Part, TitlePart
+from aperag.docparser.base import Part
 
 
 def rechunk(
@@ -54,7 +54,7 @@ class Rechunker:
             nesting = part.metadata.get("nesting", 0)
             title_level = 0
             title = ""
-            if isinstance(part, TitlePart):
+            if hasattr(part, "level"):  # TitlePart
                 title_level = part.level
                 title = part.content or ""
 
@@ -198,14 +198,7 @@ class Rechunker:
         dest.metadata["pdf_source_map"] = new_map
 
     def _count_tokens(self, elem: Group | Part) -> int:
-        if isinstance(elem, Part):
-            tokens = elem.metadata.get("tokens", None)
-            if tokens is not None:
-                return tokens
-            tokens = len(self.tokenizer(elem.content))
-            elem.metadata["tokens"] = tokens
-            return tokens
-        elif isinstance(elem, Group):
+        if isinstance(elem, Group):
             if elem.tokens is not None:
                 return elem.tokens
             total = 0
@@ -214,7 +207,14 @@ class Rechunker:
                 total += num
             elem.tokens = total
             return elem.tokens
-        return 0
+        else:
+            # elem is a Part
+            tokens = elem.metadata.get("tokens", None)
+            if tokens is not None:
+                return tokens
+            tokens = len(self.tokenizer(elem.content))
+            elem.metadata["tokens"] = tokens
+            return tokens
 
 
 class SimpleSemanticSplitter:
