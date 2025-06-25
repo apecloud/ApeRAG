@@ -99,7 +99,6 @@ async def create_lightrag_instance(collection: Collection) -> LightRAG:
         )
 
         await rag.initialize_storages()
-        logger.info(f"LightRAG instance for collection '{collection_id}' successfully created")
         return rag
 
     except Exception as e:

@@ -46,7 +46,7 @@ class Neo4jSyncConnectionManager:
                     cls._config = config
                 else:
                     cls._config = {
-                        "uri": os.environ.get("NEO4J_URI", "neo4j://localhost:7687"),
+                        "uri": os.environ.get("NEO4J_URI", "bolt://localhost:7687"),
                         "username": os.environ.get("NEO4J_USERNAME", "neo4j"),
                         "password": os.environ.get("NEO4J_PASSWORD", "neo4j"),
                         "max_connection_pool_size": int(os.environ.get("NEO4J_MAX_CONNECTION_POOL_SIZE", "50")),

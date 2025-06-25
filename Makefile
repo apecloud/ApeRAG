@@ -368,7 +368,8 @@ run-neo4j:
 		docker run -d --name aperag-neo4j-dev -p 7474:7474 -p 7687:7687 \
 		-e NEO4J_AUTH=neo4j/password \
 		-e NEO4J_PLUGINS=\[\"apoc\"\] \
-		neo4j:5.26.5
+		-e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes \
+		neo4j:5.26.5-enterprise
 	@docker start aperag-neo4j-dev
 
 .PHONY: load-images-to-minikube
