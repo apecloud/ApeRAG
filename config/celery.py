@@ -28,6 +28,15 @@ except ImportError:
     cleanup_worker_neo4j = None
     neo4j_available = False
 
+# Import NebulaGraph sync configuration signal handlers
+try:
+    from aperag.db.nebula_sync_manager import setup_worker_nebula, cleanup_worker_nebula
+    nebula_available = True
+except ImportError:
+    setup_worker_nebula = None
+    cleanup_worker_nebula = None
+    nebula_available = False
+
 # Create celery app instance
 app = Celery("aperag")
 
@@ -71,6 +80,13 @@ if neo4j_available and setup_worker_neo4j is not None:
 
 if neo4j_available and cleanup_worker_neo4j is not None:
     worker_process_shutdown.connect(cleanup_worker_neo4j)
+
+# Connect NebulaGraph worker lifecycle signals
+if nebula_available and setup_worker_nebula is not None:
+    worker_process_init.connect(setup_worker_nebula)
+
+if nebula_available and cleanup_worker_nebula is not None:
+    worker_process_shutdown.connect(cleanup_worker_nebula)
 
 # Simple logging configuration for Celery workers
 CELERY_LOGGING_CONFIG = {

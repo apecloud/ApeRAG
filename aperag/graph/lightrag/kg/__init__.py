@@ -43,6 +43,11 @@ except ImportError:
     Neo4JSyncStorage = None
 
 try:
+    from .nebula_sync_impl import NebulaSyncStorage
+except ImportError:
+    NebulaSyncStorage = None
+
+try:
     from .redis_impl import RedisKVStorage
 except ImportError:
     RedisKVStorage = None
@@ -80,6 +85,7 @@ STORAGE_IMPLEMENTATIONS = {
             "Neo4JStorage",
             "Neo4JSyncStorage",
             "Neo4JHybridStorage",
+            "NebulaSyncStorage",
             "PGGraphStorage",
             "AGEStorage",
         ],
@@ -105,6 +111,8 @@ STORAGE_ENV_REQUIREMENTS: dict[str, list[str]] = {
     "QdrantVectorDBStorage": ["QDRANT_URL"],  # QDRANT_API_KEY has default value None
     # Document Status Storage Implementations
     "PGDocStatusStorage": ["POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DATABASE"],
+    # Graph Storage Implementations
+    "NebulaSyncStorage": ["NEBULA_HOST", "NEBULA_PORT", "NEBULA_USER", "NEBULA_PASSWORD"],
 }
 
 # Storage implementation module mapping - build conditionally
@@ -116,6 +124,10 @@ if Neo4JStorage is not None:
 
 if Neo4JSyncStorage is not None:
     STORAGES["Neo4JSyncStorage"] = ".kg.neo4j_sync_impl"
+
+# Add NebulaGraph implementations
+if NebulaSyncStorage is not None:
+    STORAGES["NebulaSyncStorage"] = ".kg.nebula_sync_impl"
 
 # Add Redis implementations
 if RedisKVStorage is not None:
