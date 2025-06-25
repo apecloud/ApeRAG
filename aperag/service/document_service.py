@@ -41,6 +41,7 @@ from aperag.schema import view_models
 from aperag.schema.view_models import DocumentList
 from aperag.utils.constant import QuotaType
 from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
+from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -279,10 +280,12 @@ class DocumentService:
             except Exception as e:
                 logger.warning(f"Failed to delete objects for document {document.id} from object store: {e}")
 
-        # Delete the document record from the database
-        await session.delete(document)
+        # Mark document as deleted
+        document.status = db_models.DocumentStatus.DELETED
+        document.gmt_deleted = utc_now()
+        session.add(document)
         await session.flush()
-        logger.info(f"Successfully marked document {document.id} and its indexes for deletion.")
+        logger.info(f"Successfully marked document {document.id} as deleted.")
 
         return document
 
