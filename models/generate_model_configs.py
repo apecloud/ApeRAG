@@ -467,7 +467,7 @@ def create_xai_config():
     return config
 
 
-def parse_bailian_models(file_path: str) -> List[Dict[str, Any]]:
+def parse_bailian_models(file_path: str, default_custom_llm_provider) -> List[Dict[str, Any]]:
     """Parse Alibaba Bailian models from JSON file"""
     with open(file_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
@@ -494,7 +494,7 @@ def parse_bailian_models(file_path: str) -> List[Dict[str, Any]]:
             
             spec = {
                 "model": model_id,
-                "custom_llm_provider": "openai"
+                "custom_llm_provider": default_custom_llm_provider
             }
             
             # Add context window as max_tokens if available
@@ -536,15 +536,15 @@ def create_alibabacloud_config():
     
     # Parse completion models
     print(f"  - Reading completion models from: {completion_file}")
-    completion_models = parse_bailian_models(completion_file)
+    completion_models = parse_bailian_models(completion_file, "openai")
     
     # Parse embedding models
     print(f"  - Reading embedding models from: {embedding_file}")
-    embedding_models = parse_bailian_models(embedding_file)
+    embedding_models = parse_bailian_models(embedding_file, "openai")
     
     # Parse rerank models
     print(f"  - Reading rerank models from: {rerank_file}")
-    rerank_models = parse_bailian_models(rerank_file)
+    rerank_models = parse_bailian_models(rerank_file, "alibabacloud")
     
     # Apply blocklist filtering
     completion_models = [m for m in completion_models if m["model"] not in completion_blocklist]

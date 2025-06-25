@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 class LightRAGConfig:
     """Centralized configuration for LightRAG"""
 
-    CHUNK_TOKEN_SIZE = 3000
+    CHUNK_TOKEN_SIZE = 1200
     CHUNK_OVERLAP_TOKEN_SIZE = 100
     LLM_MODEL_MAX_ASYNC = 20
     COSINE_BETTER_THAN_THRESHOLD = 0.2
