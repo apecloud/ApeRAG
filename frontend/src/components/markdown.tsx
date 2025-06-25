@@ -22,11 +22,19 @@ const StyledMarkdown = styled('div').withConfig({
 }>`
   ${({ token }) => {
     return css`
+      line-height: 1.8em;
       pre {
         background: #0d1117;
         color: #c9d1d9;
         border-radius: 4px;
         font-size: 12px;
+      }
+      code {
+        background: rgba(128, 128, 128, 0.15);
+        padding-inline: 8px;
+        padding-block: 4px;
+        border-radius: 4px;
+        word-wrap: break-word;
       }
       pre > code {
         display: block;

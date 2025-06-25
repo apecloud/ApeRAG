@@ -73,15 +73,11 @@ export default () => {
 
     if (fragment.type === 'message') {
       setMessages((msgs) => {
-        const index = msgs?.findLastIndex((m) => m.id === fragment.id);
-        if (index !== -1) {
-          const msg = msgs[index];
-          msgs.splice(index, 1, {
-            ...msg,
-            data: (msg.data || '') + (fragment.data || ''),
-          });
+        const last = msgs.findLast((m) => m.id === fragment.id);
+        if (last) {
+          last.data = (last.data || '') + (fragment.data || '');
         }
-        return msgs;
+        return [...msgs];
       });
     }
 
@@ -89,12 +85,11 @@ export default () => {
       const references = fragment.data as unknown as Reference[];
       if (references) {
         setMessages((msgs) => {
-          const index = msgs?.findLastIndex((m) => m.id === fragment.id);
-          _.update(msgs, index, (origin) => ({
-            ...origin,
-            references,
-          }));
-          return msgs;
+          const last = msgs.findLast((m) => m.id === fragment.id);
+          if (last) {
+            last.references = references;
+          }
+          return [...msgs];
         });
       }
       setLoading(false);
@@ -102,15 +97,11 @@ export default () => {
 
     if (fragment.type === 'error') {
       setMessages((msgs) => {
-        const index = msgs?.findLastIndex((m) => m.id === fragment.id);
-        if (index !== -1) {
-          const msg = msgs[index];
-          msgs.splice(index, 1, {
-            ...msg,
-            data: fragment.data,
-          });
+        const last = msgs.findLast((m) => m.id === fragment.id);
+        if (last) {
+          last.data = fragment.data;
         }
-        return msgs;
+        return [...msgs];
       });
       setLoading(false);
     }
