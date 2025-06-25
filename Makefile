@@ -118,6 +118,10 @@ clean:
 	@echo "Cleaning development environment..."
 	@rm -f db.sqlite3
 	@docker rm -fv aperag-postgres-dev aperag-redis-dev aperag-qdrant-dev aperag-es-dev aperag-minio-dev aperag-neo4j-dev 2>/dev/null || true
+	@if [ -f "nebula-docker-compose.yml" ]; then \
+		echo "Stopping NebulaGraph containers..."; \
+		docker-compose -f nebula-docker-compose.yml down 2>/dev/null || true; \
+	fi
 
 ##################################################
 # Developers - Code Quality and Tools
@@ -316,7 +320,7 @@ connect-metadb:
 	@docker exec -it aperag-postgres-dev psql -p 5432 -U postgres
 
 # Individual service startup (for advanced users)
-.PHONY: run-redis run-postgres run-qdrant run-es run-minio run-neo4j
+.PHONY: run-redis run-postgres run-qdrant run-es run-minio run-neo4j run-nebula stop-nebula
 run-redis:
 	@docker inspect aperag-redis-dev >/dev/null 2>&1 || docker run -d --name aperag-redis-dev -p 6379:6379 redis:latest
 	@docker start aperag-redis-dev
@@ -371,6 +375,31 @@ run-neo4j:
 		-e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes \
 		neo4j:5.26.5-enterprise
 	@docker start aperag-neo4j-dev
+
+run-nebula:
+	@echo "Setting up NebulaGraph with docker-compose (no persistence)..."
+	@TZ=UTC docker-compose -f nebula-docker-compose.yml up -d
+	@echo "NebulaGraph is starting up..."
+	@echo ""
+	@echo "✅ Graph service available at: localhost:9669"
+	@echo ""
+	@echo "🌐 Studio Web UI: http://localhost:7001"
+	@echo "   📝 Connection Info:"
+	@echo "   • Graphd IP address: graphd"
+	@echo "   • Port: 9669"
+	@echo "   • Username: root"
+	@echo "   • Password: nebula (or any password)"
+	@echo ""
+	@echo "💻 Console: docker run --rm -ti --network host vesoft/nebula-console:nightly -addr 127.0.0.1 -port 9669 -u root -p nebula"
+	@echo ""
+	@echo "🔍 Check status: docker-compose -f nebula-docker-compose.yml ps"
+	@echo "🛑 Stop: make stop-nebula"
+
+stop-nebula:
+	@echo "Stopping NebulaGraph..."
+	@docker-compose -f nebula-docker-compose.yml down
+	@echo "NebulaGraph stopped."
+
 
 .PHONY: load-images-to-minikube
 load-images-to-minikube:

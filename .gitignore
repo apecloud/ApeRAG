@@ -163,6 +163,7 @@ requirements.txt
 magic-pdf.json
 .cursor
 .objects/
+local-storage
 
 cursorplans
 celerybeat-schedule.db
