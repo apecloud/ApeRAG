@@ -21,8 +21,58 @@ export default () => {
   const protocol = window.location.protocol === 'http:' ? 'ws://' : 'wss://';
   const host = window.location.host;
 
-  const { latestMessage, sendMessage, readyState } = useWebSocket(
+  const { sendMessage, readyState } = useWebSocket(
     `${protocol}${host}/api/v1/bots/${botId}/chats/${chatId}/connect`,
+    {
+      onMessage: (message) => {
+        const fragment = JSON.parse(message.data) as ChatMessage;
+
+        if (fragment.type === 'start') {
+          setMessages((msgs) =>
+            msgs.concat({
+              ...fragment,
+              role: 'ai',
+            }),
+          );
+          setLoading(true);
+        }
+
+        if (fragment.type === 'message') {
+          setMessages((msgs) => {
+            const last = msgs.findLast((m) => m.id === fragment.id);
+            if (last) {
+              last.data = (last.data || '') + (fragment.data || '');
+            }
+            return [...msgs];
+          });
+        }
+
+        if (fragment.type === 'stop') {
+          const references = fragment.data as unknown as Reference[];
+          if (references) {
+            setMessages((msgs) => {
+              const last = msgs.findLast((m) => m.id === fragment.id);
+              if (last) {
+                last.references = references;
+              }
+              return [...msgs];
+            });
+          }
+          setLoading(false);
+        }
+
+        if (fragment.type === 'error') {
+          setMessages((msgs) => {
+            const last = msgs.findLast((m) => m.id === fragment.id);
+            if (last) {
+              last.data = fragment.data;
+            }
+            return [...msgs];
+          });
+          setLoading(false);
+        }
+      }
+    },
   );
 
   const onSubmit = useCallback(async (data: string) => {
@@ -56,56 +106,6 @@ export default () => {
       });
     }
   };
-
-  useEffect(() => {
-    if (!latestMessage) return;
-    const fragment = JSON.parse(latestMessage?.data) as ChatMessage;
-
-    if (fragment.type === 'start') {
-      setMessages((msgs) =>
-        msgs.concat({
-          ...fragment,
-          role: 'ai',
-        }),
-      );
-      setLoading(true);
-    }
-
-    if (fragment.type === 'message') {
-      setMessages((msgs) => {
-        const last = msgs.findLast((m) => m.id === fragment.id);
-        if (last) {
-          last.data = (last.data || '') + (fragment.data || '');
-        }
-        return [...msgs];
-      });
-    }
-
-    if (fragment.type === 'stop') {
-      const references = fragment.data as unknown as Reference[];
-      if (references) {
-        setMessages((msgs) => {
-          const last = msgs.findLast((m) => m.id === fragment.id);
-          if (last) {
-            last.references = references;
-          }
-          return [...msgs];
-        });
-      }
-      setLoading(false);
-    }
-
-    if (fragment.type === 'error') {
-      setMessages((msgs) => {
-        const last = msgs.findLast((m) => m.id === fragment.id);
-        if (last) {
-          last.data = fragment.data;
-        }
-        return [...msgs];
-      });
-      setLoading(false);
-    }
-  }, [latestMessage]);
 
   useEffect(() => {
     if (chatId && botId) getChat(botId, chatId);
