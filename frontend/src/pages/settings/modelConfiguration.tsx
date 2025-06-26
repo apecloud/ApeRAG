@@ -85,8 +85,6 @@ export default () => {
 
   // API Key配置相关方法 - 已移除，API Key现在直接在LLM Provider中管理
 
-
-
   // Provider operations
   const handleCreateProvider = useCallback(() => {
     setEditingProvider(null);
@@ -103,16 +101,16 @@ export default () => {
   const handleEditProvider = useCallback(
     async (provider: LlmProvider) => {
       setEditingProvider(provider);
-      
+
       // 加载provider数据
       const providerData: any = { ...provider };
-      
+
       // 如果API key存在且是掩码形式（包含***），则清空字段让用户重新输入
       // 这样用户知道需要重新输入API密钥
       if (providerData.api_key && providerData.api_key.includes('***')) {
         providerData.api_key = ''; // Clear masked API key for re-entry
       }
-      
+
       providerForm.setFieldsValue(providerData);
       setProviderModalVisible(true);
     },
@@ -336,14 +334,14 @@ export default () => {
     let models = configuration.models.filter(
       (model) => model.provider_name === currentProvider.name,
     );
-    
+
     // Apply search filter if search text exists
     if (modelSearchText.trim()) {
       models = models.filter((model) =>
         model.model.toLowerCase().includes(modelSearchText.toLowerCase()),
       );
     }
-    
+
     return models;
   }, [configuration.models, currentProvider, modelSearchText]);
 
@@ -356,8 +354,6 @@ export default () => {
     },
     [configuration.models],
   );
-
-
 
   // Provider table columns
   const providerColumns: TableProps<LlmProvider>['columns'] = [
@@ -392,18 +388,21 @@ export default () => {
         showTitle: false,
       },
       render: (_, record) => {
-        const apiKey = record.api_key && record.api_key.trim() !== '' ? record.api_key : null;
+        const apiKey =
+          record.api_key && record.api_key.trim() !== ''
+            ? record.api_key
+            : null;
         return apiKey ? (
           <Tooltip title={apiKey}>
-            <Text 
-              style={{ 
-                fontSize: '12px', 
+            <Text
+              style={{
+                fontSize: '12px',
                 fontFamily: 'monospace',
                 maxWidth: '140px',
                 display: 'inline-block',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
+                whiteSpace: 'nowrap',
               }}
             >
               {apiKey}
@@ -434,7 +433,7 @@ export default () => {
             {count}
           </Text>
         );
-            },
+      },
     },
     {
       title: formatMessage({ id: 'action.name' }),
@@ -548,7 +547,7 @@ export default () => {
             </Tag>
           ))}
         </Space>
-            ),
+      ),
     },
     {
       title: formatMessage({ id: 'action.name' }),
@@ -742,8 +741,6 @@ export default () => {
             </Col>
           </Row>
 
-
-
           <Divider orientation="left">
             {formatMessage({ id: 'model.provider.api_key.settings' })}
           </Divider>
@@ -762,7 +759,9 @@ export default () => {
             <Input
               placeholder={
                 editingProvider && editingProvider.api_key
-                  ? formatMessage({ id: 'model.provider.api_key.edit.placeholder' })
+                  ? formatMessage({
+                      id: 'model.provider.api_key.edit.placeholder',
+                    })
                   : formatMessage({ id: 'model.provider.api_key.placeholder' })
               }
               autoComplete="off"
@@ -811,7 +810,9 @@ export default () => {
               </Title>
               <div style={{ flex: 1, maxWidth: 300 }}>
                 <Input
-                  placeholder={formatMessage({ id: 'model.search.placeholder' })}
+                  placeholder={formatMessage({
+                    id: 'model.search.placeholder',
+                  })}
                   prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
                   value={modelSearchText}
                   onChange={(e) => setModelSearchText(e.target.value)}
@@ -1024,8 +1025,6 @@ export default () => {
           </div>
         )}
       </Modal>
-
-
     </PageContainer>
   );
 };

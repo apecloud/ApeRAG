@@ -104,15 +104,19 @@ export const model_provider = {
   'model.provider.api_key': 'Provider API Key',
   'model.provider.api_key.required': 'Provider API Key is required',
   'model.provider.add': 'Add Provider',
-  
+
   // API Key management related
   'model.provider.api_key.manage': 'Manage API Keys',
-  'model.provider.api_key.description': 'Configure API keys for model service providers to enable model services',
+  'model.provider.api_key.description':
+    'Configure API keys for model service providers to enable model services',
   'model.provider.api_key.settings': 'API Key Settings',
-  'model.provider.api_key.help': 'Optional: Configure API key for this provider to enable model services',
+  'model.provider.api_key.help':
+    'Optional: Configure API key for this provider to enable model services',
   'model.provider.api_key.placeholder': 'Enter API key',
-  'model.provider.api_key.edit.help': 'API key is currently configured. Leave empty to keep unchanged, enter new key to update',
-  'model.provider.api_key.edit.placeholder': 'Enter new API key (leave empty to keep unchanged)',
+  'model.provider.api_key.edit.help':
+    'API key is currently configured. Leave empty to keep unchanged, enter new key to update',
+  'model.provider.api_key.edit.placeholder':
+    'Enter new API key (leave empty to keep unchanged)',
   'model.provider.api_key.configured': 'Configured',
   'model.provider.api_key.not_configured': 'Not Configured',
   'model.provider.api_key.update.success': 'API key updated successfully',

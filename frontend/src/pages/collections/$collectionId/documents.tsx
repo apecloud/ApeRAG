@@ -9,7 +9,6 @@ import {
   SUPPORTED_COMPRESSED_EXTENSIONS,
   SUPPORTED_DOC_EXTENSIONS,
   SUPPORTED_MEDIA_EXTENSIONS,
-  UI_DOCUMENT_STATUS,
   UI_INDEX_STATUS,
 } from '@/constants';
 import { getAuthorizationHeader } from '@/models/user';
@@ -19,8 +18,8 @@ import { parseConfig } from '@/utils';
 import {
   DeleteOutlined,
   MoreOutlined,
-  SearchOutlined,
   ReloadOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
 import { useRequest } from 'ahooks';
 import {
@@ -35,10 +34,10 @@ import {
   Table,
   TableProps,
   theme,
+  Tooltip,
   Typography,
   Upload,
   UploadProps,
-  Tooltip,
 } from 'antd';
 import byteSize from 'byte-size';
 import alpha from 'color-alpha';
@@ -60,8 +59,11 @@ export default () => {
   const [modal, contextHolder] = Modal.useModal();
   const { formatMessage } = useIntl();
   const [rebuildModalVisible, setRebuildModalVisible] = useState(false);
-  const [rebuildSelectedDocument, setRebuildSelectedDocument] = useState<ApeDocument | null>(null);
-  const [rebuildSelectedTypes, setRebuildSelectedTypes] = useState<string[]>([]);
+  const [rebuildSelectedDocument, setRebuildSelectedDocument] =
+    useState<ApeDocument | null>(null);
+  const [rebuildSelectedTypes, setRebuildSelectedTypes] = useState<string[]>(
+    [],
+  );
   const {
     data: documentsRes,
     run: getDocuments,
@@ -107,7 +109,11 @@ export default () => {
         collectionId: collectionId!,
         documentId: rebuildSelectedDocument.id!,
         rebuildIndexesRequest: {
-          index_types: rebuildSelectedTypes as ('VECTOR' | 'FULLTEXT' | 'GRAPH')[],
+          index_types: rebuildSelectedTypes as (
+            | 'VECTOR'
+            | 'FULLTEXT'
+            | 'GRAPH'
+          )[],
         },
       });
       toast.success(formatMessage({ id: 'document.index.rebuild.success' }));
@@ -123,14 +129,26 @@ export default () => {
   };
 
   const indexTypeOptions = [
-    { label: formatMessage({ id: 'document.index.type.vector' }), value: 'VECTOR' },
-    { label: formatMessage({ id: 'document.index.type.fulltext' }), value: 'FULLTEXT' },
-    { label: formatMessage({ id: 'document.index.type.graph' }), value: 'GRAPH' },
+    {
+      label: formatMessage({ id: 'document.index.type.vector' }),
+      value: 'VECTOR',
+    },
+    {
+      label: formatMessage({ id: 'document.index.type.fulltext' }),
+      value: 'FULLTEXT',
+    },
+    {
+      label: formatMessage({ id: 'document.index.type.graph' }),
+      value: 'GRAPH',
+    },
   ];
 
   const renderIndexStatus = (
-    status?: DocumentVectorIndexStatusEnum | DocumentFulltextIndexStatusEnum | DocumentGraphIndexStatusEnum,
-    updatedTime?: string
+    status?:
+      | DocumentVectorIndexStatusEnum
+      | DocumentFulltextIndexStatusEnum
+      | DocumentGraphIndexStatusEnum,
+    updatedTime?: string,
   ) => {
     const statusBadge = (
       <Badge
@@ -141,7 +159,9 @@ export default () => {
 
     if (updatedTime) {
       return (
-        <Tooltip title={`${formatMessage({ id: 'text.updatedAt' })}: ${moment(updatedTime).format(DATETIME_FORMAT)}`}>
+        <Tooltip
+          title={`${formatMessage({ id: 'text.updatedAt' })}: ${moment(updatedTime).format(DATETIME_FORMAT)}`}
+        >
           {statusBadge}
         </Tooltip>
       );
@@ -187,7 +207,10 @@ export default () => {
       width: 120,
       align: 'center',
       render: (value, record) => {
-        return renderIndexStatus(record.vector_index_status, record.vector_index_updated);
+        return renderIndexStatus(
+          record.vector_index_status,
+          record.vector_index_updated,
+        );
       },
     },
     {
@@ -196,7 +219,10 @@ export default () => {
       width: 120,
       align: 'center',
       render: (value, record) => {
-        return renderIndexStatus(record.fulltext_index_status, record.fulltext_index_updated);
+        return renderIndexStatus(
+          record.fulltext_index_status,
+          record.fulltext_index_updated,
+        );
       },
     },
     {
@@ -205,7 +231,10 @@ export default () => {
       width: 120,
       align: 'center',
       render: (value, record) => {
-        return renderIndexStatus(record.graph_index_status, record.graph_index_updated);
+        return renderIndexStatus(
+          record.graph_index_status,
+          record.graph_index_updated,
+        );
       },
     },
     {
@@ -229,7 +258,8 @@ export default () => {
                   key: 'rebuild',
                   label: formatMessage({ id: 'document.index.rebuild' }),
                   icon: <ReloadOutlined />,
-                  disabled: record.status === 'DELETING' || record.status === 'DELETED',
+                  disabled:
+                    record.status === 'DELETING' || record.status === 'DELETED',
                   onClick: () => handleRebuildIndex(record),
                 },
                 {
@@ -356,7 +386,7 @@ export default () => {
       </Space>
       <Table rowKey="id" bordered columns={columns} dataSource={documents} />
       {contextHolder}
-      
+
       <Modal
         title={formatMessage({ id: 'document.index.rebuild.title' })}
         open={rebuildModalVisible}
@@ -377,7 +407,7 @@ export default () => {
             {formatMessage({ id: 'document.index.rebuild.description' })}
           </Typography.Text>
         </div>
-        
+
         {rebuildSelectedDocument && (
           <div style={{ marginBottom: 16 }}>
             <Typography.Text strong>
@@ -385,14 +415,19 @@ export default () => {
             </Typography.Text>
           </div>
         )}
-        
+
         <div style={{ marginBottom: 16 }}>
           <Checkbox
-            indeterminate={rebuildSelectedTypes.length > 0 && rebuildSelectedTypes.length < indexTypeOptions.length}
+            indeterminate={
+              rebuildSelectedTypes.length > 0 &&
+              rebuildSelectedTypes.length < indexTypeOptions.length
+            }
             checked={rebuildSelectedTypes.length === indexTypeOptions.length}
             onChange={(e) => {
               if (e.target.checked) {
-                setRebuildSelectedTypes(indexTypeOptions.map(option => option.value));
+                setRebuildSelectedTypes(
+                  indexTypeOptions.map((option) => option.value),
+                );
               } else {
                 setRebuildSelectedTypes([]);
               }
@@ -401,7 +436,7 @@ export default () => {
             {formatMessage({ id: 'document.index.rebuild.select.all' })}
           </Checkbox>
         </div>
-        
+
         <Checkbox.Group
           options={indexTypeOptions}
           value={rebuildSelectedTypes}

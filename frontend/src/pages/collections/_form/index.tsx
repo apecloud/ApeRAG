@@ -69,8 +69,12 @@ const configEmailSourceKey = ['config', 'email_source'];
 export default ({ onSubmit, action, values, form }: Props) => {
   const { formatMessage } = useIntl();
 
-  const { availableModels, getAvailableModels, getDefaultModelsFromAvailable, getProviderByModelName } =
-    useModel('models');
+  const {
+    availableModels,
+    getAvailableModels,
+    getDefaultModelsFromAvailable,
+    getProviderByModelName,
+  } = useModel('models');
   // save collection
   const onFinish = async () => {
     const data = await form.validateFields();
@@ -95,15 +99,22 @@ export default ({ onSubmit, action, values, form }: Props) => {
   // Set default models for new collection when availableModels are loaded
   useEffect(() => {
     if (action === 'add' && availableModels.length > 0) {
-      const { defaultEmbeddingModel, defaultCompletionModel } = getDefaultModelsFromAvailable();
-      
+      const { defaultEmbeddingModel, defaultCompletionModel } =
+        getDefaultModelsFromAvailable();
+
       // Set default embedding model if available and not already set
-      if (defaultEmbeddingModel && !form.getFieldValue(configEmbeddingModelKey)) {
+      if (
+        defaultEmbeddingModel &&
+        !form.getFieldValue(configEmbeddingModelKey)
+      ) {
         form.setFieldValue(configEmbeddingModelKey, defaultEmbeddingModel);
       }
-      
+
       // Set default completion model if available and not already set
-      if (defaultCompletionModel && !form.getFieldValue(configCompletionModelKey)) {
+      if (
+        defaultCompletionModel &&
+        !form.getFieldValue(configCompletionModelKey)
+      ) {
         form.setFieldValue(configCompletionModelKey, defaultCompletionModel);
       }
     }

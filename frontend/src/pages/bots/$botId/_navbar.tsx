@@ -114,7 +114,7 @@ export const NavbarBot = () => {
         chatId: item.id,
       });
       setChatLoading(false);
-      if (res.status === 200) {
+      if (res.status === 204) {
         const data = chats?.filter((c) => c.id !== item.id) || [];
         setChats(data);
 

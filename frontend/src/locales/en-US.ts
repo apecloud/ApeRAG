@@ -322,8 +322,7 @@ export default {
   'search.fulltextTopK': 'Fulltext TopK',
   'search.graphsearchTopK': 'Graph TopK',
   'search.searchResults': 'Search Results',
-  'search.searchResults.detail':
-    'There are {count} search results in total',
+  'search.searchResults.detail': 'There are {count} search results in total',
   'search.searchResults.empty': 'No search results',
   'search.history_question': 'History Questions',
   'search.confirmDeleteHistory':

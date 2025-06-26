@@ -28,11 +28,17 @@ export default () => {
   const onFinish = useCallback(async () => {
     const values = await form.validateFields();
     setLoading(true);
-    await api.loginPost({ login: values });
-    setLoading(false);
 
-    toast.success(formatMessage({ id: 'user.signin_success' }));
-    window.location.href = redirectUri || '/';
+    api
+      .loginPost({ login: values })
+      .then(() => {
+        setLoading(false);
+        toast.success(formatMessage({ id: 'user.signin_success' }));
+        window.location.href = redirectUri || '/';
+      })
+      .catch(() => {
+        setLoading(false);
+      });
   }, []);
 
   return (

@@ -32,8 +32,8 @@ export default () => {
     for (const provider of availableModels) {
       if (provider?.embedding?.length) {
         // Try to find model with default tag first
-        const defaultModel = provider.embedding.find(
-          model => model?.tags?.includes('default_for_embedding')
+        const defaultModel = provider.embedding.find((model) =>
+          model?.tags?.includes('default_for_embedding'),
         );
         if (defaultModel?.model) {
           defaultEmbeddingModel = defaultModel.model;
@@ -50,8 +50,8 @@ export default () => {
     for (const provider of availableModels) {
       if (provider?.completion?.length) {
         // Try to find model with default tag first
-        const defaultModel = provider.completion.find(
-          model => model?.tags?.includes('default_for_indexing')
+        const defaultModel = provider.completion.find((model) =>
+          model?.tags?.includes('default_for_indexing'),
         );
         if (defaultModel?.model) {
           defaultCompletionModel = defaultModel.model;
