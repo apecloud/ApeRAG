@@ -319,12 +319,12 @@ async def delete_llm_provider(provider_name: str, user_id: str, is_admin: bool =
 
 async def list_llm_provider_models(provider_name: Optional[str] = None, user_id: str = None, is_admin: bool = False):
     """List LLM provider models, optionally filtered by provider
-    
+
     Args:
         provider_name: Optional provider name to filter by
         user_id: User ID requesting the models
         is_admin: Whether the user is an admin
-        
+
     Returns:
         Dict with models list and page result
     """
@@ -333,11 +333,11 @@ async def list_llm_provider_models(provider_name: Optional[str] = None, user_id:
         provider = await async_db_ops.query_llm_provider_by_name(provider_name)
         if not provider:
             raise ResourceNotFoundException("Provider", provider_name)
-        
+
         # Check access permission
         if not _can_access_provider(user_id, is_admin, provider.user_id):
             raise PermissionDeniedError(f"You don't have permission to access provider '{provider_name}'")
-        
+
         # Get models for specific provider
         models = await async_db_ops.query_llm_provider_models(provider_name)
     else:
@@ -345,28 +345,27 @@ async def list_llm_provider_models(provider_name: Optional[str] = None, user_id:
         need_public = is_admin
         providers = await async_db_ops.query_llm_providers(user_id=user_id, need_public=need_public)
         provider_names = [p.name for p in providers]
-        
+
         # Get models only for accessible providers
         models = await async_db_ops.query_llm_provider_models_by_provider_list(provider_names)
-    
+
     # Format models data
     models_data = []
     for model in models:
-        models_data.append({
-            "provider_name": model.provider_name,
-            "api": model.api,
-            "model": model.model,
-            "custom_llm_provider": model.custom_llm_provider,
-            "max_tokens": model.max_tokens,
-            "tags": model.tags or [],
-            "created": model.gmt_created,
-            "updated": model.gmt_updated,
-        })
-    
-    return {
-        "items": models_data,
-        "pageResult": None
-    }
+        models_data.append(
+            {
+                "provider_name": model.provider_name,
+                "api": model.api,
+                "model": model.model,
+                "custom_llm_provider": model.custom_llm_provider,
+                "max_tokens": model.max_tokens,
+                "tags": model.tags or [],
+                "created": model.gmt_created,
+                "updated": model.gmt_updated,
+            }
+        )
+
+    return {"items": models_data, "pageResult": None}
 
 
 async def create_llm_provider_model(provider_name: str, model_data: dict, user_id: str, is_admin: bool = False):
