@@ -21,7 +21,10 @@ from contextlib import contextmanager
 from typing import Any, Dict, Optional
 
 from nebula3.Config import Config
-from nebula3.gclient.net.SessionPool import SessionPool
+from nebula3.gclient.net import ConnectionPool, Session
+
+# Set nebula3 logger level to WARNING to reduce connection pool noise
+logging.getLogger("nebula3.logger").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +36,7 @@ class NebulaSyncConnectionManager:
     """
 
     # Class-level storage for worker-scoped pool
-    _session_pool: Optional[SessionPool] = None
+    _connection_pool: ConnectionPool = None
     _lock = threading.Lock()
     _config: Optional[Dict[str, Any]] = None
     _space_schemas_created: set = set()  # Track which spaces have schemas created
@@ -42,7 +45,7 @@ class NebulaSyncConnectionManager:
     def initialize(cls, config: Optional[Dict[str, Any]] = None):
         """Initialize the connection manager with configuration."""
         with cls._lock:
-            if cls._session_pool is None:
+            if cls._connection_pool is None:
                 # Use provided config or environment variables
                 if config:
                     cls._config = config
@@ -54,42 +57,40 @@ class NebulaSyncConnectionManager:
                         "password": os.environ.get("NEBULA_PASSWORD", "nebula"),
                         "max_connection_pool_size": int(os.environ.get("NEBULA_MAX_CONNECTION_POOL_SIZE", "10")),
                         "timeout": int(os.environ.get("NEBULA_TIMEOUT", "60000")),  # milliseconds
+                        "decode_type": "utf-8",
                     }
 
-                logger.info(f"Initializing NebulaGraph sync session pool for worker {os.getpid()}")
+                logger.info(f"Initializing NebulaGraph sync connection pool for worker {os.getpid()}")
 
                 # Create config for connection pool
                 pool_config = Config()
                 pool_config.max_connection_pool_size = cls._config["max_connection_pool_size"]
                 pool_config.timeout = cls._config["timeout"]
+                pool_config.decode_type = cls._config["decode_type"]
 
-                # Create session pool
-                cls._session_pool = SessionPool(
-                    username=cls._config["username"],
-                    password=cls._config["password"],
-                    space=None,  # We'll set space dynamically
-                    addresses=[(cls._config["host"], cls._config["port"])],
-                )
+                # Create connection pool
+                cls._connection_pool = ConnectionPool()
 
                 # Initialize the pool
-                ok = cls._session_pool.init([(cls._config["host"], cls._config["port"])], pool_config)
+                addresses = [(cls._config["host"], cls._config["port"])]
+                ok = cls._connection_pool.init(addresses, pool_config)
                 if not ok:
-                    raise RuntimeError("Failed to initialize NebulaGraph session pool")
+                    raise RuntimeError("Failed to initialize NebulaGraph connection pool")
 
-                logger.info(f"NebulaGraph sync session pool initialized successfully for worker {os.getpid()}")
+                logger.info(f"NebulaGraph sync connection pool initialized successfully for worker {os.getpid()}")
 
     @classmethod
-    def get_session_pool(cls) -> SessionPool:
-        """Get the shared session pool instance."""
-        if cls._session_pool is None:
+    def get_connection_pool(cls) -> ConnectionPool:
+        """Get the shared connection pool instance."""
+        if cls._connection_pool is None:
             cls.initialize()
-        return cls._session_pool
+        return cls._connection_pool
 
     @classmethod
     @contextmanager
-    def get_session(cls, space: Optional[str] = None):
+    def get_session(cls, space: Optional[str] = None) -> Session:
         """Get a session from the shared pool."""
-        pool = cls.get_session_pool()
+        pool = cls.get_connection_pool()
         session = pool.get_session(cls._config["username"], cls._config["password"])
 
         if session is None:
@@ -105,7 +106,7 @@ class NebulaSyncConnectionManager:
             yield session
         finally:
             # Return session to pool
-            pool.return_session(session)
+            session.release()
 
     @classmethod
     def sanitize_space_name(cls, workspace: str) -> str:
@@ -128,7 +129,7 @@ class NebulaSyncConnectionManager:
             # Check if space exists
             result = session.execute("SHOW SPACES")
             if result.is_succeeded():
-                spaces = [row.values[0].get_sVal().decode() for row in result.get_rows()]
+                spaces = [row.values()[0].as_string() for row in result]
                 if space_name not in spaces:
                     # Create space with fixed string VID type
                     create_space_query = f"""
@@ -144,8 +145,16 @@ class NebulaSyncConnectionManager:
 
                     logger.info(f"Created NebulaGraph space: {space_name}")
 
-                    # Wait for space to be ready
-                    time.sleep(2)
+                    # Wait for space to be ready and retry USE command
+                    # NebulaGraph space creation is async, need to wait
+                    for retry in range(30):  # Try for up to 30 seconds
+                        time.sleep(1)
+                        test_result = session.execute(f"USE `{space_name}`")
+                        if test_result.is_succeeded():
+                            logger.info(f"Space {space_name} is ready after {retry + 1} seconds")
+                            break
+                        if retry == 29:
+                            raise RuntimeError(f"Space {space_name} failed to become ready after 30 seconds")
 
                     # Mark that we need to create schema
                     cls._space_schemas_created.discard(space_name)
@@ -161,18 +170,33 @@ class NebulaSyncConnectionManager:
     def _create_schema_for_space(cls, space_name: str):
         """Create schema (TAGs and EDGE types) for the space."""
         with cls.get_session(space=space_name) as session:
-            # Create base TAG for all vertices
+            # Create base TAG for all vertices with all necessary properties
             create_base_tag = """
             CREATE TAG IF NOT EXISTS `base` (
                 entity_id string,
-                entity_type string
+                entity_type string,
+                entity_name string,
+                description string,
+                source_id string,
+                file_path string,
+                created_at int64
             )
             """
             result = session.execute(create_base_tag)
             if not result.is_succeeded():
                 logger.warning(f"Failed to create base TAG: {result.error_msg()}")
+                # If tag already exists but with different schema, try to add missing columns
+                cls._ensure_tag_properties(session, "base", [
+                    ("entity_id", "string"),
+                    ("entity_type", "string"), 
+                    ("entity_name", "string"),
+                    ("description", "string"),
+                    ("source_id", "string"),
+                    ("file_path", "string"),
+                    ("created_at", "int64")
+                ])
 
-            # Create entity TAG (extends base conceptually)
+            # Create entity TAG (extends base conceptually) with additional properties
             create_entity_tag = """
             CREATE TAG IF NOT EXISTS `entity` (
                 entity_id string,
@@ -183,12 +207,26 @@ class NebulaSyncConnectionManager:
                 source_chunk_id string,
                 occurrence int,
                 created_at int64,
-                chunk_ids string
+                chunk_ids string,
+                file_path string
             )
             """
             result = session.execute(create_entity_tag)
             if not result.is_succeeded():
                 logger.warning(f"Failed to create entity TAG: {result.error_msg()}")
+                # If tag already exists but with different schema, try to add missing columns
+                cls._ensure_tag_properties(session, "entity", [
+                    ("entity_id", "string"),
+                    ("entity_type", "string"),
+                    ("entity_name", "string"), 
+                    ("description", "string"),
+                    ("source_id", "string"),
+                    ("source_chunk_id", "string"),
+                    ("occurrence", "int"),
+                    ("created_at", "int64"),
+                    ("chunk_ids", "string"),
+                    ("file_path", "string")
+                ])
 
             # Create DIRECTED edge type for relationships
             create_directed_edge = """
@@ -198,12 +236,23 @@ class NebulaSyncConnectionManager:
                 description string,
                 keywords string,
                 source_chunk_id string,
+                file_path string,
                 created_at int64
             )
             """
             result = session.execute(create_directed_edge)
             if not result.is_succeeded():
                 logger.warning(f"Failed to create DIRECTED edge: {result.error_msg()}")
+                # If edge already exists but with different schema, try to add missing columns
+                cls._ensure_edge_properties(session, "DIRECTED", [
+                    ("weight", "double"),
+                    ("source_id", "string"),
+                    ("description", "string"),
+                    ("keywords", "string"),
+                    ("source_chunk_id", "string"),
+                    ("file_path", "string"),
+                    ("created_at", "int64")
+                ])
 
             # Create indexes for better query performance
             # Index on base.entity_id
@@ -224,19 +273,133 @@ class NebulaSyncConnectionManager:
             if not result.is_succeeded():
                 logger.warning(f"Failed to create entity index: {result.error_msg()}")
 
-            # Wait for indexes to be ready
-            time.sleep(2)
+            # Wait for schemas to be ready - NebulaGraph schema creation is async
+            schema_ready = False
+            for retry in range(30):  # Try for up to 30 seconds
+                time.sleep(1)
+                # Verify all schemas exist and are usable
+                verify_result = session.execute("SHOW TAGS")
+                if verify_result.is_succeeded():
+                    tags = [row.values()[0].as_string() for row in verify_result]
+                    if "base" in tags and "entity" in tags:
+                        # Also verify we can describe the tags (they are fully ready)
+                        desc_base = session.execute("DESC TAG `base`")
+                        desc_entity = session.execute("DESC TAG `entity`")
+                        desc_edge = session.execute("DESC EDGE `DIRECTED`")
+                        
+                        if desc_base.is_succeeded() and desc_entity.is_succeeded() and desc_edge.is_succeeded():
+                            logger.info(f"Schema fully ready for space: {space_name} after {retry + 1} seconds")
+                            schema_ready = True
+                            break
+                
+                if retry == 29:
+                    logger.error(f"Schema creation timeout for space: {space_name} after 30 seconds")
+                    # Still continue, but log the issue
 
-            logger.info(f"Schema created for space: {space_name}")
+            if not schema_ready:
+                logger.warning(f"Schema may not be fully ready for space: {space_name}, but continuing...")
+
+            logger.info(f"Schema creation completed for space: {space_name}")
+
+    @classmethod
+    def _ensure_tag_properties(cls, session: Session, tag_name: str, properties: list[tuple[str, str]]):
+        """Ensure tag has all required properties, add missing ones."""
+        try:
+            # Get current tag schema
+            desc_result = session.execute(f"DESC TAG `{tag_name}`")
+            if not desc_result.is_succeeded():
+                return
+
+            existing_props = set()
+            for row in desc_result:
+                prop_name = row.values()[0].as_string()
+                existing_props.add(prop_name)
+
+            # Add missing properties
+            for prop_name, prop_type in properties:
+                if prop_name not in existing_props:
+                    alter_query = f"ALTER TAG `{tag_name}` ADD ({prop_name} {prop_type})"
+                    result = session.execute(alter_query)
+                    if result.is_succeeded():
+                        logger.info(f"Added property {prop_name} to tag {tag_name}")
+                    else:
+                        logger.warning(f"Failed to add property {prop_name} to tag {tag_name}: {result.error_msg()}")
+        except Exception as e:
+            logger.warning(f"Failed to ensure tag properties for {tag_name}: {e}")
+
+    @classmethod
+    def _ensure_edge_properties(cls, session: Session, edge_name: str, properties: list[tuple[str, str]]):
+        """Ensure edge has all required properties, add missing ones."""
+        try:
+            # Get current edge schema
+            desc_result = session.execute(f"DESC EDGE `{edge_name}`")
+            if not desc_result.is_succeeded():
+                return
+
+            existing_props = set()
+            for row in desc_result:
+                prop_name = row.values()[0].as_string()
+                existing_props.add(prop_name)
+
+            # Add missing properties
+            for prop_name, prop_type in properties:
+                if prop_name not in existing_props:
+                    alter_query = f"ALTER EDGE `{edge_name}` ADD ({prop_name} {prop_type})"
+                    result = session.execute(alter_query)
+                    if result.is_succeeded():
+                        logger.info(f"Added property {prop_name} to edge {edge_name}")
+                    else:
+                        logger.warning(f"Failed to add property {prop_name} to edge {edge_name}: {result.error_msg()}")
+        except Exception as e:
+            logger.warning(f"Failed to ensure edge properties for {edge_name}: {e}")
+
+    @classmethod
+    def ensure_tag_exists(cls, space_name: str, tag_name: str):
+        """Ensure a tag exists in the space, create if it doesn't."""
+        with cls.get_session(space=space_name) as session:
+            # Check if tag exists
+            desc_result = session.execute(f"DESC TAG `{tag_name}`")
+            if desc_result.is_succeeded():
+                logger.debug(f"Tag {tag_name} already exists in space {space_name}")
+                return
+
+            # Create the tag with standard entity properties
+            create_tag_query = f"""
+            CREATE TAG IF NOT EXISTS `{tag_name}` (
+                entity_id string,
+                entity_type string,
+                entity_name string,
+                description string,
+                source_id string,
+                file_path string,
+                created_at int64
+            )
+            """
+            result = session.execute(create_tag_query)
+            if result.is_succeeded():
+                logger.info(f"Created tag {tag_name} in space {space_name}")
+                
+                # Create index for this tag
+                create_index_query = f"""
+                CREATE TAG INDEX IF NOT EXISTS `{tag_name}_entity_id_idx` 
+                ON `{tag_name}`(entity_id(64))
+                """
+                index_result = session.execute(create_index_query)
+                if index_result.is_succeeded():
+                    logger.debug(f"Created index for tag {tag_name}")
+                else:
+                    logger.warning(f"Failed to create index for tag {tag_name}: {index_result.error_msg()}")
+            else:
+                logger.warning(f"Failed to create tag {tag_name}: {result.error_msg()}")
 
     @classmethod
     def close(cls):
-        """Close the session pool and clean up resources."""
+        """Close the connection pool and clean up resources."""
         with cls._lock:
-            if cls._session_pool:
-                logger.info(f"Closing NebulaGraph session pool for worker {os.getpid()}")
-                cls._session_pool.close()
-                cls._session_pool = None
+            if cls._connection_pool:
+                logger.info(f"Closing NebulaGraph connection pool for worker {os.getpid()}")
+                cls._connection_pool.close()
+                cls._connection_pool = None
                 cls._config = None
                 cls._space_schemas_created.clear()
 
@@ -245,10 +408,10 @@ class NebulaSyncConnectionManager:
 def setup_worker_nebula(**kwargs):
     """Initialize NebulaGraph when worker starts."""
     NebulaSyncConnectionManager.initialize()
-    logger.info(f"Worker {os.getpid()}: NebulaGraph sync connection initialized")
+    logger.info(f"Worker {os.getpid()}: NebulaGraph sync connection pool initialized")
 
 
 def cleanup_worker_nebula(**kwargs):
     """Cleanup NebulaGraph when worker shuts down."""
     NebulaSyncConnectionManager.close()
-    logger.info(f"Worker {os.getpid()}: NebulaGraph sync connection closed")
+    logger.info(f"Worker {os.getpid()}: NebulaGraph sync connection pool closed")
