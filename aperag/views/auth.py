@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 
 # --- fastapi-users Implementation ---
 
+COOKIE_MAX_AGE = 86400
+
 
 class UserManager(BaseUserManager[User, str]):
     reset_password_token_secret = "SECRET"
@@ -53,11 +55,11 @@ SECRET = "SECRET"  # TODO: Use configuration
 
 
 def get_jwt_strategy() -> JWTStrategy:
-    return JWTStrategy(secret=SECRET, lifetime_seconds=3600)
+    return JWTStrategy(secret=SECRET, lifetime_seconds=86400)
 
 
 # Transport methods
-cookie_transport = CookieTransport(cookie_name="session", cookie_max_age=3600)
+cookie_transport = CookieTransport(cookie_name="session", cookie_max_age=COOKIE_MAX_AGE)
 
 # Authentication backends
 cookie_backend = AuthenticationBackend(
@@ -394,7 +396,7 @@ async def login_view(
     token = await strategy.write_token(user)
 
     # Set cookie
-    response.set_cookie(key="session", value=token, max_age=3600, httponly=True, samesite="lax")
+    response.set_cookie(key="session", value=token, max_age=COOKIE_MAX_AGE, httponly=True, samesite="lax")
 
     return view_models.User(
         id=str(user.id),
