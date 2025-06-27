@@ -89,6 +89,15 @@ def _prepare_nebula_params(params: dict) -> dict:
     return nebula_params
 
 
+def _quote_vid(vid: str) -> str:
+    """
+    Safely quote a VID for nGQL queries.
+    Escape backslash and double quote, and wrap with double quotes.
+    """
+    escaped = vid.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
 def _safe_error_msg(result) -> str:
     """Safely extract error message from Nebula result, handling UTF-8 decode errors."""
     try:
@@ -149,8 +158,8 @@ class NebulaSyncStorage(BaseGraphStorage):
         def _sync_has_node():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 # VID cannot be parameterized in FETCH statements
-                # Use double quotes for nGQL string VID (single quotes are invalid)
-                node_id_quoted = f'"{node_id}"'
+                # Use safe VID quoting to handle special characters properly
+                node_id_quoted = _quote_vid(node_id)
                 query = f"FETCH PROP ON base {node_id_quoted} YIELD properties(vertex)"
                 result = session.execute(query)
                 if result.is_succeeded() and result.row_size() > 0:
@@ -166,8 +175,8 @@ class NebulaSyncStorage(BaseGraphStorage):
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 # Try to fetch edge properties between the two nodes
                 # VID cannot be parameterized in FETCH statements
-                source_quoted = repr(source_node_id)
-                target_quoted = repr(target_node_id)
+                source_quoted = _quote_vid(source_node_id)
+                target_quoted = _quote_vid(target_node_id)
                 query = f"""
                 FETCH PROP ON DIRECTED {source_quoted} -> {target_quoted}
                 YIELD properties(edge) as props
@@ -176,12 +185,12 @@ class NebulaSyncStorage(BaseGraphStorage):
                 if result.is_succeeded() and result.row_size() > 0:
                     return True
 
-                # Try reverse direction
+                # Try reverse direction - correct the variable assignment
                 # VID cannot be parameterized in FETCH statements
-                target_quoted = repr(target_node_id)
-                source_quoted = repr(source_node_id)
+                source_quoted_rev = _quote_vid(target_node_id)  # Now target becomes source
+                target_quoted_rev = _quote_vid(source_node_id)  # Now source becomes target
                 query = f"""
-                FETCH PROP ON DIRECTED {target_quoted} -> {source_quoted}
+                FETCH PROP ON DIRECTED {source_quoted_rev} -> {target_quoted_rev}
                 YIELD properties(edge) as props
                 """
                 result = session.execute(query)
@@ -198,7 +207,8 @@ class NebulaSyncStorage(BaseGraphStorage):
         def _sync_get_node():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 # VID cannot be parameterized in FETCH statements
-                node_id_quoted = repr(node_id)  # Safe quoting like Neo4j approach
+                # Use safe VID quoting to handle special characters properly
+                node_id_quoted = _quote_vid(node_id)
                 query = f"FETCH PROP ON base {node_id_quoted} YIELD properties(vertex) as props"
                 result = session.execute(query)
 
@@ -233,7 +243,8 @@ class NebulaSyncStorage(BaseGraphStorage):
                     return nodes
 
                 # Build FETCH query with explicit node IDs (FETCH doesn't support parameterized lists)
-                node_ids_str = ", ".join([repr(node_id) for node_id in node_ids])
+                # Use safe VID quoting to handle special characters properly
+                node_ids_str = ", ".join([_quote_vid(node_id) for node_id in node_ids])
                 query = f"FETCH PROP ON base {node_ids_str} YIELD id(vertex) as id, properties(vertex) as props"
                 result = session.execute(query)
 
@@ -262,10 +273,11 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         def _sync_node_degree():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
+                # Use proper nGQL aggregation syntax with GROUP BY
                 query = """
                 GO FROM $node_id OVER * BIDIRECT 
-                YIELD dst(edge) as neighbor 
-                | YIELD count(*) as degree
+                YIELD dst(edge) AS n
+                | GROUP BY $-.n YIELD COUNT(*) AS degree
                 """
                 nebula_params = _prepare_nebula_params({"node_id": node_id})
                 result = session.execute_parameter(query, nebula_params)
@@ -289,10 +301,11 @@ class NebulaSyncStorage(BaseGraphStorage):
 
                 # Use simple individual queries (complex UNWIND aggregation is problematic)
                 for node_id in node_ids:
+                    # Use proper nGQL aggregation syntax with GROUP BY
                     query = """
                     GO FROM $node_id OVER * BIDIRECT 
-                    YIELD dst(edge) as neighbor 
-                    | YIELD count(*) as degree
+                    YIELD dst(edge) AS n
+                    | GROUP BY $-.n YIELD COUNT(*) AS degree
                     """
                     nebula_params = _prepare_nebula_params({"node_id": node_id})
                     result = session.execute_parameter(query, nebula_params)
@@ -334,8 +347,8 @@ class NebulaSyncStorage(BaseGraphStorage):
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 # Try direction: source -> target
                 # VID cannot be parameterized in FETCH statements
-                source_quoted = repr(source_node_id)
-                target_quoted = repr(target_node_id)
+                source_quoted = _quote_vid(source_node_id)
+                target_quoted = _quote_vid(target_node_id)
                 query = f"""
                 FETCH PROP ON DIRECTED {source_quoted} -> {target_quoted}
                 YIELD properties(edge) as props
@@ -368,12 +381,12 @@ class NebulaSyncStorage(BaseGraphStorage):
 
                         return edge_dict
 
-                # Try reverse direction: target -> source
+                # Try reverse direction: target -> source - fix variable assignment
                 # VID cannot be parameterized in FETCH statements
-                target_quoted = repr(target_node_id)
-                source_quoted = repr(source_node_id)
+                source_quoted_rev = _quote_vid(target_node_id)  # Now target becomes source
+                target_quoted_rev = _quote_vid(source_node_id)  # Now source becomes target
                 query = f"""
-                FETCH PROP ON DIRECTED {target_quoted} -> {source_quoted}
+                FETCH PROP ON DIRECTED {source_quoted_rev} -> {target_quoted_rev}
                 YIELD properties(edge) as props
                 """
                 result = session.execute(query)
@@ -435,8 +448,9 @@ class NebulaSyncStorage(BaseGraphStorage):
                     # Try both directions for each pair
                     for direction_src, direction_tgt in [(src, tgt), (tgt, src)]:
                         # VID cannot be parameterized in FETCH statements
-                        direction_src_quoted = repr(direction_src)
-                        direction_tgt_quoted = repr(direction_tgt)
+                        # Use safe VID quoting to handle special characters properly
+                        direction_src_quoted = _quote_vid(direction_src)
+                        direction_tgt_quoted = _quote_vid(direction_tgt)
                         query = f"""
                         FETCH PROP ON DIRECTED {direction_src_quoted} -> {direction_tgt_quoted}
                         YIELD src(edge) as src, dst(edge) as dst, properties(edge) as props
@@ -489,11 +503,16 @@ class NebulaSyncStorage(BaseGraphStorage):
                 result = session.execute_parameter(query, nebula_params)
 
                 edges = []
+                edges_set = set()  # For deduplication to match Neo4j behavior
                 if result.is_succeeded():
                     for row in result:
                         src = row.values()[0].as_string()
                         tgt = row.values()[1].as_string()
-                        edges.append((src, tgt))
+                        # Deduplicate bidirectional edges (BIDIRECT returns both A->B and B->A)
+                        # Neo4j only returns one direction, so we match that behavior
+                        if (tgt, src) not in edges_set:
+                            edges.append((src, tgt))
+                            edges_set.add((src, tgt))
 
                 return edges if edges else None
 
@@ -518,11 +537,16 @@ class NebulaSyncStorage(BaseGraphStorage):
                     nebula_params = _prepare_nebula_params({"node_id": node_id})
                     result = session.execute_parameter(query, nebula_params)
 
+                    edges_set = set()  # For deduplication to match Neo4j behavior
                     if result.is_succeeded():
                         for row in result:
                             src = row.values()[0].as_string()
                             dst = row.values()[1].as_string()
-                            edges_dict[node_id].append((src, dst))
+                            # Deduplicate bidirectional edges (BIDIRECT returns both A->B and B->A)
+                            # Neo4j only returns one direction, so we match that behavior
+                            if (dst, src) not in edges_set:
+                                edges_dict[node_id].append((src, dst))
+                                edges_set.add((src, dst))
 
                 return edges_dict
 
@@ -555,14 +579,18 @@ class NebulaSyncStorage(BaseGraphStorage):
                     logger.warning(f"No properties to insert for node {node_id}")
                     return
 
-                # Build Nebula INSERT syntax with explicit field names and parameters
-                names_str = ", ".join(prop_names)
-                params_str = ", ".join([f"$prop_{key}" for key in prop_names])
+                # Build Nebula UPSERT syntax for true upsert semantics (like Neo4j MERGE)
+                # VID cannot be parameterized in UPSERT statements
+                # Use safe VID quoting to handle special characters properly
+                node_id_quoted = _quote_vid(node_id)
 
-                # VID cannot be parameterized in INSERT statements
-                # Only property values can be parameterized
-                node_id_quoted = repr(node_id)  # Safe quoting like Neo4j approach
-                query = f"INSERT VERTEX base({names_str}) VALUES {node_id_quoted}:({params_str})"
+                # Build SET clause with parameterized values
+                set_items = []
+                for key in prop_names:
+                    set_items.append(f"base.{key} = $prop_{key}")
+                set_clause = ", ".join(set_items)
+
+                query = f"UPSERT VERTEX {node_id_quoted} SET {set_clause}"
 
                 # Remove node_id from params since VID is not parameterized
                 param_dict_without_vid = {k: v for k, v in param_dict.items() if k != "node_id"}
@@ -601,15 +629,19 @@ class NebulaSyncStorage(BaseGraphStorage):
                     logger.warning(f"No properties to insert for edge {source_node_id} -> {target_node_id}")
                     return
 
-                # Build Nebula INSERT syntax with explicit field names and parameters
-                names_str = ", ".join(prop_names)
-                params_str = ", ".join([f"$prop_{key}" for key in prop_names])
+                # Build Nebula UPSERT syntax for true upsert semantics (like Neo4j MERGE)
+                # VID cannot be parameterized in UPSERT statements
+                # Use safe VID quoting to handle special characters properly
+                source_quoted = _quote_vid(source_node_id)
+                target_quoted = _quote_vid(target_node_id)
 
-                # VID cannot be parameterized in INSERT statements
-                # Only property values can be parameterized
-                source_quoted = repr(source_node_id)  # Safe quoting like Neo4j approach
-                target_quoted = repr(target_node_id)
-                query = f"INSERT EDGE DIRECTED({names_str}) VALUES {source_quoted} -> {target_quoted}:({params_str})"
+                # Build SET clause with parameterized values
+                set_items = []
+                for key in prop_names:
+                    set_items.append(f"DIRECTED.{key} = $prop_{key}")
+                set_clause = ", ".join(set_items)
+
+                query = f"UPSERT EDGE DIRECTED {source_quoted} -> {target_quoted} SET {set_clause}"
 
                 # Remove VIDs from params since they're not parameterized
                 param_dict_without_vids = {
@@ -743,7 +775,8 @@ class NebulaSyncStorage(BaseGraphStorage):
 
                             # Get node properties using quoted VID
                             # VID cannot be parameterized in FETCH statements
-                            current_node_quoted = repr(current_node)
+                            # Use safe VID quoting to handle special characters properly
+                            current_node_quoted = _quote_vid(current_node)
                             node_query = f"FETCH PROP ON base {current_node_quoted} YIELD properties(vertex) as props"
                             node_result = session.execute(node_query)
 
@@ -858,7 +891,8 @@ class NebulaSyncStorage(BaseGraphStorage):
         def _sync_delete_node():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 # VID cannot be parameterized in DELETE statements
-                node_id_quoted = repr(node_id)  # Safe quoting like Neo4j approach
+                # Use safe VID quoting to handle special characters properly
+                node_id_quoted = _quote_vid(node_id)
                 query = f"DELETE VERTEX {node_id_quoted} WITH EDGE"
                 result = session.execute(query)
 
@@ -881,8 +915,9 @@ class NebulaSyncStorage(BaseGraphStorage):
         def _sync_remove_edge(source: str, target: str):
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 # VID cannot be parameterized in DELETE statements
-                source_quoted = repr(source)  # Safe quoting like Neo4j approach
-                target_quoted = repr(target)
+                # Use safe VID quoting to handle special characters properly
+                source_quoted = _quote_vid(source)
+                target_quoted = _quote_vid(target)
                 query = f"DELETE EDGE DIRECTED {source_quoted} -> {target_quoted}"
                 result = session.execute(query)
 
