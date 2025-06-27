@@ -222,13 +222,6 @@ nodes:
             minimum: 0
             maximum: 1
             description: Sampling temperature
-          max_tokens:
-            value: 1000
-            type: integer
-            default: 1000
-            minimum: 1
-            maximum: 128000
-            description: Max tokens for generation
           query:
             value: {{ .nodes.start.output.query }}
             type: string
@@ -244,7 +237,6 @@ nodes:
           - model_name
           - prompt_template
           - temperature
-          - max_tokens
           - query
           - docs
       output:

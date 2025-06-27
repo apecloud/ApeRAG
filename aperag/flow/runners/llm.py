@@ -20,6 +20,7 @@ from langchain.schema import AIMessage, HumanMessage
 from litellm import BaseModel
 from pydantic import Field
 
+from aperag.db.models import APIType
 from aperag.db.ops import async_db_ops
 from aperag.flow.base.models import BaseNodeRunner, SystemInput, register_node_runner
 from aperag.llm.completion.completion_service import CompletionService
@@ -29,7 +30,15 @@ from aperag.utils.constant import DOC_QA_REFERENCES
 from aperag.utils.history import BaseChatMessageHistory
 from aperag.utils.utils import now_unix_milliseconds
 
-MAX_CONTEXT_LENGTH = 100000
+# Character to token estimation ratio for Chinese/mixed content
+# Conservative estimate: 2 characters = 1 token
+CHAR_TO_TOKEN_RATIO = 2.0
+
+# Reserve tokens for output generation (default 1000 tokens)
+DEFAULT_OUTPUT_TOKENS = 1000
+
+# Fallback max context length if model max_tokens is not available
+FALLBACK_MAX_CONTEXT_LENGTH = 50000
 
 
 class Message(BaseModel):
@@ -81,12 +90,37 @@ class LLMInput(BaseModel):
     custom_llm_provider: str = Field(..., description="Custom LLM provider")
     prompt_template: str = Field(..., description="Prompt template")
     temperature: float = Field(..., description="Sampling temperature")
-    max_tokens: int = Field(..., description="Max tokens for generation")
     docs: Optional[List[DocumentWithScore]] = Field(None, description="Documents")
 
 
 class LLMOutput(BaseModel):
     text: str
+
+
+def estimate_token_count(text: str) -> int:
+    """
+    Estimate token count from character count for Chinese/mixed content.
+    Using conservative ratio: 2 characters = 1 token
+    """
+    return int(len(text) / CHAR_TO_TOKEN_RATIO)
+
+
+def calculate_max_context_length(model_max_tokens: Optional[int], output_tokens: int = DEFAULT_OUTPUT_TOKENS) -> int:
+    """
+    Calculate maximum context length based on model's max_tokens limit.
+    Reserve tokens for output generation.
+    """
+    if not model_max_tokens:
+        return FALLBACK_MAX_CONTEXT_LENGTH
+    
+    # Reserve tokens for output, convert to character count
+    max_context_tokens = model_max_tokens - output_tokens
+    if max_context_tokens <= 0:
+        # If model max_tokens is too small, use a minimal context
+        max_context_tokens = max(model_max_tokens // 2, 100)
+    
+    # Convert tokens to character count
+    return int(max_context_tokens * CHAR_TO_TOKEN_RATIO)
 
 
 # Database operations interface
@@ -114,7 +148,6 @@ class LLMService:
         custom_llm_provider: str,
         prompt_template: str,
         temperature: float,
-        max_tokens: int,
         docs: Optional[List[DocumentWithScore]] = None,
     ) -> Tuple[str, Dict]:
         """Generate LLM response with given parameters"""
@@ -130,23 +163,43 @@ class LLMService:
         except Exception:
             raise Exception(f"LLMProvider {model_service_provider} not found")
 
+        # Get model configuration to determine max_tokens
+        try:
+            model_config = await async_db_ops.query_llm_provider_model(
+                provider_name=model_service_provider,
+                api=APIType.COMPLETION.value,
+                model=model_name
+            )
+            model_max_tokens = model_config.max_tokens if model_config else None
+        except Exception:
+            model_max_tokens = None
+
+        # Calculate dynamic context length based on model's max_tokens
+        max_context_length = calculate_max_context_length(model_max_tokens)
+
         # Build context and references from documents
         context = ""
         references = []
         if docs:
             for doc in docs:
-                if len(context) + len(doc.text) > MAX_CONTEXT_LENGTH:
+                if len(context) + len(doc.text) > max_context_length:
                     break
                 context += doc.text
                 references.append({"text": doc.text, "metadata": doc.metadata, "score": doc.score})
 
         prompt = prompt_template.format(query=query, context=context)
-        output_max_tokens = max_tokens - len(prompt)
-
-        if output_max_tokens < 0:
-            raise Exception(
-                "max_tokens %d is too small to hold the prompt which size is %d" % (max_tokens, len(prompt))
-            )
+        
+        # Estimate prompt tokens and calculate output tokens
+        prompt_tokens = estimate_token_count(prompt)
+        if model_max_tokens:
+            output_max_tokens = model_max_tokens - prompt_tokens
+            if output_max_tokens < 100:  # Ensure minimum output tokens
+                raise Exception(
+                    f"Model max_tokens {model_max_tokens} is too small to hold the prompt which requires approximately {prompt_tokens} tokens"
+                )
+        else:
+            # Use default output tokens if model max_tokens is unknown
+            output_max_tokens = DEFAULT_OUTPUT_TOKENS
 
         cs = CompletionService(custom_llm_provider, model_name, base_url, api_key, temperature, output_max_tokens)
 
@@ -193,7 +246,6 @@ class LLMNodeRunner(BaseNodeRunner):
             custom_llm_provider=ui.custom_llm_provider,
             prompt_template=ui.prompt_template,
             temperature=ui.temperature,
-            max_tokens=ui.max_tokens,
             docs=ui.docs,
         )
 

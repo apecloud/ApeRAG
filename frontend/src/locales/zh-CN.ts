@@ -276,7 +276,6 @@ export default {
   'flow.temperature': '温度',
   'flow.temperature.tips':
     '该参数控制模型预测的随机性。 较低的温度使模型对其响应更有信心，而较高的温度则使其更具创造性和多样性。',
-  'flow.max_tokens': '最大token数',
   'flow.merge.merge_strategy': '策略',
   'flow.merge.deduplicate': '是否去重',
   'flow.merge.deduplicate.tips':

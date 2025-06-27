@@ -439,13 +439,6 @@ export const nodeLlmDefinition = (params?: {
           maximum: 1,
           description: 'Sampling temperature',
         },
-        max_tokens: {
-          type: 'integer',
-          default: 1000,
-          minimum: 1,
-          maximum: 128000,
-          description: 'Max tokens for generation',
-        },
         query: {
           type: 'string',
           description: "User's question or query",
@@ -464,7 +457,6 @@ export const nodeLlmDefinition = (params?: {
         'custom_llm_provider',
         'prompt_template',
         'temperature',
-        'max_tokens',
         'query',
         'docs',
       ],
@@ -476,7 +468,6 @@ export const nodeLlmDefinition = (params?: {
       prompt_template:
         params?.botType === 'knowledge' ? '{context}\n{query}' : '{query}',
       temperature: 0.7,
-      max_tokens: 1000,
       query: params?.startId
         ? `{{ nodes.${params.startId}.output.query }}`
         : '',

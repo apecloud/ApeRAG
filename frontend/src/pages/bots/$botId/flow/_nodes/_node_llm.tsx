@@ -114,23 +114,6 @@ export const ApeNodeLlm = ({ node }: { node: ApeNode }) => {
                       }}
                     />
                   </Form.Item>
-                  <Form.Item
-                    required
-                    label={formatMessage({ id: 'flow.max_tokens' })}
-                  >
-                    <InputNumber
-                      min={_.get(schema, 'properties.max_tokens.minimum')}
-                      max={_.get(schema, 'properties.max_tokens.maximum')}
-                      step={10}
-                      variant="filled"
-                      style={{ width: '100%' }}
-                      value={_.get(values, 'max_tokens')}
-                      onChange={(value) => {
-                        _.set(values, 'max_tokens', value);
-                        applyChanges();
-                      }}
-                    />
-                  </Form.Item>
                   <Form.Item label={formatMessage({ id: 'flow.input.source' })}>
                     <NodeInput
                       variant="filled"

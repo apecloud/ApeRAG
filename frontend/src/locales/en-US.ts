@@ -278,7 +278,6 @@ export default {
   'flow.temperature': 'Temperature',
   'flow.temperature.tips':
     "This parameter controls the randomness of the model's predictions. A lower temperature results in more conservative responses, while a higher temperature yields more creative and diverse responses.",
-  'flow.max_tokens': 'Max tokens',
   'flow.merge.merge_strategy': 'Strategy',
   'flow.merge.deduplicate': 'Deduplicate',
   'flow.merge.deduplicate.tips':
