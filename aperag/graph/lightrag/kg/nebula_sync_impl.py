@@ -101,24 +101,48 @@ def _quote_vid(vid: str) -> str:
 def _safe_error_msg(result) -> str:
     """Safely extract error message from Nebula result, handling UTF-8 decode errors."""
     try:
-        error_msg = result.error_msg()
-        # Ensure the error message is properly handled
-        if isinstance(error_msg, bytes):
-            # Try different encodings
-            for encoding in ["utf-8", "gbk", "latin-1"]:
-                try:
-                    return error_msg.decode(encoding)
-                except UnicodeDecodeError:
-                    continue
-            # If all fail, use replacement characters
-            return error_msg.decode("utf-8", errors="replace")
+        error_code = result.error_code()
+        
+        # Try to get error message safely
+        try:
+            error_msg = result.error_msg()
+        except Exception as msg_error:
+            logger.warning(f"Failed to extract error message: {msg_error}")
+            return f"Nebula operation failed (error code: {error_code})"
+        
+        # Handle the message based on its type
+        if error_msg is None:
+            return f"Nebula operation failed (error code: {error_code})"
         elif isinstance(error_msg, str):
-            return error_msg
+            return f"Nebula error (code: {error_code}): {error_msg}"
+        elif isinstance(error_msg, bytes):
+            # Try different encodings safely
+            decoded_msg = None
+            for encoding in ["utf-8", "gbk", "gb2312", "latin-1"]:
+                try:
+                    decoded_msg = error_msg.decode(encoding)
+                    break
+                except (UnicodeDecodeError, LookupError):
+                    continue
+            
+            # If all encodings fail, use safe replacement
+            if decoded_msg is None:
+                try:
+                    decoded_msg = error_msg.decode("utf-8", errors="replace")
+                except Exception:
+                    decoded_msg = str(error_msg)
+            
+            return f"Nebula error (code: {error_code}): {decoded_msg}"
         else:
-            return str(error_msg)
+            return f"Nebula error (code: {error_code}): {str(error_msg)}"
+            
     except Exception as e:
-        logger.warning(f"Failed to get Nebula error message: {e}")
-        return f"Nebula operation failed (error code: {result.error_code()})"
+        logger.warning(f"Failed to process Nebula error: {e}")
+        try:
+            error_code = result.error_code()
+            return f"Nebula operation failed (error code: {error_code})"
+        except Exception:
+            return "Nebula operation failed (unknown error)"
 
 
 @final
@@ -615,6 +639,18 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         def _sync_upsert_edge():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
+                # First, verify that both nodes exist
+                source_exists = self._sync_check_node_exists(source_node_id, session)
+                target_exists = self._sync_check_node_exists(target_node_id, session)
+                
+                if not source_exists:
+                    logger.error(f"Source node does not exist: {source_node_id}")
+                    raise RuntimeError(f"Source node does not exist: {source_node_id}")
+                    
+                if not target_exists:
+                    logger.error(f"Target node does not exist: {target_node_id}")
+                    raise RuntimeError(f"Target node does not exist: {target_node_id}")
+
                 # Build property names and parameter mapping for Nebula syntax
                 prop_names = []
                 param_dict = {"source_node_id": source_node_id, "target_node_id": target_node_id}
@@ -629,26 +665,49 @@ class NebulaSyncStorage(BaseGraphStorage):
                     logger.warning(f"No properties to insert for edge {source_node_id} -> {target_node_id}")
                     return
 
-                # Build Nebula UPSERT syntax for true upsert semantics (like Neo4j MERGE)
-                # VID cannot be parameterized in UPSERT statements
+                # Use INSERT EDGE with ON DUPLICATE UPDATE for upsert semantics
+                # VID cannot be parameterized in INSERT statements  
                 # Use safe VID quoting to handle special characters properly
                 source_quoted = _quote_vid(source_node_id)
                 target_quoted = _quote_vid(target_node_id)
 
-                # Build SET clause with parameterized values
-                set_items = []
+                # Build property value list - avoid parameterization for now
+                prop_values = []
                 for key in prop_names:
-                    set_items.append(f"DIRECTED.{key} = $prop_{key}")
-                set_clause = ", ".join(set_items)
+                    value = edge_data[key]
+                    if isinstance(value, str):
+                        # Escape special characters in string values for Nebula
+                        escaped_value = value.replace("\\", "\\\\")  # Escape backslashes first
+                        escaped_value = escaped_value.replace("'", "\\'")  # Escape single quotes
+                        escaped_value = escaped_value.replace("\n", "\\n")  # Escape newlines
+                        escaped_value = escaped_value.replace("\r", "\\r")  # Escape carriage returns
+                        escaped_value = escaped_value.replace("\t", "\\t")  # Escape tabs
+                        prop_values.append(f"'{escaped_value}'")
+                    elif isinstance(value, (int, float)):
+                        prop_values.append(str(value))
+                    else:
+                        # Convert to string and escape special characters
+                        str_value = str(value)
+                        escaped_value = str_value.replace("\\", "\\\\")  # Escape backslashes first
+                        escaped_value = escaped_value.replace("'", "\\'")  # Escape single quotes
+                        escaped_value = escaped_value.replace("\n", "\\n")  # Escape newlines
+                        escaped_value = escaped_value.replace("\r", "\\r")  # Escape carriage returns
+                        escaped_value = escaped_value.replace("\t", "\\t")  # Escape tabs
+                        prop_values.append(f"'{escaped_value}'")
 
-                query = f"UPSERT EDGE DIRECTED {source_quoted} -> {target_quoted} SET {set_clause}"
+                # Build property names and values for INSERT
+                prop_names_str = "(" + ", ".join(prop_names) + ")"
+                prop_values_str = "(" + ", ".join(prop_values) + ")"
 
-                # Remove VIDs from params since they're not parameterized
-                param_dict_without_vids = {
-                    k: v for k, v in param_dict.items() if k not in ("source_node_id", "target_node_id")
-                }
-                nebula_params = _prepare_nebula_params(param_dict_without_vids)
-                result = session.execute_parameter(query, nebula_params)
+                query = f"INSERT EDGE DIRECTED{prop_names_str} VALUES {source_quoted} -> {target_quoted}:{prop_values_str}"
+
+                # No parameters needed since we're not using parameterization
+                nebula_params = {}
+                
+                # Debug logging
+                logger.debug(f"Insert edge query: {query}")
+                
+                result = session.execute(query)
 
                 if not result.is_succeeded():
                     logger.error(
@@ -659,6 +718,13 @@ class NebulaSyncStorage(BaseGraphStorage):
                 logger.debug(f"Upserted edge from '{source_node_id}' to '{target_node_id}'")
 
         return await asyncio.to_thread(_sync_upsert_edge)
+    
+    def _sync_check_node_exists(self, node_id: str, session) -> bool:
+        """Synchronous helper to check if a node exists."""
+        node_id_quoted = _quote_vid(node_id)
+        query = f"FETCH PROP ON base {node_id_quoted} YIELD properties(vertex)"
+        result = session.execute(query)
+        return result.is_succeeded() and result.row_size() > 0
 
     async def get_knowledge_graph(
         self,

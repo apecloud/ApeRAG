@@ -319,7 +319,7 @@ requires-dist = [
     { name = "markitdown", extras = ["all"], specifier = ">=0.1.1" },
     { name = "nano-vectordb", specifier = ">=0.0.4.3" },
     { name = "nano-vectordb", marker = "extra == 'lightrag-dev'" },
-    { name = "nebula3-python", specifier = "==3.8.2" },
+    { name = "nebula3-python", specifier = "==3.8.3" },
     { name = "neo4j", specifier = ">=5.28.1" },
     { name = "numpy", specifier = ">=1.26.4,<2.0.0" },
     { name = "openai", specifier = ">=1.71.0,<2.0.0" },
@@ -3381,7 +3381,7 @@ wheels = [
 
 [[package]]
 name = "nebula3-python"
-version = "3.8.2"
+version = "3.8.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "future" },
@@ -3390,9 +3390,9 @@ dependencies = [
     { name = "pytz" },
     { name = "six" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/29/2e/683a62832542dac86252559ff3dff443edbf6f09e9e6ecac58a101fa5c8a/nebula3_python-3.8.2.tar.gz", hash = "sha256:889df21bac0f7ccad1d3a1807d9b736b2136770b24ed03d4fd49b76b3e2612ea", size = 3150562, upload-time = "2024-08-12T06:54:38.443Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/5b/418091182ec585762497f087f04d6e8dcd8c5f7de416b01d6c901c1e8055/nebula3_python-3.8.3.tar.gz", hash = "sha256:da4693171079e9d5efb01a579f7fb62ef7655f6169cc2ff2cbb7b7d902e2cf3d", size = 3228870, upload-time = "2024-10-22T03:55:47.774Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0a/31/f09154c2ed3617fc6290cf5d189dd44ff469c750b28651b0885d17f4f201/nebula3_python-3.8.2-py3-none-any.whl", hash = "sha256:8942ef87619f05115f643896408f8cbe602670405a3aeab01fdcc454eeabf0d7", size = 335203, upload-time = "2024-08-12T06:54:36.39Z" },
+    { url = "https://files.pythonhosted.org/packages/e7/51/fdcc871d1b04d4e2a0293e27ae7d33fe33eea9077323401fb5016f19dcef/nebula3_python-3.8.3-py3-none-any.whl", hash = "sha256:ef583d15c012751cce05bcf8b3869881dbbc3286c6e3fa8b5c65b7c5bb808c38", size = 331255, upload-time = "2024-10-22T03:55:45.887Z" },
 ]
 
 [[package]]
