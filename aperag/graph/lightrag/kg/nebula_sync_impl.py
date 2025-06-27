@@ -218,35 +218,82 @@ class NebulaSyncStorage(BaseGraphStorage):
         return await asyncio.to_thread(_sync_node_degree)
 
     async def node_degrees_batch(self, node_ids: list[str]) -> dict[str, int]:
-        """Retrieve degrees for multiple nodes."""
+        """Retrieve degrees for multiple nodes, optimized for Nebula characteristics."""
 
         def _sync_node_degrees_batch():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
-                # Build conditions for batch query
-                conditions = []
-                for node_id in node_ids:
-                    conditions.append(f"id(n) == '{node_id}'")
+                if not node_ids:
+                    return {}
 
-                where_clause = " OR ".join(conditions)
-                query = f"""
-                MATCH (n:base)
-                WHERE {where_clause}
-                RETURN id(n) AS node_id, count((n)--()) AS degree
-                """
-                result = session.execute(query)
+                degrees = {node_id: 0 for node_id in node_ids}
 
-                degrees = {}
-                if result.is_succeeded():
-                    for row in result:
-                        node_id = row.values()[0].as_string()
-                        degree = row.values()[1].as_int()
-                        degrees[node_id] = degree
+                # 提高批次大小，利用fallback机制确保稳定性
+                batch_size = 25  # 增加批次大小，提高效率
 
-                # Set degree to 0 for missing nodes
-                for nid in node_ids:
-                    if nid not in degrees:
-                        logger.warning(f"No node found with id '{nid}'")
-                        degrees[nid] = 0
+                for i in range(0, len(node_ids), batch_size):
+                    batch = node_ids[i : i + batch_size]
+
+                    # 使用简洁的UNION语法，增加UNION容量
+                    union_queries = []
+                    for node_id in batch:
+                        # 使用管道语法计算度数，更符合Nebula习惯
+                        union_queries.append(f"""
+                        GO FROM '{node_id}' OVER * BIDIRECT 
+                        YIELD '{node_id}' as node_id, count(*) as degree
+                        """)
+
+                    # 增加UNION查询数量限制，提高批量效率
+                    if len(union_queries) <= 15:  # 从5个增加到15个
+                        query = " UNION ".join(union_queries)
+                        result = session.execute(query)
+
+                        if result.is_succeeded():
+                            found_nodes = set()
+                            for row in result:
+                                node_id = row.values()[0].as_string()
+                                degree = row.values()[1].as_int()
+                                degrees[node_id] = degree
+                                found_nodes.add(node_id)
+
+                            # 处理未找到的节点（度数为0）
+                            for node_id in batch:
+                                if node_id not in found_nodes:
+                                    degrees[node_id] = 0
+                        else:
+                            logger.debug(f"UNION degree query failed: {_safe_error_msg(result)}")
+                            # 降级为单个查询
+                            for node_id in batch:
+                                single_query = f"""
+                                GO FROM '{node_id}' OVER * BIDIRECT 
+                                YIELD count(*) as degree
+                                """
+                                single_result = session.execute(single_query)
+
+                                if single_result.is_succeeded() and single_result.row_size() > 0:
+                                    for row in single_result:
+                                        degrees[node_id] = row.values()[0].as_int()
+                                        break
+                                else:
+                                    degrees[node_id] = 0
+                    else:
+                        # 批次过大，直接使用单个查询避免复杂UNION
+                        for node_id in batch:
+                            try:
+                                query = f"""
+                                GO FROM '{node_id}' OVER * BIDIRECT 
+                                YIELD count(*) as degree
+                                """
+                                result = session.execute(query)
+
+                                if result.is_succeeded() and result.row_size() > 0:
+                                    for row in result:
+                                        degrees[node_id] = row.values()[0].as_int()
+                                        break
+                                else:
+                                    degrees[node_id] = 0
+                            except Exception as e:
+                                logger.warning(f"Failed to get degree for node '{node_id}': {e}")
+                                degrees[node_id] = 0
 
                 return degrees
 
@@ -275,8 +322,42 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         def _sync_get_edge():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
+                # Try direction: source -> target
                 query = f"""
                 FETCH PROP ON DIRECTED '{source_node_id}' -> '{target_node_id}' 
+                YIELD properties(edge) as props
+                """
+                result = session.execute(query)
+
+                if result.is_succeeded() and result.row_size() > 0:
+                    for row in result:
+                        props = row.values()[0].as_map()
+                        edge_dict = {}
+                        for key, value in props.items():
+                            key_str = key
+                            if value.is_string():
+                                edge_dict[key_str] = value.as_string()
+                            elif value.is_int():
+                                edge_dict[key_str] = value.as_int()
+                            elif value.is_double():
+                                edge_dict[key_str] = value.as_double()
+
+                        # Ensure required keys exist with defaults
+                        required_keys = {
+                            "weight": 0.0,
+                            "source_id": None,
+                            "description": None,
+                            "keywords": None,
+                        }
+                        for key, default_value in required_keys.items():
+                            if key not in edge_dict:
+                                edge_dict[key] = default_value
+
+                        return edge_dict
+
+                # Try reverse direction: target -> source
+                query = f"""
+                FETCH PROP ON DIRECTED '{target_node_id}' -> '{source_node_id}' 
                 YIELD properties(edge) as props
                 """
                 result = session.execute(query)
@@ -312,53 +393,153 @@ class NebulaSyncStorage(BaseGraphStorage):
         return await asyncio.to_thread(_sync_get_edge)
 
     async def get_edges_batch(self, pairs: list[dict[str, str]]) -> dict[tuple[str, str], dict]:
-        """Retrieve edge properties for multiple pairs."""
+        """Retrieve edge properties for multiple pairs with optimized batch query."""
 
         def _sync_get_edges_batch():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 edges_dict = {}
 
-                # Build edge specifications for batch fetch
-                edge_specs = []
+                if not pairs:
+                    return edges_dict
+
+                # Initialize all pairs with default values
                 for pair in pairs:
-                    src = pair["src"]
-                    tgt = pair["tgt"]
-                    edge_specs.append(f"'{src}' -> '{tgt}'")
+                    src, tgt = pair["src"], pair["tgt"]
+                    edges_dict[(src, tgt)] = {
+                        "weight": 0.0,
+                        "source_id": None,
+                        "description": None,
+                        "keywords": None,
+                    }
 
-                edge_list = ", ".join(edge_specs)
-                query = f"""
-                FETCH PROP ON DIRECTED {edge_list} 
-                YIELD src(edge) as src, dst(edge) as dst, properties(edge) as props
-                """
-                result = session.execute(query)
+                # Optimized: Use batch processing with fewer queries
+                chunk_size = 50  # 从25增加到50，提高批量效率
+                for i in range(0, len(pairs), chunk_size):
+                    chunk = pairs[i : i + chunk_size]
 
-                if result.is_succeeded():
-                    for row in result:
-                        src = row.values()[0].as_string()
-                        tgt = row.values()[1].as_string()
-                        props = row.values()[2].as_map()
+                    # Create UNION query for batch edge processing (both directions)
+                    union_queries = []
+                    for pair in chunk:
+                        src, tgt = pair["src"], pair["tgt"]
+                        # Query both directions in a single UNION
+                        union_queries.append(f"""
+                        FETCH PROP ON DIRECTED '{src}' -> '{tgt}' 
+                        YIELD '{src}' as src, '{tgt}' as tgt, properties(edge) as props
+                        """)
+                        union_queries.append(f"""
+                        FETCH PROP ON DIRECTED '{tgt}' -> '{src}' 
+                        YIELD '{tgt}' as reverse_src, '{src}' as reverse_tgt, properties(edge) as props
+                        """)
 
-                        edge_dict = {}
-                        for key, value in props.items():
-                            key_str = key
-                            if value.is_string():
-                                edge_dict[key_str] = value.as_string()
-                            elif value.is_int():
-                                edge_dict[key_str] = value.as_int()
-                            elif value.is_double():
-                                edge_dict[key_str] = value.as_double()
+                    query = " UNION ".join(union_queries)
+                    result = session.execute(query)
 
-                        # Ensure required keys
-                        for key, default in {
-                            "weight": 0.0,
-                            "source_id": None,
-                            "description": None,
-                            "keywords": None,
-                        }.items():
-                            if key not in edge_dict:
-                                edge_dict[key] = default
+                    if result.is_succeeded():
+                        for row in result:
+                            edge_src = row.values()[0].as_string()
+                            edge_tgt = row.values()[1].as_string()
+                            props = row.values()[2].as_map()
 
-                        edges_dict[(src, tgt)] = edge_dict
+                            edge_dict = {}
+                            for key, value in props.items():
+                                key_str = key
+                                if value.is_string():
+                                    edge_dict[key_str] = value.as_string()
+                                elif value.is_int():
+                                    edge_dict[key_str] = value.as_int()
+                                elif value.is_double():
+                                    edge_dict[key_str] = value.as_double()
+
+                            # Ensure required keys
+                            for key, default in {
+                                "weight": 0.0,
+                                "source_id": None,
+                                "description": None,
+                                "keywords": None,
+                            }.items():
+                                if key not in edge_dict:
+                                    edge_dict[key] = default
+
+                            # Find the original query pair and update it
+                            for pair in chunk:
+                                src, tgt = pair["src"], pair["tgt"]
+                                if (edge_src == src and edge_tgt == tgt) or (edge_src == tgt and edge_tgt == src):
+                                    edges_dict[(src, tgt)] = edge_dict
+                                    break
+                    else:
+                        logger.warning(f"Batch edge query chunk failed: {_safe_error_msg(result)}")
+                        # Fall back to individual queries for this chunk
+                        for pair in chunk:
+                            src, tgt = pair["src"], pair["tgt"]
+
+                            # Try direction: src -> tgt
+                            query = f"""
+                            FETCH PROP ON DIRECTED '{src}' -> '{tgt}' 
+                            YIELD properties(edge) as props
+                            """
+                            result = session.execute(query)
+
+                            edge_found = False
+                            if result.is_succeeded() and result.row_size() > 0:
+                                for row in result:
+                                    props = row.values()[0].as_map()
+                                    edge_dict = {}
+                                    for key, value in props.items():
+                                        key_str = key
+                                        if value.is_string():
+                                            edge_dict[key_str] = value.as_string()
+                                        elif value.is_int():
+                                            edge_dict[key_str] = value.as_int()
+                                        elif value.is_double():
+                                            edge_dict[key_str] = value.as_double()
+
+                                    # Ensure required keys
+                                    for key, default in {
+                                        "weight": 0.0,
+                                        "source_id": None,
+                                        "description": None,
+                                        "keywords": None,
+                                    }.items():
+                                        if key not in edge_dict:
+                                            edge_dict[key] = default
+
+                                    edges_dict[(src, tgt)] = edge_dict
+                                    edge_found = True
+                                    break
+
+                            # If not found, try reverse direction: tgt -> src
+                            if not edge_found:
+                                query = f"""
+                                FETCH PROP ON DIRECTED '{tgt}' -> '{src}' 
+                                YIELD properties(edge) as props
+                                """
+                                result = session.execute(query)
+
+                                if result.is_succeeded() and result.row_size() > 0:
+                                    for row in result:
+                                        props = row.values()[0].as_map()
+                                        edge_dict = {}
+                                        for key, value in props.items():
+                                            key_str = key
+                                            if value.is_string():
+                                                edge_dict[key_str] = value.as_string()
+                                            elif value.is_int():
+                                                edge_dict[key_str] = value.as_int()
+                                            elif value.is_double():
+                                                edge_dict[key_str] = value.as_double()
+
+                                        # Ensure required keys
+                                        for key, default in {
+                                            "weight": 0.0,
+                                            "source_id": None,
+                                            "description": None,
+                                            "keywords": None,
+                                        }.items():
+                                            if key not in edge_dict:
+                                                edge_dict[key] = default
+
+                                        edges_dict[(src, tgt)] = edge_dict
+                                        break
 
                 return edges_dict
 
@@ -387,32 +568,52 @@ class NebulaSyncStorage(BaseGraphStorage):
         return await asyncio.to_thread(_sync_get_node_edges)
 
     async def get_nodes_edges_batch(self, node_ids: list[str]) -> dict[str, list[tuple[str, str]]]:
-        """Batch retrieve edges for multiple nodes."""
+        """Batch retrieve edges for multiple nodes with optimized batch query."""
 
         def _sync_get_nodes_edges_batch():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
-                # Build conditions
-                conditions = []
-                for node_id in node_ids:
-                    conditions.append(f"id(n) == '{node_id}'")
-
-                where_clause = " OR ".join(conditions)
-                query = f"""
-                MATCH (n:base)-[r]-(connected:base)
-                WHERE {where_clause}
-                RETURN id(n) as node_id, id(connected) as connected_id, src(edge) as edge_src
-                """
-                result = session.execute(query)
+                if not node_ids:
+                    return {}
 
                 edges_dict = {node_id: [] for node_id in node_ids}
 
-                if result.is_succeeded():
-                    for row in result:
-                        node_id = row.values()[0].as_string()
-                        connected_id = row.values()[1].as_string()
-                        # For Nebula, we need to check the edge direction
-                        # Here we assume DIRECTED edges, adjust as needed
-                        edges_dict[node_id].append((node_id, connected_id))
+                # Optimized: Use batch processing with fewer queries
+                chunk_size = 60  # 从30增加到60，提高批量效率
+                for i in range(0, len(node_ids), chunk_size):
+                    chunk = node_ids[i : i + chunk_size]
+
+                    # Create UNION query for batch edge processing
+                    union_queries = []
+                    for node_id in chunk:
+                        union_queries.append(f"""
+                        GO FROM '{node_id}' OVER * BIDIRECT 
+                        YIELD '{node_id}' as query_node, src(edge) as src, dst(edge) as dst
+                        """)
+
+                    query = " UNION ".join(union_queries)
+                    result = session.execute(query)
+
+                    if result.is_succeeded():
+                        for row in result:
+                            query_node = row.values()[0].as_string()
+                            src = row.values()[1].as_string()
+                            dst = row.values()[2].as_string()
+                            edges_dict[query_node].append((src, dst))
+                    else:
+                        logger.warning(f"Batch node edges query chunk failed: {_safe_error_msg(result)}")
+                        # Fall back to individual queries for this chunk
+                        for node_id in chunk:
+                            query = f"""
+                            GO FROM '{node_id}' OVER * BIDIRECT 
+                            YIELD src(edge) as src, dst(edge) as dst
+                            """
+                            result = session.execute(query)
+
+                            if result.is_succeeded():
+                                for row in result:
+                                    src = row.values()[0].as_string()
+                                    dst = row.values()[1].as_string()
+                                    edges_dict[node_id].append((src, dst))
 
                 return edges_dict
 
@@ -522,11 +723,11 @@ class NebulaSyncStorage(BaseGraphStorage):
 
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 if node_label == "*":
-                    # Get all nodes
+                    # Get all nodes using LOOKUP
                     query = f"""
-                    MATCH (n:base)
-                    RETURN id(n) as id, properties(n) as props
-                    LIMIT {max_nodes}
+                    LOOKUP ON base 
+                    YIELD id(vertex) as id, properties(vertex) as props
+                    | LIMIT {max_nodes}
                     """
                     node_result = session.execute(query)
 
@@ -554,114 +755,205 @@ class NebulaSyncStorage(BaseGraphStorage):
                             )
                             seen_nodes.add(node_id)
 
-                    # Get edges between these nodes
+                    # Optimized: Get edges between nodes using batch query instead of N² individual queries
                     if seen_nodes:
-                        edge_query = f"""
-                        MATCH (a:base)-[r:DIRECTED]->(b:base)
-                        WHERE id(a) IN [{", ".join([f"'{n}'" for n in seen_nodes])}] 
-                          AND id(b) IN [{", ".join([f"'{n}'" for n in seen_nodes])}]
-                        RETURN id(a) as src, id(b) as tgt, properties(r) as props
-                        """
-                        edge_result = session.execute(edge_query)
+                        nodes_list = list(seen_nodes)
 
-                        if edge_result.is_succeeded():
-                            for row in edge_result:
-                                src = row.values()[0].as_string()
-                                tgt = row.values()[1].as_string()
-                                props = row.values()[2].as_map()
+                        # Create optimized batch query for all edges between these nodes
+                        union_queries = []
+                        for src in nodes_list:
+                            union_queries.append(f"""
+                            GO FROM '{src}' OVER DIRECTED 
+                            WHERE dst(edge) IN [{", ".join([f"'{n}'" for n in nodes_list])}]
+                            YIELD src(edge) as src, dst(edge) as dst, properties(edge) as props
+                            """)
 
-                                edge_dict = {}
-                                for key, value in props.items():
-                                    key_str = key
-                                    if value.is_string():
-                                        edge_dict[key_str] = value.as_string()
-                                    elif value.is_int():
-                                        edge_dict[key_str] = value.as_int()
-                                    elif value.is_double():
-                                        edge_dict[key_str] = value.as_double()
+                        if union_queries:
+                            # Process in chunks to avoid query size limits
+                            chunk_size = 50  # 从20增加到50，提高批量效率
+                            for i in range(0, len(union_queries), chunk_size):
+                                chunk_queries = union_queries[i : i + chunk_size]
+                                query = " UNION ".join(chunk_queries)
+                                edge_result = session.execute(query)
 
-                                edge_id = f"{src}-{tgt}"
-                                result.edges.append(
-                                    KnowledgeGraphEdge(
-                                        id=edge_id,
-                                        type="DIRECTED",
-                                        source=src,
-                                        target=tgt,
-                                        properties=edge_dict,
-                                    )
-                                )
-                                seen_edges.add(edge_id)
+                                if edge_result.is_succeeded():
+                                    for row in edge_result:
+                                        edge_src = row.values()[0].as_string()
+                                        edge_dst = row.values()[1].as_string()
+                                        props = row.values()[2].as_map()
+
+                                        edge_dict = {}
+                                        for key, value in props.items():
+                                            key_str = key
+                                            if value.is_string():
+                                                edge_dict[key_str] = value.as_string()
+                                            elif value.is_int():
+                                                edge_dict[key_str] = value.as_int()
+                                            elif value.is_double():
+                                                edge_dict[key_str] = value.as_double()
+
+                                        edge_id = f"{edge_src}-{edge_dst}"
+                                        if edge_id not in seen_edges:
+                                            result.edges.append(
+                                                KnowledgeGraphEdge(
+                                                    id=edge_id,
+                                                    type="DIRECTED",
+                                                    source=edge_src,
+                                                    target=edge_dst,
+                                                    properties=edge_dict,
+                                                )
+                                            )
+                                            seen_edges.add(edge_id)
+                                else:
+                                    logger.warning("Batch edge query failed, falling back to individual queries")
+                                    # Fall back to original approach only if batch fails
+                                    for src in nodes_list[i * chunk_size // 20 : (i + 1) * chunk_size // 20]:
+                                        for tgt in seen_nodes:
+                                            if src != tgt:  # Avoid self-loops
+                                                edge_query = f"""
+                                                FETCH PROP ON DIRECTED '{src}' -> '{tgt}' 
+                                                YIELD src(edge) as src, dst(edge) as dst, properties(edge) as props
+                                                """
+                                                edge_result = session.execute(edge_query)
+
+                                                if edge_result.is_succeeded() and edge_result.row_size() > 0:
+                                                    for row in edge_result:
+                                                        edge_src = row.values()[0].as_string()
+                                                        edge_dst = row.values()[1].as_string()
+                                                        props = row.values()[2].as_map()
+
+                                                        edge_dict = {}
+                                                        for key, value in props.items():
+                                                            key_str = key
+                                                            if value.is_string():
+                                                                edge_dict[key_str] = value.as_string()
+                                                            elif value.is_int():
+                                                                edge_dict[key_str] = value.as_int()
+                                                            elif value.is_double():
+                                                                edge_dict[key_str] = value.as_double()
+
+                                                        edge_id = f"{edge_src}-{edge_dst}"
+                                                        if edge_id not in seen_edges:
+                                                            result.edges.append(
+                                                                KnowledgeGraphEdge(
+                                                                    id=edge_id,
+                                                                    type="DIRECTED",
+                                                                    source=edge_src,
+                                                                    target=edge_dst,
+                                                                    properties=edge_dict,
+                                                                )
+                                                            )
+                                                            seen_edges.add(edge_id)
                 else:
-                    # BFS from specific node
-                    query = f"""
-                    MATCH (start:base)-[*0..{max_depth}]-(end:base)
-                    WHERE id(start) == '{node_label}'
-                    RETURN DISTINCT id(end) as id, properties(end) as props
-                    LIMIT {max_nodes}
-                    """
-                    node_result = session.execute(query)
+                    # BFS from specific node using GO FROM
+                    from collections import deque
 
-                    if node_result.is_succeeded():
-                        for row in node_result:
-                            node_id = row.values()[0].as_string()
-                            props = row.values()[1].as_map()
+                    # Start with the specific node
+                    queue = deque([node_label])
+                    visited = set()
+                    current_depth = 0
 
-                            node_dict = {}
-                            for key, value in props.items():
-                                key_str = key
-                                if value.is_string():
-                                    node_dict[key_str] = value.as_string()
-                                elif value.is_int():
-                                    node_dict[key_str] = value.as_int()
-                                elif value.is_double():
-                                    node_dict[key_str] = value.as_double()
+                    while queue and current_depth <= max_depth and len(seen_nodes) < max_nodes:
+                        level_size = len(queue)
+                        next_level_nodes = set()
 
-                            result.nodes.append(
-                                KnowledgeGraphNode(
-                                    id=node_id,
-                                    labels=[node_dict.get("entity_id", node_id)],
-                                    properties=node_dict,
-                                )
-                            )
-                            seen_nodes.add(node_id)
+                        for _ in range(level_size):
+                            if not queue or len(seen_nodes) >= max_nodes:
+                                break
 
-                    # Get edges in the subgraph
-                    if seen_nodes:
-                        edge_query = f"""
-                        MATCH (a:base)-[r:DIRECTED]->(b:base)
-                        WHERE id(a) IN [{", ".join([f"'{n}'" for n in seen_nodes])}] 
-                          AND id(b) IN [{", ".join([f"'{n}'" for n in seen_nodes])}]
-                        RETURN id(a) as src, id(b) as tgt, properties(r) as props
-                        """
-                        edge_result = session.execute(edge_query)
+                            current_node = queue.popleft()
+                            if current_node in visited:
+                                continue
 
-                        if edge_result.is_succeeded():
-                            for row in edge_result:
-                                src = row.values()[0].as_string()
-                                tgt = row.values()[1].as_string()
-                                props = row.values()[2].as_map()
+                            visited.add(current_node)
 
-                                edge_dict = {}
-                                for key, value in props.items():
-                                    key_str = key
-                                    if value.is_string():
-                                        edge_dict[key_str] = value.as_string()
-                                    elif value.is_int():
-                                        edge_dict[key_str] = value.as_int()
-                                    elif value.is_double():
-                                        edge_dict[key_str] = value.as_double()
+                            # Get node properties
+                            node_query = f"FETCH PROP ON base '{current_node}' YIELD properties(vertex) as props"
+                            node_result = session.execute(node_query)
 
-                                edge_id = f"{src}-{tgt}"
-                                result.edges.append(
-                                    KnowledgeGraphEdge(
-                                        id=edge_id,
-                                        type="DIRECTED",
-                                        source=src,
-                                        target=tgt,
-                                        properties=edge_dict,
+                            if node_result.is_succeeded() and node_result.row_size() > 0:
+                                for row in node_result:
+                                    props = row.values()[0].as_map()
+                                    node_dict = {}
+                                    for key, value in props.items():
+                                        key_str = key
+                                        if value.is_string():
+                                            node_dict[key_str] = value.as_string()
+                                        elif value.is_int():
+                                            node_dict[key_str] = value.as_int()
+                                        elif value.is_double():
+                                            node_dict[key_str] = value.as_double()
+
+                                    node_dict["entity_id"] = current_node
+                                    result.nodes.append(
+                                        KnowledgeGraphNode(
+                                            id=current_node,
+                                            labels=[node_dict.get("entity_id", current_node)],
+                                            properties=node_dict,
+                                        )
                                     )
-                                )
-                                seen_edges.add(edge_id)
+                                    seen_nodes.add(current_node)
+                                    break
+
+                            # Get neighbors if not at max depth
+                            if current_depth < max_depth:
+                                neighbor_query = f"""
+                                GO FROM '{current_node}' OVER * BIDIRECT 
+                                YIELD src(edge) as src, dst(edge) as dst
+                                """
+                                neighbor_result = session.execute(neighbor_query)
+
+                                if neighbor_result.is_succeeded():
+                                    for row in neighbor_result:
+                                        src = row.values()[0].as_string()
+                                        dst = row.values()[1].as_string()
+
+                                        # Add edge to result
+                                        edge_id = f"{src}-{dst}"
+                                        if edge_id not in seen_edges:
+                                            # Get edge properties
+                                            edge_props_query = f"""
+                                            FETCH PROP ON DIRECTED '{src}' -> '{dst}' 
+                                            YIELD properties(edge) as props
+                                            """
+                                            edge_props_result = session.execute(edge_props_query)
+
+                                            edge_dict = {}
+                                            if edge_props_result.is_succeeded() and edge_props_result.row_size() > 0:
+                                                for edge_row in edge_props_result:
+                                                    props = edge_row.values()[0].as_map()
+                                                    for key, value in props.items():
+                                                        key_str = key
+                                                        if value.is_string():
+                                                            edge_dict[key_str] = value.as_string()
+                                                        elif value.is_int():
+                                                            edge_dict[key_str] = value.as_int()
+                                                        elif value.is_double():
+                                                            edge_dict[key_str] = value.as_double()
+                                                    break
+
+                                            result.edges.append(
+                                                KnowledgeGraphEdge(
+                                                    id=edge_id,
+                                                    type="DIRECTED",
+                                                    source=src,
+                                                    target=dst,
+                                                    properties=edge_dict,
+                                                )
+                                            )
+                                            seen_edges.add(edge_id)
+
+                                        # Add neighbor to next level
+                                        neighbor = dst if src == current_node else src
+                                        if neighbor not in visited and neighbor not in next_level_nodes:
+                                            next_level_nodes.add(neighbor)
+
+                        # Add next level nodes to queue
+                        for node in next_level_nodes:
+                            if len(seen_nodes) < max_nodes:
+                                queue.append(node)
+
+                        current_depth += 1
 
             logger.info(f"Retrieved subgraph with {len(result.nodes)} nodes and {len(result.edges)} edges")
             return result
