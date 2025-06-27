@@ -98,6 +98,24 @@ def _quote_vid(vid: str) -> str:
     return f'"{escaped}"'
 
 
+def _convert_nebula_value(value) -> any:
+    """Convert a single Nebula Value to Python type."""
+    if value.is_null():
+        return None
+    elif value.is_string():
+        return value.as_string()
+    elif value.is_int():
+        return value.as_int()
+    elif value.is_double():
+        return value.as_double()
+    elif value.is_bool():
+        return value.as_bool()
+    elif value.is_list():
+        return [_convert_nebula_value(item) for item in value.as_list()]
+    else:
+        return str(value)  # 兜底转换
+
+
 def _safe_error_msg(result) -> str:
     """Safely extract error message from Nebula result, handling UTF-8 decode errors."""
     try:
@@ -160,6 +178,13 @@ class NebulaSyncStorage(BaseGraphStorage):
             embedding_func=embedding_func,
         )
         self._space_name = None
+
+    def _convert_nebula_value_map(self, value_map: dict) -> dict[str, any]:
+        """统一的类型转换函数"""
+        result = {}
+        for key, value in value_map.items():
+            result[key] = _convert_nebula_value(value)
+        return result
 
     async def initialize(self):
         """Initialize storage and prepare database."""
@@ -239,15 +264,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                 if result.is_succeeded() and result.row_size() > 0:
                     for row in result:
                         props = row.values()[0].as_map()
-                        node_dict = {}
-                        for key, value in props.items():
-                            key_str = key
-                            if value.is_string():
-                                node_dict[key_str] = value.as_string()
-                            elif value.is_int():
-                                node_dict[key_str] = value.as_int()
-                            elif value.is_double():
-                                node_dict[key_str] = value.as_double()
+                        node_dict = self._convert_nebula_value_map(props)
 
                         # Add entity_id which is the node ID itself
                         node_dict["entity_id"] = node_id
@@ -276,14 +293,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                     for row in result:
                         node_id = row.values()[0].as_string()
                         props = row.values()[1].as_map()
-                        node_dict = {}
-                        for key, value in props.items():
-                            if value.is_string():
-                                node_dict[key] = value.as_string()
-                            elif value.is_int():
-                                node_dict[key] = value.as_int()
-                            elif value.is_double():
-                                node_dict[key] = value.as_double()
+                        node_dict = self._convert_nebula_value_map(props)
 
                         node_dict["entity_id"] = node_id
                         nodes[node_id] = node_dict
@@ -382,15 +392,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                 if result.is_succeeded() and result.row_size() > 0:
                     for row in result:
                         props = row.values()[0].as_map()
-                        edge_dict = {}
-                        for key, value in props.items():
-                            key_str = key
-                            if value.is_string():
-                                edge_dict[key_str] = value.as_string()
-                            elif value.is_int():
-                                edge_dict[key_str] = value.as_int()
-                            elif value.is_double():
-                                edge_dict[key_str] = value.as_double()
+                        edge_dict = self._convert_nebula_value_map(props)
 
                         # Ensure required keys exist with defaults
                         required_keys = {
@@ -418,15 +420,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                 if result.is_succeeded() and result.row_size() > 0:
                     for row in result:
                         props = row.values()[0].as_map()
-                        edge_dict = {}
-                        for key, value in props.items():
-                            key_str = key
-                            if value.is_string():
-                                edge_dict[key_str] = value.as_string()
-                            elif value.is_int():
-                                edge_dict[key_str] = value.as_int()
-                            elif value.is_double():
-                                edge_dict[key_str] = value.as_double()
+                        edge_dict = self._convert_nebula_value_map(props)
 
                         # Ensure required keys exist with defaults
                         required_keys = {
@@ -487,14 +481,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                                 _edge_dst = row.values()[1].as_string()  # Not used but required for structure
                                 props = row.values()[2].as_map()
 
-                                edge_dict = {}
-                                for key, value in props.items():
-                                    if value.is_string():
-                                        edge_dict[key] = value.as_string()
-                                    elif value.is_int():
-                                        edge_dict[key] = value.as_int()
-                                    elif value.is_double():
-                                        edge_dict[key] = value.as_double()
+                                edge_dict = self._convert_nebula_value_map(props)
 
                                 # 确保必需的键存在
                                 for key, default in {
@@ -754,15 +741,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                             node_id = row.values()[0].as_string()
                             props = row.values()[1].as_map()
 
-                            node_dict = {}
-                            for key, value in props.items():
-                                key_str = key
-                                if value.is_string():
-                                    node_dict[key_str] = value.as_string()
-                                elif value.is_int():
-                                    node_dict[key_str] = value.as_int()
-                                elif value.is_double():
-                                    node_dict[key_str] = value.as_double()
+                            node_dict = self._convert_nebula_value_map(props)
 
                             result.nodes.append(
                                 KnowledgeGraphNode(
@@ -794,15 +773,7 @@ class NebulaSyncStorage(BaseGraphStorage):
 
                                     # Only include edges where destination is also in our node set
                                     if edge_dst in seen_nodes:
-                                        edge_dict = {}
-                                        for key, value in props.items():
-                                            key_str = key
-                                            if value.is_string():
-                                                edge_dict[key_str] = value.as_string()
-                                            elif value.is_int():
-                                                edge_dict[key_str] = value.as_int()
-                                            elif value.is_double():
-                                                edge_dict[key_str] = value.as_double()
+                                        edge_dict = self._convert_nebula_value_map(props)
 
                                         edge_id = f"{edge_src}-{edge_dst}"
                                         if edge_id not in seen_edges:
@@ -849,15 +820,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                             if node_result.is_succeeded() and node_result.row_size() > 0:
                                 for row in node_result:
                                     props = row.values()[0].as_map()
-                                    node_dict = {}
-                                    for key, value in props.items():
-                                        key_str = key
-                                        if value.is_string():
-                                            node_dict[key_str] = value.as_string()
-                                        elif value.is_int():
-                                            node_dict[key_str] = value.as_int()
-                                        elif value.is_double():
-                                            node_dict[key_str] = value.as_double()
+                                    node_dict = self._convert_nebula_value_map(props)
 
                                     node_dict["entity_id"] = current_node
                                     result.nodes.append(
@@ -888,15 +851,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                                         # Add edge to result
                                         edge_id = f"{src}-{dst}"
                                         if edge_id not in seen_edges:
-                                            edge_dict = {}
-                                            for key, value in props.items():
-                                                key_str = key
-                                                if value.is_string():
-                                                    edge_dict[key_str] = value.as_string()
-                                                elif value.is_int():
-                                                    edge_dict[key_str] = value.as_int()
-                                                elif value.is_double():
-                                                    edge_dict[key_str] = value.as_double()
+                                            edge_dict = self._convert_nebula_value_map(props)
 
                                             result.edges.append(
                                                 KnowledgeGraphEdge(
