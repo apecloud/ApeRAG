@@ -57,10 +57,21 @@ logging.getLogger("nebula3").setLevel(logging.ERROR)
 def _safe_error_msg(result) -> str:
     """Safely extract error message from Nebula result, handling UTF-8 decode errors."""
     try:
-        return result.error_msg()
-    except UnicodeDecodeError as e:
-        logger.warning(f"Failed to decode Nebula error message: {e}")
-        return f"Nebula operation failed (error code: {result.error_code()}, UTF-8 decode error)"
+        error_msg = result.error_msg()
+        # Ensure the error message is properly handled
+        if isinstance(error_msg, bytes):
+            # Try different encodings
+            for encoding in ['utf-8', 'gbk', 'latin-1']:
+                try:
+                    return error_msg.decode(encoding)
+                except UnicodeDecodeError:
+                    continue
+            # If all fail, use replacement characters
+            return error_msg.decode('utf-8', errors='replace')
+        elif isinstance(error_msg, str):
+            return error_msg
+        else:
+            return str(error_msg)
     except Exception as e:
         logger.warning(f"Failed to get Nebula error message: {e}")
         return f"Nebula operation failed (error code: {result.error_code()})"
@@ -208,9 +219,11 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         def _sync_node_degree():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
+                # Use repr() for safe string handling, just like property values
+                node_id_quoted = repr(node_id)
                 query = f"""
-                GO FROM '{node_id}' OVER * BIDIRECT 
-                YIELD src(edge) as src, dst(edge) as dst 
+                GO FROM {node_id_quoted} OVER * BIDIRECT 
+                YIELD dst(edge) as neighbor 
                 | YIELD count(*) as degree
                 """
                 result = session.execute(query)
@@ -223,63 +236,35 @@ class NebulaSyncStorage(BaseGraphStorage):
         return await asyncio.to_thread(_sync_node_degree)
 
     async def node_degrees_batch(self, node_ids: list[str]) -> dict[str, int]:
-        """使用原生语法优化的批量度数查询"""
+        """使用简单查询的批量度数查询，避免复杂聚合语法"""
         
         def _sync_node_degrees_batch():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 if not node_ids:
                     return {}
 
-                degrees = {node_id: 0 for node_id in node_ids}
+                degrees = {}
                 
-                # 🚀 使用更大的chunk_size，基于搜索结果优化
-                chunk_size = 100  # 从25增加到100，支持更高并发
-                
-                for i in range(0, len(node_ids), chunk_size):
-                    chunk = node_ids[i:i + chunk_size]
-                    
+                # Use simple individual queries with safe string handling
+                for node_id in node_ids:
                     try:
-                        # ✅ 使用原生批量语法 - 单查询处理多节点
-                        id_list = ", ".join([f"'{node_id}'" for node_id in chunk])
+                        # Use repr() for safe string handling, just like property values
+                        node_id_quoted = repr(node_id)
                         query = f"""
-                        GO FROM {id_list} OVER * BIDIRECT 
-                        YIELD src(edge) as node_id, count(*) as degree
-                        | GROUP BY $-.node_id 
-                        | YIELD $-.node_id as node_id, SUM($-.degree) as total_degree
+                        GO FROM {node_id_quoted} OVER * BIDIRECT 
+                        YIELD dst(edge) as neighbor 
+                        | YIELD count(*) as degree
                         """
                         result = session.execute(query)
                         
-                        if result.is_succeeded():
-                            found_nodes = set()
-                            for row in result:
-                                node_id = row.values()[0].as_string()
-                                degree = row.values()[1].as_int()
-                                degrees[node_id] = degree
-                                found_nodes.add(node_id)
-                            
-                            # 处理未找到的节点（度数为0）
-                            for node_id in chunk:
-                                if node_id not in found_nodes:
-                                    degrees[node_id] = 0
+                        if result.is_succeeded() and result.row_size() > 0:
+                            degree = result.row_values(0)[0].as_int()
+                            degrees[node_id] = degree
                         else:
-                            logger.warning(f"Native batch degree query failed: {_safe_error_msg(result)}")
-                            # 降级处理
-                            for node_id in chunk:
-                                degrees[node_id] = 0
-                            
+                            degrees[node_id] = 0
                     except Exception as e:
-                        logger.warning(f"Batch degree query chunk failed: {e}")
-                        # 降级为单个查询
-                        for node_id in chunk:
-                            try:
-                                single_query = f"GO FROM '{node_id}' OVER * BIDIRECT YIELD count(*) as degree"
-                                single_result = session.execute(single_query)
-                                if single_result.is_succeeded() and single_result.row_size() > 0:
-                                    degrees[node_id] = single_result.row_values(0)[0].as_int()
-                                else:
-                                    degrees[node_id] = 0
-                            except:
-                                degrees[node_id] = 0
+                        logger.warning(f"Failed to get degree for {node_id}: {e}")
+                        degrees[node_id] = 0
 
                 return degrees
 
@@ -536,13 +521,13 @@ class NebulaSyncStorage(BaseGraphStorage):
                 names_str = ", ".join(prop_names)
                 values_str = ", ".join(prop_values)
 
-                # Escape single quotes in node_id for Nebula syntax
-                escaped_node_id = node_id.replace("'", "\\'")
+                # Use repr() for node_id too - consistent and safe
+                node_id_quoted = repr(node_id)
 
                 # Insert/Update vertex with base tag using correct Nebula syntax
                 query = f"""
                 INSERT VERTEX base({names_str}) 
-                VALUES '{escaped_node_id}':({values_str})
+                VALUES {node_id_quoted}:({values_str})
                 """
                 result = session.execute(query)
 
@@ -576,14 +561,14 @@ class NebulaSyncStorage(BaseGraphStorage):
                 names_str = ", ".join(prop_names)
                 values_str = ", ".join(prop_values)
 
-                # Escape single quotes in node_ids for Nebula syntax
-                escaped_source = source_node_id.replace("'", "\\'")
-                escaped_target = target_node_id.replace("'", "\\'")
+                # Use repr() for node_ids too - consistent and safe
+                source_quoted = repr(source_node_id)
+                target_quoted = repr(target_node_id)
 
                 # Insert/Update edge using correct Nebula syntax
                 query = f"""
                 INSERT EDGE DIRECTED({names_str}) 
-                VALUES '{escaped_source}' -> '{escaped_target}':({values_str})
+                VALUES {source_quoted} -> {target_quoted}:({values_str})
                 """
                 result = session.execute(query)
 

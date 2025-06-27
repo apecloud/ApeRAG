@@ -20,7 +20,7 @@ from contextlib import contextmanager
 from typing import Any, Dict, Optional
 
 from nebula3.Config import Config
-from nebula3.gclient.net import ConnectionPool
+from nebula3.gclient.net import ConnectionPool, Session
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +28,21 @@ logger = logging.getLogger(__name__)
 def _safe_error_msg(result) -> str:
     """Safely extract error message from Nebula result, handling UTF-8 decode errors."""
     try:
-        return result.error_msg()
-    except UnicodeDecodeError as e:
-        logger.warning(f"Failed to decode Nebula error message: {e}")
-        return f"Nebula operation failed (error code: {result.error_code()}, UTF-8 decode error)"
+        error_msg = result.error_msg()
+        # Ensure the error message is properly handled
+        if isinstance(error_msg, bytes):
+            # Try different encodings
+            for encoding in ['utf-8', 'gbk', 'latin-1']:
+                try:
+                    return error_msg.decode(encoding)
+                except UnicodeDecodeError:
+                    continue
+            # If all fail, use replacement characters
+            return error_msg.decode('utf-8', errors='replace')
+        elif isinstance(error_msg, str):
+            return error_msg
+        else:
+            return str(error_msg)
     except Exception as e:
         logger.warning(f"Failed to get Nebula error message: {e}")
         return f"Nebula operation failed (error code: {result.error_code()})"
@@ -95,7 +106,7 @@ class NebulaSyncConnectionManager:
 
     @classmethod
     @contextmanager
-    def get_session(cls, space: Optional[str] = None):
+    def get_session(cls, space: Optional[str] = None) -> Session:
         """Get a session from the shared connection pool."""
         pool = cls.get_pool()
         session = pool.get_session(cls._config["username"], cls._config["password"])
