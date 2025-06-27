@@ -36,8 +36,8 @@ import logging
 from dataclasses import dataclass
 from typing import final
 
-from nebula3.Exception import IOErrorException
 from nebula3.common import ttypes
+from nebula3.Exception import IOErrorException
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -96,13 +96,13 @@ def _safe_error_msg(result) -> str:
         # Ensure the error message is properly handled
         if isinstance(error_msg, bytes):
             # Try different encodings
-            for encoding in ['utf-8', 'gbk', 'latin-1']:
+            for encoding in ["utf-8", "gbk", "latin-1"]:
                 try:
                     return error_msg.decode(encoding)
                 except UnicodeDecodeError:
                     continue
             # If all fail, use replacement characters
-            return error_msg.decode('utf-8', errors='replace')
+            return error_msg.decode("utf-8", errors="replace")
         elif isinstance(error_msg, str):
             return error_msg
         else:
@@ -223,14 +223,14 @@ class NebulaSyncStorage(BaseGraphStorage):
 
     async def get_nodes_batch(self, node_ids: list[str]) -> dict[str, dict]:
         """使用参数化查询的高效批量节点查询"""
-        
+
         def _sync_get_nodes_batch():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 nodes = {}
-                
+
                 if not node_ids:
                     return nodes
-                
+
                 # Build FETCH query with explicit node IDs (FETCH doesn't support parameterized lists)
                 node_ids_str = ", ".join([f"'{node_id}'" for node_id in node_ids])
                 query = f"FETCH PROP ON base {node_ids_str} YIELD id(vertex) as id, properties(vertex) as props"
@@ -278,14 +278,14 @@ class NebulaSyncStorage(BaseGraphStorage):
 
     async def node_degrees_batch(self, node_ids: list[str]) -> dict[str, int]:
         """使用简单查询的批量度数查询"""
-        
+
         def _sync_node_degrees_batch():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 if not node_ids:
                     return {}
 
                 degrees = {}
-                
+
                 # Use simple individual queries (complex UNWIND aggregation is problematic)
                 for node_id in node_ids:
                     query = """
@@ -295,7 +295,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                     """
                     nebula_params = _prepare_nebula_params({"node_id": node_id})
                     result = session.execute_parameter(query, nebula_params)
-                    
+
                     if result.is_succeeded() and result.row_size() > 0:
                         for row in result:
                             degree = row.values()[0].as_int()
@@ -409,11 +409,11 @@ class NebulaSyncStorage(BaseGraphStorage):
 
     async def get_edges_batch(self, pairs: list[dict[str, str]]) -> dict[tuple[str, str], dict]:
         """使用简单查询的批量边查询"""
-        
+
         def _sync_get_edges_batch():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 edges_dict = {}
-                
+
                 if not pairs:
                     return edges_dict
 
@@ -421,14 +421,16 @@ class NebulaSyncStorage(BaseGraphStorage):
                 for pair in pairs:
                     src, tgt = pair["src"], pair["tgt"]
                     edges_dict[(src, tgt)] = {
-                        "weight": 0.0, "source_id": None, 
-                        "description": None, "keywords": None,
+                        "weight": 0.0,
+                        "source_id": None,
+                        "description": None,
+                        "keywords": None,
                     }
 
                 # Use individual FETCH queries for each edge pair (both directions)
                 for pair in pairs:
                     src, tgt = pair["src"], pair["tgt"]
-                    
+
                     # Try both directions for each pair
                     for direction_src, direction_tgt in [(src, tgt), (tgt, src)]:
                         # VID cannot be parameterized in FETCH statements
@@ -439,13 +441,13 @@ class NebulaSyncStorage(BaseGraphStorage):
                         YIELD src(edge) as src, dst(edge) as dst, properties(edge) as props
                         """
                         result = session.execute(query)
-                        
+
                         if result.is_succeeded() and result.row_size() > 0:
                             for row in result:
-                                edge_src = row.values()[0].as_string()
-                                edge_dst = row.values()[1].as_string()
+                                _edge_src = row.values()[0].as_string()  # Not used but required for structure
+                                _edge_dst = row.values()[1].as_string()  # Not used but required for structure
                                 props = row.values()[2].as_map()
-                                
+
                                 edge_dict = {}
                                 for key, value in props.items():
                                     if value.is_string():
@@ -454,13 +456,17 @@ class NebulaSyncStorage(BaseGraphStorage):
                                         edge_dict[key] = value.as_int()
                                     elif value.is_double():
                                         edge_dict[key] = value.as_double()
-                                
+
                                 # 确保必需的键存在
-                                for key, default in {"weight": 0.0, "source_id": None, 
-                                                   "description": None, "keywords": None}.items():
+                                for key, default in {
+                                    "weight": 0.0,
+                                    "source_id": None,
+                                    "description": None,
+                                    "keywords": None,
+                                }.items():
                                     if key not in edge_dict:
                                         edge_dict[key] = default
-                                
+
                                 # Update the original pair's result
                                 edges_dict[(src, tgt)] = edge_dict
                                 break  # Found edge, no need to check more rows
@@ -494,7 +500,7 @@ class NebulaSyncStorage(BaseGraphStorage):
 
     async def get_nodes_edges_batch(self, node_ids: list[str]) -> dict[str, list[tuple[str, str]]]:
         """使用简单查询的批量邻居查询"""
-        
+
         def _sync_get_nodes_edges_batch():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 if not node_ids:
@@ -537,7 +543,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                 # Build property names and parameter mapping for Nebula syntax
                 prop_names = []
                 param_dict = {"node_id": node_id}
-                
+
                 for key, value in node_data.items():
                     if value is not None:
                         prop_names.append(key)
@@ -556,7 +562,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                 # Only property values can be parameterized
                 node_id_quoted = repr(node_id)  # Safe quoting like Neo4j approach
                 query = f"INSERT VERTEX base({names_str}) VALUES {node_id_quoted}:({params_str})"
-                
+
                 # Remove node_id from params since VID is not parameterized
                 param_dict_without_vid = {k: v for k, v in param_dict.items() if k != "node_id"}
                 nebula_params = _prepare_nebula_params(param_dict_without_vid)
@@ -582,11 +588,8 @@ class NebulaSyncStorage(BaseGraphStorage):
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 # Build property names and parameter mapping for Nebula syntax
                 prop_names = []
-                param_dict = {
-                    "source_node_id": source_node_id,
-                    "target_node_id": target_node_id
-                }
-                
+                param_dict = {"source_node_id": source_node_id, "target_node_id": target_node_id}
+
                 for key, value in edge_data.items():
                     if value is not None:
                         prop_names.append(key)
@@ -606,10 +609,11 @@ class NebulaSyncStorage(BaseGraphStorage):
                 source_quoted = repr(source_node_id)  # Safe quoting like Neo4j approach
                 target_quoted = repr(target_node_id)
                 query = f"INSERT EDGE DIRECTED({names_str}) VALUES {source_quoted} -> {target_quoted}:({params_str})"
-                
+
                 # Remove VIDs from params since they're not parameterized
-                param_dict_without_vids = {k: v for k, v in param_dict.items() 
-                                          if k not in ("source_node_id", "target_node_id")}
+                param_dict_without_vids = {
+                    k: v for k, v in param_dict.items() if k not in ("source_node_id", "target_node_id")
+                }
                 nebula_params = _prepare_nebula_params(param_dict_without_vids)
                 result = session.execute_parameter(query, nebula_params)
 
@@ -673,9 +677,8 @@ class NebulaSyncStorage(BaseGraphStorage):
                     # Get edges between nodes using individual queries
                     if seen_nodes:
                         nodes_list = list(seen_nodes)
-                        
+
                         # Use individual GO queries for each node to find edges
-                        all_edges = []
                         for src_node in nodes_list:
                             query = """
                             GO FROM $src_node OVER DIRECTED 

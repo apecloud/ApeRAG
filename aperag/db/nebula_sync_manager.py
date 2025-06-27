@@ -32,13 +32,13 @@ def _safe_error_msg(result) -> str:
         # Ensure the error message is properly handled
         if isinstance(error_msg, bytes):
             # Try different encodings
-            for encoding in ['utf-8', 'gbk', 'latin-1']:
+            for encoding in ["utf-8", "gbk", "latin-1"]:
                 try:
                     return error_msg.decode(encoding)
                 except UnicodeDecodeError:
                     continue
             # If all fail, use replacement characters
-            return error_msg.decode('utf-8', errors='replace')
+            return error_msg.decode("utf-8", errors="replace")
         elif isinstance(error_msg, str):
             return error_msg
         else:
@@ -126,7 +126,7 @@ class NebulaSyncConnectionManager:
     def prepare_space(cls, workspace: str) -> str:
         """Prepare space and return space name."""
         import time
-        
+
         # Sanitize workspace name for Nebula (only alphanumeric and underscore allowed)
         space_name = re.sub(r"[^a-zA-Z0-9_]", "_", workspace)
 
@@ -154,7 +154,7 @@ class NebulaSyncConnectionManager:
                 # Wait for space to be ready with fast polling
                 max_wait = 30  # Maximum wait time
                 start_time = time.time()
-                
+
                 while time.time() - start_time < max_wait:
                     try:
                         with cls.get_session(space=space_name) as test_session:
@@ -162,7 +162,7 @@ class NebulaSyncConnectionManager:
                             if result.is_succeeded():
                                 logger.info(f"Space {space_name} is ready after {time.time() - start_time:.1f}s")
                                 break
-                    except:
+                    except Exception:
                         pass
                     time.sleep(1)  # Check every second
                 else:
@@ -208,15 +208,15 @@ class NebulaSyncConnectionManager:
         # Wait for schema to take effect - Nebula docs: wait 2 heartbeat cycles (20s)
         # But we can test early to see if it's ready sooner
         logger.info("Waiting for schema to take effect (Nebula requires ~20 seconds)...")
-        
+
         # First wait a minimum time to let basic schema creation complete
         time.sleep(5)
-        
+
         # Then test if schema is actually usable by trying to insert test data
         schema_ready = False
         max_schema_wait = 20
         schema_start = time.time()
-        
+
         while time.time() - schema_start < max_schema_wait:
             try:
                 with cls.get_session(space=space_name) as test_session:
@@ -231,13 +231,13 @@ class NebulaSyncConnectionManager:
                         logger.info(f"Schema ready after {elapsed:.1f}s")
                         schema_ready = True
                         break
-            except:
+            except Exception:
                 pass
             time.sleep(1)  # Check every second
-        
+
         if not schema_ready:
             logger.warning("Schema may not be fully ready, but continuing anyway")
-        
+
         logger.info(f"Space {space_name} created and ready")
         return space_name
 
