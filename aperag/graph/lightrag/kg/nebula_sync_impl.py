@@ -37,13 +37,6 @@ from dataclasses import dataclass
 from typing import final
 
 from nebula3.common import ttypes
-from nebula3.Exception import IOErrorException
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
 
 from aperag.db.nebula_sync_manager import NebulaSyncConnectionManager
 
@@ -563,11 +556,6 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_nodes_edges_batch)
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=4, max=10),
-        retry=retry_if_exception_type((IOErrorException,)) if IOErrorException else (),
-    )
     async def upsert_node(self, node_id: str, node_data: dict[str, str]) -> None:
         """Upsert a node in the database."""
 
@@ -698,11 +686,6 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_all_labels)
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=4, max=10),
-        retry=retry_if_exception_type((IOErrorException,)) if IOErrorException else (),
-    )
     async def delete_node(self, node_id: str) -> None:
         """Delete a node."""
 
