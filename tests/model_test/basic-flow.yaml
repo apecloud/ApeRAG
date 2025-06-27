@@ -84,23 +84,16 @@ nodes:
               minimum: 0
               maximum: 1
               description: Sampling temperature
-            max_tokens:
-              type: integer
-              default: 1000
-              minimum: 1
-              maximum: 128000
-              description: Max tokens for generation
             query:
               type: string
               description: User's question or query
-          required: [model_service_provider, model_name, custom_llm_provider, prompt_template, temperature, max_tokens, query]
+          required: [model_service_provider, model_name, custom_llm_provider, prompt_template, temperature, query]
         values:
           model_service_provider: openrouter
           model_name: deepseek/deepseek-v3-base:free
           custom_llm_provider: openrouter
           prompt_template: "{query}"
           temperature: 0.7
-          max_tokens: 1000
           query: "{{ nodes.start.output.query }}"
       output:
         schema:
