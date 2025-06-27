@@ -114,6 +114,8 @@ class NebulaSyncConnectionManager:
     @classmethod
     def prepare_space(cls, workspace: str) -> str:
         """Prepare space and return space name."""
+        import time
+        
         # Sanitize workspace name for Nebula (only alphanumeric and underscore allowed)
         space_name = re.sub(r"[^a-zA-Z0-9_]", "_", workspace)
 
@@ -139,20 +141,36 @@ class NebulaSyncConnectionManager:
                     raise RuntimeError(f"Failed to create space {space_name}: {_safe_error_msg(create_result)}")
 
                 # Wait for space to be ready
-                import time
-
-                time.sleep(5)  # Increase wait time
-
+                time.sleep(10)  # Increase wait time to 10 seconds
                 logger.info(f"Space {space_name} created successfully")
 
-        # Wait a bit more and verify space is usable before proceeding
-        import time
-
-        time.sleep(2)
+        # Wait for space to be usable with retry logic
+        def wait_for_space_ready(space_name, max_attempts=10):
+            """Wait for space to be ready with retry logic"""
+            for attempt in range(max_attempts):
+                try:
+                    with cls.get_session(space=space_name) as test_session:
+                        # Simple test query to verify space is ready
+                        result = test_session.execute("SHOW TAGS")
+                        if result.is_succeeded():
+                            logger.info(f"Space {space_name} is ready (attempt {attempt + 1})")
+                            return True
+                except Exception as e:
+                    logger.debug(f"Space not ready yet (attempt {attempt + 1}): {e}")
+                
+                if attempt < max_attempts - 1:
+                    time.sleep(5)  # Wait 5 seconds between attempts
+                    
+            return False
+        
+        # Wait for space to be ready
+        if not wait_for_space_ready(space_name):
+            logger.error(f"Space {space_name} did not become ready after waiting")
+            # Continue anyway, might still work
 
         # Create tags and edges in the space
         retry_count = 0
-        max_retries = 5
+        max_retries = 8  # Increase max retries
 
         while retry_count < max_retries:
             try:
@@ -192,6 +210,9 @@ class NebulaSyncConnectionManager:
                     if not index_result.is_succeeded():
                         logger.warning(f"Failed to create index: {_safe_error_msg(index_result)}")
 
+                    # Wait for schema to take effect
+                    time.sleep(3)
+
                 # If we get here, space is ready
                 break
 
@@ -199,9 +220,7 @@ class NebulaSyncConnectionManager:
                 if "SpaceNotFound" in str(e) and retry_count < max_retries - 1:
                     retry_count += 1
                     logger.info(f"Space {space_name} not ready yet, retrying {retry_count}/{max_retries}...")
-                    import time
-
-                    time.sleep(3)  # Wait longer between retries
+                    time.sleep(5)  # Wait longer between retries
                 else:
                     raise RuntimeError(f"Space {space_name} not ready after {max_retries} attempts: {e}")
 
