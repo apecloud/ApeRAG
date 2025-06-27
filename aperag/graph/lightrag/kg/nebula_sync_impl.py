@@ -45,7 +45,7 @@ from ..types import KnowledgeGraph, KnowledgeGraphEdge, KnowledgeGraphNode
 from ..utils import logger
 
 # Set nebula logger level to ERROR to suppress warning logs
-logging.getLogger("nebula3").setLevel(logging.ERROR)
+logging.getLogger("nebula3").setLevel(logging.WARNING)
 
 
 def _prepare_nebula_params(params: dict) -> dict:
