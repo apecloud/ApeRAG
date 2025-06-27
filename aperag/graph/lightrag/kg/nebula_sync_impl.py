@@ -149,7 +149,8 @@ class NebulaSyncStorage(BaseGraphStorage):
         def _sync_has_node():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 # VID cannot be parameterized in FETCH statements
-                node_id_quoted = repr(node_id)  # Safe quoting like Neo4j approach
+                # Use double quotes for nGQL string VID (single quotes are invalid)
+                node_id_quoted = f'"{node_id}"'
                 query = f"FETCH PROP ON base {node_id_quoted} YIELD properties(vertex)"
                 result = session.execute(query)
                 if result.is_succeeded() and result.row_size() > 0:
