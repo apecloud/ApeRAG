@@ -1,31 +1,29 @@
 import asyncio
+import configparser
 import inspect
+import logging
 import os
 import re
 from dataclasses import dataclass
-from typing import Any, final
-import numpy as np
-import configparser
+from typing import final
 
+import pipmaster as pm
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
 )
 
-import logging
-from ..utils import logger
 from ..base import BaseGraphStorage
-from ..types import KnowledgeGraph, KnowledgeGraphNode, KnowledgeGraphEdge
-import pipmaster as pm
+from ..types import KnowledgeGraph, KnowledgeGraphEdge, KnowledgeGraphNode
+from ..utils import logger
 
 if not pm.is_installed("nebula3-python"):
     pm.install("nebula3-python")
 
+from nebula3.Exception import AuthFailedException, IOErrorException  # type: ignore
 from nebula3.gclient.net import ConnectionPool  # type: ignore
-from nebula3.Config import Config  # type: ignore
-from nebula3.Exception import IOErrorException, AuthFailedException  # type: ignore
 
 config = configparser.ConfigParser()
 config.read("config.ini", "utf-8")
@@ -52,15 +50,9 @@ class NebulaStorage(BaseGraphStorage):
         self._space_name = re.sub(r"[^a-zA-Z0-9_]", "_", namespace)
 
         # Nebula configuration
-        HOSTS = os.environ.get(
-            "NEBULA_HOSTS", config.get("nebula", "hosts", fallback="127.0.0.1:9669")
-        ).split(":")
-        self.USERNAME = os.environ.get(
-            "NEBULA_USER", config.get("nebula", "user", fallback="root")
-        )
-        self.PASSWORD = os.environ.get(
-            "NEBULA_PASSWORD", config.get("nebula", "password", fallback="nebula")
-        )
+        HOSTS = os.environ.get("NEBULA_HOSTS", config.get("nebula", "hosts", fallback="127.0.0.1:9669")).split(":")
+        self.USERNAME = os.environ.get("NEBULA_USER", config.get("nebula", "user", fallback="root"))
+        self.PASSWORD = os.environ.get("NEBULA_PASSWORD", config.get("nebula", "password", fallback="nebula"))
         # POOL_SIZE = int(
         #     os.environ.get(
         #         "NEBULA_POOL_SIZE",
@@ -100,9 +92,11 @@ class NebulaStorage(BaseGraphStorage):
                     session.execute(f"USE {self._space_name}")
                     logger.info(f"Connected to space {self._space_name}")
                 session.execute(
-                    " CREATE TAG IF NOT EXISTS base (    entity_id string,    entity_type string,    description string,    source_id string,    file_path string);")
+                    " CREATE TAG IF NOT EXISTS base (    entity_id string,    entity_type string,    description string,    source_id string,    file_path string);"
+                )
                 session.execute(
-                    "CREATE EDGE IF NOT EXISTS DIRECTED(weight float, description string,keywords string ,source_id string ,file_path string) ")
+                    "CREATE EDGE IF NOT EXISTS DIRECTED(weight float, description string,keywords string ,source_id string ,file_path string) "
+                )
 
         except (IOErrorException, AuthFailedException) as e:
             logger.error(f"Failed to connect to Nebula Graph: {str(e)}")
@@ -139,9 +133,7 @@ class NebulaStorage(BaseGraphStorage):
             Exception: If there is an error executing the query
         """
         async with self._connection_pool_lock:
-            with self._connection_pool.session_context(
-                    self.USERNAME, self.PASSWORD
-            ) as session:
+            with self._connection_pool.session_context(self.USERNAME, self.PASSWORD) as session:
                 try:
                     session.execute(f"USE {self._space_name}")
                     query = f""" MATCH (n) 
@@ -165,15 +157,13 @@ class NebulaStorage(BaseGraphStorage):
             Exception: If there is an error executing the query
         """
         async with self._connection_pool_lock:
-            with self._connection_pool.session_context(
-                    self.USERNAME, self.PASSWORD
-            ) as session:
+            with self._connection_pool.session_context(self.USERNAME, self.PASSWORD) as session:
                 try:
                     session.execute(f"USE {self._space_name}")
-                    query = f''' MATCH (src)-[r]-(neighbor)
+                    query = f""" MATCH (src)-[r]-(neighbor)
                         WHERE id(src) =='{source_node_id}' AND id(neighbor)=='{target_node_id}'
                         RETURN count(r) as icount
-                    '''
+                    """
                     result = session.execute(query)
                     return result.is_succeeded() and len(result.as_data_frame()) > 0
                 except Exception as e:
@@ -194,9 +184,7 @@ class NebulaStorage(BaseGraphStorage):
             Exception: If there is an error executing the query
         """
         async with self._connection_pool_lock:
-            with self._connection_pool.session_context(
-                    self.USERNAME, self.PASSWORD
-            ) as session:
+            with self._connection_pool.session_context(self.USERNAME, self.PASSWORD) as session:
                 session.execute(f"USE {self._space_name}")
                 query = f""" MATCH (n) 
                         WHERE id(n) == '{node_id}' 
@@ -205,18 +193,12 @@ class NebulaStorage(BaseGraphStorage):
                     result = session.execute(query).as_data_frame()
 
                     if len(result) > 1:
-                        logger.warning(
-                            f"Multiple nodes found with label '{node_id}'. Using first node."
-                        )
+                        logger.warning(f"Multiple nodes found with label '{node_id}'. Using first node.")
                     if len(result) == 1:
-                        node_dict = result['props'][0]
+                        node_dict = result["props"][0]
                         # Remove base label from labels list if it exists
                         if "labels" in node_dict:
-                            node_dict["labels"] = [
-                                label
-                                for label in node_dict["labels"]
-                                if label != "base"
-                            ]
+                            node_dict["labels"] = [label for label in node_dict["labels"] if label != "base"]
                         logger.debug(f"nebula query node {query} return: {node_dict}")
                         return node_dict
                     return None
@@ -232,12 +214,8 @@ class NebulaStorage(BaseGraphStorage):
         Returns:
             A dictionary mapping each node_id to its node data (or None if not found).
         """
-        async with self._driver.session(
-                database=self._DATABASE, default_access_mode="READ"
-        ) as session:
-            with self._connection_pool.session_context(
-                    self.USERNAME, self.PASSWORD
-            ) as session:
+        async with self._driver.session(database=self._DATABASE, default_access_mode="READ") as session:
+            with self._connection_pool.session_context(self.USERNAME, self.PASSWORD) as session:
                 session.execute(f"USE {self._space_name}")
                 query = f"""
 
@@ -253,9 +231,7 @@ class NebulaStorage(BaseGraphStorage):
                     node_dict = dict(node)
                     # Remove the 'base' label if present in a 'labels' property
                     if "labels" in node_dict:
-                        node_dict["labels"] = [
-                            label for label in node_dict["labels"] if label != "base"
-                        ]
+                        node_dict["labels"] = [label for label in node_dict["labels"] if label != "base"]
                     nodes[entity_id] = node_dict
                 return nodes
 
@@ -272,14 +248,12 @@ class NebulaStorage(BaseGraphStorage):
             Exception: If there is an error executing the query
         """
         async with self._connection_pool_lock:
-            with self._connection_pool.session_context(
-                    self.USERNAME, self.PASSWORD
-            ) as session:
+            with self._connection_pool.session_context(self.USERNAME, self.PASSWORD) as session:
                 session.execute(f"USE {self._space_name}")
                 query = f" MATCH (v:base)-[r]-(n) WHERE id(v) == '{node_id}' RETURN count(r)  as degree"
                 try:
                     result = session.execute(query).as_data_frame()
-                    return int(result['degree'][0]) if len(result) > 0 else 0
+                    return int(result["degree"][0]) if len(result) > 0 else 0
                 except Exception as e:
                     logger.error(f"Error getting node degree for {node_id}: {str(e)}")
                     raise
@@ -294,9 +268,7 @@ class NebulaStorage(BaseGraphStorage):
             If a node is not found, its degree will be set to 0.
         """
         async with self._connection_pool_lock:
-            with self._connection_pool.session_context(
-                    self.USERNAME, self.PASSWORD
-            ) as session:
+            with self._connection_pool.session_context(self.USERNAME, self.PASSWORD) as session:
                 session.execute(f"USE {self._space_name}")
                 query = f"""
 
@@ -331,9 +303,7 @@ class NebulaStorage(BaseGraphStorage):
         trg_degree = await self.node_degree(tgt_id)
         return src_degree + trg_degree
 
-    async def edge_degrees_batch(
-            self, edge_pairs: list[tuple[str, str]]
-    ) -> dict[tuple[str, str], int]:
+    async def edge_degrees_batch(self, edge_pairs: list[tuple[str, str]]) -> dict[tuple[str, str], int]:
         """
         Calculate the combined degree for each edge (sum of the source and target node degrees)
         in batch using the already implemented node_degrees_batch.
@@ -355,9 +325,7 @@ class NebulaStorage(BaseGraphStorage):
             edge_degrees[(src, tgt)] = degrees.get(src, 0) + degrees.get(tgt, 0)
         return edge_degrees
 
-    async def get_edge(
-            self, source_node_id: str, target_node_id: str
-    ) -> dict[str, str] | None:
+    async def get_edge(self, source_node_id: str, target_node_id: str) -> dict[str, str] | None:
         """Get edge properties between two nodes.
         Args:
             source_node_id: Label of the source node
@@ -369,14 +337,12 @@ class NebulaStorage(BaseGraphStorage):
             Exception: If there is an error executing the query
         """
         async with self._connection_pool_lock:
-            with self._connection_pool.session_context(
-                    self.USERNAME, self.PASSWORD
-            ) as session:
+            with self._connection_pool.session_context(self.USERNAME, self.PASSWORD) as session:
                 session.execute(f"USE {self._space_name}")
-                query = f''' MATCH (src)-[r]-(neighbor)
+                query = f""" MATCH (src)-[r]-(neighbor)
                        WHERE id(src) =='{source_node_id}' AND id(neighbor)=='{target_node_id}'
                       RETURN properties(r) as edge_properties
-                   '''
+                   """
                 result = session.execute(query).as_data_frame()
 
                 if len(result) > 1:
@@ -385,7 +351,7 @@ class NebulaStorage(BaseGraphStorage):
                     )
 
                 try:
-                    edge_result = result['edge_properties'][0]
+                    edge_result = result["edge_properties"][0]
                     logger.debug(f"Result: {edge_result}")
                     # Ensure required keys exist with defaults
                     required_keys = {
@@ -402,14 +368,11 @@ class NebulaStorage(BaseGraphStorage):
                                 f"missing {key}, using default: {default_value}"
                             )
 
-                    logger.debug(
-                        f"{inspect.currentframe().f_code.co_name}:query:{query}:result:{edge_result}"
-                    )
+                    logger.debug(f"{inspect.currentframe().f_code.co_name}:query:{query}:result:{edge_result}")
                     return edge_result
                 except (KeyError, TypeError, ValueError) as e:
                     logger.error(
-                        f"Error processing edge properties between {source_node_id} "
-                        f"and {target_node_id}: {str(e)}"
+                        f"Error processing edge properties between {source_node_id} and {target_node_id}: {str(e)}"
                     )
                     # Return default edge properties on error
                     return {
@@ -419,9 +382,7 @@ class NebulaStorage(BaseGraphStorage):
                         "keywords": None,
                     }
 
-    async def get_edges_batch(
-            self, pairs: list[dict[str, str]]
-    ) -> dict[tuple[str, str], dict]:
+    async def get_edges_batch(self, pairs: list[dict[str, str]]) -> dict[tuple[str, str], dict]:
         """
         Retrieve edge properties for multiple (src, tgt) pairs in one query.
         Args:
@@ -430,9 +391,7 @@ class NebulaStorage(BaseGraphStorage):
             A dictionary mapping (src, tgt) tuples to their edge properties.
         """
         async with self._connection_pool_lock:
-            with self._connection_pool.session_context(
-                    self.USERNAME, self.PASSWORD
-            ) as session:
+            with self._connection_pool.session_context(self.USERNAME, self.PASSWORD) as session:
                 session.execute(f"USE {self._space_name}")
                 sCondition = ""
                 for adata in pairs:
@@ -488,9 +447,7 @@ class NebulaStorage(BaseGraphStorage):
             Exception: If there is an error executing the query
         """
         try:
-            with self._connection_pool.session_context(
-                    self.USERNAME, self.PASSWORD
-            ) as session:
+            with self._connection_pool.session_context(self.USERNAME, self.PASSWORD) as session:
                 try:
                     session.execute(f"USE {self._space_name}")
 
@@ -508,33 +465,21 @@ class NebulaStorage(BaseGraphStorage):
                         if not source_node or not connected_node:
                             continue
 
-                        source_label = (
-                            source_node.get("entity_id")
-                            if source_node.get("entity_id")
-                            else None
-                        )
-                        target_label = (
-                            connected_node.get("entity_id")
-                            if connected_node.get("entity_id")
-                            else None
-                        )
+                        source_label = source_node.get("entity_id") if source_node.get("entity_id") else None
+                        target_label = connected_node.get("entity_id") if connected_node.get("entity_id") else None
 
                         if source_label and target_label:
                             edges.append((source_label, target_label))
 
                     return edges
                 except Exception as e:
-                    logger.error(
-                        f"Error getting edges for node {source_node_id}: {str(e)}"
-                    )
+                    logger.error(f"Error getting edges for node {source_node_id}: {str(e)}")
                     raise
         except Exception as e:
             logger.error(f"Error in get_node_edges for {source_node_id}: {str(e)}")
             raise
 
-    async def get_nodes_edges_batch(
-            self, node_ids: list[str]
-    ) -> dict[str, list[tuple[str, str]]]:
+    async def get_nodes_edges_batch(self, node_ids: list[str]) -> dict[str, list[tuple[str, str]]]:
         """
         Batch retrieve edges for multiple nodes in one query using UNWIND.
         For each node, returns both outgoing and incoming edges to properly represent
@@ -547,9 +492,7 @@ class NebulaStorage(BaseGraphStorage):
             - Outgoing edges: (queried_node, connected_node)
             - Incoming edges: (connected_node, queried_node)
         """
-        with self._connection_pool.session_context(
-                self.USERNAME, self.PASSWORD
-        ) as session:
+        with self._connection_pool.session_context(self.USERNAME, self.PASSWORD) as session:
             # Query to get both outgoing and incoming edges
             session.execute(f"USE {self._space_name}")
             query = f"""
@@ -606,15 +549,10 @@ class NebulaStorage(BaseGraphStorage):
         properties = ", ".join(f"{repr(v)}" for k, v in node_data.items())
 
         async with self._connection_pool_lock:
-            with self._connection_pool.session_context(
-                    self.USERNAME, self.PASSWORD
-            ) as session:
+            with self._connection_pool.session_context(self.USERNAME, self.PASSWORD) as session:
                 session.execute(f"USE {self._space_name}")
 
-                query = (
-                    f"INSERT VERTEX IF NOT EXISTS base({fields}) "
-                    f"VALUES '{node_id}':({properties})"
-                )
+                query = f"INSERT VERTEX IF NOT EXISTS base({fields}) VALUES '{node_id}':({properties})"
                 session.execute(query)
 
     @retry(
@@ -622,9 +560,7 @@ class NebulaStorage(BaseGraphStorage):
         wait=wait_exponential(multiplier=1, min=4, max=10),
         retry=retry_if_exception_type((IOErrorException,)),
     )
-    async def upsert_edge(
-            self, source_node_id: str, target_node_id: str, edge_data: dict[str, str]
-    ) -> None:
+    async def upsert_edge(self, source_node_id: str, target_node_id: str, edge_data: dict[str, str]) -> None:
         """
         Upsert an edge and its properties between two nodes identified by their labels.
         Ensures both source and target nodes exist and are unique before creating the edge.
@@ -640,9 +576,7 @@ class NebulaStorage(BaseGraphStorage):
         properties = ", ".join(f"{repr(v)}" for k, v in edge_data.items())
 
         async with self._connection_pool_lock:
-            with self._connection_pool.session_context(
-                    self.USERNAME, self.PASSWORD
-            ) as session:
+            with self._connection_pool.session_context(self.USERNAME, self.PASSWORD) as session:
                 session.execute(f"USE {self._space_name}")
                 # Nebula requires edges to have a rank (0 by default)
                 query = (
@@ -652,10 +586,10 @@ class NebulaStorage(BaseGraphStorage):
                 session.execute(query)
 
     async def get_knowledge_graph(
-            self,
-            node_label: str,
-            max_depth: int = 3,
-            max_nodes: int = MAX_GRAPH_NODES,
+        self,
+        node_label: str,
+        max_depth: int = 3,
+        max_nodes: int = MAX_GRAPH_NODES,
     ) -> KnowledgeGraph:
         """
         Retrieve a connected subgraph of nodes where the label includes the specified `node_label`.
@@ -672,18 +606,13 @@ class NebulaStorage(BaseGraphStorage):
         seen_edges = set()
 
         async with self._connection_pool_lock:
-            with self._connection_pool.session_context(
-                    self.USERNAME, self.PASSWORD
-            ) as session:
+            with self._connection_pool.session_context(self.USERNAME, self.PASSWORD) as session:
                 session.execute(f"USE {self._space_name}")
 
                 if node_label == "*":
                     # Get all nodes with minimum degree
                     query = (
-                        f"MATCH (n:base) "
-                        f"WHERE id(n) >= '' "
-                        f"RETURN id(n) AS id, properties(n) AS props "
-                        f"LIMIT {max_nodes}"
+                        f"MATCH (n:base) WHERE id(n) >= '' RETURN id(n) AS id, properties(n) AS props LIMIT {max_nodes}"
                     )
                 else:
                     # Start from specific node and traverse
@@ -699,8 +628,8 @@ class NebulaStorage(BaseGraphStorage):
 
                     matched_ids = []  # Process nodes from direct query
                     for _, row in result_set.iterrows():
-                        node_id = row['id']
-                        props = row['props']
+                        node_id = row["id"]
+                        props = row["props"]
                         # props = {k: v for k, v in props}
                         matched_ids.append(node_id)
                         if node_id not in seen_nodes:
@@ -723,10 +652,10 @@ class NebulaStorage(BaseGraphStorage):
                     result_set = session.execute(neighbors_query).as_data_frame()
 
                     for _, row in result_set.iterrows():
-                        node_id = row['id']
+                        node_id = row["id"]
 
                         if node_id not in seen_nodes:
-                            props = row['props']
+                            props = row["props"]
                             result.nodes.append(
                                 KnowledgeGraphNode(
                                     id=node_id,
@@ -738,13 +667,13 @@ class NebulaStorage(BaseGraphStorage):
 
                         # Process edges
 
-                    edge_query = f'''
+                    edge_query = f"""
                        MATCH (src)-[e]->(neighbor)
                        WHERE id(src) IN {seen_nodes} AND id(neighbor) IN {seen_nodes}
                         RETURN DISTINCT id(src) AS srcId,id(neighbor) AS destId  ,properties(e) as edgeProps ,type(e) as edgeType
 
 
-                    '''
+                    """
                     result_set = session.execute(edge_query).as_data_frame()
                     for _, row in result_set.iterrows():
                         edge_id = f"{row['srcId']}-{row['destId']}-{row['edgeType']}"
@@ -752,17 +681,15 @@ class NebulaStorage(BaseGraphStorage):
                             result.edges.append(
                                 KnowledgeGraphEdge(
                                     id=edge_id,
-                                    type=row['edgeType'],
-                                    source=row['srcId'],
-                                    target=row['destId'],
-                                    properties=row['edgeProps'],
+                                    type=row["edgeType"],
+                                    source=row["srcId"],
+                                    target=row["destId"],
+                                    properties=row["edgeProps"],
                                 )
                             )
                             seen_edges.add(edge_id)
 
-                    logger.info(
-                        f"Graph query return: {len(result.nodes)} nodes, {len(result.edges)} edges"
-                    )
+                    logger.info(f"Graph query return: {len(result.nodes)} nodes, {len(result.edges)} edges")
 
                 except Exception as e:
                     logger.error(f"Error executing graph query: {str(e)}")
@@ -777,9 +704,7 @@ class NebulaStorage(BaseGraphStorage):
             ["Person", "Company", ...]  # Alphabetically sorted label list
         """
         async with self._connection_pool_lock:
-            with self._connection_pool.session_context(
-                    self.USERNAME, self.PASSWORD
-            ) as session:
+            with self._connection_pool.session_context(self.USERNAME, self.PASSWORD) as session:
                 session.execute(f"USE {self._space_name}")
                 query = "MATCH (n:base) RETURN id(n) AS label ORDER BY label"
                 result = session.execute(query).as_data_frame()
@@ -796,9 +721,7 @@ class NebulaStorage(BaseGraphStorage):
             node_id: The label of the node to delete
         """
         async with self._connection_pool_lock:
-            with self._connection_pool.session_context(
-                    self.USERNAME, self.PASSWORD
-            ) as session:
+            with self._connection_pool.session_context(self.USERNAME, self.PASSWORD) as session:
                 session.execute(f"USE {self._space_name}")
                 query = f"DELETE VERTEX '{node_id}' "
                 session.execute(query)
@@ -814,9 +737,7 @@ class NebulaStorage(BaseGraphStorage):
             nodes: List of node labels to be deleted
         """
         async with self._connection_pool_lock:
-            with self._connection_pool.session_context(
-                    self.USERNAME, self.PASSWORD
-            ) as session:
+            with self._connection_pool.session_context(self.USERNAME, self.PASSWORD) as session:
                 session.execute(f"USE {self._space_name}")
                 for node in nodes:
                     await self.delete_node(node)
@@ -832,15 +753,11 @@ class NebulaStorage(BaseGraphStorage):
             edges: List of edges to be deleted, each edge is a (source, target) tuple
         """
         async with self._connection_pool_lock:
-            with self._connection_pool.session_context(
-                    self.USERNAME, self.PASSWORD
-            ) as session:
+            with self._connection_pool.session_context(self.USERNAME, self.PASSWORD) as session:
                 session.execute(f"USE {self._space_name}")
                 for source, target in edges:
                     # Nebula requires edge type to delete specific edges
-                    query = (
-                        f"DELETE EDGE DIRECTED '{source}' -> '{target}'@0"
-                    )
+                    query = f"DELETE EDGE DIRECTED '{source}' -> '{target}'@0"
                     session.execute(query)
 
     async def drop(self) -> dict[str, str]:
@@ -853,17 +770,13 @@ class NebulaStorage(BaseGraphStorage):
         """
         try:
             async with self._connection_pool_lock:
-                with self._connection_pool.session_context(
-                        self.USERNAME, self.PASSWORD
-                ) as session:
+                with self._connection_pool.session_context(self.USERNAME, self.PASSWORD) as session:
                     # Delete all nodes and relationships
                     session.execute(f"USE {self._space_name}")
 
                     query = f" drop space {self._space_name}"
                     session.execute(query)
-                    logger.info(
-                        f"Process {os.getpid()} drop nebula space {self._space_name}"
-                    )
+                    logger.info(f"Process {os.getpid()} drop nebula space {self._space_name}")
                     return {"status": "success", "message": "data dropped"}
         except Exception as e:
             logger.error(f"Error dropping nebula space {self._space_name}: {e}")

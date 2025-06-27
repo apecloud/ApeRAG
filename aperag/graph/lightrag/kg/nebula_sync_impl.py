@@ -36,6 +36,7 @@ import logging
 from dataclasses import dataclass
 from typing import final
 
+from nebula3.Exception import IOErrorException
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -43,18 +44,11 @@ from tenacity import (
     wait_exponential,
 )
 
+from aperag.db.nebula_sync_manager import NebulaSyncConnectionManager
+
 from ..base import BaseGraphStorage
 from ..types import KnowledgeGraph, KnowledgeGraphEdge, KnowledgeGraphNode
 from ..utils import logger
-
-# Import sync connection manager
-try:
-    from aperag.db.nebula_sync_manager import NebulaSyncConnectionManager
-    from nebula3.Exception import IOErrorException, AuthFailedException
-except ImportError:
-    NebulaSyncConnectionManager = None
-    IOErrorException = None
-    AuthFailedException = None
 
 # Set nebula logger level to ERROR to suppress warning logs
 logging.getLogger("nebula3").setLevel(logging.ERROR)
@@ -129,7 +123,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                 result = session.execute(query)
                 if result.is_succeeded() and result.row_size() > 0:
                     return True
-                
+
                 # Try reverse direction
                 query = f"""
                 FETCH PROP ON DIRECTED '{target_node_id}' -> '{source_node_id}' 
@@ -138,7 +132,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                 result = session.execute(query)
                 if result.is_succeeded() and result.row_size() > 0:
                     return True
-                
+
                 return False
 
         return await asyncio.to_thread(_sync_has_edge)
@@ -150,7 +144,7 @@ class NebulaSyncStorage(BaseGraphStorage):
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 query = f"FETCH PROP ON base '{node_id}' YIELD properties(vertex) as props"
                 result = session.execute(query)
-                
+
                 if result.is_succeeded() and result.row_size() > 0:
                     for row in result:
                         props = row.values()[0].as_map()
@@ -163,9 +157,9 @@ class NebulaSyncStorage(BaseGraphStorage):
                                 node_dict[key_str] = value.as_int()
                             elif value.is_double():
                                 node_dict[key_str] = value.as_double()
-                        
+
                         # Add entity_id which is the node ID itself
-                        node_dict['entity_id'] = node_id
+                        node_dict["entity_id"] = node_id
                         return node_dict
                 return None
 
@@ -177,10 +171,10 @@ class NebulaSyncStorage(BaseGraphStorage):
         def _sync_get_nodes_batch():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 # Build the list of IDs for the query
-                id_list = ', '.join([f"'{node_id}'" for node_id in node_ids])
+                id_list = ", ".join([f"'{node_id}'" for node_id in node_ids])
                 query = f"FETCH PROP ON base {id_list} YIELD id(vertex) as id, properties(vertex) as props"
                 result = session.execute(query)
-                
+
                 nodes = {}
                 if result.is_succeeded():
                     for row in result:
@@ -195,11 +189,11 @@ class NebulaSyncStorage(BaseGraphStorage):
                                 node_dict[key_str] = value.as_int()
                             elif value.is_double():
                                 node_dict[key_str] = value.as_double()
-                        
+
                         # Add entity_id
-                        node_dict['entity_id'] = node_id
+                        node_dict["entity_id"] = node_id
                         nodes[node_id] = node_dict
-                
+
                 return nodes
 
         return await asyncio.to_thread(_sync_get_nodes_batch)
@@ -215,7 +209,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                 | YIELD count(*) as degree
                 """
                 result = session.execute(query)
-                
+
                 if result.is_succeeded() and result.row_size() > 0:
                     for row in result:
                         return row.values()[0].as_int()
@@ -232,7 +226,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                 conditions = []
                 for node_id in node_ids:
                     conditions.append(f"id(n) == '{node_id}'")
-                
+
                 where_clause = " OR ".join(conditions)
                 query = f"""
                 MATCH (n:base)
@@ -240,20 +234,20 @@ class NebulaSyncStorage(BaseGraphStorage):
                 RETURN id(n) AS node_id, count((n)--()) AS degree
                 """
                 result = session.execute(query)
-                
+
                 degrees = {}
                 if result.is_succeeded():
                     for row in result:
                         node_id = row.values()[0].as_string()
                         degree = row.values()[1].as_int()
                         degrees[node_id] = degree
-                
+
                 # Set degree to 0 for missing nodes
                 for nid in node_ids:
                     if nid not in degrees:
                         logger.warning(f"No node found with id '{nid}'")
                         degrees[nid] = 0
-                
+
                 return degrees
 
         return await asyncio.to_thread(_sync_node_degrees_batch)
@@ -286,7 +280,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                 YIELD properties(edge) as props
                 """
                 result = session.execute(query)
-                
+
                 if result.is_succeeded() and result.row_size() > 0:
                     for row in result:
                         props = row.values()[0].as_map()
@@ -299,7 +293,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                                 edge_dict[key_str] = value.as_int()
                             elif value.is_double():
                                 edge_dict[key_str] = value.as_double()
-                        
+
                         # Ensure required keys exist with defaults
                         required_keys = {
                             "weight": 0.0,
@@ -310,9 +304,9 @@ class NebulaSyncStorage(BaseGraphStorage):
                         for key, default_value in required_keys.items():
                             if key not in edge_dict:
                                 edge_dict[key] = default_value
-                        
+
                         return edge_dict
-                
+
                 return None
 
         return await asyncio.to_thread(_sync_get_edge)
@@ -323,27 +317,27 @@ class NebulaSyncStorage(BaseGraphStorage):
         def _sync_get_edges_batch():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 edges_dict = {}
-                
+
                 # Build edge specifications for batch fetch
                 edge_specs = []
                 for pair in pairs:
                     src = pair["src"]
                     tgt = pair["tgt"]
                     edge_specs.append(f"'{src}' -> '{tgt}'")
-                
-                edge_list = ', '.join(edge_specs)
+
+                edge_list = ", ".join(edge_specs)
                 query = f"""
                 FETCH PROP ON DIRECTED {edge_list} 
                 YIELD src(edge) as src, dst(edge) as dst, properties(edge) as props
                 """
                 result = session.execute(query)
-                
+
                 if result.is_succeeded():
                     for row in result:
                         src = row.values()[0].as_string()
                         tgt = row.values()[1].as_string()
                         props = row.values()[2].as_map()
-                        
+
                         edge_dict = {}
                         for key, value in props.items():
                             key_str = key
@@ -353,7 +347,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                                 edge_dict[key_str] = value.as_int()
                             elif value.is_double():
                                 edge_dict[key_str] = value.as_double()
-                        
+
                         # Ensure required keys
                         for key, default in {
                             "weight": 0.0,
@@ -363,9 +357,9 @@ class NebulaSyncStorage(BaseGraphStorage):
                         }.items():
                             if key not in edge_dict:
                                 edge_dict[key] = default
-                        
+
                         edges_dict[(src, tgt)] = edge_dict
-                
+
                 return edges_dict
 
         return await asyncio.to_thread(_sync_get_edges_batch)
@@ -380,14 +374,14 @@ class NebulaSyncStorage(BaseGraphStorage):
                 YIELD src(edge) as src, dst(edge) as dst
                 """
                 result = session.execute(query)
-                
+
                 edges = []
                 if result.is_succeeded():
                     for row in result:
                         src = row.values()[0].as_string()
                         tgt = row.values()[1].as_string()
                         edges.append((src, tgt))
-                
+
                 return edges if edges else None
 
         return await asyncio.to_thread(_sync_get_node_edges)
@@ -401,7 +395,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                 conditions = []
                 for node_id in node_ids:
                     conditions.append(f"id(n) == '{node_id}'")
-                
+
                 where_clause = " OR ".join(conditions)
                 query = f"""
                 MATCH (n:base)-[r]-(connected:base)
@@ -409,9 +403,9 @@ class NebulaSyncStorage(BaseGraphStorage):
                 RETURN id(n) as node_id, id(connected) as connected_id, src(edge) as edge_src
                 """
                 result = session.execute(query)
-                
+
                 edges_dict = {node_id: [] for node_id in node_ids}
-                
+
                 if result.is_succeeded():
                     for row in result:
                         node_id = row.values()[0].as_string()
@@ -419,7 +413,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                         # For Nebula, we need to check the edge direction
                         # Here we assume DIRECTED edges, adjust as needed
                         edges_dict[node_id].append((node_id, connected_id))
-                
+
                 return edges_dict
 
         return await asyncio.to_thread(_sync_get_nodes_edges_batch)
@@ -427,14 +421,12 @@ class NebulaSyncStorage(BaseGraphStorage):
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
-        retry=retry_if_exception_type((IOErrorException,)) if IOErrorException else ()
+        retry=retry_if_exception_type((IOErrorException,)) if IOErrorException else (),
     )
     async def upsert_node(self, node_id: str, node_data: dict[str, str]) -> None:
         """Upsert a node in the database."""
 
         def _sync_upsert_node():
-            # Ensure entity_type exists for Nebula tag creation
-            entity_type = node_data.get("entity_type", "base")
             if "entity_id" not in node_data:
                 raise ValueError("Nebula: node properties must contain an 'entity_id' field")
 
@@ -442,7 +434,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                 # Build property names and values separately for Nebula syntax
                 prop_names = []
                 prop_values = []
-                
+
                 for key, value in node_data.items():
                     if value is not None:
                         prop_names.append(key)
@@ -452,21 +444,21 @@ class NebulaSyncStorage(BaseGraphStorage):
                             prop_values.append(f"'{escaped_value}'")
                         else:
                             prop_values.append(str(value))
-                
+
                 names_str = ", ".join(prop_names)
                 values_str = ", ".join(prop_values)
-                
+
                 # Insert/Update vertex with base tag using correct Nebula syntax
                 query = f"""
                 INSERT VERTEX base({names_str}) 
                 VALUES '{node_id}':({values_str})
                 """
                 result = session.execute(query)
-                
+
                 if not result.is_succeeded():
                     logger.error(f"Failed to upsert node {node_id}: {_safe_error_msg(result)}")
                     raise RuntimeError(f"Failed to upsert node: {_safe_error_msg(result)}")
-                
+
                 logger.debug(f"Upserted node with id '{node_id}'")
 
         return await asyncio.to_thread(_sync_upsert_node)
@@ -474,7 +466,7 @@ class NebulaSyncStorage(BaseGraphStorage):
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
-        retry=retry_if_exception_type((IOErrorException,)) if IOErrorException else ()
+        retry=retry_if_exception_type((IOErrorException,)) if IOErrorException else (),
     )
     async def upsert_edge(self, source_node_id: str, target_node_id: str, edge_data: dict[str, str]) -> None:
         """Upsert an edge between two nodes."""
@@ -484,7 +476,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                 # Build property names and values separately for Nebula syntax
                 prop_names = []
                 prop_values = []
-                
+
                 for key, value in edge_data.items():
                     if value is not None:
                         prop_names.append(key)
@@ -494,21 +486,23 @@ class NebulaSyncStorage(BaseGraphStorage):
                             prop_values.append(f"'{escaped_value}'")
                         else:
                             prop_values.append(str(value))
-                
+
                 names_str = ", ".join(prop_names)
                 values_str = ", ".join(prop_values)
-                
+
                 # Insert/Update edge using correct Nebula syntax
                 query = f"""
                 INSERT EDGE DIRECTED({names_str}) 
                 VALUES '{source_node_id}' -> '{target_node_id}':({values_str})
                 """
                 result = session.execute(query)
-                
+
                 if not result.is_succeeded():
-                    logger.error(f"Failed to upsert edge from {source_node_id} to {target_node_id}: {_safe_error_msg(result)}")
+                    logger.error(
+                        f"Failed to upsert edge from {source_node_id} to {target_node_id}: {_safe_error_msg(result)}"
+                    )
                     raise RuntimeError(f"Failed to upsert edge: {_safe_error_msg(result)}")
-                
+
                 logger.debug(f"Upserted edge from '{source_node_id}' to '{target_node_id}'")
 
         return await asyncio.to_thread(_sync_upsert_edge)
@@ -535,12 +529,12 @@ class NebulaSyncStorage(BaseGraphStorage):
                     LIMIT {max_nodes}
                     """
                     node_result = session.execute(query)
-                    
+
                     if node_result.is_succeeded():
                         for row in node_result:
                             node_id = row.values()[0].as_string()
                             props = row.values()[1].as_map()
-                            
+
                             node_dict = {}
                             for key, value in props.items():
                                 key_str = key
@@ -550,7 +544,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                                     node_dict[key_str] = value.as_int()
                                 elif value.is_double():
                                     node_dict[key_str] = value.as_double()
-                            
+
                             result.nodes.append(
                                 KnowledgeGraphNode(
                                     id=node_id,
@@ -559,23 +553,23 @@ class NebulaSyncStorage(BaseGraphStorage):
                                 )
                             )
                             seen_nodes.add(node_id)
-                    
+
                     # Get edges between these nodes
                     if seen_nodes:
                         edge_query = f"""
                         MATCH (a:base)-[r:DIRECTED]->(b:base)
-                        WHERE id(a) IN [{', '.join([f"'{n}'" for n in seen_nodes])}] 
-                          AND id(b) IN [{', '.join([f"'{n}'" for n in seen_nodes])}]
+                        WHERE id(a) IN [{", ".join([f"'{n}'" for n in seen_nodes])}] 
+                          AND id(b) IN [{", ".join([f"'{n}'" for n in seen_nodes])}]
                         RETURN id(a) as src, id(b) as tgt, properties(r) as props
                         """
                         edge_result = session.execute(edge_query)
-                        
+
                         if edge_result.is_succeeded():
                             for row in edge_result:
                                 src = row.values()[0].as_string()
                                 tgt = row.values()[1].as_string()
                                 props = row.values()[2].as_map()
-                                
+
                                 edge_dict = {}
                                 for key, value in props.items():
                                     key_str = key
@@ -585,7 +579,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                                         edge_dict[key_str] = value.as_int()
                                     elif value.is_double():
                                         edge_dict[key_str] = value.as_double()
-                                
+
                                 edge_id = f"{src}-{tgt}"
                                 result.edges.append(
                                     KnowledgeGraphEdge(
@@ -606,12 +600,12 @@ class NebulaSyncStorage(BaseGraphStorage):
                     LIMIT {max_nodes}
                     """
                     node_result = session.execute(query)
-                    
+
                     if node_result.is_succeeded():
                         for row in node_result:
                             node_id = row.values()[0].as_string()
                             props = row.values()[1].as_map()
-                            
+
                             node_dict = {}
                             for key, value in props.items():
                                 key_str = key
@@ -621,7 +615,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                                     node_dict[key_str] = value.as_int()
                                 elif value.is_double():
                                     node_dict[key_str] = value.as_double()
-                            
+
                             result.nodes.append(
                                 KnowledgeGraphNode(
                                     id=node_id,
@@ -630,23 +624,23 @@ class NebulaSyncStorage(BaseGraphStorage):
                                 )
                             )
                             seen_nodes.add(node_id)
-                    
+
                     # Get edges in the subgraph
                     if seen_nodes:
                         edge_query = f"""
                         MATCH (a:base)-[r:DIRECTED]->(b:base)
-                        WHERE id(a) IN [{', '.join([f"'{n}'" for n in seen_nodes])}] 
-                          AND id(b) IN [{', '.join([f"'{n}'" for n in seen_nodes])}]
+                        WHERE id(a) IN [{", ".join([f"'{n}'" for n in seen_nodes])}] 
+                          AND id(b) IN [{", ".join([f"'{n}'" for n in seen_nodes])}]
                         RETURN id(a) as src, id(b) as tgt, properties(r) as props
                         """
                         edge_result = session.execute(edge_query)
-                        
+
                         if edge_result.is_succeeded():
                             for row in edge_result:
                                 src = row.values()[0].as_string()
                                 tgt = row.values()[1].as_string()
                                 props = row.values()[2].as_map()
-                                
+
                                 edge_dict = {}
                                 for key, value in props.items():
                                     key_str = key
@@ -656,7 +650,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                                         edge_dict[key_str] = value.as_int()
                                     elif value.is_double():
                                         edge_dict[key_str] = value.as_double()
-                                
+
                                 edge_id = f"{src}-{tgt}"
                                 result.edges.append(
                                     KnowledgeGraphEdge(
@@ -687,13 +681,13 @@ class NebulaSyncStorage(BaseGraphStorage):
                 | ORDER BY $-.label
                 """
                 result = session.execute(query)
-                
+
                 labels = []
                 if result.is_succeeded():
                     for row in result:
                         label = row.values()[0].as_string()
                         labels.append(label)
-                
+
                 return labels
 
         return await asyncio.to_thread(_sync_get_all_labels)
@@ -701,7 +695,7 @@ class NebulaSyncStorage(BaseGraphStorage):
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
-        retry=retry_if_exception_type((IOErrorException,)) if IOErrorException else ()
+        retry=retry_if_exception_type((IOErrorException,)) if IOErrorException else (),
     )
     async def delete_node(self, node_id: str) -> None:
         """Delete a node."""
@@ -710,11 +704,11 @@ class NebulaSyncStorage(BaseGraphStorage):
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 query = f"DELETE VERTEX '{node_id}' WITH EDGE"
                 result = session.execute(query)
-                
+
                 if not result.is_succeeded():
                     logger.error(f"Failed to delete node {node_id}: {_safe_error_msg(result)}")
                     raise RuntimeError(f"Failed to delete node: {_safe_error_msg(result)}")
-                
+
                 logger.debug(f"Deleted node with id '{node_id}'")
 
         return await asyncio.to_thread(_sync_delete_node)
@@ -731,7 +725,7 @@ class NebulaSyncStorage(BaseGraphStorage):
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 query = f"DELETE EDGE DIRECTED '{source}' -> '{target}'"
                 result = session.execute(query)
-                
+
                 if not result.is_succeeded():
                     logger.error(f"Failed to delete edge from {source} to {target}: {_safe_error_msg(result)}")
                 else:
@@ -747,7 +741,7 @@ class NebulaSyncStorage(BaseGraphStorage):
             with NebulaSyncConnectionManager.get_session() as session:
                 query = f"DROP SPACE IF EXISTS {self._space_name}"
                 result = session.execute(query)
-                
+
                 if result.is_succeeded():
                     logger.info(f"Dropped space {self._space_name}")
                     return {"status": "success", "message": "data dropped"}

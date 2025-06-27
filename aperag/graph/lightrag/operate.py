@@ -1592,7 +1592,6 @@ async def _get_edge_data(
             edge_datas,
             query_param,
             text_chunks_db,
-            knowledge_graph_inst,
             tokenizer,
         ),
     )
@@ -1711,7 +1710,6 @@ async def _find_related_text_unit_from_relationships(
     edge_datas: list[dict],
     query_param: QueryParam,
     text_chunks_db: BaseKVStorage,
-    knowledge_graph_inst: BaseGraphStorage,
     tokenizer: Tokenizer,
 ):
     text_units = [

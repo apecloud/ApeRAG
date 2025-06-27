@@ -19,15 +19,8 @@ import threading
 from contextlib import contextmanager
 from typing import Any, Dict, Optional
 
-try:
-    from nebula3.gclient.net import ConnectionPool
-    from nebula3.Config import Config
-    from nebula3.Exception import IOErrorException, AuthFailedException
-except ImportError:
-    ConnectionPool = None
-    Config = None
-    IOErrorException = None
-    AuthFailedException = None
+from nebula3.Config import Config
+from nebula3.gclient.net import ConnectionPool
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +44,7 @@ class NebulaSyncConnectionManager:
     """
 
     # Class-level storage for worker-scoped connection pool
-    _connection_pool: Optional['ConnectionPool'] = None
+    _connection_pool: Optional["ConnectionPool"] = None
     _lock = threading.Lock()
     _config: Optional[Dict[str, Any]] = None
 
@@ -62,14 +55,17 @@ class NebulaSyncConnectionManager:
             if cls._connection_pool is None:
                 # Check if nebula3-python is installed
                 if ConnectionPool is None:
-                    raise RuntimeError("nebula3-python is not installed. Please install it with: pip install nebula3-python")
+                    raise RuntimeError(
+                        "nebula3-python is not installed. Please install it with: pip install nebula3-python"
+                    )
 
                 # Use provided config or environment variables
                 if config:
                     cls._config = config
                 else:
                     cls._config = {
-                        "hosts": os.environ.get("NEBULA_HOSTS", "127.0.0.1:9669"),
+                        "host": os.environ.get("NEBULA_HOST", "127.0.0.1"),
+                        "port": int(os.environ.get("NEBULA_PORT", "9669")),
                         "username": os.environ.get("NEBULA_USER", "root"),
                         "password": os.environ.get("NEBULA_PASSWORD", "nebula"),
                         "max_connection_pool_size": int(os.environ.get("NEBULA_MAX_CONNECTION_POOL_SIZE", "50")),
@@ -77,28 +73,21 @@ class NebulaSyncConnectionManager:
                     }
 
                 logger.info(f"Initializing Nebula sync connection pool for worker {os.getpid()}")
-                
+
                 # Create connection pool
                 cls._connection_pool = ConnectionPool()
-                
-                # Parse hosts
-                hosts = []
-                for host_str in cls._config["hosts"].split(","):
-                    host_str = host_str.strip()
-                    if ":" in host_str:
-                        host, port = host_str.split(":")
-                        hosts.append((host, int(port)))
-                    else:
-                        hosts.append((host_str, 9669))
-                
+
+                # Initialize connection pool with single host and port
+                host_port = [(cls._config["host"], cls._config["port"])]
+
                 # Initialize connection pool
-                if not cls._connection_pool.init(hosts, Config()):
+                if not cls._connection_pool.init(host_port, Config()):
                     raise RuntimeError("Failed to initialize Nebula connection pool")
 
                 logger.info(f"Nebula sync connection pool initialized successfully for worker {os.getpid()}")
 
     @classmethod
-    def get_pool(cls) -> 'ConnectionPool':
+    def get_pool(cls) -> "ConnectionPool":
         """Get the shared connection pool instance."""
         if cls._connection_pool is None:
             cls.initialize()
@@ -110,14 +99,14 @@ class NebulaSyncConnectionManager:
         """Get a session from the shared connection pool."""
         pool = cls.get_pool()
         session = pool.get_session(cls._config["username"], cls._config["password"])
-        
+
         try:
             # Set space if provided
             if space:
                 result = session.execute(f"USE {space}")
                 if not result.is_succeeded():
                     raise RuntimeError(f"Failed to use space {space}: {_safe_error_msg(result)}")
-            
+
             yield session
         finally:
             session.release()
@@ -127,22 +116,20 @@ class NebulaSyncConnectionManager:
         """Prepare space and return space name."""
         # Sanitize workspace name for Nebula (only alphanumeric and underscore allowed)
         space_name = re.sub(r"[^a-zA-Z0-9_]", "_", workspace)
-        
-        pool = cls.get_pool()
-        
+
         # Check if space exists
         with cls.get_session() as session:
             result = session.execute("SHOW SPACES")
             if not result.is_succeeded():
                 raise RuntimeError(f"Failed to show spaces: {_safe_error_msg(result)}")
-            
+
             spaces = []
             for row in result:
                 spaces.append(row.values()[0].as_string())
-            
+
             if space_name not in spaces:
                 logger.info(f"Space {space_name} not found, creating...")
-                
+
                 # Create space with fixed string vid type
                 create_result = session.execute(
                     f"CREATE SPACE IF NOT EXISTS {space_name} "
@@ -150,21 +137,23 @@ class NebulaSyncConnectionManager:
                 )
                 if not create_result.is_succeeded():
                     raise RuntimeError(f"Failed to create space {space_name}: {_safe_error_msg(create_result)}")
-                
+
                 # Wait for space to be ready
                 import time
+
                 time.sleep(5)  # Increase wait time
-                
+
                 logger.info(f"Space {space_name} created successfully")
-        
+
         # Wait a bit more and verify space is usable before proceeding
         import time
+
         time.sleep(2)
-        
+
         # Create tags and edges in the space
         retry_count = 0
         max_retries = 5
-        
+
         while retry_count < max_retries:
             try:
                 with cls.get_session(space=space_name) as space_session:
@@ -181,7 +170,7 @@ class NebulaSyncConnectionManager:
                     )
                     if not tag_result.is_succeeded():
                         logger.warning(f"Failed to create tag: {_safe_error_msg(tag_result)}")
-                    
+
                     # Create DIRECTED edge for relationships
                     edge_result = space_session.execute(
                         "CREATE EDGE IF NOT EXISTS DIRECTED ("
@@ -195,26 +184,27 @@ class NebulaSyncConnectionManager:
                     )
                     if not edge_result.is_succeeded():
                         logger.warning(f"Failed to create edge: {_safe_error_msg(edge_result)}")
-                    
+
                     # Create indexes
                     index_result = space_session.execute(
                         "CREATE TAG INDEX IF NOT EXISTS base_entity_id_index ON base(entity_id(256))"
                     )
                     if not index_result.is_succeeded():
                         logger.warning(f"Failed to create index: {_safe_error_msg(index_result)}")
-                
+
                 # If we get here, space is ready
                 break
-                
+
             except RuntimeError as e:
                 if "SpaceNotFound" in str(e) and retry_count < max_retries - 1:
                     retry_count += 1
                     logger.info(f"Space {space_name} not ready yet, retrying {retry_count}/{max_retries}...")
                     import time
+
                     time.sleep(3)  # Wait longer between retries
                 else:
                     raise RuntimeError(f"Space {space_name} not ready after {max_retries} attempts: {e}")
-        
+
         return space_name
 
     @classmethod
