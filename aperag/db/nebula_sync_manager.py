@@ -140,90 +140,94 @@ class NebulaSyncConnectionManager:
                 if not create_result.is_succeeded():
                     raise RuntimeError(f"Failed to create space {space_name}: {_safe_error_msg(create_result)}")
 
-                # Wait for space to be ready
-                time.sleep(10)  # Increase wait time to 10 seconds
-                logger.info(f"Space {space_name} created successfully")
-
-        # Wait for space to be usable with retry logic
-        def wait_for_space_ready(space_name, max_attempts=10):
-            """Wait for space to be ready with retry logic"""
-            for attempt in range(max_attempts):
-                try:
-                    with cls.get_session(space=space_name) as test_session:
-                        # Simple test query to verify space is ready
-                        result = test_session.execute("SHOW TAGS")
-                        if result.is_succeeded():
-                            logger.info(f"Space {space_name} is ready (attempt {attempt + 1})")
-                            return True
-                except Exception as e:
-                    logger.debug(f"Space not ready yet (attempt {attempt + 1}): {e}")
+                # Wait for space to be ready with fast polling
+                max_wait = 30  # Maximum wait time
+                start_time = time.time()
                 
-                if attempt < max_attempts - 1:
-                    time.sleep(5)  # Wait 5 seconds between attempts
-                    
-            return False
-        
-        # Wait for space to be ready
-        if not wait_for_space_ready(space_name):
-            logger.error(f"Space {space_name} did not become ready after waiting")
-            # Continue anyway, might still work
+                while time.time() - start_time < max_wait:
+                    try:
+                        with cls.get_session(space=space_name) as test_session:
+                            result = test_session.execute("SHOW TAGS")
+                            if result.is_succeeded():
+                                logger.info(f"Space {space_name} is ready after {time.time() - start_time:.1f}s")
+                                break
+                    except:
+                        pass
+                    time.sleep(1)  # Check every second
+                else:
+                    logger.warning(f"Space {space_name} not ready after {max_wait}s, continuing anyway")
 
         # Create tags and edges in the space
-        retry_count = 0
-        max_retries = 8  # Increase max retries
+        with cls.get_session(space=space_name) as space_session:
+            # Create base tag for nodes
+            tag_result = space_session.execute(
+                "CREATE TAG IF NOT EXISTS base ("
+                "entity_id string, "
+                "entity_type string, "
+                "description string, "
+                "source_id string, "
+                "file_path string, "
+                "created_at int64"
+                ")"
+            )
+            if not tag_result.is_succeeded():
+                logger.warning(f"Failed to create tag: {_safe_error_msg(tag_result)}")
 
-        while retry_count < max_retries:
+            # Create DIRECTED edge for relationships
+            edge_result = space_session.execute(
+                "CREATE EDGE IF NOT EXISTS DIRECTED ("
+                "weight double, "
+                "description string, "
+                "keywords string, "
+                "source_id string, "
+                "file_path string, "
+                "created_at int64"
+                ")"
+            )
+            if not edge_result.is_succeeded():
+                logger.warning(f"Failed to create edge: {_safe_error_msg(edge_result)}")
+
+            # Create indexes
+            index_result = space_session.execute(
+                "CREATE TAG INDEX IF NOT EXISTS base_entity_id_index ON base(entity_id(256))"
+            )
+            if not index_result.is_succeeded():
+                logger.warning(f"Failed to create index: {_safe_error_msg(index_result)}")
+
+        # Wait for schema to take effect - Nebula docs: wait 2 heartbeat cycles (20s)
+        # But we can test early to see if it's ready sooner
+        logger.info("Waiting for schema to take effect (Nebula requires ~20 seconds)...")
+        
+        # First wait a minimum time to let basic schema creation complete
+        time.sleep(5)
+        
+        # Then test if schema is actually usable by trying to insert test data
+        schema_ready = False
+        max_schema_wait = 20
+        schema_start = time.time()
+        
+        while time.time() - schema_start < max_schema_wait:
             try:
-                with cls.get_session(space=space_name) as space_session:
-                    # Create base tag for nodes
-                    tag_result = space_session.execute(
-                        "CREATE TAG IF NOT EXISTS base ("
-                        "entity_id string, "
-                        "entity_type string, "
-                        "description string, "
-                        "source_id string, "
-                        "file_path string, "
-                        "created_at int64"
-                        ")"
+                with cls.get_session(space=space_name) as test_session:
+                    # Test if we can actually use the schema
+                    test_result = test_session.execute(
+                        "INSERT VERTEX base(entity_id, entity_type) VALUES '__schema_test__':('__schema_test__', 'test')"
                     )
-                    if not tag_result.is_succeeded():
-                        logger.warning(f"Failed to create tag: {_safe_error_msg(tag_result)}")
-
-                    # Create DIRECTED edge for relationships
-                    edge_result = space_session.execute(
-                        "CREATE EDGE IF NOT EXISTS DIRECTED ("
-                        "weight double, "
-                        "description string, "
-                        "keywords string, "
-                        "source_id string, "
-                        "file_path string, "
-                        "created_at int64"
-                        ")"
-                    )
-                    if not edge_result.is_succeeded():
-                        logger.warning(f"Failed to create edge: {_safe_error_msg(edge_result)}")
-
-                    # Create indexes
-                    index_result = space_session.execute(
-                        "CREATE TAG INDEX IF NOT EXISTS base_entity_id_index ON base(entity_id(256))"
-                    )
-                    if not index_result.is_succeeded():
-                        logger.warning(f"Failed to create index: {_safe_error_msg(index_result)}")
-
-                    # Wait for schema to take effect
-                    time.sleep(3)
-
-                # If we get here, space is ready
-                break
-
-            except RuntimeError as e:
-                if "SpaceNotFound" in str(e) and retry_count < max_retries - 1:
-                    retry_count += 1
-                    logger.info(f"Space {space_name} not ready yet, retrying {retry_count}/{max_retries}...")
-                    time.sleep(5)  # Wait longer between retries
-                else:
-                    raise RuntimeError(f"Space {space_name} not ready after {max_retries} attempts: {e}")
-
+                    if test_result.is_succeeded():
+                        # Clean up test data
+                        test_session.execute("DELETE VERTEX '__schema_test__'")
+                        elapsed = time.time() - (schema_start - 5)  # Include initial 5s wait
+                        logger.info(f"Schema ready after {elapsed:.1f}s")
+                        schema_ready = True
+                        break
+            except:
+                pass
+            time.sleep(1)  # Check every second
+        
+        if not schema_ready:
+            logger.warning("Schema may not be fully ready, but continuing anyway")
+        
+        logger.info(f"Space {space_name} created and ready")
         return space_name
 
     @classmethod

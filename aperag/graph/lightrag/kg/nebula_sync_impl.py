@@ -524,27 +524,25 @@ class NebulaSyncStorage(BaseGraphStorage):
                 raise ValueError("Nebula: node properties must contain an 'entity_id' field")
 
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
-                # Build property names and values separately for Nebula syntax
+                # Build property names and values using Python's repr() like Neo4j
                 prop_names = []
                 prop_values = []
 
                 for key, value in node_data.items():
                     if value is not None:
                         prop_names.append(key)
-                        # Escape single quotes in string values
-                        if isinstance(value, str):
-                            escaped_value = value.replace("'", "\\'")
-                            prop_values.append(f"'{escaped_value}'")
-                        else:
-                            prop_values.append(str(value))
+                        prop_values.append(repr(value))  # Use Python's repr() - safe and simple
 
                 names_str = ", ".join(prop_names)
                 values_str = ", ".join(prop_values)
 
+                # Escape single quotes in node_id for Nebula syntax
+                escaped_node_id = node_id.replace("'", "\\'")
+
                 # Insert/Update vertex with base tag using correct Nebula syntax
                 query = f"""
                 INSERT VERTEX base({names_str}) 
-                VALUES '{node_id}':({values_str})
+                VALUES '{escaped_node_id}':({values_str})
                 """
                 result = session.execute(query)
 
@@ -566,27 +564,26 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         def _sync_upsert_edge():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
-                # Build property names and values separately for Nebula syntax
+                # Build property names and values using Python's repr() like Neo4j
                 prop_names = []
                 prop_values = []
 
                 for key, value in edge_data.items():
                     if value is not None:
                         prop_names.append(key)
-                        # Escape single quotes in string values
-                        if isinstance(value, str):
-                            escaped_value = value.replace("'", "\\'")
-                            prop_values.append(f"'{escaped_value}'")
-                        else:
-                            prop_values.append(str(value))
+                        prop_values.append(repr(value))  # Use Python's repr() - safe and simple
 
                 names_str = ", ".join(prop_names)
                 values_str = ", ".join(prop_values)
 
+                # Escape single quotes in node_ids for Nebula syntax
+                escaped_source = source_node_id.replace("'", "\\'")
+                escaped_target = target_node_id.replace("'", "\\'")
+
                 # Insert/Update edge using correct Nebula syntax
                 query = f"""
                 INSERT EDGE DIRECTED({names_str}) 
-                VALUES '{source_node_id}' -> '{target_node_id}':({values_str})
+                VALUES '{escaped_source}' -> '{escaped_target}':({values_str})
                 """
                 result = session.execute(query)
 
@@ -857,22 +854,18 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         def _sync_get_all_labels():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
-                query = """
-                FETCH PROP ON base * 
-                YIELD properties(vertex).entity_id as label
-                | WHERE $-.label IS NOT NULL 
-                | YIELD DISTINCT $-.label 
-                | ORDER BY $-.label
-                """
+                # Use simple LOOKUP syntax that actually works
+                query = "LOOKUP ON base YIELD properties(vertex).entity_id as label"
                 result = session.execute(query)
 
                 labels = []
                 if result.is_succeeded():
                     for row in result:
                         label = row.values()[0].as_string()
-                        labels.append(label)
+                        if label:  # Ensure label is not empty
+                            labels.append(label)
 
-                return labels
+                return list(set(labels))  # Remove duplicates and return
 
         return await asyncio.to_thread(_sync_get_all_labels)
 
