@@ -166,33 +166,38 @@ class NebulaSyncStorage(BaseGraphStorage):
         return await asyncio.to_thread(_sync_get_node)
 
     async def get_nodes_batch(self, node_ids: list[str]) -> dict[str, dict]:
-        """Retrieve multiple nodes in one query."""
-
+        """使用原生FETCH语法的高效批量节点查询"""
+        
         def _sync_get_nodes_batch():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
-                # Build the list of IDs for the query
-                id_list = ", ".join([f"'{node_id}'" for node_id in node_ids])
-                query = f"FETCH PROP ON base {id_list} YIELD id(vertex) as id, properties(vertex) as props"
-                result = session.execute(query)
-
                 nodes = {}
-                if result.is_succeeded():
-                    for row in result:
-                        node_id = row.values()[0].as_string()
-                        props = row.values()[1].as_map()
-                        node_dict = {}
-                        for key, value in props.items():
-                            key_str = key
-                            if value.is_string():
-                                node_dict[key_str] = value.as_string()
-                            elif value.is_int():
-                                node_dict[key_str] = value.as_int()
-                            elif value.is_double():
-                                node_dict[key_str] = value.as_double()
+                
+                # 🚀 使用更大的chunk_size
+                chunk_size = 150  # 原生FETCH支持更大批次
+                
+                for i in range(0, len(node_ids), chunk_size):
+                    chunk = node_ids[i:i + chunk_size]
+                    
+                    # ✅ 使用原生FETCH批量语法
+                    id_list = ", ".join([f"'{node_id}'" for node_id in chunk])
+                    query = f"FETCH PROP ON base {id_list} YIELD id(vertex) as id, properties(vertex) as props"
+                    result = session.execute(query)
 
-                        # Add entity_id
-                        node_dict["entity_id"] = node_id
-                        nodes[node_id] = node_dict
+                    if result.is_succeeded():
+                        for row in result:
+                            node_id = row.values()[0].as_string()
+                            props = row.values()[1].as_map()
+                            node_dict = {}
+                            for key, value in props.items():
+                                if value.is_string():
+                                    node_dict[key] = value.as_string()
+                                elif value.is_int():
+                                    node_dict[key] = value.as_int()
+                                elif value.is_double():
+                                    node_dict[key] = value.as_double()
+
+                            node_dict["entity_id"] = node_id
+                            nodes[node_id] = node_dict
 
                 return nodes
 
@@ -218,35 +223,32 @@ class NebulaSyncStorage(BaseGraphStorage):
         return await asyncio.to_thread(_sync_node_degree)
 
     async def node_degrees_batch(self, node_ids: list[str]) -> dict[str, int]:
-        """Retrieve degrees for multiple nodes, optimized for Nebula characteristics."""
-
+        """使用原生语法优化的批量度数查询"""
+        
         def _sync_node_degrees_batch():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 if not node_ids:
                     return {}
 
                 degrees = {node_id: 0 for node_id in node_ids}
-
-                # 提高批次大小，利用fallback机制确保稳定性
-                batch_size = 25  # 增加批次大小，提高效率
-
-                for i in range(0, len(node_ids), batch_size):
-                    batch = node_ids[i : i + batch_size]
-
-                    # 使用简洁的UNION语法，增加UNION容量
-                    union_queries = []
-                    for node_id in batch:
-                        # 使用管道语法计算度数，更符合Nebula习惯
-                        union_queries.append(f"""
-                        GO FROM '{node_id}' OVER * BIDIRECT 
-                        YIELD '{node_id}' as node_id, count(*) as degree
-                        """)
-
-                    # 增加UNION查询数量限制，提高批量效率
-                    if len(union_queries) <= 15:  # 从5个增加到15个
-                        query = " UNION ".join(union_queries)
+                
+                # 🚀 使用更大的chunk_size，基于搜索结果优化
+                chunk_size = 100  # 从25增加到100，支持更高并发
+                
+                for i in range(0, len(node_ids), chunk_size):
+                    chunk = node_ids[i:i + chunk_size]
+                    
+                    try:
+                        # ✅ 使用原生批量语法 - 单查询处理多节点
+                        id_list = ", ".join([f"'{node_id}'" for node_id in chunk])
+                        query = f"""
+                        GO FROM {id_list} OVER * BIDIRECT 
+                        YIELD src(edge) as node_id, count(*) as degree
+                        | GROUP BY $-.node_id 
+                        | YIELD $-.node_id as node_id, SUM($-.degree) as total_degree
+                        """
                         result = session.execute(query)
-
+                        
                         if result.is_succeeded():
                             found_nodes = set()
                             for row in result:
@@ -254,45 +256,29 @@ class NebulaSyncStorage(BaseGraphStorage):
                                 degree = row.values()[1].as_int()
                                 degrees[node_id] = degree
                                 found_nodes.add(node_id)
-
+                            
                             # 处理未找到的节点（度数为0）
-                            for node_id in batch:
+                            for node_id in chunk:
                                 if node_id not in found_nodes:
                                     degrees[node_id] = 0
                         else:
-                            logger.debug(f"UNION degree query failed: {_safe_error_msg(result)}")
-                            # 降级为单个查询
-                            for node_id in batch:
-                                single_query = f"""
-                                GO FROM '{node_id}' OVER * BIDIRECT 
-                                YIELD count(*) as degree
-                                """
-                                single_result = session.execute(single_query)
-
-                                if single_result.is_succeeded() and single_result.row_size() > 0:
-                                    for row in single_result:
-                                        degrees[node_id] = row.values()[0].as_int()
-                                        break
-                                else:
-                                    degrees[node_id] = 0
-                    else:
-                        # 批次过大，直接使用单个查询避免复杂UNION
-                        for node_id in batch:
+                            logger.warning(f"Native batch degree query failed: {_safe_error_msg(result)}")
+                            # 降级处理
+                            for node_id in chunk:
+                                degrees[node_id] = 0
+                            
+                    except Exception as e:
+                        logger.warning(f"Batch degree query chunk failed: {e}")
+                        # 降级为单个查询
+                        for node_id in chunk:
                             try:
-                                query = f"""
-                                GO FROM '{node_id}' OVER * BIDIRECT 
-                                YIELD count(*) as degree
-                                """
-                                result = session.execute(query)
-
-                                if result.is_succeeded() and result.row_size() > 0:
-                                    for row in result:
-                                        degrees[node_id] = row.values()[0].as_int()
-                                        break
+                                single_query = f"GO FROM '{node_id}' OVER * BIDIRECT YIELD count(*) as degree"
+                                single_result = session.execute(single_query)
+                                if single_result.is_succeeded() and single_result.row_size() > 0:
+                                    degrees[node_id] = single_result.row_values(0)[0].as_int()
                                 else:
                                     degrees[node_id] = 0
-                            except Exception as e:
-                                logger.warning(f"Failed to get degree for node '{node_id}': {e}")
+                            except:
                                 degrees[node_id] = 0
 
                 return degrees
@@ -393,155 +379,77 @@ class NebulaSyncStorage(BaseGraphStorage):
         return await asyncio.to_thread(_sync_get_edge)
 
     async def get_edges_batch(self, pairs: list[dict[str, str]]) -> dict[tuple[str, str], dict]:
-        """Retrieve edge properties for multiple pairs with optimized batch query."""
-
+        """使用原生FETCH语法的高效批量边查询"""
+        
         def _sync_get_edges_batch():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 edges_dict = {}
-
+                
                 if not pairs:
                     return edges_dict
 
-                # Initialize all pairs with default values
+                # 初始化所有边对
                 for pair in pairs:
                     src, tgt = pair["src"], pair["tgt"]
                     edges_dict[(src, tgt)] = {
-                        "weight": 0.0,
-                        "source_id": None,
-                        "description": None,
-                        "keywords": None,
+                        "weight": 0.0, "source_id": None, 
+                        "description": None, "keywords": None,
                     }
 
-                # Optimized: Use batch processing with fewer queries
-                chunk_size = 50  # 从25增加到50，提高批量效率
+                # 🚀 使用更大的chunk_size，基于原生FETCH语法
+                chunk_size = 80  # 每个边对需要查询两个方向，所以稍微保守一些
+                
                 for i in range(0, len(pairs), chunk_size):
-                    chunk = pairs[i : i + chunk_size]
-
-                    # Create UNION query for batch edge processing (both directions)
-                    union_queries = []
+                    chunk = pairs[i:i + chunk_size]
+                    
+                    # ✅ 构建原生FETCH批量边查询
+                    edge_list = []
+                    pair_mapping = {}  # 用于映射查询结果回原始pair
+                    
                     for pair in chunk:
                         src, tgt = pair["src"], pair["tgt"]
-                        # Query both directions in a single UNION
-                        union_queries.append(f"""
-                        FETCH PROP ON DIRECTED '{src}' -> '{tgt}' 
-                        YIELD '{src}' as src, '{tgt}' as tgt, properties(edge) as props
-                        """)
-                        union_queries.append(f"""
-                        FETCH PROP ON DIRECTED '{tgt}' -> '{src}' 
-                        YIELD '{tgt}' as reverse_src, '{src}' as reverse_tgt, properties(edge) as props
-                        """)
+                        # 查询两个方向
+                        edge_list.append(f"'{src}' -> '{tgt}'")
+                        edge_list.append(f"'{tgt}' -> '{src}'")
+                        pair_mapping[f"{src}->{tgt}"] = (src, tgt)
+                        pair_mapping[f"{tgt}->{src}"] = (src, tgt)
+                    
+                    if edge_list:
+                        edges_str = ", ".join(edge_list)
+                        query = f"""
+                        FETCH PROP ON DIRECTED {edges_str}
+                        YIELD src(edge) as src, dst(edge) as dst, properties(edge) as props
+                        """
+                        result = session.execute(query)
+                        
+                        if result.is_succeeded():
+                            for row in result:
+                                edge_src = row.values()[0].as_string()
+                                edge_dst = row.values()[1].as_string()
+                                props = row.values()[2].as_map()
+                                
+                                edge_dict = {}
+                                for key, value in props.items():
+                                    if value.is_string():
+                                        edge_dict[key] = value.as_string()
+                                    elif value.is_int():
+                                        edge_dict[key] = value.as_int()
+                                    elif value.is_double():
+                                        edge_dict[key] = value.as_double()
+                                
+                                # 确保必需的键存在
+                                for key, default in {"weight": 0.0, "source_id": None, 
+                                                   "description": None, "keywords": None}.items():
+                                    if key not in edge_dict:
+                                        edge_dict[key] = default
+                                
+                                # 找到对应的原始pair
+                                pair_key = f"{edge_src}->{edge_dst}"
+                                if pair_key in pair_mapping:
+                                    original_pair = pair_mapping[pair_key]
+                                    edges_dict[original_pair] = edge_dict
 
-                    query = " UNION ".join(union_queries)
-                    result = session.execute(query)
-
-                    if result.is_succeeded():
-                        for row in result:
-                            edge_src = row.values()[0].as_string()
-                            edge_tgt = row.values()[1].as_string()
-                            props = row.values()[2].as_map()
-
-                            edge_dict = {}
-                            for key, value in props.items():
-                                key_str = key
-                                if value.is_string():
-                                    edge_dict[key_str] = value.as_string()
-                                elif value.is_int():
-                                    edge_dict[key_str] = value.as_int()
-                                elif value.is_double():
-                                    edge_dict[key_str] = value.as_double()
-
-                            # Ensure required keys
-                            for key, default in {
-                                "weight": 0.0,
-                                "source_id": None,
-                                "description": None,
-                                "keywords": None,
-                            }.items():
-                                if key not in edge_dict:
-                                    edge_dict[key] = default
-
-                            # Find the original query pair and update it
-                            for pair in chunk:
-                                src, tgt = pair["src"], pair["tgt"]
-                                if (edge_src == src and edge_tgt == tgt) or (edge_src == tgt and edge_tgt == src):
-                                    edges_dict[(src, tgt)] = edge_dict
-                                    break
-                    else:
-                        logger.warning(f"Batch edge query chunk failed: {_safe_error_msg(result)}")
-                        # Fall back to individual queries for this chunk
-                        for pair in chunk:
-                            src, tgt = pair["src"], pair["tgt"]
-
-                            # Try direction: src -> tgt
-                            query = f"""
-                            FETCH PROP ON DIRECTED '{src}' -> '{tgt}' 
-                            YIELD properties(edge) as props
-                            """
-                            result = session.execute(query)
-
-                            edge_found = False
-                            if result.is_succeeded() and result.row_size() > 0:
-                                for row in result:
-                                    props = row.values()[0].as_map()
-                                    edge_dict = {}
-                                    for key, value in props.items():
-                                        key_str = key
-                                        if value.is_string():
-                                            edge_dict[key_str] = value.as_string()
-                                        elif value.is_int():
-                                            edge_dict[key_str] = value.as_int()
-                                        elif value.is_double():
-                                            edge_dict[key_str] = value.as_double()
-
-                                    # Ensure required keys
-                                    for key, default in {
-                                        "weight": 0.0,
-                                        "source_id": None,
-                                        "description": None,
-                                        "keywords": None,
-                                    }.items():
-                                        if key not in edge_dict:
-                                            edge_dict[key] = default
-
-                                    edges_dict[(src, tgt)] = edge_dict
-                                    edge_found = True
-                                    break
-
-                            # If not found, try reverse direction: tgt -> src
-                            if not edge_found:
-                                query = f"""
-                                FETCH PROP ON DIRECTED '{tgt}' -> '{src}' 
-                                YIELD properties(edge) as props
-                                """
-                                result = session.execute(query)
-
-                                if result.is_succeeded() and result.row_size() > 0:
-                                    for row in result:
-                                        props = row.values()[0].as_map()
-                                        edge_dict = {}
-                                        for key, value in props.items():
-                                            key_str = key
-                                            if value.is_string():
-                                                edge_dict[key_str] = value.as_string()
-                                            elif value.is_int():
-                                                edge_dict[key_str] = value.as_int()
-                                            elif value.is_double():
-                                                edge_dict[key_str] = value.as_double()
-
-                                        # Ensure required keys
-                                        for key, default in {
-                                            "weight": 0.0,
-                                            "source_id": None,
-                                            "description": None,
-                                            "keywords": None,
-                                        }.items():
-                                            if key not in edge_dict:
-                                                edge_dict[key] = default
-
-                                        edges_dict[(src, tgt)] = edge_dict
-                                        break
-
-                return edges_dict
+                        return edges_dict
 
         return await asyncio.to_thread(_sync_get_edges_batch)
 
@@ -568,8 +476,8 @@ class NebulaSyncStorage(BaseGraphStorage):
         return await asyncio.to_thread(_sync_get_node_edges)
 
     async def get_nodes_edges_batch(self, node_ids: list[str]) -> dict[str, list[tuple[str, str]]]:
-        """Batch retrieve edges for multiple nodes with optimized batch query."""
-
+        """使用原生GO FROM语法的高效批量邻居查询"""
+        
         def _sync_get_nodes_edges_batch():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 if not node_ids:
@@ -577,20 +485,18 @@ class NebulaSyncStorage(BaseGraphStorage):
 
                 edges_dict = {node_id: [] for node_id in node_ids}
 
-                # Optimized: Use batch processing with fewer queries
-                chunk_size = 60  # 从30增加到60，提高批量效率
+                # 🚀 使用更大的chunk_size
+                chunk_size = 120  # GO FROM原生支持更大批次
+                
                 for i in range(0, len(node_ids), chunk_size):
-                    chunk = node_ids[i : i + chunk_size]
-
-                    # Create UNION query for batch edge processing
-                    union_queries = []
-                    for node_id in chunk:
-                        union_queries.append(f"""
-                        GO FROM '{node_id}' OVER * BIDIRECT 
-                        YIELD '{node_id}' as query_node, src(edge) as src, dst(edge) as dst
-                        """)
-
-                    query = " UNION ".join(union_queries)
+                    chunk = node_ids[i:i + chunk_size]
+                    
+                    # ✅ 使用原生GO FROM批量语法
+                    id_list = ", ".join([f"'{node_id}'" for node_id in chunk])
+                    query = f"""
+                    GO FROM {id_list} OVER * BIDIRECT 
+                    YIELD $^.id as query_node, src(edge) as src, dst(edge) as dst
+                    """
                     result = session.execute(query)
 
                     if result.is_succeeded():
@@ -598,22 +504,8 @@ class NebulaSyncStorage(BaseGraphStorage):
                             query_node = row.values()[0].as_string()
                             src = row.values()[1].as_string()
                             dst = row.values()[2].as_string()
-                            edges_dict[query_node].append((src, dst))
-                    else:
-                        logger.warning(f"Batch node edges query chunk failed: {_safe_error_msg(result)}")
-                        # Fall back to individual queries for this chunk
-                        for node_id in chunk:
-                            query = f"""
-                            GO FROM '{node_id}' OVER * BIDIRECT 
-                            YIELD src(edge) as src, dst(edge) as dst
-                            """
-                            result = session.execute(query)
-
-                            if result.is_succeeded():
-                                for row in result:
-                                    src = row.values()[0].as_string()
-                                    dst = row.values()[1].as_string()
-                                    edges_dict[node_id].append((src, dst))
+                            if query_node in edges_dict:
+                                edges_dict[query_node].append((src, dst))
 
                 return edges_dict
 
