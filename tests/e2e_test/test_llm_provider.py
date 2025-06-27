@@ -65,7 +65,7 @@ class TestLLMProvider:
             "api": "completion",
             "model": test_model_name,
             "custom_llm_provider": "openai",
-            "max_tokens": 4096,
+            "context_window": 4096,
             "tags": ["test"]
         }
         
@@ -80,7 +80,7 @@ class TestLLMProvider:
         # Test updating the model with slash in name - this is the main functionality we're testing
         encoded_model = urllib.parse.quote(test_model_name, safe="")
         update_data = {
-            "max_tokens": 8192,
+            "context_window": 8192,
             "tags": ["test", "updated"]
         }
         
@@ -93,7 +93,7 @@ class TestLLMProvider:
         
         updated_model = resp.json()
         assert updated_model["model"] == test_model_name
-        assert updated_model["max_tokens"] == 8192
+        assert updated_model["context_window"] == 8192
         assert "test" in updated_model["tags"]
         assert "updated" in updated_model["tags"]
         
@@ -111,7 +111,7 @@ class TestLLMProvider:
             "api": "completion", 
             "model": complex_model_name,
             "custom_llm_provider": "openai",
-            "max_tokens": 2048,
+            "context_window": 2048,
             "tags": ["test", "complex"]
         }
         
@@ -125,7 +125,7 @@ class TestLLMProvider:
         
         # Test updating the complex model
         encoded_model = urllib.parse.quote(complex_model_name, safe="")
-        update_data = {"max_tokens": 4096}
+        update_data = {"context_window": 4096}
         
         update_resp = client.put(
             f"/api/v1/llm_providers/siliconflow/models/completion/{encoded_model}",
@@ -135,7 +135,7 @@ class TestLLMProvider:
         
         updated_model = update_resp.json()
         assert updated_model["model"] == complex_model_name
-        assert updated_model["max_tokens"] == 4096
+        assert updated_model["context_window"] == 4096
         
         # Cleanup
         delete_resp = client.delete(
@@ -148,7 +148,7 @@ class TestLLMProvider:
         nonexistent_model = "nonexistent/model"
         encoded_model = urllib.parse.quote(nonexistent_model, safe="")
         
-        update_data = {"max_tokens": 1000}
+        update_data = {"context_window": 1000}
         resp = client.put(
             f"/api/v1/llm_providers/siliconflow/models/completion/{encoded_model}",
             json=update_data
@@ -175,13 +175,13 @@ class TestLLMProvider:
             pytest.skip("Qwen/Qwen3-8B model not found, skipping update test")
         
         # Store original values for restoration
-        original_max_tokens = qwen_model.get("max_tokens")
+        original_context_window = qwen_model.get("context_window")
         original_tags = qwen_model.get("tags", [])
         
         # Prepare update data
-        new_max_tokens = 8192 if original_max_tokens != 8192 else 4096
+        new_context_window = 8192 if original_context_window != 8192 else 4096
         update_data = {
-            "max_tokens": new_max_tokens,
+            "context_window": new_context_window,
             "tags": original_tags + ["e2e-test"]
         }
         
@@ -195,12 +195,12 @@ class TestLLMProvider:
         
         updated_model = resp.json()
         assert updated_model["model"] == "Qwen/Qwen3-8B"
-        assert updated_model["max_tokens"] == new_max_tokens
+        assert updated_model["context_window"] == new_context_window
         assert "e2e-test" in updated_model["tags"]
         
         # Restore original values
         restore_data = {
-            "max_tokens": original_max_tokens,
+            "context_window": original_context_window,
             "tags": original_tags
         }
         restore_resp = client.put(
