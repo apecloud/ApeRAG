@@ -82,7 +82,7 @@ class CompletionService:
                 base_url=self.base_url,
                 api_key=self.api_key,
                 temperature=self.temperature,
-                max_tokens=self.max_tokens,
+                # max_tokens=self.max_tokens,
                 messages=messages,
                 stream=False,
                 caching=self.caching,
