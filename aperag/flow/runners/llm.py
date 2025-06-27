@@ -31,18 +31,14 @@ from aperag.utils.history import BaseChatMessageHistory
 from aperag.utils.utils import now_unix_milliseconds
 
 # Character to token estimation ratio for Chinese/mixed content
-# Conservative estimate: 2 characters = 1 token
-CHAR_TO_TOKEN_RATIO = 2.0
+# Conservative estimate: 1.5 characters = 1 token
+TOKEN_TO_CHAR_RATIO = 1.5
 
 # Reserve tokens for output generation (default 1000 tokens)
 DEFAULT_OUTPUT_TOKENS = 1000
 
 # Fallback max context length if model context_window is not available
 FALLBACK_MAX_CONTEXT_LENGTH = 50000
-
-# Minimum required output tokens
-MIN_OUTPUT_TOKENS = 100
-
 
 class Message(BaseModel):
     id: str
@@ -100,78 +96,70 @@ class LLMOutput(BaseModel):
     text: str
 
 
-def estimate_token_count(text: str) -> int:
-    """
-    Estimate token count from character count for Chinese/mixed content.
-    Using conservative ratio: 2 characters = 1 token
-    """
-    return int(len(text) / CHAR_TO_TOKEN_RATIO)
-
-
-def calculate_input_limits(
-    context_window: Optional[int],
-    max_input_tokens: Optional[int], 
-    max_output_tokens: Optional[int],
-    output_tokens: int = DEFAULT_OUTPUT_TOKENS
+async def calculate_model_token_limits(
+    model_service_provider: str,
+    model_name: str,
 ) -> Tuple[int, int]:
     """
-    Calculate input context length and output token limits based on model configuration.
+    Calculate input and output token limits based on three constraints:
     
-    Special handling for two scenarios:
-    1. If context_window == max_input_tokens: max_input_tokens represents total context (input+output)
-    2. If context_window > max_input_tokens: max_input_tokens is purely input limit
+    1. Reserve at least 4096 tokens for output (or model's max_output_tokens if smaller)
+    2. Input (query+context) should not exceed model's input limit (min of context_window, max_input_tokens)
+    3. Total (input + output) should not exceed context_window
     
     Args:
-        context_window: Total context window size (tokens)
-        max_input_tokens: Maximum input tokens allowed
-        max_output_tokens: Maximum output tokens allowed
-        output_tokens: Desired output tokens (fallback)
+        model_service_provider: Model service provider name
+        model_name: Model name
     
     Returns:
-        Tuple of (max_input_character_length, output_max_tokens)
+        Tuple of (max_input_tokens, final_output_tokens)
     """
-    # Determine output token limit
-    if max_output_tokens is not None:
-        output_max_tokens = max_output_tokens
-    else:
-        output_max_tokens = output_tokens
-    
-    # Determine input token limit with special handling
-    if max_input_tokens is not None and context_window is not None:
-        if context_window == max_input_tokens:
-            # Case 1: max_input_tokens represents total context (input + output)
-            max_input_token_limit = max_input_tokens - output_max_tokens
-            if max_input_token_limit <= 0:
-                # If total context is too small, use minimal allocation
-                max_input_token_limit = max(max_input_tokens // 2, 100)
-                # Adjust output tokens accordingly
-                output_max_tokens = max(max_input_tokens - max_input_token_limit, MIN_OUTPUT_TOKENS)
+    # Get model configuration to determine token limits
+    try:
+        model_config = await async_db_ops.query_llm_provider_model(
+            provider_name=model_service_provider,
+            api=APIType.COMPLETION.value,
+            model=model_name
+        )
+        if model_config:
+            context_window = model_config.context_window
+            max_input_tokens = model_config.max_input_tokens  
+            max_output_tokens = model_config.max_output_tokens
         else:
-            # Case 2: max_input_tokens is purely input limit, context_window is total
-            max_input_token_limit = max_input_tokens
-            # Ensure total doesn't exceed context_window
-            if max_input_token_limit + output_max_tokens > context_window:
-                # Prioritize input limit, adjust output if needed
-                output_max_tokens = max(context_window - max_input_token_limit, MIN_OUTPUT_TOKENS)
-    elif max_input_tokens is not None:
-        # Only max_input_tokens available, assume it's pure input limit
-        max_input_token_limit = max_input_tokens
-    elif context_window is not None:
-        # Only context_window available, calculate from total minus output
-        max_input_token_limit = context_window - output_max_tokens
-        if max_input_token_limit <= 0:
-            # If context window is too small, use minimal allocation
-            max_input_token_limit = max(context_window // 2, 100)
-            # Adjust output tokens accordingly
-            output_max_tokens = max(context_window - max_input_token_limit, MIN_OUTPUT_TOKENS)
+            context_window = None
+            max_input_tokens = None
+            max_output_tokens = None
+    except Exception:
+        context_window = None
+        max_input_tokens = None
+        max_output_tokens = None
+
+    # Constraint 1: Determine output token reservation
+    reserved_output_tokens = min(max_output_tokens or DEFAULT_OUTPUT_TOKENS, DEFAULT_OUTPUT_TOKENS)
+    
+    # Constraint 2: Determine maximum input tokens allowed
+    input_limits = []
+    if max_input_tokens:
+        input_limits.append(max_input_tokens)
+    if context_window:
+        input_limits.append(context_window)
+    
+    if input_limits:
+        max_allowed_input = min(input_limits)
     else:
-        # Fallback to default values
-        max_input_token_limit = FALLBACK_MAX_CONTEXT_LENGTH // int(CHAR_TO_TOKEN_RATIO)
+        # Fallback if no limits available
+        max_allowed_input = FALLBACK_MAX_CONTEXT_LENGTH // int(TOKEN_TO_CHAR_RATIO)
     
-    # Convert input token limit to character count
-    max_input_character_length = int(max_input_token_limit * CHAR_TO_TOKEN_RATIO)
+    # Constraint 3: Ensure total doesn't exceed context_window
+    if context_window:
+        # Make sure input + output <= context_window
+        max_allowed_input = min(max_allowed_input, context_window - reserved_output_tokens)
     
-    return max_input_character_length, output_max_tokens
+    # Ensure we have at least some minimal input space
+    if max_allowed_input <= 0:
+        max_allowed_input = 100  # Minimal fallback
+    
+    return max_allowed_input, reserved_output_tokens
 
 
 # Database operations interface
@@ -214,81 +202,33 @@ class LLMService:
         except Exception:
             raise Exception(f"LLMProvider {model_service_provider} not found")
 
-        # Get model configuration to determine token limits
-        try:
-            model_config = await async_db_ops.query_llm_provider_model(
-                provider_name=model_service_provider,
-                api=APIType.COMPLETION.value,
-                model=model_name
-            )
-            if model_config:
-                context_window = model_config.context_window
-                max_input_tokens = model_config.max_input_tokens  
-                max_output_tokens = model_config.max_output_tokens
-            else:
-                context_window = None
-                max_input_tokens = None
-                max_output_tokens = None
-        except Exception:
-            context_window = None
-            max_input_tokens = None
-            max_output_tokens = None
-
         # Calculate input and output limits based on model configuration
-        max_context_length, output_max_tokens = calculate_input_limits(
-            context_window=context_window,
-            max_input_tokens=max_input_tokens,
-            max_output_tokens=max_output_tokens
+        max_input_tokens, max_output_tokens = await calculate_model_token_limits(
+            model_service_provider=model_service_provider,
+            model_name=model_name,
         )
 
         # Build context and references from documents
+        max_input_chars = max_input_tokens * TOKEN_TO_CHAR_RATIO
         context = ""
         references = []
         if docs:
             for doc in docs:
-                if len(context) + len(doc.text) > max_context_length:
+                # Estimate final prompt length: template + query + current context + new doc
+                estimated_prompt_length = len(prompt_template) + len(query) + len(context) + len(doc.text)
+                if estimated_prompt_length > max_input_chars:
                     break
                 context += doc.text
                 references.append({"text": doc.text, "metadata": doc.metadata, "score": doc.score})
 
         prompt = prompt_template.format(query=query, context=context)
+        if len(prompt) > max_input_chars:
+            raise Exception(
+                f"Prompt requires {len(prompt)} characters, which exceeds the calculated "
+                f"input limit of {max_input_chars} characters"
+            )
         
-        # Validate prompt size against input limits
-        prompt_tokens = estimate_token_count(prompt)
-        
-        # Validate based on the relationship between context_window and max_input_tokens
-        if max_input_tokens and context_window:
-            if context_window == max_input_tokens:
-                # Case 1: max_input_tokens represents total context (input + output)
-                if prompt_tokens + output_max_tokens > max_input_tokens:
-                    raise Exception(
-                        f"Prompt ({prompt_tokens} tokens) plus output ({output_max_tokens} tokens) exceeds the model's total context limit of {max_input_tokens} tokens"
-                    )
-            else:
-                # Case 2: max_input_tokens is purely input limit
-                if prompt_tokens > max_input_tokens:
-                    raise Exception(
-                        f"Prompt requires approximately {prompt_tokens} tokens, which exceeds the model's max_input_tokens limit of {max_input_tokens}"
-                    )
-                # Also check total context window
-                if prompt_tokens + output_max_tokens > context_window:
-                    raise Exception(
-                        f"Prompt ({prompt_tokens} tokens) plus output ({output_max_tokens} tokens) exceeds the model's context_window of {context_window} tokens"
-                    )
-        elif max_input_tokens:
-            # Only max_input_tokens available, treat as pure input limit
-            if prompt_tokens > max_input_tokens:
-                raise Exception(
-                    f"Prompt requires approximately {prompt_tokens} tokens, which exceeds the model's max_input_tokens limit of {max_input_tokens}"
-                )
-        elif context_window:
-            # Only context_window available
-            if prompt_tokens + output_max_tokens > context_window:
-                raise Exception(
-                    f"Prompt ({prompt_tokens} tokens) plus output ({output_max_tokens} tokens) exceeds the model's context_window of {context_window} tokens"
-                )
-
-        cs = CompletionService(custom_llm_provider, model_name, base_url, api_key, temperature, output_max_tokens)
+        cs = CompletionService(custom_llm_provider, model_name, base_url, api_key, temperature, max_output_tokens)
 
         async def async_generator():
             response = ""

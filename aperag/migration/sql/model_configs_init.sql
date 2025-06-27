@@ -1,5 +1,5 @@
 -- Model configuration initialization SQL script
--- Generated directly from configuration data on 2025-06-27 16:52:58
+-- Generated directly from configuration data on 2025-06-27 18:29:20
 -- This script populates llm_provider and llm_provider_models tables
 
 BEGIN;
@@ -8266,6 +8266,6 @@ ON CONFLICT (provider_name, api, model) DO UPDATE SET
 
 COMMIT;
 
--- Script completed. Generated on 2025-06-27 16:52:58
+-- Script completed. Generated on 2025-06-27 18:29:20
 -- Total providers: 8
 -- Total models: 540

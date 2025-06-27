@@ -89,8 +89,12 @@ def _build_model_dict(model) -> dict:
         "model": model.model,
         "custom_llm_provider": model.custom_llm_provider,
     }
-    if model.max_tokens:
-        model_dict["max_tokens"] = model.max_tokens
+    if model.context_window:
+        model_dict["context_window"] = model.context_window
+    if model.max_input_tokens:
+        model_dict["max_input_tokens"] = model.max_input_tokens
+    if model.max_output_tokens:
+        model_dict["max_output_tokens"] = model.max_output_tokens
     if model.tags:
         model_dict["tags"] = model.tags
     return model_dict
