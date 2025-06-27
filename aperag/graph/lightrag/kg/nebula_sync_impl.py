@@ -232,7 +232,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                     return nodes
 
                 # Build FETCH query with explicit node IDs (FETCH doesn't support parameterized lists)
-                node_ids_str = ", ".join([f"'{node_id}'" for node_id in node_ids])
+                node_ids_str = ", ".join([repr(node_id) for node_id in node_ids])
                 query = f"FETCH PROP ON base {node_ids_str} YIELD id(vertex) as id, properties(vertex) as props"
                 result = session.execute(query)
 
