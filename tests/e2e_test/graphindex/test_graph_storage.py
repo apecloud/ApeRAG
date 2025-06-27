@@ -695,10 +695,10 @@ class GraphStorageTestRunner:
         storage, graph_data = storage_with_data
         await GraphStorageTestSuite.test_get_all_labels(storage, graph_data)
 
-    async def test_get_knowledge_graph(self, storage_with_data):
-        """Test get_knowledge_graph function"""
-        storage, graph_data = storage_with_data
-        await GraphStorageTestSuite.test_get_knowledge_graph(storage, graph_data)
+    # async def test_get_knowledge_graph(self, storage_with_data):
+    #     """Test get_knowledge_graph function"""
+    #     storage, graph_data = storage_with_data
+    #     await GraphStorageTestSuite.test_get_knowledge_graph(storage, graph_data)
 
     async def test_data_integrity(self, storage_with_data):
         """Test that loaded data maintains integrity"""

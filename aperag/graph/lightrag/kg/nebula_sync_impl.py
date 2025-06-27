@@ -616,96 +616,51 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_upsert_node)
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=4, max=10),
-        retry=retry_if_exception_type((IOErrorException,)) if IOErrorException else (),
-    )
     async def upsert_edge(self, source_node_id: str, target_node_id: str, edge_data: dict[str, str]) -> None:
-        """Upsert an edge between two nodes."""
+        """True UPSERT implementation using correct Nebula syntax."""
 
         def _sync_upsert_edge():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
-                # First, verify that both nodes exist
-                source_exists = self._sync_check_node_exists(source_node_id, session)
-                target_exists = self._sync_check_node_exists(target_node_id, session)
+                # Filter out None values
+                valid_props = {k: v for k, v in edge_data.items() if v is not None}
                 
-                if not source_exists:
-                    logger.error(f"Source node does not exist: {source_node_id}")
-                    raise RuntimeError(f"Source node does not exist: {source_node_id}")
-                    
-                if not target_exists:
-                    logger.error(f"Target node does not exist: {target_node_id}")
-                    raise RuntimeError(f"Target node does not exist: {target_node_id}")
-
-                # Build property names and parameter mapping for Nebula syntax
-                prop_names = []
-                param_dict = {"source_node_id": source_node_id, "target_node_id": target_node_id}
-
-                for key, value in edge_data.items():
-                    if value is not None:
-                        prop_names.append(key)
-                        param_dict[f"prop_{key}"] = value
-
-                if not prop_names:
-                    # No properties to insert
-                    logger.warning(f"No properties to insert for edge {source_node_id} -> {target_node_id}")
+                if not valid_props:
+                    logger.warning(f"No valid properties to upsert for edge {source_node_id} -> {target_node_id}")
                     return
 
-                # Use INSERT EDGE with ON DUPLICATE UPDATE for upsert semantics
-                # VID cannot be parameterized in INSERT statements  
-                # Use safe VID quoting to handle special characters properly
                 source_quoted = _quote_vid(source_node_id)
                 target_quoted = _quote_vid(target_node_id)
 
-                # Build property value list - avoid parameterization for now
-                prop_values = []
-                for key in prop_names:
-                    value = edge_data[key]
-                    if isinstance(value, str):
-                        # Escape special characters in string values for Nebula
-                        escaped_value = value.replace("\\", "\\\\")  # Escape backslashes first
-                        escaped_value = escaped_value.replace("'", "\\'")  # Escape single quotes
-                        escaped_value = escaped_value.replace("\n", "\\n")  # Escape newlines
-                        escaped_value = escaped_value.replace("\r", "\\r")  # Escape carriage returns
-                        escaped_value = escaped_value.replace("\t", "\\t")  # Escape tabs
-                        prop_values.append(f"'{escaped_value}'")
-                    elif isinstance(value, (int, float)):
-                        prop_values.append(str(value))
-                    else:
-                        # Convert to string and escape special characters
-                        str_value = str(value)
-                        escaped_value = str_value.replace("\\", "\\\\")  # Escape backslashes first
-                        escaped_value = escaped_value.replace("'", "\\'")  # Escape single quotes
-                        escaped_value = escaped_value.replace("\n", "\\n")  # Escape newlines
-                        escaped_value = escaped_value.replace("\r", "\\r")  # Escape carriage returns
-                        escaped_value = escaped_value.replace("\t", "\\t")  # Escape tabs
-                        prop_values.append(f"'{escaped_value}'")
+                # Build SET clauses with parameterized values
+                set_clauses = []
+                param_dict = {}
 
-                # Build property names and values for INSERT
-                prop_names_str = "(" + ", ".join(prop_names) + ")"
-                prop_values_str = "(" + ", ".join(prop_values) + ")"
+                for key, value in valid_props.items():
+                    param_key = f"prop_{key}"
+                    set_clauses.append(f"{key} = ${param_key}")
+                    param_dict[param_key] = value
 
-                query = f"INSERT EDGE DIRECTED{prop_names_str} VALUES {source_quoted} -> {target_quoted}:{prop_values_str}"
+                set_clause = ", ".join(set_clauses)
 
-                # No parameters needed since we're not using parameterization
-                nebula_params = {}
-                
-                # Debug logging
-                logger.debug(f"Insert edge query: {query}")
-                
-                result = session.execute(query)
+                # Use correct UPSERT EDGE syntax: UPSERT EDGE "src" -> "dst" OF edge_type SET ...
+                query = f"UPSERT EDGE {source_quoted} -> {target_quoted} OF DIRECTED SET {set_clause}"
+
+                # Prepare Nebula parameters
+                nebula_params = _prepare_nebula_params(param_dict)
+
+                logger.debug(f"UPSERT edge query: {query}")
+                logger.debug(f"UPSERT edge params: {list(param_dict.keys())}")
+
+                result = session.execute_parameter(query, nebula_params)
 
                 if not result.is_succeeded():
-                    logger.error(
-                        f"Failed to upsert edge from {source_node_id} to {target_node_id}: {_safe_error_msg(result)}"
-                    )
+                    logger.error(f"Failed to upsert edge from {source_node_id} to {target_node_id}: {_safe_error_msg(result)}")
                     raise RuntimeError(f"Failed to upsert edge: {_safe_error_msg(result)}")
 
-                logger.debug(f"Upserted edge from '{source_node_id}' to '{target_node_id}'")
+                logger.debug(f"Successfully upserted edge: '{source_node_id}' -> '{target_node_id}'")
 
         return await asyncio.to_thread(_sync_upsert_edge)
-    
+
     def _sync_check_node_exists(self, node_id: str, session) -> bool:
         """Synchronous helper to check if a node exists."""
         node_id_quoted = _quote_vid(node_id)
@@ -719,167 +674,9 @@ class NebulaSyncStorage(BaseGraphStorage):
         max_depth: int = 3,
         max_nodes: int = 1000,
     ) -> KnowledgeGraph:
-        """Retrieve a connected subgraph."""
-
-        def _sync_get_knowledge_graph():
-            result = KnowledgeGraph()
-            seen_nodes = set()
-            seen_edges = set()
-
-            with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
-                if node_label == "*":
-                    # Get all nodes using LOOKUP (LIMIT doesn't support parameters)
-                    query = f"""
-                    LOOKUP ON base 
-                    YIELD id(vertex) as id, properties(vertex) as props
-                    | LIMIT {max_nodes}
-                    """
-                    node_result = session.execute(query)
-
-                    if node_result.is_succeeded():
-                        for row in node_result:
-                            node_id = row.values()[0].as_string()
-                            props = row.values()[1].as_map()
-
-                            node_dict = self._convert_nebula_value_map(props)
-
-                            result.nodes.append(
-                                KnowledgeGraphNode(
-                                    id=node_id,
-                                    labels=[node_dict.get("entity_id", node_id)],
-                                    properties=node_dict,
-                                )
-                            )
-                            seen_nodes.add(node_id)
-
-                    # Get edges between nodes using individual queries
-                    if seen_nodes:
-                        nodes_list = list(seen_nodes)
-
-                        # Use individual GO queries for each node to find edges
-                        for src_node in nodes_list:
-                            query = """
-                            GO FROM $src_node OVER DIRECTED 
-                            YIELD src(edge) as src, dst(edge) as dst, properties(edge) as props
-                            """
-                            nebula_params = _prepare_nebula_params({"src_node": src_node})
-                            edge_result = session.execute_parameter(query, nebula_params)
-
-                            if edge_result.is_succeeded():
-                                for row in edge_result:
-                                    edge_src = row.values()[0].as_string()
-                                    edge_dst = row.values()[1].as_string()
-                                    props = row.values()[2].as_map()
-
-                                    # Only include edges where destination is also in our node set
-                                    if edge_dst in seen_nodes:
-                                        edge_dict = self._convert_nebula_value_map(props)
-
-                                        edge_id = f"{edge_src}-{edge_dst}"
-                                        if edge_id not in seen_edges:
-                                            result.edges.append(
-                                                KnowledgeGraphEdge(
-                                                    id=edge_id,
-                                                    type="DIRECTED",
-                                                    source=edge_src,
-                                                    target=edge_dst,
-                                                    properties=edge_dict,
-                                                )
-                                            )
-                                            seen_edges.add(edge_id)
-                else:
-                    # BFS from specific node using parameterized queries
-                    from collections import deque
-
-                    # Start with the specific node
-                    queue = deque([node_label])
-                    visited = set()
-                    current_depth = 0
-
-                    while queue and current_depth <= max_depth and len(seen_nodes) < max_nodes:
-                        level_size = len(queue)
-                        next_level_nodes = set()
-
-                        for _ in range(level_size):
-                            if not queue or len(seen_nodes) >= max_nodes:
-                                break
-
-                            current_node = queue.popleft()
-                            if current_node in visited:
-                                continue
-
-                            visited.add(current_node)
-
-                            # Get node properties using quoted VID
-                            # VID cannot be parameterized in FETCH statements
-                            # Use safe VID quoting to handle special characters properly
-                            current_node_quoted = _quote_vid(current_node)
-                            node_query = f"FETCH PROP ON base {current_node_quoted} YIELD properties(vertex) as props"
-                            node_result = session.execute(node_query)
-
-                            if node_result.is_succeeded() and node_result.row_size() > 0:
-                                for row in node_result:
-                                    props = row.values()[0].as_map()
-                                    node_dict = self._convert_nebula_value_map(props)
-
-                                    node_dict["entity_id"] = current_node
-                                    result.nodes.append(
-                                        KnowledgeGraphNode(
-                                            id=current_node,
-                                            labels=[node_dict.get("entity_id", current_node)],
-                                            properties=node_dict,
-                                        )
-                                    )
-                                    seen_nodes.add(current_node)
-                                    break
-
-                            # Get neighbors if not at max depth
-                            if current_depth < max_depth:
-                                neighbor_query = """
-                                GO FROM $current_node OVER * BIDIRECT 
-                                YIELD src(edge) as src, dst(edge) as dst, properties(edge) as props
-                                """
-                                nebula_params = _prepare_nebula_params({"current_node": current_node})
-                                neighbor_result = session.execute_parameter(neighbor_query, nebula_params)
-
-                                if neighbor_result.is_succeeded():
-                                    for row in neighbor_result:
-                                        src = row.values()[0].as_string()
-                                        dst = row.values()[1].as_string()
-                                        props = row.values()[2].as_map()
-
-                                        # Add edge to result
-                                        edge_id = f"{src}-{dst}"
-                                        if edge_id not in seen_edges:
-                                            edge_dict = self._convert_nebula_value_map(props)
-
-                                            result.edges.append(
-                                                KnowledgeGraphEdge(
-                                                    id=edge_id,
-                                                    type="DIRECTED",
-                                                    source=src,
-                                                    target=dst,
-                                                    properties=edge_dict,
-                                                )
-                                            )
-                                            seen_edges.add(edge_id)
-
-                                        # Add neighbor to next level
-                                        neighbor = dst if src == current_node else src
-                                        if neighbor not in visited and neighbor not in next_level_nodes:
-                                            next_level_nodes.add(neighbor)
-
-                        # Add next level nodes to queue
-                        for node in next_level_nodes:
-                            if len(seen_nodes) < max_nodes:
-                                queue.append(node)
-
-                        current_depth += 1
-
-            logger.info(f"Retrieved subgraph with {len(result.nodes)} nodes and {len(result.edges)} edges")
-            return result
-
-        return await asyncio.to_thread(_sync_get_knowledge_graph)
+        """This function is not used"""
+        """Don't implement it"""
+        raise NotImplementedError
 
     async def get_all_labels(self) -> list[str]:
         """Get all node labels."""
