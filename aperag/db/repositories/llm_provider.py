@@ -522,7 +522,9 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
         api: str,
         model: str,
         custom_llm_provider: str,
-        max_tokens: int = None,
+        context_window: int = None,
+        max_input_tokens: int = None,
+        max_output_tokens: int = None,
         tags: list = None,
     ) -> LLMProviderModel:
         """Create a new LLM provider model"""
@@ -538,7 +540,9 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
                 api=api_value,
                 model=model,
                 custom_llm_provider=custom_llm_provider,
-                max_tokens=max_tokens,
+                context_window=context_window,
+                max_input_tokens=max_input_tokens,
+                max_output_tokens=max_output_tokens,
                 tags=tags or [],
             )
             session.add(model_obj)
@@ -554,7 +558,9 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
         api: str,
         model: str,
         custom_llm_provider: str = None,
-        max_tokens: int = None,
+        context_window: int = None,
+        max_input_tokens: int = None,
+        max_output_tokens: int = None,
         tags: list = None,
     ) -> Optional[LLMProviderModel]:
         """Update an existing LLM provider model"""
@@ -572,8 +578,12 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
             if model_obj:
                 if custom_llm_provider is not None:
                     model_obj.custom_llm_provider = custom_llm_provider
-                if max_tokens is not None:
-                    model_obj.max_tokens = max_tokens
+                if context_window is not None:
+                    model_obj.context_window = context_window
+                if max_input_tokens is not None:
+                    model_obj.max_input_tokens = max_input_tokens
+                if max_output_tokens is not None:
+                    model_obj.max_output_tokens = max_output_tokens
                 if tags is not None:
                     model_obj.tags = tags
 

@@ -45,11 +45,23 @@ export interface LlmProviderModelCreate {
      */
     'custom_llm_provider': string;
     /**
-     * Maximum tokens for this model
+     * Context window size (total tokens)
      * @type {number}
      * @memberof LlmProviderModelCreate
      */
-    'max_tokens'?: number;
+    'context_window'?: number;
+    /**
+     * Maximum input tokens
+     * @type {number}
+     * @memberof LlmProviderModelCreate
+     */
+    'max_input_tokens'?: number;
+    /**
+     * Maximum output tokens
+     * @type {number}
+     * @memberof LlmProviderModelCreate
+     */
+    'max_output_tokens'?: number;
     /**
      * Tags for model categorization
      * @type {Array<string>}
