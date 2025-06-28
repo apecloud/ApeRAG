@@ -191,8 +191,15 @@ class NebulaSyncStorage(BaseGraphStorage):
         if NebulaSyncConnectionManager is None:
             raise RuntimeError("Nebula sync connection manager is not available")
 
-        # Prepare space in thread to avoid blocking
-        self._space_name = await asyncio.to_thread(NebulaSyncConnectionManager.prepare_space, self.workspace)
+        # Use optimized space preparation with reliable schema checking
+        # max_wait=30s for balanced performance and reliability
+        # fail_on_timeout=True ensures we get clear feedback if initialization fails
+        self._space_name = await asyncio.to_thread(
+            NebulaSyncConnectionManager.prepare_space, 
+            self.workspace,
+            max_wait=30,
+            fail_on_timeout=True
+        )
 
         logger.debug(f"NebulaSyncStorage initialized for workspace '{self.workspace}', space '{self._space_name}'")
 
