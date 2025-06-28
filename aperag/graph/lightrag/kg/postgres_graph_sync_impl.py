@@ -80,21 +80,24 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
     #################### upsert method ################
     async def upsert_node(self, node_id: str, node_data: dict[str, str]) -> None:
         """Upsert a node in the database - using individual fields for optimal performance."""
-        entity_name = node_data.get("entity_name", node_id)
-        entity_type = node_data.get("entity_type", "")
-        description = node_data.get("description", "")
-        source_id = node_data.get("source_id", "")
+        # Only set entity_name if it's explicitly provided and different from entity_id
+        entity_name = node_data.get("entity_name") if node_data.get("entity_name") != node_id else None
+        entity_type = node_data.get("entity_type") or None
+        description = node_data.get("description") or None  
+        source_id = node_data.get("source_id") or None
+        file_path = node_data.get("file_path") or None
         
         logger.debug(f"Upserted node with entity_id '{node_id}', entity_type '{entity_type}'")
         
         sql = """
-            INSERT INTO LIGHTRAG_GRAPH_NODES(entity_id, entity_name, entity_type, description, source_id, workspace, createtime, updatetime)
-            VALUES(%(entity_id)s, %(entity_name)s, %(entity_type)s, %(description)s, %(source_id)s, %(workspace)s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            INSERT INTO LIGHTRAG_GRAPH_NODES(entity_id, entity_name, entity_type, description, source_id, file_path, workspace, createtime, updatetime)
+            VALUES(%(entity_id)s, %(entity_name)s, %(entity_type)s, %(description)s, %(source_id)s, %(file_path)s, %(workspace)s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ON CONFLICT (workspace, entity_id) DO UPDATE SET
                 entity_name = EXCLUDED.entity_name,
                 entity_type = EXCLUDED.entity_type,
                 description = EXCLUDED.description,
                 source_id = EXCLUDED.source_id,
+                file_path = EXCLUDED.file_path,
                 updatetime = CURRENT_TIMESTAMP
         """
         data = {
@@ -104,6 +107,7 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
             "entity_type": entity_type,
             "description": description,
             "source_id": source_id,
+            "file_path": file_path,
         }
         
         db = await self._get_db()
@@ -115,20 +119,22 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
     ) -> None:
         """Upsert an edge between two nodes - using individual fields for optimal performance."""
         weight = float(edge_data.get("weight", 0.0))
-        keywords = edge_data.get("keywords", "")
-        description = edge_data.get("description", "")
-        source_id = edge_data.get("source_id", "")
+        keywords = edge_data.get("keywords") or None  # Keep None as None, don't convert to empty string
+        description = edge_data.get("description") or None
+        source_id = edge_data.get("source_id") or None
+        file_path = edge_data.get("file_path") or None
         
         logger.debug(f"Upserted edge from '{source_node_id}' to '{target_node_id}'")
         
         sql = """
-            INSERT INTO LIGHTRAG_GRAPH_EDGES(source_entity_id, target_entity_id, weight, keywords, description, source_id, workspace, createtime, updatetime)
-            VALUES(%(source_entity_id)s, %(target_entity_id)s, %(weight)s, %(keywords)s, %(description)s, %(source_id)s, %(workspace)s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            INSERT INTO LIGHTRAG_GRAPH_EDGES(source_entity_id, target_entity_id, weight, keywords, description, source_id, file_path, workspace, createtime, updatetime)
+            VALUES(%(source_entity_id)s, %(target_entity_id)s, %(weight)s, %(keywords)s, %(description)s, %(source_id)s, %(file_path)s, %(workspace)s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ON CONFLICT (workspace, source_entity_id, target_entity_id) DO UPDATE SET
                 weight = EXCLUDED.weight,
                 keywords = EXCLUDED.keywords,
                 description = EXCLUDED.description,
                 source_id = EXCLUDED.source_id,
+                file_path = EXCLUDED.file_path,
                 updatetime = CURRENT_TIMESTAMP
         """
         data = {
@@ -139,6 +145,7 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
             "keywords": keywords,
             "description": description,
             "source_id": source_id,
+            "file_path": file_path,
         }
         
         db = await self._get_db()
@@ -199,7 +206,8 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
 
     async def get_node(self, node_id: str) -> dict[str, str] | None:
         sql = """
-            SELECT entity_id, entity_name, entity_type, description, source_id
+            SELECT entity_id, entity_name, entity_type, description, source_id, file_path, 
+                   EXTRACT(EPOCH FROM createtime)::INTEGER as created_at
             FROM LIGHTRAG_GRAPH_NODES WHERE workspace = %(workspace)s AND entity_id = %(entity_id)s
         """
         param = {"entity_id": node_id, "workspace": self.workspace}
@@ -211,11 +219,16 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
                 # Return node data assembled from individual fields - similar to Neo4j format
                 node_dict = {
                     "entity_id": result["entity_id"],
-                    "entity_name": result["entity_name"],
                     "entity_type": result["entity_type"],
                     "description": result["description"],
                     "source_id": result["source_id"],
+                    "file_path": result["file_path"],
+                    "created_at": result["created_at"],
                 }
+                # Only include entity_name if it's different from entity_id and not None
+                if result["entity_name"] and result["entity_name"] != result["entity_id"]:
+                    node_dict["entity_name"] = result["entity_name"]
+                
                 # Remove None values for cleaner output
                 return {k: v for k, v in node_dict.items() if v is not None}
             return None
@@ -224,7 +237,8 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
         self, source_node_id: str, target_node_id: str
     ) -> dict[str, str] | None:
         sql = """
-            SELECT source_entity_id, target_entity_id, weight, keywords, description, source_id
+            SELECT source_entity_id, target_entity_id, weight, keywords, description, source_id, file_path,
+                   EXTRACT(EPOCH FROM createtime)::INTEGER as created_at
             FROM LIGHTRAG_GRAPH_EDGES WHERE workspace = %(workspace)s AND source_entity_id = %(source_entity_id)s AND target_entity_id = %(target_entity_id)s
         """
         param = {
@@ -243,6 +257,8 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
                     "keywords": result["keywords"],
                     "description": result["description"],
                     "source_id": result["source_id"],
+                    "file_path": result["file_path"],
+                    "created_at": result["created_at"],
                 }
                 # Remove None values for cleaner output
                 return {k: v for k, v in edge_result.items() if v is not None}
@@ -410,7 +426,7 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
             if node_label == "*":
                 # Handle special case, get all nodes
                 sql = """
-                    SELECT entity_id, entity_name, entity_type, description, source_id FROM LIGHTRAG_GRAPH_NODES
+                    SELECT entity_id, entity_name, entity_type, description, source_id, file_path FROM LIGHTRAG_GRAPH_NODES
                     WHERE workspace = %(workspace)s
                     ORDER BY entity_id
                     LIMIT %(max_nodes)s
@@ -424,7 +440,7 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
                 # Get nodes matching the label
                 label_pattern = f"%{node_label}%"
                 sql = """
-                    SELECT entity_id, entity_name, entity_type, description, source_id FROM LIGHTRAG_GRAPH_NODES
+                    SELECT entity_id, entity_name, entity_type, description, source_id, file_path FROM LIGHTRAG_GRAPH_NODES
                     WHERE workspace = %(workspace)s AND entity_id LIKE %(label_pattern)s
                     ORDER BY entity_id
                 """
@@ -450,11 +466,15 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
             # Assemble properties from individual fields
             properties = {
                 "entity_id": node["entity_id"],
-                "entity_name": node["entity_name"],
                 "entity_type": node["entity_type"],
                 "description": node["description"],
                 "source_id": node["source_id"],
+                "file_path": node["file_path"],
             }
+            # Only include entity_name if it's different from entity_id and not None
+            if node["entity_name"] and node["entity_name"] != node["entity_id"]:
+                properties["entity_name"] = node["entity_name"]
+            
             # Remove None values for cleaner output
             properties = {k: v for k, v in properties.items() if v is not None}
             
@@ -469,7 +489,7 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
             # Get related edges
             if node_names:
                 sql = """
-                    SELECT source_entity_id, target_entity_id, weight, keywords, description, source_id FROM LIGHTRAG_GRAPH_EDGES
+                    SELECT source_entity_id, target_entity_id, weight, keywords, description, source_id, file_path FROM LIGHTRAG_GRAPH_EDGES
                     WHERE workspace = %(workspace)s 
                     AND (source_entity_id = ANY(%(node_names)s) OR target_entity_id = ANY(%(node_names)s))
                 """
@@ -495,6 +515,7 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
                             "keywords": edge["keywords"],
                             "description": edge["description"],
                             "source_id": edge["source_id"],
+                            "file_path": edge["file_path"],
                         }
                         # Remove None values for cleaner output
                         edge_properties = {k: v for k, v in edge_properties.items() if v is not None}
