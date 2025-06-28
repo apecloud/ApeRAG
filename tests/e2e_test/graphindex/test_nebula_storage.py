@@ -3,6 +3,7 @@ Nebula-specific E2E tests using the universal graph storage test suite with Orac
 This file provides Nebula storage instances and runs all tests from GraphStorageTestSuite.
 """
 
+import os
 import uuid
 
 import dotenv
@@ -15,6 +16,28 @@ from tests.e2e_test.graphindex.networkx_baseline_storage import NetworkXBaseline
 from tests.e2e_test.graphindex.test_graph_storage import GraphStorageTestSuite, load_graph_data
 
 dotenv.load_dotenv(".env")
+
+
+def check_nebula_environment() -> bool:
+    """Check if Nebula environment variables are properly configured."""
+    required_vars = ["NEBULA_HOST", "NEBULA_PORT", "NEBULA_USER", "NEBULA_PASSWORD"]
+    
+    missing_vars = []
+    for var in required_vars:
+        if not os.getenv(var):
+            missing_vars.append(var)
+    
+    if missing_vars:
+        return False
+    
+    return True
+
+
+# Skip all tests in this module if Nebula environment is not configured
+pytestmark = pytest.mark.skipif(
+    not check_nebula_environment(),
+    reason="Nebula environment variables not configured. Required: NEBULA_HOST, NEBULA_PORT, NEBULA_USER, NEBULA_PASSWORD"
+)
 
 
 @pytest_asyncio.fixture(scope="class")
