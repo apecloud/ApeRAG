@@ -195,18 +195,17 @@ class NebulaSyncStorage(BaseGraphStorage):
         logger.debug(f"NebulaSyncStorage finalized for workspace '{self.workspace}'")
 
     async def has_node(self, node_id: str) -> bool:
-        """Check if a node exists."""
+        """Check if a node exists using MATCH syntax (Nebula supports both nGQL and Cypher-like syntax)."""
 
         def _sync_has_node():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
-                # VID cannot be parameterized in FETCH statements
-                # Use safe VID quoting to handle special characters properly
-                node_id_quoted = _quote_vid(node_id)
-                query = f"FETCH PROP ON base {node_id_quoted} YIELD properties(vertex)"
-                result = session.execute(query)
-                if result.is_succeeded() and result.row_size() > 0:
-                    return True
-                return False
+                # Use MATCH syntax with parameterized query (Nebula supports this!)
+                query = "MATCH (v) WHERE id(v) == $vid RETURN v LIMIT 1"
+                params = {"vid": node_id}
+                
+                nebula_params = _prepare_nebula_params(params)
+                result = session.execute_parameter(query, nebula_params)
+                return result.is_succeeded() and result.row_size() > 0
 
         return await asyncio.to_thread(_sync_has_node)
 
