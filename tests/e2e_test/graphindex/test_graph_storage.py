@@ -126,18 +126,17 @@ class GraphStorageTestSuite:
         """Test has_node function via oracle"""
         print("🔍 Testing has_node via oracle")
         
-        # Get random sample of nodes instead of hardcoded values
-        sample_entities = get_random_sample(graph_data["nodes"], max_size=10, min_size=3)
-        found_count = 0
+        # Get random sample of nodes from graph_data - all should exist in storage
+        sample_entities = get_random_sample(graph_data["nodes"], max_size=15, min_size=5)
 
         for entity in sample_entities:
             # Oracle automatically compares storage and baseline results
+            # Since data is loaded from graph_data, all nodes should exist
             exists = await oracle.has_node(entity)
-            if exists:
-                found_count += 1
-                print(f"✓ Found entity: {entity}")
+            assert exists, f"Node {entity} from graph_data should exist in storage"
+            print(f"✓ Found entity: {entity}")
 
-        assert found_count > 0, "Should find at least some test entities"
+        print(f"✓ Verified {len(sample_entities)} nodes exist in storage")
 
         # Test with non-existent node - oracle will verify both return False
         non_existent = await oracle.has_node("不存在的节点_12345")
@@ -146,27 +145,28 @@ class GraphStorageTestSuite:
     @staticmethod
     async def test_get_node(oracle, graph_data: Dict[str, Any]):
         """Test get_node function via oracle"""
-        # Find a node with rich data (prefer nodes with longer descriptions)
-        target_entity = None
-        max_desc_length = 0
+        print("🔍 Testing get_node via oracle")
         
-        for entity_id, node_data in graph_data["nodes"].items():
-            desc_length = len(node_data["properties"].get("description", ""))
-            if desc_length > max_desc_length:
-                max_desc_length = desc_length
-                target_entity = entity_id
+        # Test multiple nodes to ensure comprehensive verification
+        sample_entities = get_random_sample(graph_data["nodes"], max_size=5, min_size=3)
+        
+        for target_entity in sample_entities:
+            # Oracle automatically compares get_node results
+            node_data = await oracle.get_node(target_entity)
+            assert node_data is not None, f"Node {target_entity} from graph_data should exist"
+            assert node_data["entity_id"] == target_entity, "Entity ID should match"
 
-        if not target_entity:
-            target_entity = list(graph_data["nodes"].keys())[0]
-
-        # Oracle automatically compares get_node results
-        node_data = await oracle.get_node(target_entity)
-        assert node_data is not None, f"Node {target_entity} should exist"
-        assert node_data["entity_id"] == target_entity
-
-        # Verify description matches
-        expected_desc = graph_data["nodes"][target_entity]["properties"]["description"]
-        assert node_data["description"] == expected_desc
+            # Verify all properties match graph_data
+            expected_properties = graph_data["nodes"][target_entity]["properties"]
+            assert node_data["entity_type"] == expected_properties["entity_type"], "Entity type should match"
+            
+            if "description" in expected_properties:
+                assert node_data["description"] == expected_properties["description"], "Description should match"
+            
+            if "source_id" in expected_properties:
+                assert node_data["source_id"] == expected_properties["source_id"], "Source ID should match"
+            
+            print(f"✓ Node {target_entity} properties verified")
 
         # Test non-existent node - oracle will verify both return None
         null_node = await oracle.get_node("不存在的节点_12345")
@@ -175,6 +175,8 @@ class GraphStorageTestSuite:
     @staticmethod
     async def test_get_nodes_batch(oracle, graph_data: Dict[str, Any]):
         """Test get_nodes_batch function via oracle"""
+        print("🔍 Testing get_nodes_batch via oracle")
+        
         # Get random sample of nodes for batch testing
         node_ids = get_random_sample(graph_data["nodes"], max_size=20, min_size=5)
 
@@ -182,15 +184,24 @@ class GraphStorageTestSuite:
         batch_result = await oracle.get_nodes_batch(node_ids)
 
         assert isinstance(batch_result, dict)
-        assert len(batch_result) <= len(node_ids)  # Some might not exist in storage
+        # Since all nodes from graph_data should exist in storage
+        assert len(batch_result) == len(node_ids), f"Expected {len(node_ids)} nodes, got {len(batch_result)}"
 
         for node_id, node_data in batch_result.items():
-            assert node_data["entity_id"] == node_id
-            assert node_id in graph_data["nodes"]
+            assert node_data["entity_id"] == node_id, "Entity ID should match"
+            assert node_id in graph_data["nodes"], "Node should be from graph_data"
+            
+            # Verify properties match
+            expected_properties = graph_data["nodes"][node_id]["properties"]
+            assert node_data["entity_type"] == expected_properties["entity_type"], "Entity type should match"
+            
+        print(f"✓ Verified batch retrieval of {len(batch_result)} nodes")
 
     @staticmethod
     async def test_node_degree(oracle, graph_data: Dict[str, Any]):
         """Test node_degree function via oracle"""
+        print("🔍 Testing node_degree via oracle")
+        
         # Use nodes that are likely to have connections
         high_degree_nodes = get_high_degree_nodes(graph_data, max_count=5)
         
@@ -198,25 +209,27 @@ class GraphStorageTestSuite:
             # Fallback to random sampling if no high-degree nodes found
             high_degree_nodes = get_random_sample(graph_data["nodes"], max_size=5, min_size=1)
 
+        # Test multiple nodes since all should exist
+        tested_count = 0
         for node_id in high_degree_nodes:
-            if await oracle.has_node(node_id):
-                # Oracle automatically compares degree results
-                degree = await oracle.node_degree(node_id)
-                assert isinstance(degree, int)
-                assert degree >= 0
-                print(f"✓ Node {node_id} has degree: {degree}")
-                return  # Successfully tested one node
-        
-        # If none of the high-degree nodes exist, test with any available node
-        any_node = list(graph_data["nodes"].keys())[0]
-        if await oracle.has_node(any_node):
-            degree = await oracle.node_degree(any_node)
+            # Since data is from graph_data, node should exist
+            exists = await oracle.has_node(node_id)
+            assert exists, f"Node {node_id} from graph_data should exist"
+            
+            # Oracle automatically compares degree results
+            degree = await oracle.node_degree(node_id)
             assert isinstance(degree, int)
             assert degree >= 0
+            print(f"✓ Node {node_id} has degree: {degree}")
+            tested_count += 1
+        
+        print(f"✓ Verified node degree for {tested_count} nodes")
 
     @staticmethod
     async def test_node_degrees_batch(oracle, graph_data: Dict[str, Any]):
         """Test node_degrees_batch function via oracle"""
+        print("🔍 Testing node_degrees_batch via oracle")
+        
         # Get random sample for batch degree testing
         node_ids = get_random_sample(graph_data["nodes"], max_size=10, min_size=3)
 
@@ -224,12 +237,16 @@ class GraphStorageTestSuite:
         degrees = await oracle.node_degrees_batch(node_ids)
 
         assert isinstance(degrees, dict)
-        assert len(degrees) <= len(node_ids)
+        # Since all nodes from graph_data should exist in storage
+        assert len(degrees) == len(node_ids), f"Expected {len(node_ids)} degrees, got {len(degrees)}"
 
         for node_id, degree in degrees.items():
             assert isinstance(degree, int)
             assert degree >= 0
-            assert node_id in node_ids
+            assert node_id in node_ids, "Returned node should be in requested list"
+            assert node_id in graph_data["nodes"], "Node should be from graph_data"
+            
+        print(f"✓ Verified batch degrees for {len(degrees)} nodes")
 
     @staticmethod
     async def test_upsert_node(oracle):
@@ -323,53 +340,74 @@ class GraphStorageTestSuite:
         if not graph_data["edges"]:
             pytest.skip("No edges in test data")
 
-        # Test with random sample of edges
-        sample_edges = random.sample(graph_data["edges"], min(5, len(graph_data["edges"])))
+        # Test with random sample of edges from graph_data
+        sample_edges = random.sample(graph_data["edges"], min(8, len(graph_data["edges"])))
         
         found_edges = 0
         for edge in sample_edges:
             start_node = edge["start_node_id"]
             end_node = edge["end_node_id"]
 
-            # Verify nodes exist first - oracle compares both results
+            # Verify nodes exist first - they should since data is from graph_data
             start_exists = await oracle.has_node(start_node)
             end_exists = await oracle.has_node(end_node)
+            assert start_exists, f"Start node {start_node} from graph_data should exist"
+            assert end_exists, f"End node {end_node} from graph_data should exist"
 
-            if start_exists and end_exists:
-                # Oracle automatically compares has_edge results
-                edge_exists = await oracle.has_edge(start_node, end_node)
-                if edge_exists:
-                    found_edges += 1
-                    print(f"✓ Edge {start_node}->{end_node} exists")
+            # Oracle automatically compares has_edge results
+            # Since edge is from graph_data, it should exist in storage
+            edge_exists = await oracle.has_edge(start_node, end_node)
+            assert edge_exists, f"Edge {start_node}->{end_node} from graph_data should exist in storage"
+            found_edges += 1
+            print(f"✓ Edge {start_node}->{end_node} exists")
 
+        print(f"✓ Verified {found_edges} edges exist in storage")
+        
         # Test non-existent edge - oracle will verify both return False
         no_edge = await oracle.has_edge("不存在1", "不存在2")
         assert not no_edge
 
     @staticmethod
-    async def test_get_edge(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test get_edge function with weighted edges"""
-        # Find edge with weight property
-        weighted_edges = [edge for edge in graph_data["edges"] if "weight" in edge["properties"]]
+    async def test_get_edge(oracle, graph_data: Dict[str, Any]):
+        """Test get_edge function via oracle"""
+        print("🔍 Testing get_edge via oracle")
         
-        if not weighted_edges:
-            pytest.skip("No weighted edges in test data")
+        if not graph_data["edges"]:
+            pytest.skip("No edges in test data")
 
-        test_edge = random.choice(weighted_edges)
-        start_node = test_edge["start_node_id"]
-        end_node = test_edge["end_node_id"]
+        # Test multiple edges to ensure comprehensive verification
+        sample_edges = random.sample(graph_data["edges"], min(5, len(graph_data["edges"])))
+        
+        for test_edge in sample_edges:
+            start_node = test_edge["start_node_id"]
+            end_node = test_edge["end_node_id"]
 
-        # Verify nodes exist
-        if await storage.has_node(start_node) and await storage.has_node(end_node):
-            edge_data = await storage.get_edge(start_node, end_node)
+            # Verify nodes exist - they should since data is from graph_data
+            start_exists = await oracle.has_node(start_node)
+            end_exists = await oracle.has_node(end_node)
+            assert start_exists, f"Start node {start_node} should exist"
+            assert end_exists, f"End node {end_node} should exist"
+            
+            # Oracle automatically compares get_edge results
+            edge_data = await oracle.get_edge(start_node, end_node)
+            assert edge_data is not None, f"Edge {start_node}->{end_node} from graph_data should exist"
 
-            if edge_data:  # Edge might not exist due to insertion failures
-                assert "weight" in edge_data
-                assert edge_data["weight"] == test_edge["properties"]["weight"]
+            # Verify properties match graph_data
+            expected_properties = test_edge["properties"]
+            if "weight" in expected_properties:
+                assert "weight" in edge_data, "Weight property should exist"
+                assert edge_data["weight"] == expected_properties["weight"], "Weight should match"
+            
+            if "description" in expected_properties:
+                assert edge_data["description"] == expected_properties["description"], "Description should match"
+                
+            print(f"✓ Edge {start_node}->{end_node} properties verified")
 
     @staticmethod
     async def test_get_edges_batch(oracle, graph_data: Dict[str, Any]):
         """Test get_edges_batch function via oracle"""
+        print("🔍 Testing get_edges_batch via oracle")
+        
         if len(graph_data["edges"]) < 3:
             pytest.skip("Not enough edges for batch test")
 
@@ -378,45 +416,66 @@ class GraphStorageTestSuite:
         edge_pairs = []
 
         for edge in sample_edges:
+            # Since edges are from graph_data, nodes should exist
             start_exists = await oracle.has_node(edge["start_node_id"])
             end_exists = await oracle.has_node(edge["end_node_id"])
+            assert start_exists, f"Start node {edge['start_node_id']} should exist"
+            assert end_exists, f"End node {edge['end_node_id']} should exist"
 
-            if start_exists and end_exists:
-                edge_pairs.append({"src": edge["start_node_id"], "tgt": edge["end_node_id"]})
+            edge_pairs.append({"src": edge["start_node_id"], "tgt": edge["end_node_id"]})
 
-        if edge_pairs:
-            # Oracle automatically compares batch results
-            batch_result = await oracle.get_edges_batch(edge_pairs)
-            assert isinstance(batch_result, dict)
+        # Oracle automatically compares batch results
+        batch_result = await oracle.get_edges_batch(edge_pairs)
+        assert isinstance(batch_result, dict)
+        # Since all edges are from graph_data, they should all be found
+        assert len(batch_result) == len(edge_pairs), f"Expected {len(edge_pairs)} edges, got {len(batch_result)}"
 
-            for (src, tgt), edge_data in batch_result.items():
-                assert isinstance(edge_data, dict)
+        for (src, tgt), edge_data in batch_result.items():
+            assert isinstance(edge_data, dict)
+            # Verify this edge was in our request
+            pair_found = any(pair["src"] == src and pair["tgt"] == tgt for pair in edge_pairs)
+            assert pair_found, f"Edge ({src}, {tgt}) should be in requested pairs"
+            
+        print(f"✓ Verified batch retrieval of {len(batch_result)} edges")
 
     @staticmethod
     async def test_get_node_edges(oracle, graph_data: Dict[str, Any]):
         """Test get_node_edges function via oracle"""
+        print("🔍 Testing get_node_edges via oracle")
+        
         # Find nodes that likely have edges
         high_degree_nodes = get_high_degree_nodes(graph_data, max_count=5)
         
         if not high_degree_nodes:
             high_degree_nodes = get_random_sample(graph_data["nodes"], max_size=5, min_size=1)
 
+        tested_count = 0
         for node_id in high_degree_nodes:
-            if await oracle.has_node(node_id):
-                # Oracle automatically compares results
-                edges = await oracle.get_node_edges(node_id)
-                assert isinstance(edges, (list, type(None)))
+            # Since nodes are from graph_data, they should exist
+            exists = await oracle.has_node(node_id)
+            assert exists, f"Node {node_id} from graph_data should exist"
+            
+            # Oracle automatically compares results
+            edges = await oracle.get_node_edges(node_id)
+            assert isinstance(edges, (list, type(None)))
 
-                if edges:
-                    print(f"✓ Node {node_id} has {len(edges)} edges")
-                    for src, tgt in edges:
-                        assert isinstance(src, str)
-                        assert isinstance(tgt, str)
-                return  # Successfully tested one node
+            if edges:
+                print(f"✓ Node {node_id} has {len(edges)} edges")
+                for src, tgt in edges:
+                    assert isinstance(src, str)
+                    assert isinstance(tgt, str)
+            else:
+                print(f"✓ Node {node_id} has no edges")
+            
+            tested_count += 1
+        
+        print(f"✓ Verified node edges for {tested_count} nodes")
 
     @staticmethod
     async def test_get_nodes_edges_batch(oracle, graph_data: Dict[str, Any]):
         """Test get_nodes_edges_batch function via oracle"""
+        print("🔍 Testing get_nodes_edges_batch via oracle")
+        
         # Select random nodes for batch test
         node_ids = get_random_sample(graph_data["nodes"], max_size=10, min_size=3)
 
@@ -424,59 +483,86 @@ class GraphStorageTestSuite:
         batch_result = await oracle.get_nodes_edges_batch(node_ids)
 
         assert isinstance(batch_result, dict)
-        assert len(batch_result) <= len(node_ids)
+        # Since all nodes are from graph_data, they should all be in results
+        assert len(batch_result) == len(node_ids), f"Expected {len(node_ids)} nodes, got {len(batch_result)}"
 
         for node_id, edges in batch_result.items():
             assert isinstance(edges, list)
+            assert node_id in node_ids, "Returned node should be in requested list"
+            assert node_id in graph_data["nodes"], "Node should be from graph_data"
+            
             for src, tgt in edges:
                 assert isinstance(src, str)
                 assert isinstance(tgt, str)
+                
+        print(f"✓ Verified batch node edges for {len(batch_result)} nodes")
 
     @staticmethod
     async def test_edge_degree(oracle, graph_data: Dict[str, Any]):
         """Test edge_degree function via oracle"""
+        print("🔍 Testing edge_degree via oracle")
+        
         if not graph_data["edges"]:
             pytest.skip("No edges in test data")
 
-        # Test with random edge
-        sample_edges = random.sample(graph_data["edges"], min(3, len(graph_data["edges"])))
+        # Test with random edges
+        sample_edges = random.sample(graph_data["edges"], min(5, len(graph_data["edges"])))
         
+        tested_count = 0
         for edge in sample_edges:
             start_node = edge["start_node_id"]
             end_node = edge["end_node_id"]
 
-            if await oracle.has_node(start_node) and await oracle.has_node(end_node):
-                # Oracle automatically compares results
-                edge_degree = await oracle.edge_degree(start_node, end_node)
-                assert isinstance(edge_degree, int)
-                assert edge_degree >= 0
-                return  # Successfully tested one edge
+            # Since edges are from graph_data, nodes should exist
+            start_exists = await oracle.has_node(start_node)
+            end_exists = await oracle.has_node(end_node)
+            assert start_exists, f"Start node {start_node} should exist"
+            assert end_exists, f"End node {end_node} should exist"
+            
+            # Oracle automatically compares results
+            edge_degree = await oracle.edge_degree(start_node, end_node)
+            assert isinstance(edge_degree, int)
+            assert edge_degree >= 0
+            print(f"✓ Edge {start_node}->{end_node} has degree: {edge_degree}")
+            tested_count += 1
+        
+        print(f"✓ Verified edge degree for {tested_count} edges")
 
     @staticmethod
     async def test_edge_degrees_batch(oracle, graph_data: Dict[str, Any]):
         """Test edge_degrees_batch function via oracle"""
+        print("🔍 Testing edge_degrees_batch via oracle")
+        
         if len(graph_data["edges"]) < 2:
             pytest.skip("Not enough edges for batch test")
 
         # Select random edges for testing
-        sample_edges = random.sample(graph_data["edges"], min(5, len(graph_data["edges"])))
+        sample_edges = random.sample(graph_data["edges"], min(8, len(graph_data["edges"])))
         edge_pairs = []
         
         for edge in sample_edges:
+            # Since edges are from graph_data, nodes should exist
             start_exists = await oracle.has_node(edge["start_node_id"])
             end_exists = await oracle.has_node(edge["end_node_id"])
+            assert start_exists, f"Start node {edge['start_node_id']} should exist"
+            assert end_exists, f"End node {edge['end_node_id']} should exist"
 
-            if start_exists and end_exists:
-                edge_pairs.append((edge["start_node_id"], edge["end_node_id"]))
+            edge_pairs.append((edge["start_node_id"], edge["end_node_id"]))
 
-        if edge_pairs:
-            # Oracle automatically compares batch results
-            degrees = await oracle.edge_degrees_batch(edge_pairs)
-            assert isinstance(degrees, dict)
+        # Oracle automatically compares batch results
+        degrees = await oracle.edge_degrees_batch(edge_pairs)
+        assert isinstance(degrees, dict)
+        # Since all edges are from graph_data, all should have degrees
+        assert len(degrees) == len(edge_pairs), f"Expected {len(edge_pairs)} edge degrees, got {len(degrees)}"
 
-            for (src, tgt), degree in degrees.items():
-                assert isinstance(degree, int)
-                assert degree >= 0
+        for (src, tgt), degree in degrees.items():
+            assert isinstance(degree, int)
+            assert degree >= 0
+            # Verify this edge was in our request
+            pair_found = (src, tgt) in edge_pairs
+            assert pair_found, f"Edge pair ({src}, {tgt}) should be in requested pairs"
+            
+        print(f"✓ Verified batch edge degrees for {len(degrees)} edge pairs")
 
     @staticmethod
     async def test_upsert_edge(oracle):
@@ -549,29 +635,35 @@ class GraphStorageTestSuite:
     @staticmethod
     async def test_data_integrity(oracle, graph_data: Dict[str, Any]):
         """Test that loaded data maintains integrity via oracle"""
+        print("🔍 Testing data integrity via oracle")
+        
         # Sample random nodes and verify their data
         sample_nodes = get_random_sample(graph_data["nodes"], max_size=50, min_size=20)
         
-        verified_count = 0
         for entity_id in sample_nodes:
             expected_data = graph_data["nodes"][entity_id]
             
-            if await oracle.has_node(entity_id):
-                # Oracle automatically compares get_node results
-                actual_data = await oracle.get_node(entity_id)
+            # Since nodes are from graph_data, they should exist
+            exists = await oracle.has_node(entity_id)
+            assert exists, f"Node {entity_id} from graph_data should exist"
+            
+            # Oracle automatically compares get_node results
+            actual_data = await oracle.get_node(entity_id)
+            assert actual_data is not None, f"Should be able to retrieve data for {entity_id}"
 
-                # Check key fields
-                assert actual_data["entity_id"] == entity_id
-                assert actual_data["entity_type"] == expected_data["properties"]["entity_type"]
+            # Check key fields
+            assert actual_data["entity_id"] == entity_id, "Entity ID should match"
+            assert actual_data["entity_type"] == expected_data["properties"]["entity_type"], "Entity type should match"
 
-                # Description should match
-                if "description" in expected_data["properties"]:
-                    assert actual_data["description"] == expected_data["properties"]["description"]
+            # Description should match if present
+            if "description" in expected_data["properties"]:
+                assert actual_data["description"] == expected_data["properties"]["description"], "Description should match"
+            
+            # Source ID should match if present
+            if "source_id" in expected_data["properties"]:
+                assert actual_data["source_id"] == expected_data["properties"]["source_id"], "Source ID should match"
 
-                verified_count += 1
-
-        print(f"✓ Data integrity verified for {verified_count} nodes via oracle")
-        assert verified_count > 0, "Should verify at least some nodes"
+        print(f"✓ Data integrity verified for {len(sample_nodes)} nodes via oracle")
 
     @staticmethod
     async def test_large_batch_operations(oracle):

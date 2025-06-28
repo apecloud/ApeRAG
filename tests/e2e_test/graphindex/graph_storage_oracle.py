@@ -561,8 +561,6 @@ class GraphStorageOracle(BaseGraphStorage):
             # Execute on storage
             await self.storage.upsert_node(node_id, node_data)
             
-            print(f"⚖️  Write operation '{operation_id}' completed and synced")
-            
         except Exception as e:
             print(f"❌ Oracle operation '{operation_id}' failed: {e}")
             raise
@@ -578,8 +576,6 @@ class GraphStorageOracle(BaseGraphStorage):
             
             # Execute on storage
             await self.storage.upsert_edge(source_node_id, target_node_id, edge_data)
-            
-            print(f"⚖️  Write operation '{operation_id}' completed and synced")
             
         except Exception as e:
             print(f"❌ Oracle operation '{operation_id}' failed: {e}")
