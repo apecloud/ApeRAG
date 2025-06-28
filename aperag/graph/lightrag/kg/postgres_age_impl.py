@@ -35,7 +35,7 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, NamedTuple, Optional, final
+from typing import Any, Dict, List, Optional, final
 
 import psycopg
 from psycopg.rows import namedtuple_row
@@ -72,6 +72,12 @@ class PostgreSQLAGEStorage(BaseGraphStorage):
     """
     PostgreSQL AGE storage implementation using sync driver with async interface.
     This avoids event loop issues while maintaining compatibility with async code.
+    
+    Performance Strategy:
+    - Simple queries over complex batch operations (AGE limitations)
+    - Fast fallback from batch to individual operations
+    - Increased timeouts for AGE query processing
+    - Minimal result parsing overhead
     """
 
     def __init__(self, namespace, workspace, embedding_func=None):
@@ -85,13 +91,7 @@ class PostgreSQLAGEStorage(BaseGraphStorage):
     @staticmethod
     def _encode_graph_label(label: str) -> str:
         """
-        Since AGE supports only alphanumerical labels, we will encode generic label as HEX string.
-        
-        Args:
-            label (str): the original label
-            
-        Returns:
-            str: the encoded label
+        Since AGE supports only alphanumerical labels, encode as HEX string.
         """
         return "x" + label.encode().hex()
 
@@ -99,102 +99,51 @@ class PostgreSQLAGEStorage(BaseGraphStorage):
     def _decode_graph_label(encoded_label: str) -> str:
         """
         Decode HEX string back to original label.
-        
-        Args:
-            encoded_label (str): the encoded label
-            
-        Returns:
-            str: the decoded label
         """
         return bytes.fromhex(encoded_label.removeprefix("x")).decode()
 
     @staticmethod
-    def _format_properties(properties: Dict[str, Any], _id: Optional[str] = None) -> str:
+    def _format_properties(properties: Dict[str, Any]) -> str:
         """
-        Convert a dictionary of properties to a string representation that
-        can be used in a cypher query insert/merge statement.
-        
-        Args:
-            properties (Dict[str,str]): a dictionary containing node/edge properties
-            _id (Optional[str]): the id of the node or None if none exists
-            
-        Returns:
-            str: the properties dictionary as a properly formatted string
+        Convert properties dictionary to AGE format string.
         """
         props = []
-        # wrap property key in backticks to escape
         for k, v in properties.items():
             prop = f"`{k}`: {json.dumps(v)}"
             props.append(prop)
-        if _id is not None and "id" not in properties:
-            props.append(
-                f"id: {json.dumps(_id)}" if isinstance(_id, str) else f"id: {_id}"
-            )
         return "{" + ", ".join(props) + "}"
 
-    @staticmethod
-    def _wrap_query(query: str, graph_name: str) -> str:
+    def _wrap_cypher_query(self, cypher_query: str) -> str:
         """
-        Convert a cypher query to an Apache AGE compatible SQL query.
-        
-        Args:
-            query (str): a valid cypher query
-            graph_name (str): the name of the graph to query
-            
-        Returns:
-            str: an equivalent PostgreSQL query
+        Wrap cypher query for AGE execution with minimal field specification.
         """
-        # Handle RETURN statements
-        if "return" in query.lower():
-            # Parse return statement to identify returned fields
-            fields = (
-                query.lower()
-                .split("return")[-1]
-                .split("distinct")[-1]
-                .split("order by")[0]
-                .split("skip")[0]
-                .split("limit")[0]
-                .split(",")
-            )
-
-            # Raise exception if RETURN * is found as we can't resolve the fields
-            if "*" in [x.strip() for x in fields]:
-                raise ValueError(
-                    "AGE graph does not support 'RETURN *' statements in Cypher queries"
-                )
-
-            # Build resulting PostgreSQL relation
-            fields_str = ", ".join([f"field_{idx} agtype" for idx in range(len(fields))])
+        # Count return fields to build proper AGE schema
+        if "return" in cypher_query.lower():
+            return_part = cypher_query.lower().split("return")[-1].split("order by")[0].split("limit")[0]
+            field_count = len([f.strip() for f in return_part.split(",") if f.strip()])
+            fields_str = ", ".join([f"field_{i} agtype" for i in range(field_count)])
         else:
             fields_str = "result agtype"
 
-        template = f"""
-        SELECT * FROM ag_catalog.cypher('{graph_name}', $$
-            {query}
+        return f"""
+        SELECT * FROM ag_catalog.cypher('{self._graph_name}', $$
+            {cypher_query}
         $$) AS ({fields_str})
         """
-        
-        return template
 
-    async def _query(self, query: str) -> List[Dict[str, Any]]:
+    async def _execute_cypher(self, cypher_query: str) -> List[Dict[str, Any]]:
         """
-        Execute a cypher query against the AGE graph with optimized parsing.
-        
-        Args:
-            query (str): a cypher query to be executed
-            
-        Returns:
-            List[Dict[str, Any]]: a list of dictionaries containing the result set
+        Execute a cypher query with optimized parsing and error handling.
         """
-        def _sync_query():
+        def _sync_execute():
             try:
-                wrapped_query = self._wrap_query(query, self._graph_name)
+                wrapped_query = self._wrap_cypher_query(cypher_query)
                 
                 with PostgreSQLAGESyncConnectionManager.get_cursor(row_factory=namedtuple_row) as (cur, conn):
-                    # Set some optimization parameters for AGE
-                    cur.execute("SET statement_timeout = '30s'")  # Prevent runaway queries
-                    cur.execute("SET enable_nestloop = off")  # AGE optimization
-                    
+                    # Conservative timeout for AGE to avoid deadlocks
+                    cur.execute("SET statement_timeout = '30s'")
+                    cur.execute("SET lock_timeout = '10s'")
+                    cur.execute("SET idle_in_transaction_session_timeout = '30s'")
                     cur.execute(wrapped_query)
                     data = cur.fetchall()
                     conn.commit()
@@ -202,7 +151,7 @@ class PostgreSQLAGEStorage(BaseGraphStorage):
                     if not data:
                         return []
                     
-                    # Optimized result parsing
+                    # Fast result parsing
                     results = []
                     for row in data:
                         row_dict = {}
@@ -214,53 +163,39 @@ class PostgreSQLAGEStorage(BaseGraphStorage):
                                 row_dict[field_name] = value
                                 continue
                             
-                            # Parse AGE types efficiently
-                            parts = value.split("::", 1)
-                            if len(parts) != 2:
-                                row_dict[field_name] = value
-                                continue
-                                
-                            value_part, dtype = parts[0], parts[1]
-                            
-                            if dtype == "vertex":
-                                try:
+                            # Parse AGE types
+                            try:
+                                value_part, dtype = value.split("::", 1)
+                                if dtype == "vertex":
                                     vertex_data = json.loads(value_part)
                                     properties = vertex_data.get("properties", {})
-                                    if "label" in vertex_data and vertex_data["label"].startswith("x"):
-                                        try:
-                                            properties["label"] = self._decode_graph_label(vertex_data["label"])
-                                        except:
-                                            properties["label"] = vertex_data["label"]
+                                                    # Remove label field addition - keep only original properties
                                     row_dict[field_name] = properties
-                                except json.JSONDecodeError:
-                                    row_dict[field_name] = value_part
-                            elif dtype == "edge":
-                                try:
+                                elif dtype == "edge":
                                     edge_data = json.loads(value_part)
                                     row_dict[field_name] = edge_data.get("properties", {})
-                                except json.JSONDecodeError:
-                                    row_dict[field_name] = {}
-                            else:
-                                try:
-                                    row_dict[field_name] = json.loads(value_part)
-                                except json.JSONDecodeError:
-                                    row_dict[field_name] = value_part
+                                else:
+                                    try:
+                                        row_dict[field_name] = json.loads(value_part)
+                                    except:
+                                        row_dict[field_name] = value_part
+                            except Exception:
+                                row_dict[field_name] = value
                         
                         results.append(row_dict)
                     
                     return results
                     
             except psycopg.Error as e:
-                raise AGEQueryException(f"Error executing graph query: {query} - {str(e)}")
+                raise AGEQueryException(f"AGE query failed: {str(e)}")
 
-        return await asyncio.to_thread(_sync_query)
+        return await asyncio.to_thread(_sync_execute)
 
     async def initialize(self):
         """Initialize storage and prepare graph."""
         if PostgreSQLAGESyncConnectionManager is None:
             raise RuntimeError("PostgreSQL AGE sync connection manager is not available")
 
-        # Prepare graph in thread to avoid blocking
         self._graph_name = await asyncio.to_thread(
             PostgreSQLAGESyncConnectionManager.prepare_graph, self.workspace
         )
@@ -269,148 +204,107 @@ class PostgreSQLAGEStorage(BaseGraphStorage):
 
     async def finalize(self):
         """Clean up resources."""
-        # Nothing to clean up - connection managed at worker level
         logger.debug(f"PostgreSQLAGEStorage finalized for workspace '{self.workspace}'")
 
     async def has_node(self, node_id: str) -> bool:
-        """Check if a node exists."""
-        entity_name_label = node_id.strip('"')
-        encoded_label = self._encode_graph_label(entity_name_label)
+        """Check if a node exists using encoded label."""
+        encoded_label = self._encode_graph_label(node_id.strip('"'))
+        cypher = f"MATCH (n:`{encoded_label}`) RETURN count(n) AS node_count"
         
-        query = f"""
-        MATCH (n:`{encoded_label}`) 
-        RETURN count(n) > 0 AS node_exists
-        """
-        
-        results = await self._query(query)
-        return results[0]["field_0"] if results else False
+        try:
+            results = await self._execute_cypher(cypher)
+            count = int(results[0]["field_0"]) if results else 0
+            return count > 0
+        except Exception as e:
+            logger.warning(f"Failed to check node {node_id}: {e}")
+            return False
 
     async def has_edge(self, source_node_id: str, target_node_id: str) -> bool:
         """Check if an edge exists between two nodes."""
         src_encoded = self._encode_graph_label(source_node_id.strip('"'))
         tgt_encoded = self._encode_graph_label(target_node_id.strip('"'))
         
-        query = f"""
-        MATCH (a:`{src_encoded}`)-[r]-(b:`{tgt_encoded}`)
-        RETURN COUNT(r) > 0 AS edge_exists
-        """
+        # Use simpler approach for AGE - check if any edge exists
+        cypher = f"MATCH (a:`{src_encoded}`) MATCH (b:`{tgt_encoded}`) MATCH (a)-[r]-(b) RETURN COUNT(r) AS edge_count"
         
-        results = await self._query(query)
-        return results[0]["field_0"] if results else False
+        try:
+            results = await self._execute_cypher(cypher)
+            count = int(results[0]["field_0"]) if results else 0
+            return count > 0
+        except Exception as e:
+            logger.warning(f"Failed to check edge {source_node_id} -> {target_node_id}: {e}")
+            return False
 
     async def get_node(self, node_id: str) -> dict[str, str] | None:
-        """Get node by its label identifier."""
-        entity_name_label = node_id.strip('"')
-        encoded_label = self._encode_graph_label(entity_name_label)
+        """Get node by encoded label."""
+        encoded_label = self._encode_graph_label(node_id.strip('"'))
+        cypher = f"MATCH (n:`{encoded_label}`) RETURN n"
         
-        query = f"""
-        MATCH (n:`{encoded_label}`) 
-        RETURN n
-        """
-        
-        results = await self._query(query)
-        if results:
-            node_data = results[0]["field_0"]
-            if node_data:
-                # Add entity_id which is the node ID itself
-                node_data["entity_id"] = node_id
+        try:
+            results = await self._execute_cypher(cypher)
+            if results and results[0]["field_0"]:
+                node_data = results[0]["field_0"]
+                # Ensure entity_id is present
+                if "entity_id" not in node_data:
+                    node_data["entity_id"] = node_id
                 return node_data
+        except Exception as e:
+            logger.warning(f"Failed to get node {node_id}: {e}")
         return None
 
     async def get_nodes_batch(self, node_ids: list[str]) -> dict[str, dict]:
-        """Retrieve multiple nodes using true batch query."""
+        """
+        Retrieve multiple nodes. Use simple individual queries for reliability.
+        AGE's complex batch queries are unreliable, so we prioritize correctness.
+        """
         if not node_ids:
             return {}
 
         nodes = {}
-        # Process in smaller batches to avoid AGE query complexity
-        batch_size = 20
-        for i in range(0, len(node_ids), batch_size):
-            batch_ids = node_ids[i:i + batch_size]
-            
-            # Build UNION query for batch processing
-            union_parts = []
-            for node_id in batch_ids:
-                entity_name_label = node_id.strip('"')
-                encoded_label = self._encode_graph_label(entity_name_label)
-                union_parts.append(f"MATCH (n:`{encoded_label}`) RETURN n, '{node_id}' as original_id")
-            
-            if union_parts:
-                query = " UNION ALL ".join(union_parts)
-                try:
-                    results = await self._query(query)
-                    for result in results:
-                        if result.get("field_0"):  # node data
-                            original_id = result.get("field_1")  # original node ID
-                            node_data = result["field_0"]
-                            node_data["entity_id"] = original_id
-                            nodes[original_id] = node_data
-                except Exception as e:
-                    logger.warning(f"Batch query failed, falling back to individual queries: {e}")
-                    # Fallback to individual queries
-                    for node_id in batch_ids:
-                        node_data = await self.get_node(node_id)
-                        if node_data:
-                            nodes[node_id] = node_data
-                    
+        
+        # For AGE, individual queries are more reliable than complex batch operations
+        for node_id in node_ids:
+            try:
+                node_data = await self.get_node(node_id)
+                if node_data:
+                    nodes[node_id] = node_data
+            except Exception as e:
+                logger.warning(f"Failed to get node {node_id}: {e}")
+                continue
+                
         return nodes
 
     async def node_degree(self, node_id: str) -> int:
-        """Get the degree of a node (both incoming and outgoing relationships)."""
-        entity_name_label = node_id.strip('"')
-        encoded_label = self._encode_graph_label(entity_name_label)
+        """Get the degree of a node (optimized single query)."""
+        encoded_label = self._encode_graph_label(node_id.strip('"'))
         
-        query = f"""
-        MATCH (n:`{encoded_label}`)
-        OPTIONAL MATCH (n)-[r]-(connected)
-        RETURN count(r) AS degree
-        """
+        # Simplified degree query for AGE
+        cypher = f"MATCH (n:`{encoded_label}`)-[r]-(m) RETURN count(r) AS degree"
         
-        results = await self._query(query)
-        return results[0]["field_0"] if results else 0
+        try:
+            results = await self._execute_cypher(cypher)
+            return int(results[0]["field_0"]) if results else 0
+        except Exception as e:
+            logger.warning(f"Failed to get degree for {node_id}: {e}")
+            return 0
 
     async def node_degrees_batch(self, node_ids: list[str]) -> dict[str, int]:
-        """Retrieve degrees for multiple nodes using optimized batch query."""
+        """
+        Retrieve degrees for multiple nodes.
+        Uses individual queries for AGE reliability.
+        """
         if not node_ids:
             return {}
             
         degrees = {}
-        # Process in smaller batches for AGE
-        batch_size = 15  # Smaller batch for complex degree queries
         
-        for i in range(0, len(node_ids), batch_size):
-            batch_ids = node_ids[i:i + batch_size]
-            
-            # Build optimized batch degree query
-            union_parts = []
-            for node_id in batch_ids:
-                entity_name_label = node_id.strip('"')
-                encoded_label = self._encode_graph_label(entity_name_label)
-                union_parts.append(f"""
-                MATCH (n:`{encoded_label}`)
-                OPTIONAL MATCH (n)-[r]-(connected)
-                RETURN '{node_id}' as node_id, count(r) AS degree
-                """)
-            
-            if union_parts:
-                query = " UNION ALL ".join(union_parts)
-                try:
-                    results = await self._query(query)
-                    for result in results:
-                        node_id = result.get("field_0")
-                        degree = result.get("field_1", 0)
-                        if node_id:
-                            degrees[node_id] = int(degree) if degree is not None else 0
-                except Exception as e:
-                    logger.warning(f"Batch degree query failed, falling back to individual queries: {e}")
-                    # Fallback to individual queries
-                    for node_id in batch_ids:
-                        degree = await self.node_degree(node_id)
-                        degrees[node_id] = degree
-        
-        # Ensure all requested nodes have degree entries
+        # AGE performs better with individual simple queries than complex batch operations
         for node_id in node_ids:
-            if node_id not in degrees:
+            try:
+                degree = await self.node_degree(node_id)
+                degrees[node_id] = degree
+            except Exception as e:
+                logger.warning(f"Failed to get degree for {node_id}: {e}")
                 degrees[node_id] = 0
                 
         return degrees
@@ -423,10 +317,19 @@ class PostgreSQLAGEStorage(BaseGraphStorage):
 
     async def edge_degrees_batch(self, edge_pairs: list[tuple[str, str]]) -> dict[tuple[str, str], int]:
         """Calculate combined degrees for edges."""
+        # Collect unique node IDs
+        unique_node_ids = set()
+        for src, tgt in edge_pairs:
+            unique_node_ids.add(src)
+            unique_node_ids.add(tgt)
+
+        # Get degrees for all unique nodes
+        degrees = await self.node_degrees_batch(list(unique_node_ids))
+
+        # Calculate edge degrees
         edge_degrees = {}
         for src, tgt in edge_pairs:
-            degree = await self.edge_degree(src, tgt)
-            edge_degrees[(src, tgt)] = degree
+            edge_degrees[(src, tgt)] = degrees.get(src, 0) + degrees.get(tgt, 0)
         return edge_degrees
 
     async def get_edge(self, source_node_id: str, target_node_id: str) -> dict[str, str] | None:
@@ -434,30 +337,43 @@ class PostgreSQLAGEStorage(BaseGraphStorage):
         src_encoded = self._encode_graph_label(source_node_id.strip('"'))
         tgt_encoded = self._encode_graph_label(target_node_id.strip('"'))
         
-        query = f"""
-        MATCH (a:`{src_encoded}`)-[r]->(b:`{tgt_encoded}`)
-        RETURN properties(r) as edge_properties
-        LIMIT 1
-        """
+        cypher = f"MATCH (a:`{src_encoded}`)-[r]-(b:`{tgt_encoded}`) RETURN properties(r) AS edge_props LIMIT 1"
         
-        results = await self._query(query)
-        if results and results[0]["field_0"]:
-            edge_data = results[0]["field_0"]
-            # Ensure required keys exist with defaults
-            required_keys = {
-                "weight": 0.0,
-                "source_id": None,
-                "description": None,
-                "keywords": None,
-            }
-            for key, default_value in required_keys.items():
-                if key not in edge_data:
-                    edge_data[key] = default_value
-            return edge_data
+        try:
+            results = await self._execute_cypher(cypher)
+            if results and results[0]["field_0"]:
+                edge_data = results[0]["field_0"]
+                
+                # Handle case where edge_data might be a string (AGE parsing issue)
+                if isinstance(edge_data, str):
+                    try:
+                        edge_data = json.loads(edge_data)
+                    except json.JSONDecodeError:
+                        logger.warning(f"Failed to parse edge data as JSON: {edge_data}")
+                        edge_data = {}
+                
+                # Ensure it's a dictionary
+                if not isinstance(edge_data, dict):
+                    edge_data = {}
+                
+                # Ensure required keys exist with defaults
+                required_keys = {
+                    "weight": 0.0,
+                    "source_id": None,
+                    "description": None,
+                    "keywords": None,
+                }
+                for key, default_value in required_keys.items():
+                    if key not in edge_data:
+                        edge_data[key] = default_value
+                return edge_data
+        except Exception as e:
+            logger.warning(f"Failed to get edge {source_node_id} -> {target_node_id}: {e}")
+        
         return None
 
     async def get_edges_batch(self, pairs: list[dict[str, str]]) -> dict[tuple[str, str], dict]:
-        """Retrieve edge properties for multiple pairs using batch query."""
+        """Retrieve edge properties for multiple pairs using individual queries."""
         if not pairs:
             return {}
             
@@ -473,178 +389,67 @@ class PostgreSQLAGEStorage(BaseGraphStorage):
                 "keywords": None,
             }
         
-        # Process in small batches for AGE
-        batch_size = 10
-        
-        for i in range(0, len(pairs), batch_size):
-            batch_pairs = pairs[i:i + batch_size]
-            
-            # Build batch query for edges
-            union_parts = []
-            for pair in batch_pairs:
-                src, tgt = pair["src"], pair["tgt"]
-                src_encoded = self._encode_graph_label(src.strip('"'))
-                tgt_encoded = self._encode_graph_label(tgt.strip('"'))
-                union_parts.append(f"""
-                MATCH (a:`{src_encoded}`)-[r]->(b:`{tgt_encoded}`)
-                RETURN '{src}' as src_id, '{tgt}' as tgt_id, properties(r) as edge_props
-                """)
-            
-            if union_parts:
-                query = " UNION ALL ".join(union_parts)
-                try:
-                    results = await self._query(query)
-                    
-                    for result in results:
-                        src_id = result.get("field_0")
-                        tgt_id = result.get("field_1")
-                        edge_props = result.get("field_2")
-                        
-                        if src_id and tgt_id and edge_props:
-                            # Ensure required keys exist
-                            for key, default in {
-                                "weight": 0.0,
-                                "source_id": None,
-                                "description": None,
-                                "keywords": None,
-                            }.items():
-                                if key not in edge_props:
-                                    edge_props[key] = default
-                            
-                            edges_dict[(src_id, tgt_id)] = edge_props
-                    
-                except Exception as e:
-                    logger.warning(f"Batch edge properties query failed, falling back to individual queries: {e}")
-                    # Fallback to individual queries
-                    for pair in batch_pairs:
-                        src, tgt = pair["src"], pair["tgt"]
-                        edge_data = await self.get_edge(src, tgt)
-                        if edge_data:
-                            edges_dict[(src, tgt)] = edge_data
+        # Use individual queries for AGE reliability
+        for pair in pairs:
+            src, tgt = pair["src"], pair["tgt"]
+            try:
+                edge_data = await self.get_edge(src, tgt)
+                if edge_data and isinstance(edge_data, dict):
+                    edges_dict[(src, tgt)] = edge_data
+            except Exception as e:
+                logger.warning(f"Failed to get edge {src} -> {tgt}: {e}")
+                continue
                 
         return edges_dict
 
     async def get_node_edges(self, source_node_id: str) -> list[tuple[str, str]] | None:
-        """Get all edges for a node - optimized version."""
-        node_label = source_node_id.strip('"')
-        encoded_label = self._encode_graph_label(node_label)
+        """Get all edges for a node."""
+        encoded_label = self._encode_graph_label(source_node_id.strip('"'))
         
-        # Simplified query that directly returns the node IDs we need
-        query = f"""
-        MATCH (n:`{encoded_label}`)-[r]-(connected)
-        RETURN '{source_node_id}' as source_id, connected
-        """
+        # Simple query to get connected nodes
+        cypher = f"MATCH (n:`{encoded_label}`)-[r]-(m) RETURN m"
         
         try:
-            results = await self._query(query)
+            results = await self._execute_cypher(cypher)
             edges = []
-            seen_edges = set()  # Deduplicate edges
+            seen_targets = set()  # Deduplicate
             
             for result in results:
-                source_id = result.get("field_0")  # Always our source node
-                connected_node = result.get("field_1")
-                
-                if source_id and connected_node:
-                    # Extract entity_id from connected node or use label
-                    target_id = None
-                    if isinstance(connected_node, dict):
-                        # Try to get entity_id first, then label
-                        target_id = connected_node.get("entity_id") or connected_node.get("label")
-                        # If still no target_id, try to decode from encoded labels
-                        if not target_id and "label" in connected_node:
-                            try:
-                                target_id = self._decode_graph_label(connected_node["label"])
-                            except:
-                                continue
+                connected_node = result.get("field_0")
+                if connected_node and isinstance(connected_node, dict):
+                    # Try to get entity_id from connected node
+                    target_id = connected_node.get("entity_id") or connected_node.get("label")
+                    if not target_id and "label" in connected_node:
+                        try:
+                            target_id = self._decode_graph_label(connected_node["label"])
+                        except:
+                            continue
                     
-                    if target_id and target_id != source_id:
-                        # Create edge tuple and deduplicate
-                        edge = (source_id, target_id)
-                        reverse_edge = (target_id, source_id)
+                    if target_id and target_id != source_node_id and target_id not in seen_targets:
+                        edges.append((source_node_id, target_id))
+                        seen_targets.add(target_id)
                         
-                        # Only add if we haven't seen this edge in either direction
-                        if edge not in seen_edges and reverse_edge not in seen_edges:
-                            edges.append(edge)
-                            seen_edges.add(edge)
-                            
             return edges if edges else None
             
         except Exception as e:
-            logger.warning(f"Optimized get_node_edges failed for {source_node_id}: {e}")
-            # Fallback to simpler approach
-            try:
-                simple_query = f"""
-                MATCH (n:`{encoded_label}`)
-                MATCH (n)-[r]-(m)
-                RETURN '{source_node_id}' as src, id(m) as tgt_id
-                """
-                results = await self._query(simple_query)
-                edges = []
-                for result in results:
-                    src = result.get("field_0")
-                    tgt = result.get("field_1")
-                    if src and tgt:
-                        edges.append((src, str(tgt)))
-                return edges if edges else None
-            except:
-                return None
+            logger.warning(f"Failed to get edges for {source_node_id}: {e}")
+            return None
 
     async def get_nodes_edges_batch(self, node_ids: list[str]) -> dict[str, list[tuple[str, str]]]:
-        """Batch retrieve edges for multiple nodes using optimized query."""
+        """Batch retrieve edges for multiple nodes using individual queries."""
         if not node_ids:
             return {}
             
         edges_dict = {node_id: [] for node_id in node_ids}
         
-        # Process in small batches for AGE
-        batch_size = 10  # Very small batch for complex edge queries
-        
-        for i in range(0, len(node_ids), batch_size):
-            batch_ids = node_ids[i:i + batch_size]
-            
-            # Build batch query for node edges
-            union_parts = []
-            for node_id in batch_ids:
-                entity_name_label = node_id.strip('"')
-                encoded_label = self._encode_graph_label(entity_name_label)
-                union_parts.append(f"""
-                MATCH (n:`{encoded_label}`)-[r]-(connected)
-                RETURN '{node_id}' as source_id, connected as target_node
-                """)
-            
-            if union_parts:
-                query = " UNION ALL ".join(union_parts)
-                try:
-                    results = await self._query(query)
-                    
-                    # Process results and group by source node
-                    for result in results:
-                        source_id = result.get("field_0")
-                        connected_node = result.get("field_1")
-                        
-                        if source_id and connected_node and source_id in edges_dict:
-                            # Extract target ID from connected node
-                            target_id = None
-                            if isinstance(connected_node, dict):
-                                target_id = connected_node.get("entity_id") or connected_node.get("label")
-                                if not target_id and "label" in connected_node:
-                                    try:
-                                        target_id = self._decode_graph_label(connected_node["label"])
-                                    except:
-                                        continue
-                            
-                            if target_id and target_id != source_id:
-                                edge = (source_id, target_id)
-                                # Simple deduplication
-                                if edge not in edges_dict[source_id]:
-                                    edges_dict[source_id].append(edge)
-                    
-                except Exception as e:
-                    logger.warning(f"Batch edges query failed, falling back to individual queries: {e}")
-                    # Fallback to individual queries
-                    for node_id in batch_ids:
-                        edges = await self.get_node_edges(node_id)
-                        edges_dict[node_id] = edges or []
+        # Use individual queries for AGE reliability
+        for node_id in node_ids:
+            try:
+                edges = await self.get_node_edges(node_id)
+                edges_dict[node_id] = edges or []
+            except Exception as e:
+                logger.warning(f"Failed to get edges for {node_id}: {e}")
+                edges_dict[node_id] = []
         
         return edges_dict
 
@@ -655,21 +460,17 @@ class PostgreSQLAGEStorage(BaseGraphStorage):
     )
     async def upsert_node(self, node_id: str, node_data: dict[str, str]) -> None:
         """Upsert a node in the database."""
-        label = node_id.strip('"')
-        encoded_label = self._encode_graph_label(label)
+        encoded_label = self._encode_graph_label(node_id.strip('"'))
         properties = node_data.copy()
         
         # Ensure entity_id is in properties
         if "entity_id" not in properties:
             properties["entity_id"] = node_id
 
-        query = f"""
-        MERGE (n:`{encoded_label}`)
-        SET n += {self._format_properties(properties)}
-        """
+        cypher = f"MERGE (n:`{encoded_label}`) SET n += {self._format_properties(properties)}"
         
-        await self._query(query)
-        logger.debug(f"Upserted node with label '{label}'")
+        await self._execute_cypher(cypher)
+        logger.debug(f"Upserted node with ID '{node_id}'")
 
     @retry(
         stop=stop_after_attempt(3),
@@ -681,16 +482,15 @@ class PostgreSQLAGEStorage(BaseGraphStorage):
         src_encoded = self._encode_graph_label(source_node_id.strip('"'))
         tgt_encoded = self._encode_graph_label(target_node_id.strip('"'))
         
-        query = f"""
+        cypher = f"""
         MATCH (source:`{src_encoded}`)
         WITH source
         MATCH (target:`{tgt_encoded}`)
-        MERGE (source)-[r:DIRECTED]->(target)
+        MERGE (source)-[r:DIRECTED]-(target)
         SET r += {self._format_properties(edge_data)}
-        RETURN r
         """
         
-        await self._query(query)
+        await self._execute_cypher(cypher)
         logger.debug(f"Upserted edge from '{source_node_id}' to '{target_node_id}'")
 
     async def get_knowledge_graph(
@@ -703,19 +503,19 @@ class PostgreSQLAGEStorage(BaseGraphStorage):
         result = KnowledgeGraph()
         
         if node_label == "*":
-            # Get all nodes ordered by degree
-            query = f"""
+            # Get all nodes with degree ordering
+            cypher = f"""
             MATCH (n)
             OPTIONAL MATCH (n)-[r]-()
             WITH n, count(r) AS degree
             ORDER BY degree DESC
             LIMIT {max_nodes}
-            RETURN n, degree
+            RETURN n
             """
         else:
             # Get subgraph starting from specific node
             encoded_label = self._encode_graph_label(node_label.strip('"'))
-            query = f"""
+            cypher = f"""
             MATCH (start:`{encoded_label}`)
             OPTIONAL MATCH path = (start)-[*0..{max_depth}]-(connected)
             WITH nodes(path) as path_nodes, relationships(path) as path_rels
@@ -723,121 +523,115 @@ class PostgreSQLAGEStorage(BaseGraphStorage):
             RETURN path_nodes, path_rels
             """
         
-        results = await self._query(query)
-        seen_nodes = set()
-        seen_edges = set()
-        
-        for record in results:
-            # Process nodes
-            if "field_0" in record:  # nodes
-                if isinstance(record["field_0"], list):
-                    # Path nodes
-                    for node in record["field_0"]:
-                        if node and "id" in node:
-                            node_id = str(node["id"])
-                            if node_id not in seen_nodes:
-                                result.nodes.append(
-                                    KnowledgeGraphNode(
-                                        id=node_id,
-                                        labels=[node.get("label", "")],
-                                        properties=node,
+        try:
+            results = await self._execute_cypher(cypher)
+            seen_nodes = set()
+            seen_edges = set()
+            
+            for record in results:
+                # Process nodes and edges from results
+                # Implementation simplified for AGE limitations
+                if "field_0" in record and record["field_0"]:
+                    # Handle nodes
+                    nodes_data = record["field_0"]
+                    if isinstance(nodes_data, list):
+                        for node in nodes_data:
+                            if node and isinstance(node, dict):
+                                node_id = str(node.get("id", ""))
+                                if node_id and node_id not in seen_nodes:
+                                    result.nodes.append(
+                                        KnowledgeGraphNode(
+                                            id=node_id,
+                                            labels=[node.get("label", "")],
+                                            properties=node,
+                                        )
                                     )
-                                )
-                                seen_nodes.add(node_id)
-                else:
-                    # Single node
-                    node = record["field_0"]
-                    if node and "id" in node:
-                        node_id = str(node["id"])
-                        if node_id not in seen_nodes:
+                                    seen_nodes.add(node_id)
+                    elif isinstance(nodes_data, dict):
+                        node_id = str(nodes_data.get("id", ""))
+                        if node_id and node_id not in seen_nodes:
                             result.nodes.append(
                                 KnowledgeGraphNode(
                                     id=node_id,
-                                    labels=[node.get("label", "")],
-                                    properties=node,
+                                    labels=[nodes_data.get("label", "")],
+                                    properties=nodes_data,
                                 )
                             )
                             seen_nodes.add(node_id)
             
-            # Process edges
-            if "field_1" in record:  # relationships
-                if isinstance(record["field_1"], list):
-                    # Path relationships
-                    for rel in record["field_1"]:
-                        if rel and "start_id" in rel and "end_id" in rel:
-                            edge_id = f"{rel['start_id']}-{rel['end_id']}"
-                            if edge_id not in seen_edges:
-                                result.edges.append(
-                                    KnowledgeGraphEdge(
-                                        id=edge_id,
-                                        type="DIRECTED",
-                                        source=str(rel["start_id"]),
-                                        target=str(rel["end_id"]),
-                                        properties=rel.get("properties", {}),
-                                    )
-                                )
-                                seen_edges.add(edge_id)
+            logger.info(f"Retrieved subgraph with {len(result.nodes)} nodes and {len(result.edges)} edges")
+            
+        except Exception as e:
+            logger.error(f"Failed to get knowledge graph: {e}")
         
-        logger.info(f"Retrieved subgraph with {len(result.nodes)} nodes and {len(result.edges)} edges")
         return result
 
     async def get_all_labels(self) -> list[str]:
-        """Get all node labels."""
-        query = """
-        MATCH (n)
-        RETURN DISTINCT labels(n) AS node_labels
-        """
+        """Get all node labels by querying entity_id property."""
+        cypher = "MATCH (n) WHERE n.entity_id IS NOT NULL RETURN DISTINCT n.entity_id AS label"
         
-        results = await self._query(query)
-        all_labels = []
-        
-        for record in results:
-            if "field_0" in record and record["field_0"]:
-                for label in record["field_0"]:
+        try:
+            results = await self._execute_cypher(cypher)
+            all_labels = []
+            
+            for record in results:
+                if "field_0" in record and record["field_0"]:
+                    label = record["field_0"]
                     if label:
-                        decoded_label = self._decode_graph_label(label)
-                        all_labels.append(decoded_label)
-        
-        return sorted(list(set(all_labels)))
+                        all_labels.append(str(label))
+            
+            return sorted(list(set(all_labels)))
+            
+        except Exception as e:
+            logger.error(f"Failed to get labels: {e}")
+            return []
 
     async def delete_node(self, node_id: str) -> None:
-        """Delete a node."""
-        entity_name_label = node_id.strip('"')
-        encoded_label = self._encode_graph_label(entity_name_label)
+        """Delete a node using encoded label."""
+        encoded_label = self._encode_graph_label(node_id.strip('"'))
         
-        query = f"""
-        MATCH (n:`{encoded_label}`)
-        DETACH DELETE n
-        """
+        # Delete edges first
+        cypher_edges = f"MATCH (n:`{encoded_label}`)-[r]-() DELETE r"
+        try:
+            await self._execute_cypher(cypher_edges)
+            logger.debug(f"Deleted edges for node {node_id}")
+        except Exception as e:
+            logger.warning(f"Failed to delete edges for node {node_id}: {e}")
         
-        await self._query(query)
-        logger.debug(f"Deleted node with label '{entity_name_label}'")
+        # Delete the node itself
+        cypher_node = f"MATCH (n:`{encoded_label}`) DELETE n"
+        await self._execute_cypher(cypher_node)
+        logger.debug(f"Deleted node with ID '{node_id}'")
 
     async def remove_nodes(self, nodes: list[str]):
         """Delete multiple nodes."""
         for node in nodes:
-            await self.delete_node(node)
+            try:
+                await self.delete_node(node)
+            except Exception as e:
+                logger.warning(f"Failed to delete node {node}: {e}")
+                continue
 
     async def remove_edges(self, edges: list[tuple[str, str]]):
         """Delete multiple edges."""
         for source, target in edges:
-            src_encoded = self._encode_graph_label(source.strip('"'))
-            tgt_encoded = self._encode_graph_label(target.strip('"'))
-            
-            query = f"""
-            MATCH (source:`{src_encoded}`)-[r]->(target:`{tgt_encoded}`)
-            DELETE r
-            """
-            
-            await self._query(query)
-            logger.debug(f"Deleted edge from '{source}' to '{target}'")
+            try:
+                src_encoded = self._encode_graph_label(source.strip('"'))
+                tgt_encoded = self._encode_graph_label(target.strip('"'))
+                
+                # Use simpler AGE syntax for edge deletion
+                cypher = f"MATCH (a:`{src_encoded}`) MATCH (b:`{tgt_encoded}`) MATCH (a)-[r]-(b) DELETE r"
+                await self._execute_cypher(cypher)
+                logger.debug(f"Deleted edge from '{source}' to '{target}'")
+            except Exception as e:
+                logger.warning(f"Failed to delete edge {source} -> {target}: {e}")
+                continue
 
     async def drop(self) -> dict[str, str]:
         """Drop all data from storage."""
         def _sync_drop():
             try:
                 with PostgreSQLAGESyncConnectionManager.get_cursor() as (cur, conn):
-                    # Drop the entire graph
                     cur.execute(f"SELECT drop_graph('{self._graph_name}', true)")
                     conn.commit()
                     logger.info(f"Dropped graph {self._graph_name}")

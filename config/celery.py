@@ -46,6 +46,15 @@ except ImportError:
     cleanup_worker_postgres_age = None
     postgres_age_available = False
 
+# Import PostgreSQL Graph sync configuration signal handlers
+try:
+    from aperag.db.postgres_graph_sync_manager import setup_worker_postgres_graph, cleanup_worker_postgres_graph
+    postgres_graph_available = True
+except ImportError:
+    setup_worker_postgres_graph = None
+    cleanup_worker_postgres_graph = None
+    postgres_graph_available = False
+
 # Create celery app instance
 app = Celery("aperag")
 
@@ -103,6 +112,13 @@ if postgres_age_available and setup_worker_postgres_age is not None:
 
 if postgres_age_available and cleanup_worker_postgres_age is not None:
     worker_process_shutdown.connect(cleanup_worker_postgres_age)
+
+# Connect PostgreSQL Graph worker lifecycle signals
+if postgres_graph_available and setup_worker_postgres_graph is not None:
+    worker_process_init.connect(setup_worker_postgres_graph)
+
+if postgres_graph_available and cleanup_worker_postgres_graph is not None:
+    worker_process_shutdown.connect(cleanup_worker_postgres_graph)
 
 # Simple logging configuration for Celery workers
 CELERY_LOGGING_CONFIG = {
