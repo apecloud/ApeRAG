@@ -210,48 +210,37 @@ class NebulaSyncStorage(BaseGraphStorage):
         return await asyncio.to_thread(_sync_has_node)
 
     async def has_edge(self, source_node_id: str, target_node_id: str) -> bool:
-        """Check if an edge exists between two nodes."""
+        """Check if an edge exists between two nodes using parameterized MATCH query."""
 
         def _sync_has_edge():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
-                # Try to fetch edge properties between the two nodes
-                # VID cannot be parameterized in FETCH statements
-                source_quoted = _quote_vid(source_node_id)
-                target_quoted = _quote_vid(target_node_id)
-                query = f"""
-                FETCH PROP ON DIRECTED {source_quoted} -> {target_quoted}
-                YIELD properties(edge) as props
+                # Use MATCH syntax with parameterized query instead of FETCH
+                query = """
+                MATCH (src)-[e:DIRECTED]-(dst) 
+                WHERE (id(src) == $src_id AND id(dst) == $dst_id) 
+                   OR (id(src) == $dst_id AND id(dst) == $src_id)
+                RETURN e LIMIT 1
                 """
-                result = session.execute(query)
-                if result.is_succeeded() and result.row_size() > 0:
-                    return True
-
-                # Try reverse direction - correct the variable assignment
-                # VID cannot be parameterized in FETCH statements
-                source_quoted_rev = _quote_vid(target_node_id)  # Now target becomes source
-                target_quoted_rev = _quote_vid(source_node_id)  # Now source becomes target
-                query = f"""
-                FETCH PROP ON DIRECTED {source_quoted_rev} -> {target_quoted_rev}
-                YIELD properties(edge) as props
-                """
-                result = session.execute(query)
-                if result.is_succeeded() and result.row_size() > 0:
-                    return True
-
-                return False
+                params = {"src_id": source_node_id, "dst_id": target_node_id}
+                
+                nebula_params = _prepare_nebula_params(params)
+                result = session.execute_parameter(query, nebula_params)
+                
+                return result.is_succeeded() and result.row_size() > 0
 
         return await asyncio.to_thread(_sync_has_edge)
 
     async def get_node(self, node_id: str) -> dict[str, str] | None:
-        """Get node by its label identifier."""
+        """Get node by its label identifier using parameterized MATCH query."""
 
         def _sync_get_node():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
-                # VID cannot be parameterized in FETCH statements
-                # Use safe VID quoting to handle special characters properly
-                node_id_quoted = _quote_vid(node_id)
-                query = f"FETCH PROP ON base {node_id_quoted} YIELD properties(vertex) as props"
-                result = session.execute(query)
+                # Use MATCH syntax with parameterized query instead of FETCH
+                query = "MATCH (v:base) WHERE id(v) == $node_id RETURN properties(v) as props"
+                params = {"node_id": node_id}
+                
+                nebula_params = _prepare_nebula_params(params)
+                result = session.execute_parameter(query, nebula_params)
 
                 if result.is_succeeded() and result.row_size() > 0:
                     for row in result:
@@ -367,47 +356,21 @@ class NebulaSyncStorage(BaseGraphStorage):
         return edge_degrees
 
     async def get_edge(self, source_node_id: str, target_node_id: str) -> dict[str, str] | None:
-        """Get edge properties between two nodes."""
+        """Get edge properties between two nodes using parameterized MATCH query."""
 
         def _sync_get_edge():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
-                # Try direction: source -> target
-                # VID cannot be parameterized in FETCH statements
-                source_quoted = _quote_vid(source_node_id)
-                target_quoted = _quote_vid(target_node_id)
-                query = f"""
-                FETCH PROP ON DIRECTED {source_quoted} -> {target_quoted}
-                YIELD properties(edge) as props
+                # Use MATCH syntax with parameterized query instead of FETCH
+                query = """
+                MATCH (src)-[e:DIRECTED]-(dst) 
+                WHERE (id(src) == $src_id AND id(dst) == $dst_id) 
+                   OR (id(src) == $dst_id AND id(dst) == $src_id)
+                RETURN properties(e) as props LIMIT 1
                 """
-                result = session.execute(query)
-
-                if result.is_succeeded() and result.row_size() > 0:
-                    for row in result:
-                        props = row.values()[0].as_map()
-                        edge_dict = self._convert_nebula_value_map(props)
-
-                        # Ensure required keys exist with defaults
-                        required_keys = {
-                            "weight": 0.0,
-                            "source_id": None,
-                            "description": None,
-                            "keywords": None,
-                        }
-                        for key, default_value in required_keys.items():
-                            if key not in edge_dict:
-                                edge_dict[key] = default_value
-
-                        return edge_dict
-
-                # Try reverse direction: target -> source - fix variable assignment
-                # VID cannot be parameterized in FETCH statements
-                source_quoted_rev = _quote_vid(target_node_id)  # Now target becomes source
-                target_quoted_rev = _quote_vid(source_node_id)  # Now source becomes target
-                query = f"""
-                FETCH PROP ON DIRECTED {source_quoted_rev} -> {target_quoted_rev}
-                YIELD properties(edge) as props
-                """
-                result = session.execute(query)
+                params = {"src_id": source_node_id, "dst_id": target_node_id}
+                
+                nebula_params = _prepare_nebula_params(params)
+                result = session.execute_parameter(query, nebula_params)
 
                 if result.is_succeeded() and result.row_size() > 0:
                     for row in result:
@@ -649,10 +612,12 @@ class NebulaSyncStorage(BaseGraphStorage):
         return await asyncio.to_thread(_sync_upsert_edge)
 
     def _sync_check_node_exists(self, node_id: str, session) -> bool:
-        """Synchronous helper to check if a node exists."""
-        node_id_quoted = _quote_vid(node_id)
-        query = f"FETCH PROP ON base {node_id_quoted} YIELD properties(vertex)"
-        result = session.execute(query)
+        """Synchronous helper to check if a node exists using parameterized query."""
+        query = "MATCH (v:base) WHERE id(v) == $node_id RETURN v LIMIT 1"
+        params = {"node_id": node_id}
+        
+        nebula_params = _prepare_nebula_params(params)
+        result = session.execute_parameter(query, nebula_params)
         return result.is_succeeded() and result.row_size() > 0
 
     async def get_knowledge_graph(
