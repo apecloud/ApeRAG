@@ -171,11 +171,11 @@ class NebulaSyncStorage(BaseGraphStorage):
     for operations like DELETE, UPSERT, FETCH, GO. This is a known limitation.
     """
 
-    def __init__(self, namespace, workspace, embedding_func):
+    def __init__(self, namespace, workspace, embedding_func=None):
         super().__init__(
             namespace=namespace,
             workspace=workspace,
-            embedding_func=embedding_func,
+            embedding_func=None,
         )
         self._space_name = None
 
