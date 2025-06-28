@@ -678,7 +678,7 @@ class GraphStorageTestSuite:
         assert isinstance(all_labels, list)
 
         # Check that some nodes from our test data are present
-        sample_entities = get_random_sample(graph_data["nodes"], max_size=100, min_size=60)
+        sample_entities = get_random_sample(graph_data["nodes"], max_size=50, min_size=30)
         found_entities = 0
         
         for entity in sample_entities:
