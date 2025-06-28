@@ -13,14 +13,16 @@ import pytest_asyncio
 from aperag.graph.lightrag.kg.nebula_sync_impl import NebulaSyncStorage
 from tests.e2e_test.graphindex.graph_storage_oracle import GraphStorageOracle
 from tests.e2e_test.graphindex.networkx_baseline_storage import NetworkXBaselineStorage
-from tests.e2e_test.graphindex.test_graph_storage import GraphStorageTestSuite
+from tests.e2e_test.graphindex.test_graph_storage import GraphStorageTestSuite, load_graph_data
 
 dotenv.load_dotenv(".env")
 
 
 @pytest_asyncio.fixture(scope="class")
-async def nebula_oracle_storage(graph_data):
+async def nebula_oracle_storage():
     """Create Oracle storage with Nebula storage and NetworkX baseline using full test data."""
+
+    graph_data = load_graph_data()
     
     # Generate unique workspace for this test class run
     workspace = f"test_nebula_oracle_{uuid.uuid4().hex[:8]}"

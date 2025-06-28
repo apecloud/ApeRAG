@@ -4,7 +4,7 @@
 提供所有BaseGraphStorage实现的通用测试方法。
 这个文件包含GraphStorageTestSuite静态方法，用于被其他测试文件复用。
 """
-
+import os
 import random
 import time
 from typing import Any, Dict, List
@@ -17,6 +17,62 @@ from aperag.graph.lightrag.base import BaseGraphStorage
 
 dotenv.load_dotenv(".env")
 
+
+def load_graph_data() -> Dict[str, Any]:
+    """Load and validate test data from JSON file"""
+    file_path = os.path.join(os.path.dirname(__file__), "graph_storage_test_data.json")
+    if not os.path.exists(file_path):
+        pytest.skip(f"Test data file not found: {file_path}")
+
+    nodes = {}
+    edges = []
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+
+                try:
+                    item = json.loads(line)
+                except json.JSONDecodeError as e:
+                    print(f"Warning: Invalid JSON on line {line_num}: {e}")
+                    continue
+
+                if item.get("type") == "node":
+                    props = item.get("properties", {})
+                    if "entity_id" in props and "entity_type" in props:
+                        entity_id = props["entity_id"]
+                        nodes[entity_id] = {
+                            "neo4j_id": item.get("id"),
+                            "labels": item.get("labels", []),
+                            "properties": props,
+                        }
+
+                elif item.get("type") == "relationship":
+                    start_props = item.get("start", {}).get("properties", {})
+                    end_props = item.get("end", {}).get("properties", {})
+
+                    if "entity_id" in start_props and "entity_id" in end_props and "properties" in item:
+                        edges.append(
+                            {
+                                "neo4j_id": item.get("id"),
+                                "label": item.get("label", "DIRECTED"),
+                                "start_node_id": start_props["entity_id"],
+                                "end_node_id": end_props["entity_id"],
+                                "properties": item["properties"],
+                            }
+                        )
+
+    except Exception as e:
+        pytest.skip(f"Failed to load test data: {e}")
+
+    if not nodes:
+        pytest.skip("No valid nodes found in test data")
+
+    print(f"Loaded {len(nodes)} nodes and {len(edges)} edges from test data")
+    return {"nodes": nodes, "edges": edges}
 
 def get_random_sample(data: Dict[str, Any], max_size: int = 10, min_size: int = 1) -> List[str]:
     """Get a random sample of keys from data dictionary"""
