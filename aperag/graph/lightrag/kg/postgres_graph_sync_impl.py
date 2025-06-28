@@ -237,8 +237,7 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
         self, source_node_id: str, target_node_id: str
     ) -> dict[str, str] | None:
         sql = """
-            SELECT source_entity_id, target_entity_id, weight, keywords, description, source_id, file_path,
-                   EXTRACT(EPOCH FROM createtime)::INTEGER as created_at
+            SELECT source_entity_id, target_entity_id, weight, keywords, description, source_id, file_path
             FROM LIGHTRAG_GRAPH_EDGES WHERE workspace = %(workspace)s AND source_entity_id = %(source_entity_id)s AND target_entity_id = %(target_entity_id)s
         """
         param = {
@@ -252,16 +251,22 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
             result = await tx.query(sql, param)
             if result:
                 # Return edge data assembled from individual fields - similar to Neo4j format
+                # Ensure required keys exist with defaults (matching Neo4j behavior)
                 edge_result = {
                     "weight": float(result["weight"]) if result["weight"] is not None else 0.0,
-                    "keywords": result["keywords"],
+                    "keywords": result["keywords"],  # Keep None as None
                     "description": result["description"],
                     "source_id": result["source_id"],
                     "file_path": result["file_path"],
-                    "created_at": result["created_at"],
                 }
-                # Remove None values for cleaner output
-                return {k: v for k, v in edge_result.items() if v is not None}
+                # Only remove None values for optional fields, keep required fields even if None
+                filtered_result = {}
+                required_fields = {"weight", "keywords", "description", "source_id"}
+                for k, v in edge_result.items():
+                    if k in required_fields or v is not None:
+                        filtered_result[k] = v
+                
+                return filtered_result
             return None
 
     async def get_node_edges(self, source_node_id: str) -> list[tuple[str, str]] | None:
@@ -321,12 +326,12 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
             if edge_data:
                 edges_dict[(src, tgt)] = edge_data
             else:
-                # Return default structure
+                # Return default structure with required fields (matching Neo4j behavior)
                 edges_dict[(src, tgt)] = {
                     "weight": 0.0,
-                    "source_id": None,
-                    "description": None,
                     "keywords": None,
+                    "description": None,
+                    "source_id": None,
                 }
         return edges_dict
 
