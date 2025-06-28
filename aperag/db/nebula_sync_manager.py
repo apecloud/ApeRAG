@@ -128,15 +128,15 @@ class NebulaSyncConnectionManager:
     def prepare_space(cls, workspace: str, max_wait: int = 30, fail_on_timeout: bool = True) -> str:
         """
         Fast space preparation with optimized waiting strategy for improved performance.
-        
+
         Args:
             workspace: Workspace name to prepare
             max_wait: Maximum time to wait for space readiness (seconds)
             fail_on_timeout: If True, raise exception when schema is not ready after max_wait. If False, log warning and continue.
-            
+
         Returns:
             Space name
-            
+
         This optimized version:
         1. Fast-checks if space already exists and is usable
         2. Reduced default wait times compared to original 55s
@@ -147,7 +147,7 @@ class NebulaSyncConnectionManager:
         """
         import time
 
-        # Sanitize workspace name for Nebula (only alphanumeric and underscore allowed)  
+        # Sanitize workspace name for Nebula (only alphanumeric and underscore allowed)
         space_name = re.sub(r"[^a-zA-Z0-9_]", "_", workspace)
 
         # Ultra-fast path: If we've already prepared this space, return immediately
@@ -271,7 +271,7 @@ class NebulaSyncConnectionManager:
         logger.info("Ensuring schema is fully ready...")
         # Initial wait to let basic schema creation complete
         time.sleep(2)
-        
+
         schema_ready = False
         max_schema_wait = max_wait  # Use the same max_wait for consistency
         schema_start = time.time()
@@ -307,7 +307,7 @@ class NebulaSyncConnectionManager:
                         logger.error(f"Space {space_name} is not usable even after timeout - this may cause issues")
             except Exception as e:
                 logger.error(f"Final validation failed for space {space_name}: {e}")
-            
+
             # If fail_on_timeout is enabled and validation failed, raise exception
             if fail_on_timeout and not validation_passed:
                 raise RuntimeError(
@@ -315,14 +315,14 @@ class NebulaSyncConnectionManager:
                     f"Set fail_on_timeout=False to allow proceeding with potentially incomplete schema."
                 )
             elif fail_on_timeout:
-                logger.warning(f"Schema validation passed but schema readiness test failed - continuing")
+                logger.warning("Schema validation passed but schema readiness test failed - continuing")
 
         logger.info(f"Space {space_name} prepared successfully")
-        
+
         # Cache this space as prepared
         with cls._lock:
             cls._prepared_spaces.add(space_name)
-            
+
         return space_name
 
     @classmethod
@@ -346,4 +346,4 @@ def setup_worker_nebula(**kwargs):
 def cleanup_worker_nebula(**kwargs):
     """Cleanup Nebula when worker shuts down."""
     NebulaSyncConnectionManager.close()
-    logger.info(f"Worker {os.getpid()}: Nebula sync connection closed") 
+    logger.info(f"Worker {os.getpid()}: Nebula sync connection closed")

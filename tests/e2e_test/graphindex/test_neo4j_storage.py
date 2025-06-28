@@ -3,7 +3,6 @@ Neo4j-specific E2E tests using the universal graph storage test suite with Oracl
 This file provides Neo4j storage instances and runs all tests from GraphStorageTestSuite.
 """
 
-import asyncio
 import uuid
 
 import dotenv
@@ -23,40 +22,40 @@ async def neo4j_oracle_storage():
     """Create Oracle storage with Neo4j storage and NetworkX baseline using full test data."""
 
     graph_data = load_graph_data()
-    
+
     # Generate unique workspace for this test class run
     workspace = f"test_neo4j_oracle_{uuid.uuid4().hex[:8]}"
-    
+
     # Initialize Neo4j storage
     neo4j_storage = Neo4JSyncStorage(
         namespace="test_neo4j_oracle",
         workspace=workspace,
     )
-    
+
     # Initialize NetworkX baseline
     baseline_storage = NetworkXBaselineStorage(
         namespace="baseline_neo4j_test",
         workspace="baseline_neo4j_workspace",
     )
-    
+
     # Create Oracle
     oracle = GraphStorageOracle(
         storage=neo4j_storage,
         baseline=baseline_storage,
         namespace="test_neo4j_oracle",
-        workspace=workspace, 
+        workspace=workspace,
     )
-    
+
     try:
         # Initialize all storages - ONCE for all tests
         await oracle.initialize()
         print(f"🔗 Neo4j storage initialized with workspace: {workspace}")
-        
+
         # Populate with FULL test data - all nodes - ONCE for all tests
         print(f"📂 Populating baseline with {len(graph_data['nodes'])} nodes...")
         for entity_id, node_data in graph_data["nodes"].items():
             await oracle.upsert_node(entity_id, node_data["properties"])
-        
+
         # Populate with FULL test data - all edges - ONCE for all tests
         edge_count = 0
         if graph_data.get("edges"):
@@ -65,25 +64,25 @@ async def neo4j_oracle_storage():
                 try:
                     start_node_id = edge.get("start_node_id")
                     end_node_id = edge.get("end_node_id")
-                    
+
                     # Handle case where node IDs might be dictionaries
                     if isinstance(start_node_id, dict):
                         start_node_id = start_node_id.get("properties", {}).get("entity_id")
                     if isinstance(end_node_id, dict):
                         end_node_id = end_node_id.get("properties", {}).get("entity_id")
-                    
+
                     if start_node_id and end_node_id:
                         # Oracle automatically handles both storages
                         await oracle.upsert_edge(start_node_id, end_node_id, edge.get("properties", {}))
                         edge_count += 1
                 except Exception as e:
                     print(f"⚠️  Failed to insert edge: {e}")
-        
+
         print(f"🎯 Neo4j Oracle storage ready with {len(graph_data['nodes'])} nodes and {edge_count} edges")
         print("🔄 This data will be shared across ALL tests in TestNeo4jStorage class")
-        
+
         yield oracle, graph_data
-        
+
     except Exception as e:
         print(f"❌ Error during storage initialization: {e}")
         raise

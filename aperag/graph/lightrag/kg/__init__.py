@@ -110,6 +110,7 @@ if PGOpsSyncKVStorage is not None:
 if PGOpsSyncVectorStorage is not None:
     STORAGES["PGOpsSyncVectorStorage"] = ".kg.postgres_sync_impl"
 
+
 def verify_storage_implementation(storage_type: str, storage_name: str) -> None:
     """Verify if storage implementation is compatible with specified storage type
 

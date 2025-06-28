@@ -195,10 +195,7 @@ class NebulaSyncStorage(BaseGraphStorage):
         # max_wait=30s for balanced performance and reliability
         # fail_on_timeout=True ensures we get clear feedback if initialization fails
         self._space_name = await asyncio.to_thread(
-            NebulaSyncConnectionManager.prepare_space, 
-            self.workspace,
-            max_wait=30,
-            fail_on_timeout=True
+            NebulaSyncConnectionManager.prepare_space, self.workspace, max_wait=30, fail_on_timeout=True
         )
 
         logger.debug(f"NebulaSyncStorage initialized for workspace '{self.workspace}', space '{self._space_name}'")
@@ -817,7 +814,3 @@ class NebulaSyncStorage(BaseGraphStorage):
                     return {"status": "error", "message": _safe_error_msg(result)}
 
         return await asyncio.to_thread(_sync_drop)
-
-
-
-

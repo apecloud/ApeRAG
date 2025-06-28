@@ -16,7 +16,7 @@ from aperag.graph.lightrag.types import KnowledgeGraph, KnowledgeGraphEdge, Know
 class NetworkXBaselineStorage(BaseGraphStorage):
     """
     NetworkX-based baseline implementation for testing graph storage consistency.
-    
+
     This serves as the "ground truth" for comparing other storage implementations.
     All operations are performed in-memory with NetworkX for reliable and predictable results.
     """
@@ -76,27 +76,25 @@ class NetworkXBaselineStorage(BaseGraphStorage):
         """Insert or update a node."""
         if "entity_id" not in node_data:
             raise ValueError("Node data must contain 'entity_id' field")
-        
+
         # Add node to graph
         self.graph.add_node(node_id)
-        
+
         # Store complete node data
         self._node_data[node_id] = node_data.copy()
-
-
 
     async def delete_node(self, node_id: str) -> None:
         """Delete a node and all its edges."""
         if node_id in self.graph.nodes:
             self.graph.remove_node(node_id)
             self._node_data.pop(node_id, None)
-            
+
             # Remove related edge data
             edges_to_remove = []
             for edge_key in self._edge_data.keys():
                 if isinstance(edge_key, tuple) and (edge_key[0] == node_id or edge_key[1] == node_id):
                     edges_to_remove.append(edge_key)
-            
+
             for edge_key in edges_to_remove:
                 self._edge_data.pop(edge_key, None)
 
@@ -115,11 +113,11 @@ class NetworkXBaselineStorage(BaseGraphStorage):
         """Get edge data."""
         if not self.graph.has_edge(source_node_id, target_node_id):
             return None
-        
+
         # Try both directions for edge key
         edge_key = (source_node_id, target_node_id)
         reverse_key = (target_node_id, source_node_id)
-        
+
         edge_data = self._edge_data.get(edge_key) or self._edge_data.get(reverse_key)
         if edge_data:
             edge_result = edge_data.copy()
@@ -150,11 +148,11 @@ class NetworkXBaselineStorage(BaseGraphStorage):
         """Get all edges for a node."""
         if source_node_id not in self.graph.nodes:
             return None
-        
+
         edges = []
         for neighbor in self.graph.neighbors(source_node_id):
             edges.append((source_node_id, neighbor))
-        
+
         return edges if edges else None
 
     async def get_nodes_edges_batch(self, node_ids: List[str]) -> Dict[str, List[Tuple[str, str]]]:
@@ -182,36 +180,40 @@ class NetworkXBaselineStorage(BaseGraphStorage):
         """Insert or update an edge."""
         # Add nodes if they don't exist
         if source_node_id not in self.graph.nodes:
-            await self.upsert_node(source_node_id, {
-                "entity_id": source_node_id,
-                "entity_type": "UNKNOWN",
-                "description": "Auto-created node",
-                "source_id": "auto",
-            })
-        
+            await self.upsert_node(
+                source_node_id,
+                {
+                    "entity_id": source_node_id,
+                    "entity_type": "UNKNOWN",
+                    "description": "Auto-created node",
+                    "source_id": "auto",
+                },
+            )
+
         if target_node_id not in self.graph.nodes:
-            await self.upsert_node(target_node_id, {
-                "entity_id": target_node_id,
-                "entity_type": "UNKNOWN", 
-                "description": "Auto-created node",
-                "source_id": "auto",
-            })
-        
+            await self.upsert_node(
+                target_node_id,
+                {
+                    "entity_id": target_node_id,
+                    "entity_type": "UNKNOWN",
+                    "description": "Auto-created node",
+                    "source_id": "auto",
+                },
+            )
+
         # Add edge to graph
         self.graph.add_edge(source_node_id, target_node_id)
-        
+
         # Store edge data (use consistent key ordering)
         edge_key = tuple(sorted([source_node_id, target_node_id]))
         self._edge_data[edge_key] = edge_data.copy()
-
-
 
     async def remove_edges(self, edges: List[Tuple[str, str]]) -> None:
         """Batch delete edges."""
         for source_node_id, target_node_id in edges:
             if self.graph.has_edge(source_node_id, target_node_id):
                 self.graph.remove_edge(source_node_id, target_node_id)
-                
+
                 # Remove edge data (try both key orders)
                 edge_key = (source_node_id, target_node_id)
                 reverse_key = (target_node_id, source_node_id)
@@ -238,34 +240,34 @@ class NetworkXBaselineStorage(BaseGraphStorage):
             # BFS from the specified node
             if node_label not in self.graph.nodes:
                 return KnowledgeGraph(nodes=[], edges=[])
-            
+
             nodes_to_include = set()
             current_level = {node_label}
             nodes_to_include.add(node_label)
-            
+
             for depth in range(max_depth):
                 if len(nodes_to_include) >= max_nodes:
                     break
-                
+
                 next_level = set()
                 for node in current_level:
                     for neighbor in self.graph.neighbors(node):
                         if neighbor not in nodes_to_include:
                             next_level.add(neighbor)
                             nodes_to_include.add(neighbor)
-                            
+
                             if len(nodes_to_include) >= max_nodes:
                                 break
-                    
+
                     if len(nodes_to_include) >= max_nodes:
                         break
-                
+
                 current_level = next_level
                 if not current_level:
                     break
-            
+
             nodes_to_include = list(nodes_to_include)
-        
+
         # Build knowledge graph
         kg_nodes = []
         for node_id in nodes_to_include:
@@ -277,7 +279,7 @@ class NetworkXBaselineStorage(BaseGraphStorage):
                 source_id=node_data.get("source_id", ""),
             )
             kg_nodes.append(kg_node)
-        
+
         kg_edges = []
         for edge in self.graph.edges():
             src, tgt = edge
@@ -292,7 +294,7 @@ class NetworkXBaselineStorage(BaseGraphStorage):
                         weight=edge_data.get("weight", 1.0),
                     )
                     kg_edges.append(kg_edge)
-        
+
         return KnowledgeGraph(nodes=kg_nodes, edges=kg_edges)
 
     async def drop(self) -> Dict[str, str]:
@@ -318,14 +320,16 @@ class NetworkXBaselineStorage(BaseGraphStorage):
         """Get connected components."""
         return [list(component) for component in nx.connected_components(self.graph)]
 
-    async def compare_with_other_storage(self, other_storage: BaseGraphStorage, node_ids: List[str] = None) -> Dict[str, Any]:
+    async def compare_with_other_storage(
+        self, other_storage: BaseGraphStorage, node_ids: List[str] = None
+    ) -> Dict[str, Any]:
         """
         Compare this baseline storage with another storage implementation.
         This is useful for validating that other storage backends behave consistently.
         """
         if node_ids is None:
             node_ids = list(self.graph.nodes())[:100]  # Sample for performance
-        
+
         comparison_result = {
             "nodes_compared": len(node_ids),
             "nodes_match": 0,
@@ -335,22 +339,24 @@ class NetworkXBaselineStorage(BaseGraphStorage):
             "edges_mismatch": 0,
             "mismatches": [],
         }
-        
+
         # Compare nodes
         for node_id in node_ids:
             baseline_node = await self.get_node(node_id)
             other_node = await other_storage.get_node(node_id)
-            
+
             if baseline_node is None and other_node is None:
                 comparison_result["nodes_match"] += 1
             elif baseline_node is None or other_node is None:
                 comparison_result["nodes_mismatch"] += 1
-                comparison_result["mismatches"].append({
-                    "type": "node_existence",
-                    "node_id": node_id,
-                    "baseline": baseline_node is not None,
-                    "other": other_node is not None,
-                })
+                comparison_result["mismatches"].append(
+                    {
+                        "type": "node_existence",
+                        "node_id": node_id,
+                        "baseline": baseline_node is not None,
+                        "other": other_node is not None,
+                    }
+                )
             else:
                 # Compare key fields
                 key_fields = ["entity_id", "entity_type", "description"]
@@ -358,44 +364,48 @@ class NetworkXBaselineStorage(BaseGraphStorage):
                 for field in key_fields:
                     if baseline_node.get(field) != other_node.get(field):
                         node_match = False
-                        comparison_result["mismatches"].append({
-                            "type": "node_field",
-                            "node_id": node_id,
-                            "field": field,
-                            "baseline": baseline_node.get(field),
-                            "other": other_node.get(field),
-                        })
-                
+                        comparison_result["mismatches"].append(
+                            {
+                                "type": "node_field",
+                                "node_id": node_id,
+                                "field": field,
+                                "baseline": baseline_node.get(field),
+                                "other": other_node.get(field),
+                            }
+                        )
+
                 if node_match:
                     comparison_result["nodes_match"] += 1
                 else:
                     comparison_result["nodes_mismatch"] += 1
-        
+
         # Compare edges
         edge_pairs = []
         for node_id in node_ids:
             edges = await self.get_node_edges(node_id)
             if edges:
                 edge_pairs.extend(edges)
-        
+
         # Deduplicate edges
         unique_edges = list(set(edge_pairs))
         comparison_result["edges_compared"] = len(unique_edges)
-        
+
         for src, tgt in unique_edges:
             baseline_edge = await self.get_edge(src, tgt)
             other_edge = await other_storage.get_edge(src, tgt)
-            
+
             if baseline_edge is None and other_edge is None:
                 comparison_result["edges_match"] += 1
             elif baseline_edge is None or other_edge is None:
                 comparison_result["edges_mismatch"] += 1
-                comparison_result["mismatches"].append({
-                    "type": "edge_existence",
-                    "edge": (src, tgt),
-                    "baseline": baseline_edge is not None,
-                    "other": other_edge is not None,
-                })
+                comparison_result["mismatches"].append(
+                    {
+                        "type": "edge_existence",
+                        "edge": (src, tgt),
+                        "baseline": baseline_edge is not None,
+                        "other": other_edge is not None,
+                    }
+                )
             else:
                 # Compare key fields
                 key_fields = ["weight", "description"]
@@ -403,27 +413,29 @@ class NetworkXBaselineStorage(BaseGraphStorage):
                 for field in key_fields:
                     baseline_val = baseline_edge.get(field)
                     other_val = other_edge.get(field)
-                    
+
                     # Handle numeric comparison with tolerance
                     if field == "weight" and baseline_val is not None and other_val is not None:
                         if abs(float(baseline_val) - float(other_val)) > 1e-6:
                             edge_match = False
                     elif baseline_val != other_val:
                         edge_match = False
-                    
+
                     if not edge_match:
-                        comparison_result["mismatches"].append({
-                            "type": "edge_field",
-                            "edge": (src, tgt),
-                            "field": field,
-                            "baseline": baseline_val,
-                            "other": other_val,
-                        })
+                        comparison_result["mismatches"].append(
+                            {
+                                "type": "edge_field",
+                                "edge": (src, tgt),
+                                "field": field,
+                                "baseline": baseline_val,
+                                "other": other_val,
+                            }
+                        )
                         break
-                
+
                 if edge_match:
                     comparison_result["edges_match"] += 1
                 else:
                     comparison_result["edges_mismatch"] += 1
-        
-        return comparison_result 
+
+        return comparison_result
