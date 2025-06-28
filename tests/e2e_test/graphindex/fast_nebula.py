@@ -1,5 +1,3 @@
-import asyncio
-
 from aperag.db.nebula_sync_manager import NebulaSyncConnectionManager
 
 # Initialize connection manager first
@@ -11,13 +9,15 @@ def _sync_has_node(node_id: str):
     with NebulaSyncConnectionManager.get_session("foobar") as session:
         # Use MATCH syntax - Nebula supports both nGQL and Cypher-like syntax!
         from nebula3.common import ttypes
+
         param_value = ttypes.Value()
         param_value.set_sVal(node_id)
         params = {"vid": param_value}
-        
+
         query = "MATCH (v) WHERE id(v) == $vid RETURN v LIMIT 1"
         result = session.execute_parameter(query, params)
         return result.is_succeeded() and result.row_size() > 0
+
 
 b = _sync_has_node("foobar")
 print(b)
