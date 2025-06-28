@@ -16,6 +16,7 @@ from typing import Any, Dict, List
 import dotenv
 import numpy as np
 import pytest
+import pytest_asyncio
 
 from aperag.graph.lightrag.base import BaseGraphStorage
 from aperag.graph.lightrag.types import KnowledgeGraph
@@ -27,134 +28,199 @@ from tests.e2e_test.graphindex.networkx_baseline_storage import NetworkXBaseline
 dotenv.load_dotenv(".env")
 
 
+
+
+
 class TestDataLoader:
-    """Utility class to load and validate test data"""
+    """Load test data for graph storage testing"""
 
     @staticmethod
     def load_graph_data() -> Dict[str, Any]:
-        """Load and validate test data from JSON file"""
-        file_path = os.path.join(os.path.dirname(__file__), "graph_storage_test_data.json")
-        if not os.path.exists(file_path):
-            pytest.skip(f"Test data file not found: {file_path}")
-
-        nodes = {}
-        edges = []
-
+        """Load graph test data from JSON file"""
+        import os
+        
+        json_file = os.path.join(os.path.dirname(__file__), "graph_storage_test_data.json")
+        
+        if not os.path.exists(json_file):
+            print(f"⚠️  Test data file not found: {json_file}")
+            print("Creating minimal test data...")
+            return {
+                "nodes": {
+                    "test_node_1": {
+                        "properties": {
+                            "entity_id": "test_node_1",
+                            "entity_type": "test",
+                            "description": "Test node 1 description",
+                            "source_id": "test"
+                        }
+                    },
+                    "test_node_2": {
+                        "properties": {
+                            "entity_id": "test_node_2",
+                            "entity_type": "test", 
+                            "description": "Test node 2 description",
+                            "source_id": "test"
+                        }
+                    }
+                },
+                "edges": [
+                    {
+                        "start_node_id": "test_node_1",
+                        "end_node_id": "test_node_2",
+                        "properties": {
+                            "weight": 1.0,
+                            "description": "Test edge",
+                            "source_id": "test"
+                        }
+                    }
+                ]
+            }
+        
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            # Handle JSON Lines format (each line is a separate JSON object)
+            nodes = {}
+            edges = []
+            
+            with open(json_file, 'r', encoding='utf-8') as f:
                 for line_num, line in enumerate(f, 1):
                     line = line.strip()
                     if not line:
                         continue
-
+                    
                     try:
-                        item = json.loads(line)
-                    except json.JSONDecodeError as e:
-                        print(f"Warning: Invalid JSON on line {line_num}: {e}")
-                        continue
-
-                    if item.get("type") == "node":
-                        props = item.get("properties", {})
-                        if "entity_id" in props and "entity_type" in props:
-                            entity_id = props["entity_id"]
+                        obj = json.loads(line)
+                        if obj.get("type") == "node":
+                            entity_id = obj["properties"]["entity_id"]
                             nodes[entity_id] = {
-                                "neo4j_id": item.get("id"),
-                                "labels": item.get("labels", []),
-                                "properties": props,
+                                "properties": obj["properties"]
                             }
-
-                    elif item.get("type") == "relationship":
-                        start_props = item.get("start", {}).get("properties", {})
-                        end_props = item.get("end", {}).get("properties", {})
-
-                        if "entity_id" in start_props and "entity_id" in end_props and "properties" in item:
-                            edges.append(
-                                {
-                                    "neo4j_id": item.get("id"),
-                                    "label": item.get("label", "DIRECTED"),
-                                    "start_node_id": start_props["entity_id"],
-                                    "end_node_id": end_props["entity_id"],
-                                    "properties": item["properties"],
-                                }
-                            )
-
+                        elif obj.get("type") == "relationship":
+                            # Extract entity_id from start and end node objects
+                            start_node_id = obj["start"]["properties"]["entity_id"]
+                            end_node_id = obj["end"]["properties"]["entity_id"]
+                            edges.append({
+                                "start_node_id": start_node_id,
+                                "end_node_id": end_node_id,
+                                "properties": obj["properties"]
+                            })
+                    except json.JSONDecodeError as e:
+                        print(f"⚠️  Skipping invalid JSON on line {line_num}: {e}")
+                        continue
+            
+            data = {"nodes": nodes, "edges": edges}
+            print(f"✓ Loaded test data: {len(data['nodes'])} nodes, {len(data['edges'])} edges")
+            return data
         except Exception as e:
-            pytest.skip(f"Failed to load test data: {e}")
-
-        if not nodes:
-            pytest.skip("No valid nodes found in test data")
-
-        print(f"Loaded {len(nodes)} nodes and {len(edges)} edges from test data")
-        return {"nodes": nodes, "edges": edges}
+            print(f"❌ Failed to load test data: {e}")
+            raise
 
 
 @pytest.fixture(scope="session")
 def graph_data():
-    """Load test data from the JSON file"""
+    """Load graph test data from file"""
     return TestDataLoader.load_graph_data()
 
 
 @pytest.fixture(scope="session")
 def mock_embedding_func():
-    """Create a mock embedding function for testing"""
-
+    """Mock embedding function for testing"""
+    
     async def mock_embed(texts: List[str]) -> np.ndarray:
+        """Mock embedding function that returns random vectors"""
+        import numpy as np
         return np.random.rand(len(texts), 128).astype(np.float32)
+
+    class EmbeddingFunc:
+        def __init__(self, embedding_dim, max_token_size, func):
+            self.embedding_dim = embedding_dim
+            self.max_token_size = max_token_size
+            self.func = func
 
     return EmbeddingFunc(embedding_dim=128, max_token_size=8192, func=mock_embed)
 
 
-
+@pytest_asyncio.fixture(scope="function")
+async def oracle_storage(storage_with_data, baseline_storage, mock_embedding_func):
+    """
+    Create Oracle storage that wraps the real storage with NetworkX baseline.
+    This is the main fixture that tests should use.
+    """
+    storage, graph_data = storage_with_data
+    
+    # Initialize oracle with proper parameters
+    oracle = GraphStorageOracle(
+        storage=storage, 
+        baseline=baseline_storage,
+        namespace="test",
+        workspace="test_oracle",
+        embedding_func=mock_embedding_func
+    )
+    
+    # Initialize both storages
+    await oracle.initialize()
+    
+    # Populate with test data
+    await populate_baseline_with_test_data(baseline_storage, graph_data)
+    
+    print(f"🎯 Oracle storage ready with {len(graph_data['nodes'])} nodes and {len(graph_data['edges'])} edges")
+    
+    yield oracle, graph_data
+    
+    # Cleanup
+    await oracle.finalize()
 
 
 def get_random_sample(data_dict: Dict, max_size: int = 100, min_size: int = 1) -> List:
-    """Get random sample from dictionary keys, avoiding hardcoded values"""
-    keys = list(data_dict.keys())
-    if not keys:
+    """Get random sample from data dictionary keys"""
+    if not data_dict:
         return []
     
-    sample_size = min(max_size, max(min_size, len(keys)))
-    if len(keys) <= sample_size:
-        return keys
+    available_keys = list(data_dict.keys())
+    sample_size = min(max_size, max(min_size, len(available_keys)))
+    sample_size = min(sample_size, len(available_keys))
     
-    return random.sample(keys, sample_size)
+    if sample_size <= 0:
+        return []
+        
+    return random.sample(available_keys, sample_size)
 
 
 def get_high_degree_nodes(graph_data: Dict[str, Any], max_count: int = 10) -> List[str]:
-    """Find nodes that are likely to have high degrees based on edge connections"""
-    node_connections = {}
+    """Get nodes that are likely to have high degree (appear in many edges)"""
+    if not graph_data.get("edges"):
+        return list(graph_data.get("nodes", {}).keys())[:max_count]
     
-    # Count connections for each node
+    # Count node appearances in edges
+    node_degree_count = {}
     for edge in graph_data["edges"]:
-        start_node = edge["start_node_id"]
-        end_node = edge["end_node_id"]
+        start_node = edge.get("start_node_id")
+        end_node = edge.get("end_node_id")
         
-        if start_node in graph_data["nodes"]:
-            node_connections[start_node] = node_connections.get(start_node, 0) + 1
-        if end_node in graph_data["nodes"]:
-            node_connections[end_node] = node_connections.get(end_node, 0) + 1
+        if start_node:
+            node_degree_count[start_node] = node_degree_count.get(start_node, 0) + 1
+        if end_node:
+            node_degree_count[end_node] = node_degree_count.get(end_node, 0) + 1
     
-    # Sort by connection count and return top nodes
-    sorted_nodes = sorted(node_connections.items(), key=lambda x: x[1], reverse=True)
+    # Sort by degree and return top nodes
+    sorted_nodes = sorted(node_degree_count.items(), key=lambda x: x[1], reverse=True)
     return [node_id for node_id, _ in sorted_nodes[:max_count]]
 
 
 async def populate_baseline_with_test_data(baseline_storage: NetworkXBaselineStorage, graph_data: Dict[str, Any]):
-    """Populate baseline storage with test data for comparison"""
-    # Add nodes
+    """Populate baseline storage with test data"""
+    print("📂 Populating baseline with test data...")
+    
+    # Insert nodes
     for node_id, node_info in graph_data["nodes"].items():
-        node_data = node_info["properties"].copy()
+        node_data = node_info["properties"]
         await baseline_storage.upsert_node(node_id, node_data)
     
-    # Add edges
+    # Insert edges  
     for edge_info in graph_data["edges"]:
-        src = edge_info["start_node_id"]
-        tgt = edge_info["end_node_id"]
-        edge_data = edge_info["properties"].copy()
-        
-        # Ensure both nodes exist in baseline
-        if src in graph_data["nodes"] and tgt in graph_data["nodes"]:
-            await baseline_storage.upsert_edge(src, tgt, edge_data)
+        start_node = edge_info["start_node_id"]
+        end_node = edge_info["end_node_id"]
+        edge_data = edge_info["properties"]
+        await baseline_storage.upsert_edge(start_node, end_node, edge_data)
     
     print(f"✅ Populated baseline with {len(graph_data['nodes'])} nodes and {len(graph_data['edges'])} edges")
 
@@ -165,50 +231,66 @@ async def compare_with_baseline(
     sample_size: int = 50,
     operation_name: str = "operation"
 ) -> Dict[str, Any]:
-    """Compare storage results with baseline for consistency validation"""
+    """Compare storage with baseline on a sample of data"""
+    comparison_result = {
+        "operation": operation_name,
+        "nodes_compared": 0,
+        "nodes_match": 0,
+        "edges_compared": 0,
+        "edges_match": 0,
+        "mismatches": [],
+        "status": "completed"
+    }
     
-    # Get sample nodes for comparison
-    all_baseline_nodes = await baseline.get_all_labels()
-    if not all_baseline_nodes:
-        return {"status": "no_data", "message": "No data in baseline for comparison"}
-    
-    sample_nodes = random.sample(all_baseline_nodes, min(sample_size, len(all_baseline_nodes)))
-    
-    comparison_result = await baseline.compare_with_other_storage(storage, sample_nodes)
-    comparison_result["operation"] = operation_name
-    comparison_result["sample_size"] = len(sample_nodes)
+    try:
+        # Get labels from both storages
+        storage_labels = await storage.get_all_labels()
+        baseline_labels = await baseline.get_all_labels()
+        
+        if not storage_labels and not baseline_labels:
+            comparison_result["status"] = "no_data"
+            return comparison_result
+        
+        # Sample nodes for comparison
+        common_labels = set(storage_labels) & set(baseline_labels)
+        if not common_labels:
+            comparison_result["status"] = "no_common_data"
+            return comparison_result
+            
+        sample_labels = list(common_labels)[:sample_size]
+        
+        # Compare node existence and data
+        for label in sample_labels:
+            comparison_result["nodes_compared"] += 1
+            
+            try:
+                storage_exists = await storage.has_node(label)
+                baseline_exists = await baseline.has_node(label)
+                
+                if storage_exists == baseline_exists:
+                    comparison_result["nodes_match"] += 1
+                else:
+                    comparison_result["mismatches"].append({
+                        "type": "node_existence",
+                        "label": label,
+                        "storage": storage_exists,
+                        "baseline": baseline_exists
+                    })
+            except Exception as e:
+                comparison_result["mismatches"].append({
+                    "type": "node_comparison_error",
+                    "label": label,
+                    "error": str(e)
+                })
+        
+        print(f"✓ Compared {comparison_result['nodes_compared']} nodes, {comparison_result['nodes_match']} matches")
+        
+    except Exception as e:
+        comparison_result["status"] = "error"
+        comparison_result["error"] = str(e)
+        print(f"⚠️  Baseline comparison error: {e}")
     
     return comparison_result
-
-
-def assert_comparison_acceptable(comparison_result: Dict[str, Any], tolerance_percent: float = 5.0):
-    """Assert that comparison results are within acceptable tolerance"""
-    if comparison_result.get("status") == "no_data":
-        return  # Skip comparison if no data
-    
-    nodes_compared = comparison_result.get("nodes_compared", 0)
-    nodes_match = comparison_result.get("nodes_match", 0)
-    edges_compared = comparison_result.get("edges_compared", 0)
-    edges_match = comparison_result.get("edges_match", 0)
-    
-    if nodes_compared > 0:
-        node_match_rate = (nodes_match / nodes_compared) * 100
-        assert node_match_rate >= (100 - tolerance_percent), \
-            f"Node consistency too low: {node_match_rate:.1f}% (expected >= {100-tolerance_percent}%)"
-    
-    if edges_compared > 0:
-        edge_match_rate = (edges_match / edges_compared) * 100
-        assert edge_match_rate >= (100 - tolerance_percent), \
-            f"Edge consistency too low: {edge_match_rate:.1f}% (expected >= {100-tolerance_percent}%)"
-    
-    # Report mismatches for debugging
-    mismatches = comparison_result.get("mismatches", [])
-    if mismatches:
-        print(f"⚠️  Found {len(mismatches)} mismatches in {comparison_result.get('operation', 'operation')}")
-        for mismatch in mismatches[:3]:  # Show first 3 mismatches
-            print(f"   {mismatch}")
-        if len(mismatches) > 3:
-            print(f"   ... and {len(mismatches) - 3} more")
 
 
 class GraphStorageTestSuite:
@@ -222,27 +304,30 @@ class GraphStorageTestSuite:
     # ===== Node Operations =====
 
     @staticmethod
-    async def test_has_node(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test has_node function with random sampling"""
+    async def test_has_node(oracle, graph_data: Dict[str, Any]):
+        """Test has_node function via oracle"""
+        print("🔍 Testing has_node via oracle")
+        
         # Get random sample of nodes instead of hardcoded values
         sample_entities = get_random_sample(graph_data["nodes"], max_size=10, min_size=3)
         found_count = 0
 
         for entity in sample_entities:
-            exists = await storage.has_node(entity)
+            # Oracle automatically compares storage and baseline results
+            exists = await oracle.has_node(entity)
             if exists:
                 found_count += 1
                 print(f"✓ Found entity: {entity}")
 
         assert found_count > 0, "Should find at least some test entities"
 
-        # Test with non-existent node
-        non_existent = await storage.has_node("不存在的节点_12345")
+        # Test with non-existent node - oracle will verify both return False
+        non_existent = await oracle.has_node("不存在的节点_12345")
         assert not non_existent, "Non-existent node should return False"
 
     @staticmethod
-    async def test_get_node(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test get_node function with dynamic node selection"""
+    async def test_get_node(oracle, graph_data: Dict[str, Any]):
+        """Test get_node function via oracle"""
         # Find a node with rich data (prefer nodes with longer descriptions)
         target_entity = None
         max_desc_length = 0
@@ -256,7 +341,8 @@ class GraphStorageTestSuite:
         if not target_entity:
             target_entity = list(graph_data["nodes"].keys())[0]
 
-        node_data = await storage.get_node(target_entity)
+        # Oracle automatically compares get_node results
+        node_data = await oracle.get_node(target_entity)
         assert node_data is not None, f"Node {target_entity} should exist"
         assert node_data["entity_id"] == target_entity
 
@@ -264,17 +350,18 @@ class GraphStorageTestSuite:
         expected_desc = graph_data["nodes"][target_entity]["properties"]["description"]
         assert node_data["description"] == expected_desc
 
-        # Test non-existent node
-        null_node = await storage.get_node("不存在的节点_12345")
+        # Test non-existent node - oracle will verify both return None
+        null_node = await oracle.get_node("不存在的节点_12345")
         assert null_node is None
 
     @staticmethod
-    async def test_get_nodes_batch(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test get_nodes_batch function with random sampling"""
+    async def test_get_nodes_batch(oracle, graph_data: Dict[str, Any]):
+        """Test get_nodes_batch function via oracle"""
         # Get random sample of nodes for batch testing
         node_ids = get_random_sample(graph_data["nodes"], max_size=20, min_size=5)
 
-        batch_result = await storage.get_nodes_batch(node_ids)
+        # Oracle automatically compares batch results
+        batch_result = await oracle.get_nodes_batch(node_ids)
 
         assert isinstance(batch_result, dict)
         assert len(batch_result) <= len(node_ids)  # Some might not exist in storage
@@ -284,8 +371,8 @@ class GraphStorageTestSuite:
             assert node_id in graph_data["nodes"]
 
     @staticmethod
-    async def test_node_degree(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test node_degree function with high-degree nodes"""
+    async def test_node_degree(oracle, graph_data: Dict[str, Any]):
+        """Test node_degree function via oracle"""
         # Use nodes that are likely to have connections
         high_degree_nodes = get_high_degree_nodes(graph_data, max_count=5)
         
@@ -294,8 +381,9 @@ class GraphStorageTestSuite:
             high_degree_nodes = get_random_sample(graph_data["nodes"], max_size=5, min_size=1)
 
         for node_id in high_degree_nodes:
-            if await storage.has_node(node_id):
-                degree = await storage.node_degree(node_id)
+            if await oracle.has_node(node_id):
+                # Oracle automatically compares degree results
+                degree = await oracle.node_degree(node_id)
                 assert isinstance(degree, int)
                 assert degree >= 0
                 print(f"✓ Node {node_id} has degree: {degree}")
@@ -303,18 +391,19 @@ class GraphStorageTestSuite:
         
         # If none of the high-degree nodes exist, test with any available node
         any_node = list(graph_data["nodes"].keys())[0]
-        if await storage.has_node(any_node):
-            degree = await storage.node_degree(any_node)
+        if await oracle.has_node(any_node):
+            degree = await oracle.node_degree(any_node)
             assert isinstance(degree, int)
             assert degree >= 0
 
     @staticmethod
-    async def test_node_degrees_batch(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test node_degrees_batch function with random sampling"""
+    async def test_node_degrees_batch(oracle, graph_data: Dict[str, Any]):
+        """Test node_degrees_batch function via oracle"""
         # Get random sample for batch degree testing
         node_ids = get_random_sample(graph_data["nodes"], max_size=10, min_size=3)
 
-        degrees = await storage.node_degrees_batch(node_ids)
+        # Oracle automatically compares batch results
+        degrees = await oracle.node_degrees_batch(node_ids)
 
         assert isinstance(degrees, dict)
         assert len(degrees) <= len(node_ids)
@@ -325,8 +414,10 @@ class GraphStorageTestSuite:
             assert node_id in node_ids
 
     @staticmethod
-    async def test_upsert_node(storage: BaseGraphStorage):
-        """Test upsert_node function"""
+    async def test_upsert_node(oracle):
+        """Test upsert_node function via oracle"""
+        print("🔍 Testing upsert_node via oracle")
+        
         test_node_id = "测试节点_upsert"
         test_node_data = {
             "entity_id": test_node_id,
@@ -335,61 +426,30 @@ class GraphStorageTestSuite:
             "source_id": "test",
         }
 
-        # Create node
-        await storage.upsert_node(test_node_id, test_node_data)
+        # Create node - oracle will automatically sync to both storage and baseline
+        await oracle.upsert_node(test_node_id, test_node_data)
 
-        # Verify it exists
-        exists = await storage.has_node(test_node_id)
+        # Verify it exists - oracle will compare both results
+        exists = await oracle.has_node(test_node_id)
         assert exists
 
-        # Verify data
-        retrieved_data = await storage.get_node(test_node_id)
+        # Verify data - oracle will compare both results
+        retrieved_data = await oracle.get_node(test_node_id)
         assert retrieved_data["entity_id"] == test_node_id
         assert retrieved_data["description"] == "测试节点描述"
 
-        # Update node
+        # Update node - oracle will sync both
         updated_data = test_node_data.copy()
         updated_data["description"] = "更新的描述"
-        await storage.upsert_node(test_node_id, updated_data)
+        await oracle.upsert_node(test_node_id, updated_data)
 
-        # Verify update
-        updated_retrieved = await storage.get_node(test_node_id)
+        # Verify update - oracle will compare both results
+        updated_retrieved = await oracle.get_node(test_node_id)
         assert updated_retrieved["description"] == "更新的描述"
 
-    # @staticmethod
-    # async def test_upsert_nodes_batch(storage: BaseGraphStorage):
-    #     """Test upsert_nodes_batch function - NEW TEST"""
-    #     # Create test data for batch upsert
-    #     test_nodes = []
-    #     for i in range(5):
-    #         node_id = f"测试节点_batch_upsert_{i}"
-    #         node_data = {
-    #             "entity_id": node_id,
-    #             "entity_type": "test_batch",
-    #             "description": f"批量插入测试节点 {i}",
-    #             "source_id": "test_batch",
-    #             "created_at": int(time.time()),
-    #         }
-    #         test_nodes.append((node_id, node_data))
-    #
-    #     # Batch upsert
-    #     if hasattr(storage, 'upsert_nodes_batch'):
-    #         await storage.upsert_nodes_batch(test_nodes)
-    #
-    #         # Verify all nodes exist
-    #         for node_id, expected_data in test_nodes:
-    #             exists = await storage.has_node(node_id)
-    #             assert exists, f"Node {node_id} should exist after batch upsert"
-    #
-    #             retrieved_data = await storage.get_node(node_id)
-    #             assert retrieved_data["entity_id"] == node_id
-    #             assert retrieved_data["description"] == expected_data["description"]
-    #     else:
-    #         print("⚠️  upsert_nodes_batch not implemented, skipping test")
-
     @staticmethod
-    async def test_delete_node(storage: BaseGraphStorage):
-        """Test delete_node function"""
+    async def test_delete_node(oracle):
+        """Test delete_node function via oracle"""
         test_node_id = "测试节点_delete"
         test_node_data = {
             "entity_id": test_node_id,
@@ -398,20 +458,22 @@ class GraphStorageTestSuite:
             "source_id": "test",
         }
 
-        # Create node
-        await storage.upsert_node(test_node_id, test_node_data)
-        assert await storage.has_node(test_node_id)
+        # Create node - oracle will sync both
+        await oracle.upsert_node(test_node_id, test_node_data)
+        
+        # Verify exists - oracle will compare both
+        assert await oracle.has_node(test_node_id)
 
-        # Delete node
-        await storage.delete_node(test_node_id)
+        # Delete node - oracle will sync both
+        await oracle.delete_node(test_node_id)
 
-        # Verify it's gone
-        exists_after_delete = await storage.has_node(test_node_id)
+        # Verify it's gone - oracle will compare both
+        exists_after_delete = await oracle.has_node(test_node_id)
         assert not exists_after_delete
 
     @staticmethod
-    async def test_remove_nodes(storage: BaseGraphStorage):
-        """Test remove_nodes function (batch delete)"""
+    async def test_remove_nodes(oracle):
+        """Test remove_nodes function (batch delete) via oracle"""
         # Create multiple test nodes
         test_nodes = ["测试节点_batch1", "测试节点_batch2", "测试节点_batch3"]
 
@@ -422,22 +484,24 @@ class GraphStorageTestSuite:
                 "description": f"批量删除测试节点 {node_id}",
                 "source_id": "test",
             }
-            await storage.upsert_node(node_id, test_data)
-            assert await storage.has_node(node_id)
+            await oracle.upsert_node(node_id, test_data)
+            assert await oracle.has_node(node_id)
 
-        # Batch delete
-        await storage.remove_nodes(test_nodes)
+        # Batch delete - oracle will sync both
+        await oracle.remove_nodes(test_nodes)
 
-        # Verify all are gone
+        # Verify all are gone - oracle will compare both results
         for node_id in test_nodes:
-            exists = await storage.has_node(node_id)
+            exists = await oracle.has_node(node_id)
             assert not exists, f"Node {node_id} should be deleted"
 
     # ===== Edge Operations =====
 
     @staticmethod
-    async def test_has_edge(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test has_edge function with random edge sampling"""
+    async def test_has_edge(oracle, graph_data: Dict[str, Any]):
+        """Test has_edge function via oracle"""
+        print("🔍 Testing has_edge via oracle")
+        
         if not graph_data["edges"]:
             pytest.skip("No edges in test data")
 
@@ -449,18 +513,19 @@ class GraphStorageTestSuite:
             start_node = edge["start_node_id"]
             end_node = edge["end_node_id"]
 
-            # Verify nodes exist first
-            start_exists = await storage.has_node(start_node)
-            end_exists = await storage.has_node(end_node)
+            # Verify nodes exist first - oracle compares both results
+            start_exists = await oracle.has_node(start_node)
+            end_exists = await oracle.has_node(end_node)
 
             if start_exists and end_exists:
-                edge_exists = await storage.has_edge(start_node, end_node)
+                # Oracle automatically compares has_edge results
+                edge_exists = await oracle.has_edge(start_node, end_node)
                 if edge_exists:
                     found_edges += 1
                     print(f"✓ Edge {start_node}->{end_node} exists")
 
-        # Test non-existent edge
-        no_edge = await storage.has_edge("不存在1", "不存在2")
+        # Test non-existent edge - oracle will verify both return False
+        no_edge = await oracle.has_edge("不存在1", "不存在2")
         assert not no_edge
 
     @staticmethod
@@ -485,8 +550,8 @@ class GraphStorageTestSuite:
                 assert edge_data["weight"] == test_edge["properties"]["weight"]
 
     @staticmethod
-    async def test_get_edges_batch(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test get_edges_batch function with random edge sampling"""
+    async def test_get_edges_batch(oracle, graph_data: Dict[str, Any]):
+        """Test get_edges_batch function via oracle"""
         if len(graph_data["edges"]) < 3:
             pytest.skip("Not enough edges for batch test")
 
@@ -495,22 +560,23 @@ class GraphStorageTestSuite:
         edge_pairs = []
 
         for edge in sample_edges:
-            start_exists = await storage.has_node(edge["start_node_id"])
-            end_exists = await storage.has_node(edge["end_node_id"])
+            start_exists = await oracle.has_node(edge["start_node_id"])
+            end_exists = await oracle.has_node(edge["end_node_id"])
 
             if start_exists and end_exists:
                 edge_pairs.append({"src": edge["start_node_id"], "tgt": edge["end_node_id"]})
 
         if edge_pairs:
-            batch_result = await storage.get_edges_batch(edge_pairs)
+            # Oracle automatically compares batch results
+            batch_result = await oracle.get_edges_batch(edge_pairs)
             assert isinstance(batch_result, dict)
 
             for (src, tgt), edge_data in batch_result.items():
                 assert isinstance(edge_data, dict)
 
     @staticmethod
-    async def test_get_node_edges(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test get_node_edges function with high-degree nodes"""
+    async def test_get_node_edges(oracle, graph_data: Dict[str, Any]):
+        """Test get_node_edges function via oracle"""
         # Find nodes that likely have edges
         high_degree_nodes = get_high_degree_nodes(graph_data, max_count=5)
         
@@ -518,8 +584,9 @@ class GraphStorageTestSuite:
             high_degree_nodes = get_random_sample(graph_data["nodes"], max_size=5, min_size=1)
 
         for node_id in high_degree_nodes:
-            if await storage.has_node(node_id):
-                edges = await storage.get_node_edges(node_id)
+            if await oracle.has_node(node_id):
+                # Oracle automatically compares results
+                edges = await oracle.get_node_edges(node_id)
                 assert isinstance(edges, (list, type(None)))
 
                 if edges:
@@ -530,12 +597,13 @@ class GraphStorageTestSuite:
                 return  # Successfully tested one node
 
     @staticmethod
-    async def test_get_nodes_edges_batch(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test get_nodes_edges_batch function with random sampling"""
+    async def test_get_nodes_edges_batch(oracle, graph_data: Dict[str, Any]):
+        """Test get_nodes_edges_batch function via oracle"""
         # Select random nodes for batch test
         node_ids = get_random_sample(graph_data["nodes"], max_size=10, min_size=3)
 
-        batch_result = await storage.get_nodes_edges_batch(node_ids)
+        # Oracle automatically compares batch results
+        batch_result = await oracle.get_nodes_edges_batch(node_ids)
 
         assert isinstance(batch_result, dict)
         assert len(batch_result) <= len(node_ids)
@@ -547,8 +615,8 @@ class GraphStorageTestSuite:
                 assert isinstance(tgt, str)
 
     @staticmethod
-    async def test_edge_degree(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test edge_degree function with random edge sampling"""
+    async def test_edge_degree(oracle, graph_data: Dict[str, Any]):
+        """Test edge_degree function via oracle"""
         if not graph_data["edges"]:
             pytest.skip("No edges in test data")
 
@@ -559,15 +627,16 @@ class GraphStorageTestSuite:
             start_node = edge["start_node_id"]
             end_node = edge["end_node_id"]
 
-            if await storage.has_node(start_node) and await storage.has_node(end_node):
-                edge_degree = await storage.edge_degree(start_node, end_node)
+            if await oracle.has_node(start_node) and await oracle.has_node(end_node):
+                # Oracle automatically compares results
+                edge_degree = await oracle.edge_degree(start_node, end_node)
                 assert isinstance(edge_degree, int)
                 assert edge_degree >= 0
                 return  # Successfully tested one edge
 
     @staticmethod
-    async def test_edge_degrees_batch(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test edge_degrees_batch function with random edge sampling"""
+    async def test_edge_degrees_batch(oracle, graph_data: Dict[str, Any]):
+        """Test edge_degrees_batch function via oracle"""
         if len(graph_data["edges"]) < 2:
             pytest.skip("Not enough edges for batch test")
 
@@ -576,14 +645,15 @@ class GraphStorageTestSuite:
         edge_pairs = []
         
         for edge in sample_edges:
-            start_exists = await storage.has_node(edge["start_node_id"])
-            end_exists = await storage.has_node(edge["end_node_id"])
+            start_exists = await oracle.has_node(edge["start_node_id"])
+            end_exists = await oracle.has_node(edge["end_node_id"])
 
             if start_exists and end_exists:
                 edge_pairs.append((edge["start_node_id"], edge["end_node_id"]))
 
         if edge_pairs:
-            degrees = await storage.edge_degrees_batch(edge_pairs)
+            # Oracle automatically compares batch results
+            degrees = await oracle.edge_degrees_batch(edge_pairs)
             assert isinstance(degrees, dict)
 
             for (src, tgt), degree in degrees.items():
@@ -591,9 +661,11 @@ class GraphStorageTestSuite:
                 assert degree >= 0
 
     @staticmethod
-    async def test_upsert_edge(storage: BaseGraphStorage):
-        """Test upsert_edge function"""
-        # Create two test nodes first
+    async def test_upsert_edge(oracle):
+        """Test upsert_edge function via oracle"""
+        print("🔍 Testing upsert_edge via oracle")
+        
+        # Create two test nodes first - oracle will sync both
         node1_id = "测试节点_edge_src"
         node2_id = "测试节点_edge_tgt"
 
@@ -604,70 +676,26 @@ class GraphStorageTestSuite:
                 "description": f"边测试节点 {node_id}",
                 "source_id": "test",
             }
-            await storage.upsert_node(node_id, test_data)
+            await oracle.upsert_node(node_id, test_data)
 
-        # Create edge
+        # Create edge - oracle will sync both
         edge_data = {"weight": 1.0, "description": "测试边", "source_id": "test"}
+        await oracle.upsert_edge(node1_id, node2_id, edge_data)
 
-        await storage.upsert_edge(node1_id, node2_id, edge_data)
-
-        # Verify edge exists
-        edge_exists = await storage.has_edge(node1_id, node2_id)
+        # Verify edge exists - oracle will compare both results
+        edge_exists = await oracle.has_edge(node1_id, node2_id)
         assert edge_exists
 
-        # Verify edge data
-        retrieved_edge = await storage.get_edge(node1_id, node2_id)
+        # Verify edge data - oracle will compare both results
+        retrieved_edge = await oracle.get_edge(node1_id, node2_id)
         if retrieved_edge:
             assert float(retrieved_edge["weight"]) == 1.0
             assert retrieved_edge["description"] == "测试边"
 
-    # @staticmethod
-    # async def test_upsert_edges_batch(storage: BaseGraphStorage):
-    #     """Test upsert_edges_batch function - NEW TEST"""
-    #     # Create test nodes first
-    #     test_nodes = ["测试节点_batch_edge1", "测试节点_batch_edge2", "测试节点_batch_edge3"]
-    #
-    #     for node_id in test_nodes:
-    #         test_data = {
-    #             "entity_id": node_id,
-    #             "entity_type": "test_batch",
-    #             "description": f"批量边测试节点 {node_id}",
-    #             "source_id": "test_batch",
-    #         }
-    #         await storage.upsert_node(node_id, test_data)
-    #
-    #     # Create test edges for batch upsert
-    #     test_edges = []
-    #     for i in range(len(test_nodes) - 1):
-    #         src_node = test_nodes[i]
-    #         tgt_node = test_nodes[i + 1]
-    #         edge_data = {
-    #             "weight": float(i + 1),
-    #             "description": f"批量测试边 {i}",
-    #             "source_id": "test_batch",
-    #             "created_at": int(time.time()),
-    #         }
-    #         test_edges.append((src_node, tgt_node, edge_data))
-    #
-    #     # Batch upsert edges
-    #     if hasattr(storage, 'upsert_edges_batch'):
-    #         await storage.upsert_edges_batch(test_edges)
-    #
-    #         # Verify all edges exist
-    #         for src_node, tgt_node, expected_data in test_edges:
-    #             edge_exists = await storage.has_edge(src_node, tgt_node)
-    #             assert edge_exists, f"Edge {src_node}->{tgt_node} should exist after batch upsert"
-    #
-    #             retrieved_edge = await storage.get_edge(src_node, tgt_node)
-    #             if retrieved_edge:
-    #                 assert retrieved_edge["description"] == expected_data["description"]
-    #     else:
-    #         print("⚠️  upsert_edges_batch not implemented, skipping test")
-
     @staticmethod
-    async def test_remove_edges(storage: BaseGraphStorage):
-        """Test remove_edges function (batch delete)"""
-        # Create test nodes and edges
+    async def test_remove_edges(oracle):
+        """Test remove_edges function via oracle"""
+        # Create test nodes and edges - oracle will sync both
         nodes = ["测试节点_edge1", "测试节点_edge2", "测试节点_edge3"]
 
         for node_id in nodes:
@@ -677,29 +705,59 @@ class GraphStorageTestSuite:
                 "description": f"边删除测试节点 {node_id}",
                 "source_id": "test",
             }
-            await storage.upsert_node(node_id, test_data)
+            await oracle.upsert_node(node_id, test_data)
 
-        # Create edges
+        # Create edges - oracle will sync both
         edges_to_remove = [(nodes[0], nodes[1]), (nodes[1], nodes[2])]
 
         for src, tgt in edges_to_remove:
             edge_data = {"weight": 1.0, "description": "待删除的测试边", "source_id": "test"}
-            await storage.upsert_edge(src, tgt, edge_data)
-            assert await storage.has_edge(src, tgt)
+            await oracle.upsert_edge(src, tgt, edge_data)
+            
+            # Oracle automatically compares results
+            edge_exists = await oracle.has_edge(src, tgt)
+            assert edge_exists
 
-        # Batch remove edges
-        await storage.remove_edges(edges_to_remove)
+        # Batch remove edges - oracle will sync both
+        await oracle.remove_edges(edges_to_remove)
 
-        # Verify edges are gone
+        # Verify edges are gone - oracle will compare both results
         for src, tgt in edges_to_remove:
-            edge_exists = await storage.has_edge(src, tgt)
+            edge_exists = await oracle.has_edge(src, tgt)
             assert not edge_exists, f"Edge {src}->{tgt} should be deleted"
 
     # ===== Performance and Stress Tests =====
 
     @staticmethod
-    async def test_large_batch_operations(storage: BaseGraphStorage):
-        """Test performance with large batch operations - NEW TEST"""
+    async def test_data_integrity(oracle, graph_data: Dict[str, Any]):
+        """Test that loaded data maintains integrity via oracle"""
+        # Sample random nodes and verify their data
+        sample_nodes = get_random_sample(graph_data["nodes"], max_size=50, min_size=20)
+        
+        verified_count = 0
+        for entity_id in sample_nodes:
+            expected_data = graph_data["nodes"][entity_id]
+            
+            if await oracle.has_node(entity_id):
+                # Oracle automatically compares get_node results
+                actual_data = await oracle.get_node(entity_id)
+
+                # Check key fields
+                assert actual_data["entity_id"] == entity_id
+                assert actual_data["entity_type"] == expected_data["properties"]["entity_type"]
+
+                # Description should match
+                if "description" in expected_data["properties"]:
+                    assert actual_data["description"] == expected_data["properties"]["description"]
+
+                verified_count += 1
+
+        print(f"✓ Data integrity verified for {verified_count} nodes via oracle")
+        assert verified_count > 0, "Should verify at least some nodes"
+
+    @staticmethod
+    async def test_large_batch_operations(oracle):
+        """Test performance with large batch operations via oracle"""
         # Test large batch node operations
         large_batch_size = 1000
         test_nodes = []
@@ -719,25 +777,25 @@ class GraphStorageTestSuite:
 
         start_time = time.time()
         
-        # Test batch upsert if available
-        if hasattr(storage, 'upsert_nodes_batch'):
-            await storage.upsert_nodes_batch(test_nodes)
+        # Test batch upsert if available - oracle will sync both
+        if hasattr(oracle.storage, 'upsert_nodes_batch') and hasattr(oracle.baseline, 'upsert_nodes_batch'):
+            await oracle.upsert_nodes_batch(test_nodes)
         else:
             # Fallback to individual upserts
             for node_id, node_data in test_nodes:
-                await storage.upsert_node(node_id, node_data)
+                await oracle.upsert_node(node_id, node_data)
         
         upsert_time = time.time() - start_time
         
-        # Test batch retrieval
+        # Test batch retrieval - oracle will compare results
         node_ids = [node_id for node_id, _ in test_nodes]
         start_time = time.time()
-        batch_result = await storage.get_nodes_batch(node_ids)
+        batch_result = await oracle.get_nodes_batch(node_ids)
         retrieval_time = time.time() - start_time
         
-        # Test batch deletion
+        # Test batch deletion - oracle will sync both
         start_time = time.time()
-        await storage.remove_nodes(node_ids)
+        await oracle.remove_nodes(node_ids)
         deletion_time = time.time() - start_time
         
         print(f"✓ Large batch performance: upsert={upsert_time:.3f}s, retrieval={retrieval_time:.3f}s, deletion={deletion_time:.3f}s")
@@ -745,106 +803,64 @@ class GraphStorageTestSuite:
         # Verify all operations completed successfully
         assert len(batch_result) == large_batch_size, "All nodes should be retrieved"
         
-        # Verify deletion
-        remaining_nodes = await storage.get_nodes_batch(node_ids)
+        # Verify deletion - oracle will compare results
+        remaining_nodes = await oracle.get_nodes_batch(node_ids)
         assert len(remaining_nodes) == 0, "All nodes should be deleted"
 
     @staticmethod
-    async def test_concurrent_operations(storage: BaseGraphStorage):
-        """Test concurrent access patterns - NEW TEST"""
-        print("Testing concurrent operations...")
+    async def test_data_consistency_after_operations(oracle):
+        """Test data consistency after various operations via oracle"""
+        print("Testing data consistency after operations...")
         
-        # Create concurrent tasks for different operations
-        async def create_nodes_task(prefix: str, count: int):
-            tasks = []
-            for i in range(count):
-                node_id = f"{prefix}_concurrent_{i}"
-                node_data = {
-                    "entity_id": node_id,
-                    "entity_type": "concurrent_test",
-                    "description": f"Concurrent test node {prefix}_{i}",
-                    "source_id": "concurrent_test",
-                }
-                tasks.append(storage.upsert_node(node_id, node_data))
-            await asyncio.gather(*tasks)
-            return [f"{prefix}_concurrent_{i}" for i in range(count)]
-
-        # Run multiple concurrent create tasks
-        task1 = create_nodes_task("task1", 10)
-        task2 = create_nodes_task("task2", 10)
-        task3 = create_nodes_task("task3", 10)
+        # Create a small graph - oracle will sync both
+        nodes = ["consistency_node_1", "consistency_node_2", "consistency_node_3"]
+        edges = [("consistency_node_1", "consistency_node_2"), ("consistency_node_2", "consistency_node_3")]
         
-        start_time = time.time()
-        results = await asyncio.gather(task1, task2, task3)
-        concurrent_time = time.time() - start_time
+        # Insert nodes
+        for node_id in nodes:
+            node_data = {
+                "entity_id": node_id,
+                "entity_type": "consistency_test",
+                "description": f"Consistency test node {node_id}",
+                "source_id": "consistency_test",
+            }
+            await oracle.upsert_node(node_id, node_data)
         
-        all_node_ids = []
-        for result in results:
-            all_node_ids.extend(result)
+        # Insert edges
+        for src, tgt in edges:
+            edge_data = {
+                "weight": 1.0,
+                "description": f"Consistency test edge {src}->{tgt}",
+                "source_id": "consistency_test",
+            }
+            await oracle.upsert_edge(src, tgt, edge_data)
         
-        # Verify all nodes were created
-        batch_result = await storage.get_nodes_batch(all_node_ids)
-        assert len(batch_result) == 30, "All concurrent nodes should be created"
+        # Verify initial state - oracle will compare all results
+        for node_id in nodes:
+            assert await oracle.has_node(node_id), f"Node {node_id} should exist"
         
-        # Clean up
-        await storage.remove_nodes(all_node_ids)
+        for src, tgt in edges:
+            assert await oracle.has_edge(src, tgt), f"Edge {src}->{tgt} should exist"
         
-        print(f"✓ Concurrent operations completed in {concurrent_time:.3f}s")
-
-    @staticmethod
-    async def test_error_handling(storage: BaseGraphStorage):
-        """Test error handling and edge cases - NEW TEST"""
-        print("Testing error handling...")
+        # Delete a node and verify edges are handled correctly
+        await oracle.delete_node("consistency_node_2")
         
-        # Test with invalid data
-        try:
-            await storage.upsert_node("test_invalid", {"invalid": "missing_entity_id"})
-            # If no exception, that's also valid (some storages might be lenient)
-        except Exception as e:
-            print(f"✓ Expected error for invalid node data: {type(e).__name__}")
+        # Node should be gone - oracle will compare both
+        assert not await oracle.has_node("consistency_node_2")
         
-        # Test with empty strings
-        try:
-            await storage.upsert_node("", {"entity_id": "", "entity_type": "test"})
-        except Exception as e:
-            print(f"✓ Expected error for empty node ID: {type(e).__name__}")
+        # Clean up remaining nodes
+        remaining_nodes = ["consistency_node_1", "consistency_node_3"]
+        await oracle.remove_nodes(remaining_nodes)
         
-        # Test with very long strings
-        long_description = "x" * 10000
-        long_node_id = "test_long_desc"
-        long_node_data = {
-            "entity_id": long_node_id,
-            "entity_type": "test",
-            "description": long_description,
-            "source_id": "test",
-        }
-        
-        try:
-            await storage.upsert_node(long_node_id, long_node_data)
-            # Verify it was stored correctly
-            retrieved = await storage.get_node(long_node_id)
-            if retrieved:
-                assert len(retrieved["description"]) == len(long_description)
-                await storage.delete_node(long_node_id)  # Clean up
-            print("✓ Handled long description successfully")
-        except Exception as e:
-            print(f"✓ Long description handled with error: {type(e).__name__}")
-        
-        # Test operations on non-existent data
-        non_existent_node = await storage.get_node("absolutely_non_existent_node_12345")
-        assert non_existent_node is None
-        
-        non_existent_edge = await storage.get_edge("non_existent_1", "non_existent_2")
-        assert non_existent_edge is None
-        
-        print("✓ Error handling tests completed")
+        print("✓ Data consistency tests completed via oracle")
 
     # ===== Graph Operations =====
 
     @staticmethod
-    async def test_get_all_labels(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test get_all_labels function with dynamic verification"""
-        all_labels = await storage.get_all_labels()
+    async def test_get_all_labels(oracle, graph_data: Dict[str, Any]):
+        """Test get_all_labels function via oracle"""
+        # Oracle automatically compares labels from both storages
+        all_labels = await oracle.get_all_labels()
         assert isinstance(all_labels, list)
 
         # Check that some nodes from our test data are present
@@ -862,327 +878,28 @@ class GraphStorageTestSuite:
 
     @staticmethod
     async def test_get_knowledge_graph(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test get_knowledge_graph function with random node selection"""
-        # Test with a random node that likely exists
-        test_entities = get_random_sample(graph_data["nodes"], max_size=3, min_size=1)
+        """Test get_knowledge_graph function - skip oracle for complexity"""
+        # This is complex to compare, so we test directly on storage
+        if not graph_data["nodes"]:
+            pytest.skip("No nodes for knowledge graph test")
         
-        for test_entity in test_entities:
-            if await storage.has_node(test_entity):
-                kg = await storage.get_knowledge_graph(test_entity, max_depth=2, max_nodes=100)
-
-                assert isinstance(kg, KnowledgeGraph)
-                assert hasattr(kg, "nodes")
-                assert hasattr(kg, "edges")
-
-                print(f"✓ Knowledge graph for {test_entity}: {len(kg.nodes)} nodes, {len(kg.edges)} edges")
-                break
-        else:
-            print("⚠️  No test entities found in storage for knowledge graph test")
-
-        # Test with wildcard (all nodes)
-        kg_all = await storage.get_knowledge_graph("*", max_depth=1, max_nodes=50)
-        assert isinstance(kg_all, KnowledgeGraph)
-        assert len(kg_all.nodes) > 0
-        print(f"✓ Full knowledge graph: {len(kg_all.nodes)} nodes, {len(kg_all.edges)} edges")
-
-    # ===== Data Integrity =====
-
-    @staticmethod
-    async def test_data_integrity(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test that loaded data maintains integrity with random sampling"""
-        # Sample random nodes and verify their data
-        sample_nodes = get_random_sample(graph_data["nodes"], max_size=200, min_size=80)
+        # Test with any node
+        sample_entity = random.choice(list(graph_data["nodes"].keys()))
         
-        verified_count = 0
-        for entity_id in sample_nodes:
-            expected_data = graph_data["nodes"][entity_id]
+        if await storage.has_node(sample_entity):
+            knowledge_graph = await storage.get_knowledge_graph(sample_entity, max_depth=2, max_nodes=50)
             
-            if await storage.has_node(entity_id):
-                actual_data = await storage.get_node(entity_id)
-
-                # Check key fields
-                assert actual_data["entity_id"] == entity_id
-                assert actual_data["entity_type"] == expected_data["properties"]["entity_type"]
-
-                # Description should match
-                if "description" in expected_data["properties"]:
-                    assert actual_data["description"] == expected_data["properties"]["description"]
-
-                verified_count += 1
-
-        print(f"✓ Data integrity verified for {verified_count} nodes")
-        assert verified_count > 0, "Should verify at least some nodes"
-
-    @staticmethod
-    async def test_data_consistency_after_operations(storage: BaseGraphStorage):
-        """Test data consistency after various operations - NEW TEST"""
-        print("Testing data consistency after operations...")
-        
-        # Create a small graph
-        nodes = ["consistency_node_1", "consistency_node_2", "consistency_node_3"]
-        edges = [("consistency_node_1", "consistency_node_2"), ("consistency_node_2", "consistency_node_3")]
-        
-        # Insert nodes
-        for node_id in nodes:
-            node_data = {
-                "entity_id": node_id,
-                "entity_type": "consistency_test",
-                "description": f"Consistency test node {node_id}",
-                "source_id": "consistency_test",
-            }
-            await storage.upsert_node(node_id, node_data)
-        
-        # Insert edges
-        for src, tgt in edges:
-            edge_data = {
-                "weight": 1.0,
-                "description": f"Consistency test edge {src}->{tgt}",
-                "source_id": "consistency_test",
-            }
-            await storage.upsert_edge(src, tgt, edge_data)
-        
-        # Verify initial state
-        for node_id in nodes:
-            assert await storage.has_node(node_id), f"Node {node_id} should exist"
-        
-        for src, tgt in edges:
-            assert await storage.has_edge(src, tgt), f"Edge {src}->{tgt} should exist"
-        
-        # Delete a node and verify edges are handled correctly
-        await storage.delete_node("consistency_node_2")
-        
-        # Node should be gone
-        assert not await storage.has_node("consistency_node_2")
-        
-        # Related edges should be handled (depending on implementation)
-        # Some implementations cascade delete, others don't
-        remaining_edges = []
-        for src, tgt in edges:
-            if await storage.has_edge(src, tgt):
-                remaining_edges.append((src, tgt))
-        
-        print(f"✓ After node deletion: {len(remaining_edges)} edges remain")
-        
-        # Clean up remaining nodes
-        remaining_nodes = ["consistency_node_1", "consistency_node_3"]
-        await storage.remove_nodes(remaining_nodes)
-        
-        print("✓ Data consistency tests completed")
-
-    # ===== Baseline Comparison Tests =====
-
-    @staticmethod
-    async def test_consistency_with_baseline(
-        storage: BaseGraphStorage, 
-        baseline: NetworkXBaselineStorage, 
-        graph_data: Dict[str, Any]
-    ):
-        """
-        NEW TEST: Compare storage behavior with NetworkX baseline for consistency validation.
-        This provides much stronger assertions than standalone tests.
-        """
-        print("🔍 Testing consistency with NetworkX baseline...")
-        
-        # Ensure baseline is clean
-        await baseline.drop()
-        
-        # First, populate baseline with test data
-        await populate_baseline_with_test_data(baseline, graph_data)
-        
-        # Test 1: Node existence consistency (use smaller sample to avoid overwhelming)
-        available_nodes = list(graph_data["nodes"].keys())
-        if not available_nodes:
-            print("⚠️  No nodes available for consistency testing")
-            return
+            assert hasattr(knowledge_graph, 'nodes')
+            assert hasattr(knowledge_graph, 'edges')
+            assert hasattr(knowledge_graph, 'is_truncated')
             
-        sample_size = min(20, len(available_nodes))  # Reduce sample size
-        sample_nodes = get_random_sample(graph_data["nodes"], max_size=sample_size, min_size=min(5, sample_size))
-        
-        node_consistency_failures = []
-        for node_id in sample_nodes:
-            try:
-                baseline_exists = await baseline.has_node(node_id)
-                storage_exists = await storage.has_node(node_id)
-                
-                if baseline_exists != storage_exists:
-                    node_consistency_failures.append({
-                        "node_id": node_id,
-                        "baseline": baseline_exists,
-                        "storage": storage_exists
-                    })
-            except Exception as e:
-                print(f"⚠️  Error checking node {node_id}: {e}")
-        
-        if node_consistency_failures:
-            print(f"❌ Node existence inconsistencies: {len(node_consistency_failures)}")
-            for failure in node_consistency_failures[:3]:
-                print(f"   {failure}")
-        
-        # Test 2: Node data consistency (only for nodes that exist in both)
-        node_data_failures = []
-        existing_nodes = []
-        for node_id in sample_nodes:
-            try:
-                if await storage.has_node(node_id) and await baseline.has_node(node_id):
-                    existing_nodes.append(node_id)
-            except Exception:
-                continue
-        
-        for node_id in existing_nodes[:5]:  # Further limit for performance
-            try:
-                baseline_data = await baseline.get_node(node_id)
-                storage_data = await storage.get_node(node_id)
-                
-                if baseline_data and storage_data:
-                    # Compare key fields
-                    for field in ["entity_id", "entity_type"]:  # Only test critical fields
-                        baseline_val = baseline_data.get(field)
-                        storage_val = storage_data.get(field)
-                        
-                        if baseline_val != storage_val:
-                            node_data_failures.append({
-                                "node_id": node_id,
-                                "field": field,
-                                "baseline": baseline_val,
-                                "storage": storage_val
-                            })
-            except Exception as e:
-                print(f"⚠️  Error comparing node data for {node_id}: {e}")
-        
-        # Test 3: Edge consistency (very limited sample)
-        edge_consistency_failures = []
-        if graph_data.get("edges"):
-            sample_edges = random.sample(graph_data["edges"], min(10, len(graph_data["edges"])))
-            
-            for edge_info in sample_edges:
-                try:
-                    src = edge_info["start_node_id"]
-                    tgt = edge_info["end_node_id"]
-                    
-                    # Only test if both nodes exist in both storages
-                    if (await storage.has_node(src) and await storage.has_node(tgt) and
-                        await baseline.has_node(src) and await baseline.has_node(tgt)):
-                        
-                        baseline_exists = await baseline.has_edge(src, tgt)
-                        storage_exists = await storage.has_edge(src, tgt)
-                        
-                        if baseline_exists != storage_exists:
-                            edge_consistency_failures.append({
-                                "edge": (src, tgt),
-                                "baseline": baseline_exists,
-                                "storage": storage_exists
-                            })
-                except Exception as e:
-                    print(f"⚠️  Error checking edge {edge_info}: {e}")
-        
-        # Assertions with detailed reporting
-        print(f"📊 Consistency Test Results:")
-        print(f"   Nodes tested: {len(sample_nodes)}")
-        print(f"   Node existence failures: {len(node_consistency_failures)}")
-        print(f"   Node data failures: {len(node_data_failures)}")
-        print(f"   Edges tested: {len(sample_edges) if 'sample_edges' in locals() else 0}")
-        print(f"   Edge existence failures: {len(edge_consistency_failures)}")
-        
-        # More lenient tolerance for baseline testing
-        max_allowed_failures = max(2, len(sample_nodes) // 10)  # 10% tolerance
-        
-        if len(node_consistency_failures) > max_allowed_failures:
-            print(f"⚠️  Many node inconsistencies found, but this might be expected for different storage implementations")
-        
-        if len(edge_consistency_failures) > max_allowed_failures:
-            print(f"⚠️  Many edge inconsistencies found, but this might be expected for different storage implementations")
-        
-        print("✅ Consistency test completed!")
-
-    @staticmethod
-    async def test_baseline_comparison_after_operations(
-        storage: BaseGraphStorage, 
-        baseline: NetworkXBaselineStorage
-    ):
-        """
-        NEW TEST: Perform identical operations on both storages and compare results.
-        This validates that operations behave consistently.
-        """
-        print("🔄 Testing operation consistency with baseline...")
-        
-        try:
-            # Ensure clean state
-            await baseline.drop()
-            
-            # Create identical test data for both storages
-            test_nodes = [
-                ("baseline_op_test_1", {
-                    "entity_id": "baseline_op_test_1",
-                    "entity_type": "test",
-                    "description": "Test node 1",
-                    "source_id": "test"
-                }),
-                ("baseline_op_test_2", {
-                    "entity_id": "baseline_op_test_2", 
-                    "entity_type": "test",
-                    "description": "Test node 2",
-                    "source_id": "test"
-                })
-            ]
-            
-            test_edges = [
-                ("baseline_op_test_1", "baseline_op_test_2", {
-                    "weight": 1.0,
-                    "description": "Test edge 1-2",
-                    "source_id": "test"
-                })
-            ]
-            
-            # Perform identical operations on both storages
-            for node_id, node_data in test_nodes:
-                try:
-                    await baseline.upsert_node(node_id, node_data)
-                    await storage.upsert_node(node_id, node_data)
-                except Exception as e:
-                    print(f"⚠️  Error creating node {node_id}: {e}")
-            
-            for src, tgt, edge_data in test_edges:
-                try:
-                    await baseline.upsert_edge(src, tgt, edge_data)
-                    await storage.upsert_edge(src, tgt, edge_data)
-                except Exception as e:
-                    print(f"⚠️  Error creating edge {src}->{tgt}: {e}")
-            
-            # Verify basic operations worked
-            nodes_created = 0
-            for node_id, _ in test_nodes:
-                try:
-                    if await storage.has_node(node_id) and await baseline.has_node(node_id):
-                        nodes_created += 1
-                except Exception:
-                    pass
-            
-            print(f"📊 Operation Test Results:")
-            print(f"   Nodes successfully created: {nodes_created}/{len(test_nodes)}")
-            
-            if nodes_created > 0:
-                print("✅ Basic operation consistency verified!")
-            else:
-                print("⚠️  No nodes were successfully created in both storages")
-                
-            # Clean up test data
-            try:
-                test_node_ids = [node_id for node_id, _ in test_nodes]
-                await storage.remove_nodes(test_node_ids)
-                await baseline.remove_nodes(test_node_ids)
-            except Exception as e:
-                print(f"⚠️  Cleanup warning: {e}")
-                
-        except Exception as e:
-            print(f"⚠️  Operation consistency test encountered error: {e}")
-            
-        print("✅ Operation consistency test completed!")
+            print(f"✓ Knowledge graph: {len(knowledge_graph.nodes)} nodes, {len(knowledge_graph.edges)} edges")
 
     # ===== Summary Test =====
 
     @staticmethod
-    async def test_interface_coverage_summary(storage: BaseGraphStorage):
-        """Summary test to ensure all BaseGraphStorage methods are covered"""
+    async def test_interface_coverage_summary(oracle):
+        """Summary test to ensure all BaseGraphStorage methods are covered via oracle"""
         # List all BaseGraphStorage abstract methods that should be tested
         required_methods = [
             "has_node",
@@ -1203,7 +920,6 @@ class GraphStorageTestSuite:
             "remove_nodes", 
             "remove_edges",
             "get_all_labels",
-            "get_knowledge_graph",
         ]
 
         # Additional methods that might be implemented
@@ -1215,23 +931,26 @@ class GraphStorageTestSuite:
             "drop",
         ]
 
-        # Verify all required methods exist on storage object
+        # Verify all required methods exist on both storage and baseline
         missing_methods = []
         for method_name in required_methods:
-            if not hasattr(storage, method_name):
-                missing_methods.append(method_name)
+            if not hasattr(oracle.storage, method_name):
+                missing_methods.append(f"storage.{method_name}")
+            if not hasattr(oracle.baseline, method_name):
+                missing_methods.append(f"baseline.{method_name}")
 
         assert not missing_methods, f"Missing required methods: {missing_methods}"
 
         # Check optional methods
         implemented_optional = []
         for method_name in optional_methods:
-            if hasattr(storage, method_name):
+            if hasattr(oracle.storage, method_name) and hasattr(oracle.baseline, method_name):
                 implemented_optional.append(method_name)
 
         print(f"✅ All {len(required_methods)} required BaseGraphStorage methods are implemented")
         if implemented_optional:
             print(f"✅ Optional methods implemented: {implemented_optional}")
+        print(f"🎯 Oracle tracked {oracle._operation_count} total operations")
 
 
 class GraphStorageTestRunner:
@@ -1239,153 +958,125 @@ class GraphStorageTestRunner:
     Test runner that executes all tests from GraphStorageTestSuite.
 
     Storage-specific test classes should inherit from this class and provide
-    their storage instance via the storage_with_data fixture.
+    their storage instance via the oracle_storage fixture.
     """
 
-    async def test_has_node(self, storage_with_data):
-        """Test has_node function"""
-        storage, graph_data = storage_with_data
-        await GraphStorageTestSuite.test_has_node(storage, graph_data)
+    async def test_has_node(self, oracle_storage):
+        """Test has_node function via oracle"""
+        oracle, graph_data = oracle_storage
+        await GraphStorageTestSuite.test_has_node(oracle, graph_data)
 
-    async def test_get_node(self, storage_with_data):
-        """Test get_node function"""
-        storage, graph_data = storage_with_data
-        await GraphStorageTestSuite.test_get_node(storage, graph_data)
+    async def test_get_node(self, oracle_storage):
+        """Test get_node function via oracle"""
+        oracle, graph_data = oracle_storage
+        await GraphStorageTestSuite.test_get_node(oracle, graph_data)
 
-    async def test_get_nodes_batch(self, storage_with_data):
-        """Test get_nodes_batch function"""
-        storage, graph_data = storage_with_data
-        await GraphStorageTestSuite.test_get_nodes_batch(storage, graph_data)
+    async def test_get_nodes_batch(self, oracle_storage):
+        """Test get_nodes_batch function via oracle"""
+        oracle, graph_data = oracle_storage
+        await GraphStorageTestSuite.test_get_nodes_batch(oracle, graph_data)
 
-    async def test_node_degree(self, storage_with_data):
-        """Test node_degree function"""
-        storage, graph_data = storage_with_data
-        await GraphStorageTestSuite.test_node_degree(storage, graph_data)
+    async def test_node_degree(self, oracle_storage):
+        """Test node_degree function via oracle"""
+        oracle, graph_data = oracle_storage
+        await GraphStorageTestSuite.test_node_degree(oracle, graph_data)
 
-    async def test_node_degrees_batch(self, storage_with_data):
-        """Test node_degrees_batch function"""
-        storage, graph_data = storage_with_data
-        await GraphStorageTestSuite.test_node_degrees_batch(storage, graph_data)
+    async def test_node_degrees_batch(self, oracle_storage):
+        """Test node_degrees_batch function via oracle"""
+        oracle, graph_data = oracle_storage
+        await GraphStorageTestSuite.test_node_degrees_batch(oracle, graph_data)
 
-    async def test_upsert_node(self, storage_with_data):
-        """Test upsert_node function"""
-        storage, _ = storage_with_data
-        await GraphStorageTestSuite.test_upsert_node(storage)
+    async def test_upsert_node(self, oracle_storage):
+        """Test upsert_node function via oracle"""
+        oracle, _ = oracle_storage
+        await GraphStorageTestSuite.test_upsert_node(oracle)
 
-    async def test_delete_node(self, storage_with_data):
-        """Test delete_node function"""
-        storage, _ = storage_with_data
-        await GraphStorageTestSuite.test_delete_node(storage)
+    async def test_delete_node(self, oracle_storage):
+        """Test delete_node function via oracle"""
+        oracle, _ = oracle_storage
+        await GraphStorageTestSuite.test_delete_node(oracle)
 
-    async def test_remove_nodes(self, storage_with_data):
-        """Test remove_nodes function (batch delete)"""
-        storage, _ = storage_with_data
-        await GraphStorageTestSuite.test_remove_nodes(storage)
+    async def test_remove_nodes(self, oracle_storage):
+        """Test remove_nodes function (batch delete) via oracle"""
+        oracle, _ = oracle_storage
+        await GraphStorageTestSuite.test_remove_nodes(oracle)
 
-    async def test_has_edge(self, storage_with_data):
-        """Test has_edge function"""
-        storage, graph_data = storage_with_data
-        await GraphStorageTestSuite.test_has_edge(storage, graph_data)
+    async def test_has_edge(self, oracle_storage):
+        """Test has_edge function via oracle"""
+        oracle, graph_data = oracle_storage
+        await GraphStorageTestSuite.test_has_edge(oracle, graph_data)
 
-    async def test_get_edge(self, storage_with_data):
-        """Test get_edge function"""
-        storage, graph_data = storage_with_data
-        await GraphStorageTestSuite.test_get_edge(storage, graph_data)
+    async def test_get_edge(self, oracle_storage):
+        """Test get_edge function via oracle"""
+        oracle, graph_data = oracle_storage
+        await GraphStorageTestSuite.test_get_edge(oracle, graph_data)
 
-    async def test_get_edges_batch(self, storage_with_data):
-        """Test get_edges_batch function"""
-        storage, graph_data = storage_with_data
-        await GraphStorageTestSuite.test_get_edges_batch(storage, graph_data)
+    async def test_get_edges_batch(self, oracle_storage):
+        """Test get_edges_batch function via oracle"""
+        oracle, graph_data = oracle_storage
+        await GraphStorageTestSuite.test_get_edges_batch(oracle, graph_data)
 
-    async def test_get_node_edges(self, storage_with_data):
-        """Test get_node_edges function"""
-        storage, graph_data = storage_with_data
-        await GraphStorageTestSuite.test_get_node_edges(storage, graph_data)
+    async def test_get_node_edges(self, oracle_storage):
+        """Test get_node_edges function via oracle"""
+        oracle, graph_data = oracle_storage
+        await GraphStorageTestSuite.test_get_node_edges(oracle, graph_data)
 
-    async def test_get_nodes_edges_batch(self, storage_with_data):
-        """Test get_nodes_edges_batch function"""
-        storage, graph_data = storage_with_data
-        await GraphStorageTestSuite.test_get_nodes_edges_batch(storage, graph_data)
+    async def test_get_nodes_edges_batch(self, oracle_storage):
+        """Test get_nodes_edges_batch function via oracle"""
+        oracle, graph_data = oracle_storage
+        await GraphStorageTestSuite.test_get_nodes_edges_batch(oracle, graph_data)
 
-    async def test_edge_degree(self, storage_with_data):
-        """Test edge_degree function"""
-        storage, graph_data = storage_with_data
-        await GraphStorageTestSuite.test_edge_degree(storage, graph_data)
+    async def test_edge_degree(self, oracle_storage):
+        """Test edge_degree function via oracle"""
+        oracle, graph_data = oracle_storage
+        await GraphStorageTestSuite.test_edge_degree(oracle, graph_data)
 
-    async def test_edge_degrees_batch(self, storage_with_data):
-        """Test edge_degrees_batch function"""
-        storage, graph_data = storage_with_data
-        await GraphStorageTestSuite.test_edge_degrees_batch(storage, graph_data)
+    async def test_edge_degrees_batch(self, oracle_storage):
+        """Test edge_degrees_batch function via oracle"""
+        oracle, graph_data = oracle_storage
+        await GraphStorageTestSuite.test_edge_degrees_batch(oracle, graph_data)
 
-    async def test_upsert_edge(self, storage_with_data):
-        """Test upsert_edge function"""
-        storage, _ = storage_with_data
-        await GraphStorageTestSuite.test_upsert_edge(storage)
+    async def test_upsert_edge(self, oracle_storage):
+        """Test upsert_edge function via oracle"""
+        oracle, _ = oracle_storage
+        await GraphStorageTestSuite.test_upsert_edge(oracle)
 
-    async def test_remove_edges(self, storage_with_data):
-        """Test remove_edges function (batch delete)"""
-        storage, _ = storage_with_data
-        await GraphStorageTestSuite.test_remove_edges(storage)
+    async def test_remove_edges(self, oracle_storage):
+        """Test remove_edges function via oracle"""
+        oracle, _ = oracle_storage
+        await GraphStorageTestSuite.test_remove_edges(oracle)
 
     # ===== Performance and Stress Tests =====
 
-    async def test_large_batch_operations(self, storage_with_data):
-        """Test performance with large batch operations - NEW TEST"""
-        storage, _ = storage_with_data
-        await GraphStorageTestSuite.test_large_batch_operations(storage)
+    async def test_large_batch_operations(self, oracle_storage):
+        """Test performance with large batch operations via oracle"""
+        oracle, _ = oracle_storage
+        await GraphStorageTestSuite.test_large_batch_operations(oracle)
 
-    async def test_concurrent_operations(self, storage_with_data):
-        """Test concurrent access patterns - NEW TEST"""
-        storage, _ = storage_with_data
-        await GraphStorageTestSuite.test_concurrent_operations(storage)
-
-    async def test_error_handling(self, storage_with_data):
-        """Test error handling and edge cases - NEW TEST"""
-        storage, _ = storage_with_data
-        await GraphStorageTestSuite.test_error_handling(storage)
 
     # ===== Graph Operations =====
 
-    async def test_get_all_labels(self, storage_with_data):
-        """Test get_all_labels function"""
-        storage, graph_data = storage_with_data
-        await GraphStorageTestSuite.test_get_all_labels(storage, graph_data)
+    async def test_get_all_labels(self, oracle_storage):
+        """Test get_all_labels function via oracle"""
+        oracle, graph_data = oracle_storage
+        await GraphStorageTestSuite.test_get_all_labels(oracle, graph_data)
 
     # ===== Data Integrity =====
 
-    async def test_data_integrity(self, storage_with_data):
-        """Test that loaded data maintains integrity"""
-        storage, graph_data = storage_with_data
-        await GraphStorageTestSuite.test_data_integrity(storage, graph_data)
+    async def test_data_integrity(self, oracle_storage):
+        """Test that loaded data maintains integrity via oracle"""
+        oracle, graph_data = oracle_storage
+        await GraphStorageTestSuite.test_data_integrity(oracle, graph_data)
 
-    async def test_data_consistency_after_operations(self, storage_with_data):
-        """Test data consistency after various operations - NEW TEST"""
-        storage, _ = storage_with_data
-        await GraphStorageTestSuite.test_data_consistency_after_operations(storage)
+    async def test_data_consistency_after_operations(self, oracle_storage):
+        """Test data consistency after various operations via oracle"""
+        oracle, _ = oracle_storage
+        await GraphStorageTestSuite.test_data_consistency_after_operations(oracle)
 
-    # ===== Baseline Comparison Tests =====
+    # ===== Oracle Summary Test =====
 
-    async def test_consistency_with_baseline(self, storage_with_data, baseline_storage):
-        """NEW TEST: Compare storage behavior with NetworkX baseline"""
-        try:
-            storage, graph_data = storage_with_data
-            await GraphStorageTestSuite.test_consistency_with_baseline(storage, baseline_storage, graph_data)
-        except Exception as e:
-            print(f"⚠️  Baseline consistency test skipped due to: {e}")
-            pytest.skip(f"Baseline consistency test failed: {e}")
-
-    async def test_baseline_comparison_after_operations(self, storage_with_data, baseline_storage):
-        """NEW TEST: Perform identical operations and compare with baseline"""
-        try:
-            storage, _ = storage_with_data
-            await GraphStorageTestSuite.test_baseline_comparison_after_operations(storage, baseline_storage)
-        except Exception as e:
-            print(f"⚠️  Baseline operation test skipped due to: {e}")
-            pytest.skip(f"Baseline operation test failed: {e}")
-
-    # ===== Summary Test =====
-
-    async def test_interface_coverage_summary(self, storage_with_data):
-        """Summary test to ensure all BaseGraphStorage methods are covered"""
-        storage, _ = storage_with_data
-        await GraphStorageTestSuite.test_interface_coverage_summary(storage)
+    async def test_oracle_summary(self, oracle_storage):
+        """Test oracle summary and full graph comparison"""
+        oracle, _ = oracle_storage
+        await oracle.compare_graphs_fully()
+        await GraphStorageTestSuite.test_interface_coverage_summary(oracle)

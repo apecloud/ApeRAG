@@ -126,7 +126,20 @@ class NetworkXBaselineStorage(BaseGraphStorage):
         reverse_key = (target_node_id, source_node_id)
         
         edge_data = self._edge_data.get(edge_key) or self._edge_data.get(reverse_key)
-        return edge_data.copy() if edge_data else None
+        if edge_data:
+            edge_result = edge_data.copy()
+            # Ensure required keys exist with defaults (consistent with Neo4j implementation)
+            required_keys = {
+                "weight": 0.0,
+                "source_id": None,
+                "description": None,
+                "keywords": None,
+            }
+            for key, default_value in required_keys.items():
+                if key not in edge_result:
+                    edge_result[key] = default_value
+            return edge_result
+        return None
 
     async def get_edges_batch(self, pairs: List[Dict[str, str]]) -> Dict[Tuple[str, str], Dict[str, Any]]:
         """Get multiple edges in batch."""

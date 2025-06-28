@@ -3,13 +3,14 @@ Shared fixtures for graph storage tests.
 """
 
 import pytest
+import pytest_asyncio
 from aperag.graph.lightrag.utils import EmbeddingFunc
 from tests.e2e_test.graphindex.networkx_baseline_storage import NetworkXBaselineStorage
 import numpy as np
 from typing import List
 
 
-@pytest.fixture(scope="session")
+@pytest_asyncio.fixture(scope="function")
 async def baseline_storage():
     """Create NetworkX baseline storage for comparison testing"""
     
