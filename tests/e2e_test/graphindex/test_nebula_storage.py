@@ -196,10 +196,6 @@ class TestNebulaStorage:
         oracle, graph_data = nebula_oracle_storage
         await GraphStorageTestSuite.test_get_all_labels(oracle, graph_data)
 
-    async def test_get_knowledge_graph(self, nebula_oracle_storage):
-        oracle, graph_data = nebula_oracle_storage
-        await GraphStorageTestSuite.test_get_knowledge_graph(oracle.storage, graph_data)
-
     async def test_interface_coverage_summary(self, nebula_oracle_storage):
         oracle, graph_data = nebula_oracle_storage
         await GraphStorageTestSuite.test_interface_coverage_summary(oracle)

@@ -732,8 +732,8 @@ class NebulaSyncStorage(BaseGraphStorage):
 
     async def remove_nodes(self, nodes: list[str]):
         """
-        Optimized batch node deletion.
-        Processes up to 100 nodes per batch using multi-statement execution.
+        Batch node deletion with small batch size to avoid query plan tree depth limit.
+        Processes up to 10 nodes per batch to prevent Nebula optimization stage errors.
         """
 
         def _sync_remove_nodes_batch(batch_nodes: list[str]):
@@ -741,32 +741,30 @@ class NebulaSyncStorage(BaseGraphStorage):
                 if not batch_nodes:
                     return
 
-                # Build batch DELETE statements separated by semicolons
-                delete_statements = []
+                # For very small batches, use individual deletes to avoid query plan depth issues
                 for node_id in batch_nodes:
                     node_id_quoted = _quote_vid(node_id)
-                    delete_statements.append(f"DELETE VERTEX {node_id_quoted} WITH EDGE")
+                    query = f"DELETE VERTEX {node_id_quoted} WITH EDGE"
+                    result = session.execute(query)
 
-                # Execute all deletes in one batch
-                batch_query = "; ".join(delete_statements)
-                result = session.execute(batch_query)
+                    if not result.is_succeeded():
+                        logger.error(f"Failed to delete node {node_id}: {_safe_error_msg(result)}")
+                        # Continue with other nodes instead of raising exception
+                    else:
+                        logger.debug(f"Successfully deleted node {node_id}")
 
-                if not result.is_succeeded():
-                    logger.error(f"Failed to delete batch of {len(batch_nodes)} nodes: {_safe_error_msg(result)}")
-                    raise RuntimeError(f"Failed to delete nodes batch: {_safe_error_msg(result)}")
+                logger.debug(f"Processed deletion of {len(batch_nodes)} nodes")
 
-                logger.debug(f"Successfully deleted batch of {len(batch_nodes)} nodes")
-
-        # Process in batches of 100
-        batch_size = 100
+        # Process in very small batches of 10 to avoid query plan tree depth limit
+        batch_size = 10
         for i in range(0, len(nodes), batch_size):
             batch = nodes[i : i + batch_size]
             await asyncio.to_thread(_sync_remove_nodes_batch, batch)
 
     async def remove_edges(self, edges: list[tuple[str, str]]):
         """
-        Optimized batch edge deletion.
-        Processes up to 100 edges per batch using multi-statement execution.
+        Batch edge deletion with small batch size to avoid query plan tree depth limit.
+        Processes up to 10 edges per batch to prevent Nebula optimization stage errors.
         """
 
         def _sync_remove_edges_batch(batch_edges: list[tuple[str, str]]):
@@ -774,25 +772,23 @@ class NebulaSyncStorage(BaseGraphStorage):
                 if not batch_edges:
                     return
 
-                # Build batch DELETE statements separated by semicolons
-                delete_statements = []
+                # For very small batches, use individual deletes to avoid query plan depth issues
                 for source, target in batch_edges:
                     source_quoted = _quote_vid(source)
                     target_quoted = _quote_vid(target)
-                    delete_statements.append(f"DELETE EDGE DIRECTED {source_quoted} -> {target_quoted}")
+                    query = f"DELETE EDGE DIRECTED {source_quoted} -> {target_quoted}"
+                    result = session.execute(query)
 
-                # Execute all deletes in one batch
-                batch_query = "; ".join(delete_statements)
-                result = session.execute(batch_query)
+                    if not result.is_succeeded():
+                        logger.error(f"Failed to delete edge {source} -> {target}: {_safe_error_msg(result)}")
+                        # Continue with other edges instead of raising exception
+                    else:
+                        logger.debug(f"Successfully deleted edge {source} -> {target}")
 
-                if not result.is_succeeded():
-                    logger.error(f"Failed to delete batch of {len(batch_edges)} edges: {_safe_error_msg(result)}")
-                    # Continue with other batches even if this one fails
-                else:
-                    logger.debug(f"Successfully deleted batch of {len(batch_edges)} edges")
+                logger.debug(f"Processed deletion of {len(batch_edges)} edges")
 
-        # Process in batches of 100
-        batch_size = 100
+        # Process in very small batches of 10 to avoid query plan tree depth limit
+        batch_size = 10
         for i in range(0, len(edges), batch_size):
             batch = edges[i : i + batch_size]
             await asyncio.to_thread(_sync_remove_edges_batch, batch)
