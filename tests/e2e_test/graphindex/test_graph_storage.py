@@ -4,6 +4,7 @@
 提供所有BaseGraphStorage实现的通用测试方法。
 这个文件包含GraphStorageTestSuite静态方法，用于被其他测试文件复用。
 """
+import json
 import os
 import random
 import time
