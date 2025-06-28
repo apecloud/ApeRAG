@@ -35,6 +35,7 @@ Modifications by ApeRAG Team:
 STORAGES = {
     "Neo4JSyncStorage": ".kg.neo4j_sync_impl",
     "NebulaSyncStorage": ".kg.nebula_sync_impl",
+    "PostgreSQLAGEStorage": ".kg.postgres_age_impl",
     "PGOpsSyncKVStorage": ".kg.postgres_sync_impl",
     "PGOpsSyncVectorStorage": ".kg.postgres_sync_impl",
 }

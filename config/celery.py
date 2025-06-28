@@ -37,6 +37,15 @@ except ImportError:
     cleanup_worker_nebula = None
     nebula_available = False
 
+# Import PostgreSQL AGE sync configuration signal handlers
+try:
+    from aperag.db.postgres_age_sync_manager import setup_worker_postgres_age, cleanup_worker_postgres_age
+    postgres_age_available = True
+except ImportError:
+    setup_worker_postgres_age = None
+    cleanup_worker_postgres_age = None
+    postgres_age_available = False
+
 # Create celery app instance
 app = Celery("aperag")
 
@@ -87,6 +96,13 @@ if nebula_available and setup_worker_nebula is not None:
 
 if nebula_available and cleanup_worker_nebula is not None:
     worker_process_shutdown.connect(cleanup_worker_nebula)
+
+# Connect PostgreSQL AGE worker lifecycle signals
+if postgres_age_available and setup_worker_postgres_age is not None:
+    worker_process_init.connect(setup_worker_postgres_age)
+
+if postgres_age_available and cleanup_worker_postgres_age is not None:
+    worker_process_shutdown.connect(cleanup_worker_postgres_age)
 
 # Simple logging configuration for Celery workers
 CELERY_LOGGING_CONFIG = {
