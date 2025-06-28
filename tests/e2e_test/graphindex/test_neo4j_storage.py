@@ -104,11 +104,6 @@ async def neo4j_oracle_storage():
 class TestNeo4jStorage:
     """Neo4j storage test class - directly calls GraphStorageTestSuite methods."""
 
-    # Helper method to get oracle and data
-    def get_oracle_data(self, request):
-        oracle, graph_data = request.getfixturevalue("neo4j_oracle_storage")
-        return oracle, graph_data
-
     # ===== Node Operations =====
     async def test_has_node(self, neo4j_oracle_storage):
         oracle, graph_data = neo4j_oracle_storage

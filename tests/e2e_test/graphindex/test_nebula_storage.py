@@ -104,11 +104,6 @@ async def nebula_oracle_storage():
 class TestNebulaStorage:
     """Nebula storage test class - directly calls GraphStorageTestSuite methods."""
 
-    # Helper method to get oracle and data
-    def get_oracle_data(self, request):
-        oracle, graph_data = request.getfixturevalue("nebula_oracle_storage")
-        return oracle, graph_data
-
     # ===== Node Operations =====
     async def test_has_node(self, nebula_oracle_storage):
         oracle, graph_data = nebula_oracle_storage
