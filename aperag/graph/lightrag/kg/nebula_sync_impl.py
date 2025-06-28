@@ -260,34 +260,7 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_node)
 
-    async def get_nodes_batch_v0(self, node_ids: list[str]) -> dict[str, dict]:
-        """OLD: 使用_quote_vid的批量节点查询（保留作为备份）"""
 
-        def _sync_get_nodes_batch_old():
-            with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
-                nodes = {}
-
-                if not node_ids:
-                    return nodes
-
-                # Build FETCH query with explicit node IDs (FETCH doesn't support parameterized lists)
-                # Use safe VID quoting to handle special characters properly
-                node_ids_str = ", ".join([_quote_vid(node_id) for node_id in node_ids])
-                query = f"FETCH PROP ON base {node_ids_str} YIELD id(vertex) as id, properties(vertex) as props"
-                result = session.execute(query)
-
-                if result.is_succeeded():
-                    for row in result:
-                        node_id = row.values()[0].as_string()
-                        props = row.values()[1].as_map()
-                        node_dict = self._convert_nebula_value_map(props)
-
-                        node_dict["entity_id"] = node_id
-                        nodes[node_id] = node_dict
-
-                return nodes
-
-        return await asyncio.to_thread(_sync_get_nodes_batch_old)
 
     async def get_nodes_batch(self, node_ids: list[str]) -> dict[str, dict]:
         """
@@ -433,67 +406,7 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_edge)
 
-    async def get_edges_batch_v0(self, pairs: list[dict[str, str]]) -> dict[tuple[str, str], dict]:
-        """OLD: 使用_quote_vid的批量边查询（保留作为备份）"""
 
-        def _sync_get_edges_batch_old():
-            with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
-                edges_dict = {}
-
-                if not pairs:
-                    return edges_dict
-
-                # 初始化所有边对
-                for pair in pairs:
-                    src, tgt = pair["src"], pair["tgt"]
-                    edges_dict[(src, tgt)] = {
-                        "weight": 0.0,
-                        "source_id": None,
-                        "description": None,
-                        "keywords": None,
-                    }
-
-                # Use individual FETCH queries for each edge pair (both directions)
-                for pair in pairs:
-                    src, tgt = pair["src"], pair["tgt"]
-
-                    # Try both directions for each pair
-                    for direction_src, direction_tgt in [(src, tgt), (tgt, src)]:
-                        # VID cannot be parameterized in FETCH statements
-                        # Use safe VID quoting to handle special characters properly
-                        direction_src_quoted = _quote_vid(direction_src)
-                        direction_tgt_quoted = _quote_vid(direction_tgt)
-                        query = f"""
-                        FETCH PROP ON DIRECTED {direction_src_quoted} -> {direction_tgt_quoted}
-                        YIELD src(edge) as src, dst(edge) as dst, properties(edge) as props
-                        """
-                        result = session.execute(query)
-
-                        if result.is_succeeded() and result.row_size() > 0:
-                            for row in result:
-                                _edge_src = row.values()[0].as_string()  # Not used but required for structure
-                                _edge_dst = row.values()[1].as_string()  # Not used but required for structure
-                                props = row.values()[2].as_map()
-
-                                edge_dict = self._convert_nebula_value_map(props)
-
-                                # 确保必需的键存在
-                                for key, default in {
-                                    "weight": 0.0,
-                                    "source_id": None,
-                                    "description": None,
-                                    "keywords": None,
-                                }.items():
-                                    if key not in edge_dict:
-                                        edge_dict[key] = default
-
-                                # Update the original pair's result
-                                edges_dict[(src, tgt)] = edge_dict
-                                break  # Found edge, no need to check more rows
-
-                return edges_dict
-
-        return await asyncio.to_thread(_sync_get_edges_batch_old)
 
     async def get_edges_batch(self, pairs: list[dict[str, str]]) -> dict[tuple[str, str], dict]:
         """
@@ -750,24 +663,7 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_all_labels)
 
-    async def delete_node_v0(self, node_id: str) -> None:
-        """OLD: Delete a node using _quote_vid（保留作为备份）"""
 
-        def _sync_delete_node_old():
-            with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
-                # VID cannot be parameterized in DELETE statements
-                # Use safe VID quoting to handle special characters properly
-                node_id_quoted = _quote_vid(node_id)
-                query = f"DELETE VERTEX {node_id_quoted} WITH EDGE"
-                result = session.execute(query)
-
-                if not result.is_succeeded():
-                    logger.error(f"Failed to delete node {node_id}: {_safe_error_msg(result)}")
-                    raise RuntimeError(f"Failed to delete node: {_safe_error_msg(result)}")
-
-                logger.debug(f"Deleted node with id '{node_id}'")
-
-        return await asyncio.to_thread(_sync_delete_node_old)
 
     async def delete_node(self, node_id: str) -> None:
         """
@@ -796,25 +692,7 @@ class NebulaSyncStorage(BaseGraphStorage):
         for node in nodes:
             await self.delete_node(node)
 
-    async def remove_edges_v0(self, edges: list[tuple[str, str]]):
-        """OLD: Delete multiple edges using _quote_vid（保留作为备份）"""
 
-        def _sync_remove_edge_old(source: str, target: str):
-            with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
-                # VID cannot be parameterized in DELETE statements
-                # Use safe VID quoting to handle special characters properly
-                source_quoted = _quote_vid(source)
-                target_quoted = _quote_vid(target)
-                query = f"DELETE EDGE DIRECTED {source_quoted} -> {target_quoted}"
-                result = session.execute(query)
-
-                if not result.is_succeeded():
-                    logger.error(f"Failed to delete edge from {source} to {target}: {_safe_error_msg(result)}")
-                else:
-                    logger.debug(f"Deleted edge from '{source}' to '{target}'")
-
-        for source, target in edges:
-            await asyncio.to_thread(_sync_remove_edge_old, source, target)
 
     async def remove_edges(self, edges: list[tuple[str, str]]):
         """
