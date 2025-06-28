@@ -6,7 +6,6 @@ This test suite is storage-agnostic and works with any BaseGraphStorage implemen
 It uses NetworkX as a baseline "ground truth" for comparison testing.
 """
 
-import asyncio
 import json
 import os
 import random
@@ -19,8 +18,6 @@ import pytest
 import pytest_asyncio
 
 from aperag.graph.lightrag.base import BaseGraphStorage
-from aperag.graph.lightrag.types import KnowledgeGraph
-from aperag.graph.lightrag.utils import EmbeddingFunc
 
 # Import NetworkX baseline for comparison testing
 from tests.e2e_test.graphindex.networkx_baseline_storage import NetworkXBaselineStorage
@@ -37,7 +34,6 @@ class TestDataLoader:
     @staticmethod
     def load_graph_data() -> Dict[str, Any]:
         """Load graph test data from JSON file"""
-        import os
         
         json_file = os.path.join(os.path.dirname(__file__), "graph_storage_test_data.json")
         
@@ -777,13 +773,9 @@ class GraphStorageTestSuite:
 
         start_time = time.time()
         
-        # Test batch upsert if available - oracle will sync both
-        if hasattr(oracle.storage, 'upsert_nodes_batch') and hasattr(oracle.baseline, 'upsert_nodes_batch'):
-            await oracle.upsert_nodes_batch(test_nodes)
-        else:
-            # Fallback to individual upserts
-            for node_id, node_data in test_nodes:
-                await oracle.upsert_node(node_id, node_data)
+        # Use individual upserts for batch operations
+        for node_id, node_data in test_nodes:
+            await oracle.upsert_node(node_id, node_data)
         
         upsert_time = time.time() - start_time
         
@@ -924,8 +916,6 @@ class GraphStorageTestSuite:
 
         # Additional methods that might be implemented
         optional_methods = [
-            "upsert_nodes_batch",
-            "upsert_edges_batch",
             "initialize",
             "finalize",
             "drop",

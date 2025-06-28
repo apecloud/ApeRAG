@@ -24,7 +24,6 @@ Oracle代理类，封装真实storage和NetworkX baseline，自动同步操作�
 4. 每个方法负责自己的比较逻辑，避免超级复杂的通用比较函数
 """
 
-from typing import Any
 
 from aperag.graph.lightrag.base import BaseGraphStorage
 from aperag.graph.lightrag.types import KnowledgeGraph
@@ -44,7 +43,7 @@ class GraphStorageOracle(BaseGraphStorage):
 
     WRITE_OPERATIONS = {
         "upsert_node", "upsert_edge", "delete_node", "remove_nodes", "remove_edges",
-        "upsert_nodes_batch", "upsert_edges_batch", "drop", "initialize"
+        "drop", "initialize"
     }
 
     def __init__(self, storage: BaseGraphStorage, baseline: BaseGraphStorage, 

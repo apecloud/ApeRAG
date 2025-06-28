@@ -5,8 +5,6 @@ This implementation serves as the "ground truth" for comparing other graph stora
 It implements the BaseGraphStorage interface using NetworkX for accurate and predictable results.
 """
 
-import asyncio
-import time
 from typing import Any, Dict, List, Optional, Tuple
 
 import networkx as nx
@@ -85,10 +83,7 @@ class NetworkXBaselineStorage(BaseGraphStorage):
         # Store complete node data
         self._node_data[node_id] = node_data.copy()
 
-    async def upsert_nodes_batch(self, nodes: List[Tuple[str, Dict[str, Any]]]) -> None:
-        """Batch upsert nodes."""
-        for node_id, node_data in nodes:
-            await self.upsert_node(node_id, node_data)
+
 
     async def delete_node(self, node_id: str) -> None:
         """Delete a node and all its edges."""
@@ -209,10 +204,7 @@ class NetworkXBaselineStorage(BaseGraphStorage):
         edge_key = tuple(sorted([source_node_id, target_node_id]))
         self._edge_data[edge_key] = edge_data.copy()
 
-    async def upsert_edges_batch(self, edges: List[Tuple[str, str, Dict[str, Any]]]) -> None:
-        """Batch upsert edges."""
-        for source_node_id, target_node_id, edge_data in edges:
-            await self.upsert_edge(source_node_id, target_node_id, edge_data)
+
 
     async def remove_edges(self, edges: List[Tuple[str, str]]) -> None:
         """Batch delete edges."""

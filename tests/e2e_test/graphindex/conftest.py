@@ -2,12 +2,13 @@
 Shared fixtures for graph storage tests.
 """
 
-import pytest
+from typing import List
+
+import numpy as np
 import pytest_asyncio
+
 from aperag.graph.lightrag.utils import EmbeddingFunc
 from tests.e2e_test.graphindex.networkx_baseline_storage import NetworkXBaselineStorage
-import numpy as np
-from typing import List
 
 
 @pytest_asyncio.fixture(scope="function")
