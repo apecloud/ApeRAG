@@ -5,8 +5,11 @@ Tests BaseGraphStorage interface methods with actual graph data from graph_stora
 This test suite is storage-agnostic and works with any BaseGraphStorage implementation.
 """
 
+import asyncio
 import json
 import os
+import random
+import time
 from typing import Any, Dict, List
 
 import dotenv
@@ -97,6 +100,38 @@ def mock_embedding_func():
     return EmbeddingFunc(embedding_dim=128, max_token_size=8192, func=mock_embed)
 
 
+def get_random_sample(data_dict: Dict, max_size: int = 100, min_size: int = 1) -> List:
+    """Get random sample from dictionary keys, avoiding hardcoded values"""
+    keys = list(data_dict.keys())
+    if not keys:
+        return []
+    
+    sample_size = min(max_size, max(min_size, len(keys)))
+    if len(keys) <= sample_size:
+        return keys
+    
+    return random.sample(keys, sample_size)
+
+
+def get_high_degree_nodes(graph_data: Dict[str, Any], max_count: int = 10) -> List[str]:
+    """Find nodes that are likely to have high degrees based on edge connections"""
+    node_connections = {}
+    
+    # Count connections for each node
+    for edge in graph_data["edges"]:
+        start_node = edge["start_node_id"]
+        end_node = edge["end_node_id"]
+        
+        if start_node in graph_data["nodes"]:
+            node_connections[start_node] = node_connections.get(start_node, 0) + 1
+        if end_node in graph_data["nodes"]:
+            node_connections[end_node] = node_connections.get(end_node, 0) + 1
+    
+    # Sort by connection count and return top nodes
+    sorted_nodes = sorted(node_connections.items(), key=lambda x: x[1], reverse=True)
+    return [node_id for node_id, _ in sorted_nodes[:max_count]]
+
+
 class GraphStorageTestSuite:
     """
     Universal test suite for BaseGraphStorage implementations.
@@ -109,17 +144,16 @@ class GraphStorageTestSuite:
 
     @staticmethod
     async def test_has_node(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test has_node function"""
-        # Test with known nodes
-        sample_entities = ["刘备", "曹操", "诸葛亮", "三国演义"]
+        """Test has_node function with random sampling"""
+        # Get random sample of nodes instead of hardcoded values
+        sample_entities = get_random_sample(graph_data["nodes"], max_size=10, min_size=3)
         found_count = 0
 
         for entity in sample_entities:
-            if entity in graph_data["nodes"]:
-                exists = await storage.has_node(entity)
-                if exists:
-                    found_count += 1
-                    print(f"✓ Found entity: {entity}")
+            exists = await storage.has_node(entity)
+            if exists:
+                found_count += 1
+                print(f"✓ Found entity: {entity}")
 
         assert found_count > 0, "Should find at least some test entities"
 
@@ -129,13 +163,16 @@ class GraphStorageTestSuite:
 
     @staticmethod
     async def test_get_node(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test get_node function"""
-        # Find a node with rich data
+        """Test get_node function with dynamic node selection"""
+        # Find a node with rich data (prefer nodes with longer descriptions)
         target_entity = None
+        max_desc_length = 0
+        
         for entity_id, node_data in graph_data["nodes"].items():
-            if len(node_data["properties"].get("description", "")) > 100:
+            desc_length = len(node_data["properties"].get("description", ""))
+            if desc_length > max_desc_length:
+                max_desc_length = desc_length
                 target_entity = entity_id
-                break
 
         if not target_entity:
             target_entity = list(graph_data["nodes"].keys())[0]
@@ -154,9 +191,9 @@ class GraphStorageTestSuite:
 
     @staticmethod
     async def test_get_nodes_batch(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test get_nodes_batch function"""
-        # Select first 5 available nodes
-        node_ids = list(graph_data["nodes"].keys())[:5]
+        """Test get_nodes_batch function with random sampling"""
+        # Get random sample of nodes for batch testing
+        node_ids = get_random_sample(graph_data["nodes"], max_size=20, min_size=5)
 
         batch_result = await storage.get_nodes_batch(node_ids)
 
@@ -169,31 +206,34 @@ class GraphStorageTestSuite:
 
     @staticmethod
     async def test_node_degree(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test node_degree function"""
-        # Test with nodes that likely have connections
-        test_nodes = ["刘备", "曹操", "诸葛亮"]
+        """Test node_degree function with high-degree nodes"""
+        # Use nodes that are likely to have connections
+        high_degree_nodes = get_high_degree_nodes(graph_data, max_count=5)
+        
+        if not high_degree_nodes:
+            # Fallback to random sampling if no high-degree nodes found
+            high_degree_nodes = get_random_sample(graph_data["nodes"], max_size=5, min_size=1)
 
-        for node_id in test_nodes:
-            if node_id in graph_data["nodes"]:
-                if await storage.has_node(node_id):
-                    degree = await storage.node_degree(node_id)
-                    assert isinstance(degree, int)
-                    assert degree >= 0
-                    print(f"✓ Node {node_id} has degree: {degree}")
-                    break
-        else:
-            # Fallback to any available node
-            any_node = list(graph_data["nodes"].keys())[0]
-            if await storage.has_node(any_node):
-                degree = await storage.node_degree(any_node)
+        for node_id in high_degree_nodes:
+            if await storage.has_node(node_id):
+                degree = await storage.node_degree(node_id)
                 assert isinstance(degree, int)
                 assert degree >= 0
+                print(f"✓ Node {node_id} has degree: {degree}")
+                return  # Successfully tested one node
+        
+        # If none of the high-degree nodes exist, test with any available node
+        any_node = list(graph_data["nodes"].keys())[0]
+        if await storage.has_node(any_node):
+            degree = await storage.node_degree(any_node)
+            assert isinstance(degree, int)
+            assert degree >= 0
 
     @staticmethod
     async def test_node_degrees_batch(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test node_degrees_batch function"""
-        # Select first 3 nodes for batch test
-        node_ids = list(graph_data["nodes"].keys())[:3]
+        """Test node_degrees_batch function with random sampling"""
+        # Get random sample for batch degree testing
+        node_ids = get_random_sample(graph_data["nodes"], max_size=10, min_size=3)
 
         degrees = await storage.node_degrees_batch(node_ids)
 
@@ -236,6 +276,37 @@ class GraphStorageTestSuite:
         # Verify update
         updated_retrieved = await storage.get_node(test_node_id)
         assert updated_retrieved["description"] == "更新的描述"
+
+    # @staticmethod
+    # async def test_upsert_nodes_batch(storage: BaseGraphStorage):
+    #     """Test upsert_nodes_batch function - NEW TEST"""
+    #     # Create test data for batch upsert
+    #     test_nodes = []
+    #     for i in range(5):
+    #         node_id = f"测试节点_batch_upsert_{i}"
+    #         node_data = {
+    #             "entity_id": node_id,
+    #             "entity_type": "test_batch",
+    #             "description": f"批量插入测试节点 {i}",
+    #             "source_id": "test_batch",
+    #             "created_at": int(time.time()),
+    #         }
+    #         test_nodes.append((node_id, node_data))
+    #
+    #     # Batch upsert
+    #     if hasattr(storage, 'upsert_nodes_batch'):
+    #         await storage.upsert_nodes_batch(test_nodes)
+    #
+    #         # Verify all nodes exist
+    #         for node_id, expected_data in test_nodes:
+    #             exists = await storage.has_node(node_id)
+    #             assert exists, f"Node {node_id} should exist after batch upsert"
+    #
+    #             retrieved_data = await storage.get_node(node_id)
+    #             assert retrieved_data["entity_id"] == node_id
+    #             assert retrieved_data["description"] == expected_data["description"]
+    #     else:
+    #         print("⚠️  upsert_nodes_batch not implemented, skipping test")
 
     @staticmethod
     async def test_delete_node(storage: BaseGraphStorage):
@@ -287,22 +358,27 @@ class GraphStorageTestSuite:
 
     @staticmethod
     async def test_has_edge(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test has_edge function"""
+        """Test has_edge function with random edge sampling"""
         if not graph_data["edges"]:
             pytest.skip("No edges in test data")
 
-        # Test with first available edge
-        test_edge = graph_data["edges"][0]
-        start_node = test_edge["start_node_id"]
-        end_node = test_edge["end_node_id"]
+        # Test with random sample of edges
+        sample_edges = random.sample(graph_data["edges"], min(5, len(graph_data["edges"])))
+        
+        found_edges = 0
+        for edge in sample_edges:
+            start_node = edge["start_node_id"]
+            end_node = edge["end_node_id"]
 
-        # Verify nodes exist first
-        start_exists = await storage.has_node(start_node)
-        end_exists = await storage.has_node(end_node)
+            # Verify nodes exist first
+            start_exists = await storage.has_node(start_node)
+            end_exists = await storage.has_node(end_node)
 
-        if start_exists and end_exists:
-            edge_exists = await storage.has_edge(start_node, end_node)
-            print(f"✓ Edge {start_node}->{end_node} exists: {edge_exists}")
+            if start_exists and end_exists:
+                edge_exists = await storage.has_edge(start_node, end_node)
+                if edge_exists:
+                    found_edges += 1
+                    print(f"✓ Edge {start_node}->{end_node} exists")
 
         # Test non-existent edge
         no_edge = await storage.has_edge("不存在1", "不存在2")
@@ -310,17 +386,14 @@ class GraphStorageTestSuite:
 
     @staticmethod
     async def test_get_edge(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test get_edge function"""
+        """Test get_edge function with weighted edges"""
         # Find edge with weight property
-        test_edge = None
-        for edge in graph_data["edges"]:
-            if "weight" in edge["properties"]:
-                test_edge = edge
-                break
-
-        if not test_edge:
+        weighted_edges = [edge for edge in graph_data["edges"] if "weight" in edge["properties"]]
+        
+        if not weighted_edges:
             pytest.skip("No weighted edges in test data")
 
+        test_edge = random.choice(weighted_edges)
         start_node = test_edge["start_node_id"]
         end_node = test_edge["end_node_id"]
 
@@ -334,15 +407,15 @@ class GraphStorageTestSuite:
 
     @staticmethod
     async def test_get_edges_batch(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test get_edges_batch function"""
+        """Test get_edges_batch function with random edge sampling"""
         if len(graph_data["edges"]) < 3:
             pytest.skip("Not enough edges for batch test")
 
-        # Select first 3 edges for testing
-        test_edges = graph_data["edges"][:3]
+        # Select random edges for testing
+        sample_edges = random.sample(graph_data["edges"], min(10, len(graph_data["edges"])))
         edge_pairs = []
 
-        for edge in test_edges:
+        for edge in sample_edges:
             start_exists = await storage.has_node(edge["start_node_id"])
             end_exists = await storage.has_node(edge["end_node_id"])
 
@@ -358,28 +431,30 @@ class GraphStorageTestSuite:
 
     @staticmethod
     async def test_get_node_edges(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test get_node_edges function"""
-        # Find a node that likely has edges
-        test_nodes = ["刘备", "曹操", "诸葛亮"]
+        """Test get_node_edges function with high-degree nodes"""
+        # Find nodes that likely have edges
+        high_degree_nodes = get_high_degree_nodes(graph_data, max_count=5)
+        
+        if not high_degree_nodes:
+            high_degree_nodes = get_random_sample(graph_data["nodes"], max_size=5, min_size=1)
 
-        for node_id in test_nodes:
-            if node_id in graph_data["nodes"]:
-                if await storage.has_node(node_id):
-                    edges = await storage.get_node_edges(node_id)
-                    assert isinstance(edges, (list, type(None)))
+        for node_id in high_degree_nodes:
+            if await storage.has_node(node_id):
+                edges = await storage.get_node_edges(node_id)
+                assert isinstance(edges, (list, type(None)))
 
-                    if edges:
-                        print(f"✓ Node {node_id} has {len(edges)} edges")
-                        for src, tgt in edges:
-                            assert isinstance(src, str)
-                            assert isinstance(tgt, str)
-                    break
+                if edges:
+                    print(f"✓ Node {node_id} has {len(edges)} edges")
+                    for src, tgt in edges:
+                        assert isinstance(src, str)
+                        assert isinstance(tgt, str)
+                return  # Successfully tested one node
 
     @staticmethod
     async def test_get_nodes_edges_batch(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test get_nodes_edges_batch function"""
-        # Select first 3 nodes for batch test
-        node_ids = list(graph_data["nodes"].keys())[:3]
+        """Test get_nodes_edges_batch function with random sampling"""
+        # Select random nodes for batch test
+        node_ids = get_random_sample(graph_data["nodes"], max_size=10, min_size=3)
 
         batch_result = await storage.get_nodes_edges_batch(node_ids)
 
@@ -394,29 +469,34 @@ class GraphStorageTestSuite:
 
     @staticmethod
     async def test_edge_degree(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test edge_degree function"""
+        """Test edge_degree function with random edge sampling"""
         if not graph_data["edges"]:
             pytest.skip("No edges in test data")
 
-        # Test with first edge
-        test_edge = graph_data["edges"][0]
-        start_node = test_edge["start_node_id"]
-        end_node = test_edge["end_node_id"]
+        # Test with random edge
+        sample_edges = random.sample(graph_data["edges"], min(3, len(graph_data["edges"])))
+        
+        for edge in sample_edges:
+            start_node = edge["start_node_id"]
+            end_node = edge["end_node_id"]
 
-        if await storage.has_node(start_node) and await storage.has_node(end_node):
-            edge_degree = await storage.edge_degree(start_node, end_node)
-            assert isinstance(edge_degree, int)
-            assert edge_degree >= 0
+            if await storage.has_node(start_node) and await storage.has_node(end_node):
+                edge_degree = await storage.edge_degree(start_node, end_node)
+                assert isinstance(edge_degree, int)
+                assert edge_degree >= 0
+                return  # Successfully tested one edge
 
     @staticmethod
     async def test_edge_degrees_batch(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test edge_degrees_batch function"""
+        """Test edge_degrees_batch function with random edge sampling"""
         if len(graph_data["edges"]) < 2:
             pytest.skip("Not enough edges for batch test")
 
-        # Select first 2 edges for testing
+        # Select random edges for testing
+        sample_edges = random.sample(graph_data["edges"], min(5, len(graph_data["edges"])))
         edge_pairs = []
-        for edge in graph_data["edges"][:2]:
+        
+        for edge in sample_edges:
             start_exists = await storage.has_node(edge["start_node_id"])
             end_exists = await storage.has_node(edge["end_node_id"])
 
@@ -462,6 +542,49 @@ class GraphStorageTestSuite:
             assert float(retrieved_edge["weight"]) == 1.0
             assert retrieved_edge["description"] == "测试边"
 
+    # @staticmethod
+    # async def test_upsert_edges_batch(storage: BaseGraphStorage):
+    #     """Test upsert_edges_batch function - NEW TEST"""
+    #     # Create test nodes first
+    #     test_nodes = ["测试节点_batch_edge1", "测试节点_batch_edge2", "测试节点_batch_edge3"]
+    #
+    #     for node_id in test_nodes:
+    #         test_data = {
+    #             "entity_id": node_id,
+    #             "entity_type": "test_batch",
+    #             "description": f"批量边测试节点 {node_id}",
+    #             "source_id": "test_batch",
+    #         }
+    #         await storage.upsert_node(node_id, test_data)
+    #
+    #     # Create test edges for batch upsert
+    #     test_edges = []
+    #     for i in range(len(test_nodes) - 1):
+    #         src_node = test_nodes[i]
+    #         tgt_node = test_nodes[i + 1]
+    #         edge_data = {
+    #             "weight": float(i + 1),
+    #             "description": f"批量测试边 {i}",
+    #             "source_id": "test_batch",
+    #             "created_at": int(time.time()),
+    #         }
+    #         test_edges.append((src_node, tgt_node, edge_data))
+    #
+    #     # Batch upsert edges
+    #     if hasattr(storage, 'upsert_edges_batch'):
+    #         await storage.upsert_edges_batch(test_edges)
+    #
+    #         # Verify all edges exist
+    #         for src_node, tgt_node, expected_data in test_edges:
+    #             edge_exists = await storage.has_edge(src_node, tgt_node)
+    #             assert edge_exists, f"Edge {src_node}->{tgt_node} should exist after batch upsert"
+    #
+    #             retrieved_edge = await storage.get_edge(src_node, tgt_node)
+    #             if retrieved_edge:
+    #                 assert retrieved_edge["description"] == expected_data["description"]
+    #     else:
+    #         print("⚠️  upsert_edges_batch not implemented, skipping test")
+
     @staticmethod
     async def test_remove_edges(storage: BaseGraphStorage):
         """Test remove_edges function (batch delete)"""
@@ -493,29 +616,178 @@ class GraphStorageTestSuite:
             edge_exists = await storage.has_edge(src, tgt)
             assert not edge_exists, f"Edge {src}->{tgt} should be deleted"
 
+    # ===== Performance and Stress Tests =====
+
+    @staticmethod
+    async def test_large_batch_operations(storage: BaseGraphStorage):
+        """Test performance with large batch operations - NEW TEST"""
+        # Test large batch node operations
+        large_batch_size = 5000
+        test_nodes = []
+        
+        print(f"Testing large batch operations with {large_batch_size} nodes...")
+        
+        for i in range(large_batch_size):
+            node_id = f"large_batch_node_{i}"
+            node_data = {
+                "entity_id": node_id,
+                "entity_type": "performance_test",
+                "description": f"Large batch test node {i} with some description content",
+                "source_id": "performance_test",
+                "created_at": int(time.time()),
+            }
+            test_nodes.append((node_id, node_data))
+
+        start_time = time.time()
+        
+        # Test batch upsert if available
+        if hasattr(storage, 'upsert_nodes_batch'):
+            await storage.upsert_nodes_batch(test_nodes)
+        else:
+            # Fallback to individual upserts
+            for node_id, node_data in test_nodes:
+                await storage.upsert_node(node_id, node_data)
+        
+        upsert_time = time.time() - start_time
+        
+        # Test batch retrieval
+        node_ids = [node_id for node_id, _ in test_nodes]
+        start_time = time.time()
+        batch_result = await storage.get_nodes_batch(node_ids)
+        retrieval_time = time.time() - start_time
+        
+        # Test batch deletion
+        start_time = time.time()
+        await storage.remove_nodes(node_ids)
+        deletion_time = time.time() - start_time
+        
+        print(f"✓ Large batch performance: upsert={upsert_time:.3f}s, retrieval={retrieval_time:.3f}s, deletion={deletion_time:.3f}s")
+        
+        # Verify all operations completed successfully
+        assert len(batch_result) == large_batch_size, "All nodes should be retrieved"
+        
+        # Verify deletion
+        remaining_nodes = await storage.get_nodes_batch(node_ids)
+        assert len(remaining_nodes) == 0, "All nodes should be deleted"
+
+    @staticmethod
+    async def test_concurrent_operations(storage: BaseGraphStorage):
+        """Test concurrent access patterns - NEW TEST"""
+        print("Testing concurrent operations...")
+        
+        # Create concurrent tasks for different operations
+        async def create_nodes_task(prefix: str, count: int):
+            tasks = []
+            for i in range(count):
+                node_id = f"{prefix}_concurrent_{i}"
+                node_data = {
+                    "entity_id": node_id,
+                    "entity_type": "concurrent_test",
+                    "description": f"Concurrent test node {prefix}_{i}",
+                    "source_id": "concurrent_test",
+                }
+                tasks.append(storage.upsert_node(node_id, node_data))
+            await asyncio.gather(*tasks)
+            return [f"{prefix}_concurrent_{i}" for i in range(count)]
+
+        # Run multiple concurrent create tasks
+        task1 = create_nodes_task("task1", 10)
+        task2 = create_nodes_task("task2", 10)
+        task3 = create_nodes_task("task3", 10)
+        
+        start_time = time.time()
+        results = await asyncio.gather(task1, task2, task3)
+        concurrent_time = time.time() - start_time
+        
+        all_node_ids = []
+        for result in results:
+            all_node_ids.extend(result)
+        
+        # Verify all nodes were created
+        batch_result = await storage.get_nodes_batch(all_node_ids)
+        assert len(batch_result) == 30, "All concurrent nodes should be created"
+        
+        # Clean up
+        await storage.remove_nodes(all_node_ids)
+        
+        print(f"✓ Concurrent operations completed in {concurrent_time:.3f}s")
+
+    @staticmethod
+    async def test_error_handling(storage: BaseGraphStorage):
+        """Test error handling and edge cases - NEW TEST"""
+        print("Testing error handling...")
+        
+        # Test with invalid data
+        try:
+            await storage.upsert_node("test_invalid", {"invalid": "missing_entity_id"})
+            # If no exception, that's also valid (some storages might be lenient)
+        except Exception as e:
+            print(f"✓ Expected error for invalid node data: {type(e).__name__}")
+        
+        # Test with empty strings
+        try:
+            await storage.upsert_node("", {"entity_id": "", "entity_type": "test"})
+        except Exception as e:
+            print(f"✓ Expected error for empty node ID: {type(e).__name__}")
+        
+        # Test with very long strings
+        long_description = "x" * 10000
+        long_node_id = "test_long_desc"
+        long_node_data = {
+            "entity_id": long_node_id,
+            "entity_type": "test",
+            "description": long_description,
+            "source_id": "test",
+        }
+        
+        try:
+            await storage.upsert_node(long_node_id, long_node_data)
+            # Verify it was stored correctly
+            retrieved = await storage.get_node(long_node_id)
+            if retrieved:
+                assert len(retrieved["description"]) == len(long_description)
+                await storage.delete_node(long_node_id)  # Clean up
+            print("✓ Handled long description successfully")
+        except Exception as e:
+            print(f"✓ Long description handled with error: {type(e).__name__}")
+        
+        # Test operations on non-existent data
+        non_existent_node = await storage.get_node("absolutely_non_existent_node_12345")
+        assert non_existent_node is None
+        
+        non_existent_edge = await storage.get_edge("non_existent_1", "non_existent_2")
+        assert non_existent_edge is None
+        
+        print("✓ Error handling tests completed")
+
     # ===== Graph Operations =====
 
     @staticmethod
     async def test_get_all_labels(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test get_all_labels function"""
+        """Test get_all_labels function with dynamic verification"""
         all_labels = await storage.get_all_labels()
         assert isinstance(all_labels, list)
 
-        # Check that some expected entities are present
-        expected_entities = ["三国演义"]
-        for entity in expected_entities:
-            if entity in graph_data["nodes"] and entity in all_labels:
+        # Check that some nodes from our test data are present
+        sample_entities = get_random_sample(graph_data["nodes"], max_size=5, min_size=1)
+        found_entities = 0
+        
+        for entity in sample_entities:
+            if entity in all_labels:
+                found_entities += 1
                 print(f"✓ Found expected entity: {entity}")
 
         # At least some entities should be found
         assert len(all_labels) > 0
+        print(f"✓ Total labels found: {len(all_labels)}")
 
     @staticmethod
     async def test_get_knowledge_graph(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test get_knowledge_graph function"""
-        # Test with specific node
-        test_entity = "三国演义"
-        if test_entity in graph_data["nodes"]:
+        """Test get_knowledge_graph function with random node selection"""
+        # Test with a random node that likely exists
+        test_entities = get_random_sample(graph_data["nodes"], max_size=3, min_size=1)
+        
+        for test_entity in test_entities:
             if await storage.has_node(test_entity):
                 kg = await storage.get_knowledge_graph(test_entity, max_depth=2, max_nodes=100)
 
@@ -524,6 +796,9 @@ class GraphStorageTestSuite:
                 assert hasattr(kg, "edges")
 
                 print(f"✓ Knowledge graph for {test_entity}: {len(kg.nodes)} nodes, {len(kg.edges)} edges")
+                break
+        else:
+            print("⚠️  No test entities found in storage for knowledge graph test")
 
         # Test with wildcard (all nodes)
         kg_all = await storage.get_knowledge_graph("*", max_depth=1, max_nodes=50)
@@ -535,13 +810,14 @@ class GraphStorageTestSuite:
 
     @staticmethod
     async def test_data_integrity(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test that loaded data maintains integrity"""
-        # Sample a few nodes and verify their data
-        sample_size = min(5, len(graph_data["nodes"]))
-        sample_nodes = list(graph_data["nodes"].items())[:sample_size]
-
+        """Test that loaded data maintains integrity with random sampling"""
+        # Sample random nodes and verify their data
+        sample_nodes = get_random_sample(graph_data["nodes"], max_size=200, min_size=80)
+        
         verified_count = 0
-        for entity_id, expected_data in sample_nodes:
+        for entity_id in sample_nodes:
+            expected_data = graph_data["nodes"][entity_id]
+            
             if await storage.has_node(entity_id):
                 actual_data = await storage.get_node(entity_id)
 
@@ -558,6 +834,62 @@ class GraphStorageTestSuite:
         print(f"✓ Data integrity verified for {verified_count} nodes")
         assert verified_count > 0, "Should verify at least some nodes"
 
+    @staticmethod
+    async def test_data_consistency_after_operations(storage: BaseGraphStorage):
+        """Test data consistency after various operations - NEW TEST"""
+        print("Testing data consistency after operations...")
+        
+        # Create a small graph
+        nodes = ["consistency_node_1", "consistency_node_2", "consistency_node_3"]
+        edges = [("consistency_node_1", "consistency_node_2"), ("consistency_node_2", "consistency_node_3")]
+        
+        # Insert nodes
+        for node_id in nodes:
+            node_data = {
+                "entity_id": node_id,
+                "entity_type": "consistency_test",
+                "description": f"Consistency test node {node_id}",
+                "source_id": "consistency_test",
+            }
+            await storage.upsert_node(node_id, node_data)
+        
+        # Insert edges
+        for src, tgt in edges:
+            edge_data = {
+                "weight": 1.0,
+                "description": f"Consistency test edge {src}->{tgt}",
+                "source_id": "consistency_test",
+            }
+            await storage.upsert_edge(src, tgt, edge_data)
+        
+        # Verify initial state
+        for node_id in nodes:
+            assert await storage.has_node(node_id), f"Node {node_id} should exist"
+        
+        for src, tgt in edges:
+            assert await storage.has_edge(src, tgt), f"Edge {src}->{tgt} should exist"
+        
+        # Delete a node and verify edges are handled correctly
+        await storage.delete_node("consistency_node_2")
+        
+        # Node should be gone
+        assert not await storage.has_node("consistency_node_2")
+        
+        # Related edges should be handled (depending on implementation)
+        # Some implementations cascade delete, others don't
+        remaining_edges = []
+        for src, tgt in edges:
+            if await storage.has_edge(src, tgt):
+                remaining_edges.append((src, tgt))
+        
+        print(f"✓ After node deletion: {len(remaining_edges)} edges remain")
+        
+        # Clean up remaining nodes
+        remaining_nodes = ["consistency_node_1", "consistency_node_3"]
+        await storage.remove_nodes(remaining_nodes)
+        
+        print("✓ Data consistency tests completed")
+
     # ===== Summary Test =====
 
     @staticmethod
@@ -566,7 +898,7 @@ class GraphStorageTestSuite:
         # List all BaseGraphStorage abstract methods that should be tested
         required_methods = [
             "has_node",
-            "has_edge",
+            "has_edge", 
             "node_degree",
             "edge_degree",
             "get_node",
@@ -580,21 +912,38 @@ class GraphStorageTestSuite:
             "upsert_node",
             "upsert_edge",
             "delete_node",
-            "remove_nodes",
+            "remove_nodes", 
             "remove_edges",
             "get_all_labels",
             "get_knowledge_graph",
         ]
 
-        # Verify all methods exist on storage object
+        # Additional methods that might be implemented
+        optional_methods = [
+            "upsert_nodes_batch",
+            "upsert_edges_batch",
+            "initialize",
+            "finalize",
+            "drop",
+        ]
+
+        # Verify all required methods exist on storage object
         missing_methods = []
         for method_name in required_methods:
             if not hasattr(storage, method_name):
                 missing_methods.append(method_name)
 
-        assert not missing_methods, f"Missing methods: {missing_methods}"
+        assert not missing_methods, f"Missing required methods: {missing_methods}"
 
-        print(f"✅ All {len(required_methods)} BaseGraphStorage methods are implemented and tested")
+        # Check optional methods
+        implemented_optional = []
+        for method_name in optional_methods:
+            if hasattr(storage, method_name):
+                implemented_optional.append(method_name)
+
+        print(f"✅ All {len(required_methods)} required BaseGraphStorage methods are implemented")
+        if implemented_optional:
+            print(f"✅ Optional methods implemented: {implemented_optional}")
 
 
 class GraphStorageTestRunner:
@@ -690,20 +1039,43 @@ class GraphStorageTestRunner:
         storage, _ = storage_with_data
         await GraphStorageTestSuite.test_remove_edges(storage)
 
+    # ===== Performance and Stress Tests =====
+
+    async def test_large_batch_operations(self, storage_with_data):
+        """Test performance with large batch operations - NEW TEST"""
+        storage, _ = storage_with_data
+        await GraphStorageTestSuite.test_large_batch_operations(storage)
+
+    async def test_concurrent_operations(self, storage_with_data):
+        """Test concurrent access patterns - NEW TEST"""
+        storage, _ = storage_with_data
+        await GraphStorageTestSuite.test_concurrent_operations(storage)
+
+    async def test_error_handling(self, storage_with_data):
+        """Test error handling and edge cases - NEW TEST"""
+        storage, _ = storage_with_data
+        await GraphStorageTestSuite.test_error_handling(storage)
+
+    # ===== Graph Operations =====
+
     async def test_get_all_labels(self, storage_with_data):
         """Test get_all_labels function"""
         storage, graph_data = storage_with_data
         await GraphStorageTestSuite.test_get_all_labels(storage, graph_data)
 
-    # async def test_get_knowledge_graph(self, storage_with_data):
-    #     """Test get_knowledge_graph function"""
-    #     storage, graph_data = storage_with_data
-    #     await GraphStorageTestSuite.test_get_knowledge_graph(storage, graph_data)
+    # ===== Data Integrity =====
 
     async def test_data_integrity(self, storage_with_data):
         """Test that loaded data maintains integrity"""
         storage, graph_data = storage_with_data
         await GraphStorageTestSuite.test_data_integrity(storage, graph_data)
+
+    async def test_data_consistency_after_operations(self, storage_with_data):
+        """Test data consistency after various operations - NEW TEST"""
+        storage, _ = storage_with_data
+        await GraphStorageTestSuite.test_data_consistency_after_operations(storage)
+
+    # ===== Summary Test =====
 
     async def test_interface_coverage_summary(self, storage_with_data):
         """Summary test to ensure all BaseGraphStorage methods are covered"""

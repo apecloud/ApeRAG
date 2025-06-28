@@ -10,7 +10,7 @@ import pytest
 import pytest_asyncio
 
 from aperag.graph.lightrag.kg.nebula_sync_impl import NebulaSyncStorage
-from tests.e2e_test.graphindex.test_graph_storage import GraphStorageTestRunner
+from tests.e2e_test.graphindex.test_graph_storage import GraphStorageTestRunner, graph_data, mock_embedding_func
 
 dotenv.load_dotenv(".env")
 
