@@ -260,13 +260,10 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_node)
 
-
-
     async def get_nodes_batch(self, node_ids: list[str]) -> dict[str, dict]:
         """
-        Secure batch node retrieval without _quote_vid.
-        Uses individual parameterized MATCH queries instead of FETCH.
-        Performance: ~10% slower but 100% safer.
+        Optimized batch node retrieval using IN operator.
+        Processes up to 100 nodes per batch for better performance.
         """
         
         def _sync_get_nodes_batch():
@@ -276,17 +273,22 @@ class NebulaSyncStorage(BaseGraphStorage):
                 if not node_ids:
                     return nodes
                 
-                # Use individual parameterized MATCH queries instead of FETCH
-                for node_id in node_ids:
-                    query = "MATCH (v:base) WHERE id(v) == $node_id RETURN properties(v) as props"
-                    params = {"node_id": node_id}
+                # Process in batches of 100
+                batch_size = 100
+                for i in range(0, len(node_ids), batch_size):
+                    batch_ids = node_ids[i:i + batch_size]
+                    
+                    # Use IN operator for batch query - much faster!
+                    query = "MATCH (v:base) WHERE id(v) IN $node_ids RETURN id(v) as vid, properties(v) as props"
+                    params = {"node_ids": batch_ids}
                     
                     nebula_params = _prepare_nebula_params(params)
                     result = session.execute_parameter(query, nebula_params)
                     
-                    if result.is_succeeded() and result.row_size() > 0:
+                    if result.is_succeeded():
                         for row in result:
-                            props = row.values()[0].as_map()
+                            node_id = row.values()[0].as_string()
+                            props = row.values()[1].as_map()
                             node_dict = self._convert_nebula_value_map(props)
                             node_dict["entity_id"] = node_id
                             nodes[node_id] = node_dict
@@ -317,7 +319,10 @@ class NebulaSyncStorage(BaseGraphStorage):
         return await asyncio.to_thread(_sync_node_degree)
 
     async def node_degrees_batch(self, node_ids: list[str]) -> dict[str, int]:
-        """使用简单查询的批量度数查询"""
+        """
+        Optimized batch degree calculation using batch queries.
+        Processes up to 100 nodes per batch.
+        """
 
         def _sync_node_degrees_batch():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
@@ -325,25 +330,33 @@ class NebulaSyncStorage(BaseGraphStorage):
                     return {}
 
                 degrees = {}
-
-                # Use simple individual queries (complex UNWIND aggregation is problematic)
-                for node_id in node_ids:
-                    # Use proper nGQL aggregation syntax with GROUP BY
+                batch_size = 100
+                
+                for i in range(0, len(node_ids), batch_size):
+                    batch_ids = node_ids[i:i + batch_size]
+                    
+                    # Use batch query for degrees - much faster than individual queries
+                    # Note: We need to use UNWIND for batch processing in Nebula
                     query = """
-                    GO FROM $node_id OVER * BIDIRECT 
-                    YIELD dst(edge) AS n
-                    | GROUP BY $-.n YIELD COUNT(*) AS degree
+                    UNWIND $node_ids AS node_id 
+                    GO FROM node_id OVER * BIDIRECT 
+                    YIELD node_id, dst(edge) AS neighbor
+                    | GROUP BY node_id YIELD node_id, COUNT(*) AS degree
                     """
-                    nebula_params = _prepare_nebula_params({"node_id": node_id})
+                    params = {"node_ids": batch_ids}
+                    nebula_params = _prepare_nebula_params(params)
                     result = session.execute_parameter(query, nebula_params)
 
-                    if result.is_succeeded() and result.row_size() > 0:
+                    if result.is_succeeded():
                         for row in result:
-                            degree = row.values()[0].as_int()
+                            node_id = row.values()[0].as_string()
+                            degree = row.values()[1].as_int()
                             degrees[node_id] = degree
-                            break  # Only need the first (and should be only) row
-                    else:
-                        degrees[node_id] = 0
+                    
+                    # Set degree 0 for nodes not found in the result
+                    for node_id in batch_ids:
+                        if node_id not in degrees:
+                            degrees[node_id] = 0
 
                 return degrees
 
@@ -406,13 +419,10 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_edge)
 
-
-
     async def get_edges_batch(self, pairs: list[dict[str, str]]) -> dict[tuple[str, str], dict]:
         """
-        Secure batch edge retrieval without _quote_vid.
-        Uses parameterized MATCH queries instead of FETCH.
-        Performance: Comparable to original, much safer.
+        Optimized batch edge retrieval using batch queries.
+        Processes up to 100 edge pairs per batch.
         """
         
         def _sync_get_edges_batch():
@@ -422,7 +432,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                 if not pairs:
                     return edges_dict
                 
-                # Initialize all edge pairs
+                # Initialize all edge pairs with default values
                 for pair in pairs:
                     src, tgt = pair["src"], pair["tgt"]
                     edges_dict[(src, tgt)] = {
@@ -432,24 +442,42 @@ class NebulaSyncStorage(BaseGraphStorage):
                         "keywords": None,
                     }
                 
-                # Use parameterized MATCH queries instead of FETCH
-                for pair in pairs:
-                    src, tgt = pair["src"], pair["tgt"]
+                # Process in batches of 100
+                batch_size = 100
+                for i in range(0, len(pairs), batch_size):
+                    batch_pairs = pairs[i:i + batch_size]
                     
-                    query = """
-                    MATCH (src)-[e:DIRECTED]-(dst) 
-                    WHERE (id(src) == $src_id AND id(dst) == $dst_id) 
-                       OR (id(src) == $dst_id AND id(dst) == $src_id)
-                    RETURN properties(e) as props LIMIT 1
-                    """
-                    params = {"src_id": src, "dst_id": tgt}
+                    # Build batch query using UNION ALL for better performance
+                    union_queries = []
+                    all_params = {}
                     
-                    nebula_params = _prepare_nebula_params(params)
-                    result = session.execute_parameter(query, nebula_params)
+                    for j, pair in enumerate(batch_pairs):
+                        src, tgt = pair["src"], pair["tgt"]
+                        src_param = f"src_{j}"
+                        tgt_param = f"tgt_{j}"
+                        
+                        union_queries.append(f"""
+                        MATCH (src)-[e:DIRECTED]-(dst) 
+                        WHERE (id(src) == ${src_param} AND id(dst) == ${tgt_param}) 
+                           OR (id(src) == ${tgt_param} AND id(dst) == ${src_param})
+                        RETURN "${src}" as src_id, "${tgt}" as tgt_id, properties(e) as props
+                        """)
+                        
+                        all_params[src_param] = src
+                        all_params[tgt_param] = tgt
                     
-                    if result.is_succeeded() and result.row_size() > 0:
+                    # Combine with UNION ALL
+                    batch_query = " UNION ALL ".join(union_queries)
+                    
+                    nebula_params = _prepare_nebula_params(all_params)
+                    result = session.execute_parameter(batch_query, nebula_params)
+                    
+                    if result.is_succeeded():
                         for row in result:
-                            props = row.values()[0].as_map()
+                            src_id = row.values()[0].as_string()
+                            tgt_id = row.values()[1].as_string()
+                            props = row.values()[2].as_map()
+                            
                             edge_dict = self._convert_nebula_value_map(props)
                             
                             # Ensure required keys exist
@@ -462,8 +490,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                                 if key not in edge_dict:
                                     edge_dict[key] = default
                             
-                            edges_dict[(src, tgt)] = edge_dict
-                            break
+                            edges_dict[(src_id, tgt_id)] = edge_dict
                 
                 return edges_dict
         
@@ -498,7 +525,10 @@ class NebulaSyncStorage(BaseGraphStorage):
         return await asyncio.to_thread(_sync_get_node_edges)
 
     async def get_nodes_edges_batch(self, node_ids: list[str]) -> dict[str, list[tuple[str, str]]]:
-        """使用简单查询的批量邻居查询"""
+        """
+        Optimized batch node edges retrieval using batch queries.
+        Processes up to 100 nodes per batch.
+        """
 
         def _sync_get_nodes_edges_batch():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
@@ -506,26 +536,34 @@ class NebulaSyncStorage(BaseGraphStorage):
                     return {}
 
                 edges_dict = {node_id: [] for node_id in node_ids}
+                batch_size = 100
 
-                # Use individual GO queries for each node
-                for node_id in node_ids:
+                for i in range(0, len(node_ids), batch_size):
+                    batch_ids = node_ids[i:i + batch_size]
+                    
+                    # Use batch query with UNWIND for better performance
                     query = """
-                    GO FROM $node_id OVER * BIDIRECT 
-                    YIELD src(edge) as src, dst(edge) as dst
+                    UNWIND $node_ids AS node_id
+                    GO FROM node_id OVER * BIDIRECT 
+                    YIELD node_id, src(edge) as src, dst(edge) as dst
                     """
-                    nebula_params = _prepare_nebula_params({"node_id": node_id})
+                    params = {"node_ids": batch_ids}
+                    nebula_params = _prepare_nebula_params(params)
                     result = session.execute_parameter(query, nebula_params)
 
-                    edges_set = set()  # For deduplication to match Neo4j behavior
+                    # Track edges per node for deduplication
+                    node_edges_sets = {node_id: set() for node_id in batch_ids}
+                    
                     if result.is_succeeded():
                         for row in result:
-                            src = row.values()[0].as_string()
-                            dst = row.values()[1].as_string()
-                            # Deduplicate bidirectional edges (BIDIRECT returns both A->B and B->A)
-                            # Neo4j only returns one direction, so we match that behavior
-                            if (dst, src) not in edges_set:
-                                edges_dict[node_id].append((src, dst))
-                                edges_set.add((src, dst))
+                            source_node_id = row.values()[0].as_string()
+                            src = row.values()[1].as_string()
+                            dst = row.values()[2].as_string()
+                            
+                            # Deduplicate bidirectional edges to match Neo4j behavior
+                            if (dst, src) not in node_edges_sets[source_node_id]:
+                                edges_dict[source_node_id].append((src, dst))
+                                node_edges_sets[source_node_id].add((src, dst))
 
                 return edges_dict
 
@@ -663,8 +701,6 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_all_labels)
 
-
-
     async def delete_node(self, node_id: str) -> None:
         """
         Delete a node using nGQL syntax.
@@ -688,34 +724,71 @@ class NebulaSyncStorage(BaseGraphStorage):
         return await asyncio.to_thread(_sync_delete_node)
 
     async def remove_nodes(self, nodes: list[str]):
-        """Delete multiple nodes."""
-        for node in nodes:
-            await self.delete_node(node)
+        """
+        Optimized batch node deletion.
+        Processes up to 100 nodes per batch using multi-statement execution.
+        """
+        
+        def _sync_remove_nodes_batch(batch_nodes: list[str]):
+            with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
+                if not batch_nodes:
+                    return
+                
+                # Build batch DELETE statements separated by semicolons
+                delete_statements = []
+                for node_id in batch_nodes:
+                    node_id_quoted = _quote_vid(node_id)
+                    delete_statements.append(f"DELETE VERTEX {node_id_quoted} WITH EDGE")
+                
+                # Execute all deletes in one batch
+                batch_query = "; ".join(delete_statements)
+                result = session.execute(batch_query)
+                
+                if not result.is_succeeded():
+                    logger.error(f"Failed to delete batch of {len(batch_nodes)} nodes: {_safe_error_msg(result)}")
+                    raise RuntimeError(f"Failed to delete nodes batch: {_safe_error_msg(result)}")
+                
+                logger.debug(f"Successfully deleted batch of {len(batch_nodes)} nodes")
 
-
+        # Process in batches of 100
+        batch_size = 100
+        for i in range(0, len(nodes), batch_size):
+            batch = nodes[i:i + batch_size]
+            await asyncio.to_thread(_sync_remove_nodes_batch, batch)
 
     async def remove_edges(self, edges: list[tuple[str, str]]):
         """
-        Delete multiple edges using nGQL syntax.
-        VID parameters are not supported in Nebula, so we must use _quote_vid.
+        Optimized batch edge deletion.
+        Processes up to 100 edges per batch using multi-statement execution.
         """
         
-        def _sync_remove_edge(source: str, target: str):
+        def _sync_remove_edges_batch(batch_edges: list[tuple[str, str]]):
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
-                # VID cannot be parameterized in DELETE statements
-                # Use safe VID quoting to handle special characters properly
-                source_quoted = _quote_vid(source)
-                target_quoted = _quote_vid(target)
-                query = f"DELETE EDGE DIRECTED {source_quoted} -> {target_quoted}"
-                result = session.execute(query)
+                if not batch_edges:
+                    return
+                
+                # Build batch DELETE statements separated by semicolons
+                delete_statements = []
+                for source, target in batch_edges:
+                    source_quoted = _quote_vid(source)
+                    target_quoted = _quote_vid(target)
+                    delete_statements.append(f"DELETE EDGE DIRECTED {source_quoted} -> {target_quoted}")
+                
+                # Execute all deletes in one batch
+                batch_query = "; ".join(delete_statements)
+                result = session.execute(batch_query)
                 
                 if not result.is_succeeded():
-                    logger.error(f"Failed to delete edge from {source} to {target}: {_safe_error_msg(result)}")
+                    logger.error(f"Failed to delete batch of {len(batch_edges)} edges: {_safe_error_msg(result)}")
+                    # Continue with other batches even if this one fails
                 else:
-                    logger.debug(f"Deleted edge from '{source}' to '{target}'")
-        
-        for source, target in edges:
-            await asyncio.to_thread(_sync_remove_edge, source, target)
+                    logger.debug(f"Successfully deleted batch of {len(batch_edges)} edges")
+
+        # Process in batches of 100
+        batch_size = 100
+        for i in range(0, len(edges), batch_size):
+            batch = edges[i:i + batch_size]
+            await asyncio.to_thread(_sync_remove_edges_batch, batch)
 
     async def drop(self) -> dict[str, str]:
         """Drop all data from storage."""
@@ -734,5 +807,122 @@ class NebulaSyncStorage(BaseGraphStorage):
                     return {"status": "error", "message": _safe_error_msg(result)}
 
         return await asyncio.to_thread(_sync_drop)
+
+    async def upsert_nodes_batch(self, nodes: list[tuple[str, dict[str, str]]]) -> None:
+        """
+        Optimized batch node upsert operation.
+        Processes up to 100 nodes per batch using multi-statement execution.
+        """
+        
+        def _sync_upsert_nodes_batch(batch_nodes: list[tuple[str, dict[str, str]]]):
+            with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
+                if not batch_nodes:
+                    return
+                
+                # Build batch UPSERT statements separated by semicolons
+                upsert_statements = []
+                all_params = {}
+                
+                for i, (node_id, node_data) in enumerate(batch_nodes):
+                    if "entity_id" not in node_data:
+                        logger.warning(f"Skipping node {node_id}: missing entity_id")
+                        continue
+                    
+                    # Filter out None values
+                    valid_props = {k: v for k, v in node_data.items() if v is not None}
+                    if not valid_props:
+                        logger.warning(f"Skipping node {node_id}: no valid properties")
+                        continue
+                    
+                    node_id_quoted = _quote_vid(node_id)
+                    
+                    # Build SET clause with parameterized values
+                    set_items = []
+                    for key in valid_props.keys():
+                        param_key = f"node_{i}_{key}"
+                        set_items.append(f"base.{key} = ${param_key}")
+                        all_params[param_key] = valid_props[key]
+                    
+                    set_clause = ", ".join(set_items)
+                    upsert_statements.append(f"UPSERT VERTEX {node_id_quoted} SET {set_clause}")
+                
+                if not upsert_statements:
+                    logger.warning("No valid nodes to upsert in batch")
+                    return
+                
+                # Execute all upserts in one batch
+                batch_query = "; ".join(upsert_statements)
+                nebula_params = _prepare_nebula_params(all_params)
+                result = session.execute_parameter(batch_query, nebula_params)
+                
+                if not result.is_succeeded():
+                    logger.error(f"Failed to upsert batch of {len(batch_nodes)} nodes: {_safe_error_msg(result)}")
+                    raise RuntimeError(f"Failed to upsert nodes batch: {_safe_error_msg(result)}")
+                
+                logger.debug(f"Successfully upserted batch of {len(batch_nodes)} nodes")
+
+        # Process in batches of 100
+        batch_size = 100
+        for i in range(0, len(nodes), batch_size):
+            batch = nodes[i:i + batch_size]
+            await asyncio.to_thread(_sync_upsert_nodes_batch, batch)
+
+    async def upsert_edges_batch(self, edges: list[tuple[str, str, dict[str, str]]]) -> None:
+        """
+        Optimized batch edge upsert operation.
+        Processes up to 100 edges per batch using multi-statement execution.
+        """
+        
+        def _sync_upsert_edges_batch(batch_edges: list[tuple[str, str, dict[str, str]]]):
+            with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
+                if not batch_edges:
+                    return
+                
+                # Build batch UPSERT statements separated by semicolons
+                upsert_statements = []
+                all_params = {}
+                
+                for i, (source_node_id, target_node_id, edge_data) in enumerate(batch_edges):
+                    # Filter out None values
+                    valid_props = {k: v for k, v in edge_data.items() if v is not None}
+                    if not valid_props:
+                        logger.warning(f"Skipping edge {source_node_id} -> {target_node_id}: no valid properties")
+                        continue
+                    
+                    source_quoted = _quote_vid(source_node_id)
+                    target_quoted = _quote_vid(target_node_id)
+                    
+                    # Build SET clause with parameterized values
+                    set_items = []
+                    for key in valid_props.keys():
+                        param_key = f"edge_{i}_{key}"
+                        set_items.append(f"{key} = ${param_key}")
+                        all_params[param_key] = valid_props[key]
+                    
+                    set_clause = ", ".join(set_items)
+                    upsert_statements.append(
+                        f"UPSERT EDGE {source_quoted} -> {target_quoted} OF DIRECTED SET {set_clause}"
+                    )
+                
+                if not upsert_statements:
+                    logger.warning("No valid edges to upsert in batch")
+                    return
+                
+                # Execute all upserts in one batch
+                batch_query = "; ".join(upsert_statements)
+                nebula_params = _prepare_nebula_params(all_params)
+                result = session.execute_parameter(batch_query, nebula_params)
+                
+                if not result.is_succeeded():
+                    logger.error(f"Failed to upsert batch of {len(batch_edges)} edges: {_safe_error_msg(result)}")
+                    raise RuntimeError(f"Failed to upsert edges batch: {_safe_error_msg(result)}")
+                
+                logger.debug(f"Successfully upserted batch of {len(batch_edges)} edges")
+
+        # Process in batches of 100
+        batch_size = 100
+        for i in range(0, len(edges), batch_size):
+            batch = edges[i:i + batch_size]
+            await asyncio.to_thread(_sync_upsert_edges_batch, batch)
 
 
