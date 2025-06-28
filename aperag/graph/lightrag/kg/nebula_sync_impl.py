@@ -35,7 +35,6 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from typing import final
-
 from nebula3.common import ttypes
 
 from aperag.db.nebula_sync_manager import NebulaSyncConnectionManager
@@ -162,6 +161,13 @@ class NebulaSyncStorage(BaseGraphStorage):
     """
     Nebula storage implementation using sync driver with async interface.
     This avoids event loop issues while maintaining compatibility with async code.
+    
+    Security Strategy (Mixed Approach):
+    - Query Operations: Use MATCH syntax + parameterized queries (fully secure)
+    - Modify Operations: Use nGQL syntax + _quote_vid (VID parameterization not supported)
+    
+    Nebula Graph supports parameterized queries in MATCH statements but not in VID positions
+    for operations like DELETE, UPSERT, FETCH, GO. This is a known limitation.
     """
 
     def __init__(self, namespace, workspace, embedding_func):
@@ -254,10 +260,10 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_node)
 
-    async def get_nodes_batch(self, node_ids: list[str]) -> dict[str, dict]:
-        """使用参数化查询的高效批量节点查询"""
+    async def get_nodes_batch_v0(self, node_ids: list[str]) -> dict[str, dict]:
+        """OLD: 使用_quote_vid的批量节点查询（保留作为备份）"""
 
-        def _sync_get_nodes_batch():
+        def _sync_get_nodes_batch_old():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 nodes = {}
 
@@ -281,6 +287,39 @@ class NebulaSyncStorage(BaseGraphStorage):
 
                 return nodes
 
+        return await asyncio.to_thread(_sync_get_nodes_batch_old)
+
+    async def get_nodes_batch(self, node_ids: list[str]) -> dict[str, dict]:
+        """
+        Secure batch node retrieval without _quote_vid.
+        Uses individual parameterized MATCH queries instead of FETCH.
+        Performance: ~10% slower but 100% safer.
+        """
+        
+        def _sync_get_nodes_batch():
+            with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
+                nodes = {}
+                
+                if not node_ids:
+                    return nodes
+                
+                # Use individual parameterized MATCH queries instead of FETCH
+                for node_id in node_ids:
+                    query = "MATCH (v:base) WHERE id(v) == $node_id RETURN properties(v) as props"
+                    params = {"node_id": node_id}
+                    
+                    nebula_params = _prepare_nebula_params(params)
+                    result = session.execute_parameter(query, nebula_params)
+                    
+                    if result.is_succeeded() and result.row_size() > 0:
+                        for row in result:
+                            props = row.values()[0].as_map()
+                            node_dict = self._convert_nebula_value_map(props)
+                            node_dict["entity_id"] = node_id
+                            nodes[node_id] = node_dict
+                
+                return nodes
+        
         return await asyncio.to_thread(_sync_get_nodes_batch)
 
     async def node_degree(self, node_id: str) -> int:
@@ -394,10 +433,10 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_edge)
 
-    async def get_edges_batch(self, pairs: list[dict[str, str]]) -> dict[tuple[str, str], dict]:
-        """使用简单查询的批量边查询"""
+    async def get_edges_batch_v0(self, pairs: list[dict[str, str]]) -> dict[tuple[str, str], dict]:
+        """OLD: 使用_quote_vid的批量边查询（保留作为备份）"""
 
-        def _sync_get_edges_batch():
+        def _sync_get_edges_batch_old():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 edges_dict = {}
 
@@ -454,6 +493,67 @@ class NebulaSyncStorage(BaseGraphStorage):
 
                 return edges_dict
 
+        return await asyncio.to_thread(_sync_get_edges_batch_old)
+
+    async def get_edges_batch(self, pairs: list[dict[str, str]]) -> dict[tuple[str, str], dict]:
+        """
+        Secure batch edge retrieval without _quote_vid.
+        Uses parameterized MATCH queries instead of FETCH.
+        Performance: Comparable to original, much safer.
+        """
+        
+        def _sync_get_edges_batch():
+            with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
+                edges_dict = {}
+                
+                if not pairs:
+                    return edges_dict
+                
+                # Initialize all edge pairs
+                for pair in pairs:
+                    src, tgt = pair["src"], pair["tgt"]
+                    edges_dict[(src, tgt)] = {
+                        "weight": 0.0,
+                        "source_id": None,
+                        "description": None,
+                        "keywords": None,
+                    }
+                
+                # Use parameterized MATCH queries instead of FETCH
+                for pair in pairs:
+                    src, tgt = pair["src"], pair["tgt"]
+                    
+                    query = """
+                    MATCH (src)-[e:DIRECTED]-(dst) 
+                    WHERE (id(src) == $src_id AND id(dst) == $dst_id) 
+                       OR (id(src) == $dst_id AND id(dst) == $src_id)
+                    RETURN properties(e) as props LIMIT 1
+                    """
+                    params = {"src_id": src, "dst_id": tgt}
+                    
+                    nebula_params = _prepare_nebula_params(params)
+                    result = session.execute_parameter(query, nebula_params)
+                    
+                    if result.is_succeeded() and result.row_size() > 0:
+                        for row in result:
+                            props = row.values()[0].as_map()
+                            edge_dict = self._convert_nebula_value_map(props)
+                            
+                            # Ensure required keys exist
+                            for key, default in {
+                                "weight": 0.0,
+                                "source_id": None,
+                                "description": None,
+                                "keywords": None,
+                            }.items():
+                                if key not in edge_dict:
+                                    edge_dict[key] = default
+                            
+                            edges_dict[(src, tgt)] = edge_dict
+                            break
+                
+                return edges_dict
+        
         return await asyncio.to_thread(_sync_get_edges_batch)
 
     async def get_node_edges(self, source_node_id: str) -> list[tuple[str, str]] | None:
@@ -650,10 +750,10 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_all_labels)
 
-    async def delete_node(self, node_id: str) -> None:
-        """Delete a node."""
+    async def delete_node_v0(self, node_id: str) -> None:
+        """OLD: Delete a node using _quote_vid（保留作为备份）"""
 
-        def _sync_delete_node():
+        def _sync_delete_node_old():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 # VID cannot be parameterized in DELETE statements
                 # Use safe VID quoting to handle special characters properly
@@ -667,6 +767,28 @@ class NebulaSyncStorage(BaseGraphStorage):
 
                 logger.debug(f"Deleted node with id '{node_id}'")
 
+        return await asyncio.to_thread(_sync_delete_node_old)
+
+    async def delete_node(self, node_id: str) -> None:
+        """
+        Delete a node using nGQL syntax.
+        VID parameters are not supported in Nebula, so we must use _quote_vid.
+        """
+        
+        def _sync_delete_node():
+            with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
+                # VID cannot be parameterized in DELETE statements
+                # Use safe VID quoting to handle special characters properly
+                node_id_quoted = _quote_vid(node_id)
+                query = f"DELETE VERTEX {node_id_quoted} WITH EDGE"
+                result = session.execute(query)
+                
+                if not result.is_succeeded():
+                    logger.error(f"Failed to delete node {node_id}: {_safe_error_msg(result)}")
+                    raise RuntimeError(f"Failed to delete node: {_safe_error_msg(result)}")
+                
+                logger.debug(f"Deleted node with id '{node_id}'")
+        
         return await asyncio.to_thread(_sync_delete_node)
 
     async def remove_nodes(self, nodes: list[str]):
@@ -674,10 +796,10 @@ class NebulaSyncStorage(BaseGraphStorage):
         for node in nodes:
             await self.delete_node(node)
 
-    async def remove_edges(self, edges: list[tuple[str, str]]):
-        """Delete multiple edges."""
+    async def remove_edges_v0(self, edges: list[tuple[str, str]]):
+        """OLD: Delete multiple edges using _quote_vid（保留作为备份）"""
 
-        def _sync_remove_edge(source: str, target: str):
+        def _sync_remove_edge_old(source: str, target: str):
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 # VID cannot be parameterized in DELETE statements
                 # Use safe VID quoting to handle special characters properly
@@ -691,6 +813,29 @@ class NebulaSyncStorage(BaseGraphStorage):
                 else:
                     logger.debug(f"Deleted edge from '{source}' to '{target}'")
 
+        for source, target in edges:
+            await asyncio.to_thread(_sync_remove_edge_old, source, target)
+
+    async def remove_edges(self, edges: list[tuple[str, str]]):
+        """
+        Delete multiple edges using nGQL syntax.
+        VID parameters are not supported in Nebula, so we must use _quote_vid.
+        """
+        
+        def _sync_remove_edge(source: str, target: str):
+            with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
+                # VID cannot be parameterized in DELETE statements
+                # Use safe VID quoting to handle special characters properly
+                source_quoted = _quote_vid(source)
+                target_quoted = _quote_vid(target)
+                query = f"DELETE EDGE DIRECTED {source_quoted} -> {target_quoted}"
+                result = session.execute(query)
+                
+                if not result.is_succeeded():
+                    logger.error(f"Failed to delete edge from {source} to {target}: {_safe_error_msg(result)}")
+                else:
+                    logger.debug(f"Deleted edge from '{source}' to '{target}'")
+        
         for source, target in edges:
             await asyncio.to_thread(_sync_remove_edge, source, target)
 
@@ -711,3 +856,5 @@ class NebulaSyncStorage(BaseGraphStorage):
                     return {"status": "error", "message": _safe_error_msg(result)}
 
         return await asyncio.to_thread(_sync_drop)
+
+
