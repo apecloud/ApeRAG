@@ -284,8 +284,6 @@ class GraphStorageOracle(BaseGraphStorage):
                 if storage[key] is not None:
                     print(f"❌ Extra non-None field in storage: {key}={storage[key]}")
                     return False
-                # Extra None fields are OK, just log them
-                print(f"ℹ️  Extra None field in storage: {key}=None (allowed)")
 
         return True
 
