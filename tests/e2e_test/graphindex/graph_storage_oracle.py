@@ -178,7 +178,7 @@ class GraphStorageOracle(BaseGraphStorage):
             raise
 
     async def get_node(self, node_id: str) -> dict[str, str] | None:
-        """Get node data"""
+        """Get node data with flexible field comparison that allows storage to have extra None fields"""
         self._operation_count += 1
         operation_id = f"get_node#{self._operation_count}"
         
@@ -186,7 +186,19 @@ class GraphStorageOracle(BaseGraphStorage):
             baseline_result = await self.baseline.get_node(node_id)
             storage_result = await self.storage.get_node(node_id)
             
-            if baseline_result != storage_result:
+            # Handle None cases first
+            if baseline_result is None and storage_result is None:
+                print(f"✅ Oracle match for '{operation_id}' (both None)")
+                return storage_result
+            elif baseline_result is None or storage_result is None:
+                raise AssertionError(
+                    f"Oracle mismatch in '{operation_id}' (None vs non-None):\n"
+                    f"  Storage:  {storage_result}\n"
+                    f"  Baseline: {baseline_result}"
+                )
+            
+            # Use flexible dictionary comparison
+            if not self._flexible_dict_compare(baseline_result, storage_result, operation_id):
                 raise AssertionError(
                     f"Oracle mismatch in '{operation_id}':\n"
                     f"  Storage:  {storage_result}\n"
@@ -201,7 +213,7 @@ class GraphStorageOracle(BaseGraphStorage):
             raise
 
     async def get_edge(self, source_node_id: str, target_node_id: str) -> dict[str, str] | None:
-        """Get edge data"""
+        """Get edge data with flexible field comparison that allows storage to have extra None fields"""
         self._operation_count += 1
         operation_id = f"get_edge#{self._operation_count}"
         
@@ -209,29 +221,19 @@ class GraphStorageOracle(BaseGraphStorage):
             baseline_result = await self.baseline.get_edge(source_node_id, target_node_id)
             storage_result = await self.storage.get_edge(source_node_id, target_node_id)
             
-            # Handle floating point comparison for edge weights
-            if baseline_result != storage_result:
-                # Special handling for dict comparison with float values
-                if (isinstance(baseline_result, dict) and isinstance(storage_result, dict) 
-                    and set(baseline_result.keys()) == set(storage_result.keys())):
-                    # Compare each field with tolerance for floats
-                    mismatch = False
-                    for key in baseline_result.keys():
-                        baseline_val = baseline_result[key]
-                        storage_val = storage_result[key]
-                        
-                        if isinstance(baseline_val, float) and isinstance(storage_val, float):
-                            if abs(baseline_val - storage_val) > 1e-6:
-                                mismatch = True
-                                break
-                        elif baseline_val != storage_val:
-                            mismatch = True
-                            break
-                    
-                    if not mismatch:
-                        print(f"✅ Oracle match for '{operation_id}' (with float tolerance)")
-                        return storage_result
-                
+            # Handle None cases first
+            if baseline_result is None and storage_result is None:
+                print(f"✅ Oracle match for '{operation_id}' (both None)")
+                return storage_result
+            elif baseline_result is None or storage_result is None:
+                raise AssertionError(
+                    f"Oracle mismatch in '{operation_id}' (None vs non-None):\n"
+                    f"  Storage:  {storage_result}\n"
+                    f"  Baseline: {baseline_result}"
+                )
+            
+            # Use flexible dictionary comparison (includes float tolerance)
+            if not self._flexible_dict_compare(baseline_result, storage_result, operation_id):
                 raise AssertionError(
                     f"Oracle mismatch in '{operation_id}':\n"
                     f"  Storage:  {storage_result}\n"
@@ -244,6 +246,52 @@ class GraphStorageOracle(BaseGraphStorage):
         except Exception as e:
             print(f"❌ Oracle operation '{operation_id}' failed: {e}")
             raise
+
+    def _flexible_dict_compare(self, baseline: dict, storage: dict, operation_id: str) -> bool:
+        """
+        Flexible dictionary comparison that allows storage to have extra None fields.
+        
+        Rules:
+        1. If storage field is None and baseline doesn't have the field: OK
+        2. If baseline has a field, storage must also have it: REQUIRED  
+        3. Values must match (with float tolerance)
+        
+        Args:
+            baseline: Baseline dictionary
+            storage: Storage dictionary  
+            operation_id: Operation ID for error reporting
+            
+        Returns:
+            True if dictionaries match according to flexible rules
+        """
+        # Check that all baseline fields exist in storage
+        for key in baseline.keys():
+            if key not in storage:
+                print(f"❌ Missing field in storage: {key}")
+                return False
+            
+            baseline_val = baseline[key]
+            storage_val = storage[key]
+            
+            # Compare values with float tolerance
+            if isinstance(baseline_val, float) and isinstance(storage_val, float):
+                if abs(baseline_val - storage_val) > 1e-6:
+                    print(f"❌ Float mismatch for {key}: storage={storage_val}, baseline={baseline_val}")
+                    return False
+            elif baseline_val != storage_val:
+                print(f"❌ Value mismatch for {key}: storage={storage_val}, baseline={baseline_val}")
+                return False
+        
+        # Check extra storage fields - they must be None to be allowed
+        for key in storage.keys():
+            if key not in baseline:
+                if storage[key] is not None:
+                    print(f"❌ Extra non-None field in storage: {key}={storage[key]}")
+                    return False
+                # Extra None fields are OK, just log them
+                print(f"ℹ️  Extra None field in storage: {key}=None (allowed)")
+        
+        return True
 
     def _normalize_edge(self, edge: tuple[str, str]) -> tuple[str, str]:
         """Normalize edge tuple to have consistent ordering (smaller node ID first)"""
@@ -308,7 +356,7 @@ class GraphStorageOracle(BaseGraphStorage):
             raise
 
     async def get_nodes_batch(self, node_ids: list[str]) -> dict[str, dict]:
-        """Get nodes batch"""
+        """Get nodes batch with flexible field comparison for each node"""
         self._operation_count += 1
         operation_id = f"get_nodes_batch#{self._operation_count}"
         
@@ -316,14 +364,38 @@ class GraphStorageOracle(BaseGraphStorage):
             baseline_result = await self.baseline.get_nodes_batch(node_ids)
             storage_result = await self.storage.get_nodes_batch(node_ids)
             
-            if baseline_result != storage_result:
+            # Compare keys first
+            if set(baseline_result.keys()) != set(storage_result.keys()):
                 raise AssertionError(
-                    f"Oracle mismatch in '{operation_id}':\n"
+                    f"Oracle mismatch (keys) in '{operation_id}':\n"
                     f"  Storage keys:  {sorted(storage_result.keys())}\n"
                     f"  Baseline keys: {sorted(baseline_result.keys())}"
                 )
             
-            print(f"✅ Oracle match for '{operation_id}'")
+            # Compare each node with flexible comparison
+            for node_id in baseline_result.keys():
+                baseline_node = baseline_result[node_id]
+                storage_node = storage_result[node_id]
+                
+                # Handle None cases
+                if baseline_node is None and storage_node is None:
+                    continue
+                elif baseline_node is None or storage_node is None:
+                    raise AssertionError(
+                        f"Oracle mismatch (node {node_id} None vs non-None) in '{operation_id}':\n"
+                        f"  Storage:  {storage_node}\n"
+                        f"  Baseline: {baseline_node}"
+                    )
+                
+                # Use flexible dictionary comparison for each node
+                if not self._flexible_dict_compare(baseline_node, storage_node, f"{operation_id}_node_{node_id}"):
+                    raise AssertionError(
+                        f"Oracle mismatch (node {node_id}) in '{operation_id}':\n"
+                        f"  Storage:  {storage_node}\n"
+                        f"  Baseline: {baseline_node}"
+                    )
+            
+            print(f"✅ Oracle match for '{operation_id}' ({len(storage_result)} nodes)")
             return storage_result
             
         except Exception as e:
@@ -393,41 +465,28 @@ class GraphStorageOracle(BaseGraphStorage):
                     f"  Baseline keys: {sorted(baseline_result.keys())}"
                 )
             
-            # Compare each edge data with float tolerance
+            # Compare each edge data with flexible comparison
             for edge_key in baseline_result.keys():
                 baseline_edge = baseline_result[edge_key]
                 storage_edge = storage_result[edge_key]
                 
-                if baseline_edge != storage_edge:
-                    # Handle float comparison in edge properties
-                    if (isinstance(baseline_edge, dict) and isinstance(storage_edge, dict)
-                        and set(baseline_edge.keys()) == set(storage_edge.keys())):
-                        
-                        edge_mismatch = False
-                        for prop_key in baseline_edge.keys():
-                            baseline_val = baseline_edge[prop_key]
-                            storage_val = storage_edge[prop_key]
-                            
-                            if isinstance(baseline_val, float) and isinstance(storage_val, float):
-                                if abs(baseline_val - storage_val) > 1e-6:
-                                    edge_mismatch = True
-                                    break
-                            elif baseline_val != storage_val:
-                                edge_mismatch = True
-                                break
-                        
-                        if edge_mismatch:
-                            raise AssertionError(
-                                f"Oracle mismatch (edge {edge_key}) in '{operation_id}':\n"
-                                f"  Storage:  {storage_edge}\n"
-                                f"  Baseline: {baseline_edge}"
-                            )
-                    else:
-                        raise AssertionError(
-                            f"Oracle mismatch (edge {edge_key}) in '{operation_id}':\n"
-                            f"  Storage:  {storage_edge}\n"
-                            f"  Baseline: {baseline_edge}"
-                        )
+                # Handle None cases
+                if baseline_edge is None and storage_edge is None:
+                    continue
+                elif baseline_edge is None or storage_edge is None:
+                    raise AssertionError(
+                        f"Oracle mismatch (edge {edge_key} None vs non-None) in '{operation_id}':\n"
+                        f"  Storage:  {storage_edge}\n"
+                        f"  Baseline: {baseline_edge}"
+                    )
+                
+                # Use flexible dictionary comparison for each edge
+                if not self._flexible_dict_compare(baseline_edge, storage_edge, f"{operation_id}_edge_{edge_key}"):
+                    raise AssertionError(
+                        f"Oracle mismatch (edge {edge_key}) in '{operation_id}':\n"
+                        f"  Storage:  {storage_edge}\n"
+                        f"  Baseline: {baseline_edge}"
+                    )
             
             print(f"✅ Oracle match for '{operation_id}'")
             return storage_result

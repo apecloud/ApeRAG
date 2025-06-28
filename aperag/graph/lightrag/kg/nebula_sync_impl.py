@@ -456,16 +456,20 @@ class NebulaSyncStorage(BaseGraphStorage):
                         src, tgt = pair["src"], pair["tgt"]
                         src_param = f"src_{j}"
                         tgt_param = f"tgt_{j}"
+                        src_return_param = f"src_return_{j}"
+                        tgt_return_param = f"tgt_return_{j}"
 
                         union_queries.append(f"""
                         MATCH (src)-[e:DIRECTED]-(dst) 
                         WHERE (id(src) == ${src_param} AND id(dst) == ${tgt_param}) 
                            OR (id(src) == ${tgt_param} AND id(dst) == ${src_param})
-                        RETURN "${src}" as src_id, "${tgt}" as tgt_id, properties(e) as props
+                        RETURN ${src_return_param} as src_id, ${tgt_return_param} as tgt_id, properties(e) as props
                         """)
 
                         all_params[src_param] = src
                         all_params[tgt_param] = tgt
+                        all_params[src_return_param] = src
+                        all_params[tgt_return_param] = tgt
 
                     # Combine with UNION ALL
                     batch_query = " UNION ALL ".join(union_queries)
