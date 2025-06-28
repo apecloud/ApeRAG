@@ -15,13 +15,13 @@
 """
 Graph Storage Oracle
 
-Oracle代理类，封装真实storage和NetworkX baseline，自动同步操作并比较结果。
+Oracle proxy class that wraps real storage and NetworkX baseline, automatically synchronizes operations and compares results.
 
-核心思想：
-1. 实现BaseGraphStorage接口，让测试代码可以直接使用
-2. 所有操作自动镜像到storage和baseline
-3. 自动比较查询结果，确保一致性
-4. 每个方法负责自己的比较逻辑，避免超级复杂的通用比较函数
+Core concepts:
+1. Implements BaseGraphStorage interface for direct use by test code
+2. Automatically mirrors all operations to both storage and baseline
+3. Automatically compares query results to ensure consistency
+4. Each method handles its own comparison logic to avoid overly complex generic comparison functions
 """
 
 from aperag.graph.lightrag.base import BaseGraphStorage
@@ -31,13 +31,13 @@ from aperag.graph.lightrag.utils import EmbeddingFunc
 
 class GraphStorageOracle(BaseGraphStorage):
     """
-    Oracle代理类，实现BaseGraphStorage接口。
+    Oracle proxy class that implements the BaseGraphStorage interface.
 
-    每个方法都会：
-    1. 在baseline上执行操作
-    2. 在真实storage上执行操作
-    3. 比较结果并抛出异常（如果不匹配）
-    4. 返回真实storage的结果
+    Each method will:
+    1. Execute operations on the baseline
+    2. Execute operations on the real storage
+    3. Compare results and throw exceptions (if they don't match)
+    4. Return the real storage's result
     """
 
     WRITE_OPERATIONS = {
@@ -692,11 +692,11 @@ class GraphStorageOracle(BaseGraphStorage):
     # Additional Oracle-specific methods
 
     async def compare_graphs_fully(self):
-        """在测试结束时进行全面的图状态比较"""
+        """Perform comprehensive graph state comparison at the end of testing"""
         print("⚖️  Performing full graph comparison...")
 
         try:
-            # 比较标签
+            # Compare labels
             storage_labels = await self.storage.get_all_labels()
             baseline_labels = await self.baseline.get_all_labels()
 
@@ -707,7 +707,7 @@ class GraphStorageOracle(BaseGraphStorage):
                 print(
                     f"⚠️  Label mismatch: storage={len(storage_labels_sorted)}, baseline={len(baseline_labels_sorted)}"
                 )
-                # 不抛出异常，只是警告，因为某些implementation可能有差异
+                # Don't throw exception, just warn, as some implementations may have differences
             else:
                 print(f"✅ Labels match: {len(storage_labels_sorted)} labels")
 
@@ -715,4 +715,4 @@ class GraphStorageOracle(BaseGraphStorage):
 
         except Exception as e:
             print(f"⚠️  Full graph comparison warning: {e}")
-            # 不抛出异常，允许测试继续
+            # Don't throw exception, allow test to continue
