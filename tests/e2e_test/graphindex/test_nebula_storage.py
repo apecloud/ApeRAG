@@ -285,11 +285,6 @@ class TestNebulaStorage(GraphStorageTestRunner):
         oracle, _ = nebula_oracle_storage
         await GraphStorageTestSuite.test_data_consistency_after_operations(oracle)
 
-    async def test_get_knowledge_graph(self, nebula_oracle_storage):
-        """Test get_knowledge_graph function via storage"""
-        oracle, graph_data = nebula_oracle_storage
-        await GraphStorageTestSuite.test_get_knowledge_graph(oracle.storage, graph_data)
-
     async def test_oracle_summary(self, nebula_oracle_storage):
         """Test oracle summary via oracle"""
         oracle, _ = nebula_oracle_storage

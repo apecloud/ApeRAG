@@ -303,11 +303,11 @@ class NebulaSyncStorage(BaseGraphStorage):
 
         def _sync_node_degree():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
-                # Use proper nGQL aggregation syntax with GROUP BY
+                # Use MATCH syntax for more reliable degree calculation
                 query = """
-                GO FROM $node_id OVER * BIDIRECT 
-                YIELD dst(edge) AS n
-                | GROUP BY $-.n YIELD COUNT(*) AS degree
+                MATCH (v)-[r]-(other) 
+                WHERE id(v) == $node_id 
+                RETURN COUNT(r) AS degree
                 """
                 nebula_params = _prepare_nebula_params({"node_id": node_id})
                 result = session.execute_parameter(query, nebula_params)
@@ -336,13 +336,12 @@ class NebulaSyncStorage(BaseGraphStorage):
                 for i in range(0, len(node_ids), batch_size):
                     batch_ids = node_ids[i : i + batch_size]
 
-                    # Use batch query for degrees - much faster than individual queries
-                    # Note: We need to use UNWIND for batch processing in Nebula
+                    # Use MATCH syntax for more reliable batch degree calculation
                     query = """
                     UNWIND $node_ids AS node_id 
-                    GO FROM node_id OVER * BIDIRECT 
-                    YIELD node_id, dst(edge) AS neighbor
-                    | GROUP BY node_id YIELD node_id, COUNT(*) AS degree
+                    MATCH (v)-[r]-(other) 
+                    WHERE id(v) == node_id 
+                    RETURN node_id, COUNT(r) AS degree
                     """
                     params = {"node_ids": batch_ids}
                     nebula_params = _prepare_nebula_params(params)
@@ -507,8 +506,9 @@ class NebulaSyncStorage(BaseGraphStorage):
         def _sync_get_node_edges():
             with NebulaSyncConnectionManager.get_session(space=self._space_name) as session:
                 query = """
-                GO FROM $source_node_id OVER * BIDIRECT 
-                YIELD src(edge) as src, dst(edge) as dst
+                MATCH (v)-[r]-(connected) 
+                WHERE id(v) == $source_node_id 
+                RETURN id(v) as src, id(connected) as dst
                 """
                 nebula_params = _prepare_nebula_params({"source_node_id": source_node_id})
                 result = session.execute_parameter(query, nebula_params)
@@ -519,8 +519,7 @@ class NebulaSyncStorage(BaseGraphStorage):
                     for row in result:
                         src = row.values()[0].as_string()
                         tgt = row.values()[1].as_string()
-                        # Deduplicate bidirectional edges (BIDIRECT returns both A->B and B->A)
-                        # Neo4j only returns one direction, so we match that behavior
+                        # Deduplicate bidirectional edges to match Neo4j behavior
                         if (tgt, src) not in edges_set:
                             edges.append((src, tgt))
                             edges_set.add((src, tgt))
@@ -546,11 +545,12 @@ class NebulaSyncStorage(BaseGraphStorage):
                 for i in range(0, len(node_ids), batch_size):
                     batch_ids = node_ids[i : i + batch_size]
 
-                    # Use batch query with UNWIND for better performance
+                    # Use MATCH syntax for more reliable batch edge retrieval
                     query = """
                     UNWIND $node_ids AS node_id
-                    GO FROM node_id OVER * BIDIRECT 
-                    YIELD node_id, src(edge) as src, dst(edge) as dst
+                    MATCH (v)-[r]-(connected) 
+                    WHERE id(v) == node_id 
+                    RETURN node_id, id(v) as src, id(connected) as dst
                     """
                     params = {"node_ids": batch_ids}
                     nebula_params = _prepare_nebula_params(params)
