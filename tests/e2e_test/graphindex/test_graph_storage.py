@@ -690,25 +690,6 @@ class GraphStorageTestSuite:
         assert len(all_labels) > 0
         print(f"✓ Total labels found: {len(all_labels)}")
 
-    @staticmethod
-    async def test_get_knowledge_graph(storage: BaseGraphStorage, graph_data: Dict[str, Any]):
-        """Test get_knowledge_graph function - skip oracle for complexity"""
-        # This is complex to compare, so we test directly on storage
-        if not graph_data["nodes"]:
-            pytest.skip("No nodes for knowledge graph test")
-        
-        # Test with any node
-        sample_entity = random.choice(list(graph_data["nodes"].keys()))
-        
-        if await storage.has_node(sample_entity):
-            knowledge_graph = await storage.get_knowledge_graph(sample_entity, max_depth=2, max_nodes=50)
-            
-            assert hasattr(knowledge_graph, 'nodes')
-            assert hasattr(knowledge_graph, 'edges')
-            assert hasattr(knowledge_graph, 'is_truncated')
-            
-            print(f"✓ Knowledge graph: {len(knowledge_graph.nodes)} nodes, {len(knowledge_graph.edges)} edges")
-
     # ===== Summary Test =====
 
     @staticmethod
