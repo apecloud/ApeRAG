@@ -31,84 +31,13 @@ Modifications by ApeRAG Team:
 - See changelog.md for detailed modifications
 """
 
-# Import all storage implementations with conditional handling
-
-try:
-    from .neo4j_sync_impl import Neo4JSyncStorage
-except ImportError:
-    Neo4JSyncStorage = None
-
-try:
-    from .nebula_sync_impl import NebulaSyncStorage
-except ImportError:
-    NebulaSyncStorage = None
-
-try:
-    from .redis_impl import RedisKVStorage
-except ImportError:
-    RedisKVStorage = None
-
-
-try:
-    from .postgres_sync_impl import PGOpsSyncKVStorage, PGOpsSyncVectorStorage
-except ImportError:
-    PGOpsSyncDocStatusStorage = None
-    PGOpsSyncKVStorage = None
-    PGOpsSyncVectorStorage = None
-
-STORAGE_IMPLEMENTATIONS = {
-    "KV_STORAGE": {
-        "implementations": [
-            "RedisKVStorage",
-            "PGOpsSyncKVStorage",
-        ],
-        "required_methods": ["get_by_id", "upsert"],
-    },
-    "GRAPH_STORAGE": {
-        "implementations": [
-            "Neo4JSyncStorage",
-            "Neo4JHybridStorage",
-            "NebulaSyncStorage",
-            "PGGraphStorage",
-            "AGEStorage",
-        ],
-        "required_methods": ["upsert_node", "upsert_edge"],
-    },
-    "VECTOR_STORAGE": {
-        "implementations": [
-            "PGOpsSyncVectorStorage",
-        ],
-        "required_methods": ["query", "upsert"],
-    },
-}
-
-# Storage implementation environment variable without default value
-STORAGE_ENV_REQUIREMENTS: dict[str, list[str]] = {
-    # KV Storage Implementations
-    "RedisKVStorage": ["REDIS_URI"],
-    # Graph Storage Implementations
-    "NebulaSyncStorage": ["NEBULA_HOST", "NEBULA_PORT", "NEBULA_USER", "NEBULA_PASSWORD"],
-}
-
 # Storage implementation module mapping - build conditionally
-STORAGES = {}
-
-if Neo4JSyncStorage is not None:
-    STORAGES["Neo4JSyncStorage"] = ".kg.neo4j_sync_impl"
-
-# Add NebulaGraph implementations
-if NebulaSyncStorage is not None:
-    STORAGES["NebulaSyncStorage"] = ".kg.nebula_sync_impl"
-
-# Add Redis implementations
-if RedisKVStorage is not None:
-    STORAGES["RedisKVStorage"] = ".kg.redis_impl"
-
-if PGOpsSyncKVStorage is not None:
-    STORAGES["PGOpsSyncKVStorage"] = ".kg.postgres_sync_impl"
-
-if PGOpsSyncVectorStorage is not None:
-    STORAGES["PGOpsSyncVectorStorage"] = ".kg.postgres_sync_impl"
+STORAGES = {
+    "Neo4JSyncStorage": ".kg.neo4j_sync_impl",
+    "NebulaSyncStorage": ".kg.nebula_sync_impl",
+    "PGOpsSyncKVStorage": ".kg.postgres_sync_impl",
+    "PGOpsSyncVectorStorage": ".kg.postgres_sync_impl",
+}
 
 
 def verify_storage_implementation(storage_type: str, storage_name: str) -> None:
@@ -119,14 +48,43 @@ def verify_storage_implementation(storage_type: str, storage_name: str) -> None:
         storage_name: Storage implementation name
 
     Raises:
-        ValueError: If storage implementation is incompatible or missing required methods
+        ValueError: If storage implementation is incompatible with storage type or not found
     """
-    if storage_type not in STORAGE_IMPLEMENTATIONS:
-        raise ValueError(f"Unknown storage type: {storage_type}")
+    import importlib
 
-    storage_info = STORAGE_IMPLEMENTATIONS[storage_type]
-    if storage_name not in storage_info["implementations"]:
-        raise ValueError(
-            f"Storage implementation '{storage_name}' is not compatible with {storage_type}. "
-            f"Compatible implementations are: {', '.join(storage_info['implementations'])}"
-        )
+    from ..base import BaseGraphStorage, BaseKVStorage, BaseVectorStorage
+
+    # Check if storage implementation exists in STORAGES
+    if storage_name not in STORAGES:
+        raise ValueError(f"Storage implementation '{storage_name}' not found in available storages")
+
+    # Define expected base classes for each storage type
+    match storage_type:
+        case "KV_STORAGE":
+            expected_base_class = BaseKVStorage
+        case "VECTOR_STORAGE":
+            expected_base_class = BaseVectorStorage
+        case "GRAPH_STORAGE":
+            expected_base_class = BaseGraphStorage
+        case _:
+            raise ValueError(f"Unknown storage type: {storage_type}")
+
+    try:
+        # Import the module and get the class using relative import
+        module_path = STORAGES[storage_name]
+
+        # Use relative import with package parameter
+        module = importlib.import_module(module_path, package=__package__)
+        storage_class = getattr(module, storage_name)
+
+        # Check if the class implements the required base class
+        if not issubclass(storage_class, expected_base_class):
+            raise ValueError(
+                f"Storage implementation '{storage_name}' does not implement the required "
+                f"base class '{expected_base_class.__name__}' for storage type '{storage_type}'"
+            )
+
+    except ImportError as e:
+        raise ValueError(f"Failed to import storage implementation '{storage_name}': {e}")
+    except AttributeError:
+        raise ValueError(f"Storage class '{storage_name}' not found in module '{module_path}'")

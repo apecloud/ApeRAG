@@ -79,7 +79,6 @@ from .utils import (
     EmbeddingFunc,
     TiktokenTokenizer,
     Tokenizer,
-    check_storage_env_vars,
     clean_text,
     compute_mdhash_id,
     create_lightrag_logger,
@@ -253,8 +252,6 @@ class LightRAG:
         for storage_type, storage_name in storage_configs:
             # Verify storage implementation compatibility
             verify_storage_implementation(storage_type, storage_name)
-            # Check environment variables
-            check_storage_env_vars(storage_name)
 
         # Init Tokenizer
         # Post-initialization hook to handle backward compatabile tokenizer initialization based on provided parameters
