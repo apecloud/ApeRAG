@@ -31,15 +31,14 @@ from aperag.utils.history import BaseChatMessageHistory
 from aperag.utils.utils import now_unix_milliseconds
 
 # Character to token estimation ratio for Chinese/mixed content
-# Conservative estimate: 2 characters = 1 token
-CHAR_TO_TOKEN_RATIO = 2.0
+# Conservative estimate: 1.5 characters = 1 token
+TOKEN_TO_CHAR_RATIO = 1.5
 
 # Reserve tokens for output generation (default 1000 tokens)
 DEFAULT_OUTPUT_TOKENS = 1000
 
-# Fallback max context length if model max_tokens is not available
+# Fallback max context length if model context_window is not available
 FALLBACK_MAX_CONTEXT_LENGTH = 50000
-
 
 class Message(BaseModel):
     id: str
@@ -97,30 +96,70 @@ class LLMOutput(BaseModel):
     text: str
 
 
-def estimate_token_count(text: str) -> int:
+async def calculate_model_token_limits(
+    model_service_provider: str,
+    model_name: str,
+) -> Tuple[int, int]:
     """
-    Estimate token count from character count for Chinese/mixed content.
-    Using conservative ratio: 2 characters = 1 token
-    """
-    return int(len(text) / CHAR_TO_TOKEN_RATIO)
-
-
-def calculate_max_context_length(model_max_tokens: Optional[int], output_tokens: int = DEFAULT_OUTPUT_TOKENS) -> int:
-    """
-    Calculate maximum context length based on model's max_tokens limit.
-    Reserve tokens for output generation.
-    """
-    if not model_max_tokens:
-        return FALLBACK_MAX_CONTEXT_LENGTH
+    Calculate input and output token limits based on three constraints:
     
-    # Reserve tokens for output, convert to character count
-    max_context_tokens = model_max_tokens - output_tokens
-    if max_context_tokens <= 0:
-        # If model max_tokens is too small, use a minimal context
-        max_context_tokens = max(model_max_tokens // 2, 100)
+    1. Reserve at least 4096 tokens for output (or model's max_output_tokens if smaller)
+    2. Input (query+context) should not exceed model's input limit (min of context_window, max_input_tokens)
+    3. Total (input + output) should not exceed context_window
     
-    # Convert tokens to character count
-    return int(max_context_tokens * CHAR_TO_TOKEN_RATIO)
+    Args:
+        model_service_provider: Model service provider name
+        model_name: Model name
+    
+    Returns:
+        Tuple of (max_input_tokens, final_output_tokens)
+    """
+    # Get model configuration to determine token limits
+    try:
+        model_config = await async_db_ops.query_llm_provider_model(
+            provider_name=model_service_provider,
+            api=APIType.COMPLETION.value,
+            model=model_name
+        )
+        if model_config:
+            context_window = model_config.context_window
+            max_input_tokens = model_config.max_input_tokens  
+            max_output_tokens = model_config.max_output_tokens
+        else:
+            context_window = None
+            max_input_tokens = None
+            max_output_tokens = None
+    except Exception:
+        context_window = None
+        max_input_tokens = None
+        max_output_tokens = None
+
+    # Constraint 1: Determine output token reservation
+    reserved_output_tokens = min(max_output_tokens or DEFAULT_OUTPUT_TOKENS, DEFAULT_OUTPUT_TOKENS)
+    
+    # Constraint 2: Determine maximum input tokens allowed
+    input_limits = []
+    if max_input_tokens:
+        input_limits.append(max_input_tokens)
+    if context_window:
+        input_limits.append(context_window)
+    
+    if input_limits:
+        max_allowed_input = min(input_limits)
+    else:
+        # Fallback if no limits available
+        max_allowed_input = FALLBACK_MAX_CONTEXT_LENGTH // int(TOKEN_TO_CHAR_RATIO)
+    
+    # Constraint 3: Ensure total doesn't exceed context_window
+    if context_window:
+        # Make sure input + output <= context_window
+        max_allowed_input = min(max_allowed_input, context_window - reserved_output_tokens)
+    
+    # Ensure we have at least some minimal input space
+    if max_allowed_input <= 0:
+        max_allowed_input = 100  # Minimal fallback
+    
+    return max_allowed_input, reserved_output_tokens
 
 
 # Database operations interface
@@ -163,45 +202,33 @@ class LLMService:
         except Exception:
             raise Exception(f"LLMProvider {model_service_provider} not found")
 
-        # Get model configuration to determine max_tokens
-        try:
-            model_config = await async_db_ops.query_llm_provider_model(
-                provider_name=model_service_provider,
-                api=APIType.COMPLETION.value,
-                model=model_name
-            )
-            model_max_tokens = model_config.max_tokens if model_config else None
-        except Exception:
-            model_max_tokens = None
-
-        # Calculate dynamic context length based on model's max_tokens
-        max_context_length = calculate_max_context_length(model_max_tokens)
+        # Calculate input and output limits based on model configuration
+        max_input_tokens, max_output_tokens = await calculate_model_token_limits(
+            model_service_provider=model_service_provider,
+            model_name=model_name,
+        )
 
         # Build context and references from documents
+        max_input_chars = max_input_tokens * TOKEN_TO_CHAR_RATIO
         context = ""
         references = []
         if docs:
             for doc in docs:
-                if len(context) + len(doc.text) > max_context_length:
+                # Estimate final prompt length: template + query + current context + new doc
+                estimated_prompt_length = len(prompt_template) + len(query) + len(context) + len(doc.text)
+                if estimated_prompt_length > max_input_chars:
                     break
                 context += doc.text
                 references.append({"text": doc.text, "metadata": doc.metadata, "score": doc.score})
 
         prompt = prompt_template.format(query=query, context=context)
+        if len(prompt) > max_input_chars:
+            raise Exception(
+                f"Prompt requires {len(prompt)} characters, which exceeds the calculated "
+                f"input limit of {max_input_chars} characters"
+            )
         
-        # Estimate prompt tokens and calculate output tokens
-        prompt_tokens = estimate_token_count(prompt)
-        if model_max_tokens:
-            output_max_tokens = model_max_tokens - prompt_tokens
-            if output_max_tokens < 100:  # Ensure minimum output tokens
-                raise Exception(
-                    f"Model max_tokens {model_max_tokens} is too small to hold the prompt which requires approximately {prompt_tokens} tokens"
-                )
-        else:
-            # Use default output tokens if model max_tokens is unknown
-            output_max_tokens = DEFAULT_OUTPUT_TOKENS
-
-        cs = CompletionService(custom_llm_provider, model_name, base_url, api_key, temperature, output_max_tokens)
+        cs = CompletionService(custom_llm_provider, model_name, base_url, api_key, temperature, max_output_tokens)
 
         async def async_generator():
             response = ""

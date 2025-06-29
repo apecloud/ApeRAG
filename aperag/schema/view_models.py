@@ -791,8 +791,14 @@ class LlmProviderModel(BaseModel):
     custom_llm_provider: str = Field(
         ..., description='Custom LLM provider implementation', example='openai'
     )
-    max_tokens: Optional[int] = Field(
-        None, description='Maximum tokens for this model', example=4096
+    context_window: Optional[int] = Field(
+        None, description='Context window size (total tokens)', example=128000
+    )
+    max_input_tokens: Optional[int] = Field(
+        None, description='Maximum input tokens', example=120000
+    )
+    max_output_tokens: Optional[int] = Field(
+        None, description='Maximum output tokens', example=8000
     )
     tags: Optional[list[str]] = Field(
         [], description='Tags for model categorization', example=['free', 'recommend']
@@ -876,7 +882,15 @@ class LlmProviderModelCreate(BaseModel):
     custom_llm_provider: str = Field(
         ..., description='Custom LLM provider implementation'
     )
-    max_tokens: Optional[int] = Field(None, description='Maximum tokens for this model')
+    context_window: Optional[int] = Field(
+        None, description='Context window size (total tokens)', example=128000
+    )
+    max_input_tokens: Optional[int] = Field(
+        None, description='Maximum input tokens', example=120000
+    )
+    max_output_tokens: Optional[int] = Field(
+        None, description='Maximum output tokens', example=8000
+    )
     tags: Optional[list[str]] = Field([], description='Tags for model categorization')
 
 
@@ -884,7 +898,15 @@ class LlmProviderModelUpdate(BaseModel):
     custom_llm_provider: Optional[str] = Field(
         None, description='Custom LLM provider implementation'
     )
-    max_tokens: Optional[int] = Field(None, description='Maximum tokens for this model')
+    context_window: Optional[int] = Field(
+        None, description='Context window size (total tokens)', example=128000
+    )
+    max_input_tokens: Optional[int] = Field(
+        None, description='Maximum input tokens', example=120000
+    )
+    max_output_tokens: Optional[int] = Field(
+        None, description='Maximum output tokens', example=8000
+    )
     tags: Optional[list[str]] = Field(None, description='Tags for model categorization')
 
 

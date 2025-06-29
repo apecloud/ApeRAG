@@ -33,6 +33,22 @@ from typing import Dict, List, Any, Optional
 
 import litellm
 import requests
+from litellm import model_cost
+
+# --- Manual Override for Context Windows ---
+# For models where litellm's data might be ambiguous or incorrect,
+# we define the correct context window size here.
+MODEL_CONTEXT_OVERRIDE = {
+    "gpt-4o": 128000,
+    "chatgpt-4o-latest": 128000,
+    "gpt-4-turbo": 128000,
+    "gpt-4-turbo-preview": 128000,
+    "gpt-4-1106-preview": 128000,
+    "gpt-4-0125-preview": 128000,
+    "gpt-4-vision-preview": 128000,
+    "gpt-4o-mini": 128000,
+    "o4-mini": 128000,
+}
 
 
 # SQL Generation Helper Functions
@@ -101,22 +117,33 @@ def generate_model_upserts(provider_name: str, api_type: str, models: List[Dict[
         api_sql = escape_sql_string(api_type)
         model_name_sql = escape_sql_string(model['model'])
         custom_llm_provider_sql = escape_sql_string(model['custom_llm_provider'])
-        max_tokens_sql = format_nullable_int(model.get('max_tokens'))
+        
+        # Extract the three token-related fields
+        context_window_sql = format_nullable_int(model.get('context_window'))
+        max_input_tokens_sql = format_nullable_int(model.get('max_input_tokens'))
+        max_output_tokens_sql = format_nullable_int(model.get('max_output_tokens'))
+        
+        # 向后兼容性处理：如果旧数据中有max_tokens字段但没有context_window，
+        # 将max_tokens作为context_window使用（因为max_tokens通常表示总的上下文窗口大小）
+        if 'max_tokens' in model and context_window_sql == 'NULL':
+            context_window_sql = format_nullable_int(model.get('max_tokens'))
         
         # Use tags from model specification
         tags = model.get('tags', [])
         tags_sql = format_json_array(tags)
         
         upsert = f"""INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, max_tokens, tags,
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    {provider_name_sql}, {api_sql}, {model_name_sql}, {custom_llm_provider_sql}, {max_tokens_sql}, {tags_sql},
+    {provider_name_sql}, {api_sql}, {model_name_sql}, {custom_llm_provider_sql}, {context_window_sql}, {max_input_tokens_sql}, {max_output_tokens_sql}, {tags_sql},
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
     custom_llm_provider = EXCLUDED.custom_llm_provider,
-    max_tokens = EXCLUDED.max_tokens,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
     tags = EXCLUDED.tags,
     gmt_updated = NOW();"""
         
@@ -202,27 +229,39 @@ def generate_model_specs(models, provider, mode, blocklist=None, tag_rules=None)
     for model in filtered_models:
         try:
             info = litellm.get_model_info(model, provider)
-            spec = {
-                "model": model,
-                "custom_llm_provider": provider,
-                "tags": []  # Initialize empty tags list
-            }
-
             if info.get('mode') != mode:
                 continue
 
+            # Per user request, only process models with explicitly defined input and output tokens.
+            max_input = info.get('max_input_tokens')
+            max_output = info.get('max_output_tokens')
+            if max_input is None or max_output is None:
+                continue
+            
+            # Also require the legacy max_tokens for the context_window calculation.
+            max_tokens = info.get('max_tokens')
+            if max_tokens is None:
+                continue
+
+            spec = {
+                "model": model,
+                "custom_llm_provider": provider,
+                "max_input_tokens": max_input,
+                "max_output_tokens": max_output,
+                "tags": []
+            }
+            
+            # Derive context_window based on the new heuristic.
+            if max_tokens <= max_input:
+                spec['context_window'] = max_input
+            else:  # max_tokens > max_input
+                spec['context_window'] = max_tokens
+            
+            # Add other general properties
             if info.get('temperature'):
                 spec["temperature"] = info['temperature']
-
-            if info.get('max_tokens'):
-                spec["max_tokens"] = info['max_tokens']
-
-            if info.get('max_completion_tokens'):
-                spec["max_completion_tokens"] = info['max_completion_tokens']
-
             if info.get('timeout'):
                 spec["timeout"] = info['timeout']
-
             if info.get('top_n'):
                 spec["top_n"] = info['top_n']
 
@@ -468,7 +507,10 @@ def create_xai_config():
 
 
 def parse_bailian_models(file_path: str, default_custom_llm_provider) -> List[Dict[str, Any]]:
-    """Parse Alibaba Bailian models from JSON file"""
+    """
+    Parse Alibaba Bailian models from JSON file, extracting contextWindow,
+    maxInputTokens, and maxOutputTokens directly.
+    """
     with open(file_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
     
@@ -497,10 +539,18 @@ def parse_bailian_models(file_path: str, default_custom_llm_provider) -> List[Di
                 "custom_llm_provider": default_custom_llm_provider
             }
             
-            # Add context window as max_tokens if available
+            # Extract contextWindow, maxInputTokens, and maxOutputTokens directly from JSON data
             context_window = model_info.get("contextWindow")
             if context_window:
-                spec["max_tokens"] = context_window
+                spec["context_window"] = context_window
+
+            max_input = model_info.get("maxInputTokens")
+            if max_input:
+                spec["max_input_tokens"] = max_input
+
+            max_output = model_info.get("maxOutputTokens")
+            if max_output:
+                spec["max_output_tokens"] = max_output
             
             models.append(spec)
     
@@ -591,7 +641,7 @@ def create_siliconflow_config():
     
     # Define tag rules
     completion_tag_rules = {
-        'recommend': ['deepseek-ai/Deepseek-R1', 'deepseek-ai/Deepseek-V3']
+        'recommend': ['deepseek-ai/DeepSeek-R1', 'deepseek-ai/DeepSeek-V3']
     }
     embedding_tag_rules = {
         'recommend': ['*']  # All embedding models get recommend tag
@@ -637,12 +687,12 @@ def create_siliconflow_config():
                 "tags": []
             },
             {
-                "model": "deepseek-ai/Deepseek-R1",
+                "model": "deepseek-ai/DeepSeek-R1",
                 "custom_llm_provider": "openai",
                 "tags": []
             },
             {
-                "model": "deepseek-ai/Deepseek-V3",
+                "model": "deepseek-ai/DeepSeek-V3",
                 "custom_llm_provider": "openai",
                 "tags": []
             }
@@ -777,12 +827,13 @@ def create_openrouter_config():
         all_models = []
         for model in data.get("data", []):
             model_id = model.get("id", "")
-            context_length = model.get("context_length")
             # Include all models, not just free ones
             all_models.append({
                 "model": model_id,
                 "custom_llm_provider": "openrouter",
-                "max_tokens": context_length,
+                "context_window": model.get("context_length"),
+                "max_input_tokens": model.get("max_input_tokens"),
+                "max_output_tokens": model.get("max_output_tokens"),
                 "tags": []
             })
         
@@ -801,7 +852,7 @@ def create_openrouter_config():
         if downloaded_data is not None and len(all_models) > 0:
             try:
                 with open(openrouter_file, 'w', encoding='utf-8') as f:
-                    json.dump(downloaded_data, f, indent=2, ensure_ascii=False)
+                    json.dump(downloaded_data, f, indent=2, ensure_ascii=False, sort_keys=True)
                 print(f"✅ OpenRouter models saved to {openrouter_file}")
             except Exception as e:
                 print(f"⚠️ Warning: Failed to save downloaded models to file: {str(e)}")

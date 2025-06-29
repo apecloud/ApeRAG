@@ -468,108 +468,65 @@ export default () => {
     },
   ];
 
-  // Model table columns for modal
-  const modalModelColumns: TableProps<LlmProviderModel>['columns'] = [
+  // Model table columns
+  const modelColumns: TableProps<LlmProviderModel>['columns'] = [
     {
-      title: formatMessage({ id: 'model.api_type' }),
-      dataIndex: 'api',
-      key: 'api',
-      width: 100,
-      render: (api: string) => {
-        const colorMap = {
-          completion: '#1890ff',
-          embedding: '#52c41a',
-          rerank: '#fa8c16',
-        };
-        return (
-          <Tag color={colorMap[api as keyof typeof colorMap]}>
-            {formatMessage({ id: `model.api_type.${api}` })}
-          </Tag>
-        );
-      },
-    },
-    {
-      title: formatMessage({ id: 'model.model_name' }),
+      title: formatMessage({ id: 'model.field.model' }),
       dataIndex: 'model',
       key: 'model',
-      width: 200,
-      ellipsis: {
-        showTitle: false,
-      },
-      render: (model: string) => (
-        <Tooltip title={model}>
-          <Text strong>{model}</Text>
-        </Tooltip>
-      ),
+      render: (text) => <Text style={{ maxWidth: 200 }} ellipsis={{ tooltip: text }}>{text}</Text>,
     },
     {
-      title: formatMessage({ id: 'model.custom_llm_provider' }),
-      dataIndex: 'custom_llm_provider',
-      key: 'custom_llm_provider',
-      width: 120,
-      ellipsis: {
-        showTitle: false,
-      },
-      render: (provider: string) => (
-        <Tooltip title={provider || '-'}>
-          <Text code style={{ fontSize: '11px' }}>
-            {provider || '-'}
-          </Text>
-        </Tooltip>
-      ),
+      title: formatMessage({ id: 'model.field.api' }),
+      dataIndex: 'api',
+      key: 'api',
     },
     {
-      title: formatMessage({ id: 'model.max_tokens' }),
-      dataIndex: 'max_tokens',
-      key: 'max_tokens',
-      width: 100,
-      align: 'center',
-      render: (value?: number) => (
-        <Text type={value ? undefined : 'secondary'}>
-          {value ? value.toLocaleString() : '-'}
-        </Text>
-      ),
+      title: formatMessage({ id: 'model.field.contextWindow' }),
+      dataIndex: 'context_window',
+      key: 'context_window',
+      render: (tokens) => tokens || '-',
     },
     {
-      title: formatMessage({ id: 'model.tags' }),
+      title: formatMessage({ id: 'model.field.maxInput' }),
+      dataIndex: 'max_input_tokens',
+      key: 'max_input_tokens',
+      render: (tokens) => tokens || '-',
+    },
+    {
+      title: formatMessage({ id: 'model.field.maxOutput' }),
+      dataIndex: 'max_output_tokens',
+      key: 'max_output_tokens',
+      render: (tokens) => tokens || '-',
+    },
+    {
+      title: formatMessage({ id: 'model.field.tags' }),
       dataIndex: 'tags',
       key: 'tags',
-      width: 120,
       render: (tags: string[]) => (
-        <Space size={4} wrap>
+        <Space wrap>
           {tags?.map((tag) => (
-            <Tag
-              key={tag}
-              color="processing"
-              style={{ fontSize: '11px', margin: '1px' }}
-            >
-              {tag}
-            </Tag>
+            <Tag key={tag}>{tag}</Tag>
           ))}
         </Space>
       ),
     },
     {
-      title: formatMessage({ id: 'action.name' }),
-      key: 'actions',
-      width: 100,
+      title: formatMessage({ id: 'model.field.action' }),
+      key: 'action',
       render: (_, record) => (
-        <Space size="small">
-          <Tooltip title={formatMessage({ id: 'model.edit' })}>
+        <Space>
+          <Tooltip title={formatMessage({ id: 'action.edit' })}>
             <Button
-              type="text"
-              size="small"
               icon={<EditOutlined />}
               onClick={() => handleEditModel(record)}
             />
           </Tooltip>
-          <Tooltip title={formatMessage({ id: 'model.delete' })}>
+          <Tooltip title={formatMessage({ id: 'action.delete' })}>
             <Button
-              type="text"
-              size="small"
               icon={<DeleteOutlined />}
-              danger
               onClick={() => handleDeleteModel(record)}
+              danger
             />
           </Tooltip>
         </Space>
@@ -830,7 +787,7 @@ export default () => {
               </Button>
             </div>
             <Table
-              columns={modalModelColumns}
+              columns={modelColumns}
               dataSource={getCurrentProviderModels()}
               rowKey={(record) => `${record.api}-${record.model}`}
               loading={loading}
@@ -947,54 +904,67 @@ export default () => {
                 <Col span={12}>
                   <Form.Item
                     name="custom_llm_provider"
-                    label={formatMessage({ id: 'model.custom_llm_provider' })}
+                    label={formatMessage({ id: 'model.field.custom_llm_provider' })}
+                    rules={[
+                      {
+                        required: true,
+                        message: formatMessage({
+                          id: 'model.field.custom_llm_provider.required',
+                        }),
+                      },
+                    ]}
                   >
                     <Input
                       placeholder={formatMessage({
-                        id: 'model.custom_llm_provider.placeholder',
+                        id: 'model.field.custom_llm_provider.placeholder',
                       })}
-                      style={{ borderRadius: '6px' }}
                     />
                   </Form.Item>
                 </Col>
-                <Col span={12}>{/* 空列，用于保持布局 */}</Col>
+                <Col span={12}>
+                  <Form.Item
+                    label={formatMessage({ id: 'model.field.contextWindow' })}
+                    name="context_window"
+                    tooltip={formatMessage({ id: 'model.field.contextWindow.tooltip' })}
+                  >
+                    <InputNumber style={{ width: '100%' }} placeholder="e.g. 128000" />
+                  </Form.Item>
+                </Col>
               </Row>
-
               <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item
-                    name="max_tokens"
-                    label={formatMessage({ id: 'model.max_tokens' })}
+                    label={formatMessage({ id: 'model.field.maxInput' })}
+                    name="max_input_tokens"
+                    tooltip={formatMessage({ id: 'model.field.maxInput.tooltip' })}
                   >
-                    <InputNumber
-                      placeholder={formatMessage({
-                        id: 'model.max_tokens.placeholder',
-                      })}
-                      min={1}
-                      style={{ width: '100%', borderRadius: '6px' }}
-                      formatter={(value) =>
-                        `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-                      }
-                      parser={(value) => value!.replace(/,/g, '') as any}
-                    />
+                    <InputNumber style={{ width: '100%' }} placeholder="e.g. 128000" />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
                   <Form.Item
-                    name="tags"
-                    label={formatMessage({ id: 'model.tags' })}
+                    label={formatMessage({ id: 'model.field.maxOutput' })}
+                    name="max_output_tokens"
+                    tooltip={formatMessage({ id: 'model.field.maxOutput.tooltip' })}
                   >
-                    <Select
-                      mode="tags"
-                      placeholder={formatMessage({
-                        id: 'model.tags.placeholder',
-                      })}
-                      tokenSeparators={[',']}
-                      style={{ width: '100%', borderRadius: '6px' }}
-                    />
+                    <InputNumber style={{ width: '100%' }} placeholder="e.g. 4096" />
                   </Form.Item>
                 </Col>
               </Row>
+              <Form.Item
+                label={formatMessage({ id: 'model.field.tags' })}
+                name="tags"
+                tooltip={formatMessage({ id: 'model.field.tags.tooltip' })}
+              >
+                <Select
+                  mode="tags"
+                  placeholder={formatMessage({
+                    id: 'model.tags.placeholder',
+                  })}
+                  tokenSeparators={[',']}
+                  style={{ width: '100%', borderRadius: '6px' }}
+                />
+              </Form.Item>
 
               <div
                 style={{

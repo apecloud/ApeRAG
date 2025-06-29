@@ -328,4 +328,18 @@ export default {
     'Are you sure you want to delete this history record?',
   'search.similarity': 'Similarity',
   'searchType.title': 'Select Search Types',
+
+  'model.field.custom_llm_provider.required': 'Please enter the custom LLM Provider',
+  'model.field.contextWindow': 'Context Window',
+  'model.field.contextWindow.tooltip': 'The total context token length supported by the model (input + output)',
+  'model.field.maxInput': 'Max Input',
+  'model.field.maxInput.tooltip': 'The maximum input token length supported by the model',
+  'model.field.maxOutput': 'Max Output',
+  'model.field.maxOutput.tooltip': 'The maximum output token length supported by the model',
+  'model.field.tags': 'Tags',
+  'model.field.tags.tooltip': 'Set tags for the model for easy classification and identification (e.g., free, recommend)',
+  'model.field.action': 'Action',
+
+  // API Key Management
+  'api_key.title': 'API Key Management',
 };

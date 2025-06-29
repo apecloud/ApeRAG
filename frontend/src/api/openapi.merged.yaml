@@ -3096,10 +3096,18 @@ components:
           type: string
           description: Custom LLM provider implementation
           example: openai
-        max_tokens:
+        context_window:
           type: integer
-          description: Maximum tokens for this model
-          example: 4096
+          description: Context window size (total tokens)
+          example: 128000
+        max_input_tokens:
+          type: integer
+          description: Maximum input tokens
+          example: 120000
+        max_output_tokens:
+          type: integer
+          description: Maximum output tokens
+          example: 8000
         tags:
           type: array
           items:
@@ -3232,9 +3240,18 @@ components:
         custom_llm_provider:
           type: string
           description: Custom LLM provider implementation
-        max_tokens:
+        context_window:
           type: integer
-          description: Maximum tokens for this model
+          description: Context window size (total tokens)
+          example: 128000
+        max_input_tokens:
+          type: integer
+          description: Maximum input tokens
+          example: 120000
+        max_output_tokens:
+          type: integer
+          description: Maximum output tokens
+          example: 8000
         tags:
           type: array
           items:
@@ -3252,9 +3269,18 @@ components:
         custom_llm_provider:
           type: string
           description: Custom LLM provider implementation
-        max_tokens:
+        context_window:
           type: integer
-          description: Maximum tokens for this model
+          description: Context window size (total tokens)
+          example: 128000
+        max_input_tokens:
+          type: integer
+          description: Maximum input tokens
+          example: 120000
+        max_output_tokens:
+          type: integer
+          description: Maximum output tokens
+          example: 8000
         tags:
           type: array
           items:

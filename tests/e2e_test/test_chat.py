@@ -209,6 +209,11 @@ def create_and_configure_bot(
     client, bot_type: str, collection_ids: List[str] = None, flow_file: str = None
 ) -> Dict[str, Any]:
     """Create and configure a bot with the given parameters"""
+    from tests.e2e_test.config import (
+        COMPLETION_MODEL_PROVIDER, COMPLETION_MODEL_NAME, COMPLETION_MODEL_CUSTOM_PROVIDER,
+        RERANK_MODEL_PROVIDER, RERANK_MODEL_NAME
+    )
+    
     config = create_bot_config(bot_type=bot_type)
 
     create_data = {
@@ -235,6 +240,22 @@ def create_and_configure_bot(
                 if node.get("type") in ["vector_search", "fulltext_search", "graph_search"]:
                     if "data" in node and "input" in node["data"] and "values" in node["data"]["input"]:
                         node["data"]["input"]["values"]["collection_ids"] = collection_ids
+
+        # Update model configurations from environment variables
+        for node in flow.get("nodes", []):
+            if node.get("type") == "llm":
+                # Update LLM model configuration
+                if "data" in node and "input" in node["data"] and "values" in node["data"]["input"]:
+                    values = node["data"]["input"]["values"]
+                    values["model_service_provider"] = COMPLETION_MODEL_PROVIDER
+                    values["model_name"] = COMPLETION_MODEL_NAME
+                    values["custom_llm_provider"] = COMPLETION_MODEL_CUSTOM_PROVIDER
+            elif node.get("type") == "rerank":
+                # Update rerank model configuration
+                if "data" in node and "input" in node["data"] and "values" in node["data"]["input"]:
+                    values = node["data"]["input"]["values"]
+                    values["model_service_provider"] = RERANK_MODEL_PROVIDER
+                    values["model"] = RERANK_MODEL_NAME
 
         flow_json = json.dumps(flow)
         resp = client.put(
