@@ -1,5 +1,5 @@
 -- Model configuration initialization SQL script
--- Generated directly from configuration data on 2025-06-27 18:29:20
+-- Generated directly from configuration data on 2025-06-29 22:49:35
 -- This script populates llm_provider and llm_provider_models tables
 
 BEGIN;
@@ -5568,7 +5568,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'meta-llama/llama-3.3-70b-instruct', 'openrouter', 131000, NULL, NULL, '[]'::jsonb,
+    'openrouter', 'completion', 'meta-llama/llama-3.3-70b-instruct', 'openrouter', 131072, NULL, NULL, '[]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -5643,7 +5643,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'meta-llama/llama-4-scout:free', 'openrouter', 96000, NULL, NULL, '["free"]'::jsonb,
+    'openrouter', 'completion', 'meta-llama/llama-4-scout:free', 'openrouter', 64000, NULL, NULL, '["free"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -5853,7 +5853,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'minimax/minimax-m1:extended', 'openrouter', 256000, NULL, NULL, '[]'::jsonb,
+    'openrouter', 'completion', 'minimax/minimax-m1:extended', 'openrouter', 512000, NULL, NULL, '[]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -5898,7 +5898,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'mistralai/devstral-small:free', 'openrouter', 131072, NULL, NULL, '["free"]'::jsonb,
+    'openrouter', 'completion', 'mistralai/devstral-small:free', 'openrouter', 32768, NULL, NULL, '["free"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -6213,7 +6213,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'mistralai/mistral-small-3.1-24b-instruct', 'openrouter', 131072, NULL, NULL, '[]'::jsonb,
+    'openrouter', 'completion', 'mistralai/mistral-small-3.1-24b-instruct', 'openrouter', 128000, NULL, NULL, '[]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -8266,6 +8266,6 @@ ON CONFLICT (provider_name, api, model) DO UPDATE SET
 
 COMMIT;
 
--- Script completed. Generated on 2025-06-27 18:29:20
+-- Script completed. Generated on 2025-06-29 22:49:35
 -- Total providers: 8
 -- Total models: 540

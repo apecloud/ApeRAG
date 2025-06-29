@@ -852,7 +852,7 @@ def create_openrouter_config():
         if downloaded_data is not None and len(all_models) > 0:
             try:
                 with open(openrouter_file, 'w', encoding='utf-8') as f:
-                    json.dump(downloaded_data, f, indent=2, ensure_ascii=False)
+                    json.dump(downloaded_data, f, indent=2, ensure_ascii=False, sort_keys=True)
                 print(f"✅ OpenRouter models saved to {openrouter_file}")
             except Exception as e:
                 print(f"⚠️ Warning: Failed to save downloaded models to file: {str(e)}")
