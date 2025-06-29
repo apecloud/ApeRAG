@@ -220,12 +220,9 @@ class PostgreSQLAGEStorage(BaseGraphStorage):
             return False
 
     async def has_edge(self, source_node_id: str, target_node_id: str) -> bool:
-        """Check if an edge exists between two nodes."""
-        src_encoded = self._encode_graph_label(source_node_id.strip('"'))
-        tgt_encoded = self._encode_graph_label(target_node_id.strip('"'))
-        
-        # Use simpler approach for AGE - check if any edge exists
-        cypher = f"MATCH (a:`{src_encoded}`) MATCH (b:`{tgt_encoded}`) MATCH (a)-[r]-(b) RETURN COUNT(r) AS edge_count"
+        """Check if an edge exists between two nodes using property matching."""
+        # Use entity_id property matching like Neo4j for more reliable results
+        cypher = f"MATCH (a {{entity_id: '{source_node_id}'}})-[r]-(b {{entity_id: '{target_node_id}'}}) RETURN COUNT(r) AS edge_count"
         
         try:
             results = await self._execute_cypher(cypher)
@@ -275,11 +272,11 @@ class PostgreSQLAGEStorage(BaseGraphStorage):
         return nodes
 
     async def node_degree(self, node_id: str) -> int:
-        """Get the degree of a node (optimized single query)."""
+        """Get the degree of a node using OPTIONAL MATCH like Neo4j."""
         encoded_label = self._encode_graph_label(node_id.strip('"'))
         
-        # Simplified degree query for AGE
-        cypher = f"MATCH (n:`{encoded_label}`)-[r]-(m) RETURN count(r) AS degree"
+        # Use OPTIONAL MATCH for reliable degree calculation (similar to Neo4j)
+        cypher = f"MATCH (n:`{encoded_label}`) OPTIONAL MATCH (n)-[r]-() RETURN count(r) AS degree"
         
         try:
             results = await self._execute_cypher(cypher)
@@ -333,11 +330,9 @@ class PostgreSQLAGEStorage(BaseGraphStorage):
         return edge_degrees
 
     async def get_edge(self, source_node_id: str, target_node_id: str) -> dict[str, str] | None:
-        """Get edge properties between two nodes."""
-        src_encoded = self._encode_graph_label(source_node_id.strip('"'))
-        tgt_encoded = self._encode_graph_label(target_node_id.strip('"'))
-        
-        cypher = f"MATCH (a:`{src_encoded}`)-[r]-(b:`{tgt_encoded}`) RETURN properties(r) AS edge_props LIMIT 1"
+        """Get edge properties between two nodes using property matching."""
+        # Use entity_id property matching for consistency with has_edge
+        cypher = f"MATCH (a {{entity_id: '{source_node_id}'}})-[r]-(b {{entity_id: '{target_node_id}'}}) RETURN properties(r) AS edge_props LIMIT 1"
         
         try:
             results = await self._execute_cypher(cypher)
@@ -403,11 +398,11 @@ class PostgreSQLAGEStorage(BaseGraphStorage):
         return edges_dict
 
     async def get_node_edges(self, source_node_id: str) -> list[tuple[str, str]] | None:
-        """Get all edges for a node."""
+        """Get all edges for a node using Neo4j-like pattern."""
         encoded_label = self._encode_graph_label(source_node_id.strip('"'))
         
-        # Simple query to get connected nodes
-        cypher = f"MATCH (n:`{encoded_label}`)-[r]-(m) RETURN m"
+        # Use pattern similar to Neo4j with source node, relationship, and connected node
+        cypher = f"MATCH (n:`{encoded_label}`) OPTIONAL MATCH (n)-[r]-(connected) WHERE connected.entity_id IS NOT NULL RETURN n, r, connected"
         
         try:
             results = await self._execute_cypher(cypher)
@@ -415,19 +410,21 @@ class PostgreSQLAGEStorage(BaseGraphStorage):
             seen_targets = set()  # Deduplicate
             
             for result in results:
-                connected_node = result.get("field_0")
-                if connected_node and isinstance(connected_node, dict):
-                    # Try to get entity_id from connected node
-                    target_id = connected_node.get("entity_id") or connected_node.get("label")
-                    if not target_id and "label" in connected_node:
-                        try:
-                            target_id = self._decode_graph_label(connected_node["label"])
-                        except:
-                            continue
-                    
-                    if target_id and target_id != source_node_id and target_id not in seen_targets:
-                        edges.append((source_node_id, target_id))
-                        seen_targets.add(target_id)
+                source_node = result.get("field_0")
+                relationship = result.get("field_1") 
+                connected_node = result.get("field_2")
+                
+                # Skip if no connection
+                if not source_node or not connected_node:
+                    continue
+                
+                # Extract entity_id from both nodes
+                source_entity_id = source_node.get("entity_id") if isinstance(source_node, dict) else None
+                target_entity_id = connected_node.get("entity_id") if isinstance(connected_node, dict) else None
+                
+                if source_entity_id and target_entity_id and target_entity_id not in seen_targets:
+                    edges.append((source_entity_id, target_entity_id))
+                    seen_targets.add(target_entity_id)
                         
             return edges if edges else None
             
@@ -478,14 +475,12 @@ class PostgreSQLAGEStorage(BaseGraphStorage):
         retry=retry_if_exception_type((AGEQueryException, psycopg.Error)),
     )
     async def upsert_edge(self, source_node_id: str, target_node_id: str, edge_data: dict[str, str]) -> None:
-        """Upsert an edge between two nodes."""
-        src_encoded = self._encode_graph_label(source_node_id.strip('"'))
-        tgt_encoded = self._encode_graph_label(target_node_id.strip('"'))
-        
+        """Upsert an edge between two nodes using property matching."""
+        # Use entity_id property matching for consistency
         cypher = f"""
-        MATCH (source:`{src_encoded}`)
+        MATCH (source {{entity_id: '{source_node_id}'}})
         WITH source
-        MATCH (target:`{tgt_encoded}`)
+        MATCH (target {{entity_id: '{target_node_id}'}})
         MERGE (source)-[r:DIRECTED]-(target)
         SET r += {self._format_properties(edge_data)}
         """
@@ -613,14 +608,11 @@ class PostgreSQLAGEStorage(BaseGraphStorage):
                 continue
 
     async def remove_edges(self, edges: list[tuple[str, str]]):
-        """Delete multiple edges."""
+        """Delete multiple edges using property matching."""
         for source, target in edges:
             try:
-                src_encoded = self._encode_graph_label(source.strip('"'))
-                tgt_encoded = self._encode_graph_label(target.strip('"'))
-                
-                # Use simpler AGE syntax for edge deletion
-                cypher = f"MATCH (a:`{src_encoded}`) MATCH (b:`{tgt_encoded}`) MATCH (a)-[r]-(b) DELETE r"
+                # Use entity_id property matching for consistency
+                cypher = f"MATCH (a {{entity_id: '{source}'}})-[r]-(b {{entity_id: '{target}'}}) DELETE r"
                 await self._execute_cypher(cypher)
                 logger.debug(f"Deleted edge from '{source}' to '{target}'")
             except Exception as e:
