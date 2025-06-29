@@ -117,7 +117,7 @@ compose-logs:
 clean:
 	@echo "Cleaning development environment..."
 	@rm -f db.sqlite3
-	@docker rm -fv aperag-postgres-dev aperag-postgres-age-dev aperag-redis-dev aperag-qdrant-dev aperag-es-dev aperag-minio-dev aperag-neo4j-dev 2>/dev/null || true
+	@docker rm -fv aperag-postgres-dev aperag-redis-dev aperag-qdrant-dev aperag-es-dev aperag-minio-dev aperag-neo4j-dev 2>/dev/null || true
 	@if [ -f "nebula-docker-compose.yml" ]; then \
 		echo "Stopping NebulaGraph containers..."; \
 		docker-compose -f nebula-docker-compose.yml down 2>/dev/null || true; \
@@ -315,12 +315,9 @@ info:
 	@echo "HOST ARCH: $(UNAME_M)"
 
 # Database connection tools
-.PHONY: connect-metadb connect-age-db
+.PHONY: connect-metadb
 connect-metadb:
 	@docker exec -it aperag-postgres-dev psql -p 5432 -U postgres
-
-connect-age-db:
-	@docker exec -it aperag-postgres-age-dev psql -p 5432 -U postgres
 
 # Individual service startup (for advanced users)
 .PHONY: run-redis run-postgres run-qdrant run-es run-minio run-neo4j run-nebula stop-nebula
@@ -334,13 +331,6 @@ run-postgres:
 	@docker start aperag-postgres-dev
 	@sleep 3
 	@docker exec aperag-postgres-dev psql -U postgres -c "CREATE EXTENSION IF NOT EXISTS vector;" 2>/dev/null || true
-
-run-postgres-age:
-	@docker inspect aperag-postgres-age-dev >/dev/null 2>&1 || \
-		docker run -d --name aperag-postgres-age-dev -p 5433:5432 -e POSTGRES_PASSWORD=postgres apache/age:dev_snapshot_PG17
-	@docker start aperag-postgres-age-dev
-	@sleep 3
-	@docker exec aperag-postgres-age-dev psql -U postgres -c "CREATE EXTENSION IF NOT EXISTS age;" 2>/dev/null || true
 
 run-qdrant:
 	@docker inspect aperag-qdrant-dev >/dev/null 2>&1 || docker run -d --name aperag-qdrant-dev -p 6333:6333 qdrant/qdrant

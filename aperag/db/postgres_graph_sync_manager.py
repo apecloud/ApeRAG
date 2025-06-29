@@ -78,14 +78,14 @@ class PostgreSQLGraphDB:
                     self._config = config
                 else:
                     self._config = {
-                        "host": os.environ.get("POSTGRES_HOST", "127.0.0.1"),
-                        "port": int(os.environ.get("POSTGRES_PORT", "5432")),
-                        "user": os.environ.get("POSTGRES_USER", "postgres"),
-                        "password": os.environ.get("POSTGRES_PASSWORD", "postgres"),
-                        "dbname": os.environ.get("POSTGRES_DB", "postgres"),
-                        "max_size": int(os.environ.get("POSTGRES_MAX_CONNECTION_POOL_SIZE", "20")),
-                        "min_size": int(os.environ.get("POSTGRES_MIN_CONNECTION_POOL_SIZE", "2")),
-                        "timeout": int(os.environ.get("POSTGRES_CONNECTION_TIMEOUT", "30")),
+                        "host": os.environ.get("POSTGRES_GRAPH_STORE_HOST", "127.0.0.1"),
+                        "port": int(os.environ.get("POSTGRES_GRAPH_STORE_PORT", "5432")),
+                        "user": os.environ.get("POSTGRES_GRAPH_STORE_USER", "postgres"),
+                        "password": os.environ.get("POSTGRES_GRAPH_STORE_PASSWORD", "postgres"),
+                        "dbname": os.environ.get("POSTGRES_GRAPH_STORE_DB", "postgres"),
+                        "max_size": int(os.environ.get("POSTGRES_GRAPH_STORE_MAX_CONNECTION_POOL_SIZE", "20")),
+                        "min_size": int(os.environ.get("POSTGRES_GRAPH_STORE_MIN_CONNECTION_POOL_SIZE", "2")),
+                        "timeout": int(os.environ.get("POSTGRES_GRAPH_STORE_CONNECTION_TIMEOUT", "30")),
                     }
 
                 logger.info("Initializing PostgreSQL Graph client (global)")
