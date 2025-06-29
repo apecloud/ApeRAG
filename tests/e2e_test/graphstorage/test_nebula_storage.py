@@ -21,22 +21,22 @@ dotenv.load_dotenv(".env")
 def check_nebula_environment() -> bool:
     """Check if Nebula environment variables are properly configured."""
     required_vars = ["NEBULA_HOST", "NEBULA_PORT", "NEBULA_USER", "NEBULA_PASSWORD"]
-    
+
     missing_vars = []
     for var in required_vars:
         if not os.getenv(var):
             missing_vars.append(var)
-    
+
     if missing_vars:
         return False
-    
+
     return True
 
 
 # Skip all tests in this module if Nebula environment is not configured
 pytestmark = pytest.mark.skipif(
     not check_nebula_environment(),
-    reason="Nebula environment variables not configured. Required: NEBULA_HOST, NEBULA_PORT, NEBULA_USER, NEBULA_PASSWORD"
+    reason="Nebula environment variables not configured. Required: NEBULA_HOST, NEBULA_PORT, NEBULA_USER, NEBULA_PASSWORD",
 )
 
 

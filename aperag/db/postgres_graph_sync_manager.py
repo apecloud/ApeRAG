@@ -14,12 +14,10 @@
 
 import logging
 import os
-import re
 import threading
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-import psycopg
 from psycopg.rows import namedtuple_row
 from psycopg_pool import ConnectionPool
 
@@ -31,10 +29,10 @@ class PostgreSQLTransaction:
     Transaction wrapper for PostgreSQL operations.
     Provides execute and query methods within a single transaction.
     """
-    
+
     def __init__(self, connection):
         self.connection = connection
-    
+
     async def execute(self, sql: str, params: Dict[str, Any]) -> None:
         """Execute a SQL statement with parameters within the transaction."""
         try:
@@ -43,7 +41,7 @@ class PostgreSQLTransaction:
         except Exception as e:
             logger.error(f"Failed to execute SQL in transaction: {sql}, error: {e}")
             raise
-    
+
     async def query(self, sql: str, params: Dict[str, Any], multirows: bool = False) -> Any:
         """Query the database and return results within the transaction."""
         try:
@@ -70,7 +68,7 @@ class PostgreSQLGraphDB:
         self._connection_pool: Optional[ConnectionPool] = None
         self._config: Optional[Dict[str, Any]] = None
         self._lock = threading.Lock()
-        
+
     def initialize(self, config: Optional[Dict[str, Any]] = None):
         """Initialize the database connection."""
         with self._lock:
@@ -112,7 +110,7 @@ class PostgreSQLGraphDB:
 
                 # Open the pool
                 self._connection_pool.open()
-                
+
                 # Initialize tables
                 self._initialize_tables()
 
@@ -139,7 +137,7 @@ class PostgreSQLGraphDB:
                             UNIQUE(workspace, entity_id)
                         )
                     """)
-                    
+
                     # Create edges table - reference lightrag_vdb_relation with only source_id as TEXT
                     cur.execute("""
                         CREATE TABLE IF NOT EXISTS LIGHTRAG_GRAPH_EDGES (
@@ -157,21 +155,37 @@ class PostgreSQLGraphDB:
                             UNIQUE(workspace, source_entity_id, target_entity_id)
                         )
                     """)
-                    
+
                     # Create performance-optimized indexes with workspace as first column for data isolation
                     # Nodes table indexes - workspace first for optimal partition pruning
-                    cur.execute("CREATE INDEX IF NOT EXISTS idx_lightrag_nodes_workspace_entity ON LIGHTRAG_GRAPH_NODES(workspace, entity_id)")
-                    cur.execute("CREATE INDEX IF NOT EXISTS idx_lightrag_nodes_entity_type ON LIGHTRAG_GRAPH_NODES(workspace, entity_type)")
-                    cur.execute("CREATE INDEX IF NOT EXISTS idx_lightrag_nodes_entity_name ON LIGHTRAG_GRAPH_NODES(workspace, entity_name)")
-                    
+                    cur.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_lightrag_nodes_workspace_entity ON LIGHTRAG_GRAPH_NODES(workspace, entity_id)"
+                    )
+                    cur.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_lightrag_nodes_entity_type ON LIGHTRAG_GRAPH_NODES(workspace, entity_type)"
+                    )
+                    cur.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_lightrag_nodes_entity_name ON LIGHTRAG_GRAPH_NODES(workspace, entity_name)"
+                    )
+
                     # Edges table indexes - workspace first for optimal query performance
-                    cur.execute("CREATE INDEX IF NOT EXISTS idx_lightrag_edges_workspace_source ON LIGHTRAG_GRAPH_EDGES(workspace, source_entity_id)")
-                    cur.execute("CREATE INDEX IF NOT EXISTS idx_lightrag_edges_workspace_target ON LIGHTRAG_GRAPH_EDGES(workspace, target_entity_id)")
-                    cur.execute("CREATE INDEX IF NOT EXISTS idx_lightrag_edges_workspace_source_target ON LIGHTRAG_GRAPH_EDGES(workspace, source_entity_id, target_entity_id)")
+                    cur.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_lightrag_edges_workspace_source ON LIGHTRAG_GRAPH_EDGES(workspace, source_entity_id)"
+                    )
+                    cur.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_lightrag_edges_workspace_target ON LIGHTRAG_GRAPH_EDGES(workspace, target_entity_id)"
+                    )
+                    cur.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_lightrag_edges_workspace_source_target ON LIGHTRAG_GRAPH_EDGES(workspace, source_entity_id, target_entity_id)"
+                    )
                     # Index for degree calculation (both source and target)
-                    cur.execute("CREATE INDEX IF NOT EXISTS idx_lightrag_edges_workspace_degree ON LIGHTRAG_GRAPH_EDGES(workspace, source_entity_id, target_entity_id)")
-                    cur.execute("CREATE INDEX IF NOT EXISTS idx_lightrag_edges_weight ON LIGHTRAG_GRAPH_EDGES(workspace, weight)")
-                    
+                    cur.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_lightrag_edges_workspace_degree ON LIGHTRAG_GRAPH_EDGES(workspace, source_entity_id, target_entity_id)"
+                    )
+                    cur.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_lightrag_edges_weight ON LIGHTRAG_GRAPH_EDGES(workspace, weight)"
+                    )
+
                     conn.commit()
                     logger.info("PostgreSQL Graph tables and workspace-optimized indexes created successfully")
         except Exception as e:
@@ -182,7 +196,7 @@ class PostgreSQLGraphDB:
     async def get_transaction(self):
         """
         Get a database transaction context manager.
-        
+
         Usage:
             async with db.get_transaction() as tx:
                 await tx.execute(sql1, params1)
@@ -194,14 +208,14 @@ class PostgreSQLGraphDB:
             conn = self._connection_pool.getconn()
             # Disable autocommit to enable manual transaction control
             conn.autocommit = False
-            
+
             # Create transaction wrapper
             tx = PostgreSQLTransaction(conn)
             yield tx
-            
+
             # Commit if no exception occurred
             conn.commit()
-            
+
         except Exception as e:
             # Rollback on any exception
             if conn:
@@ -242,7 +256,7 @@ class PostgreSQLGraphClientManager:
     Global client manager for PostgreSQL Graph database.
     Manages single connection pool for all workspaces - workspace isolation at data level.
     """
-    
+
     _client: Optional[PostgreSQLGraphDB] = None
     _lock = threading.Lock()
 
@@ -282,4 +296,4 @@ def setup_worker_postgres_graph(**kwargs):
 def cleanup_worker_postgres_graph(**kwargs):
     """Cleanup PostgreSQL Graph when worker shuts down."""
     PostgreSQLGraphClientManager.close_all()
-    logger.info(f"Worker {os.getpid()}: PostgreSQL Graph sync connection closed") 
+    logger.info(f"Worker {os.getpid()}: PostgreSQL Graph sync connection closed")

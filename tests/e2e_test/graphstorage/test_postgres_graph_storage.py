@@ -21,22 +21,22 @@ dotenv.load_dotenv(".env")
 def check_postgres_graph_environment() -> bool:
     """Check if PostgreSQL Graph environment variables are properly configured."""
     required_vars = ["POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB"]
-    
+
     missing_vars = []
     for var in required_vars:
         if not os.getenv(var):
             missing_vars.append(var)
-    
+
     if missing_vars:
         return False
-    
+
     return True
 
 
 # Skip all tests in this module if PostgreSQL environment is not configured
 pytestmark = pytest.mark.skipif(
     not check_postgres_graph_environment(),
-    reason="PostgreSQL environment variables not configured. Required: POSTGRES_HOST, POSTGRES_PORT, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB"
+    reason="PostgreSQL environment variables not configured. Required: POSTGRES_HOST, POSTGRES_PORT, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB",
 )
 
 
@@ -217,4 +217,4 @@ class TestPostgresGraphStorage:
 
     async def test_interface_coverage_summary(self, postgres_graph_oracle_storage):
         oracle, graph_data = postgres_graph_oracle_storage
-        await GraphStorageTestSuite.test_interface_coverage_summary(oracle) 
+        await GraphStorageTestSuite.test_interface_coverage_summary(oracle)

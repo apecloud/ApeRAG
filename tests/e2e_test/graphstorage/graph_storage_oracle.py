@@ -264,12 +264,12 @@ class GraphStorageOracle(BaseGraphStorage):
         """
         # Fields to skip during comparison
         skip_fields = {"created_at"}
-        
+
         # Check that all baseline fields exist in storage (except skipped fields)
         for key in baseline.keys():
             if key in skip_fields:
                 continue
-                
+
             if key not in storage:
                 print(f"❌ Missing field in storage: {key}")
                 return False
@@ -286,7 +286,7 @@ class GraphStorageOracle(BaseGraphStorage):
         for key in storage.keys():
             if key in skip_fields:
                 continue
-                
+
             if key not in baseline:
                 if storage[key] is not None:
                     print(f"❌ Extra non-None field in storage: {key}={storage[key]}")
@@ -297,12 +297,12 @@ class GraphStorageOracle(BaseGraphStorage):
     def _values_equal(self, baseline_val, storage_val, field_name: str) -> bool:
         """
         Compare two values with appropriate type handling and tolerance.
-        
+
         Args:
             baseline_val: Value from baseline
             storage_val: Value from storage
             field_name: Field name for debugging
-            
+
         Returns:
             True if values are considered equal
         """
@@ -311,15 +311,15 @@ class GraphStorageOracle(BaseGraphStorage):
             return True
         if baseline_val is None or storage_val is None:
             return False
-            
+
         # Handle float comparison with tolerance
         if isinstance(baseline_val, float) and isinstance(storage_val, float):
             return abs(baseline_val - storage_val) <= 1e-6
-            
+
         # Handle numeric type conversion (int vs float)
         if isinstance(baseline_val, (int, float)) and isinstance(storage_val, (int, float)):
             return abs(float(baseline_val) - float(storage_val)) <= 1e-6
-            
+
         # Handle list comparison (order-independent for some cases)
         if isinstance(baseline_val, list) and isinstance(storage_val, list):
             if len(baseline_val) != len(storage_val):
@@ -330,15 +330,15 @@ class GraphStorageOracle(BaseGraphStorage):
             except TypeError:
                 # Fall back to order-dependent comparison for non-hashable items
                 return baseline_val == storage_val
-                
+
         # Handle dict comparison (recursive)
         if isinstance(baseline_val, dict) and isinstance(storage_val, dict):
             return self._flexible_dict_compare(baseline_val, storage_val, f"{field_name}_nested")
-            
+
         # Handle string comparison (preserve None vs empty string distinction)
         if isinstance(baseline_val, str) and isinstance(storage_val, str):
             return baseline_val == storage_val
-            
+
         # Default comparison
         return baseline_val == storage_val
 

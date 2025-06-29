@@ -31,9 +31,7 @@ Modifications by ApeRAG Team:
 - See changelog.md for detailed modifications
 """
 
-import asyncio
-import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import final
 
 from ..base import BaseGraphStorage
@@ -83,12 +81,12 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
         # Only set entity_name if it's explicitly provided and different from entity_id
         entity_name = node_data.get("entity_name") if node_data.get("entity_name") != node_id else None
         entity_type = node_data.get("entity_type") or None
-        description = node_data.get("description") or None  
+        description = node_data.get("description") or None
         source_id = node_data.get("source_id") or None
         file_path = node_data.get("file_path") or None
-        
+
         logger.debug(f"Upserted node with entity_id '{node_id}', entity_type '{entity_type}'")
-        
+
         sql = """
             INSERT INTO LIGHTRAG_GRAPH_NODES(entity_id, entity_name, entity_type, description, source_id, file_path, workspace, createtime, updatetime)
             VALUES(%(entity_id)s, %(entity_name)s, %(entity_type)s, %(description)s, %(source_id)s, %(file_path)s, %(workspace)s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -109,23 +107,21 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
             "source_id": source_id,
             "file_path": file_path,
         }
-        
+
         db = await self._get_db()
         async with db.get_transaction() as tx:
             await tx.execute(sql, data)
 
-    async def upsert_edge(
-        self, source_node_id: str, target_node_id: str, edge_data: dict[str, str]
-    ) -> None:
+    async def upsert_edge(self, source_node_id: str, target_node_id: str, edge_data: dict[str, str]) -> None:
         """Upsert an edge between two nodes - using individual fields for optimal performance."""
         weight = float(edge_data.get("weight", 0.0))
         keywords = edge_data.get("keywords") or None  # Keep None as None, don't convert to empty string
         description = edge_data.get("description") or None
         source_id = edge_data.get("source_id") or None
         file_path = edge_data.get("file_path") or None
-        
+
         logger.debug(f"Upserted edge from '{source_node_id}' to '{target_node_id}'")
-        
+
         sql = """
             INSERT INTO LIGHTRAG_GRAPH_EDGES(source_entity_id, target_entity_id, weight, keywords, description, source_id, file_path, workspace, createtime, updatetime)
             VALUES(%(source_entity_id)s, %(target_entity_id)s, %(weight)s, %(keywords)s, %(description)s, %(source_id)s, %(file_path)s, %(workspace)s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -147,7 +143,7 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
             "source_id": source_id,
             "file_path": file_path,
         }
-        
+
         db = await self._get_db()
         async with db.get_transaction() as tx:
             await tx.execute(sql, data)
@@ -159,7 +155,7 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
             WHERE workspace = %(workspace)s AND entity_id = %(entity_id)s
         """
         param = {"entity_id": node_id, "workspace": self.workspace}
-        
+
         db = await self._get_db()
         async with db.get_transaction() as tx:
             result = await tx.query(sql, param)
@@ -175,7 +171,7 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
             "target_entity_id": target_node_id,
             "workspace": self.workspace,
         }
-        
+
         db = await self._get_db()
         async with db.get_transaction() as tx:
             result = await tx.query(sql, param)
@@ -193,7 +189,7 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
             ) AS degree_count
         """
         param = {"entity_id": node_id, "workspace": self.workspace}
-        
+
         db = await self._get_db()
         async with db.get_transaction() as tx:
             result = await tx.query(sql, param)
@@ -211,7 +207,7 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
             FROM LIGHTRAG_GRAPH_NODES WHERE workspace = %(workspace)s AND entity_id = %(entity_id)s
         """
         param = {"entity_id": node_id, "workspace": self.workspace}
-        
+
         db = await self._get_db()
         async with db.get_transaction() as tx:
             result = await tx.query(sql, param)
@@ -228,14 +224,12 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
                 # Only include entity_name if it's different from entity_id and not None
                 if result["entity_name"] and result["entity_name"] != result["entity_id"]:
                     node_dict["entity_name"] = result["entity_name"]
-                
+
                 # Remove None values for cleaner output
                 return {k: v for k, v in node_dict.items() if v is not None}
             return None
 
-    async def get_edge(
-        self, source_node_id: str, target_node_id: str
-    ) -> dict[str, str] | None:
+    async def get_edge(self, source_node_id: str, target_node_id: str) -> dict[str, str] | None:
         sql = """
             SELECT source_entity_id, target_entity_id, weight, keywords, description, source_id, file_path
             FROM LIGHTRAG_GRAPH_EDGES WHERE workspace = %(workspace)s AND source_entity_id = %(source_entity_id)s AND target_entity_id = %(target_entity_id)s
@@ -245,7 +239,7 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
             "target_entity_id": target_node_id,
             "workspace": self.workspace,
         }
-        
+
         db = await self._get_db()
         async with db.get_transaction() as tx:
             result = await tx.query(sql, param)
@@ -265,13 +259,13 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
                 for k, v in edge_result.items():
                     if k in required_fields or v is not None:
                         filtered_result[k] = v
-                
+
                 return filtered_result
             return None
 
     async def get_node_edges(self, source_node_id: str) -> list[tuple[str, str]] | None:
         db = await self._get_db()
-        
+
         async with db.get_transaction() as tx:
             sql = """
                 SELECT source_entity_id, target_entity_id
@@ -282,16 +276,18 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
             edges = []
             if results:
                 edges.extend([(r["source_entity_id"], r["target_entity_id"]) for r in results])
-            
+
             # Also get incoming edges
             sql_incoming = """
                 SELECT source_entity_id, target_entity_id
                 FROM LIGHTRAG_GRAPH_EDGES WHERE workspace = %(workspace)s AND target_entity_id = %(target_entity_id)s
             """
-            incoming_results = await tx.query(sql_incoming, {"target_entity_id": source_node_id, "workspace": self.workspace}, multirows=True)
+            incoming_results = await tx.query(
+                sql_incoming, {"target_entity_id": source_node_id, "workspace": self.workspace}, multirows=True
+            )
             if incoming_results:
                 edges.extend([(r["source_entity_id"], r["target_entity_id"]) for r in incoming_results])
-            
+
             return edges if edges else None
 
     async def get_nodes_batch(self, node_ids: list[str]) -> dict[str, dict]:
@@ -346,7 +342,7 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
     async def delete_node(self, node_id: str) -> None:
         """Delete a node and all its related edges in a single transaction"""
         db = await self._get_db()
-        
+
         async with db.get_transaction() as tx:
             # First delete all edges related to this node
             delete_edges_sql = """
@@ -368,9 +364,7 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
                 {"entity_id": node_id, "workspace": self.workspace},
             )
 
-        logger.debug(
-            f"Node {node_id} and its related edges have been deleted from the graph"
-        )
+        logger.debug(f"Node {node_id} and its related edges have been deleted from the graph")
 
     async def remove_nodes(self, nodes: list[str]):
         """Delete multiple nodes"""
@@ -380,7 +374,7 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
     async def remove_edges(self, edges: list[tuple[str, str]]):
         """Delete multiple edges in a single transaction"""
         db = await self._get_db()
-        
+
         async with db.get_transaction() as tx:
             sql = """
                 DELETE FROM LIGHTRAG_GRAPH_EDGES
@@ -400,7 +394,7 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
             WHERE workspace = %(workspace)s
             ORDER BY entity_id
         """
-        
+
         db = await self._get_db()
         async with db.get_transaction() as tx:
             result = await tx.query(
@@ -415,9 +409,7 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
             # Extract all labels (entity names)
             return [item["label"] for item in result]
 
-    async def get_knowledge_graph(
-        self, node_label: str, max_depth: int = 3, max_nodes: int = 1000
-    ) -> KnowledgeGraph:
+    async def get_knowledge_graph(self, node_label: str, max_depth: int = 3, max_nodes: int = 1000) -> KnowledgeGraph:
         """
         Get a connected subgraph of nodes matching the specified label
         """
@@ -425,7 +417,7 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
         MAX_GRAPH_NODES = max_nodes
 
         db = await self._get_db()
-        
+
         async with db.get_transaction() as tx:
             # Get matching nodes
             if node_label == "*":
@@ -479,10 +471,10 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
             # Only include entity_name if it's different from entity_id and not None
             if node["entity_name"] and node["entity_name"] != node["entity_id"]:
                 properties["entity_name"] = node["entity_name"]
-            
+
             # Remove None values for cleaner output
             properties = {k: v for k, v in properties.items() if v is not None}
-            
+
             result.nodes.append(
                 KnowledgeGraphNode(
                     id=node["entity_id"],
@@ -508,12 +500,9 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
                 # Add edges to result
                 for edge in edge_results:
                     # Only include edges related to selected nodes
-                    if (
-                        edge["source_entity_id"] in node_names
-                        and edge["target_entity_id"] in node_names
-                    ):
+                    if edge["source_entity_id"] in node_names and edge["target_entity_id"] in node_names:
                         edge_id = f"{edge['source_entity_id']}-{edge['target_entity_id']}"
-                        
+
                         # Assemble edge properties from individual fields
                         edge_properties = {
                             "weight": float(edge["weight"]) if edge["weight"] is not None else 0.0,
@@ -535,33 +524,26 @@ class PostgreSQLGraphSyncStorage(BaseGraphStorage):
                             )
                         )
 
-        logger.info(
-            f"Subgraph query successful | Node count: {len(result.nodes)} | Edge count: {len(result.edges)}"
-        )
+        logger.info(f"Subgraph query successful | Node count: {len(result.nodes)} | Edge count: {len(result.edges)}")
         return result
 
     async def drop(self) -> dict[str, str]:
         """Drop the storage in a single transaction"""
         try:
             db = await self._get_db()
-            
+
             async with db.get_transaction() as tx:
                 # Delete all edges for this workspace
                 await tx.execute(
-                    "DELETE FROM LIGHTRAG_GRAPH_EDGES WHERE workspace = %(workspace)s",
-                    {"workspace": self.workspace}
+                    "DELETE FROM LIGHTRAG_GRAPH_EDGES WHERE workspace = %(workspace)s", {"workspace": self.workspace}
                 )
                 # Delete all nodes for this workspace
                 await tx.execute(
-                    "DELETE FROM LIGHTRAG_GRAPH_NODES WHERE workspace = %(workspace)s", 
-                    {"workspace": self.workspace}
+                    "DELETE FROM LIGHTRAG_GRAPH_NODES WHERE workspace = %(workspace)s", {"workspace": self.workspace}
                 )
-            
+
             logger.info(f"Successfully dropped all data for workspace {self.workspace}")
             return {"status": "success", "message": "graph data dropped"}
         except Exception as e:
             logger.error(f"Error dropping graph for workspace {self.workspace}: {e}")
             return {"status": "error", "message": str(e)}
-
-
-

@@ -21,22 +21,22 @@ dotenv.load_dotenv(".env")
 def check_neo4j_environment() -> bool:
     """Check if Neo4j environment variables are properly configured."""
     required_vars = ["NEO4J_HOST", "NEO4J_PORT", "NEO4J_USERNAME", "NEO4J_PASSWORD"]
-    
+
     missing_vars = []
     for var in required_vars:
         if not os.getenv(var):
             missing_vars.append(var)
-    
+
     if missing_vars:
         return False
-    
+
     return True
 
 
 # Skip all tests in this module if Neo4j environment is not configured
 pytestmark = pytest.mark.skipif(
     not check_neo4j_environment(),
-    reason="Neo4j environment variables not configured. Required: NEO4J_HOST, NEO4J_PORT, NEO4J_USERNAME, NEO4J_PASSWORD"
+    reason="Neo4j environment variables not configured. Required: NEO4J_HOST, NEO4J_PORT, NEO4J_USERNAME, NEO4J_PASSWORD",
 )
 
 
