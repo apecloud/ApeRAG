@@ -156,11 +156,14 @@ class PostgreSQLGraphDB:
                         )
                     """)
 
-                    # Create performance-optimized indexes with workspace as first column for data isolation
-                    # Nodes table indexes - workspace first for optimal partition pruning
-                    cur.execute(
-                        "CREATE INDEX IF NOT EXISTS idx_lightrag_nodes_workspace_entity ON LIGHTRAG_GRAPH_NODES(workspace, entity_id)"
-                    )
+                    # Create additional performance indexes (not covered by UNIQUE constraints)
+                    # Index Strategy:
+                    # 1. PRIMARY KEY automatically creates: (id)
+                    # 2. UNIQUE(workspace, entity_id) automatically creates: (workspace, entity_id)  
+                    # 3. UNIQUE(workspace, source_entity_id, target_entity_id) automatically creates: (workspace, source_entity_id, target_entity_id)
+                    # 4. Additional indexes below cover different query patterns
+                    
+                    # Nodes table additional indexes
                     cur.execute(
                         "CREATE INDEX IF NOT EXISTS idx_lightrag_nodes_entity_type ON LIGHTRAG_GRAPH_NODES(workspace, entity_type)"
                     )
@@ -168,20 +171,15 @@ class PostgreSQLGraphDB:
                         "CREATE INDEX IF NOT EXISTS idx_lightrag_nodes_entity_name ON LIGHTRAG_GRAPH_NODES(workspace, entity_name)"
                     )
 
-                    # Edges table indexes - workspace first for optimal query performance
+                    # Edges table additional indexes
+                    # Separate source/target indexes for node degree calculations and traversal queries
                     cur.execute(
                         "CREATE INDEX IF NOT EXISTS idx_lightrag_edges_workspace_source ON LIGHTRAG_GRAPH_EDGES(workspace, source_entity_id)"
                     )
                     cur.execute(
                         "CREATE INDEX IF NOT EXISTS idx_lightrag_edges_workspace_target ON LIGHTRAG_GRAPH_EDGES(workspace, target_entity_id)"
                     )
-                    cur.execute(
-                        "CREATE INDEX IF NOT EXISTS idx_lightrag_edges_workspace_source_target ON LIGHTRAG_GRAPH_EDGES(workspace, source_entity_id, target_entity_id)"
-                    )
-                    # Index for degree calculation (both source and target)
-                    cur.execute(
-                        "CREATE INDEX IF NOT EXISTS idx_lightrag_edges_workspace_degree ON LIGHTRAG_GRAPH_EDGES(workspace, source_entity_id, target_entity_id)"
-                    )
+                    # Index for weight-based filtering and sorting
                     cur.execute(
                         "CREATE INDEX IF NOT EXISTS idx_lightrag_edges_weight ON LIGHTRAG_GRAPH_EDGES(workspace, weight)"
                     )
