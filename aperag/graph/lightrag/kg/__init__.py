@@ -31,13 +31,20 @@ Modifications by ApeRAG Team:
 - See changelog.md for detailed modifications
 """
 
-# Storage implementation module mapping - build conditionally
+# Direct import of storage implementations
+from .nebula_sync_impl import NebulaSyncStorage
+from .neo4j_sync_impl import Neo4JSyncStorage
+from .pg_ops_sync_graph_storage import PGOpsSyncGraphStorage
+from .pg_ops_sync_kv_storage import PGOpsSyncKVStorage
+from .pg_ops_sync_vector_storage import PGOpsSyncVectorStorage
+
+# Storage implementation class registry
 STORAGES = {
-    "Neo4JSyncStorage": ".kg.neo4j_sync_impl",
-    "NebulaSyncStorage": ".kg.nebula_sync_impl",
-    "PGOpsSyncGraphStorage": ".kg.pg_ops_sync_graph_storage",  # Unified SQLAlchemy implementation
-    "PGOpsSyncKVStorage": ".kg.pg_ops_sync_kv_storage",
-    "PGOpsSyncVectorStorage": ".kg.pg_ops_sync_vector_storage",
+    "Neo4JSyncStorage": Neo4JSyncStorage,
+    "NebulaSyncStorage": NebulaSyncStorage,
+    "PGOpsSyncGraphStorage": PGOpsSyncGraphStorage,
+    "PGOpsSyncKVStorage": PGOpsSyncKVStorage,
+    "PGOpsSyncVectorStorage": PGOpsSyncVectorStorage,
 }
 
 
@@ -51,8 +58,6 @@ def verify_storage_implementation(storage_type: str, storage_name: str) -> None:
     Raises:
         ValueError: If storage implementation is incompatible with storage type or not found
     """
-    import importlib
-
     from ..base import BaseGraphStorage, BaseKVStorage, BaseVectorStorage
 
     # Check if storage implementation exists in STORAGES
@@ -70,22 +75,12 @@ def verify_storage_implementation(storage_type: str, storage_name: str) -> None:
         case _:
             raise ValueError(f"Unknown storage type: {storage_type}")
 
-    try:
-        # Import the module and get the class using relative import
-        module_path = STORAGES[storage_name]
+    # Get the storage class directly from registry
+    storage_class = STORAGES[storage_name]
 
-        # Use relative import with package parameter
-        module = importlib.import_module(module_path, package=__package__)
-        storage_class = getattr(module, storage_name)
-
-        # Check if the class implements the required base class
-        if not issubclass(storage_class, expected_base_class):
-            raise ValueError(
-                f"Storage implementation '{storage_name}' does not implement the required "
-                f"base class '{expected_base_class.__name__}' for storage type '{storage_type}'"
-            )
-
-    except ImportError as e:
-        raise ValueError(f"Failed to import storage implementation '{storage_name}': {e}")
-    except AttributeError:
-        raise ValueError(f"Storage class '{storage_name}' not found in module '{module_path}'")
+    # Check if the class implements the required base class
+    if not issubclass(storage_class, expected_base_class):
+        raise ValueError(
+            f"Storage implementation '{storage_name}' does not implement the required "
+            f"base class '{expected_base_class.__name__}' for storage type '{storage_type}'"
+        )

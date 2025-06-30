@@ -82,7 +82,6 @@ from .utils import (
     clean_text,
     compute_mdhash_id,
     create_lightrag_logger,
-    lazy_external_import,
     logger,
 )
 
@@ -379,8 +378,8 @@ class LightRAG:
         return await self.chunk_entity_relation_graph.get_knowledge_graph(node_label, max_depth, max_nodes)
 
     def _get_storage_class(self, storage_name: str) -> Callable[..., Any]:
-        import_path = STORAGES[storage_name]
-        storage_class = lazy_external_import(import_path, storage_name)
+        # Direct class lookup from registry instead of dynamic import
+        storage_class = STORAGES[storage_name]
         return storage_class
 
     # ============= New Stateless Interfaces =============
