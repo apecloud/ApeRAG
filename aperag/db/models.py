@@ -790,10 +790,11 @@ class AuditLog(Base):
     def __repr__(self):
         return f"<AuditLog(id={self.id}, user={self.username}, api={self.api_name}, method={self.http_method}, status={self.status_code})>"
 
+
 # Graph Database Models
 class LightRAGGraphNode(Base):
     """LightRAG Graph Node Storage Model - unified with SQLAlchemy"""
-    
+
     __tablename__ = "lightrag_graph_nodes"
     __table_args__ = (
         UniqueConstraint("workspace", "entity_id", name="uq_lightrag_graph_nodes_workspace_entity"),
@@ -818,11 +819,12 @@ class LightRAGGraphNode(Base):
 
 class LightRAGGraphEdge(Base):
     """LightRAG Graph Edge Storage Model - unified with SQLAlchemy"""
-    
+
     __tablename__ = "lightrag_graph_edges"
     __table_args__ = (
-        UniqueConstraint("workspace", "source_entity_id", "target_entity_id", 
-                        name="uq_lightrag_graph_edges_workspace_source_target"),
+        UniqueConstraint(
+            "workspace", "source_entity_id", "target_entity_id", name="uq_lightrag_graph_edges_workspace_source_target"
+        ),
         Index("idx_lightrag_edges_workspace_source", "workspace", "source_entity_id"),
         Index("idx_lightrag_edges_workspace_target", "workspace", "target_entity_id"),
         Index("idx_lightrag_edges_weight", "workspace", "weight"),

@@ -112,13 +112,13 @@ def calculate_max_context_length(model_max_tokens: Optional[int], output_tokens:
     """
     if not model_max_tokens:
         return FALLBACK_MAX_CONTEXT_LENGTH
-    
+
     # Reserve tokens for output, convert to character count
     max_context_tokens = model_max_tokens - output_tokens
     if max_context_tokens <= 0:
         # If model max_tokens is too small, use a minimal context
         max_context_tokens = max(model_max_tokens // 2, 100)
-    
+
     # Convert tokens to character count
     return int(max_context_tokens * CHAR_TO_TOKEN_RATIO)
 
@@ -166,9 +166,7 @@ class LLMService:
         # Get model configuration to determine max_tokens
         try:
             model_config = await async_db_ops.query_llm_provider_model(
-                provider_name=model_service_provider,
-                api=APIType.COMPLETION.value,
-                model=model_name
+                provider_name=model_service_provider, api=APIType.COMPLETION.value, model=model_name
             )
             model_max_tokens = model_config.max_tokens if model_config else None
         except Exception:
@@ -188,7 +186,7 @@ class LLMService:
                 references.append({"text": doc.text, "metadata": doc.metadata, "score": doc.score})
 
         prompt = prompt_template.format(query=query, context=context)
-        
+
         # Estimate prompt tokens and calculate output tokens
         prompt_tokens = estimate_token_count(prompt)
         if model_max_tokens:

@@ -60,58 +60,63 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
     #################### upsert method ################
     async def upsert_node(self, node_id: str, node_data: dict[str, str]) -> None:
         """Upsert a node in the database - using individual fields for optimal performance."""
-        
+
         def _sync_upsert_node():
             # Import here to avoid circular imports
             from aperag.db.ops import db_ops
+
             db_ops.upsert_graph_node(self.workspace, node_id, node_data)
-        
+
         await asyncio.to_thread(_sync_upsert_node)
-        
+
         # Log with same format as original
         entity_type = node_data.get("entity_type") or None
         logger.debug(f"Upserted node with entity_id '{node_id}', entity_type '{entity_type}'")
 
     async def upsert_edge(self, source_node_id: str, target_node_id: str, edge_data: dict[str, str]) -> None:
         """Upsert an edge between two nodes - using individual fields for optimal performance."""
-        
+
         def _sync_upsert_edge():
             # Import here to avoid circular imports
             from aperag.db.ops import db_ops
+
             db_ops.upsert_graph_edge(self.workspace, source_node_id, target_node_id, edge_data)
-        
+
         await asyncio.to_thread(_sync_upsert_edge)
         logger.debug(f"Upserted edge from '{source_node_id}' to '{target_node_id}'")
 
     # Query methods
     async def has_node(self, node_id: str) -> bool:
         """Check if a node exists."""
-        
+
         def _sync_has_node():
             # Import here to avoid circular imports
             from aperag.db.ops import db_ops
+
             return db_ops.has_graph_node(self.workspace, node_id)
-        
+
         return await asyncio.to_thread(_sync_has_node)
 
     async def has_edge(self, source_node_id: str, target_node_id: str) -> bool:
         """Check if an edge exists between two nodes."""
-        
+
         def _sync_has_edge():
             # Import here to avoid circular imports
             from aperag.db.ops import db_ops
+
             return db_ops.has_graph_edge(self.workspace, source_node_id, target_node_id)
-        
+
         return await asyncio.to_thread(_sync_has_edge)
 
     async def node_degree(self, node_id: str) -> int:
         """Get the degree of a node."""
-        
+
         def _sync_node_degree():
             # Import here to avoid circular imports
             from aperag.db.ops import db_ops
+
             return db_ops.get_graph_node_degree(self.workspace, node_id)
-        
+
         return await asyncio.to_thread(_sync_node_degree)
 
     async def edge_degree(self, src_id: str, tgt_id: str) -> int:
@@ -122,33 +127,36 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
 
     async def get_node(self, node_id: str) -> dict[str, str] | None:
         """Get node by its identifier."""
-        
+
         def _sync_get_node():
             # Import here to avoid circular imports
             from aperag.db.ops import db_ops
+
             return db_ops.get_graph_node(self.workspace, node_id)
-        
+
         return await asyncio.to_thread(_sync_get_node)
 
     async def get_edge(self, source_node_id: str, target_node_id: str) -> dict[str, str] | None:
         """Get edge between two nodes."""
-        
+
         def _sync_get_edge():
             # Import here to avoid circular imports
             from aperag.db.ops import db_ops
+
             return db_ops.get_graph_edge(self.workspace, source_node_id, target_node_id)
-        
+
         return await asyncio.to_thread(_sync_get_edge)
 
     async def get_node_edges(self, source_node_id: str) -> list[tuple[str, str]] | None:
         """Get all edges for a node."""
-        
+
         def _sync_get_node_edges():
             # Import here to avoid circular imports
             from aperag.db.ops import db_ops
+
             edges = db_ops.get_graph_node_edges(self.workspace, source_node_id)
             return edges if edges else None
-        
+
         return await asyncio.to_thread(_sync_get_node_edges)
 
     async def get_nodes_batch(self, node_ids: list[str]) -> dict[str, dict]:
@@ -202,12 +210,13 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
 
     async def delete_node(self, node_id: str) -> None:
         """Delete a node and all its related edges in a single transaction."""
-        
+
         def _sync_delete_node():
             # Import here to avoid circular imports
             from aperag.db.ops import db_ops
+
             db_ops.delete_graph_node(self.workspace, node_id)
-        
+
         await asyncio.to_thread(_sync_delete_node)
         logger.debug(f"Node {node_id} and its related edges have been deleted from the graph")
 
@@ -218,43 +227,45 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
 
     async def remove_edges(self, edges: list[tuple[str, str]]):
         """Delete multiple edges in a single transaction."""
-        
+
         def _sync_remove_edges():
             # Import here to avoid circular imports
             from aperag.db.ops import db_ops
+
             db_ops.delete_graph_edges(self.workspace, edges)
-        
+
         await asyncio.to_thread(_sync_remove_edges)
 
     async def get_all_labels(self) -> list[str]:
         """Get all entity names in the database."""
-        
+
         def _sync_get_all_labels():
             # Import here to avoid circular imports
             from aperag.db.ops import db_ops
+
             return db_ops.get_all_graph_labels(self.workspace)
-        
+
         return await asyncio.to_thread(_sync_get_all_labels)
 
     async def get_knowledge_graph(self, node_label: str, max_depth: int = 3, max_nodes: int = 1000) -> KnowledgeGraph:
         """
         Get a connected subgraph of nodes matching the specified label.
-        
+
         Note: This is a simplified implementation that uses the existing Repository pattern.
         For now, it only supports getting nodes by label pattern and their immediate connections.
         Full graph traversal with max_depth would require additional Repository methods.
         """
-        
+
         def _sync_get_knowledge_graph():
             # Import here to avoid circular imports
             from aperag.db.ops import db_ops
-            
+
             result = KnowledgeGraph()
             MAX_GRAPH_NODES = max_nodes
 
             # Get all labels first
             all_labels = db_ops.get_all_graph_labels(self.workspace)
-            
+
             # Filter based on node_label pattern
             if node_label == "*":
                 # Get all nodes (limited by max_nodes)
@@ -264,7 +275,7 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
                 matching_labels = [label for label in all_labels if node_label in label]
                 if len(matching_labels) > MAX_GRAPH_NODES:
                     matching_labels = matching_labels[:MAX_GRAPH_NODES]
-            
+
             # Get node details for each matching label
             for entity_id in matching_labels:
                 node_data = db_ops.get_graph_node(self.workspace, entity_id)
@@ -291,7 +302,7 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
                             properties=properties,
                         )
                     )
-            
+
             # Get edges between the selected nodes
             node_names = [node.id for node in result.nodes]
             for i, source_node in enumerate(node_names):
@@ -305,7 +316,7 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
                             edge_data = db_ops.get_graph_edge(self.workspace, source_entity_id, target_entity_id)
                             if edge_data:
                                 edge_id = f"{source_entity_id}-{target_entity_id}"
-                                
+
                                 # Assemble edge properties from individual fields
                                 edge_properties = {
                                     "weight": edge_data.get("weight", 0.0),
@@ -326,26 +337,27 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
                                         properties=edge_properties,
                                     )
                                 )
-            
+
             return result
-        
+
         result = await asyncio.to_thread(_sync_get_knowledge_graph)
         logger.info(f"Subgraph query successful | Node count: {len(result.nodes)} | Edge count: {len(result.edges)}")
         return result
 
     async def drop(self) -> dict[str, str]:
         """Drop the storage in a single transaction."""
-        
+
         def _sync_drop():
             # Import here to avoid circular imports
             from aperag.db.ops import db_ops
+
             return db_ops.drop_graph_workspace(self.workspace)
-        
+
         result = await asyncio.to_thread(_sync_drop)
-        
+
         if result.get("status") == "success":
             logger.info(f"Successfully dropped all data for workspace {self.workspace}")
         else:
             logger.error(f"Error dropping graph for workspace {self.workspace}: {result.get('message')}")
-        
-        return result 
+
+        return result
