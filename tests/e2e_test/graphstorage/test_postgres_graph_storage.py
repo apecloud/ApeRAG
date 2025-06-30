@@ -10,7 +10,7 @@ import dotenv
 import pytest
 import pytest_asyncio
 
-from aperag.graph.lightrag.kg.postgres_graph_sync_impl import PostgreSQLGraphSyncStorage
+from aperag.graph.lightrag.kg.pg_ops_sync_graph_storage import PGOpsSyncGraphStorage
 from tests.e2e_test.graphstorage.graph_storage_oracle import GraphStorageOracle
 from tests.e2e_test.graphstorage.networkx_baseline_storage import NetworkXBaselineStorage
 from tests.e2e_test.graphstorage.test_graph_storage import GraphStorageTestSuite, load_graph_data
@@ -50,7 +50,7 @@ async def postgres_graph_oracle_storage():
     workspace = f"test_postgres_graph_oracle_{uuid.uuid4().hex[:8]}"
 
     # Initialize PostgreSQL Graph storage
-    postgres_graph_storage = PostgreSQLGraphSyncStorage(
+    postgres_graph_storage = PGOpsSyncGraphStorage(
         namespace="test_postgres_graph_oracle",
         workspace=workspace,
     )
@@ -76,10 +76,10 @@ async def postgres_graph_oracle_storage():
 
         # Populate with FULL test data - all nodes - ONCE for all tests
         print(f"📂 Populating baseline with {len(graph_data['nodes'])} nodes...")
-        edge_count = 0
+        node_count = 0
         for entity_id, node_data in graph_data["nodes"].items():
             await oracle.upsert_node(entity_id, node_data["properties"])
-            edge_count += 1
+            node_count += 1
 
         # Populate with FULL test data - all edges - ONCE for all tests
         edge_count = 0

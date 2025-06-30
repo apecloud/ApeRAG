@@ -35,8 +35,7 @@ Modifications by ApeRAG Team:
 STORAGES = {
     "Neo4JSyncStorage": ".kg.neo4j_sync_impl",
     "NebulaSyncStorage": ".kg.nebula_sync_impl",
-    "PostgreSQLAGEStorage": ".kg.postgres_age_impl",
-    "PostgreSQLGraphSyncStorage": ".kg.postgres_graph_sync_impl",
+    "PGOpsSyncGraphStorage": ".kg.pg_ops_sync_graph_storage",  # Unified SQLAlchemy implementation
     "PGOpsSyncKVStorage": ".kg.postgres_sync_impl",
     "PGOpsSyncVectorStorage": ".kg.postgres_sync_impl",
 }

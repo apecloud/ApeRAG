@@ -26,6 +26,7 @@ from sqlalchemy import (
     DateTime,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -788,3 +789,56 @@ class AuditLog(Base):
 
     def __repr__(self):
         return f"<AuditLog(id={self.id}, user={self.username}, api={self.api_name}, method={self.http_method}, status={self.status_code})>"
+
+# Graph Database Models
+class LightRAGGraphNode(Base):
+    """LightRAG Graph Node Storage Model - unified with SQLAlchemy"""
+    
+    __tablename__ = "lightrag_graph_nodes"
+    __table_args__ = (
+        UniqueConstraint("workspace", "entity_id", name="uq_lightrag_graph_nodes_workspace_entity"),
+        Index("idx_lightrag_nodes_entity_type", "workspace", "entity_type"),
+        Index("idx_lightrag_nodes_entity_name", "workspace", "entity_name"),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    entity_id = Column(String(256), nullable=False)
+    entity_name = Column(String(255), nullable=True)
+    entity_type = Column(String(255), nullable=True)
+    description = Column(Text, nullable=True)
+    source_id = Column(Text, nullable=True)
+    file_path = Column(Text, nullable=True)
+    workspace = Column(String(255), nullable=False)
+    createtime = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updatetime = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    def __repr__(self):
+        return f"<LightRAGGraphNode(workspace={self.workspace}, entity_id={self.entity_id})>"
+
+
+class LightRAGGraphEdge(Base):
+    """LightRAG Graph Edge Storage Model - unified with SQLAlchemy"""
+    
+    __tablename__ = "lightrag_graph_edges"
+    __table_args__ = (
+        UniqueConstraint("workspace", "source_entity_id", "target_entity_id", 
+                        name="uq_lightrag_graph_edges_workspace_source_target"),
+        Index("idx_lightrag_edges_workspace_source", "workspace", "source_entity_id"),
+        Index("idx_lightrag_edges_workspace_target", "workspace", "target_entity_id"),
+        Index("idx_lightrag_edges_weight", "workspace", "weight"),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    source_entity_id = Column(String(255), nullable=False)
+    target_entity_id = Column(String(255), nullable=False)
+    weight = Column(Numeric(10, 6), default=0.0, nullable=False)  # DECIMAL(10,6) for precise weight values
+    keywords = Column(Text, nullable=True)
+    description = Column(Text, nullable=True)
+    source_id = Column(Text, nullable=True)
+    file_path = Column(Text, nullable=True)
+    workspace = Column(String(255), nullable=False)
+    createtime = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updatetime = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    def __repr__(self):
+        return f"<LightRAGGraphEdge(workspace={self.workspace}, {self.source_entity_id}->{self.target_entity_id})>"
