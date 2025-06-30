@@ -185,7 +185,7 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
 
     async def edge_degrees_batch(self, edge_pairs: list[tuple[str, str]]) -> dict[tuple[str, str], int]:
         """Calculate combined degrees for edges using efficient batch processing."""
-        
+
         def _sync_edge_degrees_batch():
             # Import here to avoid circular imports
             from aperag.db.ops import db_ops
@@ -219,7 +219,7 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
 
             # Convert pairs format from [{"src": ..., "tgt": ...}] to [(src, tgt), ...]
             edge_pairs = [(pair["src"], pair["tgt"]) for pair in pairs]
-            
+
             return db_ops.get_graph_edges_batch(self.workspace, edge_pairs)
 
         return await asyncio.to_thread(_sync_get_edges_batch)
@@ -314,7 +314,7 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
             # Get node details for each matching label using batch operation
             if matching_labels:
                 nodes_data = db_ops.get_graph_nodes_batch(self.workspace, matching_labels)
-                
+
                 for entity_id, node_data in nodes_data.items():
                     # Assemble properties from individual fields
                     properties = {
@@ -343,7 +343,7 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
                 node_names = [node.id for node in result.nodes]
                 if node_names:
                     nodes_edges = db_ops.get_graph_nodes_edges_batch(self.workspace, node_names)
-                    
+
                     # Collect unique edge pairs that connect nodes in our result set
                     edge_pairs_to_query = set()
                     for source_node in node_names:
@@ -356,7 +356,7 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
                     # Get edge details in batch
                     if edge_pairs_to_query:
                         edges_data = db_ops.get_graph_edges_batch(self.workspace, list(edge_pairs_to_query))
-                        
+
                         for (source_entity_id, target_entity_id), edge_data in edges_data.items():
                             edge_id = f"{source_entity_id}-{target_entity_id}"
 

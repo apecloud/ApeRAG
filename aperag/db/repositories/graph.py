@@ -346,15 +346,12 @@ class GraphRepositoryMixin:
         def _get_nodes_batch(session):
             # Use ANY for efficient batch query
             stmt = select(LightRAGGraphNode).where(
-                and_(
-                    LightRAGGraphNode.workspace == workspace,
-                    LightRAGGraphNode.entity_id.in_(node_ids)
-                )
+                and_(LightRAGGraphNode.workspace == workspace, LightRAGGraphNode.entity_id.in_(node_ids))
             )
-            
+
             result = session.execute(stmt)
             nodes = {}
-            
+
             # Use scalars() to get the actual ORM objects
             for node in result.scalars():
                 # Convert to dict format matching the original interface
@@ -373,7 +370,7 @@ class GraphRepositoryMixin:
 
                 # Remove None values for cleaner output
                 nodes[node.entity_id] = {k: v for k, v in node_dict.items() if v is not None}
-            
+
             return nodes
 
         return self._execute_query(_get_nodes_batch)
@@ -411,18 +408,20 @@ class GraphRepositoryMixin:
                 LEFT JOIN outgoing_counts oc ON nl.entity_id = oc.entity_id
                 LEFT JOIN incoming_counts ic ON nl.entity_id = ic.entity_id
             """)
-            
+
             result = session.execute(query, {"workspace": workspace, "node_ids": node_ids})
             degrees = {}
-            
+
             for row in result:
                 degrees[row[0]] = row[1]
-            
+
             return degrees
 
         return self._execute_query(_get_degrees_batch)
 
-    def get_graph_edges_batch(self, workspace: str, edge_pairs: List[Tuple[str, str]]) -> Dict[Tuple[str, str], Dict[str, Any]]:
+    def get_graph_edges_batch(
+        self, workspace: str, edge_pairs: List[Tuple[str, str]]
+    ) -> Dict[Tuple[str, str], Dict[str, Any]]:
         """Get multiple edges in batch using efficient SQL"""
         if not edge_pairs:
             return {}
@@ -432,23 +431,15 @@ class GraphRepositoryMixin:
             conditions = []
             for source, target in edge_pairs:
                 conditions.append(
-                    and_(
-                        LightRAGGraphEdge.source_entity_id == source,
-                        LightRAGGraphEdge.target_entity_id == target
-                    )
+                    and_(LightRAGGraphEdge.source_entity_id == source, LightRAGGraphEdge.target_entity_id == target)
                 )
-            
+
             # Use OR with all conditions for batch query
-            stmt = select(LightRAGGraphEdge).where(
-                and_(
-                    LightRAGGraphEdge.workspace == workspace,
-                    or_(*conditions)
-                )
-            )
-            
+            stmt = select(LightRAGGraphEdge).where(and_(LightRAGGraphEdge.workspace == workspace, or_(*conditions)))
+
             result = session.execute(stmt)
             edges = {}
-            
+
             # Initialize all pairs with default values
             for pair in edge_pairs:
                 edges[pair] = {
@@ -457,7 +448,7 @@ class GraphRepositoryMixin:
                     "description": None,
                     "source_id": None,
                 }
-            
+
             # Update with actual data found - use scalars() to get ORM objects
             for edge in result.scalars():
                 pair = (edge.source_entity_id, edge.target_entity_id)
@@ -476,7 +467,7 @@ class GraphRepositoryMixin:
                         if k in required_fields or v is not None:
                             filtered_result[k] = v
                     edges[pair] = filtered_result
-            
+
             return edges
 
         return self._execute_query(_get_edges_batch)
@@ -511,14 +502,14 @@ class GraphRepositoryMixin:
                 FROM incoming_edges
                 ORDER BY node_id
             """)
-            
+
             result = session.execute(query, {"workspace": workspace, "node_ids": node_ids})
             edges_dict = {node_id: [] for node_id in node_ids}
-            
+
             for row in result:
                 node_id, source, target = row
                 edges_dict[node_id].append((source, target))
-            
+
             return edges_dict
 
         return self._execute_query(_get_nodes_edges_batch)
@@ -535,18 +526,15 @@ class GraphRepositoryMixin:
                     LightRAGGraphEdge.workspace == workspace,
                     or_(
                         LightRAGGraphEdge.source_entity_id.in_(node_ids),
-                        LightRAGGraphEdge.target_entity_id.in_(node_ids)
-                    )
+                        LightRAGGraphEdge.target_entity_id.in_(node_ids),
+                    ),
                 )
             )
             session.execute(edge_delete_stmt)
 
             # Then delete all nodes in batch
             node_delete_stmt = delete(LightRAGGraphNode).where(
-                and_(
-                    LightRAGGraphNode.workspace == workspace,
-                    LightRAGGraphNode.entity_id.in_(node_ids)
-                )
+                and_(LightRAGGraphNode.workspace == workspace, LightRAGGraphNode.entity_id.in_(node_ids))
             )
             session.execute(node_delete_stmt)
             session.flush()
@@ -564,18 +552,12 @@ class GraphRepositoryMixin:
             conditions = []
             for source, target in edges:
                 conditions.append(
-                    and_(
-                        LightRAGGraphEdge.source_entity_id == source,
-                        LightRAGGraphEdge.target_entity_id == target
-                    )
+                    and_(LightRAGGraphEdge.source_entity_id == source, LightRAGGraphEdge.target_entity_id == target)
                 )
-            
+
             # Use OR with all conditions for batch delete
             delete_stmt = delete(LightRAGGraphEdge).where(
-                and_(
-                    LightRAGGraphEdge.workspace == workspace,
-                    or_(*conditions)
-                )
+                and_(LightRAGGraphEdge.workspace == workspace, or_(*conditions))
             )
             session.execute(delete_stmt)
             session.flush()
@@ -593,19 +575,21 @@ class GraphRepositoryMixin:
             values_list = []
             for node_id, node_data in nodes_data.items():
                 entity_name = node_data.get("entity_name") if node_data.get("entity_name") != node_id else None
-                values_list.append({
-                    'workspace': workspace,
-                    'entity_id': node_id,
-                    'entity_name': entity_name,
-                    'entity_type': node_data.get("entity_type"),
-                    'description': node_data.get("description"),
-                    'source_id': node_data.get("source_id"),
-                    'file_path': node_data.get("file_path"),
-                })
+                values_list.append(
+                    {
+                        "workspace": workspace,
+                        "entity_id": node_id,
+                        "entity_name": entity_name,
+                        "entity_type": node_data.get("entity_type"),
+                        "description": node_data.get("description"),
+                        "source_id": node_data.get("source_id"),
+                        "file_path": node_data.get("file_path"),
+                    }
+                )
 
             # Use PostgreSQL VALUES clause with ON CONFLICT for batch upsert
             stmt = insert(LightRAGGraphNode).values(values_list)
-            
+
             # ON CONFLICT DO UPDATE for all fields
             stmt = stmt.on_conflict_do_update(
                 index_elements=["workspace", "entity_id"],
@@ -634,20 +618,22 @@ class GraphRepositoryMixin:
             # Prepare batch data for VALUES clause
             values_list = []
             for (source_id, target_id), edge_data in edges_data.items():
-                values_list.append({
-                    'workspace': workspace,
-                    'source_entity_id': source_id,
-                    'target_entity_id': target_id,
-                    'weight': float(edge_data.get("weight", 0.0)),
-                    'keywords': edge_data.get("keywords"),
-                    'description': edge_data.get("description"),
-                    'source_id': edge_data.get("source_id"),
-                    'file_path': edge_data.get("file_path"),
-                })
+                values_list.append(
+                    {
+                        "workspace": workspace,
+                        "source_entity_id": source_id,
+                        "target_entity_id": target_id,
+                        "weight": float(edge_data.get("weight", 0.0)),
+                        "keywords": edge_data.get("keywords"),
+                        "description": edge_data.get("description"),
+                        "source_id": edge_data.get("source_id"),
+                        "file_path": edge_data.get("file_path"),
+                    }
+                )
 
             # Use PostgreSQL VALUES clause with ON CONFLICT for batch upsert
             stmt = insert(LightRAGGraphEdge).values(values_list)
-            
+
             # ON CONFLICT DO UPDATE for all fields
             stmt = stmt.on_conflict_do_update(
                 index_elements=["workspace", "source_entity_id", "target_entity_id"],
