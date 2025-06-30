@@ -745,6 +745,11 @@ class LightRAGGraphNode(Base):
         UniqueConstraint("workspace", "entity_id", name="uq_lightrag_graph_nodes_workspace_entity"),
         Index("idx_lightrag_nodes_entity_type", "workspace", "entity_type"),
         Index("idx_lightrag_nodes_entity_name", "workspace", "entity_name"),
+        # Performance optimization indexes for batch operations
+        Index("idx_lightrag_nodes_workspace_createtime", "workspace", "createtime"),
+        Index("idx_lightrag_nodes_entity_type_createtime", "workspace", "entity_type", "createtime"),
+        # Composite index for common query patterns
+        Index("idx_lightrag_nodes_workspace_type_id", "workspace", "entity_type", "entity_id"),
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -773,6 +778,15 @@ class LightRAGGraphEdge(Base):
         Index("idx_lightrag_edges_workspace_source", "workspace", "source_entity_id"),
         Index("idx_lightrag_edges_workspace_target", "workspace", "target_entity_id"),
         Index("idx_lightrag_edges_weight", "workspace", "weight"),
+        # Performance optimization indexes for batch operations and degree calculations
+        Index("idx_lightrag_edges_workspace_source_target", "workspace", "source_entity_id", "target_entity_id"),
+        Index("idx_lightrag_edges_workspace_target_source", "workspace", "target_entity_id", "source_entity_id"),
+        # Index for efficient degree calculations (covers both source and target in one index)
+        Index("idx_lightrag_edges_degree_calc", "workspace", "source_entity_id", "target_entity_id", "weight"),
+        # Index for time-based queries
+        Index("idx_lightrag_edges_workspace_createtime", "workspace", "createtime"),
+        # Covering index for edge metadata queries
+        Index("idx_lightrag_edges_metadata", "workspace", "source_entity_id", "target_entity_id", "weight", "keywords"),
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)

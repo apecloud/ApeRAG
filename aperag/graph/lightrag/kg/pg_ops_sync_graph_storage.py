@@ -159,54 +159,81 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
 
         return await asyncio.to_thread(_sync_get_node_edges)
 
+    # ========== Optimized Batch Operations ==========
+
     async def get_nodes_batch(self, node_ids: list[str]) -> dict[str, dict]:
-        """Retrieve multiple nodes in batch (simplified implementation)."""
-        nodes = {}
-        for node_id in node_ids:
-            node_data = await self.get_node(node_id)
-            if node_data:
-                nodes[node_id] = node_data
-        return nodes
+        """Retrieve multiple nodes in batch using optimized SQL."""
+
+        def _sync_get_nodes_batch():
+            # Import here to avoid circular imports
+            from aperag.db.ops import db_ops
+
+            return db_ops.get_graph_nodes_batch(self.workspace, node_ids)
+
+        return await asyncio.to_thread(_sync_get_nodes_batch)
 
     async def node_degrees_batch(self, node_ids: list[str]) -> dict[str, int]:
-        """Retrieve degrees for multiple nodes."""
-        degrees = {}
-        for node_id in node_ids:
-            degrees[node_id] = await self.node_degree(node_id)
-        return degrees
+        """Retrieve degrees for multiple nodes using optimized SQL."""
+
+        def _sync_node_degrees_batch():
+            # Import here to avoid circular imports
+            from aperag.db.ops import db_ops
+
+            return db_ops.get_graph_node_degrees_batch(self.workspace, node_ids)
+
+        return await asyncio.to_thread(_sync_node_degrees_batch)
 
     async def edge_degrees_batch(self, edge_pairs: list[tuple[str, str]]) -> dict[tuple[str, str], int]:
-        """Calculate combined degrees for edges."""
-        edge_degrees = {}
-        for src, tgt in edge_pairs:
-            edge_degrees[(src, tgt)] = await self.edge_degree(src, tgt)
-        return edge_degrees
+        """Calculate combined degrees for edges using efficient batch processing."""
+        
+        def _sync_edge_degrees_batch():
+            # Import here to avoid circular imports
+            from aperag.db.ops import db_ops
+
+            # Extract unique node IDs from edge pairs
+            unique_node_ids = set()
+            for src, tgt in edge_pairs:
+                unique_node_ids.add(src)
+                unique_node_ids.add(tgt)
+
+            # Get all node degrees in one batch call
+            node_degrees = db_ops.get_graph_node_degrees_batch(self.workspace, list(unique_node_ids))
+
+            # Calculate edge degrees
+            edge_degrees = {}
+            for src, tgt in edge_pairs:
+                src_degree = node_degrees.get(src, 0)
+                tgt_degree = node_degrees.get(tgt, 0)
+                edge_degrees[(src, tgt)] = src_degree + tgt_degree
+
+            return edge_degrees
+
+        return await asyncio.to_thread(_sync_edge_degrees_batch)
 
     async def get_edges_batch(self, pairs: list[dict[str, str]]) -> dict[tuple[str, str], dict]:
-        """Retrieve edge properties for multiple pairs."""
-        edges_dict = {}
-        for pair in pairs:
-            src, tgt = pair["src"], pair["tgt"]
-            edge_data = await self.get_edge(src, tgt)
-            if edge_data:
-                edges_dict[(src, tgt)] = edge_data
-            else:
-                # Return default structure with required fields (matching Neo4j behavior)
-                edges_dict[(src, tgt)] = {
-                    "weight": 0.0,
-                    "keywords": None,
-                    "description": None,
-                    "source_id": None,
-                }
-        return edges_dict
+        """Retrieve edge properties for multiple pairs using optimized SQL."""
+
+        def _sync_get_edges_batch():
+            # Import here to avoid circular imports
+            from aperag.db.ops import db_ops
+
+            # Convert pairs format from [{"src": ..., "tgt": ...}] to [(src, tgt), ...]
+            edge_pairs = [(pair["src"], pair["tgt"]) for pair in pairs]
+            
+            return db_ops.get_graph_edges_batch(self.workspace, edge_pairs)
+
+        return await asyncio.to_thread(_sync_get_edges_batch)
 
     async def get_nodes_edges_batch(self, node_ids: list[str]) -> dict[str, list[tuple[str, str]]]:
-        """Batch retrieve edges for multiple nodes."""
-        edges_dict = {}
-        for node_id in node_ids:
-            edges = await self.get_node_edges(node_id)
-            edges_dict[node_id] = edges or []
-        return edges_dict
+        """Batch retrieve edges for multiple nodes using optimized SQL."""
+
+        def _sync_get_nodes_edges_batch():
+            # Import here to avoid circular imports
+            from aperag.db.ops import db_ops
+
+            return db_ops.get_graph_nodes_edges_batch(self.workspace, node_ids)
+
+        return await asyncio.to_thread(_sync_get_nodes_edges_batch)
 
     async def delete_node(self, node_id: str) -> None:
         """Delete a node and all its related edges in a single transaction."""
@@ -221,20 +248,28 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
         logger.debug(f"Node {node_id} and its related edges have been deleted from the graph")
 
     async def remove_nodes(self, nodes: list[str]):
-        """Delete multiple nodes."""
-        for node in nodes:
-            await self.delete_node(node)
+        """Delete multiple nodes using optimized batch SQL."""
+
+        def _sync_remove_nodes():
+            # Import here to avoid circular imports
+            from aperag.db.ops import db_ops
+
+            db_ops.delete_graph_nodes_batch(self.workspace, nodes)
+
+        await asyncio.to_thread(_sync_remove_nodes)
+        logger.debug(f"Batch deleted {len(nodes)} nodes and their related edges")
 
     async def remove_edges(self, edges: list[tuple[str, str]]):
-        """Delete multiple edges in a single transaction."""
+        """Delete multiple edges using optimized batch SQL."""
 
         def _sync_remove_edges():
             # Import here to avoid circular imports
             from aperag.db.ops import db_ops
 
-            db_ops.delete_graph_edges(self.workspace, edges)
+            db_ops.delete_graph_edges_batch(self.workspace, edges)
 
         await asyncio.to_thread(_sync_remove_edges)
+        logger.debug(f"Batch deleted {len(edges)} edges")
 
     async def get_all_labels(self) -> list[str]:
         """Get all entity names in the database."""
@@ -276,10 +311,11 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
                 if len(matching_labels) > MAX_GRAPH_NODES:
                     matching_labels = matching_labels[:MAX_GRAPH_NODES]
 
-            # Get node details for each matching label
-            for entity_id in matching_labels:
-                node_data = db_ops.get_graph_node(self.workspace, entity_id)
-                if node_data:
+            # Get node details for each matching label using batch operation
+            if matching_labels:
+                nodes_data = db_ops.get_graph_nodes_batch(self.workspace, matching_labels)
+                
+                for entity_id, node_data in nodes_data.items():
                     # Assemble properties from individual fields
                     properties = {
                         "entity_id": node_data["entity_id"],
@@ -303,40 +339,47 @@ class PGOpsSyncGraphStorage(BaseGraphStorage):
                         )
                     )
 
-            # Get edges between the selected nodes
-            node_names = [node.id for node in result.nodes]
-            for i, source_node in enumerate(node_names):
-                # Get edges for this node
-                edges = db_ops.get_graph_node_edges(self.workspace, source_node)
-                if edges:
-                    for source_entity_id, target_entity_id in edges:
-                        # Only include edges between selected nodes
-                        if source_entity_id in node_names and target_entity_id in node_names:
-                            # Get edge details
-                            edge_data = db_ops.get_graph_edge(self.workspace, source_entity_id, target_entity_id)
-                            if edge_data:
-                                edge_id = f"{source_entity_id}-{target_entity_id}"
+                # Get edges between the selected nodes using batch operation
+                node_names = [node.id for node in result.nodes]
+                if node_names:
+                    nodes_edges = db_ops.get_graph_nodes_edges_batch(self.workspace, node_names)
+                    
+                    # Collect unique edge pairs that connect nodes in our result set
+                    edge_pairs_to_query = set()
+                    for source_node in node_names:
+                        edges = nodes_edges.get(source_node, [])
+                        for source_entity_id, target_entity_id in edges:
+                            # Only include edges between selected nodes
+                            if source_entity_id in node_names and target_entity_id in node_names:
+                                edge_pairs_to_query.add((source_entity_id, target_entity_id))
 
-                                # Assemble edge properties from individual fields
-                                edge_properties = {
-                                    "weight": edge_data.get("weight", 0.0),
-                                    "keywords": edge_data.get("keywords"),
-                                    "description": edge_data.get("description"),
-                                    "source_id": edge_data.get("source_id"),
-                                    "file_path": edge_data.get("file_path"),
-                                }
-                                # Remove None values for cleaner output
-                                edge_properties = {k: v for k, v in edge_properties.items() if v is not None}
+                    # Get edge details in batch
+                    if edge_pairs_to_query:
+                        edges_data = db_ops.get_graph_edges_batch(self.workspace, list(edge_pairs_to_query))
+                        
+                        for (source_entity_id, target_entity_id), edge_data in edges_data.items():
+                            edge_id = f"{source_entity_id}-{target_entity_id}"
 
-                                result.edges.append(
-                                    KnowledgeGraphEdge(
-                                        id=edge_id,
-                                        type="DIRECTED",
-                                        source=source_entity_id,
-                                        target=target_entity_id,
-                                        properties=edge_properties,
-                                    )
+                            # Assemble edge properties from individual fields
+                            edge_properties = {
+                                "weight": edge_data.get("weight", 0.0),
+                                "keywords": edge_data.get("keywords"),
+                                "description": edge_data.get("description"),
+                                "source_id": edge_data.get("source_id"),
+                                "file_path": edge_data.get("file_path"),
+                            }
+                            # Remove None values for cleaner output
+                            edge_properties = {k: v for k, v in edge_properties.items() if v is not None}
+
+                            result.edges.append(
+                                KnowledgeGraphEdge(
+                                    id=edge_id,
+                                    type="DIRECTED",
+                                    source=source_entity_id,
+                                    target=target_entity_id,
+                                    properties=edge_properties,
                                 )
+                            )
 
             return result
 
