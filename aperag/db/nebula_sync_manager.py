@@ -50,8 +50,17 @@ def _safe_error_msg(result) -> str:
 
 class NebulaSyncConnectionManager:
     """
-    Worker-level Nebula connection manager using sync driver.
-    This avoids event loop issues and provides true connection reuse across Celery tasks.
+    Nebula connection manager using sync driver with lazy loading.
+
+    This manager provides Worker/Process-level connection reuse through lazy initialization.
+    Connections are created on-demand when first used, avoiding unnecessary resource allocation.
+
+    Key features:
+    - Lazy loading: connections created only when needed
+    - Worker-level reuse: same connection pool shared across all tasks in a worker
+    - Thread-safe: uses threading.Lock for initialization
+    - Space caching: prepared spaces cached to avoid repeated setup
+    - Automatic cleanup: connections closed when process exits
     """
 
     # Class-level storage for worker-scoped connection pool
@@ -336,14 +345,13 @@ class NebulaSyncConnectionManager:
                 cls._config = None
 
 
-# Celery signal handlers for worker lifecycle
+# Legacy Celery signal handlers (now unused with lazy loading)
+# These functions are kept for backward compatibility but are no longer used
 def setup_worker_nebula(**kwargs):
-    """Initialize Nebula when worker starts."""
-    NebulaSyncConnectionManager.initialize()
-    logger.info(f"Worker {os.getpid()}: Nebula sync connection initialized")
+    """Legacy function - Nebula now uses lazy loading instead of worker signals."""
+    logger.info(f"Worker {os.getpid()}: Nebula connection will be initialized on-demand (lazy loading)")
 
 
 def cleanup_worker_nebula(**kwargs):
-    """Cleanup Nebula when worker shuts down."""
-    NebulaSyncConnectionManager.close()
-    logger.info(f"Worker {os.getpid()}: Nebula sync connection closed")
+    """Legacy function - Nebula cleanup happens automatically on process exit."""
+    logger.info(f"Worker {os.getpid()}: Nebula connections will be cleaned up automatically")

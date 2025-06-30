@@ -27,8 +27,16 @@ logger = logging.getLogger(__name__)
 
 class Neo4jSyncConnectionManager:
     """
-    Worker-level Neo4j connection manager using sync driver.
-    This avoids event loop issues and provides true connection reuse across Celery tasks.
+    Neo4j connection manager using sync driver with lazy loading.
+
+    This manager provides Worker/Process-level connection reuse through lazy initialization.
+    Connections are created on-demand when first used, avoiding unnecessary resource allocation.
+
+    Key features:
+    - Lazy loading: connections created only when needed
+    - Worker-level reuse: same connection pool shared across all tasks in a worker
+    - Thread-safe: uses threading.Lock for initialization
+    - Automatic cleanup: connections closed when process exits
     """
 
     # Class-level storage for worker-scoped driver
@@ -147,14 +155,13 @@ class Neo4jSyncConnectionManager:
                 cls._config = None
 
 
-# Celery signal handlers for worker lifecycle
+# Legacy Celery signal handlers (now unused with lazy loading)
+# These functions are kept for backward compatibility but are no longer used
 def setup_worker_neo4j(**kwargs):
-    """Initialize Neo4j when worker starts."""
-    Neo4jSyncConnectionManager.initialize()
-    logger.info(f"Worker {os.getpid()}: Neo4j sync connection initialized")
+    """Legacy function - Neo4j now uses lazy loading instead of worker signals."""
+    logger.info(f"Worker {os.getpid()}: Neo4j connection will be initialized on-demand (lazy loading)")
 
 
 def cleanup_worker_neo4j(**kwargs):
-    """Cleanup Neo4j when worker shuts down."""
-    Neo4jSyncConnectionManager.close()
-    logger.info(f"Worker {os.getpid()}: Neo4j sync connection closed")
+    """Legacy function - Neo4j cleanup happens automatically on process exit."""
+    logger.info(f"Worker {os.getpid()}: Neo4j connections will be cleaned up automatically")
