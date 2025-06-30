@@ -63,10 +63,7 @@ class PGOpsSyncKVStorage(BaseKVStorage):
             from aperag.graph.lightrag.namespace import NameSpace, is_namespace
 
             # Determine which table to query based on namespace
-            if is_namespace(self.namespace, NameSpace.KV_STORE_FULL_DOCS):
-                models = db_ops.query_lightrag_doc_full_all(self.workspace)
-                return {doc_id: {"id": doc_id, "content": model.content or ""} for doc_id, model in models.items()}
-            elif is_namespace(self.namespace, NameSpace.KV_STORE_TEXT_CHUNKS):
+            if is_namespace(self.namespace, NameSpace.KV_STORE_TEXT_CHUNKS):
                 models = db_ops.query_lightrag_doc_chunks_all(self.workspace)
                 return {
                     chunk_id: {
@@ -94,12 +91,7 @@ class PGOpsSyncKVStorage(BaseKVStorage):
             from aperag.db.ops import db_ops
             from aperag.graph.lightrag.namespace import NameSpace, is_namespace
 
-            if is_namespace(self.namespace, NameSpace.KV_STORE_FULL_DOCS):
-                model = db_ops.query_lightrag_doc_full_by_id(self.workspace, id)
-                if not model:
-                    return None
-                return {"id": model.id, "content": model.content or ""}
-            elif is_namespace(self.namespace, NameSpace.KV_STORE_TEXT_CHUNKS):
+            if is_namespace(self.namespace, NameSpace.KV_STORE_TEXT_CHUNKS):
                 model = db_ops.query_lightrag_doc_chunks_by_id(self.workspace, id)
                 if not model:
                     return None
@@ -129,10 +121,7 @@ class PGOpsSyncKVStorage(BaseKVStorage):
             from aperag.db.ops import db_ops
             from aperag.graph.lightrag.namespace import NameSpace, is_namespace
 
-            if is_namespace(self.namespace, NameSpace.KV_STORE_FULL_DOCS):
-                models = db_ops.query_lightrag_doc_full_by_ids(self.workspace, ids)
-                return [{"id": model.id, "content": model.content or ""} for model in models]
-            elif is_namespace(self.namespace, NameSpace.KV_STORE_TEXT_CHUNKS):
+            if is_namespace(self.namespace, NameSpace.KV_STORE_TEXT_CHUNKS):
                 models = db_ops.query_lightrag_doc_chunks_by_ids(self.workspace, ids)
                 return [
                     {
@@ -164,9 +153,7 @@ class PGOpsSyncKVStorage(BaseKVStorage):
             from aperag.graph.lightrag.namespace import NameSpace, is_namespace
 
             keys_list = list(keys)
-            if is_namespace(self.namespace, NameSpace.KV_STORE_FULL_DOCS):
-                existing_keys = db_ops.filter_lightrag_doc_full_keys(self.workspace, keys_list)
-            elif is_namespace(self.namespace, NameSpace.KV_STORE_TEXT_CHUNKS):
+            if is_namespace(self.namespace, NameSpace.KV_STORE_TEXT_CHUNKS):
                 existing_keys = db_ops.filter_lightrag_doc_chunks_keys(self.workspace, keys_list)
             else:
                 logger.error(f"Unknown namespace for filter_keys: {self.namespace}")
@@ -189,11 +176,7 @@ class PGOpsSyncKVStorage(BaseKVStorage):
             from aperag.db.ops import db_ops
             from aperag.graph.lightrag.namespace import NameSpace, is_namespace
 
-            if is_namespace(self.namespace, NameSpace.KV_STORE_FULL_DOCS):
-                # Transform data for doc_full format
-                doc_data = {doc_id: {"content": doc_info.get("content", "")} for doc_id, doc_info in data.items()}
-                db_ops.upsert_lightrag_doc_full(self.workspace, doc_data)
-            elif is_namespace(self.namespace, NameSpace.KV_STORE_TEXT_CHUNKS):
+            if is_namespace(self.namespace, NameSpace.KV_STORE_TEXT_CHUNKS):
                 # Use data directly for chunks
                 db_ops.upsert_lightrag_doc_chunks(self.workspace, data)
             else:
@@ -212,10 +195,7 @@ class PGOpsSyncKVStorage(BaseKVStorage):
             from aperag.db.ops import db_ops
             from aperag.graph.lightrag.namespace import NameSpace, is_namespace
 
-            if is_namespace(self.namespace, NameSpace.KV_STORE_FULL_DOCS):
-                deleted_count = db_ops.delete_lightrag_doc_full(self.workspace, ids)
-                logger.debug(f"Successfully deleted {deleted_count} records from {self.namespace}")
-            elif is_namespace(self.namespace, NameSpace.KV_STORE_TEXT_CHUNKS):
+            if is_namespace(self.namespace, NameSpace.KV_STORE_TEXT_CHUNKS):
                 deleted_count = db_ops.delete_lightrag_doc_chunks(self.workspace, ids)
                 logger.debug(f"Successfully deleted {deleted_count} records from {self.namespace}")
             else:
