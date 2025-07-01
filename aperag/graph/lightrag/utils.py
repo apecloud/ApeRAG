@@ -476,27 +476,6 @@ def clean_text(text: str) -> str:
     return text.strip().replace("\x00", "")
 
 
-def check_storage_env_vars(storage_name: str) -> None:
-    """Check if all required environment variables for storage implementation exist
-
-    Args:
-        storage_name: Storage implementation name
-
-    Raises:
-        ValueError: If required environment variables are missing
-    """
-    from aperag.graph.lightrag.kg import STORAGE_ENV_REQUIREMENTS
-
-    required_vars = STORAGE_ENV_REQUIREMENTS.get(storage_name, [])
-    missing_vars = [var for var in required_vars if var not in os.environ]
-
-    if missing_vars:
-        raise ValueError(
-            f"Storage implementation '{storage_name}' requires the following "
-            f"environment variables: {', '.join(missing_vars)}"
-        )
-
-
 class LightRAGLogger:
     """
     Unified logger for LightRAG processing progress.

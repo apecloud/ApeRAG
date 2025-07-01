@@ -427,11 +427,11 @@ async def create_provider_model_view(request: Request, provider_name: str, user:
 @router.put("/llm_providers/{provider_name}/models/{api}/{model:path}")
 @audit(resource_type="llm_provider_model", api_name="UpdateProviderModel")
 async def update_provider_model_view(
-    request: Request, 
-    provider_name: str, 
-    api: str, 
-    model: str = Path(..., description="Model name (supports names with slashes)"), 
-    user: User = Depends(current_user)
+    request: Request,
+    provider_name: str,
+    api: str,
+    model: str = Path(..., description="Model name (supports names with slashes)"),
+    user: User = Depends(current_user),
 ):
     """Update a specific model"""
     import json
@@ -447,11 +447,11 @@ async def update_provider_model_view(
 @router.delete("/llm_providers/{provider_name}/models/{api}/{model:path}")
 @audit(resource_type="llm_provider_model", api_name="DeleteProviderModel")
 async def delete_provider_model_view(
-    request: Request, 
-    provider_name: str, 
-    api: str, 
-    model: str = Path(..., description="Model name (supports names with slashes)"), 
-    user: User = Depends(current_user)
+    request: Request,
+    provider_name: str,
+    api: str,
+    model: str = Path(..., description="Model name (supports names with slashes)"),
+    user: User = Depends(current_user),
 ):
     """Delete a specific model"""
     from aperag.db.models import Role

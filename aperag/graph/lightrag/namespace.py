@@ -37,7 +37,6 @@ from typing import Iterable
 
 
 class NameSpace:
-    KV_STORE_FULL_DOCS = "full_docs"
     KV_STORE_TEXT_CHUNKS = "text_chunks"
 
     VECTOR_STORE_ENTITIES = "entities"
@@ -45,8 +44,6 @@ class NameSpace:
     VECTOR_STORE_CHUNKS = "chunks"
 
     GRAPH_STORE_CHUNK_ENTITY_RELATION = "chunk_entity_relation"
-
-    DOC_STATUS = "doc_status"
 
 
 def is_namespace(namespace: str, base_namespace: str | Iterable[str]):

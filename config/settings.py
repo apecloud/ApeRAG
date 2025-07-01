@@ -320,11 +320,6 @@ INSTALLED_APPS += ["django_prometheus"]
 
 STATIC_ROOT = BASE_DIR / "static"
 
-# feishu app used for auth
-FEISHU_APP_ID = env.str("FEISHU_APP_ID", default="")
-FEISHU_APP_SECRET = env.str("FEISHU_APP_SECRET", default="")
-FEISHU_ENCRYPT_KEY = env.str("FEISHU_ENCRYPT_KEY", default="")
-
 MAX_BOT_COUNT = env.int("MAX_BOT_COUNT", default=10)
 MAX_COLLECTION_COUNT = env.int("MAX_COLLECTION_COUNT", default=50)
 MAX_DOCUMENT_COUNT = env.int("MAX_DOCUMENT_COUNT", default=1000)

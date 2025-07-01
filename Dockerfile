@@ -1,5 +1,5 @@
 # Build stage for dependencies
-FROM python:3.11.1-slim AS builder
+FROM python:3.11.13-slim AS builder
 
 WORKDIR /app
 
@@ -17,7 +17,7 @@ RUN apt update && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache
 
 # Final stage
-FROM python:3.11.1-slim
+FROM python:3.11.13-slim
 
 # Install minimal system dependencies in one layer and clean up
 RUN apt update && \

@@ -76,12 +76,6 @@ class Config(BaseSettings):
     # Embedding
     embedding_max_chunks_in_batch: int = Field(10, alias="EMBEDDING_MAX_CHUNKS_IN_BATCH")
 
-    # Rerank
-    rerank_backend: str = Field("local", alias="RERANK_BACKEND")
-    rerank_service_url: str = Field("http://localhost:9997", alias="RERANK_SERVICE_URL")
-    rerank_service_model: str = Field("", alias="RERANK_SERVICE_MODEL")
-    rerank_service_token_api_key: str = Field("", alias="RERANK_SERVICE_TOKEN_API_KEY")
-
     # Memory backend
     memory_redis_url: str = Field("redis://127.0.0.1:6379/1", alias="MEMORY_REDIS_URL")
 
@@ -95,11 +89,6 @@ class Config(BaseSettings):
     object_store_type: str = Field("local", alias="OBJECT_STORE_TYPE")
     object_store_local_config: Optional[LocalObjectStoreConfig] = None
     object_store_s3_config: Optional[S3Config] = None
-
-    # Feishu
-    feishu_app_id: str = Field("", alias="FEISHU_APP_ID")
-    feishu_app_secret: str = Field("", alias="FEISHU_APP_SECRET")
-    feishu_encrypt_key: str = Field("", alias="FEISHU_ENCRYPT_KEY")
 
     # Limits
     max_bot_count: int = Field(10, alias="MAX_BOT_COUNT")

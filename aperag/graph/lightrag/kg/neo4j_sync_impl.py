@@ -66,11 +66,11 @@ class Neo4JSyncStorage(BaseGraphStorage):
     This avoids event loop issues while maintaining compatibility with async code.
     """
 
-    def __init__(self, namespace, workspace, embedding_func):
+    def __init__(self, namespace, workspace, embedding_func=None):
         super().__init__(
             namespace=namespace,
             workspace=workspace,
-            embedding_func=embedding_func,
+            embedding_func=None,
         )
         self._DATABASE = None
 

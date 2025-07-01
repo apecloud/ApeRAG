@@ -60,6 +60,9 @@ dependencies = [
     "sqlalchemy>=2.0.40",
     "pgvector>=0.3.6",
     "opik>=1.7.34",
+    "nebula3-python==3.8.3",
+    "psycopg>=3.2.9",
+    "psycopg-pool>=3.2.6",
 ]
 name = "aperag"
 version = "0.1.0"

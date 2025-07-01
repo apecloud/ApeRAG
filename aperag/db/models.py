@@ -26,6 +26,7 @@ from sqlalchemy import (
     DateTime,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -159,15 +160,6 @@ class APIType(str, Enum):
     COMPLETION = "completion"
     EMBEDDING = "embedding"
     RERANK = "rerank"
-
-
-class LightRAGDocStatus(str, Enum):
-    """LightRAG Document processing status"""
-
-    PENDING = "pending"
-    PROCESSING = "processing"
-    PROCESSED = "processed"
-    FAILED = "failed"
 
 
 # Models
@@ -600,38 +592,6 @@ class SearchHistory(Base):
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
 
 
-class LightRAGDocStatusModel(Base):
-    """LightRAG Document Status Storage Model"""
-
-    __tablename__ = "lightrag_doc_status"
-    __table_args__ = (UniqueConstraint("workspace", "id", name="uq_lightrag_doc_status_workspace_id"),)
-
-    workspace = Column(String(255), primary_key=True)
-    id = Column(String(255), primary_key=True)
-    content = Column(Text, nullable=True)
-    content_summary = Column(String(255), nullable=True)
-    content_length = Column(Integer, nullable=True)
-    chunks_count = Column(Integer, nullable=True)
-    status = Column(EnumColumn(LightRAGDocStatus), nullable=True)
-    file_path = Column(String(512), nullable=True)
-    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-
-
-class LightRAGDocFullModel(Base):
-    """LightRAG Document Full Storage Model"""
-
-    __tablename__ = "lightrag_doc_full"
-
-    id = Column(String(255), primary_key=True)
-    workspace = Column(String(255), primary_key=True)
-    doc_name = Column(String(1024), nullable=True)
-    content = Column(Text, nullable=True)
-    meta = Column(JSON, nullable=True)
-    create_time = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    update_time = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-
-
 class LightRAGDocChunksModel(Base):
     """LightRAG Document Chunks Storage Model"""
 
@@ -680,20 +640,6 @@ class LightRAGVDBRelationModel(Base):
     update_time = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     chunk_ids = Column(ARRAY(String), nullable=True)
     file_path = Column(Text, nullable=True)
-
-
-class LightRAGLLMCacheModel(Base):
-    """LightRAG LLM Cache Storage Model"""
-
-    __tablename__ = "lightrag_llm_cache"
-
-    workspace = Column(String(255), primary_key=True)
-    id = Column(String(255), primary_key=True)
-    mode = Column(String(32), primary_key=True)
-    original_prompt = Column(Text, nullable=True)
-    return_value = Column(Text, nullable=True)
-    create_time = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    update_time = Column(DateTime(timezone=True), nullable=True)
 
 
 class DocumentIndex(Base):
@@ -790,3 +736,72 @@ class AuditLog(Base):
 
     def __repr__(self):
         return f"<AuditLog(id={self.id}, user={self.username}, api={self.api_name}, method={self.http_method}, status={self.status_code})>"
+
+
+# Graph Database Models
+class LightRAGGraphNode(Base):
+    """LightRAG Graph Node Storage Model - unified with SQLAlchemy"""
+
+    __tablename__ = "lightrag_graph_nodes"
+    __table_args__ = (
+        UniqueConstraint("workspace", "entity_id", name="uq_lightrag_graph_nodes_workspace_entity"),
+        Index("idx_lightrag_nodes_entity_type", "workspace", "entity_type"),
+        Index("idx_lightrag_nodes_entity_name", "workspace", "entity_name"),
+        # Performance optimization indexes for batch operations
+        Index("idx_lightrag_nodes_workspace_createtime", "workspace", "createtime"),
+        Index("idx_lightrag_nodes_entity_type_createtime", "workspace", "entity_type", "createtime"),
+        # Composite index for common query patterns
+        Index("idx_lightrag_nodes_workspace_type_id", "workspace", "entity_type", "entity_id"),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    entity_id = Column(String(256), nullable=False)
+    entity_name = Column(String(255), nullable=True)
+    entity_type = Column(String(255), nullable=True)
+    description = Column(Text, nullable=True)
+    source_id = Column(Text, nullable=True)
+    file_path = Column(Text, nullable=True)
+    workspace = Column(String(255), nullable=False)
+    createtime = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updatetime = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    def __repr__(self):
+        return f"<LightRAGGraphNode(workspace={self.workspace}, entity_id={self.entity_id})>"
+
+
+class LightRAGGraphEdge(Base):
+    """LightRAG Graph Edge Storage Model - unified with SQLAlchemy"""
+
+    __tablename__ = "lightrag_graph_edges"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace", "source_entity_id", "target_entity_id", name="uq_lightrag_graph_edges_workspace_source_target"
+        ),
+        Index("idx_lightrag_edges_workspace_source", "workspace", "source_entity_id"),
+        Index("idx_lightrag_edges_workspace_target", "workspace", "target_entity_id"),
+        Index("idx_lightrag_edges_weight", "workspace", "weight"),
+        # Performance optimization indexes for batch operations and degree calculations
+        Index("idx_lightrag_edges_workspace_source_target", "workspace", "source_entity_id", "target_entity_id"),
+        Index("idx_lightrag_edges_workspace_target_source", "workspace", "target_entity_id", "source_entity_id"),
+        # Index for efficient degree calculations (covers both source and target in one index)
+        Index("idx_lightrag_edges_degree_calc", "workspace", "source_entity_id", "target_entity_id", "weight"),
+        # Index for time-based queries
+        Index("idx_lightrag_edges_workspace_createtime", "workspace", "createtime"),
+        # Covering index for edge metadata queries
+        Index("idx_lightrag_edges_metadata", "workspace", "source_entity_id", "target_entity_id", "weight", "keywords"),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    source_entity_id = Column(String(255), nullable=False)
+    target_entity_id = Column(String(255), nullable=False)
+    weight = Column(Numeric(10, 6), default=0.0, nullable=False)  # DECIMAL(10,6) for precise weight values
+    keywords = Column(Text, nullable=True)
+    description = Column(Text, nullable=True)
+    source_id = Column(Text, nullable=True)
+    file_path = Column(Text, nullable=True)
+    workspace = Column(String(255), nullable=False)
+    createtime = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updatetime = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    def __repr__(self):
+        return f"<LightRAGGraphEdge(workspace={self.workspace}, {self.source_entity_id}->{self.target_entity_id})>"

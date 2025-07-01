@@ -373,6 +373,7 @@ run-neo4j:
 		-e NEO4J_AUTH=neo4j/password \
 		-e NEO4J_PLUGINS=\[\"apoc\"\] \
 		-e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes \
+		-e NEO4J_apoc_export_file_enabled=true \
 		neo4j:5.26.5-enterprise
 	@docker start aperag-neo4j-dev
 

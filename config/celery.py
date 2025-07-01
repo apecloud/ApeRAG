@@ -12,21 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 from logging.config import dictConfig
 
 from celery import Celery
 from celery.signals import worker_process_init, worker_process_shutdown
 from aperag.config import settings
-
-# Import Neo4j sync configuration signal handlers
-try:
-    from aperag.db.neo4j_sync_manager import setup_worker_neo4j, cleanup_worker_neo4j
-    neo4j_available = True
-except ImportError:
-    setup_worker_neo4j = None
-    cleanup_worker_neo4j = None
-    neo4j_available = False
 
 # Create celery app instance
 app = Celery("aperag")
@@ -65,12 +55,6 @@ if settings.local_queue_name:
         "aperag.tasks.index.add_index_for_local_document": {"queue": f"{settings.local_queue_name}"},
     }
 
-# Connect Neo4j worker lifecycle signals using correct syntax
-if neo4j_available and setup_worker_neo4j is not None:
-    worker_process_init.connect(setup_worker_neo4j)
-
-if neo4j_available and cleanup_worker_neo4j is not None:
-    worker_process_shutdown.connect(cleanup_worker_neo4j)
 
 # Simple logging configuration for Celery workers
 CELERY_LOGGING_CONFIG = {

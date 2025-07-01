@@ -68,9 +68,9 @@ async def create_lightrag_instance(collection: Collection) -> LightRAG:
         llm_func = await _gen_llm_func(collection)
 
         # Get storage configuration from environment
-        kv_storage = os.environ.get("LIGHTRAG_KV_STORAGE")
-        vector_storage = os.environ.get("LIGHTRAG_VECTOR_STORAGE")
-        graph_storage = os.environ.get("LIGHTRAG_GRAPH_STORAGE")
+        kv_storage = os.environ.get("GRAPH_INDEX_KV_STORAGE")
+        vector_storage = os.environ.get("GRAPH_INDEX_VECTOR_STORAGE")
+        graph_storage = os.environ.get("GRAPH_INDEX_GRAPH_STORAGE")
 
         # Configure storage backends
         await _configure_storage_backends(kv_storage, vector_storage, graph_storage)

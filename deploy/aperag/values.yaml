@@ -92,6 +92,31 @@ neo4j:
   # ⚠️ Recommend to use NEO4J_CREDENTIALS_SECRET_NAME
   NEO4J_PASSWORD: ""
 
+nebula:
+  enabled: false  # Enable/disable NebulaGraph database integration (optional for graph features)
+  # Hostname for the NebulaGraph Graph service.
+  # Default: "nebula-cluster-graphd" (Kubeblocks NebulaGraph SVC name)
+  NEBULA_HOST: "nebula-cluster-graphd"
+  # Port for the NebulaGraph Graph service. Default: "9669"
+  NEBULA_PORT: "9669"
+  # The name of the Secret containing NebulaGraph username and password (e.g., "username" and "password" keys).
+  # Example: "nebula-cluster-nebula-account-root" (references your Kubeblocks credential Secret)
+  NEBULA_CREDENTIALS_SECRET_NAME: ""
+  # Username and Password Priority:
+  # 1. If NEBULA_CREDENTIALS_SECRET_NAME is set, attempts to fetch 'username' and 'password' from that Secret.
+  # 2. If NEBULA_CREDENTIALS_SECRET_NAME is empty, uses the direct values of NEBULA_USER and NEBULA_PASSWORD.
+  # 3. If direct values are also empty, defaults to "root" for user or forces a failure for password.
+  # ⚠️ Recommend to use NEBULA_CREDENTIALS_SECRET_NAME
+  NEBULA_USER: "root" # Default NebulaGraph user
+  # Password (Sensitive information, strongly recommended NOT to set directly in values.yaml):
+  # Only use this if you are NOT using NEBULA_CREDENTIALS_SECRET_NAME and accept the security implications.
+  # ⚠️ Strongly discourage directly setting sensitive passwords here. Use Secrets for production.
+  # ⚠️ Recommend to use NEBULA_CREDENTIALS_SECRET_NAME
+  NEBULA_PASSWORD: "nebula"
+  # NebulaGraph connection pool settings
+  NEBULA_MAX_CONNECTION_POOL_SIZE: "10"
+  NEBULA_TIMEOUT: "60000"
+
 api:
   dataPath: /data/aperag
   replicaCount: 1
@@ -146,9 +171,6 @@ api:
     OBJECT_STORE_S3_USE_PATH_STYLE: "True"
 
     DEBUG: "False"
-    FEISHU_APP_ID: ""
-    FEISHU_APP_SECRET: ""
-    FEISHU_ENCRYPT_KEY: ""
     MAX_BOT_COUNT: 10
     MAX_COLLECTION_COUNT: 50
     MAX_DOCUMENT_COUNT: 1000
@@ -161,9 +183,13 @@ api:
     DEFAULT_ENCODING_MODEL: cl100k_base
     TOKENIZERS_PARALLELISM: "false"
 
-    LIGHTRAG_KV_STORAGE: PGOpsSyncKVStorage
-    LIGHTRAG_VECTOR_STORAGE: PGOpsSyncVectorStorage
-    LIGHTRAG_GRAPH_STORAGE: Neo4JSyncStorage
+    GRAPH_INDEX_KV_STORAGE: PGOpsSyncKVStorage
+    GRAPH_INDEX_VECTOR_STORAGE: PGOpsSyncVectorStorage
+    GRAPH_INDEX_GRAPH_STORAGE: Neo4JSyncStorage
+
+    # Cache
+    CACHE_ENABLED: "True"
+    CACHE_TTL: "86400"
 
 
 celery-worker:

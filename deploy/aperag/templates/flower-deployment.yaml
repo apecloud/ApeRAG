@@ -134,6 +134,34 @@ spec:
               value: {{ .Values.neo4j.NEO4J_PASSWORD | default "neo4j" | quote }}
               {{- end }}
             {{- end }}
+            {{- if .Values.nebula.enabled }}
+            - name: NEBULA_HOST
+              value: {{ .Values.nebula.NEBULA_HOST | quote }}
+            - name: NEBULA_PORT
+              value: {{ .Values.nebula.NEBULA_PORT | default "9669" | quote }}
+            - name: NEBULA_USER
+              {{- if .Values.nebula.NEBULA_CREDENTIALS_SECRET_NAME }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.nebula.NEBULA_CREDENTIALS_SECRET_NAME }}
+                  key: username
+              {{- else }}
+              value: {{ .Values.nebula.NEBULA_USER | default "root" | quote }}
+              {{- end }}
+            - name: NEBULA_PASSWORD
+              {{- if .Values.nebula.NEBULA_CREDENTIALS_SECRET_NAME }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.nebula.NEBULA_CREDENTIALS_SECRET_NAME }}
+                  key: password
+              {{- else }}
+              value: {{ .Values.nebula.NEBULA_PASSWORD | default "nebula" | quote }}
+              {{- end }}
+            - name: NEBULA_MAX_CONNECTION_POOL_SIZE
+              value: {{ .Values.nebula.NEBULA_MAX_CONNECTION_POOL_SIZE | default "10" | quote }}
+            - name: NEBULA_TIMEOUT
+              value: {{ .Values.nebula.NEBULA_TIMEOUT | default "60000" | quote }}
+            {{- end }}
             - name: CELERY_FLOWER_USER
               value: {{ .Values.flower.env.CELERY_FLOWER_USER | quote }}
             - name: CELERY_FLOWER_PASSWORD

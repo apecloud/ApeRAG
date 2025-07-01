@@ -27,9 +27,9 @@ services:
       - 9559:9559
       - 19559:19559
       - 19560
-    # volumes:
-    #   - ./data/meta0:/data/meta
-    #   # - ./logs/meta0:/logs
+    volumes:
+      - ./local-storage/nebula/meta0:/data/meta
+      - ./local-storage/nebula/logs/meta0:/logs
     networks:
       - nebula-net
     restart: on-failure
@@ -66,9 +66,9 @@ services:
       - 9779:9779
       - 19779:19779
       - 19780
-    # volumes:
-    #   - ./data/storage0:/data/storage
-    #   # - ./logs/storage0:/logs
+    volumes:
+      - ./local-storage/nebula/storage0:/data/storage
+      - ./local-storage/nebula/logs/storage0:/logs
     networks:
       - nebula-net
     restart: on-failure
@@ -104,8 +104,8 @@ services:
       - 9669:9669
       - 19669:19669
       - 19670
-    # volumes:
-    #   - ./logs/graph:/logs
+    volumes:
+      - ./local-storage/nebula/logs/graph:/logs
     networks:
       - nebula-net
     restart: on-failure

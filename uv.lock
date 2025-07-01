@@ -222,6 +222,7 @@ dependencies = [
     { name = "markdown-it-py", extra = ["linkify"] },
     { name = "markitdown", extra = ["all"] },
     { name = "nano-vectordb" },
+    { name = "nebula3-python" },
     { name = "neo4j" },
     { name = "numpy" },
     { name = "openai" },
@@ -230,6 +231,8 @@ dependencies = [
     { name = "pgvector" },
     { name = "pillow" },
     { name = "pipmaster" },
+    { name = "psycopg" },
+    { name = "psycopg-pool" },
     { name = "psycopg2-binary" },
     { name = "py7zr" },
     { name = "pydantic", extra = ["email"] },
@@ -318,6 +321,7 @@ requires-dist = [
     { name = "markitdown", extras = ["all"], specifier = ">=0.1.1" },
     { name = "nano-vectordb", specifier = ">=0.0.4.3" },
     { name = "nano-vectordb", marker = "extra == 'lightrag-dev'" },
+    { name = "nebula3-python", specifier = "==3.8.3" },
     { name = "neo4j", specifier = ">=5.28.1" },
     { name = "numpy", specifier = ">=1.26.4,<2.0.0" },
     { name = "openai", specifier = ">=1.71.0,<2.0.0" },
@@ -326,6 +330,8 @@ requires-dist = [
     { name = "pgvector", specifier = ">=0.3.6" },
     { name = "pillow", specifier = ">=10.0.0,<11.0.0" },
     { name = "pipmaster", specifier = ">=0.5.4,<1.0.0" },
+    { name = "psycopg", specifier = ">=3.2.9" },
+    { name = "psycopg-pool", specifier = ">=3.2.6" },
     { name = "psycopg2-binary", specifier = ">=2.9.6,<3.0.0" },
     { name = "py7zr", specifier = ">=0.20.8,<1.0.0" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.10.3,<3.0.0" },
@@ -3378,6 +3384,22 @@ wheels = [
 ]
 
 [[package]]
+name = "nebula3-python"
+version = "3.8.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "future" },
+    { name = "httplib2" },
+    { name = "httpx", extra = ["http2"] },
+    { name = "pytz" },
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7d/5b/418091182ec585762497f087f04d6e8dcd8c5f7de416b01d6c901c1e8055/nebula3_python-3.8.3.tar.gz", hash = "sha256:da4693171079e9d5efb01a579f7fb62ef7655f6169cc2ff2cbb7b7d902e2cf3d", size = 3228870, upload-time = "2024-10-22T03:55:47.774Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e7/51/fdcc871d1b04d4e2a0293e27ae7d33fe33eea9077323401fb5016f19dcef/nebula3_python-3.8.3-py3-none-any.whl", hash = "sha256:ef583d15c012751cce05bcf8b3869881dbbc3286c6e3fa8b5c65b7c5bb808c38", size = 331255, upload-time = "2024-10-22T03:55:45.887Z" },
+]
+
+[[package]]
 name = "neo4j"
 version = "5.28.1"
 source = { registry = "https://pypi.org/simple" }
@@ -4077,6 +4099,31 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/eb/a2/709e0fe2f093556c17fbafda93ac032257242cabcc7ff3369e2cb76a97aa/psutil-7.0.0-cp36-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a5f098451abc2828f7dc6b58d44b532b22f2088f4999a937557b603ce72b1993", size = 279544, upload-time = "2025-02-13T21:54:24.68Z" },
     { url = "https://files.pythonhosted.org/packages/50/e6/eecf58810b9d12e6427369784efe814a1eec0f492084ce8eb8f4d89d6d61/psutil-7.0.0-cp37-abi3-win32.whl", hash = "sha256:ba3fcef7523064a6c9da440fc4d6bd07da93ac726b5733c29027d7dc95b39d99", size = 241053, upload-time = "2025-02-13T21:54:34.31Z" },
     { url = "https://files.pythonhosted.org/packages/50/1b/6921afe68c74868b4c9fa424dad3be35b095e16687989ebbb50ce4fceb7c/psutil-7.0.0-cp37-abi3-win_amd64.whl", hash = "sha256:4cf3d4eb1aa9b348dec30105c55cd9b7d4629285735a102beb4441e38db90553", size = 244885, upload-time = "2025-02-13T21:54:37.486Z" },
+]
+
+[[package]]
+name = "psycopg"
+version = "3.2.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/27/4a/93a6ab570a8d1a4ad171a1f4256e205ce48d828781312c0bbaff36380ecb/psycopg-3.2.9.tar.gz", hash = "sha256:2fbb46fcd17bc81f993f28c47f1ebea38d66ae97cc2dbc3cad73b37cefbff700", size = 158122, upload-time = "2025-05-13T16:11:15.533Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/44/b0/a73c195a56eb6b92e937a5ca58521a5c3346fb233345adc80fd3e2f542e2/psycopg-3.2.9-py3-none-any.whl", hash = "sha256:01a8dadccdaac2123c916208c96e06631641c0566b22005493f09663c7a8d3b6", size = 202705, upload-time = "2025-05-13T16:06:26.584Z" },
+]
+
+[[package]]
+name = "psycopg-pool"
+version = "3.2.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cf/13/1e7850bb2c69a63267c3dbf37387d3f71a00fd0e2fa55c5db14d64ba1af4/psycopg_pool-3.2.6.tar.gz", hash = "sha256:0f92a7817719517212fbfe2fd58b8c35c1850cdd2a80d36b581ba2085d9148e5", size = 29770, upload-time = "2025-02-26T12:03:47.129Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/47/fd/4feb52a55c1a4bd748f2acaed1903ab54a723c47f6d0242780f4d97104d4/psycopg_pool-3.2.6-py3-none-any.whl", hash = "sha256:5887318a9f6af906d041a0b1dc1c60f8f0dda8340c2572b74e10907b51ed5da7", size = 38252, upload-time = "2025-02-26T12:03:45.073Z" },
 ]
 
 [[package]]
