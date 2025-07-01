@@ -2,6 +2,17 @@
 
 [阅读中文文档](./README_zh.md)
 
+## Table of Contents
+
+- [Getting Started](#getting-started)
+  - [Getting Started with Kubernetes (Recommend for Production)](#getting-started-with-kubernetes)
+  - [Getting Started with Source Code](#getting-started-with-source-code)
+  - [Getting Started with Docker Compose](#getting-started-with-docker-compose)
+- [Development](./docs/development-guide.md)
+- [Build Docker Image](./docs/build-docker-image.md)
+- [Acknowledgments](#acknowledgments)
+- [License](#license)
+
 ApeRAG is a production-ready, comprehensive RAG (Retrieval-Augmented Generation) platform designed for building advanced, enterprise-grade AI applications. It empowers developers to create sophisticated **Agentic RAG** systems with a powerful, hybrid retrieval engine.
 
 Key features include:
@@ -18,17 +29,6 @@ Key features include:
     *   **LLM Model Management**: Easily configure and switch between various Large Language Models.
     *   **Graph Visualization**: Visually explore and understand the knowledge graph.
     *   **Comprehensive Document Management**: A user-friendly interface to manage document collections, track processing status, and inspect content.
-
-## Table of Contents
-
-- [Getting Started](#getting-started)
-  - [Getting Started with Kubernetes (Recommend for Production)](#getting-started-with-kubernetes)
-  - [Getting Started with Source Code](#getting-started-with-source-code)
-  - [Getting Started with Docker Compose](#getting-started-with-docker-compose)
-- [Development](./docs/development-guide.md)
-- [Build Docker Image](./docs/build-docker-image.md)
-- [Acknowledgments](#acknowledgments)
-- [License](#license)
 
 ## Getting Started
 
