@@ -16,8 +16,8 @@ ApeRAG is a comprehensive RAG (Retrieval-Augmented Generation) platform designed
   - [Getting Started with Kubernetes](#getting-started-with-kubernetes)
   - [Getting Started with Source Code](#getting-started-with-source-code)
   - [Getting Started with Docker Compose](#getting-started-with-docker-compose)
-- [Development](./DEVELOPMENT.md)
-- [Build Docker Image](./BUILD.md)
+- [Development](./docs/development-guide.md)
+- [Build Docker Image](./docs/build-docker-image.md)
 - [Acknowledgments](#acknowledgments)
 - [License](#license)
 
@@ -184,7 +184,7 @@ With the backend (and optionally frontend) services running:
 
 Now you have ApeRAG running locally from the source code, ready for development or testing!
 
-For detailed development workflows, see the [Development Guide](./DEVELOPMENT.md).
+For detailed development workflows, see the [Development Guide](./docs/DEVELOPMENT.md).
 
 ### Getting Started with Docker Compose
 

@@ -52,7 +52,7 @@ Contributing to ApeRAG involves the following typical workflow. Before starting 
     *   Fork the official ApeRAG repository to your GitHub account.
     *   Create a new branch from `main` for your feature or bug fix. Use a descriptive branch name (e.g., `feat/add-new-parser` or `fix/login-bug`).
 
-2.  **Environment Setup**: Ensure your development environment is set up as described in [Development Environment](#development-environment) and [Getting Started with Source Code](./README.md#getting-started-with-source-code) (dependencies installed, databases running/accessible).
+2.  **Environment Setup**: Ensure your development environment is set up as described in [Development Environment](#development-environment) and [Getting Started with Source Code](../README.md#getting-started-with-source-code) (dependencies installed, databases running/accessible).
 
 3.  **Code Implementation**:
     *   Make your code changes in the backend (`aperag/`) or frontend (`frontend/src/`) directories.

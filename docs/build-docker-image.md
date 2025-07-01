@@ -39,7 +39,7 @@ The project uses Docker and `make` commands to build container images.
 ## Deployment
 
 Refer to the "Getting Started" section in the main README for common deployment methods:
-*   [Getting Started with Kubernetes](./README.md#getting-started-with-kubernetes)
-*   [Getting Started with Docker Compose](./README.md#getting-started-with-docker-compose)
+*   [Getting Started with Kubernetes](../README.md#getting-started-with-kubernetes)
+*   [Getting Started with Docker Compose](../README.md#getting-started-with-docker-compose)
 
 For custom deployments, you will need to adapt these methods or use the built container images with your chosen orchestration platform. Ensure all required services (databases, backend, frontend, Celery workers) are correctly configured and can communicate with each other. 
