@@ -377,3 +377,120 @@ search_detail:
           application/json:
             schema:
               $ref: '../components/schemas/common.yaml#/failResponse'
+
+graph_labels:
+  get:
+    summary: Get knowledge graph labels
+    description: Get all available node labels in the collection's knowledge graph
+    tags:
+      - graph
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Collection ID
+    responses:
+      '200':
+        description: Available graph labels retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/graph.yaml#/graphLabelsResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Collection not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
+graph:
+  get:
+    summary: Get knowledge graph
+    description: |
+      Retrieve knowledge graph data. Two modes are supported:
+      1. Overview mode (default): Uses the entire graph ("*") and intelligently selects the most important nodes
+      2. Subgraph mode: When 'label' is provided, returns a subgraph centered on that node
+      
+      Node selection prioritization:
+      1. For overview: nodes with highest degree (most connections), automatically removing isolated nodes
+      2. For subgraph: nodes within specified hops from the starting node
+      
+      The overview mode is optimized for visualization performance by prioritizing well-connected nodes.
+    tags:
+      - graph
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Collection ID
+      - name: label
+        in: query
+        required: false
+        schema:
+          type: string
+        description: |
+          Optional. If provided, returns a subgraph centered on this node.
+          If not provided, returns an overview of the most important nodes in the entire graph.
+        example: "墨香居"
+      - name: max_nodes
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 10
+          maximum: 1000
+          default: 200
+        description: Maximum number of nodes to return
+        example: 200
+      - name: max_depth
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 5
+          default: 2
+        description: |
+          Maximum depth when in subgraph mode (when 'label' is provided).
+          Ignored in overview mode.
+        example: 2
+
+    responses:
+      '200':
+        description: Knowledge graph retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/graph.yaml#/knowledgeGraph'
+      '400':
+        description: Bad request - invalid parameters
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Collection not found or label not found in graph
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
