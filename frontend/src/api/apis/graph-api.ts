@@ -37,9 +37,9 @@ export const GraphApiAxiosParamCreator = function (configuration?: Configuration
          * Retrieve knowledge graph data. Two modes are supported: 1. Overview mode (default): Uses the entire graph (\"*\") and intelligently selects the most important nodes 2. Subgraph mode: When \'label\' is provided, returns a subgraph centered on that node  Node selection prioritization: 1. For overview: nodes with highest degree (most connections), automatically removing isolated nodes 2. For subgraph: nodes within specified hops from the starting node  The overview mode is optimized for visualization performance by prioritizing well-connected nodes. 
          * @summary Get knowledge graph
          * @param {string} collectionId Collection ID
-         * @param {string} [label] Optional. If provided, returns a subgraph centered on this node. If not provided, returns an overview of the most important nodes in the entire graph. 
+         * @param {string} [label] Label of the starting node for subgraph exploration. Use \&quot;*\&quot; (default) for overview mode showing the most important nodes in the entire graph. Provide a specific entity name for subgraph mode. 
          * @param {number} [maxNodes] Maximum number of nodes to return
-         * @param {number} [maxDepth] Maximum depth when in subgraph mode (when \&#39;label\&#39; is provided). Ignored in overview mode. 
+         * @param {number} [maxDepth] Maximum depth when in subgraph mode (when specific label is provided). Ignored in overview mode (when label is \&quot;*\&quot;). 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
@@ -138,9 +138,9 @@ export const GraphApiFp = function(configuration?: Configuration) {
          * Retrieve knowledge graph data. Two modes are supported: 1. Overview mode (default): Uses the entire graph (\"*\") and intelligently selects the most important nodes 2. Subgraph mode: When \'label\' is provided, returns a subgraph centered on that node  Node selection prioritization: 1. For overview: nodes with highest degree (most connections), automatically removing isolated nodes 2. For subgraph: nodes within specified hops from the starting node  The overview mode is optimized for visualization performance by prioritizing well-connected nodes. 
          * @summary Get knowledge graph
          * @param {string} collectionId Collection ID
-         * @param {string} [label] Optional. If provided, returns a subgraph centered on this node. If not provided, returns an overview of the most important nodes in the entire graph. 
+         * @param {string} [label] Label of the starting node for subgraph exploration. Use \&quot;*\&quot; (default) for overview mode showing the most important nodes in the entire graph. Provide a specific entity name for subgraph mode. 
          * @param {number} [maxNodes] Maximum number of nodes to return
-         * @param {number} [maxDepth] Maximum depth when in subgraph mode (when \&#39;label\&#39; is provided). Ignored in overview mode. 
+         * @param {number} [maxDepth] Maximum depth when in subgraph mode (when specific label is provided). Ignored in overview mode (when label is \&quot;*\&quot;). 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
@@ -238,7 +238,7 @@ export interface GraphApiCollectionsCollectionIdGraphsGetRequest {
     readonly collectionId: string
 
     /**
-     * Optional. If provided, returns a subgraph centered on this node. If not provided, returns an overview of the most important nodes in the entire graph. 
+     * Label of the starting node for subgraph exploration. Use \&quot;*\&quot; (default) for overview mode showing the most important nodes in the entire graph. Provide a specific entity name for subgraph mode. 
      * @type {string}
      * @memberof GraphApiCollectionsCollectionIdGraphsGet
      */
@@ -252,7 +252,7 @@ export interface GraphApiCollectionsCollectionIdGraphsGetRequest {
     readonly maxNodes?: number
 
     /**
-     * Maximum depth when in subgraph mode (when \&#39;label\&#39; is provided). Ignored in overview mode. 
+     * Maximum depth when in subgraph mode (when specific label is provided). Ignored in overview mode (when label is \&quot;*\&quot;). 
      * @type {number}
      * @memberof GraphApiCollectionsCollectionIdGraphsGet
      */

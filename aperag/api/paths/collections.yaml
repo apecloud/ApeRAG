@@ -442,32 +442,34 @@ graph:
         required: false
         schema:
           type: string
+          default: "*"
         description: |
-          Optional. If provided, returns a subgraph centered on this node.
-          If not provided, returns an overview of the most important nodes in the entire graph.
+          Label of the starting node for subgraph exploration.
+          Use "*" (default) for overview mode showing the most important nodes in the entire graph.
+          Provide a specific entity name for subgraph mode.
         example: "墨香居"
       - name: max_nodes
         in: query
         required: false
         schema:
           type: integer
-          minimum: 10
-          maximum: 1000
-          default: 200
+          minimum: 1
+          maximum: 10000
+          default: 1000
         description: Maximum number of nodes to return
-        example: 200
+        example: 1000
       - name: max_depth
         in: query
         required: false
         schema:
           type: integer
           minimum: 1
-          maximum: 5
-          default: 2
+          maximum: 10
+          default: 3
         description: |
-          Maximum depth when in subgraph mode (when 'label' is provided).
-          Ignored in overview mode.
-        example: 2
+          Maximum depth when in subgraph mode (when specific label is provided).
+          Ignored in overview mode (when label is "*").
+        example: 3
 
     responses:
       '200':
