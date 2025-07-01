@@ -68,8 +68,8 @@ class GraphService:
         self,
         user_id: str,
         collection_id: str,
-        max_nodes: int = 200,
-        max_depth: int = 2,
+        max_nodes: int = 1000,
+        max_depth: int = 3,
     ) -> Dict[str, Any]:
         """
         Get knowledge graph overview using the entire graph ("*") and optimizing node selection
@@ -98,8 +98,8 @@ class GraphService:
             # Set max_nodes higher to get more data for optimization
             kg = await rag.get_knowledge_graph(
                 node_label="*",
-                max_depth=1,  # Depth is not relevant for "*" mode
-                max_nodes=max_nodes * 3,  # Get more nodes than needed for optimization
+                max_depth=max_depth,  # Depth is not relevant for "*" mode
+                max_nodes=max_nodes * 2,  # Get more nodes than needed for optimization
             )
 
             # Clean up
