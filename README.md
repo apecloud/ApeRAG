@@ -2,6 +2,8 @@
 
 [阅读中文文档](./README_zh.md)
 
+![collection-page.png](docs%2Fimages%2Fcollection-page.png)
+
 ## Table of Contents
 
 - [Getting Started](#getting-started)
@@ -29,8 +31,6 @@ Key features include:
     *   **LLM Model Management**: Easily configure and switch between various Large Language Models.
     *   **Graph Visualization**: Visually explore and understand the knowledge graph.
     *   **Comprehensive Document Management**: A user-friendly interface to manage document collections, track processing status, and inspect content.
-
-![collection-page.png](docs%2Fimages%2Fcollection-page.png)
 
 ## Getting Started
 
