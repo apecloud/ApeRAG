@@ -2,18 +2,27 @@
 
 [阅读中文文档](./README_zh.md)
 
-ApeRAG is a comprehensive RAG (Retrieval-Augmented Generation) platform designed for building advanced, enterprise-grade AI applications. It integrates **[LightRAG](https://github.com/HKUDS/LightRAG)** to enhance its capabilities, notably enabling powerful **graph-based query and knowledge retrieval**. Key features include:
+ApeRAG is a production-ready, comprehensive RAG (Retrieval-Augmented Generation) platform designed for building advanced, enterprise-grade AI applications. It empowers developers to create sophisticated **Agentic RAG** systems with a powerful, hybrid retrieval engine.
 
-*   **Versatile Document Processing**: Efficiently parses various document types.
-*   **Flexible Data Management**: Utilizes FastAPI backend with Celery for asynchronous tasks, supporting databases like PostgreSQL, Qdrant, Neo4j, and Elasticsearch.
-*   **Dynamic Frontend**: Modern user interface built with React and TypeScript (UmiJS).
-*   **Advanced RAG Pipelines**: Supports embedding generation, hybrid search (vector, keyword, and graph), and sophisticated workflow automation for complex RAG scenarios.
-*   **LLM Integration**: Seamlessly connects with Large Language Models.
+Key features include:
+
+*   **Advanced Hybrid Retrieval**: Go beyond simple vector search. ApeRAG integrates three powerful indexing strategies:
+    *   **Vector Index**: For semantic similarity search.
+    *   **Full-Text Index**: For precise keyword-based retrieval.
+    *   **Graph Knowledge Index**: Powered by an integrated and enhanced version of **[LightRAG](https://github.com/HKUDS/LightRAG)**, enabling deep relational and contextual queries.
+
+*   **Multimodal Document Processing**: Ingest and understand a wide array of document formats, extracting not just text but also tables, images, and complex structures from files like PDFs and DOCX.
+
+*   **Enterprise-Grade Management**: ApeRAG is built for production environments with a suite of essential features:
+    *   **Audit Logging**: Track all critical system and user activities.
+    *   **LLM Model Management**: Easily configure and switch between various Large Language Models.
+    *   **Graph Visualization**: Visually explore and understand the knowledge graph.
+    *   **Comprehensive Document Management**: A user-friendly interface to manage document collections, track processing status, and inspect content.
 
 ## Table of Contents
 
 - [Getting Started](#getting-started)
-  - [Getting Started with Kubernetes](#getting-started-with-kubernetes)
+  - [Getting Started with Kubernetes (Recommend for Production)](#getting-started-with-kubernetes)
   - [Getting Started with Source Code](#getting-started-with-source-code)
   - [Getting Started with Docker Compose](#getting-started-with-docker-compose)
 - [Development](./docs/development-guide.md)
