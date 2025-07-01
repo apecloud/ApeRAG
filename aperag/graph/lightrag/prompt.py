@@ -44,7 +44,16 @@ PROMPTS["DEFAULT_TUPLE_DELIMITER"] = "<|>"
 PROMPTS["DEFAULT_RECORD_DELIMITER"] = "##"
 PROMPTS["DEFAULT_COMPLETION_DELIMITER"] = "<|COMPLETE|>"
 
-PROMPTS["DEFAULT_ENTITY_TYPES"] = ["organization", "person", "geo", "event", "category"]
+PROMPTS["DEFAULT_ENTITY_TYPES"] = [
+    "organization",
+    "person",
+    "geo",
+    "event",
+    "product",
+    "technology",
+    "date",
+    "category",
+]
 
 PROMPTS["DEFAULT_USER_PROMPT"] = "n/a"
 
