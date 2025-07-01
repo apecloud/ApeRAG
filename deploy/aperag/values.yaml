@@ -1,6 +1,6 @@
 image:
   repository: "docker.io/apecloud/aperag"  # Full image name including registry
-  tag: "v0.5.0-alpha.24"
+  tag: "v0.5.0-alpha.28"
   pullPolicy: IfNotPresent
 
 nameOverride: ""
@@ -254,7 +254,7 @@ frontend:
   replicaCount: 1
   image:
     repository: "docker.io/apecloud/aperag-frontend"  # Full image name including registry
-    tag: "v0.5.0-alpha.24"
+    tag: "v0.5.0-alpha.28"
     pullPolicy: IfNotPresent
   resources: {}
     # We usually recommend not to specify default resources and to leave this as a conscious

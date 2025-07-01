@@ -40,6 +40,7 @@ DEFAULT_OUTPUT_TOKENS = 1000
 # Fallback max context length if model context_window is not available
 FALLBACK_MAX_CONTEXT_LENGTH = 50000
 
+
 class Message(BaseModel):
     id: str
     query: Optional[str] = None
@@ -102,28 +103,26 @@ async def calculate_model_token_limits(
 ) -> Tuple[int, int]:
     """
     Calculate input and output token limits based on three constraints:
-    
+
     1. Reserve at least 4096 tokens for output (or model's max_output_tokens if smaller)
     2. Input (query+context) should not exceed model's input limit (min of context_window, max_input_tokens)
     3. Total (input + output) should not exceed context_window
-    
+
     Args:
         model_service_provider: Model service provider name
         model_name: Model name
-    
+
     Returns:
         Tuple of (max_input_tokens, final_output_tokens)
     """
     # Get model configuration to determine token limits
     try:
         model_config = await async_db_ops.query_llm_provider_model(
-            provider_name=model_service_provider,
-            api=APIType.COMPLETION.value,
-            model=model_name
+            provider_name=model_service_provider, api=APIType.COMPLETION.value, model=model_name
         )
         if model_config:
             context_window = model_config.context_window
-            max_input_tokens = model_config.max_input_tokens  
+            max_input_tokens = model_config.max_input_tokens
             max_output_tokens = model_config.max_output_tokens
         else:
             context_window = None
@@ -136,29 +135,29 @@ async def calculate_model_token_limits(
 
     # Constraint 1: Determine output token reservation
     reserved_output_tokens = min(max_output_tokens or DEFAULT_OUTPUT_TOKENS, DEFAULT_OUTPUT_TOKENS)
-    
+
     # Constraint 2: Determine maximum input tokens allowed
     input_limits = []
     if max_input_tokens:
         input_limits.append(max_input_tokens)
     if context_window:
         input_limits.append(context_window)
-    
+
     if input_limits:
         max_allowed_input = min(input_limits)
     else:
         # Fallback if no limits available
         max_allowed_input = FALLBACK_MAX_CONTEXT_LENGTH // int(TOKEN_TO_CHAR_RATIO)
-    
+
     # Constraint 3: Ensure total doesn't exceed context_window
     if context_window:
         # Make sure input + output <= context_window
         max_allowed_input = min(max_allowed_input, context_window - reserved_output_tokens)
-    
+
     # Ensure we have at least some minimal input space
     if max_allowed_input <= 0:
         max_allowed_input = 100  # Minimal fallback
-    
+
     return max_allowed_input, reserved_output_tokens
 
 
@@ -227,7 +226,7 @@ class LLMService:
                 f"Prompt requires {len(prompt)} characters, which exceeds the calculated "
                 f"input limit of {max_input_chars} characters"
             )
-        
+
         cs = CompletionService(custom_llm_provider, model_name, base_url, api_key, temperature, max_output_tokens)
 
         async def async_generator():

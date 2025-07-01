@@ -474,7 +474,7 @@ class LLMProviderModel(Base):
     model = Column(String(256), primary_key=True)  # Model name/identifier
     custom_llm_provider = Column(String(128), nullable=False)  # Custom LLM provider implementation
     context_window = Column(Integer, nullable=True)  # Context window size (total tokens)
-    max_input_tokens = Column(Integer, nullable=True)  # Maximum input tokens 
+    max_input_tokens = Column(Integer, nullable=True)  # Maximum input tokens
     max_output_tokens = Column(Integer, nullable=True)  # Maximum output tokens
     tags = Column(JSON, default=lambda: [], nullable=True)  # Tags for model categorization
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)

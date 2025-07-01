@@ -210,10 +210,13 @@ def create_and_configure_bot(
 ) -> Dict[str, Any]:
     """Create and configure a bot with the given parameters"""
     from tests.e2e_test.config import (
-        COMPLETION_MODEL_PROVIDER, COMPLETION_MODEL_NAME, COMPLETION_MODEL_CUSTOM_PROVIDER,
-        RERANK_MODEL_PROVIDER, RERANK_MODEL_NAME
+        COMPLETION_MODEL_CUSTOM_PROVIDER,
+        COMPLETION_MODEL_NAME,
+        COMPLETION_MODEL_PROVIDER,
+        RERANK_MODEL_NAME,
+        RERANK_MODEL_PROVIDER,
     )
-    
+
     config = create_bot_config(bot_type=bot_type)
 
     create_data = {

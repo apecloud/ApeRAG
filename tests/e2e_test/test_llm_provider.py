@@ -64,7 +64,7 @@ class TestLLMProvider:
             "model": test_model_name,
             "custom_llm_provider": "openai",
             "context_window": 4096,
-            "tags": ["test"]
+            "tags": ["test"],
         }
 
         create_resp = client.post("/api/v1/llm_providers/siliconflow/models", json=model_data)
@@ -77,11 +77,8 @@ class TestLLMProvider:
 
         # Test updating the model with slash in name - this is the main functionality we're testing
         encoded_model = urllib.parse.quote(test_model_name, safe="")
-        update_data = {
-            "context_window": 8192,
-            "tags": ["test", "updated"]
-        }
-        
+        update_data = {"context_window": 8192, "tags": ["test", "updated"]}
+
         # This should work now with the :path fix
         resp = client.put(f"/api/v1/llm_providers/siliconflow/models/completion/{encoded_model}", json=update_data)
         assert resp.status_code == HTTPStatus.OK, f"Failed to update model with slash: {resp.text}"
@@ -107,7 +104,7 @@ class TestLLMProvider:
             "model": complex_model_name,
             "custom_llm_provider": "openai",
             "context_window": 2048,
-            "tags": ["test", "complex"]
+            "tags": ["test", "complex"],
         }
 
         resp = client.post("/api/v1/llm_providers/siliconflow/models", json=model_data)
@@ -121,7 +118,7 @@ class TestLLMProvider:
         # Test updating the complex model
         encoded_model = urllib.parse.quote(complex_model_name, safe="")
         update_data = {"context_window": 4096}
-        
+
         update_resp = client.put(
             f"/api/v1/llm_providers/siliconflow/models/completion/{encoded_model}", json=update_data
         )
@@ -130,7 +127,7 @@ class TestLLMProvider:
         updated_model = update_resp.json()
         assert updated_model["model"] == complex_model_name
         assert updated_model["context_window"] == 4096
-        
+
         # Cleanup
         delete_resp = client.delete(f"/api/v1/llm_providers/siliconflow/models/completion/{encoded_model}")
         assert delete_resp.status_code == HTTPStatus.OK, f"Failed to delete complex model: {delete_resp.text}"
@@ -139,13 +136,10 @@ class TestLLMProvider:
         """Test that nonexistent models with slashes return proper 404"""
         nonexistent_model = "nonexistent/model"
         encoded_model = urllib.parse.quote(nonexistent_model, safe="")
-        
+
         update_data = {"context_window": 1000}
-        resp = client.put(
-            f"/api/v1/llm_providers/siliconflow/models/completion/{encoded_model}",
-            json=update_data
-        )
-        
+        resp = client.put(f"/api/v1/llm_providers/siliconflow/models/completion/{encoded_model}", json=update_data)
+
         assert resp.status_code == HTTPStatus.NOT_FOUND, f"Expected 404 for nonexistent model, got: {resp.status_code}"
         error_data = resp.json()
         assert "not found" in error_data.get("message", "").lower()
@@ -172,11 +166,8 @@ class TestLLMProvider:
 
         # Prepare update data
         new_context_window = 8192 if original_context_window != 8192 else 4096
-        update_data = {
-            "context_window": new_context_window,
-            "tags": original_tags + ["e2e-test"]
-        }
-        
+        update_data = {"context_window": new_context_window, "tags": original_tags + ["e2e-test"]}
+
         # Test updating the model - this was the original failing case
         encoded_model = urllib.parse.quote("Qwen/Qwen3-8B", safe="")
         resp = client.put(f"/api/v1/llm_providers/siliconflow/models/completion/{encoded_model}", json=update_data)
@@ -188,10 +179,7 @@ class TestLLMProvider:
         assert "e2e-test" in updated_model["tags"]
 
         # Restore original values
-        restore_data = {
-            "context_window": original_context_window,
-            "tags": original_tags
-        }
+        restore_data = {"context_window": original_context_window, "tags": original_tags}
         restore_resp = client.put(
             f"/api/v1/llm_providers/siliconflow/models/completion/{encoded_model}", json=restore_data
         )

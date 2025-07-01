@@ -354,23 +354,22 @@ async def list_llm_provider_models(provider_name: Optional[str] = None, user_id:
     # Format models data
     models_data = []
     for model in models:
-        models_data.append({
-            "provider_name": model.provider_name,
-            "api": model.api,
-            "model": model.model,
-            "custom_llm_provider": model.custom_llm_provider,
-            "context_window": model.context_window,
-            "max_input_tokens": model.max_input_tokens,
-            "max_output_tokens": model.max_output_tokens,
-            "tags": model.tags or [],
-            "created": model.gmt_created,
-            "updated": model.gmt_updated,
-        })
-    
-    return {
-        "items": models_data,
-        "pageResult": None
-    }
+        models_data.append(
+            {
+                "provider_name": model.provider_name,
+                "api": model.api,
+                "model": model.model,
+                "custom_llm_provider": model.custom_llm_provider,
+                "context_window": model.context_window,
+                "max_input_tokens": model.max_input_tokens,
+                "max_output_tokens": model.max_output_tokens,
+                "tags": model.tags or [],
+                "created": model.gmt_created,
+                "updated": model.gmt_updated,
+            }
+        )
+
+    return {"items": models_data, "pageResult": None}
 
 
 async def create_llm_provider_model(provider_name: str, model_data: dict, user_id: str, is_admin: bool = False):
