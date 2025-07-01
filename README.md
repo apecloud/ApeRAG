@@ -30,6 +30,8 @@ Key features include:
     *   **Graph Visualization**: Visually explore and understand the knowledge graph.
     *   **Comprehensive Document Management**: A user-friendly interface to manage document collections, track processing status, and inspect content.
 
+![collection-page.png](docs%2Fimages%2Fcollection-page.png)
+
 ## Getting Started
 
 This section will guide you through setting up ApeRAG using different methods.
