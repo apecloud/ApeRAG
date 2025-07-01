@@ -71,7 +71,7 @@ run-frontend:
 
 run-db:
 	@echo "Starting all database services..."
-	@$(MAKE) run-redis run-postgres run-qdrant run-es run-minio run-neo4j
+	@$(MAKE) run-redis run-postgres run-qdrant run-es run-minio
 
 # Docker Compose deployment
 
