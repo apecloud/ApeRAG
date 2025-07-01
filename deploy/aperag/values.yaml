@@ -17,7 +17,7 @@ ingress:
 
 postgres:
   enabled: true  # Enable/disable PostgreSQL database integration
-  POSTGRES_HOST: "pg-cluster-postgresql-postgresql"
+  POSTGRES_HOST: "pg-cluster-postgresql-headless"
   POSTGRES_PORT: "5432"
   POSTGRES_DB: "postgres"
   # The name of the Secret containing PostgreSQL username and password (e.g., "username" and "password" keys).
@@ -171,6 +171,7 @@ api:
     OBJECT_STORE_S3_USE_PATH_STYLE: "True"
 
     DEBUG: "False"
+    DOCRAY_HOST: http://aperag-docray:8639
     MAX_BOT_COUNT: 10
     MAX_COLLECTION_COUNT: 50
     MAX_DOCUMENT_COUNT: 1000
