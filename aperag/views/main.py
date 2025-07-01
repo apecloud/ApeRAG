@@ -354,25 +354,21 @@ async def get_graph_labels_view(
 async def get_knowledge_graph_view(
     request: Request,
     collection_id: str,
-    label: str = None,
-    max_nodes: int = 200,
-    max_depth: int = 2,
+    label: str = "*",
+    max_nodes: int = 1000,
+    max_depth: int = 3,
     user: User = Depends(current_user),
 ):
     """Get knowledge graph - overview mode or subgraph mode"""
     try:
         # Validate parameters
-        if max_nodes < 10 or max_nodes > 1000:
-            raise HTTPException(status_code=400, detail="max_nodes must be between 10 and 1000")
-        if max_depth < 1 or max_depth > 5:
-            raise HTTPException(status_code=400, detail="max_depth must be between 1 and 5")
+        if max_nodes < 1 or max_nodes > 10000:
+            raise HTTPException(status_code=400, detail="max_nodes must be between 1 and 10000")
+        if max_depth < 1 or max_depth > 10:
+            raise HTTPException(status_code=400, detail="max_depth must be between 1 and 10")
 
-        if label:
-            # Subgraph mode: return subgraph centered on the specified label
-            return await graph_service.get_knowledge_graph(str(user.id), collection_id, label, max_depth, max_nodes)
-        else:
-            # Overview mode: intelligently select a starting node and return subgraph
-            return await graph_service.get_knowledge_graph_overview(str(user.id), collection_id, max_nodes, max_depth)
+        # Single method handles both modes based on label parameter
+        return await graph_service.get_knowledge_graph(str(user.id), collection_id, label, max_depth, max_nodes)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

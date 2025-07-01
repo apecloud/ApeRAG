@@ -15,11 +15,9 @@
 import logging
 from typing import Any, Dict
 
-from aperag.db.ops import async_db_ops
 from aperag.exceptions import CollectionNotFoundException
 from aperag.graph import lightrag_manager
 from aperag.schema import view_models
-from aperag.schema.utils import parseCollectionConfig
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +26,10 @@ class GraphService:
     """Service for handling knowledge graph operations"""
 
     def __init__(self):
-        self.db_ops = async_db_ops
+        # Import here to avoid circular imports
+        from aperag.service.collection_service import collection_service
+
+        self.collection_service = collection_service
 
     async def get_graph_labels(self, user_id: str, collection_id: str) -> view_models.GraphLabelsResponse:
         """
@@ -62,71 +63,6 @@ class GraphService:
 
         except Exception as e:
             logger.error(f"Failed to get graph labels for collection {collection_id}: {str(e)}")
-            raise
-
-    async def get_knowledge_graph_overview(
-        self,
-        user_id: str,
-        collection_id: str,
-        max_nodes: int = 1000,
-        max_depth: int = 3,
-    ) -> Dict[str, Any]:
-        """
-        Get knowledge graph overview using the entire graph ("*") and optimizing node selection
-
-        Args:
-            user_id: User ID
-            collection_id: Collection ID
-            max_nodes: Maximum number of nodes to return (default: 200)
-            max_depth: Maximum depth to explore (default: 2) - ignored for overview mode
-
-        Returns:
-            Dict containing knowledge graph data with nodes and edges
-
-        Raises:
-            CollectionNotFoundException: If collection is not found
-            ValueError: If knowledge graph is not enabled for the collection
-        """
-        # Get and validate collection
-        collection = await self._get_and_validate_collection(user_id, collection_id)
-
-        try:
-            # Create LightRAG instance
-            rag = await lightrag_manager.create_lightrag_instance(collection)
-
-            # Get entire knowledge graph using "*"
-            # Set max_nodes higher to get more data for optimization
-            kg = await rag.get_knowledge_graph(
-                node_label="*",
-                max_depth=max_depth,  # Depth is not relevant for "*" mode
-                max_nodes=max_nodes * 2,  # Get more nodes than needed for optimization
-            )
-
-            # Clean up
-            await rag.finalize_storages()
-
-            # Optimize nodes selection if we have too many
-            if len(kg.nodes) > max_nodes:
-                optimized_nodes, optimized_edges = self._optimize_graph_for_visualization(kg.nodes, kg.edges, max_nodes)
-                is_truncated = True
-            else:
-                optimized_nodes = kg.nodes
-                optimized_edges = kg.edges
-                is_truncated = kg.is_truncated if hasattr(kg, "is_truncated") else False
-
-            # Convert to dict format expected by frontend
-            result = self._convert_graph_to_dict(optimized_nodes, optimized_edges, is_truncated=is_truncated)
-
-            logger.info(
-                f"Retrieved knowledge graph overview for collection {collection_id} (full graph): "
-                f"{len(result['nodes'])} nodes, {len(result['edges'])} edges "
-                f"(truncated: {is_truncated})"
-            )
-
-            return result
-
-        except Exception as e:
-            logger.error(f"Failed to get knowledge graph overview for collection {collection_id}: {str(e)}")
             raise
 
     def _optimize_graph_for_visualization(self, nodes, edges, max_nodes):
@@ -193,19 +129,19 @@ class GraphService:
         self,
         user_id: str,
         collection_id: str,
-        label: str,
-        max_depth: int = 2,
-        max_nodes: int = 200,
+        label: str = None,
+        max_depth: int = 3,
+        max_nodes: int = 1000,
     ) -> Dict[str, Any]:
         """
-        Get knowledge graph for a given label (subgraph mode)
+        Get knowledge graph - supports both overview and subgraph modes
 
         Args:
             user_id: User ID
             collection_id: Collection ID
-            label: Label of the starting node
-            max_depth: Maximum depth of the subgraph (default: 2)
-            max_nodes: Maximum number of nodes to return (default: 200)
+            label: Label of the starting node. If None/empty, uses overview mode ("*")
+            max_depth: Maximum depth of the subgraph (default: 3)
+            max_nodes: Maximum number of nodes to return (default: 1000)
 
         Returns:
             Dict containing knowledge graph data with nodes and edges
@@ -221,30 +157,53 @@ class GraphService:
             # Create LightRAG instance
             rag = await lightrag_manager.create_lightrag_instance(collection)
 
+            # Determine mode based on label parameter
+            if not label or label == "*":
+                # Overview mode: use "*" to get entire graph
+                node_label = "*"
+                # Get more nodes for optimization in overview mode
+                query_max_nodes = max_nodes * 2
+                mode_description = "overview (full graph)"
+            else:
+                # Subgraph mode: use specific label
+                node_label = label
+                query_max_nodes = max_nodes
+                mode_description = f"subgraph from '{label}'"
+
             # Get knowledge graph
             kg = await rag.get_knowledge_graph(
-                node_label=label,
+                node_label=node_label,
                 max_depth=max_depth,
-                max_nodes=max_nodes,
+                max_nodes=query_max_nodes,
             )
 
             # Clean up
             await rag.finalize_storages()
 
+            # Optimize node selection for overview mode if needed
+            if (not label or label == "*") and len(kg.nodes) > max_nodes:
+                optimized_nodes, optimized_edges = self._optimize_graph_for_visualization(kg.nodes, kg.edges, max_nodes)
+                is_truncated = True
+            else:
+                optimized_nodes = kg.nodes
+                optimized_edges = kg.edges
+                is_truncated = kg.is_truncated if hasattr(kg, "is_truncated") else False
+
             # Convert to dict format expected by frontend
-            result = self._convert_graph_to_dict(
-                kg.nodes, kg.edges, is_truncated=kg.is_truncated if hasattr(kg, "is_truncated") else False
-            )
+            result = self._convert_graph_to_dict(optimized_nodes, optimized_edges, is_truncated=is_truncated)
 
             logger.info(
-                f"Retrieved knowledge graph for collection {collection_id}, label '{label}': "
-                f"{len(result['nodes'])} nodes, {len(result['edges'])} edges"
+                f"Retrieved knowledge graph for collection {collection_id} ({mode_description}): "
+                f"{len(result['nodes'])} nodes, {len(result['edges'])} edges "
+                f"(truncated: {is_truncated})"
             )
 
             return result
 
         except Exception as e:
-            logger.error(f"Failed to get knowledge graph for collection {collection_id}, label '{label}': {str(e)}")
+            logger.error(
+                f"Failed to get knowledge graph for collection {collection_id}, mode '{mode_description}': {str(e)}"
+            )
             raise
 
     def _convert_graph_to_dict(self, nodes, edges, is_truncated=False) -> Dict[str, Any]:
@@ -323,30 +282,41 @@ class GraphService:
 
     async def _get_and_validate_collection(self, user_id: str, collection_id: str):
         """
-        Get collection and validate that knowledge graph is enabled
+        Get collection database model and validate that knowledge graph is enabled
 
         Args:
             user_id: User ID
             collection_id: Collection ID
 
         Returns:
-            Collection object
+            Collection database model (needed for lightrag_manager)
 
         Raises:
             CollectionNotFoundException: If collection is not found
             ValueError: If knowledge graph is not enabled
         """
-        # Get collection
-        collection = await self.db_ops.query_collection(user_id, collection_id)
-        if not collection:
+        # First validate that user has access to the collection
+        try:
+            view_collection: view_models.Collection = await self.collection_service.get_collection(
+                user_id, collection_id
+            )
+        except Exception:
             raise CollectionNotFoundException(collection_id)
 
-        # Check if knowledge graph is enabled
-        config = parseCollectionConfig(collection.config)
-        if not getattr(config, "enable_knowledge_graph", False):
+        # Check if knowledge graph is enabled in the view model
+        if view_collection.config:
+            config = view_collection.config
+            if not config.enable_knowledge_graph:
+                raise ValueError(f"Knowledge graph is not enabled for collection {collection_id}")
+        else:
             raise ValueError(f"Knowledge graph is not enabled for collection {collection_id}")
 
-        return collection
+        # Get the database model (needed for lightrag_manager which expects config as JSON string)
+        db_collection = await self.collection_service.db_ops.query_collection(user_id, collection_id)
+        if not db_collection:
+            raise CollectionNotFoundException(collection_id)
+
+        return db_collection
 
 
 # Global service instance
