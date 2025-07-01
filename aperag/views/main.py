@@ -24,6 +24,7 @@ from aperag.service.chat_service import chat_service_global
 from aperag.service.collection_service import collection_service
 from aperag.service.document_service import document_service
 from aperag.service.flow_service import flow_service_global
+from aperag.service.graph_service import graph_service
 from aperag.service.llm_available_model_service import llm_available_model_service
 from aperag.service.llm_provider_service import (
     create_llm_provider,
@@ -330,6 +331,53 @@ async def websocket_chat_endpoint(
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     await chat_service_global.handle_websocket_chat(websocket, user_id, bot_id, chat_id)
+
+
+# Knowledge Graph API endpoints
+@router.get("/collections/{collection_id}/graphs/labels", tags=["graph"])
+async def get_graph_labels_view(
+    request: Request,
+    collection_id: str,
+    user: User = Depends(current_user),
+) -> view_models.GraphLabelsResponse:
+    """Get all available node labels in the collection's knowledge graph"""
+    try:
+        return await graph_service.get_graph_labels(str(user.id), collection_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to get graph labels: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/collections/{collection_id}/graphs", tags=["graph"])
+async def get_knowledge_graph_view(
+    request: Request,
+    collection_id: str,
+    label: str = None,
+    max_nodes: int = 200,
+    max_depth: int = 2,
+    user: User = Depends(current_user),
+):
+    """Get knowledge graph - overview mode or subgraph mode"""
+    try:
+        # Validate parameters
+        if max_nodes < 10 or max_nodes > 1000:
+            raise HTTPException(status_code=400, detail="max_nodes must be between 10 and 1000")
+        if max_depth < 1 or max_depth > 5:
+            raise HTTPException(status_code=400, detail="max_depth must be between 1 and 5")
+
+        if label:
+            # Subgraph mode: return subgraph centered on the specified label
+            return await graph_service.get_knowledge_graph(str(user.id), collection_id, label, max_depth, max_nodes)
+        else:
+            # Overview mode: intelligently select a starting node and return subgraph
+            return await graph_service.get_knowledge_graph_overview(str(user.id), collection_id, max_nodes, max_depth)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to get knowledge graph: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # LLM Configuration API endpoints

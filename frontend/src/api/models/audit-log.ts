@@ -31,25 +31,25 @@ export interface AuditLog {
      * @type {string}
      * @memberof AuditLog
      */
-    'user_id'?: string | null;
+    'user_id'?: string;
     /**
      * Username for display
      * @type {string}
      * @memberof AuditLog
      */
-    'username'?: string | null;
+    'username'?: string;
     /**
      * Type of resource
      * @type {string}
      * @memberof AuditLog
      */
-    'resource_type'?: AuditLogResourceTypeEnum | null;
+    'resource_type'?: AuditLogResourceTypeEnum;
     /**
      * ID of the resource (extracted at query time)
      * @type {string}
      * @memberof AuditLog
      */
-    'resource_id'?: string | null;
+    'resource_id'?: string;
     /**
      * API operation name
      * @type {string}
@@ -73,7 +73,7 @@ export interface AuditLog {
      * @type {number}
      * @memberof AuditLog
      */
-    'status_code'?: number | null;
+    'status_code'?: number;
     /**
      * Request start time (milliseconds since epoch)
      * @type {number}
@@ -85,43 +85,43 @@ export interface AuditLog {
      * @type {number}
      * @memberof AuditLog
      */
-    'end_time'?: number | null;
+    'end_time'?: number;
     /**
      * Request duration in milliseconds (calculated)
      * @type {number}
      * @memberof AuditLog
      */
-    'duration_ms'?: number | null;
+    'duration_ms'?: number;
     /**
      * Request data (JSON string)
      * @type {string}
      * @memberof AuditLog
      */
-    'request_data'?: string | null;
+    'request_data'?: string;
     /**
      * Response data (JSON string)
      * @type {string}
      * @memberof AuditLog
      */
-    'response_data'?: string | null;
+    'response_data'?: string;
     /**
      * Error message if failed
      * @type {string}
      * @memberof AuditLog
      */
-    'error_message'?: string | null;
+    'error_message'?: string;
     /**
      * Client IP address
      * @type {string}
      * @memberof AuditLog
      */
-    'ip_address'?: string | null;
+    'ip_address'?: string;
     /**
      * User agent string
      * @type {string}
      * @memberof AuditLog
      */
-    'user_agent'?: string | null;
+    'user_agent'?: string;
     /**
      * Request ID for tracking
      * @type {string}

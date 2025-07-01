@@ -1,4 +1,4 @@
-openapi: 3.0.0
+openapi: 3.1.0
 info:
   title: ApeRAG API
   description: ApeRAG API Documentation
@@ -53,6 +53,12 @@ paths:
     $ref: './paths/collections.yaml#/searches'
   /collections/{collection_id}/searches/{search_id}:
     $ref: './paths/collections.yaml#/search_detail'
+
+  # graphs
+  /collections/{collection_id}/graphs/labels:
+    $ref: './paths/collections.yaml#/graph_labels'
+  /collections/{collection_id}/graphs:
+    $ref: './paths/collections.yaml#/graph'
 
   # apikeys
   /apikeys:

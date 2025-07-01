@@ -14,8 +14,17 @@
 
 
 
-export * from './apis/audit-api';
-export * from './apis/default-api';
-export * from './apis/graph-api';
-export * from './apis/llmapi';
+/**
+ * Response containing available graph labels
+ * @export
+ * @interface GraphLabelsResponse
+ */
+export interface GraphLabelsResponse {
+    /**
+     * List of available node labels in the knowledge graph
+     * @type {Array<string>}
+     * @memberof GraphLabelsResponse
+     */
+    'labels': Array<string>;
+}
 

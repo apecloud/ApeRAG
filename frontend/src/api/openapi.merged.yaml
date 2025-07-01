@@ -1,4 +1,4 @@
-openapi: 3.0.0
+openapi: 3.1.0
 info:
   title: ApeRAG API
   description: ApeRAG API Documentation
@@ -760,6 +760,120 @@ paths:
           description: Search deleted successfully
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /collections/{collection_id}/graphs/labels:
+    get:
+      summary: Get knowledge graph labels
+      description: Get all available node labels in the collection's knowledge graph
+      tags:
+        - graph
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Collection ID
+      responses:
+        '200':
+          description: Available graph labels retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/graphLabelsResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /collections/{collection_id}/graphs:
+    get:
+      summary: Get knowledge graph
+      description: |
+        Retrieve knowledge graph data. Two modes are supported:
+        1. Overview mode (default): Uses the entire graph ("*") and intelligently selects the most important nodes
+        2. Subgraph mode: When 'label' is provided, returns a subgraph centered on that node
+
+        Node selection prioritization:
+        1. For overview: nodes with highest degree (most connections), automatically removing isolated nodes
+        2. For subgraph: nodes within specified hops from the starting node
+
+        The overview mode is optimized for visualization performance by prioritizing well-connected nodes.
+      tags:
+        - graph
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Collection ID
+        - name: label
+          in: query
+          required: false
+          schema:
+            type: string
+          description: |
+            Optional. If provided, returns a subgraph centered on this node.
+            If not provided, returns an overview of the most important nodes in the entire graph.
+          example: 墨香居
+        - name: max_nodes
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 10
+            maximum: 1000
+            default: 200
+          description: Maximum number of nodes to return
+          example: 200
+        - name: max_depth
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5
+            default: 2
+          description: |
+            Maximum depth when in subgraph mode (when 'label' is provided).
+            Ignored in overview mode.
+          example: 2
+      responses:
+        '200':
+          description: Knowledge graph retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/knowledgeGraph'
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Collection not found or label not found in graph
           content:
             application/json:
               schema:
@@ -2906,6 +3020,151 @@ components:
           $ref: '#/components/schemas/fulltextSearchParams'
         graph_search:
           $ref: '#/components/schemas/graphSearchParams'
+    graphLabelsResponse:
+      type: object
+      description: Response containing available graph labels
+      properties:
+        labels:
+          type: array
+          items:
+            type: string
+          description: List of available node labels in the knowledge graph
+          example:
+            - 墨香居
+            - 李明华
+            - 林晓雯
+            - 深夜读书会
+      required:
+        - labels
+    graphNode:
+      type: object
+      description: Knowledge graph node representing an entity
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the node (entity name)
+          example: 墨香居
+        labels:
+          type: array
+          items:
+            type: string
+          description: Labels associated with the node
+          example:
+            - 墨香居
+        properties:
+          type: object
+          description: Node properties containing entity metadata
+          properties:
+            entity_id:
+              type: string
+              description: Entity identifier
+              example: 墨香居
+            entity_type:
+              type: string
+              description: Type of the entity
+              example: organization
+            description:
+              type: string
+              description: Description of the entity
+              example: 墨香居是这条老巷子里唯一的旧书店，经营着各种书籍，承载了老板李明华的情怀。
+            source_id:
+              type: string
+              description: Source chunk ID where entity was extracted
+              example: chunk-88845945407136e9498f5f594c8a00c6
+            file_path:
+              type: string
+              description: Source file path
+              example: story.txt
+            created_at:
+              type: integer
+              format: int64
+              description: Creation timestamp
+              example: 1751356233
+          additionalProperties: true
+      required:
+        - id
+        - labels
+        - properties
+    graphEdge:
+      type: object
+      description: Knowledge graph edge representing a relationship
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the edge
+          example: 墨香居-深夜读书会
+        type:
+          type: string
+          description: Type of the relationship
+          example: DIRECTED
+          default: DIRECTED
+        source:
+          type: string
+          description: Source node ID
+          example: 墨香居
+        target:
+          type: string
+          description: Target node ID
+          example: 深夜读书会
+        properties:
+          type: object
+          description: Edge properties containing relationship metadata
+          properties:
+            weight:
+              type: number
+              format: float
+              description: Relationship weight/strength
+              example: 9
+            description:
+              type: string
+              description: Description of the relationship
+              example: 深夜读书会是墨香居的新活动，旨在提升书店的活力和吸引顾客。
+            keywords:
+              type: string
+              description: Keywords associated with the relationship
+              example: 书店活力,活动
+            source_id:
+              type: string
+              description: Source chunk ID where relationship was extracted
+              example: chunk-88845945407136e9498f5f594c8a00c6
+            file_path:
+              type: string
+              description: Source file path
+              example: story.txt
+            created_at:
+              type: integer
+              format: int64
+              description: Creation timestamp
+              example: 1751356233
+          additionalProperties: true
+      required:
+        - id
+        - source
+        - target
+        - properties
+    knowledgeGraph:
+      type: object
+      description: Knowledge graph containing nodes and edges
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/graphNode'
+          description: List of nodes in the knowledge graph
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/graphEdge'
+          description: List of edges in the knowledge graph
+        is_truncated:
+          type: boolean
+          description: Whether the graph was truncated due to size limits
+          example: false
+          default: false
+      required:
+        - nodes
+        - edges
+        - is_truncated
     apiKey:
       type: object
       properties:
