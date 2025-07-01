@@ -1131,23 +1131,23 @@ class LightRAG:
         include_source_texts: bool = True,
     ) -> dict[str, Any]:
         """
-        Export workspace data in K-Eval framework format for knowledge graph evaluation.
+        Export workspace data in KG-Eval framework format for knowledge graph evaluation.
 
         This method extracts entities, relationships, and source texts from the current workspace
-        and formats them according to the K-Eval evaluation framework structure.
+        and formats them according to the KG-Eval evaluation framework structure.
 
         Args:
-            sample_size: Number of entities to sample (default: 50)
+            sample_size: Number of entities to sample (default: 100000)
             include_source_texts: Whether to include source texts in the output (default: True)
 
         Returns:
             Dictionary containing entities, relationships, and optionally source_texts
-            in K-Eval format, compatible with sample_kg_mini.json structure
+            in KG-Eval format, compatible with sample_kg_mini.json structure
         """
         try:
-            self.lightrag_logger.info(f"Starting K-Eval export for workspace {self.workspace}")
+            self.lightrag_logger.info(f"Starting KG-Eval export for workspace {self.workspace}")
 
-            # Get all node labels (entity names)
+            # Get all node labels (entity names) - single call
             all_labels = await self.chunk_entity_relation_graph.get_all_labels()
             self.lightrag_logger.debug(f"Found {len(all_labels)} entities in workspace {self.workspace}")
 
@@ -1155,58 +1155,56 @@ class LightRAG:
             sampled_labels = all_labels[:sample_size] if len(all_labels) > sample_size else all_labels
             self.lightrag_logger.debug(f"Sampling {len(sampled_labels)} entities for export")
 
-            # Get node data in batch
-            nodes_data = await self.chunk_entity_relation_graph.get_nodes_batch(sampled_labels)
+            # Early return if no entities
+            if not sampled_labels:
+                return {"entities": [], "relationships": [], "source_texts": []}
 
-            # Prepare entities list in K-Eval format
-            entities = []
-            for entity_id, node_data in nodes_data.items():
-                entity = {
+            # Batch get all node data and edges in parallel
+            nodes_data_task = self.chunk_entity_relation_graph.get_nodes_batch(sampled_labels)
+            nodes_edges_task = self.chunk_entity_relation_graph.get_nodes_edges_batch(sampled_labels)
+
+            # Execute both tasks concurrently
+            nodes_data, nodes_edges = await asyncio.gather(nodes_data_task, nodes_edges_task)
+
+            # Prepare entities list in KG-Eval format (direct iteration, no redundant operations)
+            entities = [
+                {
                     "entity_name": node_data.get("entity_name", entity_id),
                     "entity_type": node_data.get("entity_type"),
                     "description": node_data.get("description"),
                 }
-                entities.append(entity)
+                for entity_id, node_data in nodes_data.items()
+            ]
 
-            # Get edges for the sampled nodes
-            nodes_edges = await self.chunk_entity_relation_graph.get_nodes_edges_batch(sampled_labels)
-
-            # Collect edge pairs that connect our sampled nodes
-            edge_pairs_to_query = set()
-            for source_node in sampled_labels:
-                edges = nodes_edges.get(source_node, [])
-                for source_entity_id, target_entity_id in edges:
-                    # Only include edges between sampled nodes
-                    if source_entity_id in sampled_labels and target_entity_id in sampled_labels:
-                        edge_pairs_to_query.add((source_entity_id, target_entity_id))
+            # Collect edge pairs that connect our sampled nodes (optimized filtering)
+            sampled_labels_set = set(sampled_labels)  # O(1) lookup
+            edge_pairs_to_query = {
+                (source_entity_id, target_entity_id)
+                for edges in nodes_edges.values()
+                for source_entity_id, target_entity_id in edges
+                if source_entity_id in sampled_labels_set and target_entity_id in sampled_labels_set
+            }
 
             self.lightrag_logger.debug(f"Found {len(edge_pairs_to_query)} edges between sampled entities")
 
-            # Get edge details in batch
+            # Batch get edge details (single call)
             relationships = []
             edges_data = {}
             if edge_pairs_to_query:
                 edge_pairs_list = [{"src": src, "tgt": tgt} for src, tgt in edge_pairs_to_query]
                 edges_data = await self.chunk_entity_relation_graph.get_edges_batch(edge_pairs_list)
 
-                for (source_entity_id, target_entity_id), edge_data in edges_data.items():
-                    # Get entity names from nodes_data
-                    source_name = nodes_data.get(source_entity_id, {}).get("entity_name", source_entity_id)
-                    target_name = nodes_data.get(target_entity_id, {}).get("entity_name", target_entity_id)
-
-                    # Parse keywords from string to list
-                    keywords = []
-                    if edge_data.get("keywords"):
-                        keywords = [kw.strip() for kw in edge_data["keywords"].split(",") if kw.strip()]
-
-                    relationship = {
-                        "source_entity_name": source_name,
-                        "target_entity_name": target_name,
+                # Process relationships efficiently
+                relationships = [
+                    {
+                        "source_entity_name": nodes_data.get(source_entity_id, {}).get("entity_name", source_entity_id),
+                        "target_entity_name": nodes_data.get(target_entity_id, {}).get("entity_name", target_entity_id),
                         "description": edge_data.get("description", ""),
-                        "keywords": keywords,
+                        "keywords": [kw.strip() for kw in edge_data.get("keywords", "").split(",") if kw.strip()],
                         "weight": float(edge_data.get("weight", 0.0)),
                     }
-                    relationships.append(relationship)
+                    for (source_entity_id, target_entity_id), edge_data in edges_data.items()
+                ]
 
             # Initialize result
             result = {
@@ -1217,62 +1215,60 @@ class LightRAG:
             # Get source texts by tracing back from entities/edges to chunks (if requested)
             if include_source_texts:
                 self.lightrag_logger.debug("Extracting source texts...")
-                source_texts = []
+
+                # Collect all chunk IDs efficiently (single pass through data)
                 chunk_id_to_entities = {}
                 chunk_id_to_edges = {}
 
-                # Collect chunk IDs from entities
+                # Process entities source_ids
                 for entity_id, node_data in nodes_data.items():
                     source_id = node_data.get("source_id")
                     if source_id:
-                        # source_id might contain multiple chunk IDs separated by GRAPH_FIELD_SEP
                         chunk_ids = source_id.split(GRAPH_FIELD_SEP) if GRAPH_FIELD_SEP in source_id else [source_id]
+                        entity_name = node_data.get("entity_name", entity_id)
                         for chunk_id in chunk_ids:
                             chunk_id = chunk_id.strip()
-                            if chunk_id not in chunk_id_to_entities:
-                                chunk_id_to_entities[chunk_id] = []
-                            entity_name = node_data.get("entity_name", entity_id)
-                            if entity_name not in chunk_id_to_entities[chunk_id]:
-                                chunk_id_to_entities[chunk_id].append(entity_name)
+                            if chunk_id:
+                                chunk_id_to_entities.setdefault(chunk_id, []).append(entity_name)
 
-                # Collect chunk IDs from edges (reuse edges_data from above)
+                # Process edges source_ids
                 for (source_entity_id, target_entity_id), edge_data in edges_data.items():
                     source_id = edge_data.get("source_id")
                     if source_id:
                         chunk_ids = source_id.split(GRAPH_FIELD_SEP) if GRAPH_FIELD_SEP in source_id else [source_id]
+                        source_name = nodes_data.get(source_entity_id, {}).get("entity_name", source_entity_id)
+                        target_name = nodes_data.get(target_entity_id, {}).get("entity_name", target_entity_id)
+                        edge_tuple = [source_name, target_name]
+
                         for chunk_id in chunk_ids:
                             chunk_id = chunk_id.strip()
-                            if chunk_id not in chunk_id_to_edges:
-                                chunk_id_to_edges[chunk_id] = []
-
-                            source_name = nodes_data.get(source_entity_id, {}).get("entity_name", source_entity_id)
-                            target_name = nodes_data.get(target_entity_id, {}).get("entity_name", target_entity_id)
-                            edge_tuple = [source_name, target_name]
-                            if edge_tuple not in chunk_id_to_edges[chunk_id]:
-                                chunk_id_to_edges[chunk_id].append(edge_tuple)
+                            if chunk_id:
+                                chunk_id_to_edges.setdefault(chunk_id, []).append(edge_tuple)
 
                 # Get unique chunk IDs that have linked entities or edges
                 linked_chunk_ids = set(chunk_id_to_entities.keys()) | set(chunk_id_to_edges.keys())
                 self.lightrag_logger.debug(f"Found {len(linked_chunk_ids)} linked chunks")
 
-                # Get chunk contents for linked chunks
+                # Batch get chunk contents (single call)
+                source_texts = []
                 if linked_chunk_ids:
                     chunk_contents = await self.chunks_vdb.get_by_ids(list(linked_chunk_ids))
 
-                    for chunk_data in chunk_contents:
-                        chunk_id = chunk_data.get("id")
-                        if chunk_id:
-                            source_text = {
-                                "content": chunk_data.get("content", ""),
-                                "linked_entity_names": chunk_id_to_entities.get(chunk_id, []),
-                                "linked_edges": chunk_id_to_edges.get(chunk_id, []),
-                            }
-                            source_texts.append(source_text)
+                    # Process source texts efficiently (single pass)
+                    source_texts = [
+                        {
+                            "content": chunk_data.get("content", ""),
+                            "linked_entity_names": chunk_id_to_entities.get(chunk_data.get("id"), []),
+                            "linked_edges": chunk_id_to_edges.get(chunk_data.get("id"), []),
+                        }
+                        for chunk_data in chunk_contents
+                        if chunk_data.get("id")
+                    ]
 
                 result["source_texts"] = source_texts
 
             # Log summary
-            summary_msg = f"K-Eval export completed: {len(entities)} entities, {len(relationships)} relationships"
+            summary_msg = f"KG-Eval export completed: {len(entities)} entities, {len(relationships)} relationships"
             if include_source_texts:
                 summary_msg += f", {len(result.get('source_texts', []))} source texts"
             self.lightrag_logger.info(summary_msg)
@@ -1280,5 +1276,5 @@ class LightRAG:
             return result
 
         except Exception as e:
-            self.lightrag_logger.error(f"K-Eval export failed: {str(e)}")
+            self.lightrag_logger.error(f"KG-Eval export failed: {str(e)}")
             raise e

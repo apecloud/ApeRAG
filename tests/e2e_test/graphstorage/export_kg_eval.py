@@ -44,7 +44,7 @@ def get_env_config() -> Dict[str, Any]:
 
     # Optional parameters
     model_name = os.getenv("KG_MODEL_NAME", "unknown")
-    sample_size = int(os.getenv("KG_SAMPLE_SIZE", "30000"))
+    sample_size = int(os.getenv("KG_SAMPLE_SIZE", "100000"))
     output_file = os.getenv("KG_OUTPUT_FILE")
     include_source_texts = os.getenv("KG_INCLUDE_SOURCE_TEXTS", "true").lower() in ("true", "1", "yes")
 
@@ -98,7 +98,7 @@ async def main():
     output_file = config["output_file"]
     include_source_texts = config["include_source_texts"]
 
-    print("Exporting K-Eval knowledge graph data:")
+    print("Exporting KG-Eval knowledge graph data:")
     print(f"  Workspace ID: {workspace_id}")
     print(f"  Model Name: {model_name}")
     print(f"  Sample Size: {sample_size}")
@@ -108,12 +108,15 @@ async def main():
 
     try:
         # Initialize LightRAG instance
+        from aperag.utils.tokenizer import get_default_tokenizer
+
         rag = LightRAG(
             workspace=workspace_id,
             # Use PostgreSQL-based storages as configured in the original script
             kv_storage="PGOpsSyncKVStorage",
             vector_storage="PGOpsSyncVectorStorage",
             graph_storage="PGOpsSyncGraphStorage",
+            tokenizer=get_default_tokenizer(),
         )
 
         # Initialize storages
