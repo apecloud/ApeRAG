@@ -57,7 +57,7 @@ run-backend: migrate
 	uvicorn aperag.app:app --host 0.0.0.0 --log-config scripts/uvicorn-log-config.yaml
 
 run-celery:
-	celery -A config.celery worker -B -l INFO --pool=solo
+	celery -A config.celery worker -B -l INFO --pool=threads --concurrency=16
 
 run-beat:
 	celery -A config.celery beat -l INFO
