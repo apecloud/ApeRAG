@@ -1,10 +1,9 @@
 # Configuration variables
-VERSION ?= v0.5.0-alpha.29
+VERSION ?= nightly
 VERSION_FILE ?= aperag/version/__init__.py
 BUILDX_PLATFORM ?= linux/amd64,linux/arm64
 BUILDX_ARGS ?= --sbom=false --provenance=false
 REGISTRY ?= registry.cn-hangzhou.aliyuncs.com
-DOCRAY_VERSION ?= v0.1.1
 
 # Image names
 APERAG_IMAGE = apecloud/aperag
@@ -105,13 +104,13 @@ endif
 
 .PHONY: compose-up compose-down compose-logs
 compose-up:
-	VERSION=$(VERSION) REGISTRY=$(REGISTRY) DOCRAY_VERSION=$(DOCRAY_VERSION) $(_EXTRA_ENVS) docker-compose $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d
+	VERSION=v0.5.0-alpha.30 DOCRAY_VERSION=v0.1.1 $(_EXTRA_ENVS) docker-compose $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d
 
 compose-down:
-	VERSION=$(VERSION) REGISTRY=$(REGISTRY) DOCRAY_VERSION=$(DOCRAY_VERSION) docker-compose --profile docray --profile docray-gpu -f docker-compose.yml down $(_COMPOSE_DOWN_FLAGS)
+	VERSION=v0.5.0-alpha.30 DOCRAY_VERSION=v0.1.1 docker-compose --profile docray --profile docray-gpu -f docker-compose.yml down $(_COMPOSE_DOWN_FLAGS)
 
 compose-logs:
-	VERSION=$(VERSION) REGISTRY=$(REGISTRY) DOCRAY_VERSION=$(DOCRAY_VERSION) docker-compose -f docker-compose.yml logs -f
+	VERSION=v0.5.0-alpha.30 DOCRAY_VERSION=v0.1.1 docker-compose -f docker-compose.yml logs -f
 
 # Environment cleanup
 .PHONY: clean
@@ -310,7 +309,6 @@ build-aperag-frontend-local: setup-builder
 .PHONY: info
 info:
 	@echo "VERSION: $(VERSION)"
-	@echo "DOCRAY_VERSION: $(DOCRAY_VERSION)"
 	@echo "BUILDX_PLATFORM: $(BUILDX_PLATFORM)"
 	@echo "LOCAL_PLATFORM: $(LOCAL_PLATFORM)"
 	@echo "REGISTRY: $(REGISTRY)"
