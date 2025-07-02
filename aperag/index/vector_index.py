@@ -143,12 +143,6 @@ class VectorIndexer(BaseIndexer):
                 tokenizer=get_default_tokenizer(),
             )
 
-            # Update DocumentIndex with new vector IDs
-            if doc_index:
-                index_data = {"context_ids": ctx_ids}
-                doc_index.index_data = json.dumps(index_data)
-                session.commit()
-
             logger.info(f"Vector index updated for document {document_id}: {len(ctx_ids)} vectors")
 
             return IndexResult(
