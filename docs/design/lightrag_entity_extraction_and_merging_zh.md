@@ -29,6 +29,60 @@ tasks = [
 done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
 ```
 
+**并发任务输入格式**：
+```python
+# 单个处理任务的输入
+chunk_input = {
+    "content": "要处理的文本内容",
+    "chunk_key": "chunk_unique_identifier", 
+    "file_path": "source_file_path",
+    "context": {
+        "entity_extraction_prompt": "实体提取提示词",
+        "continue_extraction_prompt": "继续提取提示词",
+        "extraction_config": {...}
+    }
+}
+```
+
+**单任务输出格式**：
+```python
+# _process_single_content 函数的返回值
+task_result = (
+    maybe_nodes,    # Dict[str, List[Dict]] - 候选实体
+    maybe_edges     # Dict[Tuple[str, str], List[Dict]] - 候选关系
+)
+
+# 示例输出结构
+maybe_nodes = {
+    "张三": [{
+        "entity_name": "张三",
+        "entity_type": "人物", 
+        "description": "公司技术总监",
+        "source_id": "chunk_001",
+        "file_path": "/docs/company.txt"
+    }],
+    "ABC公司": [{
+        "entity_name": "ABC公司",
+        "entity_type": "组织",
+        "description": "科技公司",
+        "source_id": "chunk_001", 
+        "file_path": "/docs/company.txt"
+    }]
+}
+
+maybe_edges = {
+    ("张三", "ABC公司"): [{
+        "src_id": "张三",
+        "tgt_id": "ABC公司",
+        "weight": 1.0,
+        "description": "张三是ABC公司的技术总监",
+        "keywords": "工作, 职位, 领导",
+        "source_id": "chunk_001",
+        "file_path": "/docs/company.txt"
+    }]
+}
+```
+
 #### 2. 多轮提取机制 (Gleaning)
 LightRAG 采用多轮提取策略提高实体识别的完整性：
 
@@ -52,6 +106,88 @@ for glean_index in range(entity_extract_max_gleaning):
         break
 ```
 
+**初始提取阶段产物**：
+```python
+# 第一轮提取的原始结果
+initial_extraction = {
+    "entities": [
+        {
+            "entity_name": "张三",
+            "entity_type": "人物",
+            "description": "技术总监" 
+        },
+        {
+            "entity_name": "ABC公司", 
+            "entity_type": "组织",
+            "description": "科技公司"
+        }
+    ],
+    "relationships": [
+        {
+            "src_id": "张三",
+            "tgt_id": "ABC公司",
+            "description": "工作关系",
+            "keywords": "员工, 公司"
+        }
+    ]
+}
+```
+
+**补充提取阶段产物**：
+```python
+# 每轮补充提取的增量结果
+glean_extraction = {
+    "round": 2,  # 提取轮次
+    "new_entities": [
+        {
+            "entity_name": "产品部",
+            "entity_type": "部门", 
+            "description": "ABC公司的产品开发部门"
+        }
+    ],
+    "new_relationships": [
+        {
+            "src_id": "张三",
+            "tgt_id": "产品部",
+            "description": "管理关系",
+            "keywords": "负责, 管理"
+        }
+    ],
+    "continue_extraction": "no"  # LLM判断是否继续
+}
+```
+
+**多轮合并后的最终产物**：
+```python
+# 单个chunk经过多轮提取后的完整结果
+final_chunk_result = {
+    "chunk_id": "chunk_001",
+    "total_rounds": 2,
+    "entities": {
+        "张三": [{
+            "entity_name": "张三",
+            "entity_type": "人物",
+            "description": "ABC公司技术总监，负责产品部管理",
+            "extraction_rounds": [1, 2]  # 在哪些轮次中被提及
+        }],
+        "ABC公司": [{"..."}],
+        "产品部": [{"..."}]
+    },
+    "relationships": {
+        ("张三", "ABC公司"): [{
+            "weight": 1.0,
+            "description": "张三是ABC公司的技术总监",
+            "extraction_rounds": [1]
+        }],
+        ("张三", "产品部"): [{
+            "weight": 1.0, 
+            "description": "张三负责管理产品部",
+            "extraction_rounds": [2]
+        }]
+    }
+}
+```
+
 #### 3. 提取结果格式
 
 **实体格式**：
@@ -70,12 +206,48 @@ for glean_index in range(entity_extract_max_gleaning):
 {
     "src_id": "源实体",
     "tgt_id": "目标实体", 
-    "weight": 1.0,
+    "weight": 1.0,  # 关系权重，详见下方说明
     "description": "关系描述",
     "keywords": "关键词",
     "source_id": "chunk_key",
     "file_path": "文件路径"
 }
+```
+
+#### 关系权重 (weight) 机制详解
+
+**权重的作用**：
+- 🎯 **关系强度指标**：数值越大表示两实体间关系越重要或越频繁
+- 📊 **图查询优化**：检索时优先返回高权重关系，提升结果质量
+- 🔍 **路径计算**：图遍历算法中用作边的重要性权重
+- 📈 **知识演化**：追踪关系在不同文档中的重复出现程度
+
+**初始权重计算**：
+```python
+# 每个新提取的关系默认权重为 1.0
+initial_weight = 1.0
+
+# 特殊情况：LLM 可能输出带权重的关系
+if "weight" in extracted_relation:
+    initial_weight = float(extracted_relation["weight"])
+else:
+    initial_weight = 1.0  # 默认基础权重
+```
+
+**权重累积规则**：
+- ✅ **同一文档内重复**：相同关系在同一文档的不同chunk中出现，权重累加
+- 🔄 **跨文档强化**：相同关系在不同文档中出现，权重持续累积
+- 📊 **频次反映**：最终权重 = 该关系在所有文档中的总出现次数
+
+**权重计算示例**：
+```python
+# 假设关系 "张三" -> "工作于" -> "ABC公司" 在以下情况出现：
+# 文档1, chunk1: weight = 1.0
+# 文档1, chunk3: weight = 1.0  
+# 文档2, chunk1: weight = 1.0
+# 最终权重: 1.0 + 1.0 + 1.0 = 3.0
+
+final_weight = sum([edge["weight"] for edge in same_relation_edges])
 ```
 
 ### 关键设计特点
@@ -121,6 +293,89 @@ for maybe_nodes, maybe_edges in chunk_results:
         all_edges[sorted_key].extend(edges)
 ```
 
+**数据收集阶段输入格式**：
+```python
+# 来自多个chunk的提取结果集合
+chunk_results = [
+    # Chunk 1 的结果
+    (chunk1_maybe_nodes, chunk1_maybe_edges),
+    # Chunk 2 的结果  
+    (chunk2_maybe_nodes, chunk2_maybe_edges),
+    # ... 更多chunk结果
+]
+
+# 单个chunk结果示例
+chunk1_maybe_nodes = {
+    "张三": [{
+        "entity_name": "张三",
+        "entity_type": "人物",
+        "description": "技术总监",
+        "source_id": "chunk_001"
+    }]
+}
+
+chunk2_maybe_nodes = {
+    "张三": [{  # 同一实体在不同chunk中重复出现
+        "entity_name": "张三", 
+        "entity_type": "人物",
+        "description": "产品负责人",
+        "source_id": "chunk_002"
+    }]
+}
+```
+
+**数据收集阶段产物格式**：
+```python
+# 跨chunk收集后的聚合数据
+all_nodes = {
+    "张三": [
+        {
+            "entity_name": "张三",
+            "entity_type": "人物", 
+            "description": "技术总监",
+            "source_id": "chunk_001",
+            "file_path": "/docs/company.txt"
+        },
+        {
+            "entity_name": "张三",
+            "entity_type": "人物",
+            "description": "产品负责人", 
+            "source_id": "chunk_002",
+            "file_path": "/docs/company.txt"
+        }
+        # 同一实体的多个描述片段等待合并
+    ],
+    "ABC公司": [
+        {
+            "entity_name": "ABC公司",
+            "entity_type": "组织",
+            "description": "科技公司",
+            "source_id": "chunk_001"
+        }
+    ]
+}
+
+all_edges = {
+    ("ABC公司", "张三"): [  # key已排序统一方向
+        {
+            "src_id": "张三",
+            "tgt_id": "ABC公司", 
+            "weight": 1.0,
+            "description": "工作关系",
+            "source_id": "chunk_001"
+        },
+        {
+            "src_id": "张三",
+            "tgt_id": "ABC公司",
+            "weight": 1.0, 
+            "description": "管理关系",
+            "source_id": "chunk_002"
+        }
+        # 同一关系的多次出现等待权重累加
+    ]
+}
+```
+
 #### 2. 实体合并规则
 
 **类型选择**：选择最频繁出现的实体类型
@@ -160,7 +415,59 @@ if existing_edge:
 ```
 
 **描述聚合**：类似实体描述的合并策略
+```python
+# 关系描述合并示例
+edge_descriptions = [edge["description"] for edge in edges]
+if existing_edge:
+    edge_descriptions.extend(existing_edge["description"].split(GRAPH_FIELD_SEP))
+
+merged_description = GRAPH_FIELD_SEP.join(sorted(set(edge_descriptions)))
+```
+
 **关键词去重**：提取并合并所有关键词
+```python
+# 关键词合并示例
+all_keywords = []
+for edge in edges:
+    if edge.get("keywords"):
+        all_keywords.extend(edge["keywords"].split(", "))
+
+merged_keywords = ", ".join(sorted(set(all_keywords)))
+```
+
+**合并规则最终产物格式**：
+
+**实体合并产物**：
+```python
+# 经过合并规则处理后的最终实体格式
+merged_entity = {
+    "entity_name": "张三",
+    "entity_type": "人物",  # 基于出现频次选择的类型
+    "description": "技术总监§产品负责人§项目经理",  # 使用§分隔符连接的描述
+    "source_chunks": ["chunk_001", "chunk_002", "chunk_003"],  # 源chunk列表
+    "file_paths": ["/docs/company.txt", "/docs/team.txt"],  # 源文件列表
+    "mention_count": 3,  # 在多少个chunk中被提及
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+**关系合并产物**：
+```python
+# 经过合并规则处理后的最终关系格式  
+merged_relationship = {
+    "src_id": "张三",
+    "tgt_id": "ABC公司",
+    "weight": 3.0,  # 累加后的权重 (1.0 + 1.0 + 1.0)
+    "description": "工作关系§管理关系§领导关系",  # 使用§分隔符连接
+    "keywords": "员工, 公司, 管理, 负责, 领导",  # 去重合并的关键词
+    "source_chunks": ["chunk_001", "chunk_002"],  # 关系出现的chunk
+    "file_paths": ["/docs/company.txt"],  # 关系出现的文件
+    "mention_count": 2,  # 关系被提及的次数
+    "created_at": "2024-01-01T00:00:00Z", 
+    "updated_at": "2024-01-01T12:00:00Z"
+}
+```
 
 #### 4. 数据库更新流程
 
@@ -179,6 +486,75 @@ graph LR
     style D fill:#e1f5fe
     style G fill:#e8f5e8
     style I fill:#e1f5fe
+```
+
+**数据库存储最终格式**：
+
+**图数据库实体存储格式**：
+```python
+# 存储在图数据库中的实体节点
+graph_entity_node = {
+    "id": "张三",  # 实体名称作为节点ID
+    "entity_type": "人物",
+    "description": "技术总监§产品负责人§项目经理",
+    "source_chunks": ["chunk_001", "chunk_002", "chunk_003"],
+    "file_paths": ["/docs/company.txt", "/docs/team.txt"], 
+    "mention_count": 3,
+    "workspace": "collection_12345",  # 工作空间隔离
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+**图数据库关系存储格式**：
+```python
+# 存储在图数据库中的关系边
+graph_relationship_edge = {
+    "source": "张三",  # 源节点ID
+    "target": "ABC公司",  # 目标节点ID
+    "weight": 3.0,
+    "description": "工作关系§管理关系§领导关系",
+    "keywords": "员工, 公司, 管理, 负责, 领导",
+    "source_chunks": ["chunk_001", "chunk_002"],
+    "file_paths": ["/docs/company.txt"],
+    "mention_count": 2,
+    "workspace": "collection_12345",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+**向量数据库存储格式**：
+```python
+# 存储在向量数据库中的实体向量
+vector_entity_record = {
+    "id": "entity_张三_collection_12345",  # 向量记录唯一ID
+    "entity_name": "张三",
+    "content": "张三是一位人物，担任技术总监、产品负责人和项目经理的职务",  # 用于向量化的文本
+    "content_vector": [0.1, 0.2, ..., 0.9],  # 1024维向量表示
+    "workspace": "collection_12345",
+    "storage_type": "entity",  # 区分实体/关系向量
+    "metadata": {
+        "entity_type": "人物",
+        "mention_count": 3,
+        "file_paths": ["/docs/company.txt", "/docs/team.txt"]
+    }
+}
+
+# 存储在向量数据库中的关系向量
+vector_relationship_record = {
+    "id": "relation_张三_ABC公司_collection_12345",
+    "relationship": "张三 -> ABC公司", 
+    "content": "张三与ABC公司之间存在工作关系、管理关系、领导关系",
+    "content_vector": [0.3, 0.4, ..., 0.8],
+    "workspace": "collection_12345",
+    "storage_type": "relationship",
+    "metadata": {
+        "weight": 3.0,
+        "keywords": "员工, 公司, 管理, 负责, 领导",
+        "mention_count": 2
+    }
+}
 ```
 
 ### 并发控制与一致性
