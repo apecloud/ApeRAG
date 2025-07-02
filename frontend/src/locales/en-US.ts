@@ -330,6 +330,10 @@ export default {
   'searchType.title': 'Select Search Types',
 
   'model.field.custom_llm_provider.required': 'Please enter the custom LLM Provider',
+  'model.field.model': 'Model',
+  'model.field.api': 'API Type',
+  'model.field.custom_llm_provider': 'Custom LLM Provider',
+  'model.field.custom_llm_provider.placeholder': 'Auto-filled',
   'model.field.contextWindow': 'Context Window',
   'model.field.contextWindow.tooltip': 'The total context token length supported by the model (input + output)',
   'model.field.maxInput': 'Max Input',

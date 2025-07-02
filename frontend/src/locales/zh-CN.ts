@@ -326,6 +326,10 @@ export default {
   'searchType.title': '选择检索类型',
 
   'model.field.custom_llm_provider.required': '请输入自定义LLM Provider',
+  'model.field.model': '模型',
+  'model.field.api': 'API类型',
+  'model.field.custom_llm_provider': '自定义LLM Provider',
+  'model.field.custom_llm_provider.placeholder': '自动填充',
   'model.field.contextWindow': '上下文窗口',
   'model.field.contextWindow.tooltip': '模型支持的总上下文Token长度（输入+输出）',
   'model.field.maxInput': '最大输入',
