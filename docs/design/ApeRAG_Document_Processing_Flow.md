@@ -34,22 +34,22 @@ graph TB
         U2[URL Links]
         U3[Third-party Document APIs]
     end
-    
+
     subgraph "Data Reception and Validation Layer"
         DS[document_service.py<br/>create_documents function]
         US[URL Service<br/>create_url_document function]
     end
-    
+
     subgraph "Persistent Storage Layer"
         OS[MinIO/S3 Object Storage<br/>Raw File Storage]
         PG[PostgreSQL<br/>Document Metadata Storage]
     end
-    
+
     subgraph "Asynchronous Processing Layer"
         CT[Celery Task<br/>add_index_for_document]
         CW[Celery Workers]
     end
-    
+
     subgraph "Data Retrieval and Parsing Layer"
         SC[Source Components<br/>Data Source Adapters]
         SC1[LocalSource<br/>Download from Object Storage]
@@ -58,64 +58,64 @@ graph TB
         LPE[LocalPathEmbedding<br/>Local File Processor]
         DP[DocParser<br/>Document Parser]
     end
-    
+
     subgraph "Data Processing and Chunking Layer"
         CH[rechunk function<br/>Text Chunking Processing]
         ME[Metadata Enhancement<br/>Metadata Enhancement]
     end
-    
+
     subgraph "Embedding Generation Layer"
         EM[Embedding Models<br/>Embedding Models]
         VE[Vector Embedding<br/>Vector Generation]
     end
-    
+
     subgraph "Index Storage Layer"
         VDB[Qdrant<br/>Vector Index Storage]
         ES[Elasticsearch<br/>Full-text Index Storage]
         NEO[Neo4j<br/>Knowledge Graph Storage]
         OS2[MinIO/S3<br/>Parsed Content and Assets]
     end
-    
+
     subgraph "AI Processing Layer"
         LR[LightRAG<br/>Knowledge Graph Construction]
     end
-    
+
     %% Data Flow Paths
     U1 --> DS
     U2 --> US
     U3 --> DS
-    
+
     DS --> OS
     DS --> PG
     US --> PG
-    
+
     PG --> CT
     CT --> CW
     CW --> SC
-    
+
     SC --> SC1
     SC --> SC2
     SC --> SC3
-    
+
     SC1 --> OS
     OS --> SC1
     SC1 --> LPE
     SC2 --> LPE
     SC3 --> LPE
-    
+
     LPE --> DP
     DP --> CH
     CH --> ME
     ME --> VE
     VE --> EM
-    
+
     EM --> VDB
     CH --> ES
     LPE --> OS2
-    
+
     ME --> LR
     LR --> NEO
-    
+
     style OS fill:#e1f5fe
     style PG fill:#e8f5e8
     style VDB fill:#f3e5f5
@@ -280,7 +280,7 @@ parts = [
 # rechunk function processing
 original_parts = [MarkdownPart, AssetBinPart, ...]  # ← DocParser output
 chunked_parts = rechunk(
-    original_parts, 
+    original_parts,
     chunk_size=self.chunk_size,      # e.g.: 1000
     chunk_overlap=self.chunk_overlap, # e.g.: 200
     tokenizer=self.tokenizer
@@ -303,20 +303,20 @@ chunked_parts = [
 # 1. Add context information to each text chunk
 for part in chunked_parts:
     paddings = []
-    
+
     # Add title hierarchy
     if "titles" in part.metadata:
         paddings.append("Breadcrumbs: " + " > ".join(part.metadata["titles"]))
-    
+
     # Add user labels
     if "labels" in part.metadata:
         labels = [f"{item['key']}={item['value']}" for item in part.metadata.get("labels", [])]
         paddings.append(" ".join(labels))
-    
+
     # Build final text
     prefix = "\n\n".join(paddings) if paddings else ""
     final_text = f"{prefix}\n\n{part.content}" if prefix else part.content
-    
+
     # Create LlamaIndex node
     node = TextNode(text=final_text, metadata=part.metadata)
     nodes.append(node)  # → List[TextNode]
@@ -346,7 +346,7 @@ vector_ids = self.connector.store.add(nodes)  # → Qdrant
 # Return vector ID list: ["vec_001", "vec_002", ...]
 
 # 5. Update document related IDs
-relate_ids = {"ctx": vector_ids}
+relate_ids = {"context_ids": vector_ids}
 document.relate_ids = json.dumps(relate_ids)  # → PostgreSQL
 ```
 
@@ -407,12 +407,12 @@ insert_document(
 if self.object_store_base_path:
     obj_store = get_object_store()
     base_path = self.object_store_base_path  # "document_123/"
-    
+
     # 1. Save Markdown content
     md_upload_path = f"{base_path}/parsed.md"
     md_data = content.encode("utf-8")
     obj_store.put(md_upload_path, md_data)  # → MinIO/S3
-    
+
     # 2. Save asset files
     for part in doc_parts:
         if isinstance(part, AssetBinPart):
@@ -443,14 +443,14 @@ MinIO/S3:
 async def _async_add_lightrag_index():
     # Get LightRAG instance
     rag_holder = await lightrag_holder.get_lightrag_holder(collection)
-    
+
     # 2. Insert document into LightRAG
     await rag_holder.ainsert(
         input=content,           # ← Complete document content
         ids=document_id,         # ← Document ID
         file_paths=file_path     # ← File path
     )  # → Neo4j + internal vector storage
-    
+
     # 3. Verify processing result
     processed_docs = await rag_holder.get_processed_docs()
     assert str(document_id) in processed_docs
@@ -543,12 +543,12 @@ The `LocalPathEmbedding.load_data()` method concentrates multiple processing ste
 ```python
 def load_data(self) -> Tuple[List[str], str]:
     # 1. Document parsing (DocParser)
-    # 2. Content chunking (rechunk) 
+    # 2. Content chunking (rechunk)
     # 3. Metadata enhancement
     # 4. Vector embedding generation
     # 5. Asset storage
     # 6. Vector database storage
-    
+
     return vector_ids, content  # Only returns vector IDs and text content
 ```
 
@@ -570,7 +570,7 @@ chunks = [
     {
         "content": "paragraph content",
         "metadata": {
-            "section": "Chapter 1", 
+            "section": "Chapter 1",
             "hierarchy": ["Chapter 1", "Section 1"],
             "labels": [{"key": "type", "value": "technical document"}]
         }
@@ -642,4 +642,4 @@ After the refactoring is complete, developers will get:
 **Related Documentation**:
 - RFC Detailed Design: [`docs/rfc/001-document-processing-pipeline-refactor.md`](rfc/001-document-processing-pipeline-refactor.md)
 - Current Implementation: `aperag/embed/local_path_embedding.py`
-- Index Tasks: `aperag/tasks/index.py` 
+- Index Tasks: `aperag/tasks/index.py`

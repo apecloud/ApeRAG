@@ -34,22 +34,22 @@ graph TB
         U2[URL链接]
         U3[第三方文档API]
     end
-    
+
     subgraph "数据接收与验证层"
         DS[document_service.py<br/>create_documents函数]
         US[URL Service<br/>create_url_document函数]
     end
-    
+
     subgraph "持久化存储层"
         OS[MinIO/S3 对象存储<br/>原始文件存储]
         PG[PostgreSQL<br/>文档元数据存储]
     end
-    
+
     subgraph "异步处理层"
         CT[Celery Task<br/>add_index_for_document]
         CW[Celery Workers]
     end
-    
+
     subgraph "数据获取与解析层"
         SC[Source Components<br/>数据源适配器]
         SC1[LocalSource<br/>从对象存储下载]
@@ -58,64 +58,64 @@ graph TB
         LPE[LocalPathEmbedding<br/>本地文件处理器]
         DP[DocParser<br/>文档解析器]
     end
-    
+
     subgraph "数据处理与分块层"
         CH[rechunk函数<br/>文本分块处理]
         ME[Metadata Enhancement<br/>元数据增强]
     end
-    
+
     subgraph "嵌入生成层"
         EM[Embedding Models<br/>嵌入模型]
         VE[Vector Embedding<br/>向量生成]
     end
-    
+
     subgraph "索引存储层"
         VDB[Qdrant<br/>向量索引存储]
         ES[Elasticsearch<br/>全文索引存储]
         NEO[Neo4j<br/>知识图谱存储]
         OS2[MinIO/S3<br/>解析内容和资产]
     end
-    
+
     subgraph "AI处理层"
         LR[LightRAG<br/>知识图谱构建]
     end
-    
+
     %% 数据流转路径
     U1 --> DS
     U2 --> US
     U3 --> DS
-    
+
     DS --> OS
     DS --> PG
     US --> PG
-    
+
     PG --> CT
     CT --> CW
     CW --> SC
-    
+
     SC --> SC1
     SC --> SC2
     SC --> SC3
-    
+
     SC1 --> OS
     OS --> SC1
     SC1 --> LPE
     SC2 --> LPE
     SC3 --> LPE
-    
+
     LPE --> DP
     DP --> CH
     CH --> ME
     ME --> VE
     VE --> EM
-    
+
     EM --> VDB
     CH --> ES
     LPE --> OS2
-    
+
     ME --> LR
     LR --> NEO
-    
+
     style OS fill:#e1f5fe
     style PG fill:#e8f5e8
     style VDB fill:#f3e5f5
@@ -280,7 +280,7 @@ parts = [
 # rechunk函数处理
 original_parts = [MarkdownPart, AssetBinPart, ...]  # ← DocParser输出
 chunked_parts = rechunk(
-    original_parts, 
+    original_parts,
     chunk_size=self.chunk_size,      # 例如: 1000
     chunk_overlap=self.chunk_overlap, # 例如: 200
     tokenizer=self.tokenizer
@@ -303,20 +303,20 @@ chunked_parts = [
 # 1. 为每个文本块添加上下文信息
 for part in chunked_parts:
     paddings = []
-    
+
     # 添加标题层次
     if "titles" in part.metadata:
         paddings.append("Breadcrumbs: " + " > ".join(part.metadata["titles"]))
-    
+
     # 添加用户标签
     if "labels" in part.metadata:
         labels = [f"{item['key']}={item['value']}" for item in part.metadata.get("labels", [])]
         paddings.append(" ".join(labels))
-    
+
     # 构建最终文本
     prefix = "\n\n".join(paddings) if paddings else ""
     final_text = f"{prefix}\n\n{part.content}" if prefix else part.content
-    
+
     # 创建LlamaIndex节点
     node = TextNode(text=final_text, metadata=part.metadata)
     nodes.append(node)  # → List[TextNode]
@@ -346,7 +346,7 @@ vector_ids = self.connector.store.add(nodes)  # → Qdrant
 # 返回向量ID列表: ["vec_001", "vec_002", ...]
 
 # 5. 更新文档关联ID
-relate_ids = {"ctx": vector_ids}
+relate_ids = {"context_ids": vector_ids}
 document.relate_ids = json.dumps(relate_ids)  # → PostgreSQL
 ```
 
@@ -407,12 +407,12 @@ insert_document(
 if self.object_store_base_path:
     obj_store = get_object_store()
     base_path = self.object_store_base_path  # "document_123/"
-    
+
     # 1. 保存Markdown内容
     md_upload_path = f"{base_path}/parsed.md"
     md_data = content.encode("utf-8")
     obj_store.put(md_upload_path, md_data)  # → MinIO/S3
-    
+
     # 2. 保存资产文件
     for part in doc_parts:
         if isinstance(part, AssetBinPart):
@@ -443,14 +443,14 @@ MinIO/S3:
 async def _async_add_lightrag_index():
     # 获取LightRAG实例
     rag_holder = await lightrag_holder.get_lightrag_holder(collection)
-    
+
     # 2. 插入文档到LightRAG
     await rag_holder.ainsert(
         input=content,           # ← 完整文档内容
         ids=document_id,         # ← 文档ID
         file_paths=file_path     # ← 文件路径
     )  # → Neo4j + 内部向量存储
-    
+
     # 3. 验证处理结果
     processed_docs = await rag_holder.get_processed_docs()
     assert str(document_id) in processed_docs
@@ -543,12 +543,12 @@ if local_doc and source:
 ```python
 def load_data(self) -> Tuple[List[str], str]:
     # 1. 文档解析 (DocParser)
-    # 2. 内容分块 (rechunk) 
+    # 2. 内容分块 (rechunk)
     # 3. 元数据增强
     # 4. 向量嵌入生成
     # 5. 资产存储
     # 6. 向量数据库存储
-    
+
     return vector_ids, content  # 仅返回向量ID和文本内容
 ```
 
@@ -570,7 +570,7 @@ chunks = [
     {
         "content": "段落内容",
         "metadata": {
-            "section": "第一章", 
+            "section": "第一章",
             "hierarchy": ["第一章", "第一节"],
             "labels": [{"key": "类型", "value": "技术文档"}]
         }
@@ -642,4 +642,4 @@ structured_data = {
 **相关文档**：
 - RFC详细设计：[`docs/rfc/001-document-processing-pipeline-refactor.md`](../rfc/001-document-processing-pipeline-refactor.md)
 - 当前实现：`aperag/embed/local_path_embedding.py`
-- 索引任务：`aperag/tasks/index.py` 
+- 索引任务：`aperag/tasks/index.py`
