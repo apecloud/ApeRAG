@@ -3,9 +3,13 @@ volumes:
   aperag-qdrant-data: {}
   aperag-redis-data: {}
   aperag-es-data: {}
+  aperag-neo4j-data: {}
   aperag-shared-data: {}
 
 services:
+  # ==============================================
+  # Application Services (Default startup, excluded from infra)
+  # ==============================================
   api: &api
     build:
       context: .
@@ -33,6 +37,7 @@ services:
     ports:
       - "8000:8000"
     command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-api.sh"]
+    profiles: ["app"]
 
   frontend:
     build:
@@ -49,6 +54,7 @@ services:
       - APERAG_CONSOLE_SERVICE_PORT=8000
     ports:
       - "3000:3000"
+    profiles: ["app"]
 
   celeryworker:
     image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-latest}
@@ -73,6 +79,7 @@ services:
       - NODE_IP=aperag-celeryworker
       - DOCRAY_HOST=${DOCRAY_HOST}
     command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-celery-worker.sh"]
+    profiles: ["app"]
 
   celerybeat:
     image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-latest}
@@ -89,6 +96,7 @@ services:
     environment:
       - NODE_IP=aperag-celerybeat
     command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-celery-beat.sh"]
+    profiles: ["app"]
 
   flower:
     <<: *api
@@ -105,7 +113,11 @@ services:
     environment:
       - NODE_IP=aperag-flower
     command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-celery-flower.sh"]
+    profiles: ["app"]
 
+  # ==============================================
+  # Infrastructure Services (always available)
+  # ==============================================
   postgres:
     image: pgvector/pgvector:pg16
     container_name: aperag-postgres
@@ -155,6 +167,27 @@ services:
     command: bash /usr/share/elasticsearch/bin/init-es.sh
     restart: on-failure
 
+  # ==============================================
+  # Optional Services
+  # ==============================================
+  neo4j:
+    image: neo4j:5.26.5-enterprise
+    container_name: aperag-neo4j
+    ports:
+      - "7474:7474"  # HTTP
+      - "7687:7687"  # Bolt
+    environment:
+      - NEO4J_AUTH=neo4j/password
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+      - NEO4J_apoc_export_file_enabled=true
+    volumes:
+      - aperag-neo4j-data:/data
+    profiles: ["neo4j"]
+
+  # ==============================================
+  # DocRay Services (existing profiles)
+  # ==============================================
   docray:
     image: ${REGISTRY:-docker.io}/apecloud/doc-ray:${DOCRAY_VERSION:-v0.1.1}
     container_name: aperag-docray

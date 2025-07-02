@@ -77,16 +77,24 @@ run-db:
 
 # Variables for compose command based on environment flags
 # Usage examples:
-#   make compose-up
-#   make compose-up WITH_DOCRAY=1
-#   make compose-up WITH_DOCRAY=1 WITH_GPU=1
-#   make compose-down
-#   make compose-down REMOVE_VOLUMES=1
+#   make compose-up                              # Full application
+#   make compose-up WITH_NEO4J=1                 # Full application + Neo4j
+#   make compose-up WITH_DOCRAY=1                # Full application + DocRay
+#   make compose-up WITH_NEO4J=1 WITH_DOCRAY=1   # Full application + Neo4j + DocRay
+#   make compose-up WITH_NEO4J=1 WITH_DOCRAY=1 WITH_GPU=1  # All features
+#   make compose-infra                           # Infrastructure only (databases)
+#   make compose-infra WITH_NEO4J=1              # Infrastructure + Neo4j
+#   make compose-down                            # Stop all services
+#   make compose-down REMOVE_VOLUMES=1           # Stop and remove volumes
 _PROFILES_TO_ACTIVATE :=
 _EXTRA_ENVS :=
 _COMPOSE_DOWN_FLAGS :=
 
-# Determine which docray profile to use for 'compose-up'
+# Determine which additional profiles to activate
+ifeq ($(WITH_NEO4J),1)
+    _PROFILES_TO_ACTIVATE += --profile neo4j
+endif
+
 ifeq ($(WITH_DOCRAY),1)
     ifeq ($(WITH_GPU),1)
         _PROFILES_TO_ACTIVATE += --profile docray-gpu
@@ -102,12 +110,17 @@ ifeq ($(REMOVE_VOLUMES),1)
     _COMPOSE_DOWN_FLAGS += -v
 endif
 
-.PHONY: compose-up compose-down compose-logs
+.PHONY: compose-up compose-down compose-logs compose-infra
+# Full application startup 
 compose-up:
-	VERSION=v0.5.0-alpha.30 DOCRAY_VERSION=v0.1.1 $(_EXTRA_ENVS) docker-compose $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d
+	VERSION=v0.5.0-alpha.30 DOCRAY_VERSION=v0.1.1 $(_EXTRA_ENVS) docker-compose --profile app $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d
+
+# Infrastructure only (databases + supporting services)
+compose-infra:
+	VERSION=v0.5.0-alpha.30 DOCRAY_VERSION=v0.1.1 docker-compose $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d
 
 compose-down:
-	VERSION=v0.5.0-alpha.30 DOCRAY_VERSION=v0.1.1 docker-compose --profile docray --profile docray-gpu -f docker-compose.yml down $(_COMPOSE_DOWN_FLAGS)
+	VERSION=v0.5.0-alpha.30 DOCRAY_VERSION=v0.1.1 docker-compose --profile app --profile docray --profile docray-gpu --profile neo4j -f docker-compose.yml down $(_COMPOSE_DOWN_FLAGS)
 
 compose-logs:
 	VERSION=v0.5.0-alpha.30 DOCRAY_VERSION=v0.1.1 docker-compose -f docker-compose.yml logs -f
@@ -419,9 +432,3 @@ load-images-to-kind:
 	kind load docker-image $(APERAG_IMAGE):$(VERSION) --name $(KIND_CLUSTER_NAME)
 	kind load docker-image $(APERAG_FRONTEND_IMG):$(VERSION) --name $(KIND_CLUSTER_NAME)
 	@echo "Already Load Image To KinD"
-
-# Compatibility aliases
-.PHONY: image celery flower
-image: build
-celery: run-celery
-flower: run-flower

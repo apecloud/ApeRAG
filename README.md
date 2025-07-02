@@ -199,48 +199,119 @@ For detailed development workflows, see the [Development Guide](./docs/DEVELOPME
 
 ### Getting Started with Docker Compose
 
-To get started with ApeRAG using Docker Compose, follow these steps:
+Docker Compose provides the fastest way to get ApeRAG running. We support two deployment modes and flexible service combinations to meet different needs.
 
-1.  **Prerequisites**:
-    *   Docker & Docker Compose
-    *   Git
+#### Prerequisites
+*   Docker & Docker Compose
+*   Git
 
-2.  **Environment Setup**:
-    Configure environment variables by copying the template files:
-    ```bash
-    cp envs/env.template .env
-    cp frontend/deploy/env.local.template frontend/.env
-    ```
-    Then, **edit the `.env` file** to configure your AI service settings and other necessary configurations according to your needs.
+#### Environment Setup
+Configure environment variables by copying the template files:
+```bash
+cp envs/env.template .env
+cp frontend/deploy/env.local.template frontend/.env
+```
+Then, **edit the `.env` file** to configure your AI service settings and other configurations according to your needs.
 
-3.  **Start Services**:
-    You can start all ApeRAG services using the following `make` command:
-    ```bash
-    # Optional: Use Aliyun registry if in China
-    # export REGISTRY=apecloud-registry.cn-zhangjiakou.cr.aliyuncs.com
+#### Deployment Modes
 
-    # Start ApeRAG services
-    make compose-up
-    ```
-    If you need to use the `doc-ray` service for advanced document parsing (recommended for complex documents, tables, or formulas), you can start it along with other services:
-    ```bash
-    make compose-up WITH_DOCRAY=1
-    ```
-    If your environment has GPUs, you can enable GPU support for `doc-ray` for better performance:
-    ```bash
-    make compose-up WITH_DOCRAY=1 WITH_GPU=1
-    ```
-    > **About the doc-ray parsing service**
-    >
-    > ApeRAG includes a basic built-in parser for extracting text from documents like PDFs and DOCX files for RAG indexing. However, this parser may not optimally handle complex document structures, tables, or formulas.
-    >
-    > For enhanced document parsing capabilities and more accurate content extraction, we recommend deploying the [doc-ray](https://github.com/apecloud/doc-ray) service. `doc-ray` leverages **MinerU** for advanced document analysis.
-    >
-    > * When `WITH_GPU=1` is not specified, `doc-ray` will run using only the CPU. In this case, it is recommended to allocate at least 4 CPU cores and 8GB+ of RAM for it.
-    > * When `WITH_GPU=1` is specified, `doc-ray` will run using the GPU. It requires approximately 6GB of VRAM, along with 2 CPU cores and 8GB of RAM.
+**🏗️ Infrastructure Mode (Recommended for Development)**
 
-4.  **Access ApeRAG**:
-    Once the services are up and running, open your browser and navigate to: http://localhost:3000/web/
+Start only the essential database services. Perfect for developers who want to run the application code locally for debugging and development.
+
+```bash
+# Core databases: PostgreSQL, Redis, Qdrant, Elasticsearch
+make compose-infra
+
+# Add graph database capabilities  
+make compose-infra WITH_NEO4J=1
+```
+
+After starting infrastructure, run your app locally:
+```bash
+make run-backend   # Start API server at localhost:8000
+make run-frontend  # Start frontend at localhost:3000 (optional)
+```
+
+**🚀 Full Application Mode (Production Ready)**
+
+Launch the complete ApeRAG platform with all services containerized.
+
+```bash
+# Complete system (API + Frontend + Background workers + Databases)
+make compose-up
+
+# Add graph knowledge capabilities with Neo4j
+make compose-up WITH_NEO4J=1
+
+# Add advanced document parsing with DocRay
+make compose-up WITH_DOCRAY=1
+
+# Combine multiple optional services
+make compose-up WITH_NEO4J=1 WITH_DOCRAY=1
+
+# Full-featured deployment with GPU acceleration
+make compose-up WITH_NEO4J=1 WITH_DOCRAY=1 WITH_GPU=1
+```
+
+#### Optional Services
+
+**Neo4j Graph Database** (`WITH_NEO4J=1`)
+- Enables graph-based knowledge extraction and querying
+- Powers advanced relational search capabilities
+- Accessible at http://localhost:7474 (Web UI)
+
+**DocRay Advanced Document Parsing** (`WITH_DOCRAY=1`)
+- Enhanced parsing for complex documents, tables, and formulas
+- Powered by [MinerU](https://github.com/opendatalab/MinerU) technology
+- CPU mode: Requires 4+ CPU cores, 8GB+ RAM
+- GPU mode (`WITH_GPU=1`): Requires ~6GB VRAM, 2 CPU cores, 8GB RAM
+- Service endpoint: http://localhost:8639
+
+#### Access Your Deployment
+
+Once services are running:
+- **Web Interface**: http://localhost:3000/web/
+- **API Documentation**: http://localhost:8000/docs
+- **Flower (Task Monitor)**: http://localhost:5555
+- **Neo4j Browser**: http://localhost:7474 (if enabled)
+
+#### Service Management
+
+```bash
+# View running services
+docker-compose ps
+
+# View logs
+make compose-logs
+
+# Stop all services
+make compose-down
+
+# Stop services and remove data volumes
+make compose-down REMOVE_VOLUMES=1
+```
+
+#### Example Workflows
+
+**For Open Source Users (Quick Start)**:
+```bash
+make compose-up
+# Access http://localhost:3000/web/ and start exploring!
+```
+
+**For Developers**:
+```bash
+make compose-infra WITH_NEO4J=1  # Start databases
+make run-backend                 # Run API in development mode
+# Code with hot reload and debugging
+```
+
+**For Production Deployment**:
+```bash
+make compose-up WITH_NEO4J=1 WITH_DOCRAY=1 WITH_GPU=1
+# Full-featured deployment with all capabilities
+```
 
 ## Acknowledgments
 
