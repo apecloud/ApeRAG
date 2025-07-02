@@ -29,6 +29,60 @@ tasks = [
 done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
 ```
 
+**Concurrent Task Input Format**:
+```python
+# Input for a single processing task
+chunk_input = {
+    "content": "Text content to process",
+    "chunk_key": "chunk_unique_identifier", 
+    "file_path": "source_file_path",
+    "context": {
+        "entity_extraction_prompt": "Entity extraction prompt",
+        "continue_extraction_prompt": "Continue extraction prompt",
+        "extraction_config": {...}
+    }
+}
+```
+
+**Single Task Output Format**:
+```python
+# Return value of _process_single_content function
+task_result = (
+    maybe_nodes,    # Dict[str, List[Dict]] - candidate entities
+    maybe_edges     # Dict[Tuple[str, str], List[Dict]] - candidate relationships
+)
+
+# Example output structure
+maybe_nodes = {
+    "John": [{
+        "entity_name": "John",
+        "entity_type": "Person", 
+        "description": "Chief Technology Officer",
+        "source_id": "chunk_001",
+        "file_path": "/docs/company.txt"
+    }],
+    "ABC Corp": [{
+        "entity_name": "ABC Corp",
+        "entity_type": "Organization",
+        "description": "Technology company",
+        "source_id": "chunk_001", 
+        "file_path": "/docs/company.txt"
+    }]
+}
+
+maybe_edges = {
+    ("John", "ABC Corp"): [{
+        "src_id": "John",
+        "tgt_id": "ABC Corp",
+        "weight": 1.0,
+        "description": "John is the CTO of ABC Corp",
+        "keywords": "work, position, leadership",
+        "source_id": "chunk_001",
+        "file_path": "/docs/company.txt"
+    }]
+}
+```
+
 #### 2. Multi-round Extraction Mechanism (Gleaning)
 LightRAG employs a multi-round extraction strategy to improve entity recognition completeness:
 
@@ -52,6 +106,109 @@ for glean_index in range(entity_extract_max_gleaning):
         break
 ```
 
+**Initial Extraction Stage Output**:
+```python
+# Raw results from the first extraction round
+initial_extraction = {
+    "entities": [
+        {
+            "entity_name": "John",
+            "entity_type": "Person",
+            "description": "Chief Technology Officer" 
+        },
+        {
+            "entity_name": "ABC Corp", 
+            "entity_type": "Organization",
+            "description": "Technology company"
+        }
+    ],
+    "relationships": [
+        {
+            "src_id": "John",
+            "tgt_id": "ABC Corp",
+            "description": "Employment relationship",
+            "keywords": "employee, company"
+        }
+    ]
+}
+```
+
+**Supplementary Extraction Stage Output**:
+```python
+# Incremental results from each supplementary extraction round
+glean_extraction = {
+    "round": 2,  # Extraction round number
+    "new_entities": [
+        {
+            "entity_name": "Product Department",  # Must be a completely new entity name
+            "entity_type": "Department", 
+            "description": "Product development department at ABC Corp"
+        }
+    ],
+    "new_relationships": [
+        {
+            "src_id": "John",
+            "tgt_id": "Product Department",  # Must be a completely new relationship pair
+            "description": "Management relationship",
+            "keywords": "responsible, manage"
+        }
+    ],
+    "continue_extraction": "no"  # LLM decision on whether to continue
+}
+
+# Key Constraints: Gleaning stage only accepts newly discovered entities and relationships
+# - Existing entity names are ignored: if entity_name not in maybe_nodes
+# - Existing relationship pairs are ignored: if edge_key not in maybe_edges
+# - Does NOT supplement or merge descriptions for existing entities
+```
+
+**Multi-round Extraction Chunk Result**:
+```python
+# Complete results after multi-round extraction for a single chunk (gleaning only adds new entities, no merging)
+final_chunk_result = {
+    "chunk_id": "chunk_001",
+    "total_rounds": 2,
+    "maybe_nodes": {
+        "John": [{  # Entity from initial extraction
+            "entity_name": "John",
+            "entity_type": "Person",
+            "description": "Chief Technology Officer",
+            "source_id": "chunk_001",
+            "file_path": "/docs/company.txt"
+        }],
+        "Product Department": [{  # New entity discovered in gleaning stage
+            "entity_name": "Product Department",
+            "entity_type": "Department", 
+            "description": "Product development department at ABC Corp",
+            "source_id": "chunk_001",
+            "file_path": "/docs/company.txt"
+        }]
+        # Note: gleaning does NOT merge John's descriptions, only adds new entities
+    },
+    "maybe_edges": {
+        ("John", "ABC Corp"): [{  # Relationship from initial extraction
+            "src_id": "John",
+            "tgt_id": "ABC Corp",
+            "weight": 1.0,
+            "description": "John is the CTO of ABC Corp",
+            "source_id": "chunk_001"
+        }],
+        ("John", "Product Department"): [{  # New relationship discovered in gleaning stage
+            "src_id": "John",
+            "tgt_id": "Product Department",
+            "weight": 1.0, 
+            "description": "John manages the Product Department",
+            "source_id": "chunk_001"
+        }]
+    }
+}
+
+# Important Note: Gleaning Stage Merge Rules
+# - Only accepts new entity names: if entity_name not in maybe_nodes
+# - Does NOT merge multiple description fragments of existing entities
+# - True description merging and weight accumulation happens in merge stage
+```
+
 #### 3. Extraction Result Format
 
 **Entity Format**:
@@ -70,12 +227,48 @@ for glean_index in range(entity_extract_max_gleaning):
 {
     "src_id": "Source entity",
     "tgt_id": "Target entity", 
-    "weight": 1.0,
+    "weight": 1.0,  # Relationship weight, see detailed explanation below
     "description": "Relationship description",
     "keywords": "Keywords",
     "source_id": "chunk_key",
     "file_path": "File path"
 }
+```
+
+#### Relationship Weight Mechanism Explained
+
+**Weight Purpose**:
+- 🎯 **Relationship Strength Indicator**: Higher values indicate stronger or more frequent relationships between entities
+- 📊 **Graph Query Optimization**: Prioritize high-weight relationships during retrieval to improve result quality
+- 🔍 **Path Computation**: Used as edge importance weights in graph traversal algorithms
+- 📈 **Knowledge Evolution**: Track degree of relationship repetition across different documents
+
+**Initial Weight Calculation**:
+```python
+# Each newly extracted relationship defaults to weight 1.0
+initial_weight = 1.0
+
+# Special case: LLM may output relationships with weights
+if "weight" in extracted_relation:
+    initial_weight = float(extracted_relation["weight"])
+else:
+    initial_weight = 1.0  # Default base weight
+```
+
+**Weight Accumulation Rules**:
+- ✅ **Within-Document Repetition**: Same relationship appearing in different chunks of the same document accumulates weight
+- 🔄 **Cross-Document Reinforcement**: Same relationship appearing in different documents continues to accumulate weight
+- 📊 **Frequency Reflection**: Final weight = total occurrences of the relationship across all documents
+
+**Weight Calculation Example**:
+```python
+# Suppose relationship "John" -> "works_at" -> "ABC Corp" appears in:
+# Document1, chunk1: weight = 1.0
+# Document1, chunk3: weight = 1.0  
+# Document2, chunk1: weight = 1.0
+# Final weight: 1.0 + 1.0 + 1.0 = 3.0
+
+final_weight = sum([edge["weight"] for edge in same_relation_edges])
 ```
 
 ### Key Design Features
@@ -100,6 +293,20 @@ chunk_results = [
 - ⚠️ **Contains Duplicates**: Same entity may be repeatedly extracted across multiple chunks
 - 📊 **Scattered Data**: Complete entity information is scattered across different chunks
 
+#### Gleaning vs Merge Stage Differences
+
+**Gleaning Stage (within chunk)**:
+- 🎯 **Goal**: Discover more entities and relationships within a single chunk
+- 🔍 **Strategy**: Only add newly discovered entity names and relationship pairs
+- ❌ **No Merging**: Does not merge descriptions of existing entities or accumulate relationship weights
+- 📝 **Code Logic**: `if entity_name not in maybe_nodes` 
+
+**Merge Stage (cross-chunk)**:
+- 🎯 **Goal**: Merge all chunk results into final knowledge graph
+- 🔍 **Strategy**: Merge all description fragments of same-named entities, accumulate relationship weights
+- ✅ **Complete Merging**: Description concatenation, weight accumulation, intelligent summarization
+- 📝 **Code Logic**: `all_nodes[entity_name].extend(entities)`
+
 ## Entity Merging Mechanism (merge_nodes_and_edges)
 
 ### Core Merging Strategy
@@ -119,6 +326,89 @@ for maybe_nodes, maybe_edges in chunk_results:
     for edge_key, edges in maybe_edges.items():
         sorted_key = tuple(sorted(edge_key))  # Unify direction
         all_edges[sorted_key].extend(edges)
+```
+
+**Data Collection Stage Input Format**:
+```python
+# Collection of extraction results from multiple chunks
+chunk_results = [
+    # Results from Chunk 1
+    (chunk1_maybe_nodes, chunk1_maybe_edges),
+    # Results from Chunk 2  
+    (chunk2_maybe_nodes, chunk2_maybe_edges),
+    # ... more chunk results
+]
+
+# Example single chunk result
+chunk1_maybe_nodes = {
+    "John": [{
+        "entity_name": "John",
+        "entity_type": "Person",
+        "description": "Chief Technology Officer",
+        "source_id": "chunk_001"
+    }]
+}
+
+chunk2_maybe_nodes = {
+    "John": [{  # Same entity repeated in different chunks
+        "entity_name": "John", 
+        "entity_type": "Person",
+        "description": "Product Manager",
+        "source_id": "chunk_002"
+    }]
+}
+```
+
+**Data Collection Stage Output Format**:
+```python
+# Aggregated data after cross-chunk collection
+all_nodes = {
+    "John": [
+        {
+            "entity_name": "John",
+            "entity_type": "Person", 
+            "description": "Chief Technology Officer",
+            "source_id": "chunk_001",
+            "file_path": "/docs/company.txt"
+        },
+        {
+            "entity_name": "John",
+            "entity_type": "Person",
+            "description": "Product Manager", 
+            "source_id": "chunk_002",
+            "file_path": "/docs/company.txt"
+        }
+        # Multiple description fragments of the same entity awaiting merge
+    ],
+    "ABC Corp": [
+        {
+            "entity_name": "ABC Corp",
+            "entity_type": "Organization",
+            "description": "Technology company",
+            "source_id": "chunk_001"
+        }
+    ]
+}
+
+all_edges = {
+    ("ABC Corp", "John"): [  # Key sorted to unify direction
+        {
+            "src_id": "John",
+            "tgt_id": "ABC Corp", 
+            "weight": 1.0,
+            "description": "Employment relationship",
+            "source_id": "chunk_001"
+        },
+        {
+            "src_id": "John",
+            "tgt_id": "ABC Corp",
+            "weight": 1.0, 
+            "description": "Management relationship",
+            "source_id": "chunk_002"
+        }
+        # Multiple occurrences of same relationship awaiting weight accumulation
+    ]
+}
 ```
 
 #### 2. Entity Merging Rules
@@ -160,7 +450,59 @@ if existing_edge:
 ```
 
 **Description Aggregation**: Similar to entity description merging strategy
+```python
+# Relationship description merging example
+edge_descriptions = [edge["description"] for edge in edges]
+if existing_edge:
+    edge_descriptions.extend(existing_edge["description"].split(GRAPH_FIELD_SEP))
+
+merged_description = GRAPH_FIELD_SEP.join(sorted(set(edge_descriptions)))
+```
+
 **Keyword Deduplication**: Extract and merge all keywords
+```python
+# Keyword merging example
+all_keywords = []
+for edge in edges:
+    if edge.get("keywords"):
+        all_keywords.extend(edge["keywords"].split(", "))
+
+merged_keywords = ", ".join(sorted(set(all_keywords)))
+```
+
+**Final Merging Rules Output Format**:
+
+**Entity Merging Output**:
+```python
+# Final entity format after merging rules processing
+merged_entity = {
+    "entity_name": "John",
+    "entity_type": "Person",  # Type selected based on frequency
+    "description": "Chief Technology Officer§Product Manager§Project Manager",  # Descriptions joined with § separator
+    "source_chunks": ["chunk_001", "chunk_002", "chunk_003"],  # Source chunk list
+    "file_paths": ["/docs/company.txt", "/docs/team.txt"],  # Source file list
+    "mention_count": 3,  # Number of chunks mentioning this entity
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+**Relationship Merging Output**:
+```python
+# Final relationship format after merging rules processing  
+merged_relationship = {
+    "src_id": "John",
+    "tgt_id": "ABC Corp",
+    "weight": 3.0,  # Accumulated weight (1.0 + 1.0 + 1.0)
+    "description": "Employment relationship§Management relationship§Leadership relationship",  # Descriptions joined with § separator
+    "keywords": "employee, company, management, responsible, leadership",  # Deduplicated merged keywords
+    "source_chunks": ["chunk_001", "chunk_002"],  # Chunks where relationship appears
+    "file_paths": ["/docs/company.txt"],  # Files where relationship appears
+    "mention_count": 2,  # Number of times relationship was mentioned
+    "created_at": "2024-01-01T00:00:00Z", 
+    "updated_at": "2024-01-01T12:00:00Z"
+}
+```
 
 #### 4. Database Update Process
 
@@ -179,6 +521,75 @@ graph LR
     style D fill:#e1f5fe
     style G fill:#e8f5e8
     style I fill:#e1f5fe
+```
+
+**Final Database Storage Format**:
+
+**Graph Database Entity Storage Format**:
+```python
+# Entity node stored in graph database
+graph_entity_node = {
+    "id": "John",  # Entity name as node ID
+    "entity_type": "Person",
+    "description": "Chief Technology Officer§Product Manager§Project Manager",
+    "source_chunks": ["chunk_001", "chunk_002", "chunk_003"],
+    "file_paths": ["/docs/company.txt", "/docs/team.txt"], 
+    "mention_count": 3,
+    "workspace": "collection_12345",  # Workspace isolation
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+**Graph Database Relationship Storage Format**:
+```python
+# Relationship edge stored in graph database
+graph_relationship_edge = {
+    "source": "John",  # Source node ID
+    "target": "ABC Corp",  # Target node ID
+    "weight": 3.0,
+    "description": "Employment relationship§Management relationship§Leadership relationship",
+    "keywords": "employee, company, management, responsible, leadership",
+    "source_chunks": ["chunk_001", "chunk_002"],
+    "file_paths": ["/docs/company.txt"],
+    "mention_count": 2,
+    "workspace": "collection_12345",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T12:00:00Z"
+}
+```
+
+**Vector Database Storage Format**:
+```python
+# Entity vector stored in vector database
+vector_entity_record = {
+    "id": "entity_John_collection_12345",  # Unique vector record ID
+    "entity_name": "John",
+    "content": "John is a Person who serves as Chief Technology Officer, Product Manager, and Project Manager",  # Text for vectorization
+    "content_vector": [0.1, 0.2, ..., 0.9],  # 1024-dimensional vector representation
+    "workspace": "collection_12345",
+    "storage_type": "entity",  # Distinguish entity/relationship vectors
+    "metadata": {
+        "entity_type": "Person",
+        "mention_count": 3,
+        "file_paths": ["/docs/company.txt", "/docs/team.txt"]
+    }
+}
+
+# Relationship vector stored in vector database
+vector_relationship_record = {
+    "id": "relation_John_ABC_Corp_collection_12345",
+    "relationship": "John -> ABC Corp", 
+    "content": "John has an employment relationship, management relationship, and leadership relationship with ABC Corp",
+    "content_vector": [0.3, 0.4, ..., 0.8],
+    "workspace": "collection_12345",
+    "storage_type": "relationship",
+    "metadata": {
+        "weight": 3.0,
+        "keywords": "employee, company, management, responsible, leadership",
+        "mention_count": 2
+    }
+}
 ```
 
 ### Concurrency Control and Consistency
