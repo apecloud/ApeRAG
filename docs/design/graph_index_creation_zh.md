@@ -30,135 +30,81 @@ Graph Index 创建流程主要包含以下核心阶段：
 ```mermaid
 flowchart TD
     %% 定义样式类
-    classDef taskLayer fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000
-    classDef managerLayer fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000
-    classDef docLayer fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px,color:#000
-    classDef graphLayer fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000
-    classDef entityLayer fill:#fce4ec,stroke:#880e4f,stroke-width:2px,color:#000
-    classDef componentLayer fill:#f1f8e9,stroke:#33691e,stroke-width:2px,color:#000
-    classDef concurrentLayer fill:#e0f2f1,stroke:#004d40,stroke-width:2px,color:#000
-    classDef mergeLayer fill:#fef7e0,stroke:#f57f17,stroke-width:2px,color:#000
-    classDef storageLayer fill:#e8eaf6,stroke:#283593,stroke-width:2px,color:#000
-    classDef completeNode fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px,color:#000
+    classDef entry fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000,font-weight:bold
+    classDef manager fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px,color:#000
+    classDef processing fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px,color:#000
+    classDef intelligence fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000
+    classDef optimization fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#000
+    classDef storage fill:#e8eaf6,stroke:#3f51b5,stroke-width:2px,color:#000
+    classDef complete fill:#c8e6c9,stroke:#388e3c,stroke-width:3px,color:#000,font-weight:bold
     
-    %% 任务接收层
-    subgraph TaskLayer ["🚀 任务接收层"]
-        A["📋 create_index_task<br/><small>(GRAPH)</small>"]
-        B["⚡ process_document_for_celery<br/><small>(Celery Entry)</small>"]
-    end
+    %% 入口层
+    START["🚀 Graph Index 任务启动"]
     
     %% 管理层
-    subgraph ManagerLayer ["🎯 LightRAG 管理层"]
-        C["🏗️ create_lightrag_instance<br/><small>(Instance Creation)</small>"]
-        D["🔄 _process_document_async<br/><small>(Async Coordinator)</small>"]
-    end
+    MANAGER["🎯 LightRAG 实例管理<br/>• create_lightrag_instance<br/>• workspace 隔离"]
     
-    %% 文档处理层
-    subgraph DocLayer ["📄 文档处理层"]
-        E["✂️ ainsert_and_chunk_document<br/><small>(Document Chunking)</small>"]
-        F["🔍 chunking_by_token_size<br/><small>(Smart Tokenization)</small>"]
-        G["💾 Storage Operations<br/><small>chunks_vdb.upsert<br/>text_chunks.upsert</small>"]
-    end
+    %% 文档处理分支
+    DOC_PROCESS["📄 文档分块处理<br/>• ainsert_and_chunk_document<br/>• chunking_by_token_size"]
+    DOC_STORE["💾 分块数据存储<br/>• chunks_vdb.upsert<br/>• text_chunks.upsert"]
     
-    %% 图索引层
-    subgraph GraphLayer ["🕸️ 图索引构建层"]
-        H["🏛️ aprocess_graph_indexing<br/><small>(Graph Index Builder)</small>"]
-        I["🔬 extract_entities<br/><small>(LLM Extraction)</small>"]
-        J["🧩 _find_connected_components<br/><small>(Topology Analysis)</small>"]
-        K["⚙️ _grouping_process_chunk_results<br/><small>(Group Coordinator)</small>"]
-    end
+    %% 图索引处理分支
+    GRAPH_START["🏛️ 图索引构建启动<br/>• aprocess_graph_indexing"]
     
-    %% 实体提取层
-    subgraph EntityLayer ["🎭 实体关系提取层"]
-        L["🤖 LLM Entity Recognition<br/><small>(Concurrent Processing)</small>"]
-        M["👤 Entity Extraction<br/><small>_handle_single_entity</small>"]
-        N["🔗 Relationship Extraction<br/><small>_handle_single_relationship</small>"]
-    end
+    %% 智能提取层
+    AI_EXTRACT["🔬 AI 智能提取<br/>• extract_entities<br/>• LLM 并发调用"]
+    ENTITY_REL["🎭 实体关系识别<br/>• Entity Recognition<br/>• Relationship Extraction"]
     
-    %% 连通分量层
-    subgraph ComponentLayer ["🌐 拓扑分析层"]
-        O["📊 Build Adjacency Graph<br/><small>(Graph Construction)</small>"]
-        P["🔄 BFS Component Discovery<br/><small>(Connected Components)</small>"]
-        Q["📦 Component Grouping<br/><small>(Task Distribution)</small>"]
-    end
+    %% 拓扑优化层
+    TOPO_ANALYSIS["🧠 拓扑分析<br/>• _find_connected_components<br/>• BFS算法"]
+    COMPONENT_GROUP["🌐 连通分量分组<br/>• Component Grouping<br/>• 并发任务分配"]
     
-    %% 并发处理层
-    subgraph ConcurrentLayer ["⚡ 并发控制层"]
-        R["📋 Component Task Creation<br/><small>(Parallel Tasks)</small>"]
-        S["🚦 Semaphore Control<br/><small>(Concurrency Limit)</small>"]
-        T["🔧 merge_nodes_and_edges<br/><small>(Core Merging)</small>"]
-    end
+    %% 并发合并层
+    CONCURRENT_MERGE["⚡ 并发智能合并<br/>• merge_nodes_and_edges<br/>• 细粒度锁控制"]
     
-    %% 合并处理层
-    subgraph MergeLayer ["🔄 数据合并层"]
-        U["🔒 Fine-grained Locking<br/><small>(Entity & Relation Locks)</small>"]
-        V["👥 _merge_nodes_then_upsert<br/><small>(Entity Merging)</small>"]
-        W["🔗 _merge_edges_then_upsert<br/><small>(Relation Merging)</small>"]
-        X["📝 LLM Entity Summary<br/><small>(Smart Summarization)</small>"]
-        Y["📝 LLM Relation Summary<br/><small>(Smart Summarization)</small>"]
-    end
+    %% 存储层（并行写入）
+    STORAGE_GRAPH["🗄️ 图数据库<br/>Neo4j/NebulaGraph/PG"]
+    STORAGE_VECTOR["🎯 向量数据库<br/>Qdrant/Elasticsearch"]
+    STORAGE_TEXT["📝 文本存储<br/>原始分块数据"]
     
-    %% 存储层
-    subgraph StorageLayer ["💽 多存储写入层"]
-        Z1["🗄️ Knowledge Graph Storage<br/><small>Neo4j / NebulaGraph</small>"]
-        Z2["🎯 Entity Vector Storage<br/><small>Qdrant / Elasticsearch</small>"]
-        Z3["🔗 Relationship Vector Storage<br/><small>Vector Database</small>"]
-    end
+    %% 完成
+    COMPLETE["✅ 知识图谱构建完成<br/>🎉 多维度检索就绪"]
     
-    %% 完成节点
-    AA["✅ Graph Index Created<br/><small>Process Complete</small>"]
+    %% 主流程连接
+    START --> MANAGER
+    MANAGER --> DOC_PROCESS
+    MANAGER --> GRAPH_START
     
-    %% 主要流程连接
-    A --> B
-    B --> C
-    C --> D
-    D --> E
-    D --> H
-    E --> F
-    F --> G
-    H --> I
-    I --> J
-    J --> K
-    I --> L
-    L --> M
-    L --> N
-    J --> O
-    O --> P
-    P --> Q
-    K --> R
-    R --> S
-    S --> T
-    T --> U
-    U --> V
-    U --> W
-    V --> X
-    W --> Y
+    DOC_PROCESS --> DOC_STORE
+    DOC_STORE -.->|"数据准备完成"| GRAPH_START
     
-    %% 存储写入
-    V --> Z1
-    V --> Z2
-    W --> Z1
-    W --> Z3
+    GRAPH_START --> AI_EXTRACT
+    AI_EXTRACT --> ENTITY_REL
+    AI_EXTRACT --> TOPO_ANALYSIS
     
-    %% 虚线连接（数据流）
-    G -.->|"数据准备完成"| H
+    ENTITY_REL --> COMPONENT_GROUP
+    TOPO_ANALYSIS --> COMPONENT_GROUP
     
-    %% 汇聚到完成
-    Z1 --> AA
-    Z2 --> AA
-    Z3 --> AA
+    COMPONENT_GROUP --> CONCURRENT_MERGE
+    
+    %% 并行存储
+    CONCURRENT_MERGE --> STORAGE_GRAPH
+    CONCURRENT_MERGE --> STORAGE_VECTOR
+    DOC_STORE --> STORAGE_TEXT
+    
+    %% 汇聚完成
+    STORAGE_GRAPH --> COMPLETE
+    STORAGE_VECTOR --> COMPLETE
+    STORAGE_TEXT --> COMPLETE
     
     %% 应用样式
-    class A,B taskLayer
-    class C,D managerLayer
-    class E,F,G docLayer
-    class H,I,J,K graphLayer
-    class L,M,N entityLayer
-    class O,P,Q componentLayer
-    class R,S,T concurrentLayer
-    class U,V,W,X,Y mergeLayer
-    class Z1,Z2,Z3 storageLayer
-    class AA completeNode
+    class START entry
+    class MANAGER manager
+    class DOC_PROCESS,DOC_STORE processing
+    class GRAPH_START,AI_EXTRACT,ENTITY_REL intelligence
+    class TOPO_ANALYSIS,COMPONENT_GROUP,CONCURRENT_MERGE optimization
+    class STORAGE_GRAPH,STORAGE_VECTOR,STORAGE_TEXT storage
+    class COMPLETE complete
 ```
 
 ## 核心设计思路
