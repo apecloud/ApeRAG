@@ -167,7 +167,7 @@ flowchart TD
 
 原版 LightRAG 采用全局状态管理，导致严重的并发冲突，多个任务共享同一实例造成数据污染，**更严重的是所有集合的图数据都存储在同一个全局命名空间中，不同项目的实体和关系会相互混淆**，无法支持真正的多租户隔离。
 
-我们完全重写了 LightRAG 的实例管理代码，实现了无状态设计：每个 Celery 任务创建独立的 LightRAG 实例，通过 `workspace` 参数实现集合级别的数据隔离。**每个集合的图数据都存储在独立的命名空间中**（如 `entity:{entity_name}:{workspace}`），支持 Neo4j、NebulaGraph、PostgreSQL 等多种图数据库后端，并建立了严格的实例生命周期管理机制确保资源不泄露。
+我们完全重写了 LightRAG 的实例管理代码，实现了无状态设计：每个 Celery 任务创建独立的 LightRAG 实例，通过 `workspace` 参数实现集合级别的数据隔离。**每个集合的图数据都存储在独立的命名空间中**，支持 Neo4j、NebulaGraph、PostgreSQL 等多种图数据库后端，并建立了严格的实例生命周期管理机制确保资源不泄露。
 
 ### 2. 分阶段流水线处理
 
@@ -229,103 +229,166 @@ flowchart TD
 
 ## 核心数据流图
 
-Graph Index 的创建过程本质上是一个复杂的数据转换流水线，以下数据流图展示了从文档分块到知识图谱存储的完整数据处理过程：
+Graph Index 的创建过程本质上是一个复杂的数据转换流水线，以下数据流图展示了从原始文档到结构化知识图谱的完整数据转换过程：
 
 ```mermaid
-graph TD
-    subgraph "输入数据层"
-        A[原始文档内容] --> B[文档清理和预处理]
-        B --> C[智能分块算法]
+flowchart TD
+    %% 定义样式类
+    classDef inputStage fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#000
+    classDef chunkStage fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px,color:#000
+    classDef extractStage fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000
+    classDef topoStage fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000
+    classDef mergeStage fill:#fce4ec,stroke:#c2185b,stroke-width:2px,color:#000
+    classDef summaryStage fill:#e0f2f1,stroke:#00695c,stroke-width:2px,color:#000
+    classDef storageStage fill:#e8eaf6,stroke:#3f51b5,stroke-width:2px,color:#000
+    classDef resultStage fill:#c8e6c9,stroke:#388e3c,stroke-width:3px,color:#000
+    
+    %% 数据输入阶段
+    subgraph InputStage ["📥 原始数据输入"]
+        A["📄 原始文档<br/><small>PDF/Word/Markdown等格式</small>"]
+        B["🧹 文档清理预处理<br/><small>去除格式/噪声过滤</small>"]
+        C["✂️ 智能分块<br/><small>基于语义和Token限制</small>"]
     end
     
-    subgraph "分块数据结构"
-        C --> D["ChunkData[]<br/>{<br/>  chunk_id: str<br/>  content: str<br/>  tokens: int<br/>  full_doc_id: str<br/>  file_path: str<br/>  chunk_order_index: int<br/>}"]
+    %% 分块数据阶段
+    subgraph ChunkStage ["📦 结构化分块数据"]
+        D["🔢 分块集合<br/><small>带ID/内容/元数据的分块</small>"]
     end
     
-    subgraph "并发实体提取"
-        D --> E[LLM 并发调用]
-        E --> F[实体提取解析]
-        E --> G[关系提取解析]
-        
-        F --> H["EntityData[]<br/>{<br/>  entity_name: str<br/>  entity_type: str<br/>  description: str<br/>  source_id: str<br/>  file_path: str<br/>}"]
-        
-        G --> I["RelationData[]<br/>{<br/>  src_id: str<br/>  tgt_id: str<br/>  description: str<br/>  keywords: str<br/>  weight: float<br/>  source_id: str<br/>  file_path: str<br/>}"]
+    %% 并发提取阶段
+    subgraph ExtractStage ["🔬 AI智能提取"]
+        E["🤖 LLM并发调用<br/><small>大模型并发识别</small>"]
+        F["👤 实体识别<br/><small>人物/组织/概念等</small>"]
+        G["🔗 关系识别<br/><small>实体间的语义关系</small>"]
+        H["📋 原始实体列表<br/><small>未去重的实体数据</small>"]
+        I["📋 原始关系列表<br/><small>未聚合的关系数据</small>"]
     end
     
-    subgraph "拓扑分析与分组"
-        H --> J[构建邻接图]
-        I --> J
-        J --> K[BFS 连通分量发现]
-        K --> L["ComponentGroup[]<br/>{<br/>  component_entities: Set[str]<br/>  filtered_entities: Dict<br/>  filtered_relations: Dict<br/>}"]
+    %% 拓扑分析阶段
+    subgraph TopoStage ["🧠 图拓扑分析"]
+        J["🕸️ 构建邻接图<br/><small>实体关系网络建模</small>"]
+        K["🔍 连通分量发现<br/><small>BFS算法识别独立群组</small>"]
+        L["📦 组件分组<br/><small>按连通性划分处理组</small>"]
     end
     
-    subgraph "并发合并处理"
-        L --> M[组件并发处理]
-        M --> N[实体去重合并]
-        M --> O[关系聚合合并]
-        
-        N --> P["MergedEntity<br/>{<br/>  entity_name: str<br/>  entity_type: str<br/>  merged_description: str<br/>  aggregated_source_ids: str<br/>  aggregated_file_paths: str<br/>  created_at: int<br/>}"]
-        
-        O --> Q["MergedRelation<br/>{<br/>  src_id: str<br/>  tgt_id: str<br/>  merged_description: str<br/>  aggregated_keywords: str<br/>  total_weight: float<br/>  aggregated_source_ids: str<br/>  aggregated_file_paths: str<br/>  created_at: int<br/>}"]
+    %% 并发合并阶段
+    subgraph MergeStage ["⚡ 智能数据合并"]
+        M["🔄 组件并发处理<br/><small>不同群组并行处理</small>"]
+        N["👥 实体去重合并<br/><small>同名实体信息聚合</small>"]
+        O["🔗 关系聚合合并<br/><small>同方向关系权重累加</small>"]
+        P["✨ 合并实体数据<br/><small>去重后的实体信息</small>"]
+        Q["✨ 合并关系数据<br/><small>聚合后的关系信息</small>"]
     end
     
-    subgraph "LLM 智能摘要"
-        P --> R{描述长度检查}
-        R -->|超出阈值| S[LLM 摘要生成]
-        R -->|未超出| T[保持原描述]
-        S --> U[实体摘要结果]
-        T --> U
-        
-        Q --> V{描述长度检查}
-        V -->|超出阈值| W[LLM 摘要生成]
-        V -->|未超出| X[保持原描述]
-        W --> Y[关系摘要结果]
-        X --> Y
+    %% 智能摘要阶段
+    subgraph SummaryStage ["📝 智能内容摘要"]
+        R{"📏 内容长度检查"}
+        S["🤖 LLM智能摘要<br/><small>长文本压缩总结</small>"]
+        T["✅ 保持原内容<br/><small>短文本直接保留</small>"]
+        U["📄 最终实体内容<br/><small>优化后的实体描述</small>"]
+        V{"📏 关系长度检查"}
+        W["🤖 LLM关系摘要<br/><small>关系描述压缩</small>"]
+        X["✅ 保持原关系<br/><small>简短关系直接保留</small>"]
+        Y["📄 最终关系内容<br/><small>优化后的关系描述</small>"]
     end
     
-    subgraph "多存储写入"
-        U --> Z1[知识图谱存储<br/>Neo4j/NebulaGraph]
-        U --> Z2["向量数据库存储<br/>实体向量<br/>{<br/>  entity_id: hash_id<br/>  content: name+description<br/>  metadata: {...}<br/>}"]
-        
-        Y --> Z1
-        Y --> Z3["向量数据库存储<br/>关系向量<br/>{<br/>  relation_id: hash_id<br/>  content: src+tgt+keywords+desc<br/>  metadata: {...}<br/>}"]
-        
-        D --> Z4[分块向量存储<br/>Chunks VDB]
-        D --> Z5[文本分块存储<br/>Text Chunks KV]
+    %% 多存储写入阶段
+    subgraph StorageStage ["💾 多存储系统写入"]
+        Z1["🗄️ 图数据库<br/><small>Neo4j/NebulaGraph/PostgreSQL</small>"]
+        Z2["🎯 实体向量库<br/><small>语义搜索向量存储</small>"]
+        Z3["🔗 关系向量库<br/><small>关系语义向量存储</small>"]
+        Z4["📚 分块向量库<br/><small>原始分块向量索引</small>"]
+        Z5["📝 文本存储<br/><small>分块原始文本存储</small>"]
     end
     
-    subgraph "存储一致性保证"
-        Z1 --> AA[细粒度锁控制]
-        Z2 --> AA
-        Z3 --> AA
-        Z4 --> AB[串行写入避免冲突]
-        Z5 --> AB
-        
-        AA --> AC[事务性写入完成]
-        AB --> AC
-    end
+    %% 完成阶段
+    AA["🎉 知识图谱构建完成<br/><small>多维度知识检索就绪</small>"]
     
-    AC --> AD[图索引创建完成]
+    %% 主要数据流连接
+    A --> B
+    B --> C
+    C --> D
+    
+    D --> E
+    E --> F
+    E --> G
+    F --> H
+    G --> I
+    
+    H --> J
+    I --> J
+    J --> K
+    K --> L
+    
+    L --> M
+    M --> N
+    M --> O
+    N --> P
+    O --> Q
+    
+    %% 智能摘要流程
+    P --> R
+    R -->|"内容过长"| S
+    R -->|"内容适中"| T
+    S --> U
+    T --> U
+    
+    Q --> V
+    V -->|"描述过长"| W
+    V -->|"描述适中"| X
+    W --> Y
+    X --> Y
+    
+    %% 存储写入流程
+    U --> Z1
+    U --> Z2
+    Y --> Z1
+    Y --> Z3
+    D --> Z4
+    D --> Z5
+    
+    %% 汇聚完成
+    Z1 --> AA
+    Z2 --> AA
+    Z3 --> AA
+    Z4 --> AA
+    Z5 --> AA
+    
+    %% 应用样式
+    class A,B,C inputStage
+    class D chunkStage
+    class E,F,G,H,I extractStage
+    class J,K,L topoStage
+    class M,N,O,P,Q mergeStage
+    class R,S,T,U,V,W,X,Y summaryStage
+    class Z1,Z2,Z3,Z4,Z5 storageStage
+    class AA resultStage
 ```
 
-### 数据流关键节点解析
+### 数据流转换过程解析
 
-#### 1. 分块数据生成
-分块阶段生成的数据包含：唯一的分块ID（MD5哈希）、清理后的文本内容、token数量、所属文档ID、原始文件路径、以及在文档中的顺序索引。
+#### 🚀 **文档输入 → 结构化分块**
+原始文档经过格式清理和噪声过滤，使用智能分块算法按照语义边界和Token限制进行切分，生成带有唯一标识和元数据的分块集合。这一步骤确保了后续处理的数据质量和可追溯性。
 
-#### 2. LLM 提取的实体关系数据
-LLM 从每个分块中提取结构化的实体和关系数据：
-- **实体数据**：包含实体名称、类型、描述、来源分块ID和文件路径
-- **关系数据**：包含源实体、目标实体、关系描述、关键词、权重和来源信息
+#### 🔬 **分块数据 → AI提取结果** 
+分块数据通过LLM并发调用进行智能分析，同时识别文本中的实体（人物、组织、概念等）和实体间的语义关系。这一阶段产生原始的、未经去重的实体和关系列表，为后续的图谱构建提供原材料。
 
-#### 3. 连通分量分组结果
-基于实体关系构建邻接图，使用BFS算法发现连通分量，将相关的实体分组到独立的处理组件中。例如：技术团队相关的实体为一组，财务相关的为另一组，独立实体单独处理。
+#### 🧠 **提取结果 → 拓扑分组**
+基于提取的实体关系构建邻接图网络，使用BFS算法发现连通分量，将相互关联的实体群组识别出来。例如：技术团队相关实体为一组，财务部门相关实体为另一组。这种拓扑分析为并行处理奠定了基础。
 
-#### 4. 合并后的数据结构
-同名实体的多个描述会用分隔符聚合，关系的权重会累加，来源ID和文件路径会去重合并。这种设计支持从多个文档片段中逐步构建完整的实体和关系信息。
+#### ⚡ **拓扑分组 → 智能合并**
+不同的连通分量可以完全并行处理，同名实体进行智能去重和信息聚合，同方向关系进行权重累加和描述合并。这一过程将碎片化的信息整合为完整的知识单元。
 
-#### 5. 向量存储格式
-最终数据会写入向量数据库，实体向量包含名称和描述的组合文本，关系向量包含源实体、目标实体、关键词和描述的组合格式，便于后续的语义检索。
+#### 📝 **合并数据 → 内容优化**
+对合并后的实体和关系描述进行长度检查，过长的内容通过LLM进行智能摘要压缩，确保信息密度和存储效率的平衡。短内容直接保留，长内容智能总结。
+
+#### 💾 **优化内容 → 多维存储**
+最终的知识内容同时写入多个存储系统：
+- **图数据库**：存储实体节点和关系边，支持图谱查询
+- **向量数据库**：存储语义向量，支持相似性搜索
+- **文本存储**：保留原始分块，支持全文检索
+
+这种多维存储架构确保了知识图谱在不同查询场景下的最优性能。
 
 ### 数据流优化特性
 
