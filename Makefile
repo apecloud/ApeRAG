@@ -1,5 +1,5 @@
 # Configuration variables
-VERSION ?= dev-latest
+VERSION ?= v0.5.0-alpha.29
 VERSION_FILE ?= aperag/version/__init__.py
 BUILDX_PLATFORM ?= linux/amd64,linux/arm64
 BUILDX_ARGS ?= --sbom=false --provenance=false

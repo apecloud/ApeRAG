@@ -32,7 +32,7 @@ services:
       - DOCRAY_HOST=${DOCRAY_HOST}
     ports:
       - "8000:8000"
-    entrypoint: /app/scripts/start-api.sh
+    command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-api.sh"]
 
   frontend:
     build:
@@ -72,7 +72,7 @@ services:
     environment:
       - NODE_IP=aperag-celeryworker
       - DOCRAY_HOST=${DOCRAY_HOST}
-    entrypoint: /app/scripts/start-celery-worker.sh
+    command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-celery-worker.sh"]
 
   celerybeat:
     image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-latest}
@@ -88,7 +88,7 @@ services:
       - postgres
     environment:
       - NODE_IP=aperag-celerybeat
-    entrypoint: /app/scripts/start-celery-beat.sh
+    command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-celery-beat.sh"]
 
   flower:
     <<: *api
@@ -104,7 +104,7 @@ services:
       - "5555:5555"
     environment:
       - NODE_IP=aperag-flower
-    entrypoint: /app/scripts/start-celery-flower.sh
+    command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-celery-flower.sh"]
 
   postgres:
     image: pgvector/pgvector:pg16
