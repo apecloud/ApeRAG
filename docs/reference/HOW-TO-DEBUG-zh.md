@@ -24,7 +24,7 @@ Python解释器: [通过 uv 虚拟环境获取]
   PYTHONUNBUFFERED=1;PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 ```
 
-![celery.jpeg](images%2Fcelery.jpeg)
+![celery.jpeg](../images%2Fcelery.jpeg)
 
 ---
 
@@ -47,4 +47,4 @@ Python解释器: [与Celery相同的uv虚拟环境]
   DJANGO_SETTINGS_MODULE=config.settings;
 ```
 
-![backend.jpeg](images%2Fbackend.jpeg)
+![backend.jpeg](../images%2Fbackend.jpeg)

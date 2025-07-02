@@ -24,7 +24,7 @@ Environment variables:
   PYTHONUNBUFFERED=1;PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 ```
 
-![celery.jpeg](images/celery.jpeg)
+![celery.jpeg](../images/celery.jpeg)
 
 ---
 
@@ -47,5 +47,5 @@ Environment variables:
   DJANGO_SETTINGS_MODULE=config.settings;
 ```
 
-![backend.jpeg](images/backend.jpeg)
+![backend.jpeg](../images/backend.jpeg)
 
