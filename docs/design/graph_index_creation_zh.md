@@ -496,7 +496,7 @@ NEBULA_TIMEOUT=60000
 
 我们对原版 LightRAG 进行了大规模的重构和优化，实现了真正适用于生产环境的高并发知识图谱构建系统：
 
-> 📖 **技术细节补充**：关于实体提取与合并的具体算法实现，请参阅 [LightRAG 实体提取与合并机制详解](./lightrag_entity_extraction_and_merging_zh.md)
+> 🔬 **算法深入**：关于实体提取与合并的具体算法实现，继续阅读 [LightRAG 实体提取与合并机制详解](./lightrag_entity_extraction_and_merging_zh.md)
 
 ### 核心技术贡献
 

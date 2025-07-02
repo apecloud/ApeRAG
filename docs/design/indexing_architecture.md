@@ -4,7 +4,7 @@
 
 ApeRAG's indexing pipeline architecture adopts a dual-chain design pattern, separating index management into Frontend Chain and Backend Chain, implementing asynchronous document indexing through state-driven reconciliation. The frontend chain handles fast user operation responses and sets desired index states, while the backend chain detects state differences through a periodic reconciler and schedules asynchronous tasks to execute actual indexing operations.
 
-> 📖 **Technical Supplement**: For detailed entity extraction and merging mechanisms in Graph Index creation, please refer to [LightRAG Entity Extraction and Merging Mechanism](./lightrag_entity_extraction_and_merging.md)
+> 🚀 **Deep Dive**: To understand the detailed Graph Index creation process, continue reading [Graph Index Creation Process Technical Documentation](./graph_index_creation.md)
 
 ## Architecture Overview
 
@@ -552,6 +552,5 @@ This architecture provides good performance and scalability support for high-con
 
 ## Related Documents
 
-- 🏗️ [Graph Index Creation Process](./graph_index_creation.md) - Detailed graph index construction process
-- 📖 [LightRAG Entity Extraction and Merging Mechanism](./lightrag_entity_extraction_and_merging.md) - Graph Index core algorithm details
+- 🚀 [Graph Index Creation Process Technical Documentation](./graph_index_creation.md) - Deep dive into the detailed graph index construction process
 - 📋 [索引链路架构设计](./indexing_architecture_zh.md) - Chinese Version 

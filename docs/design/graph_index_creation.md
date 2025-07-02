@@ -496,7 +496,7 @@ NEBULA_TIMEOUT=60000
 
 We conducted large-scale refactoring and optimization of the original LightRAG, achieving a high-concurrency knowledge graph construction system truly suitable for production environments:
 
-> 📖 **Technical Supplement**: For specific algorithm implementation details of entity extraction and merging, please refer to [LightRAG Entity Extraction and Merging Mechanism](./lightrag_entity_extraction_and_merging.md)
+> 🔬 **Algorithm Deep Dive**: For specific algorithm implementation details of entity extraction and merging, continue reading [LightRAG Entity Extraction and Merging Mechanism](./lightrag_entity_extraction_and_merging.md)
 
 ### Core Technical Contributions
 
@@ -523,4 +523,4 @@ The refactored system transforms the original research prototype into a producti
 
 - 📋 [Indexing Architecture Design](./indexing_architecture.md) - Overall indexing architecture
 - 📖 [LightRAG Entity Extraction and Merging Mechanism](./lightrag_entity_extraction_and_merging.md) - Core algorithm details
-- 🏗️ [Graph Index 创建流程](./graph_index_creation_zh.md) - Chinese Version 
+- 🏗️ [Graph Index 创建流程技术文档](./graph_index_creation_zh.md) - Chinese Version 
