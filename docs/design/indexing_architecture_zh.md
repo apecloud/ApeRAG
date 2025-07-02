@@ -4,6 +4,8 @@
 
 ApeRAG的索引链路架构采用双链路设计模式，将索引管理分为前端链路（Frontend Chain）和后端链路（Backend Chain），通过状态驱动的调谐机制实现文档索引的异步处理。前端链路负责快速响应用户操作并设置索引状态，后端链路通过定时调谐器检测状态变化并调度异步任务执行实际的索引操作。
 
+> 📖 **技术细节补充**：关于 Graph Index 创建过程中的实体提取与合并机制，请参阅 [LightRAG 实体提取与合并机制详解](./lightrag_entity_extraction_and_merging_zh.md)
+
 ## 架构概览
 
 ```mermaid
@@ -544,4 +546,12 @@ ApeRAG的索引链路架构通过以下技术设计实现了高效的文档索�
 4. **分层设计**：任务调度、业务逻辑、索引实现分层解耦，便于测试和维护
 5. **操作区分**：明确分离创建与更新操作，允许优化的处理策略
 
-这个架构在保证系统可靠性和可维护性的同时，为高并发的文档索引场景提供了良好的性能和扩展性支持。 
+这个架构在保证系统可靠性和可维护性的同时，为高并发的文档索引场景提供了良好的性能和扩展性支持。
+
+---
+
+## 相关文档
+
+- 🏗️ [Graph Index 创建流程](./graph_index_creation_zh.md) - 详细的图索引构建流程
+- 📖 [LightRAG 实体提取与合并机制详解](./lightrag_entity_extraction_and_merging_zh.md) - Graph Index 核心算法详解
+- 📋 [Indexing Architecture Design](./indexing_architecture.md) - English Version 

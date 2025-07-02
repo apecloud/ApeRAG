@@ -496,6 +496,8 @@ NEBULA_TIMEOUT=60000
 
 我们对原版 LightRAG 进行了大规模的重构和优化，实现了真正适用于生产环境的高并发知识图谱构建系统：
 
+> 📖 **技术细节补充**：关于实体提取与合并的具体算法实现，请参阅 [LightRAG 实体提取与合并机制详解](./lightrag_entity_extraction_and_merging_zh.md)
+
 ### 核心技术贡献
 
 1. **彻底重写为无状态架构**：我们完全重写了 LightRAG 的核心架构，解决了原版的无法并发执行的问题，每个任务使用独立实例，支持真正的多租户隔离
@@ -503,3 +505,11 @@ NEBULA_TIMEOUT=60000
 3. **连通分量并发优化**：我们设计了基于图拓扑分析的智能并发策略，最大化并行处理效率
 4. **重构存储层架构**：我们完全重写了存储抽象层，解决原版存储实现不可靠的问题，多存储后端实现不一致的问题
 5. **端到端数据流设计**：我们设计了完整的数据转换流水线，从文档分块到多存储写入的全链路优化
+
+---
+
+## 相关文档
+
+- 📋 [索引链路架构设计](./indexing_architecture_zh.md) - 整体索引架构
+- 📖 [LightRAG 实体提取与合并机制详解](./lightrag_entity_extraction_and_merging_zh.md) - 核心算法详解
+- 🏗️ [Graph Index Creation Process](./graph_index_creation.md) - English Version
