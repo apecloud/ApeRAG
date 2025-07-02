@@ -245,14 +245,14 @@ flowchart TD
     
     %% 数据输入阶段
     subgraph InputStage ["📥 原始数据输入"]
-        A["📄 原始文档<br/><small>PDF/Word/Markdown等格式</small>"]
+        A["📄 原始文档<br/><small>PDF/Word/Markdown等</small>"]
         B["🧹 文档清理预处理<br/><small>去除格式/噪声过滤</small>"]
         C["✂️ 智能分块<br/><small>基于语义和Token限制</small>"]
     end
     
     %% 分块数据阶段
     subgraph ChunkStage ["📦 结构化分块数据"]
-        D["🔢 分块集合<br/><small>带ID/内容/元数据的分块</small>"]
+        D["🔢 分块集合<br/><small>带ID/内容/元数据</small>"]
     end
     
     %% 并发提取阶段
@@ -266,18 +266,18 @@ flowchart TD
     
     %% 拓扑分析阶段
     subgraph TopoStage ["🧠 图拓扑分析"]
-        J["🕸️ 构建邻接图<br/><small>实体关系网络建模</small>"]
-        K["🔍 连通分量发现<br/><small>BFS算法识别独立群组</small>"]
-        L["📦 组件分组<br/><small>按连通性划分处理组</small>"]
+        J["🕸️ 构建邻接图<br/><small>实体关系建模</small>"]
+        K["🔍 连通分量发现<br/><small>BFS算法识别群组</small>"]
+        L["📦 组件分组<br/><small>按连通性划分</small>"]
     end
     
     %% 并发合并阶段
     subgraph MergeStage ["⚡ 智能数据合并"]
-        M["🔄 组件并发处理<br/><small>不同群组并行处理</small>"]
-        N["👥 实体去重合并<br/><small>同名实体信息聚合</small>"]
-        O["🔗 关系聚合合并<br/><small>同方向关系权重累加</small>"]
-        P["✨ 合并实体数据<br/><small>去重后的实体信息</small>"]
-        Q["✨ 合并关系数据<br/><small>聚合后的关系信息</small>"]
+        M["🔄 组件并发处理<br/><small>群组并行处理</small>"]
+        N["👥 实体去重合并<br/><small>同名实体聚合</small>"]
+        O["🔗 关系聚合合并<br/><small>权重累加处理</small>"]
+        P["✨ 合并实体数据<br/><small>去重后的实体</small>"]
+        Q["✨ 合并关系数据<br/><small>聚合后的关系</small>"]
     end
     
     %% 智能摘要阶段
@@ -285,24 +285,24 @@ flowchart TD
         R{"📏 内容长度检查"}
         S["🤖 LLM智能摘要<br/><small>长文本压缩总结</small>"]
         T["✅ 保持原内容<br/><small>短文本直接保留</small>"]
-        U["📄 最终实体内容<br/><small>优化后的实体描述</small>"]
+        U["📄 最终实体内容<br/><small>优化后的描述</small>"]
         V{"📏 关系长度检查"}
         W["🤖 LLM关系摘要<br/><small>关系描述压缩</small>"]
         X["✅ 保持原关系<br/><small>简短关系直接保留</small>"]
-        Y["📄 最终关系内容<br/><small>优化后的关系描述</small>"]
+        Y["📄 最终关系内容<br/><small>优化后的描述</small>"]
     end
     
     %% 多存储写入阶段
     subgraph StorageStage ["💾 多存储系统写入"]
-        Z1["🗄️ 图数据库<br/><small>Neo4j/NebulaGraph/PostgreSQL</small>"]
-        Z2["🎯 实体向量库<br/><small>语义搜索向量存储</small>"]
-        Z3["🔗 关系向量库<br/><small>关系语义向量存储</small>"]
-        Z4["📚 分块向量库<br/><small>原始分块向量索引</small>"]
-        Z5["📝 文本存储<br/><small>分块原始文本存储</small>"]
+        Z1["🗄️ 图数据库<br/><small>Neo4j/NebulaGraph/PG</small>"]
+        Z2["🎯 实体向量库<br/><small>语义搜索存储</small>"]
+        Z3["🔗 关系向量库<br/><small>关系语义存储</small>"]
+        Z4["📚 分块向量库<br/><small>原始分块索引</small>"]
+        Z5["📝 文本存储<br/><small>分块文本存储</small>"]
     end
     
     %% 完成阶段
-    AA["🎉 知识图谱构建完成<br/><small>多维度知识检索就绪</small>"]
+    AA["🎉 知识图谱构建完成<br/><small>多维度检索就绪</small>"]
     
     %% 主要数据流连接
     A --> B
