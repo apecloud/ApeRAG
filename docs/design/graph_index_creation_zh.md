@@ -984,15 +984,25 @@ GRAPH_INDEX_VECTOR_STORAGE=PGOpsSyncVectorStorage  # 向量存储
 GRAPH_INDEX_GRAPH_STORAGE=Neo4JSyncStorage         # 图存储
 
 # PostgreSQL 配置
-POSTGRES_HOST=localhost
+POSTGRES_HOST=127.0.0.1
+POSTGRES_PORT=5432
+POSTGRES_DB=postgres
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres  
-POSTGRES_DB=aperag
+POSTGRES_PASSWORD=postgres
 
-# Neo4j 配置
-NEO4J_URI=bolt://localhost:7687
-NEO4J_USER=neo4j
+# Neo4J 配置示例
+NEO4J_HOST=127.0.0.1
+NEO4J_PORT=7687
+NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=password
+
+# NebulaGraph 配置示例
+NEBULA_HOST=127.0.0.1
+NEBULA_PORT=9669
+NEBULA_USER=root
+NEBULA_PASSWORD=nebula
+NEBULA_MAX_CONNECTION_POOL_SIZE=10
+NEBULA_TIMEOUT=60000
 ```
 
 ## 总结
@@ -1001,51 +1011,8 @@ NEO4J_PASSWORD=password
 
 ### 核心技术贡献
 
-1. **彻底重写为无状态架构**：我们完全重写了 LightRAG 的核心架构，解决了原版的并发冲突问题，每个任务使用独立实例，支持真正的多租户隔离
-2. **自研 Concurrent Control 模型**：我们从零开始设计了细粒度锁管理系统，实现实体和关系级别的精确并发控制
-3. **连通分量并发优化**：我们设计了基于图拓扑分析的智能并发策略，最大化并行处理效率，这是知识图谱构建领域的创新并发优化方案
-4. **重构存储层架构**：我们完全重写了存储抽象层，解决原版存储实现不可靠的问题，实现多存储后端的事务性一致性
+1. **彻底重写为无状态架构**：我们完全重写了 LightRAG 的核心架构，解决了原版的无法并发执行的问题，每个任务使用独立实例，支持真正的多租户隔离
+2. **自研 Concurrent Control 模型**：我们设计了细粒度锁管理系统，实现实体和关系级别的精确并发控制
+3. **连通分量并发优化**：我们设计了基于图拓扑分析的智能并发策略，最大化并行处理效率
+4. **重构存储层架构**：我们完全重写了存储抽象层，解决原版存储实现不可靠的问题，多存储后端实现不一致的问题
 5. **端到端数据流设计**：我们设计了完整的数据转换流水线，从文档分块到多存储写入的全链路优化
-
-### 重大技术突破
-
-1. **并发控制创新**：
-   - 从原版的全局锁优化为细粒度锁
-   - 实现零锁冲突的连通分量并发处理
-   - 自研的死锁预防和检测机制
-
-2. **架构设计突破**：
-   - 完全无状态的实例设计，支持水平扩展
-   - 工作空间隔离确保多租户安全
-   - 模块化的流水线架构便于维护和扩展
-
-3. **性能优化成果**：
-   - 拓扑分析驱动的智能并发，充分利用多核资源
-   - LLM 调用的批处理和缓存优化
-   - 多存储系统的一致性写入优化
-
-4. **存储层重构**：
-   - 支持 Neo4j、NebulaGraph、PostgreSQL 等多种图存储
-   - 实现可靠的向量数据库和图数据库双写一致性
-   - 插件化的存储后端架构，易于扩展
-
-### 工程价值体现
-
-**代码重写规模**：
-- 核心 LightRAG 模块 90% 以上代码重写
-- 新增 Concurrent Control 并发控制模块
-- 完全重构存储抽象层
-- 新增连通分量分析和并发优化算法
-
-**性能提升效果**：
-- 并发处理能力提升 5-10 倍
-- 锁竞争减少 95% 以上
-- 支持真正的多租户并发处理
-- 消除了原版的并发冲突和数据污染问题
-
-**生产环境适用性**：
-- 解决了原版 LightRAG 无法在生产环境稳定运行的问题
-- 实现了企业级的并发控制和数据一致性
-- 支持大规模分布式部署和水平扩展
-
-这套架构不仅解决了原版 LightRAG 的根本性问题，更在知识图谱构建的并发优化、存储一致性、系统架构等方面实现了重大技术突破，为大规模知识图谱构建提供了可靠的技术基础。 
