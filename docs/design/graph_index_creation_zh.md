@@ -96,28 +96,6 @@ graph TB
 
 我们完全重写了 LightRAG 的实例管理代码，实现了无状态设计：每个 Celery 任务创建独立的 LightRAG 实例，通过 `workspace` 参数实现集合级别的数据隔离，并建立了严格的实例生命周期管理机制确保资源不泄露。
 
-```python
-# lightrag_manager.py
-async def create_lightrag_instance(collection: Collection) -> LightRAG:
-    """为每个集合创建独立的 LightRAG 实例"""
-    collection_id = str(collection.id)
-    
-    # 生成嵌入和 LLM 函数
-    embed_func, embed_dim = await _gen_embed_func(collection)
-    llm_func = await _gen_llm_func(collection)
-    
-    # 创建实例时使用 workspace 隔离
-    rag = LightRAG(
-        workspace=collection_id,  # 关键：workspace 隔离
-        embedding_func=EmbeddingFunc(embedding_dim=embed_dim, func=embed_func),
-        llm_model_func=llm_func,
-        # ... 其他配置
-    )
-    
-    await rag.initialize_storages()
-    return rag
-```
-
 ### 2. 分阶段流水线处理
 
 **文档处理与图索引分离**：
@@ -131,45 +109,7 @@ async def create_lightrag_instance(collection: Collection) -> LightRAG:
 
 我们设计了基于图论的连通分量发现算法，将实体关系网络分解为独立的处理组件。通过拓扑分析驱动的智能分组并发，不同连通分量可以完全并行处理，实现零锁冲突的设计。
 
-```python
-# lightrag.py
-def _find_connected_components(self, chunk_results: List[tuple[dict, dict]]) -> List[List[str]]:
-    """发现连通分量，用于并发优化"""
-    adjacency: Dict[str, set[str]] = {}
-    
-    # 构建邻接表
-    for nodes, edges in chunk_results:
-        for entity_name in nodes.keys():
-            if entity_name not in adjacency:
-                adjacency[entity_name] = set()
-        
-        for src, tgt in edges.keys():
-            adjacency[src].add(tgt)
-            adjacency[tgt].add(src)
-    
-    # BFS 查找连通分量
-    visited = set()
-    components = []
-    
-    for node in adjacency:
-        if node not in visited:
-            component = []
-            queue = [node]
-            visited.add(node)
-            
-            while queue:
-                current = queue.pop(0)
-                component.append(current)
-                
-                for neighbor in adjacency.get(current, set()):
-                    if neighbor not in visited:
-                        visited.add(neighbor)
-                        queue.append(neighbor)
-            
-            components.append(component)
-    
-    return components
-```
+核心算法思路是：构建实体关系的邻接图，使用 BFS 遍历发现所有连通分量，将属于不同连通分量的实体分组到独立的处理任务中，从而实现真正的并行处理。
 
 ### 4. 细粒度并发控制机制
 
@@ -181,331 +121,38 @@ def _find_connected_components(self, chunk_results: List[tuple[dict, dict]]) -> 
 
 ### Graph Index 创建完整流程
 
-以单个文档的图索引创建为例，详细展示完整的处理链路：
+以单个文档的图索引创建为例，整个处理链路包含以下关键阶段：
 
-```python
-# 1. 任务接收层 (config/celery_tasks.py)
-@current_app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3})
-def create_index_task(self, document_id: str, index_type: str, parsed_data_dict: dict, context: dict = None):
-    """Graph 索引创建任务入口"""
-    if index_type == "GRAPH":
-        # 调用 LightRAG Manager
-        result = process_document_for_celery(collection, content, doc_id, file_path)
-        return result
+1. **任务接收层**：Celery 任务接收 Graph 索引创建请求，调用 LightRAG Manager
 
-# 2. LightRAG Manager 层 (lightrag_manager.py)
-def process_document_for_celery(collection: Collection, content: str, doc_id: str, file_path: str):
-    """Celery 环境下的文档处理入口"""
-    return _run_in_new_loop(_process_document_async(collection, content, doc_id, file_path))
+2. **LightRAG Manager 层**：为每个任务创建独立的 LightRAG 实例，确保无状态处理
 
-async def _process_document_async(collection: Collection, content: str, doc_id: str, file_path: str):
-    """异步文档处理主逻辑"""
-    # 2.1 创建 LightRAG 实例
-    rag = await create_lightrag_instance(collection)
-    
-    try:
-        # 2.2 文档分块和存储
-        chunk_result = await rag.ainsert_and_chunk_document(
-            documents=[content], 
-            doc_ids=[doc_id], 
-            file_paths=[file_path]
-        )
-        
-        # 2.3 图索引构建
-        results = chunk_result.get("results", [])
-        for doc_result in results:
-            chunks_data = doc_result.get("chunks_data", {})
-            if chunks_data:
-                graph_result = await rag.aprocess_graph_indexing(
-                    chunks=chunks_data, 
-                    collection_id=str(collection.id)
-                )
-                
-        return {"status": "success", "doc_id": doc_id, ...}
-    finally:
-        await rag.finalize_storages()
+3. **文档分块阶段**：
+   - 内容清理和预处理
+   - 基于 token 数量的智能分块（支持重叠）
+   - 生成唯一的分块 ID 和元数据
+   - 串行写入向量存储和文本存储
 
-# 3. 文档分块阶段 (lightrag.py)
-async def ainsert_and_chunk_document(self, documents, doc_ids, file_paths):
-    """无状态文档插入和分块"""
-    results = []
-    
-    for doc_id, content, file_path in zip(doc_ids, documents, file_paths):
-        # 3.1 内容清理
-        cleaned_content = clean_text(content)
-        
-        # 3.2 智能分块
-        chunk_list = self.chunking_func(
-            self.tokenizer,
-            cleaned_content,
-            split_by_character=None,
-            split_by_character_only=False,
-            self.chunk_overlap_token_size,
-            self.chunk_token_size,
-        )
-        
-        # 3.3 生成分块数据
-        chunks = {}
-        for i, chunk_data in enumerate(chunk_list):
-            chunk_id = compute_mdhash_id(chunk_data["content"], prefix="chunk-", workspace=self.workspace)
-            chunks[chunk_id] = {
-                **chunk_data,
-                "full_doc_id": doc_id,
-                "file_path": file_path,
-            }
-        
-        # 3.4 写入存储（串行避免冲突）
-        await self.chunks_vdb.upsert(chunks)
-        await self.text_chunks.upsert(chunks)
-        
-        results.append({
-            "doc_id": doc_id,
-            "chunks_data": chunks,
-            "chunk_count": len(chunks),
-            "status": "processed",
-        })
-    
-    return {"results": results, "status": "success"}
+4. **图索引构建阶段**：
+   - 调用 LLM 进行并发实体关系提取
+   - 连通分量分析和分组处理
+   - 统计提取结果
 
-# 4. 图索引构建阶段 (lightrag.py)
-async def aprocess_graph_indexing(self, chunks, collection_id=None):
-    """无状态图索引构建"""
-    
-    # 4.1 实体关系提取
-    chunk_results = await extract_entities(
-        chunks,
-        use_llm_func=self.llm_model_func,
-        entity_extract_max_gleaning=self.entity_extract_max_gleaning,
-        addon_params=self.addon_params,
-        llm_model_max_async=self.llm_model_max_async,
-        lightrag_logger=self.lightrag_logger,
-    )
-    
-    # 4.2 连通分量分析和分组处理
-    result = await self._grouping_process_chunk_results(chunk_results, collection_id)
-    
-    # 4.3 统计结果
-    entity_count = sum(len(nodes) for nodes, _ in chunk_results)
-    relation_count = sum(len(edges) for _, edges in chunk_results)
-    
-    return {
-        "status": "success",
-        "entities_extracted": entity_count,
-        "relations_extracted": relation_count,
-        "groups_processed": result["groups_processed"],
-    }
+5. **实体关系提取阶段**：
+   - 构建 LLM 提示模板
+   - 使用信号量控制并发度
+   - 支持可选的精炼提取（gleaning）
+   - 解析提取结果为结构化数据
 
-# 5. 实体关系提取阶段 (operate.py)
-async def extract_entities(chunks, use_llm_func, entity_extract_max_gleaning, addon_params, llm_model_max_async, lightrag_logger):
-    """基于 LLM 的实体关系提取"""
-    
-    # 5.1 构建提示模板
-    entity_extract_prompt = PROMPTS["entity_extraction"]
-    context_base = dict(
-        tuple_delimiter=PROMPTS["DEFAULT_TUPLE_DELIMITER"],
-        record_delimiter=PROMPTS["DEFAULT_RECORD_DELIMITER"],
-        completion_delimiter=PROMPTS["DEFAULT_COMPLETION_DELIMITER"],
-        entity_types=",".join(addon_params.get("entity_types", [])),
-        language=addon_params.get("language", "English"),
-    )
-    
-    # 5.2 并发处理分块
-    semaphore = asyncio.Semaphore(llm_model_max_async)
-    
-    async def _process_single_content(chunk_key_dp):
-        async with semaphore:
-            chunk_key, chunk_dp = chunk_key_dp
-            content = chunk_dp["content"]
-            file_path = chunk_dp.get("file_path", "unknown_source")
-            
-            # 5.2.1 初始提取
-            hint_prompt = entity_extract_prompt.format(**{**context_base, "input_text": content})
-            final_result = await use_llm_func(hint_prompt)
-            
-            # 5.2.2 处理提取结果
-            maybe_nodes, maybe_edges = await _process_extraction_result(final_result, chunk_key, file_path)
-            
-            # 5.2.3 可选的精炼提取（gleaning）
-            history = pack_user_ass_to_openai_messages(hint_prompt, final_result)
-            for _ in range(entity_extract_max_gleaning):
-                glean_result = await use_llm_func(continue_prompt, history_messages=history)
-                glean_nodes, glean_edges = await _process_extraction_result(glean_result, chunk_key, file_path)
-                
-                # 只接受新的实体和关系
-                for entity_name, entities in glean_nodes.items():
-                    if entity_name not in maybe_nodes:
-                        maybe_nodes[entity_name].extend(entities)
-                for edge_key, edges in glean_edges.items():
-                    if edge_key not in maybe_edges:
-                        maybe_edges[edge_key].extend(edges)
-            
-            return maybe_nodes, maybe_edges
-    
-    # 5.3 并发执行所有分块
-    tasks = [asyncio.create_task(_process_single_content(c)) for c in chunks.items()]
-    done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
-    
-    # 5.4 异常处理
-    for task in done:
-        if task.exception():
-            for pending_task in pending:
-                pending_task.cancel()
-            raise task.exception()
-    
-    return [task.result() for task in tasks]
+6. **连通分量分组处理**：
+   - 发现连通分量并创建处理任务
+   - 过滤属于每个组件的实体和关系
+   - 使用信号量控制组件并发处理
 
-# 6. 连通分量分组处理 (lightrag.py)
-async def _grouping_process_chunk_results(self, chunk_results, collection_id):
-    """基于连通分量的分组并发处理"""
-    
-    # 6.1 发现连通分量
-    components = self._find_connected_components(chunk_results)
-    
-    # 6.2 准备组件任务
-    component_tasks = []
-    for i, component in enumerate(components):
-        component_entities = set(component)
-        
-        # 过滤属于该组件的分块结果
-        component_chunk_results = []
-        for nodes, edges in chunk_results:
-            filtered_nodes = {
-                entity_name: entity_data
-                for entity_name, entity_data in nodes.items()
-                if entity_name in component_entities
-            }
-            filtered_edges = {
-                (src, tgt): edge_data
-                for (src, tgt), edge_data in edges.items()
-                if src in component_entities and tgt in component_entities
-            }
-            
-            if filtered_nodes or filtered_edges:
-                component_chunk_results.append((filtered_nodes, filtered_edges))
-        
-        if component_chunk_results:
-            component_tasks.append({
-                "index": i,
-                "component": component,
-                "component_chunk_results": component_chunk_results,
-                "total_components": len(components),
-            })
-    
-    # 6.3 并发处理组件（使用信号量控制）
-    semaphore = asyncio.Semaphore(1)  # 可调整并发数
-    
-    async def _process_component_with_semaphore(task_data):
-        async with semaphore:
-            return await merge_nodes_and_edges(
-                chunk_results=task_data["component_chunk_results"],
-                component=task_data["component"],
-                workspace=self.workspace,
-                knowledge_graph_inst=self.chunk_entity_relation_graph,
-                entity_vdb=self.entities_vdb,
-                relationships_vdb=self.relationships_vdb,
-                # ... 其他参数
-            )
-    
-    # 6.4 创建并执行任务
-    tasks = [asyncio.create_task(_process_component_with_semaphore(task_data)) 
-             for task_data in component_tasks]
-    
-    done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
-    
-    # 6.5 异常处理和结果聚合
-    for task in done:
-        if task.exception():
-            for pending_task in pending:
-                pending_task.cancel()
-            raise task.exception()
-    
-    results = [task.result() for task in tasks]
-    
-    return {
-        "groups_processed": len(results),
-        "total_entities": sum(r["entity_count"] for r in results),
-        "total_relations": sum(r["relation_count"] for r in results),
-    }
-
-# 7. 节点边合并阶段 (operate.py)
-async def merge_nodes_and_edges(chunk_results, component, workspace, knowledge_graph_inst, entity_vdb, relationships_vdb, ...):
-    """细粒度锁控制的节点边合并"""
-    
-    # 7.1 收集所有节点和边
-    all_nodes = defaultdict(list)
-    all_edges = defaultdict(list)
-    
-    for maybe_nodes, maybe_edges in chunk_results:
-        for entity_name, entities in maybe_nodes.items():
-            all_nodes[entity_name].extend(entities)
-        
-        for edge_key, edges in maybe_edges.items():
-            sorted_edge_key = tuple(sorted(edge_key))
-            all_edges[sorted_edge_key].extend(edges)
-    
-    # 7.2 并发处理实体（细粒度锁）
-    entity_count = 0
-    for entity_name, entities in all_nodes.items():
-        entity_lock = get_or_create_lock(f"entity:{entity_name}:{workspace}")
-        
-        async with entity_lock:
-            # 7.2.1 合并实体数据
-            entity_data = await _merge_nodes_then_upsert(
-                entity_name, entities, knowledge_graph_inst,
-                llm_model_func, tokenizer, llm_model_max_token_size,
-                summary_to_max_tokens, language, force_llm_summary_on_merge,
-                lightrag_logger, workspace
-            )
-            
-            # 7.2.2 同步更新向量数据库
-            if entity_vdb and entity_data:
-                vdb_data = {
-                    compute_mdhash_id(entity_data["entity_name"], prefix="ent-", workspace=workspace): {
-                        "entity_name": entity_data["entity_name"],
-                        "entity_type": entity_data["entity_type"],
-                        "content": f"{entity_data['entity_name']}\n{entity_data['description']}",
-                        "source_id": entity_data["source_id"],
-                        "file_path": entity_data.get("file_path", "unknown_source"),
-                    }
-                }
-                await entity_vdb.upsert(vdb_data)
-            
-            entity_count += 1
-    
-    # 7.3 并发处理关系（细粒度锁）
-    relation_count = 0
-    for edge_key, edges in all_edges.items():
-        sorted_edge_key = tuple(sorted(edge_key))
-        relationship_lock = get_or_create_lock(f"relationship:{sorted_edge_key[0]}:{sorted_edge_key[1]}:{workspace}")
-        
-        async with relationship_lock:
-            # 7.3.1 合并关系数据
-            edge_data = await _merge_edges_then_upsert(
-                edge_key[0], edge_key[1], edges, knowledge_graph_inst,
-                llm_model_func, tokenizer, llm_model_max_token_size,
-                summary_to_max_tokens, language, force_llm_summary_on_merge,
-                lightrag_logger, workspace
-            )
-            
-            # 7.3.2 同步更新向量数据库
-            if relationships_vdb and edge_data:
-                vdb_data = {
-                    compute_mdhash_id(edge_data["src_id"] + edge_data["tgt_id"], prefix="rel-", workspace=workspace): {
-                        "src_id": edge_data["src_id"],
-                        "tgt_id": edge_data["tgt_id"],
-                        "keywords": edge_data["keywords"],
-                        "content": f"{edge_data['src_id']}\t{edge_data['tgt_id']}\n{edge_data['keywords']}\n{edge_data['description']}",
-                        "source_id": edge_data["source_id"],
-                        "file_path": edge_data.get("file_path", "unknown_source"),
-                    }
-                }
-                await relationships_vdb.upsert(vdb_data)
-            
-            if edge_data:
-                relation_count += 1
-    
-    return {"entity_count": entity_count, "relation_count": relation_count}
-```
+7. **节点边合并阶段**：
+   - 收集同名实体和同方向关系
+   - 使用细粒度锁进行并发合并
+   - 同步更新图数据库和向量数据库
 
 ## 核心数据流图
 
@@ -591,127 +238,21 @@ graph TD
 ### 数据流关键节点解析
 
 #### 1. 分块数据生成
-```python
-# 分块数据结构
-chunk_data = {
-    "chunk_id": "chunk-abc123...",           # MD5 哈希生成的唯一ID
-    "content": "分块的文本内容...",             # 清理后的文本内容
-    "tokens": 1150,                         # Token 数量（≤ chunk_token_size）
-    "full_doc_id": "doc-xyz789...",         # 所属文档ID
-    "file_path": "/path/to/source.pdf",     # 原始文件路径
-    "chunk_order_index": 2,                 # 在文档中的顺序
-}
-```
+分块阶段生成的数据包含：唯一的分块ID（MD5哈希）、清理后的文本内容、token数量、所属文档ID、原始文件路径、以及在文档中的顺序索引。
 
 #### 2. LLM 提取的实体关系数据
-```python
-# 实体提取结果
-entity_extraction = {
-    "张三": [{
-        "entity_name": "张三",
-        "entity_type": "PERSON",
-        "description": "某公司的项目经理，负责产品开发",
-        "source_id": "chunk-abc123",
-        "file_path": "/path/to/source.pdf"
-    }],
-    "人工智能": [{
-        "entity_name": "人工智能", 
-        "entity_type": "TECHNOLOGY",
-        "description": "用于自动化决策和数据分析的技术",
-        "source_id": "chunk-abc123",
-        "file_path": "/path/to/source.pdf"
-    }]
-}
-
-# 关系提取结果
-relation_extraction = {
-    ("张三", "人工智能"): [{
-        "src_id": "张三",
-        "tgt_id": "人工智能", 
-        "description": "张三在人工智能项目中担任技术负责人",
-        "keywords": "负责,技术,项目",
-        "weight": 0.8,
-        "source_id": "chunk-abc123",
-        "file_path": "/path/to/source.pdf"
-    }]
-}
-```
+LLM 从每个分块中提取结构化的实体和关系数据：
+- **实体数据**：包含实体名称、类型、描述、来源分块ID和文件路径
+- **关系数据**：包含源实体、目标实体、关系描述、关键词、权重和来源信息
 
 #### 3. 连通分量分组结果
-```python
-# 连通分量分析结果
-connected_components = [
-    ["张三", "人工智能", "机器学习"],           # 组件1：技术团队相关
-    ["李四", "财务部"],                       # 组件2：财务相关  
-    ["王五"]                                 # 组件3：独立实体
-]
-
-# 每个组件的过滤数据
-component_data = {
-    "index": 0,
-    "component": ["张三", "人工智能", "机器学习"],
-    "filtered_entities": {
-        "张三": [...],
-        "人工智能": [...],
-        "机器学习": [...]
-    },
-    "filtered_relations": {
-        ("张三", "人工智能"): [...],
-        ("人工智能", "机器学习"): [...]
-    }
-}
-```
+基于实体关系构建邻接图，使用BFS算法发现连通分量，将相关的实体分组到独立的处理组件中。例如：技术团队相关的实体为一组，财务相关的为另一组，独立实体单独处理。
 
 #### 4. 合并后的数据结构
-```python
-# 实体合并结果（支持多描述聚合）
-merged_entity = {
-    "entity_name": "张三",
-    "entity_type": "PERSON",                                    # 频次最高的类型
-    "description": "项目经理，负责产品开发|技术专家，专注AI算法",  # 用|分隔多个描述
-    "source_id": "chunk-abc123|chunk-def456",                  # 用|分隔多个来源
-    "file_path": "/source1.pdf|/source2.pdf",                 # 用|分隔多个文件
-    "created_at": 1703123456
-}
-
-# 关系合并结果（支持权重累加）
-merged_relation = {
-    "src_id": "张三",
-    "tgt_id": "人工智能",
-    "description": "技术负责人|算法设计者",                      # 合并多个描述
-    "keywords": "负责,技术,项目,算法,设计",                      # 去重合并关键词  
-    "weight": 1.5,                                            # 累加权重
-    "source_id": "chunk-abc123|chunk-def456",
-    "file_path": "/source1.pdf|/source2.pdf",
-    "created_at": 1703123456
-}
-```
+同名实体的多个描述会用分隔符聚合，关系的权重会累加，来源ID和文件路径会去重合并。这种设计支持从多个文档片段中逐步构建完整的实体和关系信息。
 
 #### 5. 向量存储格式
-```python
-# 实体向量数据
-entity_vector_data = {
-    "ent-hash123": {
-        "entity_name": "张三",
-        "entity_type": "PERSON",
-        "content": "张三\n项目经理，负责产品开发，技术专家，专注AI算法",  # name + description
-        "source_id": "chunk-abc123|chunk-def456",
-        "file_path": "/source1.pdf|/source2.pdf"
-    }
-}
-
-# 关系向量数据  
-relation_vector_data = {
-    "rel-hash456": {
-        "src_id": "张三",
-        "tgt_id": "人工智能",
-        "keywords": "负责,技术,项目,算法,设计",
-        "content": "张三\t人工智能\n负责,技术,项目,算法,设计\n技术负责人，算法设计者",  # src\ttgt\nkeywords\ndescription
-        "source_id": "chunk-abc123|chunk-def456", 
-        "file_path": "/source1.pdf|/source2.pdf"
-    }
-}
-```
+最终数据会写入向量数据库，实体向量包含名称和描述的组合文本，关系向量包含源实体、目标实体、关键词和描述的组合格式，便于后续的语义检索。
 
 ### 数据流优化特性
 
@@ -733,23 +274,7 @@ relation_vector_data = {
 - **锁竞争最小化**：组件内实体不会跨组件冲突
 - **内存效率**：按组件分批处理，控制内存使用
 
-```python
-# 连通分量性能统计
-def _analyze_component_distribution(self, components):
-    """分析连通分量分布，用于性能调优"""
-    component_sizes = [len(comp) for comp in components]
-    
-    stats = {
-        "total_components": len(components),
-        "max_component_size": max(component_sizes) if component_sizes else 0,
-        "avg_component_size": sum(component_sizes) / len(component_sizes) if component_sizes else 0,
-        "single_entity_components": sum(1 for size in component_sizes if size == 1),
-        "large_components": sum(1 for size in component_sizes if size > 10),
-    }
-    
-    self.lightrag_logger.debug(f"Component distribution: {stats}")
-    return stats
-```
+系统会自动统计连通分量的分布情况，包括组件总数、最大组件大小、平均组件大小、单实体组件数量和大型组件数量，用于性能调优和资源分配。
 
 ### 2. LLM 调用优化
 
@@ -758,31 +283,7 @@ def _analyze_component_distribution(self, components):
 - **批处理优化**：相似内容的批量处理
 - **缓存机制**：实体描述摘要的缓存复用
 
-```python
-# LLM 调用优化
-async def _handle_entity_relation_summary(entity_or_relation_name, description, ...):
-    """智能摘要处理，支持缓存"""
-    
-    # 1. 检查是否需要摘要
-    tokens = tokenizer.encode(description)
-    if len(tokens) <= summary_to_max_tokens:
-        return description
-    
-    # 2. 检查缓存（可选）
-    cache_key = compute_mdhash_id(description, prefix="summary-")
-    # cached_summary = await get_summary_cache(cache_key)
-    # if cached_summary:
-    #     return cached_summary
-    
-    # 3. LLM 摘要
-    lightrag_logger.debug(f"Generating summary for: {entity_or_relation_name}")
-    summary = await llm_model_func(prompt, max_tokens=summary_to_max_tokens)
-    
-    # 4. 缓存结果（可选）
-    # await set_summary_cache(cache_key, summary)
-    
-    return summary
-```
+系统会智能检查描述长度，当超出token阈值时自动调用LLM生成摘要，并支持摘要结果的缓存复用以提高效率。
 
 ### 3. 存储写入优化
 
@@ -829,79 +330,26 @@ config/
 ### 核心接口设计
 
 #### LightRAG 管理接口
-```python
-# aperag/graph/lightrag_manager.py
-async def create_lightrag_instance(collection: Collection) -> LightRAG
-def process_document_for_celery(collection: Collection, content: str, doc_id: str, file_path: str) -> Dict[str, Any]
-def delete_document_for_celery(collection: Collection, doc_id: str) -> Dict[str, Any]
-async def _gen_embed_func(collection: Collection) -> Tuple[Callable, int]
-async def _gen_llm_func(collection: Collection) -> Callable
-```
+负责实例创建、文档处理和删除的入口管理，以及嵌入函数和LLM函数的动态生成。
 
-#### LightRAG 核心接口
-```python
-# aperag/graph/lightrag/lightrag.py  
-class LightRAG:
-    async def ainsert_and_chunk_document(self, documents, doc_ids, file_paths) -> dict[str, Any]
-    async def aprocess_graph_indexing(self, chunks, collection_id) -> dict[str, Any] 
-    async def adelete_by_doc_id(self, doc_id: str) -> None
-    def _find_connected_components(self, chunk_results) -> List[List[str]]
-    async def _grouping_process_chunk_results(self, chunk_results, collection_id) -> dict[str, Any]
-```
+#### LightRAG 核心接口  
+实现文档分块存储、图索引构建、文档删除、连通分量发现和分组处理等核心功能。
 
 #### 操作函数接口
-```python
-# aperag/graph/lightrag/operate.py
-async def extract_entities(chunks, use_llm_func, entity_extract_max_gleaning, addon_params, llm_model_max_async, lightrag_logger) -> list
-async def merge_nodes_and_edges(chunk_results, component, workspace, knowledge_graph_inst, entity_vdb, relationships_vdb, ...) -> dict[str, int]
-async def _merge_nodes_then_upsert(entity_name, nodes_data, knowledge_graph_inst, ...) -> dict
-async def _merge_edges_then_upsert(src_id, tgt_id, edges_data, knowledge_graph_inst, ...) -> dict
-def chunking_by_token_size(tokenizer, content, split_by_character, split_by_character_only, overlap_token_size, max_token_size) -> list[dict[str, Any]]
-```
+提供实体提取、节点边合并、分块处理等底层操作函数，支持异步并发执行。
 
 ### 数据结构设计
 
 #### 核心数据模型
-```python
-# 分块数据结构
-ChunkData = {
-    "tokens": int,              # 分块的 token 数量
-    "content": str,             # 分块内容
-    "chunk_order_index": int,   # 分块在文档中的顺序
-    "full_doc_id": str,         # 所属文档 ID
-    "file_path": str,           # 文件路径
-}
 
-# 实体数据结构  
-EntityData = {
-    "entity_name": str,         # 实体名称
-    "entity_type": str,         # 实体类型
-    "description": str,         # 实体描述
-    "source_id": str,           # 来源分块 ID（用 | 分隔多个）
-    "file_path": str,           # 文件路径（用 | 分隔多个）
-    "created_at": int,          # 创建时间戳
-}
+系统使用统一的数据结构设计：
 
-# 关系数据结构
-RelationData = {
-    "src_id": str,              # 源实体 ID
-    "tgt_id": str,              # 目标实体 ID  
-    "description": str,         # 关系描述
-    "keywords": str,            # 关键词（用逗号分隔）
-    "weight": float,            # 关系权重
-    "source_id": str,           # 来源分块 ID（用 | 分隔多个）
-    "file_path": str,           # 文件路径（用 | 分隔多个）
-    "created_at": int,          # 创建时间戳
-}
+- **分块数据**：包含token数量、内容、顺序索引、文档ID和文件路径
+- **实体数据**：包含实体名称、类型、描述、来源ID和创建时间戳
+- **关系数据**：包含源实体、目标实体、描述、关键词、权重和来源信息
+- **连通分量数据**：包含组件索引、实体列表、过滤结果和组件总数
 
-# 连通分量数据结构
-ComponentData = {
-    "index": int,                           # 组件索引
-    "component": List[str],                 # 组件包含的实体列表
-    "component_chunk_results": List[tuple], # 过滤后的分块结果
-    "total_components": int,                # 总组件数
-}
-```
+所有数据结构都支持多来源聚合，使用分隔符（如 `|`）合并多个来源信息。
 
 ## 性能监控和调试
 
@@ -917,62 +365,19 @@ ComponentData = {
 ### 2. 调试工具
 
 **结构化日志记录**：
-```python
-# LightRAG Logger 示例
-class LightRAGLogger:
-    def log_extraction_progress(self, processed_chunks, total_chunks, entities_count, relations_count):
-        """记录实体提取进度"""
-        progress_pct = (processed_chunks / total_chunks) * 100
-        self.info(f"Extraction progress: {processed_chunks}/{total_chunks} ({progress_pct:.1f}%) - "
-                 f"Entities: {entities_count}, Relations: {relations_count}")
-    
-    def log_entity_merge(self, entity_name, num_fragment, num_new_fragment, is_llm_summary):
-        """记录实体合并详情"""
-        summary_type = "LLM" if is_llm_summary else "Simple"
-        self.debug(f"Entity merge: {entity_name} - Fragments: {num_fragment} "
-                  f"(+{num_new_fragment} new), Summary: {summary_type}")
-    
-    def log_relation_merge(self, src_id, tgt_id, num_fragment, num_new_fragment, is_llm_summary):
-        """记录关系合并详情"""
-        summary_type = "LLM" if is_llm_summary else "Simple"
-        self.debug(f"Relation merge: {src_id}-{tgt_id} - Fragments: {num_fragment} "
-                  f"(+{num_new_fragment} new), Summary: {summary_type}")
-```
+系统提供完整的结构化日志记录功能，包括实体提取进度跟踪、实体合并详情记录、关系合并状态监控等。日志会记录处理进度百分比、实体关系数量统计、摘要生成类型等关键信息。
 
 ### 3. 性能分析
 
 **执行时间统计**：
-```python
-# 性能装饰器
-@timing_wrapper("extract_entities")
-async def extract_entities(chunks, ...):
-    # 实体提取逻辑
-    pass
-
-@timing_wrapper("merge_nodes_and_edges") 
-async def merge_nodes_and_edges(chunk_results, ...):
-    # 节点边合并逻辑  
-    pass
-```
+通过性能装饰器对关键函数进行执行时间统计，包括实体提取、节点边合并等核心操作的耗时分析，便于性能优化和瓶颈定位。
 
 ## 配置和环境
 
 ### 1. 核心配置参数
 
 **LightRAG 配置**：
-```python
-class LightRAGConfig:
-    CHUNK_TOKEN_SIZE = 1200                    # 分块大小
-    CHUNK_OVERLAP_TOKEN_SIZE = 100             # 分块重叠大小
-    LLM_MODEL_MAX_ASYNC = 20                   # LLM 最大并发数
-    COSINE_BETTER_THAN_THRESHOLD = 0.2         # 向量相似度阈值
-    MAX_BATCH_SIZE = 32                        # 最大批处理大小
-    ENTITY_EXTRACT_MAX_GLEANING = 0            # 实体提取精炼次数
-    SUMMARY_TO_MAX_TOKENS = 2000               # 摘要最大 token 数
-    FORCE_LLM_SUMMARY_ON_MERGE = 10            # 强制 LLM 摘要的片段阈值
-    EMBEDDING_MAX_TOKEN_SIZE = 8192            # 嵌入最大 token 数
-    DEFAULT_LANGUAGE = "Simplified Chinese"    # 默认语言
-```
+系统支持丰富的配置参数调优，包括分块大小、重叠大小、LLM并发数、相似度阈值、批处理大小、摘要参数、嵌入Token限制等。默认配置针对中文环境优化，支持根据实际需求灵活调整。
 
 ### 2. 存储配置
 
