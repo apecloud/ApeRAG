@@ -729,6 +729,68 @@ def create_siliconflow_config():
     return config
 
 
+def create_jina_config():
+    # Define blocklists
+    completion_blocklist = []
+    embedding_blocklist = []
+    rerank_blocklist = []
+    
+    # Define tag rules
+    completion_tag_rules = {
+        'recommend': []  # No completion models for Jina
+    }
+    embedding_tag_rules = {
+        'recommend': ['*'],  # All embedding models get recommend tag
+        'default_for_embedding': ['jina-embeddings-v4'],
+    }
+    rerank_tag_rules = {
+        'recommend': ['*'],  # All rerank models get recommend tag
+        'default_for_rerank': ['jina-reranker-m0'],
+    }
+    
+    config = {
+        "name": "jina",
+        "label": "Jina AI",
+        "completion_dialect": "openai",  # Not used but required field
+        "embedding_dialect": "jina_ai",
+        "rerank_dialect": "jina_ai",
+        "allow_custom_base_url": False,
+        "base_url": "https://api.jina.ai/v1",
+        "embedding": [
+            {
+                "model": "jina-embeddings-v4",
+                "custom_llm_provider": "jina_ai",
+                "tags": []
+            }
+        ],
+        "completion": [],  # Jina doesn't provide completion models
+        "rerank": [
+            {
+                "model": "jina-reranker-m0",
+                "custom_llm_provider": "jina_ai",
+                "tags": []
+            }
+        ]
+    }
+
+    # Apply blocklist filtering
+    config["completion"] = [m for m in config["completion"] if m["model"] not in completion_blocklist]
+    config["embedding"] = [m for m in config["embedding"] if m["model"] not in embedding_blocklist]
+    config["rerank"] = [m for m in config["rerank"] if m["model"] not in rerank_blocklist]
+
+    # Apply tag rules
+    config["completion"] = apply_model_tags(config["completion"], completion_tag_rules)
+    config["embedding"] = apply_model_tags(config["embedding"], embedding_tag_rules)
+    config["rerank"] = apply_model_tags(config["rerank"], rerank_tag_rules)
+
+    # Sort model lists
+    config["completion"].sort(key=lambda x: x["model"])
+    config["embedding"].sort(key=lambda x: x["model"])
+    config["rerank"].sort(key=lambda x: x["model"])
+
+    return config
+
+
 def create_openrouter_config():
     # Define blocklists
     completion_blocklist = []
@@ -902,7 +964,8 @@ def create_provider_config():
         create_xai_config(),
         create_deepseek_config(),
         create_alibabacloud_config(),
-        create_siliconflow_config()
+        create_siliconflow_config(),
+        create_jina_config()
     ]
     
     # Add OpenRouter configuration

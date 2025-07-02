@@ -1,5 +1,5 @@
 -- Model configuration initialization SQL script
--- Generated directly from configuration data on 2025-06-29 22:49:35
+-- Generated directly from configuration data on 2025-07-02 17:06:54
 -- This script populates llm_provider and llm_provider_models tables
 
 BEGIN;
@@ -121,6 +121,24 @@ INSERT INTO llm_provider (
 ) VALUES (
     'siliconflow', 'public', 'SiliconFlow', 'openai', 'openai', 'jina_ai', 
     FALSE, 'https://api.siliconflow.cn/v1', NOW(), NOW()
+)
+ON CONFLICT (name) DO UPDATE SET
+    user_id = EXCLUDED.user_id,
+    label = EXCLUDED.label,
+    completion_dialect = EXCLUDED.completion_dialect,
+    embedding_dialect = EXCLUDED.embedding_dialect,
+    rerank_dialect = EXCLUDED.rerank_dialect,
+    allow_custom_base_url = EXCLUDED.allow_custom_base_url,
+    base_url = EXCLUDED.base_url,
+    gmt_updated = NOW();
+
+-- Provider: jina
+INSERT INTO llm_provider (
+    name, user_id, label, completion_dialect, embedding_dialect, rerank_dialect, 
+    allow_custom_base_url, base_url, gmt_created, gmt_updated
+) VALUES (
+    'jina', 'public', 'Jina AI', 'openai', 'jina_ai', 'jina_ai', 
+    FALSE, 'https://api.jina.ai/v1', NOW(), NOW()
 )
 ON CONFLICT (name) DO UPDATE SET
     user_id = EXCLUDED.user_id,
@@ -3498,6 +3516,38 @@ INSERT INTO llm_provider_models (
     gmt_created, gmt_updated
 ) VALUES (
     'siliconflow', 'rerank', 'netease-youdao/bce-reranker-base_v1', 'jina_ai', NULL, NULL, NULL, '["recommend"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+-- Embedding models for jina
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'jina', 'embedding', 'jina-embeddings-v4', 'jina_ai', NULL, NULL, NULL, '["recommend", "default_for_embedding"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+-- Rerank models for jina
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'jina', 'rerank', 'jina-reranker-m0', 'jina_ai', NULL, NULL, NULL, '["recommend", "default_for_rerank"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -8266,6 +8316,6 @@ ON CONFLICT (provider_name, api, model) DO UPDATE SET
 
 COMMIT;
 
--- Script completed. Generated on 2025-06-29 22:49:35
--- Total providers: 8
--- Total models: 540
+-- Script completed. Generated on 2025-07-02 17:06:54
+-- Total providers: 9
+-- Total models: 542
