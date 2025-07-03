@@ -25,7 +25,7 @@ git clone https://github.com/apecloud/ApeRAG.git
 cd ApeRAG
 cp envs/env.template .env
 cp frontend/deploy/env.local.template frontend/.env
-make compose-up
+docker compose up -d
 ```
 
 After running, you can access ApeRAG in your browser at:
@@ -39,6 +39,15 @@ For enhanced document parsing capabilities, ApeRAG supports an **advanced docume
 <details>
 <summary><strong>Enhanced Document Parsing Commands</strong></summary>
 
+```bash
+# Enable advanced document parsing service
+DOCRAY_HOST=http://aperag-docray:8639 docker compose --profile docray up -d
+
+# Enable advanced parsing with GPU acceleration 
+DOCRAY_HOST=http://aperag-docray-gpu:8639 docker compose --profile docray-gpu up -d
+```
+
+Or use the Makefile shortcuts (requires [GNU Make](https://www.gnu.org/software/make/)):
 ```bash
 # Enable advanced document parsing service
 make compose-up WITH_DOCRAY=1

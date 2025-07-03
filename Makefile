@@ -121,17 +121,17 @@ endif
 .PHONY: compose-up compose-down compose-logs compose-infra
 # Full application startup 
 compose-up:
-	VERSION=v0.5.0-alpha.31 DOCRAY_VERSION=v0.1.1 $(_EXTRA_ENVS) docker-compose --profile app $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d
+	$(_EXTRA_ENVS) docker-compose $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d
 
 # Infrastructure only (databases + supporting services)
 compose-infra:
-	VERSION=v0.5.0-alpha.31 DOCRAY_VERSION=v0.1.1 docker-compose $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d
+	docker-compose $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d postgres redis qdrant es
 
 compose-down:
-	VERSION=v0.5.0-alpha.31 DOCRAY_VERSION=v0.1.1 docker-compose --profile app --profile docray --profile docray-gpu --profile neo4j -f docker-compose.yml down $(_COMPOSE_DOWN_FLAGS)
+	docker-compose --profile docray --profile docray-gpu --profile neo4j -f docker-compose.yml down $(_COMPOSE_DOWN_FLAGS)
 
 compose-logs:
-	VERSION=v0.5.0-alpha.31 DOCRAY_VERSION=v0.1.1 docker-compose -f docker-compose.yml logs -f
+	docker-compose -f docker-compose.yml logs -f
 
 ##################################################
 # Development Services

@@ -37,7 +37,6 @@ services:
     ports:
       - "8000:8000"
     command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-api.sh"]
-    profiles: ["app"]
 
   frontend:
     build:
@@ -54,7 +53,6 @@ services:
       - APERAG_CONSOLE_SERVICE_PORT=8000
     ports:
       - "3000:3000"
-    profiles: ["app"]
 
   celeryworker:
     image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.5.0-alpha.31}
@@ -79,7 +77,6 @@ services:
       - NODE_IP=aperag-celeryworker
       - DOCRAY_HOST=${DOCRAY_HOST}
     command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-celery-worker.sh"]
-    profiles: ["app"]
 
   celerybeat:
     image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.5.0-alpha.31}
@@ -96,7 +93,6 @@ services:
     environment:
       - NODE_IP=aperag-celerybeat
     command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-celery-beat.sh"]
-    profiles: ["app"]
 
   flower:
     <<: *api
@@ -113,7 +109,6 @@ services:
     environment:
       - NODE_IP=aperag-flower
     command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-celery-flower.sh"]
-    profiles: ["app"]
 
   # ==============================================
   # Infrastructure Services (always available)
