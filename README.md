@@ -88,6 +88,15 @@ Deploy ApeRAG to Kubernetes using our provided Helm chart. This approach offers 
 *   [`kubectl`](https://kubernetes.io/docs/tasks/tools/) configured and connected to your cluster
 *   [Helm v3+](https://helm.sh/docs/intro/install/) installed
 
+### Clone the Repository
+
+First, clone the ApeRAG repository to get the deployment files:
+
+```bash
+git clone https://github.com/apecloud/ApeRAG.git
+cd ApeRAG
+```
+
 ### Step 1: Deploy Database Services
 
 ApeRAG requires PostgreSQL, Redis, Qdrant, and Elasticsearch. You have two options:
@@ -97,6 +106,7 @@ ApeRAG requires PostgreSQL, Redis, Qdrant, and Elasticsearch. You have two optio
 **Option B: Deploy databases with KubeBlocks** - Use our automated database deployment:
 
 ```bash
+# Navigate to database deployment scripts
 cd deploy/databases/
 
 # (Optional) Review configuration - defaults work for most cases
@@ -108,6 +118,9 @@ bash ./02-install-database.sh # Deploys PostgreSQL, Redis, Qdrant, Elasticsearch
 
 # Monitor database deployment
 kubectl get pods -n default
+
+# Return to project root for Step 2
+cd ../../
 ```
 
 Wait for all database pods to be in `Running` status before proceeding.
@@ -115,10 +128,6 @@ Wait for all database pods to be in `Running` status before proceeding.
 ### Step 2: Deploy ApeRAG Application
 
 ```bash
-# Clone the repository (if not already done)
-git clone https://github.com/apecloud/ApeRAG.git
-cd ApeRAG
-
 # If you deployed databases with KubeBlocks in Step 1, database connections are pre-configured
 # If you're using existing databases, edit deploy/aperag/values.yaml with your connection details
 
