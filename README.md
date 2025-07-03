@@ -8,7 +8,7 @@
 - [Acknowledgments](#acknowledgments)
 - [License](#license)
 
-ApeRAG is a production-ready RAG (Retrieval-Augmented Generation) platform that combines vector search, full-text search, and graph knowledge extraction inspired by **[LightRAG](https://github.com/HKUDS/LightRAG)**. Build sophisticated AI applications with hybrid retrieval, multimodal document processing, and enterprise-grade management features.
+ApeRAG is a production-ready RAG (Retrieval-Augmented Generation) platform that combines vector search, full-text search, and graph knowledge extraction inspired by LightRAG. Build sophisticated AI applications with hybrid retrieval, multimodal document processing, and enterprise-grade management features.
 
 ## Quick Start
 
@@ -34,13 +34,13 @@ After running, you can access ApeRAG in your browser at:
 
 #### Advanced Options
 
-For enhanced document parsing capabilities, ApeRAG supports **DocRay** integration powered by [MinerU](https://github.com/opendatalab/MinerU) technology, which provides superior parsing for complex documents, tables, and formulas. See our [Development Guide](./docs/development-guide.md) for DocRay setup and other advanced deployment options.
+For enhanced document parsing capabilities, ApeRAG supports an **advanced document parsing service** powered by MinerU, which provides superior parsing for complex documents, tables, and formulas. See our [Development Guide](./docs/development-guide.md) for setup and other advanced deployment options.
 
 #### Seeking help
 
-Please refer to our [Development Guide](./docs/development-guide.md) for advanced configurations, development setup, and troubleshooting.
+Please refer to our Development Guide for advanced configurations, development setup, and troubleshooting.
 
-> If you'd like to contribute to ApeRAG or do additional development, refer to our [Development Guide](./docs/development-guide.md)
+> If you'd like to contribute to ApeRAG or do additional development, check out the Development Guide above.
 
 ## Key Features
 
