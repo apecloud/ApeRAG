@@ -109,9 +109,9 @@ This starts the frontend development server at `http://localhost:3000` with hot 
 ### 8. Access ApeRAG
 
 With the services running, you can access:
+*   **Frontend UI**: http://localhost:3000 (if started)
 *   **Backend API**: http://localhost:8000
 *   **API Documentation**: http://localhost:8000/docs
-*   **Frontend UI**: http://localhost:3000 (if started)
 
 ### 9. Development Workflow
 
