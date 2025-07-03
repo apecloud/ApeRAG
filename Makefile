@@ -76,10 +76,10 @@ clean:
 # Database schema management
 .PHONY: makemigration migrate
 makemigration:
-	@alembic -c aperag/alembic.ini revision --autogenerate
+	@uv run alembic -c aperag/alembic.ini revision --autogenerate
 
 migrate:
-	@alembic -c aperag/alembic.ini upgrade head
+	@uv run alembic -c aperag/alembic.ini upgrade head
 
 # Docker Compose infrastructure
 

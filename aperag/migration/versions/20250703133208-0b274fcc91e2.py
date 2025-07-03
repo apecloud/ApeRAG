@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: 850b2c5dc08f
-Revises: 
-Create Date: 2025-06-24 13:24:25.714734
+Revision ID: 0b274fcc91e2
+Revises: db9c88848f52
+Create Date: 2025-07-03 13:32:08.830672
 
 """
 from typing import Sequence, Union
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
 
 # revision identifiers, used by Alembic.
-revision: str = '850b2c5dc08f'
-down_revision: Union[str, None] = None
+revision: str = '0b274fcc91e2'
+down_revision: Union[str, None] = 'db9c88848f52'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -197,40 +197,48 @@ def upgrade() -> None:
     sa.Column('update_time', sa.DateTime(timezone=True), nullable=False),
     sa.PrimaryKeyConstraint('id', 'workspace')
     )
-    op.create_table('lightrag_doc_full',
-    sa.Column('id', sa.String(length=255), nullable=False),
+    op.create_table('lightrag_graph_edges',
+    sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
+    sa.Column('source_entity_id', sa.String(length=255), nullable=False),
+    sa.Column('target_entity_id', sa.String(length=255), nullable=False),
+    sa.Column('weight', sa.Numeric(precision=10, scale=6), nullable=False),
+    sa.Column('keywords', sa.Text(), nullable=True),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('source_id', sa.Text(), nullable=True),
+    sa.Column('file_path', sa.Text(), nullable=True),
     sa.Column('workspace', sa.String(length=255), nullable=False),
-    sa.Column('doc_name', sa.String(length=1024), nullable=True),
-    sa.Column('content', sa.Text(), nullable=True),
-    sa.Column('meta', sa.JSON(), nullable=True),
-    sa.Column('create_time', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('update_time', sa.DateTime(timezone=True), nullable=False),
-    sa.PrimaryKeyConstraint('id', 'workspace')
+    sa.Column('createtime', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updatetime', sa.DateTime(timezone=True), nullable=False),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('workspace', 'source_entity_id', 'target_entity_id', name='uq_lightrag_graph_edges_workspace_source_target')
     )
-    op.create_table('lightrag_doc_status',
+    op.create_index('idx_lightrag_edges_degree_calc', 'lightrag_graph_edges', ['workspace', 'source_entity_id', 'target_entity_id', 'weight'], unique=False)
+    op.create_index('idx_lightrag_edges_metadata', 'lightrag_graph_edges', ['workspace', 'source_entity_id', 'target_entity_id', 'weight', 'keywords'], unique=False)
+    op.create_index('idx_lightrag_edges_weight', 'lightrag_graph_edges', ['workspace', 'weight'], unique=False)
+    op.create_index('idx_lightrag_edges_workspace_createtime', 'lightrag_graph_edges', ['workspace', 'createtime'], unique=False)
+    op.create_index('idx_lightrag_edges_workspace_source', 'lightrag_graph_edges', ['workspace', 'source_entity_id'], unique=False)
+    op.create_index('idx_lightrag_edges_workspace_source_target', 'lightrag_graph_edges', ['workspace', 'source_entity_id', 'target_entity_id'], unique=False)
+    op.create_index('idx_lightrag_edges_workspace_target', 'lightrag_graph_edges', ['workspace', 'target_entity_id'], unique=False)
+    op.create_index('idx_lightrag_edges_workspace_target_source', 'lightrag_graph_edges', ['workspace', 'target_entity_id', 'source_entity_id'], unique=False)
+    op.create_table('lightrag_graph_nodes',
+    sa.Column('id', sa.BigInteger(), autoincrement=True, nullable=False),
+    sa.Column('entity_id', sa.String(length=256), nullable=False),
+    sa.Column('entity_name', sa.String(length=255), nullable=True),
+    sa.Column('entity_type', sa.String(length=255), nullable=True),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('source_id', sa.Text(), nullable=True),
+    sa.Column('file_path', sa.Text(), nullable=True),
     sa.Column('workspace', sa.String(length=255), nullable=False),
-    sa.Column('id', sa.String(length=255), nullable=False),
-    sa.Column('content', sa.Text(), nullable=True),
-    sa.Column('content_summary', sa.String(length=255), nullable=True),
-    sa.Column('content_length', sa.Integer(), nullable=True),
-    sa.Column('chunks_count', sa.Integer(), nullable=True),
-    sa.Column('status', sa.Enum('pending', 'processing', 'processed', 'failed', name='lightragdocstatus'), nullable=True),
-    sa.Column('file_path', sa.String(length=512), nullable=True),
-    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.PrimaryKeyConstraint('workspace', 'id'),
-    sa.UniqueConstraint('workspace', 'id', name='uq_lightrag_doc_status_workspace_id')
+    sa.Column('createtime', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updatetime', sa.DateTime(timezone=True), nullable=False),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('workspace', 'entity_id', name='uq_lightrag_graph_nodes_workspace_entity')
     )
-    op.create_table('lightrag_llm_cache',
-    sa.Column('workspace', sa.String(length=255), nullable=False),
-    sa.Column('id', sa.String(length=255), nullable=False),
-    sa.Column('mode', sa.String(length=32), nullable=False),
-    sa.Column('original_prompt', sa.Text(), nullable=True),
-    sa.Column('return_value', sa.Text(), nullable=True),
-    sa.Column('create_time', sa.DateTime(timezone=True), nullable=False),
-    sa.Column('update_time', sa.DateTime(timezone=True), nullable=True),
-    sa.PrimaryKeyConstraint('workspace', 'id', 'mode')
-    )
+    op.create_index('idx_lightrag_nodes_entity_name', 'lightrag_graph_nodes', ['workspace', 'entity_name'], unique=False)
+    op.create_index('idx_lightrag_nodes_entity_type', 'lightrag_graph_nodes', ['workspace', 'entity_type'], unique=False)
+    op.create_index('idx_lightrag_nodes_entity_type_createtime', 'lightrag_graph_nodes', ['workspace', 'entity_type', 'createtime'], unique=False)
+    op.create_index('idx_lightrag_nodes_workspace_createtime', 'lightrag_graph_nodes', ['workspace', 'createtime'], unique=False)
+    op.create_index('idx_lightrag_nodes_workspace_type_id', 'lightrag_graph_nodes', ['workspace', 'entity_type', 'entity_id'], unique=False)
     op.create_table('lightrag_vdb_entity',
     sa.Column('id', sa.String(length=255), nullable=False),
     sa.Column('workspace', sa.String(length=255), nullable=False),
@@ -391,9 +399,21 @@ def downgrade() -> None:
     op.drop_table('llm_provider')
     op.drop_table('lightrag_vdb_relation')
     op.drop_table('lightrag_vdb_entity')
-    op.drop_table('lightrag_llm_cache')
-    op.drop_table('lightrag_doc_status')
-    op.drop_table('lightrag_doc_full')
+    op.drop_index('idx_lightrag_nodes_workspace_type_id', table_name='lightrag_graph_nodes')
+    op.drop_index('idx_lightrag_nodes_workspace_createtime', table_name='lightrag_graph_nodes')
+    op.drop_index('idx_lightrag_nodes_entity_type_createtime', table_name='lightrag_graph_nodes')
+    op.drop_index('idx_lightrag_nodes_entity_type', table_name='lightrag_graph_nodes')
+    op.drop_index('idx_lightrag_nodes_entity_name', table_name='lightrag_graph_nodes')
+    op.drop_table('lightrag_graph_nodes')
+    op.drop_index('idx_lightrag_edges_workspace_target_source', table_name='lightrag_graph_edges')
+    op.drop_index('idx_lightrag_edges_workspace_target', table_name='lightrag_graph_edges')
+    op.drop_index('idx_lightrag_edges_workspace_source_target', table_name='lightrag_graph_edges')
+    op.drop_index('idx_lightrag_edges_workspace_source', table_name='lightrag_graph_edges')
+    op.drop_index('idx_lightrag_edges_workspace_createtime', table_name='lightrag_graph_edges')
+    op.drop_index('idx_lightrag_edges_weight', table_name='lightrag_graph_edges')
+    op.drop_index('idx_lightrag_edges_metadata', table_name='lightrag_graph_edges')
+    op.drop_index('idx_lightrag_edges_degree_calc', table_name='lightrag_graph_edges')
+    op.drop_table('lightrag_graph_edges')
     op.drop_table('lightrag_doc_chunks')
     op.drop_table('invitation')
     op.drop_index(op.f('ix_document_index_status'), table_name='document_index')
