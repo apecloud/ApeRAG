@@ -6,101 +6,125 @@ This guide focuses on setting up a development environment and the development w
 
 Follow these steps to set up ApeRAG from source code for development:
 
-### 1. Clone the Repository
+### 1. Clone the Repository and Setup Environment
 
-First, get the source code:
+First, get the source code and configure environment variables:
+
 ```bash
 git clone https://github.com/apecloud/ApeRAG.git
 cd ApeRAG
+cp envs/env.template .env
+cp frontend/deploy/env.local.template frontend/.env
 ```
+
+Edit the `.env` file to configure your AI service settings if needed. The default settings work with the local database services started in the next step.
 
 ### 2. System Prerequisites
 
 Before you begin, ensure your system has:
 
-*   **Python 3.11**: The project uses Python 3.11. If it's not your system default, `uv` (see below) will attempt to use it when creating the virtual environment if available.
+*   **Python 3.11**: The project uses Python 3.11.
 *   **Node.js**: Version 20 or higher is recommended for frontend development.
-*   **`uv`**: This is a fast Python package installer and virtual environment manager.
-    *   If you don't have `uv`, the `make install` command (Step 3) will try to install it via `pip`.
-*   **Docker**: (Recommended for local databases) If you plan to run dependent services like PostgreSQL, Redis, etc., locally, Docker is the easiest way. The `make run-db` command uses Docker Compose.
+*   **Docker & Docker Compose**: Required for running database services locally.
 
-### 3. Install Dependencies & Setup Virtual Environment
+### 3. Start Database Services
 
-This crucial `make` command automates several setup tasks:
+Use Docker Compose to start the essential database services:
+
+```bash
+# Start core databases: PostgreSQL, Redis, Qdrant, Elasticsearch
+make compose-infra
+
+# Optional: Add graph database capabilities
+# make compose-infra WITH_NEO4J=1
+```
+
+This will start all required database services in the background. The default connection settings in your `.env` file are pre-configured to work with these services.
+
+### 4. Setup Development Environment
+
+Create Python virtual environment and setup development tools:
+
+```bash
+make dev
+```
+
+This command will:
+*   Install `uv` if not already available
+*   Create a Python 3.11 virtual environment (located in `.venv/`)
+*   Install pre-commit hooks for code quality
+
+### 5. Install Dependencies
+
+Install all backend and frontend dependencies:
 
 ```bash
 make install
 ```
 
 This command will:
-*   Verify or install `uv`.
-*   Create a Python 3.11 virtual environment (located in `.venv/`) using `uv`.
-*   Install all Python backend dependencies (including development tools) from `pyproject.toml` into the virtual environment.
-*   Install frontend Node.js dependencies using `yarn`.
+*   Install all Python backend dependencies from `pyproject.toml` into the virtual environment
+*   Install frontend Node.js dependencies using `yarn`
 
-### 4. Configure Environment Variables
+### 6. Apply Database Migrations
 
-ApeRAG uses `.env` files for configuration.
+Setup the database schema:
 
-*   **Backend (`.env`)**: Copy the template and customize it for your setup.
-    ```bash
-    cp envs/env.template .env
-    ```
-    Then, edit the newly created `.env` file.
+```bash
+make migrate
+```
 
-    **Note**: If you start the required database services using the `make run-db` command (see Step 5), the default connection settings in the `.env` file (copied from `envs/env.template`) are pre-configured to work with these services, and you typically won't need to change them. You would only need to modify these if you are connecting to externally managed databases or have custom configurations.
+### 7. Start Development Services
 
-*   **Frontend (`frontend/.env`)** (Optional - if you are developing the frontend):
-    ```bash
-    cp frontend/deploy/env.local.template frontend/.env
-    ```
-    Edit `frontend/.env` if you need to change frontend-specific settings, such as the backend API URL (though defaults usually work for local development).
+Now you can start the development services. Open separate terminal windows/tabs for each service:
 
-### 5. Start Databases & Apply Migrations
+**Terminal 1 - Backend API Server:**
+```bash
+make run-backend
+```
+This starts the FastAPI development server at `http://localhost:8000` with auto-reload on code changes.
 
-*   **Start Database Services**:
-    If you're using Docker for local databases, the `Makefile` provides a convenient command:
-    ```bash
-    make run-db
-    ```
+**Terminal 2 - Celery Worker:**
+```bash
+make run-celery
+```
+This starts the Celery worker for processing asynchronous background tasks.
 
-*   **Apply Database Migrations**:
-    Once your databases are running and configured in `.env`, set up the database schema:
-    ```bash
-    make migrate
-    ```
-
-### 6. Run ApeRAG Backend Services
-
-These should typically be run in separate terminal windows/tabs. The `make` commands will automatically use the correct Python virtual environment.
-
-*   **FastAPI Development Server**:
-    ```bash
-    make run-backend
-    ```
-    This starts the main backend application. It will typically be accessible at `http://localhost:8000` and features auto-reload on code changes.
-
-*   **Celery Worker & Beat**:
-    ```bash
-    make run-celery
-    ```
-    This starts the Celery worker for processing asynchronous background tasks.
-
-### 7. Run Frontend Development Server (Optional)
-
-If you need to work on or view the frontend:
+**Terminal 3 - Frontend (Optional):**
 ```bash
 make run-frontend
 ```
-This will start the frontend development server, usually available at `http://localhost:3000`. It's configured to proxy API requests to the backend running on port 8000.
+This starts the frontend development server at `http://localhost:3000` with hot reload.
 
 ### 8. Access ApeRAG
 
-With the backend (and optionally frontend) services running:
-*   Access the **Frontend UI** at `http://localhost:3000` (if started).
-*   The **Backend API** is available at `http://localhost:8000`.
+With the services running, you can access:
+*   **Backend API**: http://localhost:8000
+*   **API Documentation**: http://localhost:8000/docs
+*   **Frontend UI**: http://localhost:3000 (if started)
 
-Now you have ApeRAG running locally from the source code, ready for development or testing!
+### 9. Development Workflow
+
+Your typical development cycle:
+
+1. **Code Changes**: Edit files in `aperag/` (backend) or `frontend/src/` (frontend)
+2. **Auto-reload**: Backend and frontend automatically reload on file changes
+3. **Testing**: Run `make test` to execute tests
+4. **Code Quality**: Run `make format` and `make lint` before committing
+5. **Database Changes**: If you modify models, run `make makemigration` then `make migrate`
+
+### 10. Stopping Services
+
+To stop the development environment:
+
+```bash
+# Stop database services
+make compose-down
+
+# Stop development services (Ctrl+C in each terminal)
+```
+
+Now you have ApeRAG running locally from source code, ready for development!
 
 ## Docker Compose Development Options
 
@@ -201,15 +225,18 @@ make compose-up WITH_NEO4J=1 WITH_DOCRAY=1 WITH_GPU=1
 The `Makefile` at the root of the project provides several helpful commands to streamline development:
 
 *   **Environment & Dependencies**:
-    *   `make install`: Installs all necessary backend (Python) and frontend (Node.js) dependencies. It sets up a Python 3.11 virtual environment using `uv`.
-    *   `make dev`: Installs development tools like pre-commit hooks to ensure code quality before commits.
+    *   `make dev`: Sets up the development environment by creating Python virtual environment, installing `uv`, and setting up pre-commit hooks.
+    *   `make install`: Installs all necessary backend (Python) and frontend (Node.js) dependencies into the virtual environment.
 
-*   **Running Services**:
-    *   `make run-db`: (Uses Docker Compose) Starts all required database services (PostgreSQL, Redis, Qdrant, etc.) as defined in `docker-compose.yml`. Useful if you don't have these services running elsewhere.
-    *   `make run-backend`: Starts the FastAPI development server.
-    *   `make run-frontend`: Starts the UmiJS frontend development server.
-    *   `make run-celery`: Starts a Celery worker for processing background tasks (includes Celery Beat).
-    *   `make run-celery-beat`: (Note: `make run-celery` usually includes Beat due to the `-B` flag. This target might be redundant or for specific scenarios. Check Makefile if explicitly needed separate from worker).
+*   **Database Services**:
+    *   `make compose-infra`: Starts essential database services (PostgreSQL, Redis, Qdrant, Elasticsearch) using Docker Compose.
+    *   `make compose-infra WITH_NEO4J=1`: Starts database services including Neo4j for graph knowledge capabilities.
+    *   `make compose-down`: Stops all database services.
+
+*   **Development Services**:
+    *   `make run-backend`: Starts the FastAPI development server with auto-reload.
+    *   `make run-frontend`: Starts the UmiJS frontend development server with hot reload.
+    *   `make run-celery`: Starts a Celery worker for processing background tasks.
 
 *   **Code Quality & Testing**:
     *   `make format`: Formats Python code using Ruff and frontend code using Prettier.
@@ -218,17 +245,15 @@ The `Makefile` at the root of the project provides several helpful commands to s
     *   `make test`: Runs all automated tests (Python unit tests, integration tests).
 
 *   **Database Management**:
-    *   `make makemigration`: Creates new database migration files based on changes to SQLAlchemy models.
     *   `make migrate`: Applies pending database migrations to your connected database.
-    *   `make connect-metadb`: Provides a command to connect to the primary PostgreSQL database (usually for inspection, if run via `make run-db`).
+    *   `make makemigration`: Creates new database migration files based on changes to SQLAlchemy models.
 
 *   **Generators**:
     *   `make generate-models`: Generates Pydantic models from the OpenAPI schema.
     *   `make generate-frontend-sdk`: Generates the frontend API client/SDK from the OpenAPI specification. **Run this command whenever backend API definitions change.**
 
-*   **Docker Compose (for local full-stack testing)**:
+*   **Docker Compose (for full application testing)**:
     *   `make compose-up`: Starts all services (backend, frontend, databases, Celery) using Docker Compose.
-    *   `make compose-down`: Stops all services started with `make compose-up`.
     *   `make compose-logs`: Tails the logs from all services running under Docker Compose.
 
 *   **Cleanup**:

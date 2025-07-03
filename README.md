@@ -15,7 +15,7 @@
 - [Acknowledgments](#acknowledgments)
 - [License](#license)
 
-ApeRAG is a production-ready RAG (Retrieval-Augmented Generation) platform that combines vector search, full-text search, and graph knowledge extraction powered by **[LightRAG](https://github.com/HKUDS/LightRAG)**. Build sophisticated AI applications with hybrid retrieval, multimodal document processing, and enterprise-grade management features.
+ApeRAG is a production-ready RAG (Retrieval-Augmented Generation) platform that combines vector search, full-text search, and graph knowledge extraction inspired by **[LightRAG](https://github.com/HKUDS/LightRAG)**. Build sophisticated AI applications with hybrid retrieval, multimodal document processing, and enterprise-grade management features.
 
 ## Quick Start
 
