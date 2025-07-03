@@ -101,9 +101,9 @@ cd ApeRAG
 
 ApeRAG requires PostgreSQL, Redis, Qdrant, and Elasticsearch. You have two options:
 
-**Option A: Use existing databases** - If you already have these databases running in your cluster, skip to Step 2 and update `deploy/aperag/values.yaml` with your database connection details.
+**Option A: Use existing databases** - If you already have these databases running in your cluster, edit `deploy/aperag/values.yaml` to configure your database connection details, then skip to Step 2.
 
-**Option B: Deploy databases with KubeBlocks** - Use our automated database deployment:
+**Option B: Deploy databases with KubeBlocks** - Use our automated database deployment (database connections are pre-configured):
 
 ```bash
 # Navigate to database deployment scripts
@@ -139,8 +139,6 @@ kubectl get pods -n default -l app.kubernetes.io/instance=aperag
 ```
 
 ### Configuration Options
-
-**Database Connections**: If using existing databases (Option A in Step 1), edit `deploy/aperag/values.yaml` to configure your database connection details. KubeBlocks deployments (Option B) are pre-configured.
 
 **Resource Requirements**: By default, includes [`doc-ray`](https://github.com/apecloud/doc-ray) service (requires 4+ CPU cores, 8GB+ RAM). To disable: set `docray.enabled: false` in `values.yaml`.
 
