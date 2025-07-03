@@ -14,7 +14,7 @@ services:
     build:
       context: .
       dockerfile: ./Dockerfile
-    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.5.0-alpha.30}
+    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.5.0-alpha.31}
     container_name: aperag-api
     depends_on:
       redis:
@@ -43,7 +43,7 @@ services:
     build:
       context: ./frontend
       dockerfile: ./Dockerfile
-    image: ${REGISTRY:-docker.io}/apecloud/aperag-frontend:${VERSION:-v0.5.0-alpha.30}
+    image: ${REGISTRY:-docker.io}/apecloud/aperag-frontend:${VERSION:-v0.5.0-alpha.31}
     container_name: aperag-frontend
     depends_on:
       - api
@@ -57,7 +57,7 @@ services:
     profiles: ["app"]
 
   celeryworker:
-    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.5.0-alpha.30}
+    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.5.0-alpha.31}
     build:
       context: .
       dockerfile: ./Dockerfile
@@ -82,7 +82,7 @@ services:
     profiles: ["app"]
 
   celerybeat:
-    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.5.0-alpha.30}
+    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.5.0-alpha.31}
     build:
       context: .
       dockerfile: ./Dockerfile
@@ -100,7 +100,7 @@ services:
 
   flower:
     <<: *api
-    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.5.0-alpha.30}
+    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.5.0-alpha.31}
     build:
       context: .
       dockerfile: ./Dockerfile
