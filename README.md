@@ -1,5 +1,7 @@
 # ApeRAG
 
+**Language**: English | [中文](README-zh.md)
+
 - [Quick Start](#quick-start)
 - [Key Features](#key-features)
 - [Kubernetes Deployment (Recommended for Production)](#kubernetes-deployment-recommended-for-production)

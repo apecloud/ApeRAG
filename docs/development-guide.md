@@ -1,5 +1,7 @@
 # 🛠️ Development Guide
 
+**Language**: English | [中文](development-guide-zh.md)
+
 This guide focuses on setting up a development environment and the development workflow for ApeRAG. This is designed for developers looking to contribute to ApeRAG or run it locally for development purposes.
 
 ## 🚀 Development Environment Setup
