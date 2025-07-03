@@ -1,6 +1,6 @@
 # Build Guide
 
-**Language**: English | [中文](build-docker-image-zh.md)
+[阅读中文文档](build-docker-image-zh.md)
 
 This section covers how to build ApeRAG container images. It's primarily for users who need to create their own builds or deploy to environments other than the ones covered in "Getting Started".
 

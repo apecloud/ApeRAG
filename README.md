@@ -1,6 +1,6 @@
 # ApeRAG
 
-**Language**: English | [中文](README-zh.md)
+[阅读中文文档](README-zh.md)
 
 - [Quick Start](#quick-start)
 - [Key Features](#key-features)
