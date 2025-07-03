@@ -8,14 +8,15 @@ import { useParams } from 'umi';
 
 const color = d3.scaleOrdinal(d3.schemeCategory10);
 
+type SimulationNode = GraphNode & d3.SimulationNodeDatum;
+type SimulationEdge = d3.SimulationLinkDatum<SimulationNode>;
+
 export default () => {
   const [graphData, setGraphData] = useState<{
     edges: GraphEdge[];
     nodes: GraphNode[];
   }>();
 
-  const [hoverNode, setHoverNode] = useState<GraphNode>();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [selectNode, setSelectNode] = useState<GraphNode>();
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -64,11 +65,11 @@ export default () => {
       })) || [];
 
     const simulation = d3
-      .forceSimulation(nodes)
+      .forceSimulation<SimulationNode>(nodes)
       .force(
         'link',
         d3
-          .forceLink(links)
+          .forceLink<SimulationNode, SimulationEdge>(links)
           .distance(60)
           .id((d) => d.id),
       )
@@ -103,15 +104,14 @@ export default () => {
       .join('circle')
       .attr('r', (d) => {
         const size = _.size(
-          graphData?.edges.filter((edge) => edge.target === d.id),
+          graphData?.edges.filter((edge) => edge.source === d.id),
         );
-        return 4 + size;
+        return 4 + (size > 20 ? 20 : size);
       })
       .style('cursor', 'pointer')
       .attr('fill', (d) => color(d.properties.entity_type || ''))
-      .on('mouseover', function (e, data) {
+      .on('mouseover', function () {
         d3.select(this).transition().duration(300).attr('stroke-width', 2);
-        setHoverNode(data);
       })
       .on('mouseout', function () {
         d3.select(this).transition().duration(300).attr('stroke-width', 1);
@@ -124,49 +124,49 @@ export default () => {
 
     simulation.on('tick', () => {
       link
-        .attr('x1', (d) => d.source.x)
-        .attr('y1', (d) => d.source.y)
-        .attr('x2', (d) => d.target.x)
-        .attr('y2', (d) => d.target.y);
+        .attr('x1', (d: any) => d.source.x)
+        .attr('y1', (d: any) => d.source.y)
+        .attr('x2', (d: any) => d.target.x)
+        .attr('y2', (d: any) => d.target.y);
 
-      node.attr('cx', (d) => d.x).attr('cy', (d) => d.y);
+      node.attr('cx', (d: any) => d.x).attr('cy', (d: any) => d.y);
     });
 
     // Reheat the simulation when drag starts, and fix the subject position.
-    function dragstarted(event) {
+    function dragstarted(event: any) {
       if (!event.active) simulation.alphaTarget(0.3).restart();
       event.subject.fx = event.subject.x;
       event.subject.fy = event.subject.y;
     }
 
     // Update the subject (dragged node) position during drag.
-    function dragged(event) {
+    function dragged(event: any) {
       event.subject.fx = event.x;
       event.subject.fy = event.y;
     }
 
     // Restore the target alpha so the simulation cools after dragging ends.
     // Unfix the subject position now that it’s no longer being dragged.
-    function dragended(event) {
+    function dragended(event: any) {
       if (!event.active) simulation.alphaTarget(0);
       event.subject.fx = null;
       event.subject.fy = null;
     }
 
-    node.call(
-      d3
-        .drag()
-        .on('start', dragstarted)
-        .on('drag', dragged)
-        .on('end', dragended),
-    );
+    const drag: any = d3
+      .drag()
+      .on('start', dragstarted)
+      .on('drag', dragged)
+      .on('end', dragended);
 
-    const zoom = d3
+    const zoom: any = d3
       .zoom()
       .scaleExtent([1, 10])
       .on('zoom', (event) => {
         svg.attr('transform', event.transform);
       });
+
+    node.call(drag);
 
     svg
       .call(zoom)
@@ -174,7 +174,7 @@ export default () => {
       .on('touchstart.zoom', null)
       .on('dblclick.zoom', null);
 
-    ref.current?.replaceChildren(svg.node());
+    ref.current?.replaceChildren(svg.node() as Node);
   }, [graphData, token]);
 
   return (
@@ -191,8 +191,10 @@ export default () => {
           ref={ref}
           style={{ overflow: 'hidden', flex: 1, height: 'auto' }}
         ></Card>
-        <Card title={hoverNode?.id} style={{ width: 300, right: 0, top: 0 }}>
-          <Typography.Text>{hoverNode?.properties.description}</Typography.Text>
+        <Card title={selectNode?.id} style={{ width: 300, right: 0, top: 0 }}>
+          <Typography.Text>
+            {selectNode?.properties.description}
+          </Typography.Text>
         </Card>
       </div>
     </div>
