@@ -22,11 +22,11 @@ else
 endif
 
 ##################################################
-# Users - Local Development and Deployment
+# Environment & Dependencies
 ##################################################
 
-# Environment setup
-.PHONY: install-uv venv install
+# Python environment setup
+.PHONY: install-uv venv install clean
 install-uv:
 	@if [ -z "$$(which uv)" ]; then \
 		echo "Installing uv..."; \
@@ -43,7 +43,37 @@ install: venv
 	@echo "Installing Python dependencies..."
 	uv sync --all-groups --all-extras
 
-# Database management
+# Development environment setup
+.PHONY: dev install-hooks
+dev: install-uv venv install-addlicense install-hooks
+	@echo "Installing development tools..."
+	@command -v redocly >/dev/null || npm install @redocly/cli -g
+	@command -v openapi-generator-cli >/dev/null || npm install @openapitools/openapi-generator-cli -g
+	@command -v datamodel-codegen >/dev/null || uv tool install datamodel-code-generator
+	@echo ""
+	@echo "✅ Development environment ready!"
+	@echo "📝 Next steps:"
+	@echo "   1. Activate virtual environment: source .venv/bin/activate"
+	@echo "   2. Install dependencies: make install"
+	@echo "   3. Start databases: make compose-infra"
+	@echo "   4. Apply migrations: make migrate"
+	@echo "   5. Run services: make run-backend, make run-celery"
+
+install-hooks:
+	@echo "Installing git hooks..."
+	@./scripts/install-hooks.sh
+
+# Environment cleanup
+clean:
+	@echo "Cleaning development environment..."
+	@rm -f db.sqlite3
+	@$(MAKE) compose-down REMOVE_VOLUMES=1
+
+##################################################
+# Database & Infrastructure
+##################################################
+
+# Database schema management
 .PHONY: makemigration migrate
 makemigration:
 	@alembic -c aperag/alembic.ini revision --autogenerate
@@ -51,25 +81,7 @@ makemigration:
 migrate:
 	@alembic -c aperag/alembic.ini upgrade head
 
-# Local services
-.PHONY: run-backend run-frontend run-celery run-flower
-run-backend: migrate
-	uvicorn aperag.app:app --host 0.0.0.0 --reload --log-config scripts/uvicorn-log-config.yaml
-
-run-celery:
-	celery -A config.celery worker -B -l INFO --pool=threads --concurrency=16
-
-run-beat:
-	celery -A config.celery beat -l INFO
-
-run-flower:
-	celery -A config.celery flower --conf/flowerconfig.py
-
-run-frontend:
-	cp ./frontend/deploy/env.local.template ./frontend/.env
-	cd ./frontend && yarn dev
-
-# Docker Compose deployment
+# Docker Compose infrastructure
 
 # Variables for compose command based on environment flags
 # Usage examples:
@@ -121,35 +133,34 @@ compose-down:
 compose-logs:
 	VERSION=v0.5.0-alpha.30 DOCRAY_VERSION=v0.1.1 docker-compose -f docker-compose.yml logs -f
 
-# Environment cleanup
-.PHONY: clean
-clean:
-	@echo "Cleaning development environment..."
-	@rm -f db.sqlite3
-	@echo "Use 'make compose-down REMOVE_VOLUMES=1' to clean Docker Compose services and data"
-
 ##################################################
-# Developers - Code Quality and Tools
+# Development Services
 ##################################################
 
-# Development tools installation
-.PHONY: dev install-hooks
-dev: install-uv venv install-addlicense install-hooks
-	@echo "Installing development tools..."
-	@command -v redocly >/dev/null || npm install @redocly/cli -g
-	@command -v openapi-generator-cli >/dev/null || npm install @openapitools/openapi-generator-cli -g
-	@command -v datamodel-codegen >/dev/null || uv tool install datamodel-code-generator
-	@echo ""
-	@echo "✅ Development environment ready!"
-	@echo "📝 Next steps:"
-	@echo "   1. Activate virtual environment: source .venv/bin/activate"
-	@echo "   2. Install dependencies: make install"
-	@echo "   3. Start databases: make compose-infra"
-	@echo "   4. Apply migrations: make migrate"
-	@echo "   5. Run services: make run-backend, make run-celery"
+# Local development services
+.PHONY: run-backend run-frontend run-celery run-flower run-beat
+run-backend: migrate
+	uvicorn aperag.app:app --host 0.0.0.0 --reload --log-config scripts/uvicorn-log-config.yaml
+
+run-celery:
+	celery -A config.celery worker -B -l INFO --pool=threads --concurrency=16
+
+run-beat:
+	celery -A config.celery beat -l INFO
+
+run-flower:
+	celery -A config.celery flower --conf/flowerconfig.py
+
+run-frontend:
+	cp ./frontend/deploy/env.local.template ./frontend/.env
+	cd ./frontend && yarn dev
+
+##################################################
+# Code Quality & Testing
+##################################################
 
 # Code quality checks
-.PHONY: format lint static-check test unit-test e2e-test
+.PHONY: format lint static-check
 format:
 	uvx ruff check --fix ./aperag ./tests
 	uvx ruff format ./aperag ./tests
@@ -161,6 +172,8 @@ lint:
 static-check:
 	uvx mypy ./aperag
 
+# Testing suite
+.PHONY: test unit-test e2e-test e2e-performance-test
 test:
 	uv run pytest tests/ -v
 
@@ -181,14 +194,18 @@ e2e-performance-test:
 		--benchmark-save=benchmark-result-$$(date +%Y%m%d%H%M%S) \
 		tests/e2e_test/
 
-# Evaluation
+# RAG evaluation
 .PHONY: evaluate
 evaluate:
 	@echo "Running RAG evaluation..."
 	@python -m aperag.evaluation.run
 
-# Code generation
-.PHONY: merge-openapi generate-models generate-frontend-sdk llm_provider
+##################################################
+# Code Generation & API
+##################################################
+
+# OpenAPI and model generation
+.PHONY: merge-openapi generate-models generate-frontend-sdk
 merge-openapi:
 	@cd aperag && redocly bundle ./api/openapi.yaml > ./api/openapi.merged.yaml
 
@@ -207,10 +224,12 @@ generate-models: merge-openapi
 generate-frontend-sdk:
 	cd ./frontend && yarn api:build
 
+# LLM configuration generation
+.PHONY: llm_provider
 llm_provider:
 	python ./models/generate_model_configs.py
 
-# Version management and licensing
+# Version management
 .PHONY: version
 version:
 	@git rev-parse HEAD | cut -c1-7 > commit_id.txt
@@ -218,14 +237,93 @@ version:
 	@echo "GIT_COMMIT_ID = \"$$(cat commit_id.txt)\"" >> $(VERSION_FILE)
 	@rm commit_id.txt
 
-.PHONY: add-license
+##################################################
+# Build & Deploy
+##################################################
+
+# Docker builder setup
+.PHONY: setup-builder clean-builder
+setup-builder:
+	@if ! docker buildx inspect multi-platform >/dev/null 2>&1; then \
+		docker buildx create --name multi-platform --use --driver docker-container --bootstrap; \
+	else \
+		docker buildx use multi-platform; \
+	fi
+
+clean-builder:
+	@if docker buildx inspect multi-platform >/dev/null 2>&1; then \
+		docker buildx rm multi-platform; \
+	fi
+
+# Production builds (multi-platform with registry push)
+.PHONY: build build-aperag build-aperag-frontend
+build: build-aperag build-aperag-frontend
+
+build-aperag: setup-builder version
+	docker buildx build -t $(REGISTRY)/$(APERAG_IMAGE):$(VERSION) \
+		--platform $(BUILDX_PLATFORM) $(BUILDX_ARGS) --push \
+		-f ./Dockerfile .
+
+build-aperag-frontend: setup-builder
+	cd frontend && BASE_PATH=/web/ yarn build
+	cd frontend && docker buildx build \
+		--platform=$(BUILDX_PLATFORM) -f Dockerfile.prod --push \
+		-t $(REGISTRY)/$(APERAG_FRONTEND_IMG):$(VERSION) .
+
+# Local builds (single platform for testing)
+.PHONY: build-local build-aperag-local build-aperag-frontend-local
+build-local: build-aperag-local build-aperag-frontend-local
+
+build-aperag-local: setup-builder version
+	docker buildx build -t $(APERAG_IMAGE):$(VERSION) \
+		--platform $(LOCAL_PLATFORM) $(BUILDX_ARGS) --load \
+		-f ./Dockerfile .
+
+build-aperag-frontend-local: setup-builder
+	cd frontend && BASE_PATH=/web/ yarn build
+	cd frontend && docker buildx build \
+		--platform=$(LOCAL_PLATFORM) -f Dockerfile.prod --load \
+		-t $(APERAG_FRONTEND_IMG):$(VERSION) .
+
+# Kubernetes deployment helpers
+.PHONY: load-images-to-minikube load-images-to-kind
+load-images-to-minikube:
+	@echo "Start To Load Image To Minikube"
+	docker save $(APERAG_IMAGE):$(VERSION) -o aperag.tar
+	minikube image load aperag.tar
+	rm aperag.tar
+	docker save $(APERAG_FRONTEND_IMG):$(VERSION) -o aperag-frontend.tar
+	minikube image load aperag-frontend.tar
+	rm aperag-frontend.tar
+	@echo "Already Load Image To Minikube"
+
+load-images-to-kind:
+	@echo "Start To Load Image To KinD"
+	kind load docker-image $(APERAG_IMAGE):$(VERSION) --name $(KIND_CLUSTER_NAME)
+	kind load docker-image $(APERAG_FRONTEND_IMG):$(VERSION) --name $(KIND_CLUSTER_NAME)
+	@echo "Already Load Image To KinD"
+
+##################################################
+# Utilities & Tools
+##################################################
+
+# System information
+.PHONY: info
+info:
+	@echo "VERSION: $(VERSION)"
+	@echo "BUILDX_PLATFORM: $(BUILDX_PLATFORM)"
+	@echo "LOCAL_PLATFORM: $(LOCAL_PLATFORM)"
+	@echo "REGISTRY: $(REGISTRY)"
+	@echo "HOST ARCH: $(UNAME_M)"
+
+# License management
+.PHONY: add-license check-license install-addlicense
 add-license: install-addlicense
 	./downloads/addlicense -c "ApeCloud, Inc." -y 2025 -l apache \
 		-ignore "aperag/readers/**" \
 		-ignore "aperag/vectorstore/**" \
 		aperag/**/*.py
 
-.PHONY: check-license
 check-license: install-addlicense
 	./downloads/addlicense -check \
 		-c "ApeCloud, Inc." -y 2025 -l apache \
@@ -233,7 +331,6 @@ check-license: install-addlicense
 		-ignore "aperag/vectorstore/**" \
 		aperag/**/*.py
 
-.PHONY: install-addlicense
 install-addlicense:
 	@mkdir -p ./downloads
 	@if [ ! -f ./downloads/addlicense ]; then \
@@ -261,89 +358,3 @@ install-addlicense:
 		chmod +x ./downloads/addlicense; \
 		echo "addlicense installed to ./downloads/addlicense"; \
 	fi
-
-install-hooks:
-	@echo "Installing git hooks..."
-	@./scripts/install-hooks.sh
-
-##################################################
-# Build and CI/CD
-##################################################
-
-# Docker builder setup
-.PHONY: setup-builder clean-builder
-setup-builder:
-	@if ! docker buildx inspect multi-platform >/dev/null 2>&1; then \
-		docker buildx create --name multi-platform --use --driver docker-container --bootstrap; \
-	else \
-		docker buildx use multi-platform; \
-	fi
-
-clean-builder:
-	@if docker buildx inspect multi-platform >/dev/null 2>&1; then \
-		docker buildx rm multi-platform; \
-	fi
-
-# Image builds - multi-platform
-.PHONY: build build-aperag build-aperag-frontend
-build: build-aperag build-aperag-frontend
-
-build-aperag: setup-builder version
-	docker buildx build -t $(REGISTRY)/$(APERAG_IMAGE):$(VERSION) \
-		--platform $(BUILDX_PLATFORM) $(BUILDX_ARGS) --push \
-		-f ./Dockerfile .
-
-build-aperag-frontend: setup-builder
-	cd frontend && BASE_PATH=/web/ yarn build
-	cd frontend && docker buildx build \
-		--platform=$(BUILDX_PLATFORM) -f Dockerfile.prod --push \
-		-t $(REGISTRY)/$(APERAG_FRONTEND_IMG):$(VERSION) .
-
-# Image builds - local platform
-.PHONY: build-local build-aperag-local build-aperag-frontend-local
-build-local: build-aperag-local build-aperag-frontend-local
-
-build-aperag-local: setup-builder version
-	docker buildx build -t $(APERAG_IMAGE):$(VERSION) \
-		--platform $(LOCAL_PLATFORM) $(BUILDX_ARGS) --load \
-		-f ./Dockerfile .
-
-build-aperag-frontend-local: setup-builder
-	cd frontend && BASE_PATH=/web/ yarn build
-	cd frontend && docker buildx build \
-		--platform=$(LOCAL_PLATFORM) -f Dockerfile.prod --load \
-		-t $(APERAG_FRONTEND_IMG):$(VERSION) .
-
-##################################################
-# Utilities and Information
-##################################################
-
-# Configuration info
-.PHONY: info
-info:
-	@echo "VERSION: $(VERSION)"
-	@echo "BUILDX_PLATFORM: $(BUILDX_PLATFORM)"
-	@echo "LOCAL_PLATFORM: $(LOCAL_PLATFORM)"
-	@echo "REGISTRY: $(REGISTRY)"
-	@echo "HOST ARCH: $(UNAME_M)"
-
-
-
-
-.PHONY: load-images-to-minikube
-load-images-to-minikube:
-	@echo "Start To Load Image To Minikube"
-	docker save $(APERAG_IMAGE):$(VERSION) -o aperag.tar
-	minikube image load aperag.tar
-	rm aperag.tar
-	docker save $(APERAG_FRONTEND_IMG):$(VERSION) -o aperag-frontend.tar
-	minikube image load aperag-frontend.tar
-	rm aperag-frontend.tar
-	@echo "Already Load Image To Minikube"
-
-.PHONY: load-images-to-kind
-load-images-to-kind:
-	@echo "Start To Load Image To KinD"
-	kind load docker-image $(APERAG_IMAGE):$(VERSION) --name $(KIND_CLUSTER_NAME)
-	kind load docker-image $(APERAG_FRONTEND_IMG):$(VERSION) --name $(KIND_CLUSTER_NAME)
-	@echo "Already Load Image To KinD"

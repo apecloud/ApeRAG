@@ -35,12 +35,30 @@ Use Docker Compose to start the essential database services:
 ```bash
 # Start core databases: PostgreSQL, Redis, Qdrant, Elasticsearch
 make compose-infra
-
-# Optional: Use Neo4j instead of PostgreSQL for graph storage
-# make compose-infra WITH_NEO4J=1
 ```
 
 This will start all required database services in the background. The default connection settings in your `.env` file are pre-configured to work with these services.
+
+<details>
+<summary><strong>Advanced Database Options</strong></summary>
+
+```bash
+# Use Neo4j instead of PostgreSQL for graph storage
+make compose-infra WITH_NEO4J=1
+
+# Add advanced document parsing service (DocRay)
+make compose-infra WITH_DOCRAY=1
+
+# Combine multiple options
+make compose-infra WITH_NEO4J=1 WITH_DOCRAY=1
+
+# GPU-accelerated document parsing (requires ~6GB VRAM)
+make compose-infra WITH_DOCRAY=1 WITH_GPU=1
+```
+
+**Note**: DocRay provides enhanced document parsing for complex PDFs, tables, and formulas. CPU mode requires 4+ cores and 8GB+ RAM.
+
+</details>
 
 ### 4. Setup Development Environment
 
@@ -146,90 +164,6 @@ docker volume ls | grep aperag
 
 Now you have ApeRAG running locally from source code, ready for development!
 
-
-
-## Key `make` Commands for Development
-
-Based on the Makefile structure, here are the essential commands organized by workflow:
-
-### 🚀 Environment Setup
-```bash
-make dev                    # Complete development setup (virtual env, tools, git hooks)
-make install               # Install all Python and Node.js dependencies  
-make venv                  # Create Python virtual environment only
-make install-uv            # Install uv package manager
-```
-
-### 🗄️ Database & Infrastructure
-```bash
-# Start databases only (recommended for development)
-make compose-infra                     # PostgreSQL + Redis + Qdrant + Elasticsearch
-make compose-infra WITH_NEO4J=1        # Add Neo4j for graph storage
-
-# Database schema management
-make migrate                           # Apply pending migrations
-make makemigration                     # Generate new migration files
-
-# Stop services
-make compose-down                      # Stop services (keep data)
-make compose-down REMOVE_VOLUMES=1     # Stop services and DELETE ALL DATA
-```
-
-### ⚡ Development Services
-```bash
-# Backend services (run in separate terminals)
-make run-backend           # FastAPI server with auto-reload (includes migration)
-make run-celery           # Celery worker + beat scheduler (--pool=threads --concurrency=16)
-make run-beat             # Celery beat scheduler only
-make run-flower           # Celery monitoring web UI
-
-# Frontend service
-make run-frontend         # React development server (copies env template)
-```
-
-### 🐳 Docker Compose (Full Stack)
-```bash
-# Complete application testing
-make compose-up                           # Full stack (API + Frontend + Workers + Databases)
-make compose-up WITH_NEO4J=1              # Add Neo4j 
-make compose-up WITH_DOCRAY=1             # Add advanced document parsing (CPU)
-make compose-up WITH_DOCRAY=1 WITH_GPU=1  # Add GPU-accelerated document parsing
-make compose-logs                         # View all service logs
-```
-
-### 🧪 Testing & Quality
-```bash
-# Testing
-make test                  # All tests (unit + e2e)
-make unit-test            # Unit tests only
-make e2e-test             # End-to-end tests (--benchmark-disable)
-make e2e-performance-test # Performance benchmarks
-
-# Code quality
-make format               # Auto-fix code style (Ruff for Python)
-make lint                 # Check code style (no auto-fix)
-make static-check         # Type checking with MyPy
-```
-
-### 🔧 Code Generation & API
-```bash
-# When you modify APIs
-make generate-models           # Regenerate Pydantic models from OpenAPI spec
-make generate-frontend-sdk     # Regenerate frontend TypeScript API client
-
-# OpenAPI workflow
-make merge-openapi            # Bundle OpenAPI spec files
-
-# LLM configuration
-make llm_provider             # Generate LLM provider configurations
-```
-
-### 📊 Evaluation & Analysis  
-```bash
-make evaluate             # Run RAG evaluation suite
-make clean               # Clean temporary files
-```
-
 ## Common Development Tasks
 
 ### Q: How do I add or modify a REST API endpoint?
@@ -271,89 +205,100 @@ make clean               # Clean temporary files
 
 ### Q: How do I add a new feature with background processing?
 
-**Full-stack feature development:**
-1. Setup development environment:
-   ```bash
-   make dev                    # One-time setup
-   source .venv/bin/activate   # Activate environment
-   make compose-infra          # Start databases
-   ```
-2. Start development services (3 terminals):
-   ```bash
-   # Terminal 1: Backend API
-   make run-backend           # Includes auto-migration
-   
-   # Terminal 2: Background tasks  
-   make run-celery           # Worker + scheduler (threads=16)
-   
-   # Terminal 3: Task monitoring (optional)
-   make run-flower           # Web UI at http://localhost:5555
-   ```
-3. Implement feature:
+**Feature implementation workflow:**
+1. Implement feature components:
    - Backend logic: `aperag/[module]/`
    - Async tasks: `aperag/tasks/`
    - Database models: `aperag/db/models.py`
-4. Update API and generate code:
+2. Update API and generate code:
    ```bash
-   make makemigration
-   make migrate
-   make generate-models
-   make generate-frontend-sdk
+   make makemigration      # Generate migration files
+   make migrate           # Apply database changes
+   make generate-models   # Update Pydantic models
+   make generate-frontend-sdk  # Update TypeScript client
    ```
-5. Quality assurance:
+3. Quality assurance:
    ```bash
    make format && make lint && make test
    ```
 
-### Q: How do I test with different database backends?
+### Q: How do I run unit tests and e2e tests?
 
-**Testing with PostgreSQL (default):**
+**Unit Tests (Fast, No External Dependencies):**
 ```bash
-make compose-infra         # PostgreSQL + Redis + Qdrant + Elasticsearch
-make run-backend
+# Run all unit tests
+make unit-test
+
+# Run specific test file
+uv run pytest tests/unit_test/test_model_service.py -v
+
+# Run specific test class or function
+uv run pytest tests/unit_test/test_model_service.py::TestModelService::test_get_models -v
+
+# Run tests with coverage
+uv run pytest tests/unit_test/ --cov=aperag --cov-report=html
 ```
 
-**Testing with Neo4j for graph storage:**
+**E2E Tests (Require Running Services):**
 ```bash
-make compose-infra WITH_NEO4J=1  # Neo4j replaces PostgreSQL for graphs
-make run-backend
-# Access Neo4j UI: http://localhost:7474
+# Setup: Start required services first
+make compose-infra      # Start databases
+make run-backend       # Start API server (separate terminal)
+
+# Run all e2e tests
+make e2e-test
+
+# Run specific e2e test modules
+uv run pytest tests/e2e_test/test_chat/ -v
+uv run pytest tests/e2e_test/graphstorage/ -v
+
+# Run with detailed output and no capture
+uv run pytest tests/e2e_test/test_specific.py -v -s
+
+# Performance benchmarks (with timing)
+make e2e-performance-test
 ```
 
-**Testing complete stack with advanced parsing:**
+**Complete Test Suite:**
 ```bash
-# CPU-based document parsing
-make compose-up WITH_DOCRAY=1
+# Run everything (unit + e2e)
+make test
 
-# GPU-accelerated parsing (requires ~6GB VRAM)
-make compose-up WITH_DOCRAY=1 WITH_GPU=1
+# Test with different configurations
+make compose-infra WITH_NEO4J=1  # Test with Neo4j instead of PostgreSQL
+make test
 ```
 
 ### Q: How do I debug failing tests?
 
-**Test debugging workflow:**
-1. Run specific test categories:
+**Debugging workflow:**
+1. Run failing test in isolation:
    ```bash
-   make unit-test            # Fast unit tests only
-   make e2e-test            # Integration tests (--benchmark-disable)
+   # Single test with full output
+   uv run pytest tests/unit_test/test_failing.py::test_specific_function -v -s
    
-   # Specific test file with verbose output
-   uv run pytest tests/unit_test/test_specific.py -v -s
+   # Stop on first failure
+   uv run pytest tests/unit_test/ -x --tb=short
    ```
-2. Debug with services running:
+2. For e2e test failures, ensure services are running:
    ```bash
-   make compose-infra       # Ensure databases are up
-   make run-backend         # API server for integration tests
+   make compose-infra       # Database services
+   make run-backend         # API server
+   make run-celery         # Background workers (if testing async tasks)
    ```
-3. Performance testing:
+3. Use debugging tools:
    ```bash
-   make e2e-performance-test  # Benchmarks with --benchmark-enable
+   # Run with pdb debugger
+   uv run pytest tests/unit_test/test_failing.py --pdb
+   
+   # Capture logs during test
+   uv run pytest tests/e2e_test/test_failing.py --log-cli-level=DEBUG
    ```
-4. Fix and verify:
+4. Fix and retest:
    ```bash
    make format              # Auto-fix style issues
    make lint               # Check remaining issues
-   make test               # Full test suite
+   uv run pytest tests/path/to/fixed_test.py -v  # Verify fix
    ```
 
 ### Q: How do I run RAG evaluation and analysis?
