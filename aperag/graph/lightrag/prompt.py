@@ -51,7 +51,7 @@ PROMPTS["DEFAULT_ENTITY_TYPES"] = [
     "event",
     "product",
     "technology",
-    "date",
+    # "date",
     "category",
 ]
 
@@ -63,7 +63,7 @@ Use {language} as output language.
 
 ---Steps---
 1. Identify all entities. For each identified entity, extract the following information:
-- entity_name: Name of the entity, use same language as input text. If English, capitalized the name.
+- entity_name: Full Name of the entity, must use **same language** as input text, it's important. If English, capitalized the name.
 - entity_type: One of the following types: [{entity_types}]
 - entity_description: Comprehensive description of the entity's attributes and activities
 Format each entity as ("entity"{tuple_delimiter}<entity_name>{tuple_delimiter}<entity_type>{tuple_delimiter}<entity_description>)
