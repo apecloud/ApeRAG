@@ -23,8 +23,8 @@ Edit the `.env` file to configure your AI service settings if needed. The defaul
 
 Before you begin, ensure your system has:
 
-*   **Node.js**: Version 20 or higher is recommended for frontend development.
-*   **Docker & Docker Compose**: Required for running database services locally.
+*   **Node.js**: Version 20 or higher is recommended for frontend development. [Download Node.js](https://nodejs.org/)
+*   **Docker & Docker Compose**: Required for running database services locally. [Download Docker](https://docs.docker.com/get-docker/)
 
 **Note**: Python 3.11 is required but will be automatically managed by `uv` in the next steps.
 
@@ -150,191 +150,300 @@ Now you have ApeRAG running locally from source code, ready for development!
 
 ## Key `make` Commands for Development
 
-The `Makefile` provides essential commands for development workflow:
+Based on the Makefile structure, here are the essential commands organized by workflow:
 
-### Environment Setup
-*   `make dev` - Sets up complete development environment (creates virtual environment, installs development tools, git hooks)
-*   `make install` - Installs all Python and Node.js dependencies
+### 🚀 Environment Setup
+```bash
+make dev                    # Complete development setup (virtual env, tools, git hooks)
+make install               # Install all Python and Node.js dependencies  
+make venv                  # Create Python virtual environment only
+make install-uv            # Install uv package manager
+```
 
-### Database Services  
-*   `make compose-infra` - Start core databases (PostgreSQL, Redis, Qdrant, Elasticsearch)
-*   `make compose-infra WITH_NEO4J=1` - Start databases with Neo4j for graph storage
-*   `make compose-down` - Stop database services (preserves data)
-*   `make compose-down REMOVE_VOLUMES=1` - Stop services and delete all data
+### 🗄️ Database & Infrastructure
+```bash
+# Start databases only (recommended for development)
+make compose-infra                     # PostgreSQL + Redis + Qdrant + Elasticsearch
+make compose-infra WITH_NEO4J=1        # Add Neo4j for graph storage
 
-### Development Services
-*   `make run-backend` - Start FastAPI development server with auto-reload
-*   `make run-celery` - Start Celery worker for background tasks  
-*   `make run-frontend` - Start React frontend development server
+# Database schema management
+make migrate                           # Apply pending migrations
+make makemigration                     # Generate new migration files
 
-### Database Management
-*   `make migrate` - Apply database migrations
-*   `make makemigration` - Create new migration files for model changes
+# Stop services
+make compose-down                      # Stop services (keep data)
+make compose-down REMOVE_VOLUMES=1     # Stop services and DELETE ALL DATA
+```
 
-### Code Quality
-*   `make format` - Format code (Python with Ruff, frontend with Prettier)
-*   `make lint` - Lint code and check style
-*   `make test` - Run all tests (unit + integration)
+### ⚡ Development Services
+```bash
+# Backend services (run in separate terminals)
+make run-backend           # FastAPI server with auto-reload (includes migration)
+make run-celery           # Celery worker + beat scheduler (--pool=threads --concurrency=16)
+make run-beat             # Celery beat scheduler only
+make run-flower           # Celery monitoring web UI
 
-### Code Generation
-*   `make generate-models` - Generate Pydantic models from OpenAPI schema
-*   `make generate-frontend-sdk` - Generate frontend API client (**run after API changes**)
+# Frontend service
+make run-frontend         # React development server (copies env template)
+```
 
-### Docker Compose Testing
-*   `make compose-up` - Start complete application stack for testing
-*   `make compose-logs` - View logs from all services
+### 🐳 Docker Compose (Full Stack)
+```bash
+# Complete application testing
+make compose-up                           # Full stack (API + Frontend + Workers + Databases)
+make compose-up WITH_NEO4J=1              # Add Neo4j 
+make compose-up WITH_DOCRAY=1             # Add advanced document parsing (CPU)
+make compose-up WITH_DOCRAY=1 WITH_GPU=1  # Add GPU-accelerated document parsing
+make compose-logs                         # View all service logs
+```
+
+### 🧪 Testing & Quality
+```bash
+# Testing
+make test                  # All tests (unit + e2e)
+make unit-test            # Unit tests only
+make e2e-test             # End-to-end tests (--benchmark-disable)
+make e2e-performance-test # Performance benchmarks
+
+# Code quality
+make format               # Auto-fix code style (Ruff for Python)
+make lint                 # Check code style (no auto-fix)
+make static-check         # Type checking with MyPy
+```
+
+### 🔧 Code Generation & API
+```bash
+# When you modify APIs
+make generate-models           # Regenerate Pydantic models from OpenAPI spec
+make generate-frontend-sdk     # Regenerate frontend TypeScript API client
+
+# OpenAPI workflow
+make merge-openapi            # Bundle OpenAPI spec files
+
+# LLM configuration
+make llm_provider             # Generate LLM provider configurations
+```
+
+### 📊 Evaluation & Analysis  
+```bash
+make evaluate             # Run RAG evaluation suite
+make clean               # Clean temporary files
+```
 
 ## Common Development Tasks
 
 ### Q: How do I add or modify a REST API endpoint?
 
-**Steps:**
-1. Edit the OpenAPI specification: `aperag/api/paths/[endpoint-name].yaml`
-2. Update backend view: `aperag/views/[module].py`
-3. Generate models and frontend SDK:
+**Complete workflow:**
+1. Edit OpenAPI specification: `aperag/api/paths/[endpoint-name].yaml`
+2. Regenerate backend models: 
    ```bash
-   make generate-models
-   make generate-frontend-sdk
+   make generate-models  # This runs merge-openapi internally
    ```
-4. Test the API:
+3. Implement backend view: `aperag/views/[module].py`
+4. Generate frontend TypeScript client:
+   ```bash
+   make generate-frontend-sdk  # Updates frontend/src/api/
+   ```
+5. Test the API:
    ```bash
    make test
-   # Check API docs at http://localhost:8000/docs
+   # Check live docs: http://localhost:8000/docs
    ```
 
 ### Q: How do I modify database models/schema?
 
-**Steps:**
+**Database migration workflow:**
 1. Edit SQLModel classes in `aperag/db/models.py`
-2. Generate and apply migration:
+2. Generate migration file:
    ```bash
-   make makemigration
-   make migrate
+   make makemigration  # Creates new migration in migration/versions/
    ```
-3. Update related code (repositories, services)
-4. Test database changes:
+3. Apply migration to database:
+   ```bash
+   make migrate  # Updates database schema
+   ```
+4. Update related code (repositories in `aperag/db/repositories/`, services in `aperag/service/`)
+5. Verify changes:
    ```bash
    make test
    ```
 
-### Q: How do I add a new feature from scratch?
+### Q: How do I add a new feature with background processing?
 
-**Complete workflow:**
-1. Create feature branch: `git checkout -b feat/my-feature`
-2. Start development environment:
+**Full-stack feature development:**
+1. Setup development environment:
    ```bash
-   make compose-infra
-   make run-backend
-   make run-celery
+   make dev                    # One-time setup
+   source .venv/bin/activate   # Activate environment
+   make compose-infra          # Start databases
    ```
-3. Implement backend logic in `aperag/[module]/`
-4. Add database models and migrate:
+2. Start development services (3 terminals):
+   ```bash
+   # Terminal 1: Backend API
+   make run-backend           # Includes auto-migration
+   
+   # Terminal 2: Background tasks  
+   make run-celery           # Worker + scheduler (threads=16)
+   
+   # Terminal 3: Task monitoring (optional)
+   make run-flower           # Web UI at http://localhost:5555
+   ```
+3. Implement feature:
+   - Backend logic: `aperag/[module]/`
+   - Async tasks: `aperag/tasks/`
+   - Database models: `aperag/db/models.py`
+4. Update API and generate code:
    ```bash
    make makemigration
    make migrate
-   ```
-5. Create API endpoints and update OpenAPI spec
-6. Generate frontend code:
-   ```bash
    make generate-models
    make generate-frontend-sdk
    ```
-7. Implement frontend (optional): `frontend/src/`
-8. Code quality check:
+5. Quality assurance:
    ```bash
-   make format
-   make lint
-   make test
+   make format && make lint && make test
    ```
 
-### Q: How do I debug a failing test?
+### Q: How do I test with different database backends?
 
-**Debugging workflow:**
-1. Run specific test:
+**Testing with PostgreSQL (default):**
+```bash
+make compose-infra         # PostgreSQL + Redis + Qdrant + Elasticsearch
+make run-backend
+```
+
+**Testing with Neo4j for graph storage:**
+```bash
+make compose-infra WITH_NEO4J=1  # Neo4j replaces PostgreSQL for graphs
+make run-backend
+# Access Neo4j UI: http://localhost:7474
+```
+
+**Testing complete stack with advanced parsing:**
+```bash
+# CPU-based document parsing
+make compose-up WITH_DOCRAY=1
+
+# GPU-accelerated parsing (requires ~6GB VRAM)
+make compose-up WITH_DOCRAY=1 WITH_GPU=1
+```
+
+### Q: How do I debug failing tests?
+
+**Test debugging workflow:**
+1. Run specific test categories:
    ```bash
-   # Unit tests
-   make unit-test
+   make unit-test            # Fast unit tests only
+   make e2e-test            # Integration tests (--benchmark-disable)
    
-   # Specific test file
-   uv run pytest tests/unit_test/test_specific.py -v
-   
-   # Integration tests  
-   uv run pytest tests/e2e_test/test_specific.py -v
+   # Specific test file with verbose output
+   uv run pytest tests/unit_test/test_specific.py -v -s
    ```
-2. Check services are running:
+2. Debug with services running:
    ```bash
-   make compose-infra
-   make run-backend
+   make compose-infra       # Ensure databases are up
+   make run-backend         # API server for integration tests
    ```
-3. Check logs and debug with breakpoints
-4. Fix code and retest:
+3. Performance testing:
    ```bash
-   make format
-   make test
+   make e2e-performance-test  # Benchmarks with --benchmark-enable
+   ```
+4. Fix and verify:
+   ```bash
+   make format              # Auto-fix style issues
+   make lint               # Check remaining issues
+   make test               # Full test suite
    ```
 
-### Q: How do I update dependencies?
+### Q: How do I run RAG evaluation and analysis?
 
-**For Python dependencies:**
-1. Edit `pyproject.toml`
-2. Update environment:
+**Evaluation workflow:**
+```bash
+# Ensure environment is ready
+make compose-infra WITH_NEO4J=1  # Use Neo4j for better graph performance
+make run-backend
+make run-celery
+
+# Run comprehensive RAG evaluation
+make evaluate               # Runs aperag.evaluation.run module
+
+# Check evaluation reports in tests/report/
+```
+
+### Q: How do I update dependencies safely?
+
+**Python dependencies:**
+1. Edit `pyproject.toml` (add/update packages)
+2. Update virtual environment:
    ```bash
-   make install
-   make test
+   make install            # Syncs all groups and extras with uv
+   make test              # Verify compatibility
    ```
 
-**For frontend dependencies:**
+**Frontend dependencies:**
 1. Edit `frontend/package.json`
 2. Update and test:
    ```bash
    cd frontend && yarn install
-   make run-frontend
+   make run-frontend      # Test frontend compilation
+   make generate-frontend-sdk  # Ensure API client still works
    ```
 
-### Q: How do I prepare code for pull request?
+### Q: How do I prepare code for production deployment?
 
-**Before submitting:**
-1. Ensure all tests pass:
+**Pre-deployment checklist:**
+1. Code quality validation:
    ```bash
-   make test
+   make format            # Auto-fix all style issues
+   make lint             # Verify no style violations
+   make static-check     # MyPy type checking
    ```
-2. Code quality checks:
+2. Comprehensive testing:
    ```bash
-   make format
-   make lint
+   make test             # All unit + e2e tests
+   make e2e-performance-test  # Performance benchmarks
    ```
-3. If API changed, update frontend SDK:
+3. API consistency:
    ```bash
-   make generate-frontend-sdk
+   make generate-models         # Ensure models match OpenAPI spec
+   make generate-frontend-sdk   # Update frontend client
    ```
-4. If models changed, ensure migrations are created:
+4. Database migrations:
    ```bash
-   make makemigration
+   make makemigration    # Generate any pending migrations
    ```
-5. Test complete application:
+5. Full-stack integration test:
    ```bash
-   make compose-up
-   # Test at http://localhost:3000/web/
+   make compose-up WITH_NEO4J=1 WITH_DOCRAY=1  # Production-like setup
+   # Manual testing at http://localhost:3000/web/
    make compose-down
    ```
 
-### Q: How do I reset my development environment?
+### Q: How do I completely reset my development environment?
 
-**Complete reset:**
+**Nuclear reset (destroys all data):**
 ```bash
-# Stop all services and delete data
-make compose-down REMOVE_VOLUMES=1
+make compose-down REMOVE_VOLUMES=1  # Stop services + delete ALL data
+make clean                         # Clean temporary files
 
-# Restart fresh environment
-make compose-infra
-make migrate
-make run-backend
-make run-celery
+# Restart fresh
+make compose-infra                 # Fresh databases
+make migrate                      # Apply all migrations
+make run-backend                  # Start API server
+make run-celery                   # Start background workers
 ```
 
-**Partial reset (keep data):**
+**Soft reset (preserve data):**
 ```bash
-# Just restart services
-make compose-down
-make compose-infra
+make compose-down                 # Stop services, keep data
+make compose-infra               # Restart databases
+make migrate                    # Apply any new migrations
+```
+
+**Reset just Python environment:**
+```bash
+rm -rf .venv/                   # Remove virtual environment
+make dev                       # Recreate everything
+source .venv/bin/activate      # Reactivate
 ``` 
