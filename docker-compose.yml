@@ -18,11 +18,11 @@ services:
     container_name: aperag-api
     depends_on:
       redis:
-        condition: service_started
+        condition: service_healthy
       postgres:
-        condition: service_started
+        condition: service_healthy
       qdrant:
-        condition: service_started
+        condition: service_healthy
       es:
         condition: service_healthy
     volumes:
@@ -37,6 +37,12 @@ services:
     ports:
       - "8000:8000"
     command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-api.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || curl -f http://localhost:8000/docs || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12  # 12 * 10s = 120s (2 minutes)
+      start_period: 30s  # Give API time to start up before first check
 
   frontend:
     build:
@@ -45,7 +51,8 @@ services:
     image: ${REGISTRY:-docker.io}/apecloud/aperag-frontend:${VERSION:-v0.5.0-alpha.31}
     container_name: aperag-frontend
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     env_file:
       - frontend/deploy/env.local.template
     environment:
@@ -61,10 +68,14 @@ services:
       dockerfile: ./Dockerfile
     container_name: aperag-celeryworker
     depends_on:
-      - redis
-      - postgres
-      - qdrant
-      - es
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      es:
+        condition: service_healthy
     volumes:
       - .:/app:z
       - ~/.cache:/root/.cache
@@ -88,8 +99,10 @@ services:
       - .env
       - envs/docker.env.overrides
     depends_on:
-      - redis
-      - postgres
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     environment:
       - NODE_IP=aperag-celerybeat
     command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-celery-beat.sh"]
@@ -101,6 +114,11 @@ services:
       context: .
       dockerfile: ./Dockerfile
     container_name: aperag-flower
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     env_file:
       - .env
       - envs/docker.env.overrides
@@ -124,6 +142,12 @@ services:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_USER=postgres
       - POSTGRES_DB=aperag
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d aperag"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   redis:
     image: redis:6
@@ -132,6 +156,12 @@ services:
       - aperag-redis-data:/data
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
   qdrant:
     image: qdrant/qdrant:v1.13.4
@@ -140,6 +170,12 @@ services:
       - aperag-qdrant-data:/qdrant/storage
     ports:
       - "6333:6333"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 6333 || timeout 3 bash -c '</dev/tcp/localhost/6333' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   es:
     image: elasticsearch:8.8.2

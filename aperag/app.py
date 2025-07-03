@@ -36,6 +36,14 @@ register_exception_handlers(app)
 
 register_custom_llm_track()
 
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Simple health check endpoint for container health monitoring"""
+    return {"status": "healthy", "service": "aperag-api"}
+
+
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(main_router, prefix="/api/v1")
 app.include_router(api_key_router, prefix="/api/v1")
