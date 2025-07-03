@@ -8,7 +8,7 @@
 - [Acknowledgments](#acknowledgments)
 - [License](#license)
 
-ApeRAG is a production-ready RAG (Retrieval-Augmented Generation) platform that combines vector search, full-text search, and graph knowledge extraction inspired by LightRAG. Build sophisticated AI applications with hybrid retrieval, multimodal document processing, and enterprise-grade management features.
+ApeRAG is a production-ready RAG (Retrieval-Augmented Generation) platform that combines vector search, full-text search, and graph knowledge extraction. Build sophisticated AI applications with hybrid retrieval, multimodal document processing, and enterprise-grade management features.
 
 ## Quick Start
 
@@ -32,36 +32,26 @@ After running, you can access ApeRAG in your browser at:
 - **Web Interface**: http://localhost:3000/web/
 - **API Documentation**: http://localhost:8000/docs
 
-#### Advanced Options
+#### Enhanced Document Parsing
 
 For enhanced document parsing capabilities, ApeRAG supports an **advanced document parsing service** powered by MinerU, which provides superior parsing for complex documents, tables, and formulas. 
 
 <details>
-<summary><strong>Advanced Deployment Commands</strong></summary>
+<summary><strong>Enhanced Document Parsing Commands</strong></summary>
 
 ```bash
-# Add graph knowledge capabilities with Neo4j
-make compose-up WITH_NEO4J=1
-
-# Add advanced document parsing service
+# Enable advanced document parsing service
 make compose-up WITH_DOCRAY=1
 
-# Combine both advanced features
-make compose-up WITH_NEO4J=1 WITH_DOCRAY=1
-
-# Full-featured deployment with GPU acceleration
-make compose-up WITH_NEO4J=1 WITH_DOCRAY=1 WITH_GPU=1
+# Enable advanced parsing with GPU acceleration (recommended)
+make compose-up WITH_DOCRAY=1 WITH_GPU=1
 ```
 
 </details>
 
-See our [Development Guide](./docs/development-guide.md) for detailed setup instructions and other advanced deployment options.
+#### Development & Contributing
 
-#### Seeking help
-
-Please refer to our Development Guide for advanced configurations, development setup, and troubleshooting.
-
-> If you'd like to contribute to ApeRAG or do additional development, check out the Development Guide above.
+For developers interested in source code development, advanced configurations, or contributing to ApeRAG, please refer to our [Development Guide](./docs/development-guide.md) for detailed setup instructions.
 
 ## Key Features
 
