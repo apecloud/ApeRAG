@@ -9,6 +9,7 @@ import GeminiIcon from '@/assets/models/gemini.svg';
 import Glm4Icon from '@/assets/models/glm4.png';
 import GorillaIcon from '@/assets/models/gorilla.png';
 import GuanacoIcon from '@/assets/models/guanaco.png';
+import JinaIcon from '@/assets/models/jina.png';
 import OpenrouterIcon from '@/assets/models/openrouter.png';
 import QianwenIcon from '@/assets/models/qianwen.png';
 import VicunaIcon from '@/assets/models/vicuna.jpg';
@@ -77,6 +78,7 @@ export const MODEL_PROVIDER_ICON: {
   alibabacloud: AlibabaIcon,
   siliconflow: SiliconflowIcon,
   openrouter: OpenrouterIcon,
+  jina: JinaIcon,
 
   vicuna: VicunaIcon,
   chatglm: ChatglmIcon,

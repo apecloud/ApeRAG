@@ -34,4 +34,6 @@ export const collection = {
   'collection.embedding_model.required': 'Embedding Model is required',
   'collection.lightrag_model': 'Light RAG Model',
   'collection.lightrag_model.required': 'Light RAG Model is required',
+
+  'collection.graphs': 'Knowledge graph',
 };

@@ -474,7 +474,11 @@ export default () => {
       title: formatMessage({ id: 'model.field.model' }),
       dataIndex: 'model',
       key: 'model',
-      render: (text) => <Text style={{ maxWidth: 200 }} ellipsis={{ tooltip: text }}>{text}</Text>,
+      render: (text) => (
+        <Text style={{ maxWidth: 200 }} ellipsis={{ tooltip: text }}>
+          {text}
+        </Text>
+      ),
     },
     {
       title: formatMessage({ id: 'model.field.api' }),
@@ -504,11 +508,7 @@ export default () => {
       dataIndex: 'tags',
       key: 'tags',
       render: (tags: string[]) => (
-        <Space wrap>
-          {tags?.map((tag) => (
-            <Tag key={tag}>{tag}</Tag>
-          ))}
-        </Space>
+        <Space wrap>{tags?.map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space>
       ),
     },
     {
@@ -904,7 +904,9 @@ export default () => {
                 <Col span={12}>
                   <Form.Item
                     name="custom_llm_provider"
-                    label={formatMessage({ id: 'model.field.custom_llm_provider' })}
+                    label={formatMessage({
+                      id: 'model.field.custom_llm_provider',
+                    })}
                     rules={[
                       {
                         required: true,
@@ -925,9 +927,14 @@ export default () => {
                   <Form.Item
                     label={formatMessage({ id: 'model.field.contextWindow' })}
                     name="context_window"
-                    tooltip={formatMessage({ id: 'model.field.contextWindow.tooltip' })}
+                    tooltip={formatMessage({
+                      id: 'model.field.contextWindow.tooltip',
+                    })}
                   >
-                    <InputNumber style={{ width: '100%' }} placeholder="e.g. 128000" />
+                    <InputNumber
+                      style={{ width: '100%' }}
+                      placeholder="e.g. 128000"
+                    />
                   </Form.Item>
                 </Col>
               </Row>
@@ -936,18 +943,28 @@ export default () => {
                   <Form.Item
                     label={formatMessage({ id: 'model.field.maxInput' })}
                     name="max_input_tokens"
-                    tooltip={formatMessage({ id: 'model.field.maxInput.tooltip' })}
+                    tooltip={formatMessage({
+                      id: 'model.field.maxInput.tooltip',
+                    })}
                   >
-                    <InputNumber style={{ width: '100%' }} placeholder="e.g. 128000" />
+                    <InputNumber
+                      style={{ width: '100%' }}
+                      placeholder="e.g. 128000"
+                    />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
                   <Form.Item
                     label={formatMessage({ id: 'model.field.maxOutput' })}
                     name="max_output_tokens"
-                    tooltip={formatMessage({ id: 'model.field.maxOutput.tooltip' })}
+                    tooltip={formatMessage({
+                      id: 'model.field.maxOutput.tooltip',
+                    })}
                   >
-                    <InputNumber style={{ width: '100%' }} placeholder="e.g. 4096" />
+                    <InputNumber
+                      style={{ width: '100%' }}
+                      placeholder="e.g. 4096"
+                    />
                   </Form.Item>
                 </Col>
               </Row>

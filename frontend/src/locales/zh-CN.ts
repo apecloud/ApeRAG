@@ -331,13 +331,15 @@ export default {
   'model.field.custom_llm_provider': '自定义LLM Provider',
   'model.field.custom_llm_provider.placeholder': '自动填充',
   'model.field.contextWindow': '上下文窗口',
-  'model.field.contextWindow.tooltip': '模型支持的总上下文Token长度（输入+输出）',
+  'model.field.contextWindow.tooltip':
+    '模型支持的总上下文Token长度（输入+输出）',
   'model.field.maxInput': '最大输入',
   'model.field.maxInput.tooltip': '模型支持的最大输入Token长度',
   'model.field.maxOutput': '最大输出',
   'model.field.maxOutput.tooltip': '模型支持的最大输出Token长度',
   'model.field.tags': '标签',
-  'model.field.tags.tooltip': '为模型设置标签，便于分类和识别（例如：free, recommend）',
+  'model.field.tags.tooltip':
+    '为模型设置标签，便于分类和识别（例如：free, recommend）',
   'model.field.action': '操作',
 
   // API Key Management

@@ -3,7 +3,7 @@ import { ApeNode } from '@/types';
 import { CaretRightOutlined } from '@ant-design/icons';
 import { applyNodeChanges, NodeChange } from '@xyflow/react';
 import { useDebounce } from 'ahooks';
-import { Collapse, Form, InputNumber, Slider, theme } from 'antd';
+import { Collapse, Form, Slider, theme } from 'antd';
 import _ from 'lodash';
 import { useCallback, useEffect, useMemo } from 'react';
 import { useIntl, useModel } from 'umi';
