@@ -23,9 +23,10 @@ Edit the `.env` file to configure your AI service settings if needed. The defaul
 
 Before you begin, ensure your system has:
 
-*   **Python 3.11**: The project uses Python 3.11.
 *   **Node.js**: Version 20 or higher is recommended for frontend development.
 *   **Docker & Docker Compose**: Required for running database services locally.
+
+**Note**: Python 3.11 is required but will be automatically managed by `uv` in the next steps.
 
 ### 3. Start Database Services
 
@@ -35,7 +36,7 @@ Use Docker Compose to start the essential database services:
 # Start core databases: PostgreSQL, Redis, Qdrant, Elasticsearch
 make compose-infra
 
-# Optional: Add graph database capabilities
+# Optional: Use Neo4j instead of PostgreSQL for graph storage
 # make compose-infra WITH_NEO4J=1
 ```
 
@@ -138,7 +139,7 @@ Start only the essential database services. Perfect for developers who want to r
 # Core databases: PostgreSQL, Redis, Qdrant, Elasticsearch
 make compose-infra
 
-# Add graph database capabilities  
+# Use Neo4j instead of PostgreSQL for graph storage
 make compose-infra WITH_NEO4J=1
 ```
 
@@ -156,7 +157,7 @@ Launch the complete ApeRAG platform with all services containerized.
 # Complete system (API + Frontend + Background workers + Databases)
 make compose-up
 
-# Add graph knowledge capabilities with Neo4j
+# Use Neo4j instead of PostgreSQL for graph storage
 make compose-up WITH_NEO4J=1
 
 # Add advanced document parsing with DocRay
@@ -172,8 +173,8 @@ make compose-up WITH_NEO4J=1 WITH_DOCRAY=1 WITH_GPU=1
 ### Optional Services
 
 **Neo4j Graph Database** (`WITH_NEO4J=1`)
-- Enables graph-based knowledge extraction and querying
-- Powers advanced relational search capabilities
+- Uses Neo4j instead of PostgreSQL for graph storage backend
+- Provides native graph database capabilities for better performance
 - Accessible at http://localhost:7474 (Web UI)
 
 **DocRay Advanced Document Parsing** (`WITH_DOCRAY=1`)
@@ -209,7 +210,7 @@ make compose-up
 
 **For Active Development**:
 ```bash
-make compose-infra WITH_NEO4J=1  # Start databases
+make compose-infra WITH_NEO4J=1  # Start databases (with Neo4j for graph storage)
 make run-backend                 # Run API in development mode
 # Code with hot reload and debugging
 ```
@@ -230,7 +231,7 @@ The `Makefile` at the root of the project provides several helpful commands to s
 
 *   **Database Services**:
     *   `make compose-infra`: Starts essential database services (PostgreSQL, Redis, Qdrant, Elasticsearch) using Docker Compose.
-    *   `make compose-infra WITH_NEO4J=1`: Starts database services including Neo4j for graph knowledge capabilities.
+    *   `make compose-infra WITH_NEO4J=1`: Starts database services using Neo4j instead of PostgreSQL for graph storage.
     *   `make compose-down`: Stops all database services.
 
 *   **Development Services**:
