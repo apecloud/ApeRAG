@@ -88,25 +88,13 @@ Deploy ApeRAG to Kubernetes using our provided Helm chart. This approach offers 
 *   [`kubectl`](https://kubernetes.io/docs/tasks/tools/) configured and connected to your cluster
 *   [Helm v3+](https://helm.sh/docs/intro/install/) installed
 
-### Option 1: Quick Deployment
+### Step 1: Deploy Database Services
 
-If you already have PostgreSQL, Redis, Qdrant, and Elasticsearch running in your cluster, you can deploy ApeRAG directly:
+ApeRAG requires PostgreSQL, Redis, Qdrant, and Elasticsearch. You have two options:
 
-```bash
-# Clone the repository
-git clone https://github.com/apecloud/ApeRAG.git
-cd ApeRAG
+**Option A: Use existing databases** - If you already have these databases running in your cluster, skip to Step 2 and update `deploy/aperag/values.yaml` with your database connection details.
 
-# Update database connections in values.yaml for your existing databases
-# Then deploy ApeRAG
-helm install aperag ./deploy/aperag --namespace aperag --create-namespace
-```
-
-### Option 2: Full Deployment with KubeBlocks (Recommended)
-
-If you need to deploy databases as well, use our KubeBlocks integration:
-
-#### Step 1: Deploy Database Services
+**Option B: Deploy databases with KubeBlocks** - Use our automated database deployment:
 
 ```bash
 cd deploy/databases/
@@ -124,12 +112,17 @@ kubectl get pods -n default
 
 Wait for all database pods to be in `Running` status before proceeding.
 
-#### Step 2: Deploy ApeRAG Application
+### Step 2: Deploy ApeRAG Application
 
 ```bash
-cd ../../  # Back to project root
+# Clone the repository (if not already done)
+git clone https://github.com/apecloud/ApeRAG.git
+cd ApeRAG
 
-# Deploy ApeRAG (database connections pre-configured for KubeBlocks)
+# If you deployed databases with KubeBlocks in Step 1, database connections are pre-configured
+# If you're using existing databases, edit deploy/aperag/values.yaml with your connection details
+
+# Deploy ApeRAG
 helm install aperag ./deploy/aperag --namespace default --create-namespace
 
 # Monitor ApeRAG deployment
@@ -138,7 +131,7 @@ kubectl get pods -n default -l app.kubernetes.io/instance=aperag
 
 ### Configuration Options
 
-**Database Connections**: Edit `deploy/aperag/values.yaml` to configure database connections for your environment.
+**Database Connections**: If using existing databases (Option A in Step 1), edit `deploy/aperag/values.yaml` to configure your database connection details. KubeBlocks deployments (Option B) are pre-configured.
 
 **Resource Requirements**: By default, includes [`doc-ray`](https://github.com/apecloud/doc-ray) service (requires 4+ CPU cores, 8GB+ RAM). To disable: set `docray.enabled: false` in `values.yaml`.
 
