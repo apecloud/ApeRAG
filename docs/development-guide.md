@@ -102,6 +102,100 @@ With the backend (and optionally frontend) services running:
 
 Now you have ApeRAG running locally from the source code, ready for development or testing!
 
+## Docker Compose Development Options
+
+For developers who prefer containerized development, Docker Compose offers flexible deployment modes:
+
+### Infrastructure Mode (Recommended for Development)
+
+Start only the essential database services. Perfect for developers who want to run the application code locally for debugging and development.
+
+```bash
+# Core databases: PostgreSQL, Redis, Qdrant, Elasticsearch
+make compose-infra
+
+# Add graph database capabilities  
+make compose-infra WITH_NEO4J=1
+```
+
+After starting infrastructure, run your app locally:
+```bash
+make run-backend   # Start API server at localhost:8000
+make run-frontend  # Start frontend at localhost:3000 (optional)
+```
+
+### Full Application Mode
+
+Launch the complete ApeRAG platform with all services containerized.
+
+```bash
+# Complete system (API + Frontend + Background workers + Databases)
+make compose-up
+
+# Add graph knowledge capabilities with Neo4j
+make compose-up WITH_NEO4J=1
+
+# Add advanced document parsing with DocRay
+make compose-up WITH_DOCRAY=1
+
+# Combine multiple optional services
+make compose-up WITH_NEO4J=1 WITH_DOCRAY=1
+
+# Full-featured deployment with GPU acceleration
+make compose-up WITH_NEO4J=1 WITH_DOCRAY=1 WITH_GPU=1
+```
+
+### Optional Services
+
+**Neo4j Graph Database** (`WITH_NEO4J=1`)
+- Enables graph-based knowledge extraction and querying
+- Powers advanced relational search capabilities
+- Accessible at http://localhost:7474 (Web UI)
+
+**DocRay Advanced Document Parsing** (`WITH_DOCRAY=1`)
+- Enhanced parsing for complex documents, tables, and formulas
+- Powered by [MinerU](https://github.com/opendatalab/MinerU) technology
+- CPU mode: Requires 4+ CPU cores, 8GB+ RAM
+- GPU mode (`WITH_GPU=1`): Requires ~6GB VRAM, 2 CPU cores, 8GB RAM
+- Service endpoint: http://localhost:8639
+
+### Service Management
+
+```bash
+# View running services
+docker-compose ps
+
+# View logs
+make compose-logs
+
+# Stop all services
+make compose-down
+
+# Stop services and remove data volumes
+make compose-down REMOVE_VOLUMES=1
+```
+
+### Example Development Workflows
+
+**For Quick Testing**:
+```bash
+make compose-up
+# Access http://localhost:3000/web/ and start exploring!
+```
+
+**For Active Development**:
+```bash
+make compose-infra WITH_NEO4J=1  # Start databases
+make run-backend                 # Run API in development mode
+# Code with hot reload and debugging
+```
+
+**For Production Testing**:
+```bash
+make compose-up WITH_NEO4J=1 WITH_DOCRAY=1 WITH_GPU=1
+# Full-featured deployment with all capabilities
+```
+
 ## Key `make` Commands for Development
 
 The `Makefile` at the root of the project provides several helpful commands to streamline development:

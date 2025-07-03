@@ -6,150 +6,66 @@
 
 ## Table of Contents
 
-- [Getting Started](#getting-started)
-  - [Getting Started with Docker Compose](#getting-started-with-docker-compose)
-  - [Getting Started with Kubernetes (Recommend for Production)](#getting-started-with-kubernetes)
+- [Quick Start](#quick-start)
+- [Key Features](#key-features)
+- [Advanced Setup](#advanced-setup)
+  - [Getting Started with Kubernetes (Recommend for Production)](#getting-started-with-kubernetes-recommend-for-production)
 - [Development](./docs/development-guide.md)
 - [Build Docker Image](./docs/build-docker-image.md)
 - [Acknowledgments](#acknowledgments)
 - [License](#license)
 
-ApeRAG is a production-ready, comprehensive RAG (Retrieval-Augmented Generation) platform designed for building advanced, enterprise-grade AI applications. It empowers developers to create sophisticated **Agentic RAG** systems with a powerful, hybrid retrieval engine.
+ApeRAG is a production-ready RAG (Retrieval-Augmented Generation) platform that combines vector search, full-text search, and graph knowledge extraction powered by **[LightRAG](https://github.com/HKUDS/LightRAG)**. Build sophisticated AI applications with hybrid retrieval, multimodal document processing, and enterprise-grade management features.
 
-Key features include:
+## Quick Start
 
-*   **Advanced Hybrid Retrieval**: Go beyond simple vector search. ApeRAG integrates three powerful indexing strategies:
-    *   **Vector Index**: For semantic similarity search.
-    *   **Full-Text Index**: For precise keyword-based retrieval.
-    *   **Graph Knowledge Index**: Powered by an integrated and enhanced version of **[LightRAG](https://github.com/HKUDS/LightRAG)**, enabling deep relational and contextual queries.
+> Before installing ApeRAG, make sure your machine meets the following minimum system requirements:
+>
+> - CPU >= 2 Core
+> - RAM >= 4 GiB
+> - Docker & Docker Compose
 
-*   **Multimodal Document Processing**: Ingest and understand a wide array of document formats, extracting not just text but also tables, images, and complex structures from files like PDFs and DOCX.
+The easiest way to start ApeRAG is through Docker Compose. Before running the following commands, make sure that [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/) are installed on your machine:
 
-*   **Enterprise-Grade Management**: ApeRAG is built for production environments with a suite of essential features:
-    *   **Audit Logging**: Track all critical system and user activities.
-    *   **LLM Model Management**: Easily configure and switch between various Large Language Models.
-    *   **Graph Visualization**: Visually explore and understand the knowledge graph.
-    *   **Comprehensive Document Management**: A user-friendly interface to manage document collections, track processing status, and inspect content.
-
-## Getting Started
-
-This section will guide you through setting up ApeRAG using different methods.
-
-### Getting Started with Docker Compose
-
-Docker Compose provides the fastest way to get ApeRAG running. We support two deployment modes and flexible service combinations to meet different needs.
-
-#### Prerequisites
-*   Docker & Docker Compose
-*   Git
-
-#### Environment Setup
-Configure environment variables by copying the template files:
 ```bash
+git clone https://github.com/apecloud/ApeRAG.git
+cd ApeRAG
 cp envs/env.template .env
 cp frontend/deploy/env.local.template frontend/.env
-```
-Then, **edit the `.env` file** to configure your AI service settings and other configurations according to your needs.
-
-#### Deployment Modes
-
-**🏗️ Infrastructure Mode (Recommended for Development)**
-
-Start only the essential database services. Perfect for developers who want to run the application code locally for debugging and development.
-
-```bash
-# Core databases: PostgreSQL, Redis, Qdrant, Elasticsearch
-make compose-infra
-
-# Add graph database capabilities  
-make compose-infra WITH_NEO4J=1
-```
-
-After starting infrastructure, run your app locally:
-```bash
-make run-backend   # Start API server at localhost:8000
-make run-frontend  # Start frontend at localhost:3000 (optional)
-```
-
-**🚀 Full Application Mode (Production Ready)**
-
-Launch the complete ApeRAG platform with all services containerized.
-
-```bash
-# Complete system (API + Frontend + Background workers + Databases)
 make compose-up
-
-# Add graph knowledge capabilities with Neo4j
-make compose-up WITH_NEO4J=1
-
-# Add advanced document parsing with DocRay
-make compose-up WITH_DOCRAY=1
-
-# Combine multiple optional services
-make compose-up WITH_NEO4J=1 WITH_DOCRAY=1
-
-# Full-featured deployment with GPU acceleration
-make compose-up WITH_NEO4J=1 WITH_DOCRAY=1 WITH_GPU=1
 ```
 
-#### Optional Services
-
-**Neo4j Graph Database** (`WITH_NEO4J=1`)
-- Enables graph-based knowledge extraction and querying
-- Powers advanced relational search capabilities
-- Accessible at http://localhost:7474 (Web UI)
-
-**DocRay Advanced Document Parsing** (`WITH_DOCRAY=1`)
-- Enhanced parsing for complex documents, tables, and formulas
-- Powered by [MinerU](https://github.com/opendatalab/MinerU) technology
-- CPU mode: Requires 4+ CPU cores, 8GB+ RAM
-- GPU mode (`WITH_GPU=1`): Requires ~6GB VRAM, 2 CPU cores, 8GB RAM
-- Service endpoint: http://localhost:8639
-
-#### Access Your Deployment
-
-Once services are running:
+After running, you can access ApeRAG in your browser at:
 - **Web Interface**: http://localhost:3000/web/
 - **API Documentation**: http://localhost:8000/docs
-- **Flower (Task Monitor)**: http://localhost:5555
-- **Neo4j Browser**: http://localhost:7474 (if enabled)
 
-#### Service Management
+#### Seeking help
 
-```bash
-# View running services
-docker-compose ps
+Please refer to our [Development Guide](./docs/development-guide.md) for advanced configurations, development setup, and troubleshooting. Reach out to [the community](#acknowledgments) if you are still having issues.
 
-# View logs
-make compose-logs
+> If you'd like to contribute to ApeRAG or do additional development, refer to our [Development Guide](./docs/development-guide.md)
 
-# Stop all services
-make compose-down
+## Key Features
 
-# Stop services and remove data volumes
-make compose-down REMOVE_VOLUMES=1
-```
+**1. Hybrid Retrieval Engine**:
+Combines vector search, full-text search, and graph knowledge extraction for comprehensive document understanding and retrieval.
 
-#### Example Workflows
+**2. LightRAG Integration**:
+Enhanced version of LightRAG for advanced graph-based knowledge extraction, enabling deep relational and contextual queries.
 
-**For Open Source Users (Quick Start)**:
-```bash
-make compose-up
-# Access http://localhost:3000/web/ and start exploring!
-```
+**3. Multimodal Document Processing**:
+Supports various document formats (PDF, DOCX, etc.) with advanced parsing capabilities for text, tables, and images.
 
-**For Developers**:
-```bash
-make compose-infra WITH_NEO4J=1  # Start databases
-make run-backend                 # Run API in development mode
-# Code with hot reload and debugging
-```
+**4. Enterprise Management**:
+Built-in audit logging, LLM model management, graph visualization, and comprehensive document management interface.
 
-**For Production Deployment**:
-```bash
-make compose-up WITH_NEO4J=1 WITH_DOCRAY=1 WITH_GPU=1
-# Full-featured deployment with all capabilities
-```
+**5. Production Ready**:
+Kubernetes support, Docker deployment, async task processing with Celery, and comprehensive API documentation.
+
+**6. Developer Friendly**:
+FastAPI backend, React frontend, extensive testing, and detailed development guides for easy contribution and customization.
+
+## Advanced Setup
 
 ### Getting Started with Kubernetes (Recommend for Production)
 
