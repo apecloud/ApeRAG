@@ -84,11 +84,11 @@ Deploy ApeRAG to Kubernetes using our provided Helm chart. This approach offers 
 
 ### Prerequisites
 
-*   Kubernetes cluster (v1.20+)
-*   `kubectl` configured and connected to your cluster
-*   Helm v3+ installed
+*   [Kubernetes cluster](https://kubernetes.io/docs/setup/) (v1.20+)
+*   [`kubectl`](https://kubernetes.io/docs/tasks/tools/) configured and connected to your cluster
+*   [Helm v3+](https://helm.sh/docs/intro/install/) installed
 
-### Option 1: Quick Deployment (Recommended)
+### Option 1: Quick Deployment
 
 If you already have PostgreSQL, Redis, Qdrant, and Elasticsearch running in your cluster, you can deploy ApeRAG directly:
 
@@ -102,7 +102,7 @@ cd ApeRAG
 helm install aperag ./deploy/aperag --namespace aperag --create-namespace
 ```
 
-### Option 2: Full Deployment with KubeBlocks
+### Option 2: Full Deployment with KubeBlocks (Recommended)
 
 If you need to deploy databases as well, use our KubeBlocks integration:
 
