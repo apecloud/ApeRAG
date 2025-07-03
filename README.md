@@ -34,7 +34,28 @@ After running, you can access ApeRAG in your browser at:
 
 #### Advanced Options
 
-For enhanced document parsing capabilities, ApeRAG supports an **advanced document parsing service** powered by MinerU, which provides superior parsing for complex documents, tables, and formulas. See our [Development Guide](./docs/development-guide.md) for setup and other advanced deployment options.
+For enhanced document parsing capabilities, ApeRAG supports an **advanced document parsing service** powered by MinerU, which provides superior parsing for complex documents, tables, and formulas. 
+
+<details>
+<summary><strong>Advanced Deployment Commands</strong></summary>
+
+```bash
+# Add graph knowledge capabilities with Neo4j
+make compose-up WITH_NEO4J=1
+
+# Add advanced document parsing service
+make compose-up WITH_DOCRAY=1
+
+# Combine both advanced features
+make compose-up WITH_NEO4J=1 WITH_DOCRAY=1
+
+# Full-featured deployment with GPU acceleration
+make compose-up WITH_NEO4J=1 WITH_DOCRAY=1 WITH_GPU=1
+```
+
+</details>
+
+See our [Development Guide](./docs/development-guide.md) for detailed setup instructions and other advanced deployment options.
 
 #### Seeking help
 
