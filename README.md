@@ -1,15 +1,10 @@
 # ApeRAG
 
-[阅读中文文档](./README_zh.md)
-
-![collection-page.png](docs%2Fimages%2Fcollection-page.png)
-
 ## Table of Contents
 
 - [Quick Start](#quick-start)
 - [Key Features](#key-features)
-- [Advanced Setup](#advanced-setup)
-  - [Getting Started with Kubernetes (Recommend for Production)](#getting-started-with-kubernetes-recommend-for-production)
+- [Kubernetes Deployment](#kubernetes-deployment)
 - [Development](./docs/development-guide.md)
 - [Build Docker Image](./docs/build-docker-image.md)
 - [Acknowledgments](#acknowledgments)
@@ -65,66 +60,99 @@ Kubernetes support, Docker deployment, async task processing with Celery, and co
 **6. Developer Friendly**:
 FastAPI backend, React frontend, extensive testing, and detailed development guides for easy contribution and customization.
 
-## Advanced Setup
+## Kubernetes Deployment
 
-### Getting Started with Kubernetes (Recommend for Production)
+> **Recommended for Production Environment**
 
-This guide covers deploying ApeRAG to Kubernetes using the provided Helm chart. It involves two main phases: setting up databases (optional if you have them) and deploying the ApeRAG application.
+Deploy ApeRAG to Kubernetes using our provided Helm chart. This approach offers high availability, scalability, and production-grade management capabilities.
 
-**Phase 1: Deploy Databases with KubeBlocks (Optional)**
+### Prerequisites
 
-ApeRAG needs PostgreSQL, Redis, Qdrant, and Elasticsearch. If you don't have these, use the KubeBlocks scripts in `deploy/databases/`.
+*   Kubernetes cluster (v1.20+)
+*   `kubectl` configured and connected to your cluster
+*   Helm v3+ installed
 
-*Skip this phase if your databases are already available in your Kubernetes cluster.*
+### Option 1: Quick Deployment (Recommended)
 
-1.  **Prerequisites**:
-    *   Kubernetes cluster.
-    *   `kubectl` configured.
-    *   Helm v3+.
+If you already have PostgreSQL, Redis, Qdrant, and Elasticsearch running in your cluster, you can deploy ApeRAG directly:
 
-2.  **Database Configuration (`deploy/databases/00-config.sh`)**:
-    This script controls database deployment (defaults: PostgreSQL, Redis, Qdrant, Elasticsearch in the `default` namespace). **Defaults are usually fine; no changes needed for a standard setup.** Edit only for advanced cases (e.g., changing namespace, enabling optional databases like Neo4j).
+```bash
+# Clone the repository
+git clone https://github.com/apecloud/ApeRAG.git
+cd ApeRAG
 
-3.  **Run Database Deployment Scripts**:
-    ```bash
-    cd deploy/databases/
-    bash ./01-prepare.sh          # Prepares KubeBlocks environment.
-    bash ./02-install-database.sh # Deploys database clusters.
-    cd ../.. # Back to project root.
-    ```
-    Monitor pods in the `default` namespace (or your custom one) until ready:
-    ```bash
-    kubectl get pods -n default
-    ```
+# Update database connections in values.yaml for your existing databases
+# Then deploy ApeRAG
+helm install aperag ./deploy/aperag --namespace aperag --create-namespace
+```
 
-**Phase 2: Deploy ApeRAG Application**
+### Option 2: Full Deployment with KubeBlocks
 
-With databases running:
+If you need to deploy databases as well, use our KubeBlocks integration:
 
-1.  **Helm Chart Configuration (`deploy/aperag/values.yaml`)**:
-    *   **Using KubeBlocks (Phase 1 in `default` namespace)?** Database connections in `values.yaml` are likely pre-configured. **No changes usually needed.**
-    *   **Using your own databases?** You MUST update `values.yaml` with your database connection details.
-    *   By default, this Helm chart deploys the [`doc-ray`](https://github.com/apecloud/doc-ray) service for advanced document parsing, which requires at least 4 CPU cores and 8GB of memory. If your Kubernetes cluster has insufficient resources, you can disable the `doc-ray` deployment by setting `docray.enabled` to `false`. In this case, a basic document parser will be used.
-    *   Optionally, review other settings (images, resources, Ingress, etc.).
+#### Step 1: Deploy Database Services
 
-2.  **Deploy ApeRAG with Helm**:
-    This installs ApeRAG to the `default` namespace:
-    ```bash
-    helm install aperag ./deploy/aperag --namespace default --create-namespace
-    ```
-    Monitor ApeRAG pods until `Running`:
-    ```bash
-    kubectl get pods -n default -l app.kubernetes.io/instance=aperag
-    ```
+```bash
+cd deploy/databases/
 
-3.  **Access ApeRAG UI**:
-    Use `kubectl port-forward` for quick access:
-    ```bash
-    kubectl port-forward svc/aperag-frontend 3000:3000 -n default
-    ```
-    Open `http://localhost:3000` in your browser.
+# (Optional) Review configuration - defaults work for most cases
+# edit 00-config.sh
 
-For KubeBlocks details (credentials, uninstall), see `deploy/databases/README.md`.
+# Install KubeBlocks and deploy databases
+bash ./01-prepare.sh          # Installs KubeBlocks
+bash ./02-install-database.sh # Deploys PostgreSQL, Redis, Qdrant, Elasticsearch
+
+# Monitor database deployment
+kubectl get pods -n default
+```
+
+Wait for all database pods to be in `Running` status before proceeding.
+
+#### Step 2: Deploy ApeRAG Application
+
+```bash
+cd ../../  # Back to project root
+
+# Deploy ApeRAG (database connections pre-configured for KubeBlocks)
+helm install aperag ./deploy/aperag --namespace default --create-namespace
+
+# Monitor ApeRAG deployment
+kubectl get pods -n default -l app.kubernetes.io/instance=aperag
+```
+
+### Configuration Options
+
+**Database Connections**: Edit `deploy/aperag/values.yaml` to configure database connections for your environment.
+
+**Resource Requirements**: By default, includes [`doc-ray`](https://github.com/apecloud/doc-ray) service (requires 4+ CPU cores, 8GB+ RAM). To disable: set `docray.enabled: false` in `values.yaml`.
+
+**Advanced Settings**: Review `values.yaml` for additional configuration options including images, resources, and Ingress settings.
+
+### Access Your Deployment
+
+Once deployed, access ApeRAG using port forwarding:
+
+```bash
+# Forward ports for quick access
+kubectl port-forward svc/aperag-frontend 3000:3000 -n default
+kubectl port-forward svc/aperag-api 8000:8000 -n default
+
+# Access in browser
+# Web Interface: http://localhost:3000
+# API Documentation: http://localhost:8000/docs
+```
+
+For production environments, configure Ingress in `values.yaml` for external access.
+
+### Troubleshooting
+
+**Database Issues**: See `deploy/databases/README.md` for KubeBlocks management, credentials, and uninstall procedures.
+
+**Pod Status**: Check pod logs for any deployment issues:
+```bash
+kubectl logs -f deployment/aperag-api -n default
+kubectl logs -f deployment/aperag-frontend -n default
+```
 
 ## Acknowledgments
 
