@@ -142,11 +142,19 @@ clean:
 
 # Development tools installation
 .PHONY: dev install-hooks
-dev: install-uv install-addlicense install-hooks
+dev: install-uv venv install-addlicense install-hooks
 	@echo "Installing development tools..."
 	@command -v redocly >/dev/null || npm install @redocly/cli -g
 	@command -v openapi-generator-cli >/dev/null || npm install @openapitools/openapi-generator-cli -g
 	@command -v datamodel-codegen >/dev/null || uv tool install datamodel-code-generator
+	@echo ""
+	@echo "✅ Development environment ready!"
+	@echo "📝 Next steps:"
+	@echo "   1. Activate virtual environment: source .venv/bin/activate"
+	@echo "   2. Install dependencies: make install"
+	@echo "   3. Start databases: make compose-infra"
+	@echo "   4. Apply migrations: make migrate"
+	@echo "   5. Run services: make run-backend, make run-celery"
 
 # Code quality checks
 .PHONY: format lint static-check test unit-test e2e-test
