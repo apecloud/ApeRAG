@@ -2,13 +2,13 @@
 
 - [Quick Start](#quick-start)
 - [Key Features](#key-features)
-- [Kubernetes Deployment](#kubernetes-deployment)
+- [Kubernetes Deployment (Recommended for Production)](#kubernetes-deployment-recommended-for-production)
 - [Development](./docs/development-guide.md)
 - [Build Docker Image](./docs/build-docker-image.md)
 - [Acknowledgments](#acknowledgments)
 - [License](#license)
 
-ApeRAG is a production-ready RAG (Retrieval-Augmented Generation) platform that combines vector search, full-text search, and graph knowledge extraction. Build sophisticated AI applications with hybrid retrieval, multimodal document processing, and enterprise-grade management features.
+ApeRAG is a production-ready RAG (Retrieval-Augmented Generation) platform that combines Graph RAG, vector search, and full-text search. Build sophisticated AI applications with hybrid retrieval, multimodal document processing, and enterprise-grade management features.
 
 ## Quick Start
 
@@ -56,26 +56,29 @@ For developers interested in source code development, advanced configurations, o
 ## Key Features
 
 **1. Hybrid Retrieval Engine**:
-Combines vector search, full-text search, and graph knowledge extraction for comprehensive document understanding and retrieval.
+Combines Graph RAG, vector search, and full-text search for comprehensive document understanding and retrieval.
 
-**2. LightRAG Integration**:
+**2. Graph RAG with LightRAG**:
 Enhanced version of LightRAG for advanced graph-based knowledge extraction, enabling deep relational and contextual queries.
 
-**3. Multimodal Document Processing**:
-Supports various document formats (PDF, DOCX, etc.) with advanced parsing capabilities for text, tables, and images.
+**3. MinerU Integration**:
+Advanced document parsing service powered by MinerU technology, providing superior parsing for complex documents, tables, formulas, and scientific content with optional GPU acceleration.
 
-**4. Enterprise Management**:
+**4. Production-Grade Deployment**:
+Full Kubernetes support with Helm charts and KubeBlocks integration for simplified deployment of production-grade databases (PostgreSQL, Redis, Qdrant, Elasticsearch, Neo4j).
+
+**5. Multimodal Document Processing**:
+Supports various document formats (PDF, DOCX, etc.) with intelligent content extraction and structure recognition.
+
+**6. Enterprise Management**:
 Built-in audit logging, LLM model management, graph visualization, and comprehensive document management interface.
 
-**5. Production Ready**:
-Kubernetes support, Docker deployment, async task processing with Celery, and comprehensive API documentation.
+**7. Developer Friendly**:
+FastAPI backend, React frontend, async task processing with Celery, extensive testing, and comprehensive development guides for easy contribution and customization.
 
-**6. Developer Friendly**:
-FastAPI backend, React frontend, extensive testing, and detailed development guides for easy contribution and customization.
+## Kubernetes Deployment (Recommended for Production)
 
-## Kubernetes Deployment
-
-> **Recommended for Production Environment**
+> **Enterprise-grade deployment with high availability and scalability**
 
 Deploy ApeRAG to Kubernetes using our provided Helm chart. This approach offers high availability, scalability, and production-grade management capabilities.
 
