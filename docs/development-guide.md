@@ -1,12 +1,12 @@
-# Development Guide
+# 🛠️ Development Guide
 
 This guide focuses on setting up a development environment and the development workflow for ApeRAG. This is designed for developers looking to contribute to ApeRAG or run it locally for development purposes.
 
-## Development Environment Setup
+## 🚀 Development Environment Setup
 
 Follow these steps to set up ApeRAG from source code for development:
 
-### 1. Clone the Repository and Setup Environment
+### 1. 📂 Clone the Repository and Setup Environment
 
 First, get the source code and configure environment variables:
 
@@ -19,7 +19,7 @@ cp frontend/deploy/env.local.template frontend/.env
 
 Edit the `.env` file to configure your AI service settings if needed. The default settings work with the local database services started in the next step.
 
-### 2. System Prerequisites
+### 2. 📋 System Prerequisites
 
 Before you begin, ensure your system has:
 
@@ -28,7 +28,7 @@ Before you begin, ensure your system has:
 
 **Note**: Python 3.11 is required but will be automatically managed by `uv` in the next steps.
 
-### 3. Start Database Services
+### 3. 🗄️ Start Database Services
 
 Use Docker Compose to start the essential database services:
 
@@ -60,7 +60,7 @@ make compose-infra WITH_DOCRAY=1 WITH_GPU=1
 
 </details>
 
-### 4. Setup Development Environment
+### 4. ⚙️ Setup Development Environment
 
 Create Python virtual environment and setup development tools:
 
@@ -82,7 +82,7 @@ source .venv/bin/activate
 
 You'll know it's active when you see `(.venv)` in your terminal prompt.
 
-### 5. Install Dependencies
+### 5. 📦 Install Dependencies
 
 Install all backend and frontend dependencies:
 
@@ -94,7 +94,7 @@ This command will:
 *   Install all Python backend dependencies from `pyproject.toml` into the virtual environment
 *   Install frontend Node.js dependencies using `yarn`
 
-### 6. Apply Database Migrations
+### 6. 🔄 Apply Database Migrations
 
 Setup the database schema:
 
@@ -102,7 +102,7 @@ Setup the database schema:
 make migrate
 ```
 
-### 7. Start Development Services
+### 7. ▶️ Start Development Services
 
 Now you can start the development services. Open separate terminal windows/tabs for each service:
 
@@ -124,14 +124,14 @@ make run-frontend
 ```
 This starts the frontend development server at `http://localhost:3000` with hot reload.
 
-### 8. Access ApeRAG
+### 8. 🌐 Access ApeRAG
 
 With the services running, you can access:
 *   **Frontend UI**: http://localhost:3000 (if started)
 *   **Backend API**: http://localhost:8000
 *   **API Documentation**: http://localhost:8000/docs
 
-### 9. Stopping Services
+### 9. ⏹️ Stopping Services
 
 To stop the development environment:
 
@@ -151,7 +151,7 @@ make compose-down REMOVE_VOLUMES=1
 
 **Data Management:**
 - `make compose-down` - Stops services but preserves all data (PostgreSQL, Redis, Qdrant, etc.)
-- `make compose-down REMOVE_VOLUMES=1` - Stops services and **permanently deletes all data**
+- `make compose-down REMOVE_VOLUMES=1` - Stops services and **⚠️ permanently deletes all data**
 - You can run `make compose-down REMOVE_VOLUMES=1` even after already running `make compose-down`
 
 **Verify Data Removal:**
@@ -162,11 +162,11 @@ docker volume ls | grep aperag
 # Should return no results after REMOVE_VOLUMES=1
 ```
 
-Now you have ApeRAG running locally from source code, ready for development!
+Now you have ApeRAG running locally from source code, ready for development! 🎉
 
-## Common Development Tasks
+## ❓ Common Development Tasks
 
-### Q: How do I add or modify a REST API endpoint?
+### Q: 🔧 How do I add or modify a REST API endpoint?
 
 **Complete workflow:**
 1. Edit OpenAPI specification: `aperag/api/paths/[endpoint-name].yaml`
@@ -182,10 +182,10 @@ Now you have ApeRAG running locally from source code, ready for development!
 5. Test the API:
    ```bash
    make test
-   # Check live docs: http://localhost:8000/docs
+   # ✅ Check live docs: http://localhost:8000/docs
    ```
 
-### Q: How do I modify database models/schema?
+### Q: 🗃️ How do I modify database models/schema?
 
 **Database migration workflow:**
 1. Edit SQLModel classes in `aperag/db/models.py`
@@ -200,10 +200,10 @@ Now you have ApeRAG running locally from source code, ready for development!
 4. Update related code (repositories in `aperag/db/repositories/`, services in `aperag/service/`)
 5. Verify changes:
    ```bash
-   make test
+   make test  # ✅ Ensure everything works
    ```
 
-### Q: How do I add a new feature with background processing?
+### Q: ⚡ How do I add a new feature with background processing?
 
 **Feature implementation workflow:**
 1. Implement feature components:
@@ -222,7 +222,7 @@ Now you have ApeRAG running locally from source code, ready for development!
    make format && make lint && make test
    ```
 
-### Q: How do I run unit tests and e2e tests?
+### Q: 🧪 How do I run unit tests and e2e tests?
 
 **Unit Tests (Fast, No External Dependencies):**
 ```bash
@@ -241,9 +241,9 @@ uv run pytest tests/unit_test/ --cov=aperag --cov-report=html
 
 **E2E Tests (Require Running Services):**
 ```bash
-# Setup: Start required services first
-make compose-infra      # Start databases
-make run-backend       # Start API server (separate terminal)
+# Setup: Start required services first 
+make compose-infra      # 🗄️ Start databases
+make run-backend       # 🚀 Start API server (separate terminal)
 
 # Run all e2e tests
 make e2e-test
@@ -269,7 +269,7 @@ make compose-infra WITH_NEO4J=1  # Test with Neo4j instead of PostgreSQL
 make test
 ```
 
-### Q: How do I debug failing tests?
+### Q: 🐛 How do I debug failing tests?
 
 **Debugging workflow:**
 1. Run failing test in isolation:
@@ -301,7 +301,7 @@ make test
    uv run pytest tests/path/to/fixed_test.py -v  # Verify fix
    ```
 
-### Q: How do I run RAG evaluation and analysis?
+### Q: 📊 How do I run RAG evaluation and analysis?
 
 **Evaluation workflow:**
 ```bash
@@ -311,12 +311,12 @@ make run-backend
 make run-celery
 
 # Run comprehensive RAG evaluation
-make evaluate               # Runs aperag.evaluation.run module
+make evaluate               # 📊 Runs aperag.evaluation.run module
 
-# Check evaluation reports in tests/report/
+# 📈 Check evaluation reports in tests/report/
 ```
 
-### Q: How do I update dependencies safely?
+### Q: 📦 How do I update dependencies safely?
 
 **Python dependencies:**
 1. Edit `pyproject.toml` (add/update packages)
@@ -335,7 +335,7 @@ make evaluate               # Runs aperag.evaluation.run module
    make generate-frontend-sdk  # Ensure API client still works
    ```
 
-### Q: How do I prepare code for production deployment?
+### Q: 🚀 How do I prepare code for production deployment?
 
 **Pre-deployment checklist:**
 1. Code quality validation:
@@ -365,30 +365,30 @@ make evaluate               # Runs aperag.evaluation.run module
    make compose-down
    ```
 
-### Q: How do I completely reset my development environment?
+### Q: 🔄 How do I completely reset my development environment?
 
 **Nuclear reset (destroys all data):**
 ```bash
-make compose-down REMOVE_VOLUMES=1  # Stop services + delete ALL data
-make clean                         # Clean temporary files
+make compose-down REMOVE_VOLUMES=1  # ⚠️ Stop services + delete ALL data
+make clean                         # 🧹 Clean temporary files
 
 # Restart fresh
-make compose-infra                 # Fresh databases
-make migrate                      # Apply all migrations
-make run-backend                  # Start API server
-make run-celery                   # Start background workers
+make compose-infra                 # 🗄️ Fresh databases
+make migrate                      # 🔄 Apply all migrations
+make run-backend                  # 🚀 Start API server
+make run-celery                   # ⚡ Start background workers
 ```
 
 **Soft reset (preserve data):**
 ```bash
-make compose-down                 # Stop services, keep data
-make compose-infra               # Restart databases
-make migrate                    # Apply any new migrations
+make compose-down                 # ⏹️ Stop services, keep data
+make compose-infra               # 🗄️ Restart databases
+make migrate                    # 🔄 Apply any new migrations
 ```
 
 **Reset just Python environment:**
 ```bash
-rm -rf .venv/                   # Remove virtual environment
-make dev                       # Recreate everything
-source .venv/bin/activate      # Reactivate
+rm -rf .venv/                   # 🗑️ Remove virtual environment
+make dev                       # ⚙️ Recreate everything
+source .venv/bin/activate      # ✅ Reactivate
 ``` 
