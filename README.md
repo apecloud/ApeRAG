@@ -1,7 +1,5 @@
 # ApeRAG
 
-## Table of Contents
-
 - [Quick Start](#quick-start)
 - [Key Features](#key-features)
 - [Kubernetes Deployment](#kubernetes-deployment)
@@ -34,9 +32,13 @@ After running, you can access ApeRAG in your browser at:
 - **Web Interface**: http://localhost:3000/web/
 - **API Documentation**: http://localhost:8000/docs
 
+#### Advanced Options
+
+For enhanced document parsing capabilities, ApeRAG supports **DocRay** integration powered by [MinerU](https://github.com/opendatalab/MinerU) technology, which provides superior parsing for complex documents, tables, and formulas. See our [Development Guide](./docs/development-guide.md) for DocRay setup and other advanced deployment options.
+
 #### Seeking help
 
-Please refer to our [Development Guide](./docs/development-guide.md) for advanced configurations, development setup, and troubleshooting. Reach out to [the community](#acknowledgments) if you are still having issues.
+Please refer to our [Development Guide](./docs/development-guide.md) for advanced configurations, development setup, and troubleshooting.
 
 > If you'd like to contribute to ApeRAG or do additional development, refer to our [Development Guide](./docs/development-guide.md)
 
