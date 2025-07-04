@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 
 from aperag.config import get_async_session
-from aperag.db.models import AuditLog, AuditResource, User
+from aperag.db.models import AuditLog, AuditResource, Role, User
 from aperag.schema import view_models
 from aperag.service.audit_service import audit_service
 from aperag.views.auth import current_user
@@ -53,6 +53,10 @@ async def list_audit_logs(
             raise HTTPException(status_code=400, detail=f"Invalid resource_type: {resource_type}")
 
     # Get audit logs
+    if user.role == Role.ADMIN:
+        user_id = None
+    else:
+        user_id = user.id
     audit_logs = await audit_service.list_audit_logs(
         user_id=user_id,
         resource_type=audit_resource,
@@ -99,7 +103,7 @@ async def get_audit_log(audit_id: str, user: User = Depends(current_user)):
     """Get a specific audit log by ID"""
 
     async for session in get_async_session():
-        stmt = select(AuditLog).where(AuditLog.id == audit_id)
+        stmt = select(AuditLog).where(AuditLog.id == audit_id, AuditLog.user_id == user.id)
         result = await session.execute(stmt)
         audit_log = result.scalar_one_or_none()
 

@@ -283,11 +283,15 @@ async def create_invitation_view(
 
 @router.get("/invitations")
 async def list_invitations_view(
-    session: AsyncSessionDep, user: User = Depends(get_current_admin)
+    session: AsyncSessionDep, user: User = Depends(current_user)
 ) -> view_models.InvitationList:
     from sqlalchemy import select
 
-    result = await session.execute(select(Invitation))
+    if user.role != Role.ADMIN:
+        result = await session.execute(select(Invitation).where(Invitation.created_by == user.id))
+    else:
+        result = await session.execute(select(Invitation))
+
     invitations = []
     for invitation in result.scalars():
         invitations.append(
@@ -347,7 +351,7 @@ async def register_view(
         "username": data.username,
         "email": data.email,
         "password": data.password,
-        "role": invitation.role if invitation else Role.ADMIN,
+        "role": invitation.role if invitation else Role.ADMIN if is_first_user else Role.RO,
         "is_active": True,
         "is_verified": True,
         "date_joined": utc_now(),
@@ -442,10 +446,14 @@ async def get_user_view(request: Request, session: AsyncSessionDep, user: Option
 
 
 @router.get("/users")
-async def list_users_view(session: AsyncSessionDep, user: User = Depends(get_current_admin)) -> view_models.UserList:
+async def list_users_view(session: AsyncSessionDep, user: Optional[User] = Depends(current_user)) -> view_models.UserList:
     from sqlalchemy import select
 
-    result = await session.execute(select(User))
+    if user.role == Role.ADMIN:
+        result = await session.execute(select(User))
+    else:
+        result = await session.execute(select(User).where(User.id == user.id))
+
     users = [
         view_models.User(
             id=str(u.id),
