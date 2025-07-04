@@ -27,7 +27,7 @@ from aperag.views.llm import router as llm_router
 from aperag.views.main import router as main_router
 
 # Initialize MCP server integration
-mcp_app = mcp_server.http_app()
+mcp_app = mcp_server.http_app(path="/")
 
 # Create the main FastAPI app with MCP lifespan
 app = FastAPI(
