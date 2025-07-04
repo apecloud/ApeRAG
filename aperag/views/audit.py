@@ -103,7 +103,10 @@ async def get_audit_log(audit_id: str, user: User = Depends(current_user)):
     """Get a specific audit log by ID"""
 
     async for session in get_async_session():
-        stmt = select(AuditLog).where(AuditLog.id == audit_id, AuditLog.user_id == user.id)
+        if user.role == Role.ADMIN:
+            stmt = select(AuditLog).where(AuditLog.id == audit_id)
+        else:
+            stmt = select(AuditLog).where(AuditLog.id == audit_id, AuditLog.user_id == user.id)
         result = await session.execute(stmt)
         audit_log = result.scalar_one_or_none()
 
