@@ -13,9 +13,8 @@ service:
 
 ingress:
   className: ""
-  annotations: 
-    nginx.ingress.kubernetes.io/permanent-redirect: /web
-
+  annotations: {}
+  
 postgres:
   enabled: true  # Enable/disable PostgreSQL database integration
   POSTGRES_HOST: "pg-cluster-postgresql-postgresql"
