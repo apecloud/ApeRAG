@@ -319,18 +319,28 @@ async def register_view(
     need_invitation = settings.register_mode == "invitation" and not is_first_user
     invitation = None
     if need_invitation:
+        if not data.token:
+            raise HTTPException(status_code=400, detail="Invitation token is required")
+        if not data.email:
+            raise HTTPException(status_code=400, detail="Email is required when using invitation")
+        
         result = await session.execute(select(Invitation).where(Invitation.token == data.token))
         invitation = result.scalars().first()
-        if not invitation or not invitation.is_valid() or invitation.email != data.email:
+        if not invitation or not invitation.is_valid():
             raise HTTPException(status_code=400, detail="Invalid or expired invitation")
+        if invitation.email != data.email:
+            raise HTTPException(status_code=400, detail="Email does not match invitation")
 
     # Check if user already exists
     result = await session.execute(select(User).where(User.username == data.username))
     if result.scalars().first():
         raise HTTPException(status_code=400, detail="Username already exists")
-    result = await session.execute(select(User).where(User.email == data.email))
-    if result.scalars().first():
-        raise HTTPException(status_code=400, detail="Email already exists")
+    
+    # Only check email uniqueness if email is provided
+    if data.email:
+        result = await session.execute(select(User).where(User.email == data.email))
+        if result.scalars().first():
+            raise HTTPException(status_code=400, detail="Email already exists")
 
     # Create user using fastapi-users
     user_create = {

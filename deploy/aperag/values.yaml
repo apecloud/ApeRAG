@@ -18,7 +18,7 @@ ingress:
 
 postgres:
   enabled: true  # Enable/disable PostgreSQL database integration
-  POSTGRES_HOST: "pg-cluster-postgresql-headless"
+  POSTGRES_HOST: "pg-cluster-postgresql-postgresql"
   POSTGRES_PORT: "5432"
   POSTGRES_DB: "postgres"
   # The name of the Secret containing PostgreSQL username and password (e.g., "username" and "password" keys).
