@@ -1,8 +1,8 @@
-import { getAuthorizationHeader } from '@/models/user';
+import { DocumentPreview } from '@/api';
 import { ApeDocument, Chunk } from '@/types';
+import { api } from '@/services';
 import { useDebounceFn, useRequest } from 'ahooks';
 import { Col, Empty, List, Row, Segmented, Spin, Typography } from 'antd';
-import axios from 'axios';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -23,7 +23,8 @@ interface ChunkViewerProps {
 
 export const ChunkViewer = ({ document: initialDoc, collectionId }: ChunkViewerProps) => {
   const [viewMode, setViewMode] = useState<'markdown' | 'pdf' | 'unsupported'>('markdown');
-  const [previewData, setPreviewData] = useState<any>(null);
+  const [previewData, setPreviewData] = useState<DocumentPreview | null>(null);
+  const [adaptedChunks, setAdaptedChunks] = useState<Chunk[]>([]);
   const [pdfFile, setPdfFile] = useState<any>(null);
   const [highlightedChunk, setHighlightedChunk] = useState<Chunk | null>(null);
   const [scrolledToChunkId, setScrolledToChunkId] = useState<string | null>(null);
@@ -39,50 +40,64 @@ export const ChunkViewer = ({ document: initialDoc, collectionId }: ChunkViewerP
 
   // Fetch all preview data in one go
   const { loading: previewLoading, error: previewError } = useRequest(
-    async () => {
-      if (!initialDoc.id || !collectionId) return null;
-      const response = await axios.get(
-        `/api/v1/collections/${collectionId}/documents/${initialDoc.id}/preview`,
-        { headers: getAuthorizationHeader() },
-      );
-      return response.data;
+    () => {
+      if (!initialDoc.id || !collectionId) return Promise.resolve(null);
+      return api.getDocumentPreview({
+        collectionId,
+        documentId: initialDoc.id,
+      });
     },
     {
       ready: !!initialDoc.id && !!collectionId,
-      onSuccess: (data) => {
-        setPreviewData(data);
+      onSuccess: (response) => {
+        if (response) {
+          const data = response.data as DocumentPreview | null;
+          setPreviewData(data);
+          if (data && data.chunks) {
+            const chunks = data.chunks.map(chunk => ({
+              id: chunk.id || '',
+              text: chunk.text || '',
+              metadata: chunk.metadata || {}
+            }));
+            setAdaptedChunks(chunks);
+          } else {
+            setAdaptedChunks([]);
+          }
+        }
       },
     },
   );
 
   // Fetch PDF blob on demand
   const { run: fetchPdf, loading: pdfLoading } = useRequest(
-    async (path: string) => {
-      const response = await axios.get(
-        `/api/v1/collections/${collectionId}/documents/${initialDoc.id}/object`,
+    (path: string) => {
+      return api.getDocumentObject(
         {
-          params: { path },
-          headers: getAuthorizationHeader(),
+          collectionId,
+          documentId: initialDoc.id!,
+          path,
+        },
+        {
           responseType: 'blob',
         },
       );
-      return response.data;
     },
     {
       manual: true,
-      onSuccess: (data) => {
-        setPdfFile(data);
+      onSuccess: (response) => {
+        setPdfFile(response.data);
       },
     },
   );
 
   const canShowPdfPreview = useMemo(() => {
     if (!previewData) return false;
-    const hasPdfSourceMap = previewData.chunks?.some((c: Chunk) => c.metadata?.pdf_source_map);
+    const hasPdfSourceMap = adaptedChunks.some(c => c.metadata?.pdf_source_map);
     if (!hasPdfSourceMap) return false;
 
-    return !!(previewData.converted_pdf_object_path || (previewData.doc_filename?.toLowerCase().endsWith('.pdf') && previewData.doc_object_path));
-  }, [previewData]);
+    const isPdfFilename = previewData.doc_filename?.toLowerCase().endsWith('.pdf');
+    return !!previewData.converted_pdf_object_path || (isPdfFilename && !!previewData.doc_object_path);
+  }, [previewData, adaptedChunks]);
 
   // Determine the best initial view mode once preview data is loaded
   useEffect(() => {
@@ -102,7 +117,7 @@ export const ChunkViewer = ({ document: initialDoc, collectionId }: ChunkViewerP
   useEffect(() => {
     if (viewMode === 'pdf' && canShowPdfPreview && !pdfFile && previewData) {
       const pdfPath = previewData.converted_pdf_object_path || previewData.doc_object_path;
-      if (pdfPath) {
+      if (pdfPath) { // Check if pdfPath is not null or undefined
         fetchPdf(pdfPath);
       }
     }
@@ -289,8 +304,7 @@ export const ChunkViewer = ({ document: initialDoc, collectionId }: ChunkViewerP
     const containerScrollTop = container.scrollTop;
     let focusChunkId = null;
 
-    const chunks = previewData?.chunks || [];
-    for (const chunk of chunks) {
+    for (const chunk of adaptedChunks) {
       let top = Infinity;
       let bottom = -Infinity;
 
@@ -330,8 +344,8 @@ export const ChunkViewer = ({ document: initialDoc, collectionId }: ChunkViewerP
 
     // If scrolled to the very bottom, make sure the last chunk is selected
     if (container.scrollTop + container.clientHeight >= container.scrollHeight - 2) {
-      if (chunks.length > 0) {
-        focusChunkId = chunks[chunks.length - 1].id;
+      if (adaptedChunks.length > 0) {
+        focusChunkId = adaptedChunks[adaptedChunks.length - 1].id;
       }
     }
 
@@ -440,7 +454,7 @@ export const ChunkViewer = ({ document: initialDoc, collectionId }: ChunkViewerP
             <List
               header={<Typography.Title level={5}><FormattedMessage id="chunk.viewer.chunks.title" defaultMessage="Chunks" /></Typography.Title>}
               bordered
-              dataSource={previewData?.chunks || []}
+              dataSource={adaptedChunks}
               renderItem={(item: Chunk) => {
                 const isHighlightedByHover = highlightedChunk?.id === item.id;
                 const backgroundColor = isHighlightedByHover ? '#e6f7ff' : 'transparent';

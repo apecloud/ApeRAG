@@ -68,6 +68,8 @@ import type { DocumentCreate } from '../models';
 // @ts-ignore
 import type { DocumentList } from '../models';
 // @ts-ignore
+import type { DocumentPreview } from '../models';
+// @ts-ignore
 import type { FailResponse } from '../models';
 // @ts-ignore
 import type { Feedback } from '../models';
@@ -1526,6 +1528,97 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
+         * Get an object from a specific document
+         * @summary Get document object
+         * @param {string} collectionId 
+         * @param {string} documentId 
+         * @param {string} path 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getDocumentObject: async (collectionId: string, documentId: string, path: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('getDocumentObject', 'collectionId', collectionId)
+            // verify required parameter 'documentId' is not null or undefined
+            assertParamExists('getDocumentObject', 'documentId', documentId)
+            // verify required parameter 'path' is not null or undefined
+            assertParamExists('getDocumentObject', 'path', path)
+            const localVarPath = `/collections/{collection_id}/documents/{document_id}/object`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)))
+                .replace(`{${"document_id"}}`, encodeURIComponent(String(documentId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            if (path !== undefined) {
+                localVarQueryParameter['path'] = path;
+            }
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Get a preview of a specific document
+         * @summary Get document preview
+         * @param {string} collectionId 
+         * @param {string} documentId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getDocumentPreview: async (collectionId: string, documentId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('getDocumentPreview', 'collectionId', collectionId)
+            // verify required parameter 'documentId' is not null or undefined
+            assertParamExists('getDocumentPreview', 'documentId', documentId)
+            const localVarPath = `/collections/{collection_id}/documents/{document_id}/preview`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)))
+                .replace(`{${"document_id"}}`, encodeURIComponent(String(documentId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Get all invitations
          * @summary Get all invitations
          * @param {*} [options] Override http request option.
@@ -2667,6 +2760,35 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Get an object from a specific document
+         * @summary Get document object
+         * @param {string} collectionId 
+         * @param {string} documentId 
+         * @param {string} path 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async getDocumentObject(collectionId: string, documentId: string, path: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<void>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getDocumentObject(collectionId, documentId, path, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.getDocumentObject']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Get a preview of a specific document
+         * @summary Get document preview
+         * @param {string} collectionId 
+         * @param {string} documentId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async getDocumentPreview(collectionId: string, documentId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<DocumentPreview>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getDocumentPreview(collectionId, documentId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.getDocumentPreview']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Get all invitations
          * @summary Get all invitations
          * @param {*} [options] Override http request option.
@@ -3263,6 +3385,26 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.configGet(options).then((request) => request(axios, basePath));
         },
         /**
+         * Get an object from a specific document
+         * @summary Get document object
+         * @param {DefaultApiGetDocumentObjectRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getDocumentObject(requestParameters: DefaultApiGetDocumentObjectRequest, options?: RawAxiosRequestConfig): AxiosPromise<void> {
+            return localVarFp.getDocumentObject(requestParameters.collectionId, requestParameters.documentId, requestParameters.path, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Get a preview of a specific document
+         * @summary Get document preview
+         * @param {DefaultApiGetDocumentPreviewRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getDocumentPreview(requestParameters: DefaultApiGetDocumentPreviewRequest, options?: RawAxiosRequestConfig): AxiosPromise<DocumentPreview> {
+            return localVarFp.getDocumentPreview(requestParameters.collectionId, requestParameters.documentId, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Get all invitations
          * @summary Get all invitations
          * @param {*} [options] Override http request option.
@@ -3792,6 +3934,26 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     configGet(options?: RawAxiosRequestConfig): AxiosPromise<Config>;
+
+    /**
+     * Get an object from a specific document
+     * @summary Get document object
+     * @param {DefaultApiGetDocumentObjectRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    getDocumentObject(requestParameters: DefaultApiGetDocumentObjectRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
+
+    /**
+     * Get a preview of a specific document
+     * @summary Get document preview
+     * @param {DefaultApiGetDocumentPreviewRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    getDocumentPreview(requestParameters: DefaultApiGetDocumentPreviewRequest, options?: RawAxiosRequestConfig): AxiosPromise<DocumentPreview>;
 
     /**
      * Get all invitations
@@ -4610,6 +4772,55 @@ export interface DefaultApiCollectionsPostRequest {
 }
 
 /**
+ * Request parameters for getDocumentObject operation in DefaultApi.
+ * @export
+ * @interface DefaultApiGetDocumentObjectRequest
+ */
+export interface DefaultApiGetDocumentObjectRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof DefaultApiGetDocumentObject
+     */
+    readonly collectionId: string
+
+    /**
+     * 
+     * @type {string}
+     * @memberof DefaultApiGetDocumentObject
+     */
+    readonly documentId: string
+
+    /**
+     * 
+     * @type {string}
+     * @memberof DefaultApiGetDocumentObject
+     */
+    readonly path: string
+}
+
+/**
+ * Request parameters for getDocumentPreview operation in DefaultApi.
+ * @export
+ * @interface DefaultApiGetDocumentPreviewRequest
+ */
+export interface DefaultApiGetDocumentPreviewRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof DefaultApiGetDocumentPreview
+     */
+    readonly collectionId: string
+
+    /**
+     * 
+     * @type {string}
+     * @memberof DefaultApiGetDocumentPreview
+     */
+    readonly documentId: string
+}
+
+/**
  * Request parameters for invitePost operation in DefaultApi.
  * @export
  * @interface DefaultApiInvitePostRequest
@@ -5251,6 +5462,30 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      */
     public configGet(options?: RawAxiosRequestConfig) {
         return DefaultApiFp(this.configuration).configGet(options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Get an object from a specific document
+     * @summary Get document object
+     * @param {DefaultApiGetDocumentObjectRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public getDocumentObject(requestParameters: DefaultApiGetDocumentObjectRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).getDocumentObject(requestParameters.collectionId, requestParameters.documentId, requestParameters.path, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Get a preview of a specific document
+     * @summary Get document preview
+     * @param {DefaultApiGetDocumentPreviewRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public getDocumentPreview(requestParameters: DefaultApiGetDocumentPreviewRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).getDocumentPreview(requestParameters.collectionId, requestParameters.documentId, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

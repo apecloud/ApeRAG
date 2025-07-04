@@ -38,7 +38,9 @@ def parse_document_content(document, collection) -> Tuple[str, List[Any], Any]:
 
     try:
         collection_config = parseCollectionConfig(collection.config)
-        parser_config = collection_config.parser or {}
+        parser_config = {}
+        if collection_config.parser is not None:
+            parser_config = collection_config.parser.model_dump()
         # Parse document to get content and parts
         parsing_result = document_parser.process_document_parsing(
             local_doc.path,

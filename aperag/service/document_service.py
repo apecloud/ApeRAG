@@ -38,7 +38,7 @@ from aperag.exceptions import (
 from aperag.index.manager import document_index_manager
 from aperag.objectstore.base import get_object_store
 from aperag.schema import view_models
-from aperag.schema.view_models import DocumentList
+from aperag.schema.view_models import Chunk, DocumentList, DocumentPreview
 from aperag.utils.constant import QuotaType
 from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
 from aperag.utils.utils import generate_vector_db_collection_name, utc_now
@@ -387,7 +387,7 @@ class DocumentService:
 
         return result
 
-    async def get_document_chunks(self, user_id: str, collection_id: str, document_id: str):
+    async def get_document_chunks(self, user_id: str, collection_id: str, document_id: str) -> List[Chunk]:
         """
         Get all chunks of a document.
         """
@@ -447,22 +447,22 @@ class DocumentService:
                             try:
                                 payload_data = json.loads(node_content)
                                 chunks.append(
-                                    {
-                                        "id": point.id,
-                                        "text": payload_data.get("text", ""),
-                                        "metadata": payload_data.get("metadata", {}),
-                                    }
+                                    Chunk(
+                                        id=point.id,
+                                        text=payload_data.get("text", ""),
+                                        metadata=payload_data.get("metadata", {}),
+                                    )
                                 )
                             except json.JSONDecodeError:
                                 logger.warning(f"Could not parse _node_content for point {point.id}")
                         else:
                             # Fallback for older or different data structures
                             chunks.append(
-                                {
-                                    "id": point.id,
-                                    "text": point.payload.get("text", ""),
-                                    "metadata": point.payload.get("metadata", {}),
-                                }
+                                Chunk(
+                                    id=point.id,
+                                    text=point.payload.get("text", ""),
+                                    metadata=point.payload.get("metadata", {}),
+                                )
                             )
 
                 return chunks
@@ -472,7 +472,7 @@ class DocumentService:
                 )
                 raise HTTPException(status_code=500, detail="Failed to retrieve chunks from vector store")
 
-    async def get_document_preview(self, user_id: str, collection_id: str, document_id: str):
+    async def get_document_preview(self, user_id: str, collection_id: str, document_id: str) -> DocumentPreview:
         """
         Get all preview-related information for a document.
         """
@@ -518,18 +518,20 @@ class DocumentService:
 
             converted_pdf_object_path = None
             index_data = json.loads(doc_index.index_data) if doc_index and doc_index.index_data else {}
-            if index_data.get("has_pdf_source_map"):
-                # Assuming converted pdf has a conventional path
+            if index_data.get("has_pdf_source_map") and not document.name.lower().endswith(".pdf"):
+                # If the parsing result contains pdf_source_map metadata,
+                # it means it is a PDF or has been converted to a PDF.
+                # But only converted documents have a converted.pdf file.
                 converted_pdf_object_path = "converted.pdf"
 
             # 5. Construct and return response
-            return {
-                "doc_object_path": doc_object_path,
-                "doc_filename": document.name,
-                "converted_pdf_object_path": converted_pdf_object_path,
-                "markdown_content": markdown_content,
-                "chunks": chunks,
-            }
+            return DocumentPreview(
+                doc_object_path=doc_object_path,
+                doc_filename=document.name,
+                converted_pdf_object_path=converted_pdf_object_path,
+                markdown_content=markdown_content,
+                chunks=chunks,
+            )
 
     async def get_document_object(self, user_id: str, collection_id: str, document_id: str, path: str):
         """
