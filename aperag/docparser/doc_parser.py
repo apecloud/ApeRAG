@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import logging
+import os
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -23,6 +24,7 @@ from aperag.docparser.base import BaseParser, FallbackError, Part
 from aperag.docparser.docray_parser import DocRayParser
 from aperag.docparser.image_parser import ImageParser
 from aperag.docparser.markitdown_parser import MarkItDownParser
+from aperag.docparser.mineru_parser import MinerUParser
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,7 @@ ALL_PARSERS = [
     ImageParser,
     MarkItDownParser,
     DocRayParser,
+    MinerUParser,
 ]
 
 PARSER_MAP = {cls.name: cls for cls in ALL_PARSERS}
@@ -38,6 +41,7 @@ PARSER_MAP = {cls.name: cls for cls in ALL_PARSERS}
 
 def get_default_config() -> list["ParserConfig"]:
     return [
+        ParserConfig(name=MinerUParser.name, enabled=False),
         ParserConfig(name=DocRayParser.name, enabled=True),
         ParserConfig(name=ImageParser.name, enabled=True),
         ParserConfig(name=AudioParser.name, enabled=True),
@@ -64,12 +68,28 @@ class ParserConfig(BaseModel):
 
 
 class DocParser(BaseParser):
-    def __init__(self, config: list[ParserConfig] = None):
-        self.config = config or get_default_config()
+    def __init__(self, parser_config: Optional[dict] = None, full_config: list[ParserConfig] = None):
+        self.config = full_config or get_default_config()
         self.supported = None
         self.parsing_order: list[str] = []
         self.parsers: dict[str, BaseParser] = {}
         self.ext_override = {}
+
+        parser_config = parser_config or {}
+
+        # Dynamically update parser configs based on collection settings
+        for cfg in self.config:
+            if cfg.name == MinerUParser.name:
+                use_mineru = parser_config.get("use_mineru", False)
+                if use_mineru:
+                    cfg.enabled = True
+
+                token_from_env = os.getenv("MINERU_API_TOKEN")
+                token = parser_config.get("mineru_api_token") or token_from_env
+                if token is not None:
+                    if cfg.settings is None:
+                        cfg.settings = {}
+                    cfg.settings["api_token"] = token
 
         for cfg in self.config:
             if not cfg.enabled:

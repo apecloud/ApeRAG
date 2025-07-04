@@ -49,6 +49,10 @@ paths:
     $ref: './paths/collections.yaml#/document'
   /collections/{collection_id}/documents/{document_id}/rebuild_indexes:
     $ref: './paths/collections.yaml#/rebuild_indexes'
+  /collections/{collection_id}/documents/{document_id}/preview:
+    $ref: './paths/collections.yaml#/document_preview'
+  /collections/{collection_id}/documents/{document_id}/object:
+    $ref: './paths/collections.yaml#/document_object'
   /collections/{collection_id}/searches:
     $ref: './paths/collections.yaml#/searches'
   /collections/{collection_id}/searches/{search_id}:
@@ -69,7 +73,7 @@ paths:
   # models
   /available_models:
     $ref: './paths/models.yaml#/availableModels'
-  
+
   # llm configuration
   /llm_configuration:
     $ref: './paths/llm_configuration.yaml#/llmConfiguration'
@@ -83,25 +87,25 @@ paths:
     $ref: './paths/llm_configuration.yaml#/llmProviderModel'
   /llm_provider_models:
     $ref: './paths/llm_configuration.yaml#/llmProviderModelsList'
-  
-  # llm services  
+
+  # llm services
   /embeddings:
     $ref: './paths/llm.yaml#/embeddings'
   /rerank:
     $ref: './paths/llm.yaml#/rerank'
-  
+
   # config
   /config:
     $ref: './paths/config.yaml#/config'
   /prompt-templates:
     $ref: './paths/prompt_templates.yaml#/promptTemplates'
-  
+
   # audit
   /audit-logs:
     $ref: './paths/audit.yaml#/audit_logs'
   /audit-logs/{audit_id}:
     $ref: './paths/audit.yaml#/audit_log_detail'
-  
+
   # users
   /invite:
     $ref: './paths/auth.yaml#/invite'

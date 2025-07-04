@@ -94,7 +94,7 @@ collection:
     responses:
       '204':
         description: Collection deleted successfully
-  
+
   put:
     summary: Update a collection
     description: Update a collection
@@ -242,6 +242,85 @@ document:
     responses:
       '204':
         description: Document deleted successfully
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Document not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
+document_preview:
+  get:
+    summary: Get document preview
+    description: Get a preview of a specific document
+    operationId: get_document_preview
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Document preview
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/document.yaml#/documentPreview'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Document not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
+document_object:
+  get:
+    summary: Get document object
+    description: Get an object from a specific document
+    operationId: get_document_object
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: path
+        in: query
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Document object
+        content:
+          application/octet-stream: {}
       '401':
         description: Unauthorized
         content:
@@ -420,11 +499,11 @@ graph:
       Retrieve knowledge graph data. Two modes are supported:
       1. Overview mode (default): Uses the entire graph ("*") and intelligently selects the most important nodes
       2. Subgraph mode: When 'label' is provided, returns a subgraph centered on that node
-      
+
       Node selection prioritization:
       1. For overview: nodes with highest degree (most connections), automatically removing isolated nodes
       2. For subgraph: nodes within specified hops from the starting node
-      
+
       The overview mode is optimized for visualization performance by prioritizing well-connected nodes.
     tags:
       - graph

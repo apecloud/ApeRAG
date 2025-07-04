@@ -19,6 +19,9 @@ import type { CrontabConfig } from './crontab-config';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { ModelSpec } from './model-spec';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { ParserConfig } from './parser-config';
 
 /**
  * 
@@ -56,6 +59,12 @@ export interface CollectionConfig {
      * @memberof CollectionConfig
      */
     'completion'?: ModelSpec;
+    /**
+     * 
+     * @type {ParserConfig}
+     * @memberof CollectionConfig
+     */
+    'parser'?: ParserConfig;
     /**
      * Path for local and ftp sources
      * @type {string}

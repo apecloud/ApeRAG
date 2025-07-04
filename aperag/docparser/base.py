@@ -35,6 +35,10 @@ class MarkdownPart(Part):
     markdown: str
 
 
+class PdfPart(Part):
+    data: bytes
+
+
 class TextPart(Part):
     pass
 

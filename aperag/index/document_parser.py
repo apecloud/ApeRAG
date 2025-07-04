@@ -37,13 +37,16 @@ class DocumentParser:
     # Configuration constants
     MAX_EXTRACTED_SIZE = 5000 * 1024 * 1024  # 5 GB
 
-    def parse_document(self, filepath: str, file_metadata: Dict[str, Any]) -> List[Any]:
+    def parse_document(
+        self, filepath: str, file_metadata: Dict[str, Any], parser_config: Optional[Dict[str, Any]] = None
+    ) -> List[Any]:
         """
         Parse document into parts using DocParser.
 
         Args:
             filepath: Path to the document file
             file_metadata: Metadata associated with the document
+            parser_config: Configuration for the parser
 
         Returns:
             List of document parts (MarkdownPart, AssetBinPart, etc.)
@@ -51,7 +54,7 @@ class DocumentParser:
         Raises:
             ValueError: If the file type is unsupported
         """
-        parser = DocParser()  # TODO: use the parser config from the collection
+        parser = DocParser(parser_config=parser_config)
         filepath_obj = Path(filepath)
 
         if not parser.accept(filepath_obj.suffix):
@@ -75,7 +78,7 @@ class DocumentParser:
         Raises:
             Exception: If object storage operations fail
         """
-        from aperag.docparser.base import AssetBinPart, MarkdownPart
+        from aperag.docparser.base import AssetBinPart, MarkdownPart, PdfPart
 
         content = ""
 
@@ -83,6 +86,10 @@ class DocumentParser:
         md_part = next((part for part in doc_parts if isinstance(part, MarkdownPart)), None)
         if md_part is not None:
             content = md_part.markdown
+
+        pdf_part = next((part for part in doc_parts if isinstance(part, PdfPart)), None)
+        if pdf_part is not None:
+            doc_parts.remove(pdf_part)
 
         # Save to object storage if base path is provided
         if object_store_base_path is not None:
@@ -95,15 +102,26 @@ class DocumentParser:
             obj_store.put(md_upload_path, md_data)
             logger.info(f"uploaded markdown content to {md_upload_path}, size: {len(md_data)}")
 
+            if pdf_part is not None:
+                converted_pdf_upload_path = f"{base_path}/converted.pdf"
+                obj_store.put(converted_pdf_upload_path, pdf_part.data)
+                logger.info(f"uploaded converted pdf to {md_upload_path}, size: {len(pdf_part.data)}")
+
             # Save assets
             asset_count = 0
+            to_be_removed = []
             for part in doc_parts:
                 if not isinstance(part, AssetBinPart):
                     continue
+                to_be_removed.append(part)
+
                 asset_upload_path = f"{base_path}/assets/{part.asset_id}"
                 obj_store.put(asset_upload_path, part.data)
                 asset_count += 1
                 logger.info(f"uploaded asset to {asset_upload_path}, size: {len(part.data)}")
+
+            for part in to_be_removed:
+                doc_parts.remove(part)
 
             logger.info(f"Saved {asset_count} assets to object storage")
 
@@ -135,7 +153,11 @@ class DocumentParser:
         return "\n\n".join(content_parts)
 
     def process_document_parsing(
-        self, filepath: str, file_metadata: Dict[str, Any], object_store_base_path: Optional[str] = None
+        self,
+        filepath: str,
+        file_metadata: Dict[str, Any],
+        object_store_base_path: Optional[str] = None,
+        parser_config: Optional[Dict[str, Any]] = None,
     ) -> DocumentParsingResult:
         """
         Complete document parsing workflow
@@ -144,13 +166,14 @@ class DocumentParser:
             filepath: Path to the document file
             file_metadata: Metadata associated with the document
             object_store_base_path: Base path for object storage
+            parser_config: Configuration for the parser
 
         Returns:
             DocumentParsingResult containing parsed parts and content
         """
         try:
             # Parse document into parts
-            doc_parts = self.parse_document(filepath, file_metadata)
+            doc_parts = self.parse_document(filepath, file_metadata, parser_config)
 
             # Save processed content and assets to object storage
             content = self.save_processed_content_and_assets(doc_parts, object_store_base_path)

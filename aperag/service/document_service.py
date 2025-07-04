@@ -14,19 +14,19 @@
 
 import json
 import logging
+import mimetypes
 import os
 from typing import List
 
 from asgiref.sync import sync_to_async
-from fastapi import UploadFile
+from fastapi import HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.config import get_async_session, settings
 from aperag.db import models as db_models
-from aperag.db.ops import (
-    AsyncDatabaseOps,
-    async_db_ops,
-)
+from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.docparser.doc_parser import DocParser
 from aperag.exceptions import (
     CollectionInactiveException,
@@ -38,10 +38,12 @@ from aperag.exceptions import (
 from aperag.index.manager import document_index_manager
 from aperag.objectstore.base import get_object_store
 from aperag.schema import view_models
-from aperag.schema.view_models import DocumentList
+from aperag.schema.view_models import Chunk, DocumentList, DocumentPreview
 from aperag.utils.constant import QuotaType
 from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
-from aperag.utils.utils import utc_now
+from aperag.utils.utils import generate_vector_db_collection_name, utc_now
+from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
+from config.settings import VECTOR_DB_CONTEXT, VECTOR_DB_TYPE
 
 logger = logging.getLogger(__name__)
 
@@ -384,6 +386,195 @@ class DocumentService:
         _trigger_index_reconciliation()
 
         return result
+
+    async def get_document_chunks(self, user_id: str, collection_id: str, document_id: str) -> List[Chunk]:
+        """
+        Get all chunks of a document.
+        """
+        async for session in get_async_session():
+            # 1. Get the document to verify ownership and get collection_id
+            stmt = select(db_models.Document).filter(
+                db_models.Document.id == document_id,
+                db_models.Document.collection_id == collection_id,
+                db_models.Document.user == user_id,
+            )
+            result = await session.execute(stmt)
+            document = result.scalars().first()
+            if not document:
+                raise DocumentNotFoundException(document_id)
+
+            # 2. Get the chunk IDs (ctx_ids) from the document_index table
+            stmt = select(db_models.DocumentIndex).filter(
+                db_models.DocumentIndex.document_id == document_id,
+                db_models.DocumentIndex.index_type == db_models.DocumentIndexType.VECTOR,
+            )
+            result = await session.execute(stmt)
+            doc_index = result.scalars().first()
+
+            if not doc_index or not doc_index.index_data:
+                return []
+
+            try:
+                index_data = json.loads(doc_index.index_data)
+                ctx_ids = index_data.get("context_ids", [])
+            except (json.JSONDecodeError, AttributeError):
+                return []
+
+            if not ctx_ids:
+                return []
+
+            # 3. Retrieve chunks from Qdrant
+            try:
+                collection_name = generate_vector_db_collection_name(collection_id=document.collection_id)
+                ctx = json.loads(VECTOR_DB_CONTEXT)
+                ctx["collection"] = collection_name
+                vector_store_adaptor = VectorStoreConnectorAdaptor(VECTOR_DB_TYPE, ctx=ctx)
+                qdrant_client = vector_store_adaptor.connector.client
+
+                points = qdrant_client.retrieve(
+                    collection_name=collection_name,
+                    ids=ctx_ids,
+                    with_payload=True,
+                )
+
+                # 4. Format the response
+                chunks = []
+                for point in points:
+                    if point.payload:
+                        # In llama-index-0.10.13, the payload is stored in _node_content
+                        node_content = point.payload.get("_node_content")
+                        if node_content and isinstance(node_content, str):
+                            try:
+                                payload_data = json.loads(node_content)
+                                chunks.append(
+                                    Chunk(
+                                        id=point.id,
+                                        text=payload_data.get("text", ""),
+                                        metadata=payload_data.get("metadata", {}),
+                                    )
+                                )
+                            except json.JSONDecodeError:
+                                logger.warning(f"Could not parse _node_content for point {point.id}")
+                        else:
+                            # Fallback for older or different data structures
+                            chunks.append(
+                                Chunk(
+                                    id=point.id,
+                                    text=point.payload.get("text", ""),
+                                    metadata=point.payload.get("metadata", {}),
+                                )
+                            )
+
+                return chunks
+            except Exception as e:
+                logger.error(
+                    f"Failed to retrieve chunks from vector store for document {document_id}: {e}", exc_info=True
+                )
+                raise HTTPException(status_code=500, detail="Failed to retrieve chunks from vector store")
+
+    async def get_document_preview(self, user_id: str, collection_id: str, document_id: str) -> DocumentPreview:
+        """
+        Get all preview-related information for a document.
+        """
+        async for session in get_async_session():
+            # 1. Get document and vector index in one go
+            doc_stmt = select(db_models.Document).filter(
+                db_models.Document.id == document_id,
+                db_models.Document.collection_id == collection_id,
+                db_models.Document.user == user_id,
+            )
+            doc_result = await session.execute(doc_stmt)
+            document = doc_result.scalars().first()
+            if not document:
+                raise DocumentNotFoundException(document_id)
+
+            index_stmt = select(db_models.DocumentIndex).filter(
+                db_models.DocumentIndex.document_id == document_id,
+                db_models.DocumentIndex.index_type == db_models.DocumentIndexType.VECTOR,
+            )
+            index_result = await session.execute(index_stmt)
+            doc_index = index_result.scalars().first()
+
+            # 2. Get chunks
+            chunks = await self.get_document_chunks(user_id, collection_id, document_id)
+
+            # 3. Get markdown content
+            obj_store = get_object_store()
+            markdown_content = ""
+            # The parsed markdown file is stored with the name "parsed.md"
+            markdown_path = f"{document.object_store_base_path()}/parsed.md"
+            try:
+                md_stream = await sync_to_async(obj_store.get)(markdown_path)
+                if md_stream:
+                    markdown_content = md_stream.read().decode("utf-8")
+            except Exception:
+                logger.warning(f"Could not find or read markdown file at {markdown_path}")
+
+            # 4. Determine paths
+            doc_metadata = json.loads(document.doc_metadata) if document.doc_metadata else {}
+            doc_object_path = doc_metadata.get("object_path")
+            if doc_object_path:
+                doc_object_path = os.path.basename(doc_object_path)
+
+            converted_pdf_object_path = None
+            index_data = json.loads(doc_index.index_data) if doc_index and doc_index.index_data else {}
+            if index_data.get("has_pdf_source_map") and not document.name.lower().endswith(".pdf"):
+                # If the parsing result contains pdf_source_map metadata,
+                # it means it is a PDF or has been converted to a PDF.
+                # But only converted documents have a converted.pdf file.
+                converted_pdf_object_path = "converted.pdf"
+
+            # 5. Construct and return response
+            return DocumentPreview(
+                doc_object_path=doc_object_path,
+                doc_filename=document.name,
+                converted_pdf_object_path=converted_pdf_object_path,
+                markdown_content=markdown_content,
+                chunks=chunks,
+            )
+
+    async def get_document_object(self, user_id: str, collection_id: str, document_id: str, path: str):
+        """
+        Get a file object associated with a document from the object store.
+        """
+        async for session in get_async_session():
+            # 1. Verify user has access to the document
+            stmt = select(db_models.Document).filter(
+                db_models.Document.id == document_id,
+                db_models.Document.collection_id == collection_id,
+                db_models.Document.user == user_id,
+            )
+            result = await session.execute(stmt)
+            document = result.scalars().first()
+            if not document:
+                raise DocumentNotFoundException(document_id)
+
+            # Construct the full path and perform security check
+            full_path = os.path.join(document.object_store_base_path(), path)
+            if not full_path.startswith(document.object_store_base_path()):
+                raise HTTPException(status_code=403, detail="Access denied to this object path")
+
+            # 2. Get the object from object store
+            try:
+                obj_store = get_object_store()
+                file_data_stream = await sync_to_async(obj_store.get)(full_path)
+
+                if not file_data_stream:
+                    raise HTTPException(status_code=404, detail="Object not found at specified path")
+
+                def file_iterator():
+                    with file_data_stream:
+                        yield from file_data_stream
+
+                # 3. Stream the response
+                content_type, _ = mimetypes.guess_type(full_path)
+                if content_type is None:
+                    content_type = "application/octet-stream"
+
+                return StreamingResponse(file_iterator(), media_type=content_type)
+            except Exception as e:
+                logger.error(f"Failed to get object for document {document_id} at path {full_path}: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Failed to get object from store")
 
 
 # Create a global service instance for easy access

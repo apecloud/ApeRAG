@@ -683,6 +683,83 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
+  /collections/{collection_id}/documents/{document_id}/preview:
+    get:
+      summary: Get document preview
+      description: Get a preview of a specific document
+      operationId: get_document_preview
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/documentPreview'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /collections/{collection_id}/documents/{document_id}/object:
+    get:
+      summary: Get document object
+      description: Get an object from a specific document
+      operationId: get_document_object
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document object
+          content:
+            application/octet-stream: {}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
   /collections/{collection_id}/searches:
     get:
       summary: Get search history
@@ -2577,6 +2654,15 @@ components:
             - free
             - recommend
           default: []
+    parserConfig:
+      type: object
+      properties:
+        use_mineru:
+          type: boolean
+          description: Whether to use MinerU parser
+        mineru_api_token:
+          type: string
+          description: MinerU API token
     collectionConfig:
       type: object
       properties:
@@ -2593,6 +2679,8 @@ components:
           $ref: '#/components/schemas/modelSpec'
         completion:
           $ref: '#/components/schemas/modelSpec'
+        parser:
+          $ref: '#/components/schemas/parserConfig'
         path:
           type: string
           description: Path for local and ftp sources
@@ -2935,6 +3023,33 @@ components:
           minItems: 1
       required:
         - index_types
+    documentPreview:
+      type: object
+      properties:
+        doc_object_path:
+          type: string
+          description: The path to the document object.
+        doc_filename:
+          type: string
+          description: The name of the document.
+        converted_pdf_object_path:
+          type: string
+          nullable: true
+          description: The path to the converted PDF object.
+        markdown_content:
+          type: string
+          description: The markdown content of the document.
+        chunks:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              text:
+                type: string
+              metadata:
+                type: object
     vectorSearchParams:
       type: object
       properties:

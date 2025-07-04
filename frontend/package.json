@@ -37,6 +37,7 @@
     "react-file-icon": "^1.6.0",
     "react-force-graph-2d": "^1.28.0",
     "react-icons": "^5.5.0",
+    "react-pdf": "^9.1.0",
     "react-markdown": "^10.1.0",
     "react-scroll": "^1.9.3",
     "react-stickynode": "^5.0.2",
