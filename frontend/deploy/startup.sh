@@ -22,9 +22,7 @@ http {
     sendfile        on;                                                                                                                              
     #tcp_nopush     on;                                                                                                                              
                                                                                                                                                      
-    keepalive_timeout  65;                                                                                                                           
-                                                                                                                                                     
-    #gzip  on;                                                                                                                                       
+    keepalive_timeout  65;                                                                                                                                                                                                                                                            
                                                                                                                                                      
     # include /etc/nginx/conf.d/*.conf;
 
@@ -80,11 +78,6 @@ http {
             root   /html;
             index  index.html index.htm;
             try_files \$uri \$uri/ /web/index.html;
-        }
-        
-        # Handle root path - redirect to /web/
-        location = / {
-            return 301 /web/;
         }
         
         # Handle other root paths - serve from /html directory with fallback to /web/
