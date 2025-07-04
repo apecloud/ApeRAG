@@ -65,6 +65,8 @@ const configCompletionCustomLlmProviderKey = [
 ];
 
 const configEmailSourceKey = ['config', 'email_source'];
+const configParserUseMineruKey = ['config', 'parser', 'use_mineru'];
+const configParserMineruApiTokenKey = ['config', 'parser', 'mineru_api_token'];
 
 export default ({ onSubmit, action, values, form }: Props) => {
   const { formatMessage } = useIntl();
@@ -93,6 +95,8 @@ export default ({ onSubmit, action, values, form }: Props) => {
     configEnableKnowledgeGraphKey,
     form,
   );
+
+  const useMineru = Form.useWatch(configParserUseMineruKey, form);
 
   const completionModel = Form.useWatch(configCompletionModelKey, form);
 
@@ -370,6 +374,39 @@ export default ({ onSubmit, action, values, form }: Props) => {
         {source === 'feishu' ? <DocumentFeishuFormItems /> : null}
 
         {source === 'github' ? <DocumentGithubFormItems /> : null}
+
+        <Form.Item
+          label={formatMessage({ id: 'collection.use_mineru' })}
+          name={configParserUseMineruKey}
+          valuePropName="checked"
+          initialValue={true}
+          extra={formatMessage({ id: 'collection.use_mineru.extra' })}
+        >
+          <Switch />
+        </Form.Item>
+
+        {useMineru ? (
+          <Form.Item
+            name={configParserMineruApiTokenKey}
+            label="MinerU API Token"
+            extra={formatMessage({ id: 'collection.mineru_api_token.extra' })}
+            rules={[
+              {
+                required: true,
+                message: formatMessage({
+                  id: 'collection.mineru_api_token.required',
+                }),
+              },
+            ]}
+          >
+            <Input.Password
+              placeholder={formatMessage({
+                id: 'collection.mineru_api_token.placeholder',
+              })}
+              autoComplete="off"
+            />
+          </Form.Item>
+        ) : null}
 
         <br />
         <Divider />

@@ -429,6 +429,7 @@ class CollectionConfig(BaseModel):
     app_id: Optional[str] = Field(None, description='Feishu app ID')
     app_secret: Optional[str] = Field(None, description='Feishu app secret')
     space_id: Optional[str] = Field(None, description='Feishu space ID')
+    parser: Optional[dict[str, Any]] = None
 
 
 class Local(BaseModel):

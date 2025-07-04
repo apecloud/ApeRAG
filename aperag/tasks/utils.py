@@ -37,9 +37,14 @@ def parse_document_content(document, collection) -> Tuple[str, List[Any], Any]:
     local_doc = source.prepare_document(name=document.name, metadata=metadata)
 
     try:
+        collection_config = parseCollectionConfig(collection.config)
+        parser_config = collection_config.parser or {}
         # Parse document to get content and parts
         parsing_result = document_parser.process_document_parsing(
-            local_doc.path, local_doc.metadata, document.object_store_base_path()
+            local_doc.path,
+            local_doc.metadata,
+            document.object_store_base_path(),
+            parser_config,
         )
 
         return parsing_result.content, parsing_result.doc_parts, local_doc

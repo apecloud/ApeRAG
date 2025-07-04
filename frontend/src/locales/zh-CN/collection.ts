@@ -31,8 +31,14 @@ export const collection = {
   'collection.embedding_model.required': '请选择嵌入模型',
   'collection.lightrag_model': 'Light RAG模型',
   'collection.lightrag_model.required': '请选择Light RAG模型',
-
   'collection.graphs': '知识图谱',
+  'collection.use_mineru': '使用 MinerU API 解析文档',
+  'collection.use_mineru.extra':
+    '关闭后将使用系统内置的解析器。',
+  'collection.mineru_api_token.placeholder':
+    '请输入您的 API Token',
+  'collection.mineru_api_token.required': '请输入API Token',
+  'collection.mineru_api_token.extra': 'Tips: MinerU API Token 官方有效期为 14 天，请在过期前及时更换。',
 };
 
 export default {
