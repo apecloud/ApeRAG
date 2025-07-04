@@ -187,7 +187,7 @@ api:
 
     GRAPH_INDEX_KV_STORAGE: PGOpsSyncKVStorage
     GRAPH_INDEX_VECTOR_STORAGE: PGOpsSyncVectorStorage
-    GRAPH_INDEX_GRAPH_STORAGE: Neo4JSyncStorage
+    GRAPH_INDEX_GRAPH_STORAGE: PGOpsSyncGraphStorage
 
     # Cache
     CACHE_ENABLED: "True"
