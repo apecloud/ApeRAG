@@ -75,19 +75,13 @@ http {
 
         # Handle root path - redirect to /web/
         location = / {
-            return 301 /web/;
+            return 301 \$scheme://\$http_host/web/;
         }
         
         # Handle /web/ path - serve static files from /html/web
         location /web/ {
             root   /html;
             index  index.html index.htm;
-            try_files \$uri \$uri/ /web/index.html;
-        }
-        
-        # Handle other root paths - serve from /html directory with fallback to /web/
-        location / {
-            root   /html;
             try_files \$uri \$uri/ /web/index.html;
         }
     }
