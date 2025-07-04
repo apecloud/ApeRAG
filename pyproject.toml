@@ -62,6 +62,8 @@ dependencies = [
     "nebula3-python==3.8.3",
     "psycopg>=3.2.9",
     "psycopg-pool>=3.2.6",
+    "fastmcp>=2.10.0",
+    "httpx>=0.27.0",
 ]
 name = "aperag"
 version = "0.1.0"
