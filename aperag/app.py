@@ -16,7 +16,7 @@ from fastapi import FastAPI
 
 from aperag.exception_handlers import register_exception_handlers
 from aperag.llm.litellm_track import register_custom_llm_track
-from aperag.mcp import mcp_server as base_mcp_server
+from aperag.mcp import mcp_server
 from aperag.views.api_key import router as api_key_router
 from aperag.views.audit import router as audit_router
 from aperag.views.auth import router as auth_router
@@ -27,40 +27,14 @@ from aperag.views.llm import router as llm_router
 from aperag.views.main import router as main_router
 
 # Initialize MCP server integration
-print("🚀 Initializing ApeRAG MCP server...")
-
-try:
-    # Use our manually defined MCP server with tools
-    # Create HTTP app without path prefix since we'll mount it
-    mcp_app = base_mcp_server.http_app()  # Remove path="/mcp"
-    mcp_lifespan = mcp_app.lifespan
-
-    print("✅ MCP server initialized with manual tools")
-    print(f"✅ MCP server type: {type(base_mcp_server)}")
-    print(f"✅ MCP server name: {base_mcp_server.name}")
-
-    # Note: Cannot check tools count here due to async nature
-    print("✅ MCP tools and resources defined (async verification needed)")
-
-except Exception as e:
-    print(f"❌ MCP server initialization failed: {e}")
-    import traceback
-
-    traceback.print_exc()
-
-    # Fallback - create a minimal working app
-    from fastmcp import FastMCP
-
-    fallback_server = FastMCP("ApeRAG-Fallback")
-    mcp_app = fallback_server.http_app()  # Remove path="/mcp"
-    mcp_lifespan = mcp_app.lifespan
+mcp_app = mcp_server.http_app()
 
 # Create the main FastAPI app with MCP lifespan
 app = FastAPI(
     title="ApeRAG API",
     description="Knowledge management and retrieval system",
     version="1.0.0",
-    lifespan=mcp_lifespan,  # CRITICAL: Pass MCP lifespan to FastAPI
+    lifespan=mcp_app.lifespan,  # CRITICAL: Pass MCP lifespan to FastAPI
 )
 
 # Register global exception handlers
