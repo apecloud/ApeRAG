@@ -1,5 +1,6 @@
 export * from './animate-node';
 export * from './check-card';
+export * from './ChunkViewer';
 export * from './markdown';
 export * from './model-select';
 export * from './navbar';

@@ -327,7 +327,7 @@ async def register_view(
             raise HTTPException(status_code=400, detail="Invitation token is required")
         if not data.email:
             raise HTTPException(status_code=400, detail="Email is required when using invitation")
-        
+
         result = await session.execute(select(Invitation).where(Invitation.token == data.token))
         invitation = result.scalars().first()
         if not invitation or not invitation.is_valid():
@@ -339,7 +339,7 @@ async def register_view(
     result = await session.execute(select(User).where(User.username == data.username))
     if result.scalars().first():
         raise HTTPException(status_code=400, detail="Username already exists")
-    
+
     # Only check email uniqueness if email is provided
     if data.email:
         result = await session.execute(select(User).where(User.email == data.email))
@@ -446,7 +446,9 @@ async def get_user_view(request: Request, session: AsyncSessionDep, user: Option
 
 
 @router.get("/users")
-async def list_users_view(session: AsyncSessionDep, user: Optional[User] = Depends(current_user)) -> view_models.UserList:
+async def list_users_view(
+    session: AsyncSessionDep, user: Optional[User] = Depends(current_user)
+) -> view_models.UserList:
     from sqlalchemy import select
 
     if user.role == Role.ADMIN:

@@ -147,6 +147,25 @@ async def delete_documents_view(
     return await document_service.delete_documents(str(user.id), collection_id, document_ids)
 
 
+@router.get("/collections/{collection_id}/documents/{document_id}/preview", operation_id="get_document_preview")
+async def get_document_preview(
+    collection_id: str,
+    document_id: str,
+    user: User = Depends(current_user),
+):
+    return await document_service.get_document_preview(user.id, collection_id, document_id)
+
+
+@router.get("/collections/{collection_id}/documents/{document_id}/object", operation_id="get_document_object")
+async def get_document_object(
+    collection_id: str,
+    document_id: str,
+    path: str,
+    user: User = Depends(current_user),
+):
+    return await document_service.get_document_object(user.id, collection_id, document_id, path)
+
+
 @router.post("/collections/{collection_id}/documents/{document_id}/rebuild_indexes")
 @audit(resource_type="document", api_name="RebuildDocumentIndexes")
 async def rebuild_document_indexes_view(

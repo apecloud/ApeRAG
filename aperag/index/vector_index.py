@@ -75,7 +75,7 @@ class VectorIndexer(BaseIndexer):
             return IndexResult(
                 success=True,
                 index_type=self.index_type,
-                data={"context_ids": ctx_ids},
+                data={"context_ids": ctx_ids, "has_pdf_source_map": self.has_pdf_source_map(doc_parts)},
                 metadata={
                     "vector_count": len(ctx_ids),
                     "vector_size": vector_size,
@@ -148,7 +148,7 @@ class VectorIndexer(BaseIndexer):
             return IndexResult(
                 success=True,
                 index_type=self.index_type,
-                data={"context_ids": ctx_ids},
+                data={"context_ids": ctx_ids, "has_pdf_source_map": self.has_pdf_source_map(doc_parts)},
                 metadata={
                     "vector_count": len(ctx_ids),
                     "old_vector_count": len(old_ctx_ids),
@@ -218,6 +218,13 @@ class VectorIndexer(BaseIndexer):
             return IndexResult(
                 success=False, index_type=self.index_type, error=f"Vector index deletion failed: {str(e)}"
             )
+
+    def has_pdf_source_map(self, doc_parts: List[Any]) -> bool:
+        # HACK: This method is placed here for chunk visualization, for convenience.
+        for part in doc_parts:
+            if hasattr(part, "metadata") and part.metadata.get("pdf_source_map") is not None:
+                return True
+        return False
 
 
 # Global instance

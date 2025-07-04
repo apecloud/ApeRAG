@@ -3,7 +3,7 @@ import {
   DocumentGraphIndexStatusEnum,
   DocumentVectorIndexStatusEnum,
 } from '@/api';
-import { RefreshButton } from '@/components';
+import { ChunkViewer, RefreshButton } from '@/components';
 import {
   DATETIME_FORMAT,
   SUPPORTED_COMPRESSED_EXTENSIONS,
@@ -27,6 +27,7 @@ import {
   Badge,
   Button,
   Checkbox,
+  Drawer,
   Dropdown,
   Input,
   Modal,
@@ -63,6 +64,10 @@ export default () => {
     useState<ApeDocument | null>(null);
   const [rebuildSelectedTypes, setRebuildSelectedTypes] = useState<string[]>(
     [],
+  );
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewingDocument, setViewingDocument] = useState<ApeDocument | null>(
+    null,
   );
   const {
     data: documentsRes,
@@ -179,6 +184,7 @@ export default () => {
           record.name?.split('.').pop()?.toLowerCase() ||
           ('unknow' as keyof typeof defaultStyles);
         const iconProps = _.get(defaultStyles, extension);
+        const isPdf = extension === 'pdf';
         const icon = (
           // @ts-ignore
           <FileIcon
@@ -188,12 +194,27 @@ export default () => {
           />
         );
 
+        const handleViewDocument = () => {
+          if (isPdf) {
+            setViewingDocument(record);
+            setViewerVisible(true);
+          } else {
+            // Optionally, show a message for non-PDF files
+            toast.info(
+              formatMessage({ id: 'document.view.unsupportedFormat' }),
+            );
+          }
+        };
+
         return (
           <Space>
             <Avatar size={36} shape="square" src={icon} />
-            <div>
-              <div>{record.name}</div>
-              <Typography.Text type="secondary">
+            <div
+              onClick={handleViewDocument}
+              style={{ cursor: isPdf ? 'pointer' : 'default' }}
+            >
+              <Typography.Link disabled={!isPdf}>{record.name}</Typography.Link>
+              <Typography.Text type="secondary" style={{ display: 'block' }}>
                 {byteSize(record.size || 0).toString()}
               </Typography.Text>
             </div>
@@ -386,6 +407,28 @@ export default () => {
       </Space>
       <Table rowKey="id" bordered columns={columns} dataSource={documents} />
       {contextHolder}
+
+      <Drawer
+        title={formatMessage(
+          { id: 'document.view.title' },
+          { name: viewingDocument?.name },
+        )}
+        placement="right"
+        width={'90vw'}
+        onClose={() => {
+          setViewerVisible(false);
+          setViewingDocument(null);
+        }}
+        open={viewerVisible}
+        destroyOnClose
+      >
+        {viewingDocument && collectionId && (
+          <ChunkViewer
+            document={viewingDocument}
+            collectionId={collectionId}
+          />
+        )}
+      </Drawer>
 
       <Modal
         title={formatMessage({ id: 'document.index.rebuild.title' })}

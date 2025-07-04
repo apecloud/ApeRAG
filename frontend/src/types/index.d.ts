@@ -120,3 +120,19 @@ export type ApeDocumentConfig = {
 };
 
 export type ApeDocument = Merge<Document, { config?: ApeDocumentConfig }>;
+
+/**
+ * chunks
+ */
+export interface Chunk {
+  id: string;
+  text: string;
+  metadata?: {
+    pdf_source_map?: {
+      page_idx: number;
+      bbox: [number, number, number, number];
+    }[];
+    md_source_map?: [number, number];
+    [key: string]: any;
+  };
+}

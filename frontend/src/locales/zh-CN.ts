@@ -237,6 +237,13 @@ export default {
   'document.index.rebuild.confirm': '确认重建',
   'document.index.rebuild.success': '索引重建任务已启动',
   'document.index.rebuild.failed': '索引重建失败',
+  'document.view.title': '查看: {name}',
+  'document.view.unsupportedFormat': '不支持预览该文件格式。',
+
+  'chunk.viewer.chunks.title': '内容块',
+  'chunk.viewer.markdown.empty': '无可用 Markdown 内容预览。',
+  'chunk.viewer.data.loadFailed': '加载预览数据失败。',
+  'chunk.viewer.unsupported': '不支持此文档格式的预览。',
 
   flow: '---------------',
   'flow.name': '任务流',

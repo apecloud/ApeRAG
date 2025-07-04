@@ -1,0 +1,8 @@
+.chunkListItem:hover {
+  background-color: #f0f8ff;
+}
+
+.highlightedLine {
+  background-color: rgba(255, 255, 0, 0.4);
+  transition: background-color 0.3s ease;
+}
