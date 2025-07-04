@@ -1,32 +1,31 @@
 import { GraphEdge, GraphNode } from '@/api';
 import { graphApi } from '@/services';
-import { Card, Tag, theme, Typography } from 'antd';
+import { Tag, theme } from 'antd';
 import * as d3 from 'd3';
 import _ from 'lodash';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'umi';
 
-const color = d3.scaleOrdinal(d3.schemeCategory10);
+import ForceGraph2D from 'react-force-graph-2d';
 
-type SimulationNode = GraphNode & d3.SimulationNodeDatum;
-type SimulationEdge = d3.SimulationLinkDatum<SimulationNode>;
+const color = d3.scaleOrdinal(d3.schemeCategory10);
 
 export default () => {
   const [graphData, setGraphData] = useState<{
     edges: GraphEdge[];
     nodes: GraphNode[];
   }>();
-
-  const [selectNode, setSelectNode] = useState<GraphNode>();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 400 });
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [labels, setLabels] = useState<string[]>([]);
   const params = useParams();
-  const ref = useRef<HTMLDivElement>(null);
-
   const { token } = theme.useToken();
 
-  const entityTypes = useMemo(() => {
+  const NODE_R = 8;
+
+  const entities = useMemo(() => {
     return _.groupBy(graphData?.nodes, (n) => n.properties.entity_type);
   }, [graphData]);
 
@@ -42,160 +41,100 @@ export default () => {
     ]);
     setGraphData(graphRes.data);
     setLabels(labelsRes.data.labels);
+    
   }, [params.collectionId]);
+
+  const { nodes, links } = useMemo(() => {
+    const _nodes =
+      graphData?.nodes?.map((n) => {
+        return {
+          ...n,
+          value:
+            graphData?.edges.filter((edg) => edg.target === n.id).length || 0,
+        };
+      }) || [];
+    const data = {
+      nodes: _nodes,
+      links: graphData?.edges || [],
+    };
+    return {
+      nodes: data.nodes,
+      links: data.links,
+    };
+  }, [graphData]);
 
   useEffect(() => {
     getData();
   }, []);
 
   useEffect(() => {
-    const width = ref.current?.clientWidth || 800;
-    const height = width;
+    const updateSize = () => {
+      if (containerRef.current) {
+        const size = containerRef.current?.offsetWidth || 0;
+        setDimensions({
+          width: size,
+          height: size,
+        });
+      }
+    };
 
-    const links =
-      graphData?.edges.map((d) => ({
-        id: d.id,
-        source: d.source,
-        target: d.target,
-      })) || [];
-
-    const nodes =
-      graphData?.nodes.map((d) => ({
-        ...d,
-      })) || [];
-
-    const simulation = d3
-      .forceSimulation<SimulationNode>(nodes)
-      .force(
-        'link',
-        d3
-          .forceLink<SimulationNode, SimulationEdge>(links)
-          .distance(60)
-          .id((d) => d.id),
-      )
-      .force('charge', d3.forceManyBody().strength(-40))
-      // .force('center', d3.forceCenter(0, 0).strength(1))
-      .force('x', d3.forceX())
-      .force('y', d3.forceY());
-
-    const svg = d3
-      .create('svg')
-      .attr('width', width)
-      .attr('height', height)
-      .attr('viewBox', [-width / 2, -height / 2, width, height])
-      .attr('style', 'max-width: 100%; height: auto;');
-
-    const link = svg
-      .append('g')
-      .attr('stroke', token.colorText)
-      .attr('stroke-opacity', 0.2)
-      .selectAll('line')
-      .data(links)
-      .join('line')
-      .attr('stroke-width', 1);
-    // .attr("stroke-width", d => Math.sqrt(d.value));
-
-    const node = svg
-      .append('g')
-      .attr('stroke', '#fff')
-      .attr('stroke-width', 1)
-      .selectAll('circle')
-      .data(nodes)
-      .join('circle')
-      .attr('r', (d) => {
-        const size = _.size(
-          graphData?.edges.filter((edge) => edge.source === d.id),
-        );
-        return 4 + (size > 20 ? 20 : size);
-      })
-      .style('cursor', 'pointer')
-      .attr('fill', (d) => color(d.properties.entity_type || ''))
-      .on('mouseover', function () {
-        d3.select(this).transition().duration(300).attr('stroke-width', 2);
-      })
-      .on('mouseout', function () {
-        d3.select(this).transition().duration(300).attr('stroke-width', 1);
-      })
-      .on('click', function (e, data) {
-        setSelectNode(data);
-      });
-
-    node.append('title').text((d) => d.id);
-
-    simulation.on('tick', () => {
-      link
-        .attr('x1', (d: any) => d.source.x)
-        .attr('y1', (d: any) => d.source.y)
-        .attr('x2', (d: any) => d.target.x)
-        .attr('y2', (d: any) => d.target.y);
-
-      node.attr('cx', (d: any) => d.x).attr('cy', (d: any) => d.y);
-    });
-
-    // Reheat the simulation when drag starts, and fix the subject position.
-    function dragstarted(event: any) {
-      if (!event.active) simulation.alphaTarget(0.3).restart();
-      event.subject.fx = event.subject.x;
-      event.subject.fy = event.subject.y;
-    }
-
-    // Update the subject (dragged node) position during drag.
-    function dragged(event: any) {
-      event.subject.fx = event.x;
-      event.subject.fy = event.y;
-    }
-
-    // Restore the target alpha so the simulation cools after dragging ends.
-    // Unfix the subject position now that it’s no longer being dragged.
-    function dragended(event: any) {
-      if (!event.active) simulation.alphaTarget(0);
-      event.subject.fx = null;
-      event.subject.fy = null;
-    }
-
-    const drag: any = d3
-      .drag()
-      .on('start', dragstarted)
-      .on('drag', dragged)
-      .on('end', dragended);
-
-    const zoom: any = d3
-      .zoom()
-      .scaleExtent([1, 10])
-      .on('zoom', (event) => {
-        svg.attr('transform', event.transform);
-      });
-
-    node.call(drag);
-
-    svg
-      .call(zoom)
-      .on('mousedown.zoom', null)
-      .on('touchstart.zoom', null)
-      .on('dblclick.zoom', null);
-
-    ref.current?.replaceChildren(svg.node() as Node);
-  }, [graphData, token]);
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    return () => window.removeEventListener('resize', updateSize);
+  }, []);
 
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
-        {_.map(entityTypes, (item, key) => (
+        {_.map(entities, (item, key) => (
           <Tag key={key} color={color(key)}>
             {key}({item.length})
           </Tag>
         ))}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'row', gap: 20 }}>
-        <Card
-          ref={ref}
-          style={{ overflow: 'hidden', flex: 1, height: 'auto' }}
-        ></Card>
-        <Card title={selectNode?.id} style={{ width: 300, right: 0, top: 0 }}>
-          <Typography.Text>
-            {selectNode?.properties.description}
-          </Typography.Text>
-        </Card>
+      <div ref={containerRef}>
+        <ForceGraph2D
+          graphData={{ nodes, links }}
+          minZoom={0.1}
+          maxZoom={2}
+          d3VelocityDecay={0.7}
+          width={dimensions.width}
+          height={dimensions.height}
+          nodeLabel={(nod) => {
+            return `<div style="font-size: 16px; margin-bottom: 8px">${nod.id}</div><div>${nod.properties.description}</div>`
+          }}
+          nodeVisibility={true}
+          nodeCanvasObject={(node, ctx) => {
+            const x = node.x || 0;
+            const y = node.y || 0;
+            const size = NODE_R + Math.min(node.value, 20);
+            ctx.beginPath();
+            ctx.arc(x, y, size, 0, 2 * Math.PI, false);
+            ctx.fillStyle = color(node.properties.entity_type || '');
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(x, y, size, 0, 2 * Math.PI, false);
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#FFF';
+            ctx.stroke();
+          }}
+          nodePointerAreaPaint={(node, color, ctx) => {
+            const x = node.x || 0;
+            const y = node.y || 0;
+            const size = NODE_R + Math.min(node.value, 20);
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, size, 0, 2 * Math.PI, false);
+            ctx.fill();
+          }}
+          linkLabel="id"
+          linkWidth={1.5}
+          linkColor={() => token.colorBorder}
+          linkDirectionalParticles={(edg) => {
+            return edg.properties.weight ? 2 : 0;
+          }}
+        />
       </div>
     </div>
   );

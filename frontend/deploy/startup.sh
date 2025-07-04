@@ -72,6 +72,11 @@ http {
             proxy_set_header Connection \$connection_upgrade;
             proxy_pass http://$API_HOST:$API_PORT;
         }
+
+        # Handle root path - redirect to /web/
+        location = / {
+            return 301 /web/;
+        }
         
         # Handle /web/ path - serve static files from /html/web
         location /web/ {
