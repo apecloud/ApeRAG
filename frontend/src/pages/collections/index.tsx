@@ -25,7 +25,7 @@ import {
 } from 'antd';
 import _ from 'lodash';
 import moment from 'moment';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { UndrawEmpty } from 'react-undraw-illustrations';
 import { FormattedMessage, Link, useIntl, useModel } from 'umi';
 
@@ -38,7 +38,7 @@ export default () => {
   const { formatMessage } = useIntl();
   const { collections, collectionsLoading, getCollections } =
     useModel('collection');
-  
+
   // State for polling control
   const [isPolling, setIsPolling] = useState<boolean>(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -118,7 +118,7 @@ export default () => {
 
   // Check if there are any collections with INACTIVE status
   const hasInactiveCollections = () => {
-    return collections?.some(collection => collection.status === 'INACTIVE');
+    return collections?.some((collection) => collection.status === 'INACTIVE');
   };
 
   // Start polling collections from the backend every 3 seconds
