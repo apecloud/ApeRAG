@@ -78,7 +78,7 @@ def create_embeddings_and_store(
         paddings = []
         # padding titles of the hierarchy
         if "titles" in part.metadata:
-            paddings.append("Breadcrumbs: " + " > ".join(part.metadata["titles"]))
+            paddings.append("> Hierarchy: " + " > ".join(part.metadata["titles"]))
 
         # padding user custom labels
         if "labels" in part.metadata:
@@ -87,11 +87,12 @@ def create_embeddings_and_store(
                 if not item.get("key", None) or not item.get("value", None):
                     continue
                 labels.append("%s=%s" % (item["key"], item["value"]))
-            paddings.append(" ".join(labels))
+            if labels:
+                paddings.append("> Labels: " + " ".join(labels))
 
         prefix = ""
         if len(paddings) > 0:
-            prefix = "\n\n".join(paddings)
+            prefix = "\n".join(paddings)
             logger.debug("add extra prefix for document before embedding: %s", prefix)
 
         # 2.2 Construct text for embedding with paddings

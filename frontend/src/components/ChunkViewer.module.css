@@ -1,8 +1,22 @@
-.chunkListItem:hover {
-  background-color: #f0f8ff;
+.markdownContainer table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.markdownContainer th,
+.markdownContainer td {
+  border: 1px solid #ddd;
+  padding: 8px;
+}
+
+.markdownContainer th {
+  background-color: #f2f2f2;
 }
 
 .highlightedLine {
-  background-color: rgba(255, 255, 0, 0.4);
-  transition: background-color 0.3s ease;
+  background-color: yellow;
+}
+
+.chunkListItem {
+  /* Your existing styles for chunk list items */
 }

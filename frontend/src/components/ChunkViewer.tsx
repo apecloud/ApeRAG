@@ -4,22 +4,40 @@ import { api } from '@/services';
 import { useDebounceFn, useRequest } from 'ahooks';
 import { Col, Empty, List, Row, Segmented, Spin, Typography } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { Components } from 'react-markdown';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { FormattedMessage } from 'umi';
+import 'katex/dist/katex.min.css'; // Import katex css
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
+import rehypeKatex from 'rehype-katex';
+import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import { visit } from 'unist-util-visit';
+import { AuthAssetImage } from './AuthAssetImage';
 import styles from './ChunkViewer.module.css';
 
 // Set up worker
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-// pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
 
 interface ChunkViewerProps {
   document: ApeDocument;
   collectionId: string;
 }
+
+// A rehype plugin to add line number IDs to block-level elements
+const rehypeAddLineIds = () => {
+  return (tree: any) => {
+    visit(tree, 'element', (node) => {
+      if (node.position) {
+        const startLine = node.position.start.line;
+        node.properties = node.properties || {};
+        node.properties.id = `line-${startLine}`;
+      }
+    });
+  };
+};
 
 export const ChunkViewer = ({ document: initialDoc, collectionId }: ChunkViewerProps) => {
   const [viewMode, setViewMode] = useState<'markdown' | 'pdf' | 'unsupported'>('markdown');
@@ -32,11 +50,10 @@ export const ChunkViewer = ({ document: initialDoc, collectionId }: ChunkViewerP
   const pdfContainerRef = useRef<HTMLDivElement>(null);
   const markdownContainerRef = useRef<HTMLDivElement>(null);
   const chunkListRef = useRef<HTMLDivElement>(null);
-  const lineRefs = useRef<Map<number, HTMLElement>>(new Map());
   const pageRefs = useRef<Map<number, HTMLElement>>(new Map());
   const chunkItemRefs = useRef<Map<string, HTMLElement>>(new Map());
-  const isHovering = useRef(false);
   const [pdfWidth, setPdfWidth] = useState<number | undefined>();
+  const lastHighlightedLines = useRef<number[]>([]);
 
   // Fetch all preview data in one go
   const { loading: previewLoading, error: previewError } = useRequest(
@@ -102,7 +119,6 @@ export const ChunkViewer = ({ document: initialDoc, collectionId }: ChunkViewerP
   // Determine the best initial view mode once preview data is loaded
   useEffect(() => {
     if (previewData) {
-      // Priority: PDF > Markdown > Unsupported
       if (canShowPdfPreview) {
         setViewMode('pdf');
       } else if (previewData.markdown_content) {
@@ -117,123 +133,130 @@ export const ChunkViewer = ({ document: initialDoc, collectionId }: ChunkViewerP
   useEffect(() => {
     if (viewMode === 'pdf' && canShowPdfPreview && !pdfFile && previewData) {
       const pdfPath = previewData.converted_pdf_object_path || previewData.doc_object_path;
-      if (pdfPath) { // Check if pdfPath is not null or undefined
+      if (pdfPath) {
         fetchPdf(pdfPath);
       }
     }
   }, [viewMode, canShowPdfPreview, pdfFile, fetchPdf, previewData]);
 
-  // Scroll to highlighted markdown line
-  useEffect(() => {
-    if (isHovering.current && viewMode === 'markdown' && highlightedChunk && highlightedChunk.metadata?.md_source_map) {
+  const [pageDimensions, setPageDimensions] = useState(new Map());
+
+  const { run: syncAndHighlight } = useDebounceFn(() => {
+    // Clear previous highlights
+    lastHighlightedLines.current.forEach(lineNum => {
+      const el = document.getElementById(`line-${lineNum}`);
+      if (el) {
+        el.classList.remove(styles.highlightedLine);
+      }
+    });
+    lastHighlightedLines.current = [];
+
+    if (!highlightedChunk) return;
+
+    if (viewMode === 'markdown' && highlightedChunk.metadata?.md_source_map) {
       const [start_line, end_line] = highlightedChunk.metadata.md_source_map;
-      // lineRefs keys are 1-based, md_source_map is 0-based, so we add 1
-      const startElement = lineRefs.current.get(start_line + 1);
-      const endElement = lineRefs.current.get(end_line + 1);
+      const linesToHighlight = Array.from({ length: end_line - start_line + 1 }, (_, i) => start_line + 1 + i);
+
+      linesToHighlight.forEach(lineNum => {
+        const el = document.getElementById(`line-${lineNum}`);
+        if (el) {
+          el.classList.add(styles.highlightedLine);
+        }
+      });
+      lastHighlightedLines.current = linesToHighlight;
+
+      const startElement = document.getElementById(`line-${start_line + 1}`);
+      const endElement = document.getElementById(`line-${end_line + 1}`) || startElement;
       const containerElement = markdownContainerRef.current;
 
       if (startElement && endElement && containerElement) {
         const containerScrollTop = containerElement.scrollTop;
         const containerHeight = containerElement.clientHeight;
-
         const overallTop = startElement.offsetTop;
         const overallBottom = endElement.offsetTop + endElement.offsetHeight;
         const overallHeight = overallBottom - overallTop;
 
-        const isTopVisible = overallTop >= containerScrollTop;
-        const isBottomVisible = overallBottom <= containerScrollTop + containerHeight;
+        const isFullyVisible = overallTop >= containerScrollTop && overallBottom <= containerScrollTop + containerHeight;
 
-        if (isTopVisible && isBottomVisible) {
-          return; // Already in view
+        if (!isFullyVisible) {
+          let newScrollTop;
+          if (overallHeight > containerHeight || overallTop < containerScrollTop) {
+            newScrollTop = overallTop;
+          } else {
+            newScrollTop = overallBottom - containerHeight;
+          }
+          containerElement.scrollTo({
+            top: newScrollTop,
+            behavior: 'smooth',
+          });
         }
-
-        let newScrollTop;
-        if (overallHeight > containerHeight) {
-          newScrollTop = overallTop;
-        } else if (overallTop < containerScrollTop) {
-          newScrollTop = overallTop;
-        } else {
-          newScrollTop = overallBottom - containerHeight;
-        }
-
-        containerElement.scrollTo({
-          top: newScrollTop,
-          behavior: 'smooth',
-        });
       }
+    } else if (viewMode === 'pdf' && highlightedChunk.metadata?.pdf_source_map) {
+        const sourceMaps = highlightedChunk.metadata.pdf_source_map;
+        if (!sourceMaps || sourceMaps.length === 0) return;
+
+        const containerElement = pdfContainerRef.current;
+        if (!containerElement) return;
+
+        let overallTop = Infinity;
+        let overallBottom = -Infinity;
+
+        for (const sourceMap of sourceMaps) {
+            const pageNumber = sourceMap.page_idx + 1;
+            const pageElement = pageRefs.current.get(pageNumber);
+            const pageDim = pageDimensions.get(pageNumber);
+
+            if (pageElement && pageDim) {
+                const [, y1, , y2] = sourceMap.bbox;
+                const scale = (pdfWidth || pageDim.width) / pageDim.width;
+                const pageTopInContainer = pageElement.offsetTop;
+                const bboxTop = pageTopInContainer + (y1 * scale);
+                const bboxBottom = pageTopInContainer + (y2 * scale);
+                if (bboxTop < overallTop) overallTop = bboxTop;
+                if (bboxBottom > overallBottom) overallBottom = bboxBottom;
+            }
+        }
+
+        if (overallTop === Infinity) return;
+
+        const containerScrollTop = containerElement.scrollTop;
+        const containerHeight = containerElement.clientHeight;
+        const isFullyVisible = overallTop >= containerScrollTop && overallBottom <= containerScrollTop + containerHeight;
+
+        if (!isFullyVisible) {
+            containerElement.scrollTo({ top: overallTop, behavior: 'smooth' });
+        }
     }
-  }, [highlightedChunk, viewMode]);
+  }, { wait: 100 });
 
-  const [pageDimensions, setPageDimensions] = useState(new Map());
-
-  // Scroll to highlighted PDF page
   useEffect(() => {
-    if (isHovering.current && viewMode === 'pdf' && highlightedChunk && highlightedChunk.metadata?.pdf_source_map) {
-      const sourceMaps = highlightedChunk.metadata.pdf_source_map;
-      if (!sourceMaps || sourceMaps.length === 0) return;
+    syncAndHighlight();
+  }, [highlightedChunk, viewMode, syncAndHighlight]);
 
-      const containerElement = pdfContainerRef.current;
-      if (!containerElement) return;
+  // Use ResizeObserver to re-run sync function when layout changes (e.g., images load)
+  useEffect(() => {
+    const container = markdownContainerRef.current;
+    if (!container) return;
 
-      let overallTop = Infinity;
-      let overallBottom = -Infinity;
+    const observer = new ResizeObserver(() => {
+      syncAndHighlight();
+    });
 
-      for (const sourceMap of sourceMaps) {
-        const pageNumber = sourceMap.page_idx + 1;
-        const pageElement = pageRefs.current.get(pageNumber);
-        const pageDim = pageDimensions.get(pageNumber);
-
-        if (pageElement && pageDim) {
-          const [, y1, , y2] = sourceMap.bbox;
-          const scale = (pdfWidth || pageDim.width) / pageDim.width;
-          const pageTopInContainer = pageElement.offsetTop;
-
-          const bboxTop = pageTopInContainer + (y1 * scale);
-          const bboxBottom = pageTopInContainer + (y2 * scale);
-
-          if (bboxTop < overallTop) overallTop = bboxTop;
-          if (bboxBottom > overallBottom) overallBottom = bboxBottom;
-        }
-      }
-
-      if (overallTop === Infinity) return; // No valid bboxes found
-
-      const containerScrollTop = containerElement.scrollTop;
-      const containerHeight = containerElement.clientHeight;
-      const overallHeight = overallBottom - overallTop;
-
-      const isTopVisible = overallTop >= containerScrollTop;
-      const isBottomVisible = overallBottom <= containerScrollTop + containerHeight;
-
-      if (isTopVisible && isBottomVisible) {
-        return; // Already in view
-      }
-
-      let newScrollTop;
-      if (overallHeight > containerHeight) {
-        newScrollTop = overallTop;
-      } else if (overallTop < containerScrollTop) {
-        newScrollTop = overallTop;
-      } else {
-        newScrollTop = overallBottom - containerHeight;
-      }
-
-      containerElement.scrollTo({
-        top: newScrollTop,
-        behavior: 'smooth',
-      });
+    // We observe the direct child rendered by ReactMarkdown
+    if (container.firstChild && container.firstChild instanceof Element) {
+      observer.observe(container.firstChild);
     }
-  }, [highlightedChunk, viewMode, pageDimensions, pdfWidth]);
 
-  // Scroll chunk list when scrolling left panel
+    return () => {
+      observer.disconnect();
+    };
+  }, [previewData, syncAndHighlight]);
+
   useEffect(() => {
     if (scrolledToChunkId) {
       const chunkItem = chunkItemRefs.current.get(scrolledToChunkId);
       if (chunkItem) {
-        chunkItem.scrollIntoView({
-          behavior: 'smooth',
-          block: 'start',
-        });
+        chunkItem.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     }
   }, [scrolledToChunkId]);
@@ -296,8 +319,6 @@ export const ChunkViewer = ({ document: initialDoc, collectionId }: ChunkViewerP
   };
 
   const { run: handleScroll } = useDebounceFn(() => {
-    if (isHovering.current) return;
-
     const container = viewMode === 'pdf' ? pdfContainerRef.current : markdownContainerRef.current;
     if (!container) return;
 
@@ -306,7 +327,6 @@ export const ChunkViewer = ({ document: initialDoc, collectionId }: ChunkViewerP
 
     for (const chunk of adaptedChunks) {
       let top = Infinity;
-      let bottom = -Infinity;
 
       if (viewMode === 'pdf' && chunk.metadata?.pdf_source_map) {
         chunk.metadata.pdf_source_map.forEach((sourceMap: any) => {
@@ -314,35 +334,29 @@ export const ChunkViewer = ({ document: initialDoc, collectionId }: ChunkViewerP
           const pageElement = pageRefs.current.get(pageNumber);
           const pageDim = pageDimensions.get(pageNumber);
           if (pageElement && pageDim) {
-            const [, y1, , y2] = sourceMap.bbox;
+            const [, y1] = sourceMap.bbox;
             const scale = (pdfWidth || pageDim.width) / pageDim.width;
             const pageTopInContainer = pageElement.offsetTop;
             const bboxTop = pageTopInContainer + (y1 * scale);
-            const bboxBottom = pageTopInContainer + (y2 * scale);
             if (bboxTop < top) top = bboxTop;
-            if (bboxBottom > bottom) bottom = bboxBottom;
           }
         });
       } else if (viewMode === 'markdown' && chunk.metadata?.md_source_map) {
-        const [start_line, end_line] = chunk.metadata.md_source_map;
-        const startElement = lineRefs.current.get(start_line + 1);
-        const endElement = lineRefs.current.get(end_line + 1);
-        if (startElement && endElement) {
-          top = startElement.offsetTop;
-          bottom = endElement.offsetTop + endElement.offsetHeight;
+        const [start_line] = chunk.metadata.md_source_map;
+        const el = document.getElementById(`line-${start_line + 1}`);
+        if (el) {
+          top = el.offsetTop;
         }
       }
 
       if (top === Infinity) continue;
 
-      // Find the first chunk whose bottom is below the top of the viewport
-      if (bottom > containerScrollTop) {
+      if (top > containerScrollTop) {
         focusChunkId = chunk.id;
         break;
       }
     }
 
-    // If scrolled to the very bottom, make sure the last chunk is selected
     if (container.scrollTop + container.clientHeight >= container.scrollHeight - 2) {
       if (adaptedChunks.length > 0) {
         focusChunkId = adaptedChunks[adaptedChunks.length - 1].id;
@@ -354,34 +368,38 @@ export const ChunkViewer = ({ document: initialDoc, collectionId }: ChunkViewerP
     }
   }, { wait: 150 });
 
+  const markdownComponents: Components = useMemo(() => ({
+    p: (props) => {
+      const { node } = props;
+      if (node && node.children[0]?.type === 'element' && node.children[0]?.tagName === 'img') {
+        return <>{props.children}</>;
+      }
+      return <p {...props} />;
+    },
+    img: (props) => {
+      const { src } = props;
+      if (src && src.startsWith('asset://')) {
+        return <AuthAssetImage src={src} collectionId={collectionId} documentId={initialDoc.id!} />;
+      }
+      return <img {...props} />;
+    },
+  }), [collectionId, initialDoc.id]);
+
   const renderMarkdownView = () => {
     if (!previewData?.markdown_content) {
       return <Empty description={<FormattedMessage id="chunk.viewer.markdown.empty" defaultMessage="No markdown content available for preview." />} />;
     }
 
-    const lines = previewData.markdown_content.split('\n');
-    const [start_line, end_line] = highlightedChunk?.metadata?.md_source_map || [null, null];
-
     return (
-      <div ref={markdownContainerRef} onScroll={handleScroll} style={{ height: '80vh', overflowY: 'auto', border: '1px solid #f0f0f0', padding: '16px', fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
-        {lines.map((line: string, index: number) => {
-          const lineNumber = index + 1;
-          const isHighlighted = start_line !== null && end_line !== null && lineNumber >= start_line + 1 && lineNumber <= end_line + 1;
-          return (
-            <div
-              key={lineNumber}
-              ref={(el) => {
-                if (el) lineRefs.current.set(lineNumber, el);
-                else lineRefs.current.delete(lineNumber);
-              }}
-              className={isHighlighted ? styles.highlightedLine : ''}
-            >
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {line || '\u00A0'}
-              </ReactMarkdown>
-            </div>
-          );
-        })}
+      <div ref={markdownContainerRef} onScroll={handleScroll} className={styles.markdownContainer} style={{ position: 'relative', height: '80vh', overflowY: 'auto', border: '1px solid #f0f0f0', padding: '16px', whiteSpace: 'pre-wrap' }}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm, remarkMath]}
+          rehypePlugins={[rehypeAddLineIds, rehypeRaw, rehypeKatex]}
+          components={markdownComponents}
+          urlTransform={(url) => url.startsWith('asset://') ? url : new URL(url, window.location.href).href}
+        >
+          {previewData.markdown_content}
+        </ReactMarkdown>
       </div>
     );
   };
@@ -450,32 +468,34 @@ export const ChunkViewer = ({ document: initialDoc, collectionId }: ChunkViewerP
           {renderContent()}
         </Col>
         <Col span={12}>
-          <div ref={chunkListRef} style={{ height: '80vh', overflowY: 'auto' }}>
+          <div ref={chunkListRef} onMouseLeave={() => setHighlightedChunk(null)} style={{ height: '80vh', overflowY: 'auto' }}>
             <List
               header={<Typography.Title level={5}><FormattedMessage id="chunk.viewer.chunks.title" defaultMessage="Chunks" /></Typography.Title>}
               bordered
               dataSource={adaptedChunks}
               renderItem={(item: Chunk) => {
-                const isHighlightedByHover = highlightedChunk?.id === item.id;
-                const backgroundColor = isHighlightedByHover ? '#e6f7ff' : 'transparent';
-
+                const isHighlighted = highlightedChunk?.id === item.id;
                 return (
                   <List.Item
                     ref={(el) => {
                       if (el) chunkItemRefs.current.set(item.id, el);
                       else chunkItemRefs.current.delete(item.id);
                     }}
-                    onMouseEnter={() => { isHovering.current = true; setHighlightedChunk(item); }}
-                    onMouseLeave={() => { isHovering.current = false; setHighlightedChunk(null); }}
+                    onMouseEnter={() => setHighlightedChunk(item)}
                     className={styles.chunkListItem}
                     style={{
                       cursor: 'pointer',
-                      backgroundColor,
+                      backgroundColor: isHighlighted ? '#e6f7ff' : 'transparent',
                       transition: 'background-color 0.3s ease',
                     }}
                   >
-                    <div>
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <div className={styles.markdownContainer}>
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm, remarkMath]}
+                        rehypePlugins={[rehypeRaw, rehypeKatex]}
+                        components={markdownComponents}
+                        urlTransform={(url) => url.startsWith('asset://') ? url : new URL(url, window.location.href).href}
+                      >
                         {item.text}
                       </ReactMarkdown>
                     </div>

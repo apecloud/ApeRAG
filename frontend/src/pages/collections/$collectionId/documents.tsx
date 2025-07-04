@@ -184,7 +184,8 @@ export default () => {
           record.name?.split('.').pop()?.toLowerCase() ||
           ('unknow' as keyof typeof defaultStyles);
         const iconProps = _.get(defaultStyles, extension);
-        const isPdf = extension === 'pdf';
+        const isChunkViewable =
+          record.vector_index_status === DocumentVectorIndexStatusEnum.ACTIVE;
         const icon = (
           // @ts-ignore
           <FileIcon
@@ -195,7 +196,7 @@ export default () => {
         );
 
         const handleViewDocument = () => {
-          if (isPdf) {
+          if (isChunkViewable) {
             setViewingDocument(record);
             setViewerVisible(true);
           } else {
@@ -211,9 +212,11 @@ export default () => {
             <Avatar size={36} shape="square" src={icon} />
             <div
               onClick={handleViewDocument}
-              style={{ cursor: isPdf ? 'pointer' : 'default' }}
+              style={{ cursor: isChunkViewable ? 'pointer' : 'default' }}
             >
-              <Typography.Link disabled={!isPdf}>{record.name}</Typography.Link>
+              <Typography.Link disabled={!isChunkViewable}>
+                {record.name}
+              </Typography.Link>
               <Typography.Text type="secondary" style={{ display: 'block' }}>
                 {byteSize(record.size || 0).toString()}
               </Typography.Text>

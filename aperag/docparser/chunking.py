@@ -155,9 +155,6 @@ class Rechunker:
     def _append_part_to_part(self, part: Part, dest: Part | None, titles: list[str]) -> Part:
         if dest is None:
             metadata = part.metadata.copy()
-            if titles and titles[-1] == part.content:
-                # Remove the last title if it is exactly the current part
-                titles = titles[:-1]
             if titles:
                 metadata["titles"] = titles.copy()
             # Normalize to a Part
