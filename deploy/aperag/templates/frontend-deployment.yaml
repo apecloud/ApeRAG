@@ -1,9 +1,6 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  annotations:
-    kompose.cmd: kompose convert -f compose.yml -c -o deploy/aperag
-    kompose.version: 1.26.0 (40646f47)
   labels:
     {{- include "aperag.labels" . | nindent 4 }}
   name: frontend

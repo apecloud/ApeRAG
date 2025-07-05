@@ -10,35 +10,16 @@ check_dependencies
 
 # Function for installing KubeBlocks
 install_kubeblocks() {
+    print "Ready to install kbcli..."
+    if which kbcli &>/dev/null; then
+        print_success "kbcli is already installed, skipping installation."
+    else
+        curl -fsSL https://kubeblocks.io/installer/install_cli.sh | bash -s 0.9.4
+        print_success "kbcli installation complete!"
+    fi
+
     print "Ready to install KubeBlocks."
-
-    # Install CSI Snapshotter CRDs
-    kubectl create -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v8.2.0/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml
-    kubectl create -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v8.2.0/client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml
-    kubectl create -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v8.2.0/client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml
-
-    # Add and update Piraeus repository
-    helm repo add piraeus-charts https://piraeus.io/helm-charts/
-    helm repo update
-
-    # Install snapshot controller
-    helm install snapshot-controller piraeus-charts/snapshot-controller -n kb-system --create-namespace
-    kubectl wait --for=condition=ready pods -l app.kubernetes.io/name=snapshot-controller -n kb-system --timeout=60s
-    print_success "snapshot-controller installation complete!"
-
-    # Install KubeBlocks CRDs
-    kubectl create -f https://github.com/apecloud/kubeblocks/releases/download/${KB_VERSION}/kubeblocks_crds.yaml
-
-    # Add and update KubeBlocks repository
-    helm repo add kubeblocks $HELM_REPO
-    helm repo update
-
-    # Install KubeBlocks
-    helm install kubeblocks kubeblocks/kubeblocks --namespace kb-system --create-namespace --version=${KB_VERSION}
-
-    # Verify installation
-    print "Waiting for KubeBlocks to be ready..."
-    kubectl wait --for=condition=ready pods -l app.kubernetes.io/instance=kubeblocks -n kb-system --timeout=120s
+    kbcli kubeblocks install --version=${KB_VERSION} --namespace=kb-system --create-namespace --set dataProtection.enabled=false
     print_success "KubeBlocks installation complete!"
 }
 

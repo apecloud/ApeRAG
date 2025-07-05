@@ -9,12 +9,11 @@ source "$DATABASE_SCRIPT_DIR/00-config.sh"
 print "Installing database clusters..."
 
 # Install database clusters based on configuration
-[ "$ENABLE_POSTGRESQL" = true ] && print "Installing PostgreSQL cluster..." && helm upgrade --install pg-cluster kubeblocks/postgresql-cluster -f "$DATABASE_SCRIPT_DIR/postgresql/values.yaml" --namespace $NAMESPACE --version $ADDON_CLUSTER_CHART_VERSION
-[ "$ENABLE_REDIS" = true ] && print "Installing Redis cluster..." && helm upgrade --install redis-cluster kubeblocks/redis-cluster -f "$DATABASE_SCRIPT_DIR/redis/values.yaml" --namespace $NAMESPACE --version $ADDON_CLUSTER_CHART_VERSION
-[ "$ENABLE_ELASTICSEARCH" = true ] && print "Installing Elasticsearch cluster..." && helm upgrade --install es-cluster kubeblocks/elasticsearch-cluster -f "$DATABASE_SCRIPT_DIR/elasticsearch/values.yaml" --namespace $NAMESPACE --version $ADDON_CLUSTER_CHART_VERSION
-[ "$ENABLE_QDRANT" = true ] && print "Installing Qdrant cluster..." && helm upgrade --install qdrant-cluster kubeblocks/qdrant-cluster -f "$DATABASE_SCRIPT_DIR/qdrant/values.yaml" --namespace $NAMESPACE --version $ADDON_CLUSTER_CHART_VERSION
-[ "$ENABLE_MONGODB" = true ] && print "Installing MongoDB cluster..." && helm upgrade --install mongodb-cluster kubeblocks/mongodb-cluster -f "$DATABASE_SCRIPT_DIR/mongodb/values.yaml" --namespace $NAMESPACE --version $ADDON_CLUSTER_CHART_VERSION
-[ "$ENABLE_NEO4J" = true ] && print "Installing Neo4j cluster..." && helm upgrade --install neo4j-cluster kubeblocks/neo4j-cluster -f "$DATABASE_SCRIPT_DIR/neo4j/values.yaml" --namespace $NAMESPACE --version $ADDON_CLUSTER_CHART_VERSION
+[ "$ENABLE_POSTGRESQL" = true ] && print "Installing PostgreSQL cluster..." && helm upgrade --install pg-cluster kubeblocks-addons/postgresql-cluster -f "$DATABASE_SCRIPT_DIR/postgresql/values.yaml" --namespace $NAMESPACE --version 0.9.5
+[ "$ENABLE_REDIS" = true ] && print "Installing Redis cluster..." && helm upgrade --install redis-cluster kubeblocks-addons/redis-cluster -f "$DATABASE_SCRIPT_DIR/redis/values.yaml" --namespace $NAMESPACE --version 0.9.3
+[ "$ENABLE_ELASTICSEARCH" = true ] && print "Installing Elasticsearch cluster..." && helm upgrade --install es-cluster kubeblocks-addons/elasticsearch-cluster -f "$DATABASE_SCRIPT_DIR/elasticsearch/values.yaml" --namespace $NAMESPACE --version 0.9.1
+[ "$ENABLE_QDRANT" = true ] && print "Installing Qdrant cluster..." && helm upgrade --install qdrant-cluster kubeblocks-addons/qdrant-cluster -f "$DATABASE_SCRIPT_DIR/qdrant/values.yaml" --namespace $NAMESPACE --version 0.9.1
+[ "$ENABLE_MONGODB" = true ] && print "Installing MongoDB cluster..." && helm upgrade --install mongodb-cluster kubeblocks-addons/mongodb-cluster -f "$DATABASE_SCRIPT_DIR/mongodb/values.yaml" --namespace $NAMESPACE --version 0.9.1
 
 # Wait for databases to be ready
 print "Waiting for databases to be ready..."
