@@ -108,7 +108,10 @@ Supports various document formats (PDF, DOCX, etc.) with intelligent content ext
 **6. Enterprise Management**:
 Built-in audit logging, LLM model management, graph visualization, and comprehensive document management interface.
 
-**7. Developer Friendly**:
+**7. MCP Integration**:
+Full support for Model Context Protocol (MCP), enabling seamless integration with AI assistants and tools for direct knowledge base access and intelligent querying.
+
+**8. Developer Friendly**:
 FastAPI backend, React frontend, async task processing with Celery, extensive testing, and comprehensive development guides for easy contribution and customization.
 
 ## Kubernetes Deployment (Recommended for Production)
