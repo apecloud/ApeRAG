@@ -34,6 +34,30 @@ docker compose up -d
 - **Web 界面**: http://localhost:3000/web/
 - **API 文档**: http://localhost:8000/docs
 
+#### MCP（模型上下文协议）支持
+
+ApeRAG 支持 [MCP（模型上下文协议）](https://modelcontextprotocol.io/) 集成，允许 AI 助手直接与您的知识库交互。启动服务后，使用以下配置您的 MCP 客户端：
+
+```json
+{
+  "mcpServers": {
+    "aperag-mcp": {
+      "url": "http://localhost:8000/mcp",
+      "env": {
+        "APERAG_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+**重要提示**：将 `http://localhost:8000` 替换为您实际的 ApeRAG API 地址，将 `your-api-key-here` 替换为 ApeRAG 设置中的有效 API 密钥。
+
+MCP 服务器提供：
+- **集合浏览**：列出和探索您的知识集合
+- **混合搜索**：使用向量、全文和图搜索方法
+- **智能查询**：对您的文档提出自然语言问题
+
 #### 增强文档解析
 
 为了获得增强的文档解析能力，ApeRAG 支持由 MinerU 驱动的**高级文档解析服务**，可为复杂文档、表格和公式提供优异的解析能力。

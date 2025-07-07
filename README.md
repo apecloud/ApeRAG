@@ -34,6 +34,30 @@ After running, you can access ApeRAG in your browser at:
 - **Web Interface**: http://localhost:3000/web/
 - **API Documentation**: http://localhost:8000/docs
 
+#### MCP (Model Context Protocol) Support
+
+ApeRAG supports [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) integration, allowing AI assistants to interact with your knowledge base directly. After starting the services, configure your MCP client with:
+
+```json
+{
+  "mcpServers": {
+    "aperag-mcp": {
+      "url": "http://localhost:8000/mcp",
+      "env": {
+        "APERAG_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+**Important**: Replace `http://localhost:8000` with your actual ApeRAG API URL and `your-api-key-here` with a valid API key from your ApeRAG settings.
+
+The MCP server provides:
+- **Collection browsing**: List and explore your knowledge collections
+- **Hybrid search**: Search using vector, full-text, and graph methods
+- **Intelligent querying**: Ask natural language questions about your documents
+
 #### Enhanced Document Parsing
 
 For enhanced document parsing capabilities, ApeRAG supports an **advanced document parsing service** powered by MinerU, which provides superior parsing for complex documents, tables, and formulas. 
