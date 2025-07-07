@@ -1,0 +1,24 @@
+$schema: ./schema/mcp-agent.config.schema.json
+
+execution_engine: asyncio
+
+logger:
+  type: console
+  level: info
+
+mcp:
+  servers:
+    aperag:
+      transport: "streamable_http"
+      url: "http://localhost:8000/mcp/"
+      headers:
+        Authorization: "Bearer sk-test"
+        Content-Type: "application/json"
+      http_timeout_seconds: 30
+      read_timeout_seconds: 120
+      description: "ApeRAG knowledge base server"
+
+openai:
+  default_model: gpt-4o-mini
+  temperature: 0.7
+  max_tokens: 2000 
