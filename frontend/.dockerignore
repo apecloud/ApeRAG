@@ -5,7 +5,6 @@ yarn-debug.log*
 yarn-error.log*
 
 # Production build
-dist/
 build/
 
 # Development
