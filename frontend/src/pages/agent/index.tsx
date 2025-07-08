@@ -295,10 +295,8 @@ export default function AgentPage() {
                           onChange={(e) => handleCollectionToggle(collection.id, e.target.checked)}
                         >
                           <div className={styles.collectionInfo}>
-                            <Text strong>{collection.name}</Text>
-                            <Text type="secondary" className={styles.collectionCount}>
-                              ({collection.documentCount} docs)
-                            </Text>
+                            <span className={styles.collectionName}>{collection.name}</span>
+                            <span className={styles.collectionCount}>{collection.documentCount}</span>
                           </div>
                         </Checkbox>
                       </div>

@@ -320,36 +320,36 @@
 .collectionDropdown {
   background: white;
   border: 1px solid #e5e7eb;
-  border-radius: 16px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
-  width: 320px;
-  max-height: 320px;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  width: 280px;
+  max-height: 280px;
   overflow: hidden;
 
   .dropdownHeader {
-    padding: 16px;
+    padding: 12px;
     border-bottom: 1px solid #f3f4f6;
     
     .ant-input {
-      border-radius: 12px;
+      border-radius: 8px;
       border: 1px solid #e5e7eb;
-      padding: 8px 12px;
-      font-size: 14px;
+      padding: 6px 10px;
+      font-size: 13px;
       
       &:focus {
         border-color: #10a37f;
-        box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.1);
+        box-shadow: 0 0 0 2px rgba(16, 163, 127, 0.1);
       }
     }
   }
 
   .dropdownContent {
-    max-height: 240px;
+    max-height: 200px;
     overflow-y: auto;
-    padding: 8px 0;
+    padding: 4px 0;
 
     &::-webkit-scrollbar {
-      width: 4px;
+      width: 3px;
     }
 
     &::-webkit-scrollbar-track {
@@ -358,29 +358,41 @@
 
     &::-webkit-scrollbar-thumb {
       background: rgba(0, 0, 0, 0.1);
-      border-radius: 8px;
+      border-radius: 6px;
     }
   }
 
   .collectionItem {
-    padding: 12px 16px;
+    padding: 6px 12px;
     cursor: pointer;
-    transition: background-color 0.2s ease;
+    transition: background-color 0.15s ease;
     
     &:hover {
-      background: #f9fafb;
+      background: #f8fafc;
     }
 
     .ant-checkbox-wrapper {
       width: 100%;
+      margin: 0;
       
       .ant-checkbox {
+        margin-right: 8px;
+        
         .ant-checkbox-inner {
-          border-radius: 6px;
+          width: 14px;
+          height: 14px;
+          border-radius: 4px;
           border-color: #d1d5db;
           
           &:hover {
             border-color: #10a37f;
+          }
+          
+          &:after {
+            width: 4px;
+            height: 8px;
+            left: 3px;
+            top: 0px;
           }
         }
         
@@ -392,21 +404,32 @@
     }
 
     .collectionInfo {
-      margin-left: 12px;
       display: flex;
-      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      min-width: 0;
       
-      span:first-child {
-        font-size: 14px;
+      .collectionName {
+        font-size: 13px;
         font-weight: 500;
         color: #374151;
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-right: 8px;
       }
       
       .collectionCount {
-        font-size: 12px;
-        margin-top: 2px;
-        color: #6b7280;
+        font-size: 11px;
+        color: #9ca3af;
         font-weight: 400;
+        background: #f3f4f6;
+        padding: 1px 6px;
+        border-radius: 10px;
+        min-width: fit-content;
+        text-align: center;
       }
     }
   }
@@ -524,28 +547,53 @@
       }
     }
 
-    .collectionDropdown {
-      width: calc(100vw - 32px);
-      max-width: 300px;
-      
-      .dropdownHeader {
-        padding: 12px;
-      }
-      
-      .collectionItem {
-        padding: 10px 12px;
+          .collectionDropdown {
+        width: calc(100vw - 24px);
+        max-width: 260px;
         
-        .collectionInfo {
-          span:first-child {
-            font-size: 13px;
+        .dropdownHeader {
+          padding: 10px;
+          
+          .ant-input {
+            padding: 5px 8px;
+            font-size: 12px;
+          }
+        }
+        
+        .collectionItem {
+          padding: 5px 10px;
+          
+          .ant-checkbox-wrapper {
+            .ant-checkbox {
+              margin-right: 6px;
+              
+              .ant-checkbox-inner {
+                width: 12px;
+                height: 12px;
+                
+                &:after {
+                  width: 3px;
+                  height: 6px;
+                  left: 2px;
+                  top: 0px;
+                }
+              }
+            }
           }
           
-          .collectionCount {
-            font-size: 11px;
+          .collectionInfo {
+            .collectionName {
+              font-size: 12px;
+              margin-right: 6px;
+            }
+            
+            .collectionCount {
+              font-size: 10px;
+              padding: 1px 4px;
+            }
           }
         }
       }
-    }
     
     .message {
       .messageContent {
