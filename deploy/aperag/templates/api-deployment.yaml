@@ -13,6 +13,7 @@ spec:
     matchLabels:
       {{- include "aperag.selectorLabels" . | nindent 6 }}
       {{- include "api.labels" . | nindent 6 }}
+  revisionHistoryLimit: 1
   strategy:
     type: RollingUpdate
     

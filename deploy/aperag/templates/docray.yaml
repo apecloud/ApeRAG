@@ -34,6 +34,9 @@ spec:
     matchLabels:
       {{- include "aperag.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: docray
+  revisionHistoryLimit: 1
+  strategy:
+    type: RollingUpdate
   template:
     metadata:
       labels:
