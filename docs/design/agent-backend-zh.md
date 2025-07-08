@@ -187,7 +187,6 @@ web_search(query, max_results, search_engine, ...)
   "query": "ApeRAG 2025年最新发展",
   "max_results": 5,                    // 可选，默认5
   "search_engine": "google",           // 可选，默认google
-  "include_content": false,            // 可选，默认false，是否包含完整页面内容
   "timeout": 30,                       // 可选，超时时间（秒）
   "locale": "zh-CN"                    // 可选，浏览器语言
 }
@@ -203,7 +202,6 @@ web_search(query, max_results, search_engine, ...)
       "title": "ApeRAG 2025年技术路线图",
       "url": "https://example.com/aperag-2025-roadmap",
       "snippet": "ApeRAG在2025年将重点发展...",
-      "content": "# ApeRAG 2025年技术路线图\n\n...",  // 仅当include_content=true时包含
       "domain": "example.com",
       "timestamp": "2025-01-01T00:00:00Z"
     }
