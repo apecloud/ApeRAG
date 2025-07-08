@@ -38,8 +38,7 @@ export const collection = {
   'collection.use_mineru': 'Use MinerU API to parse documents',
   'collection.use_mineru.extra':
     "When turned off, the system's built-in parser will be used.",
-  'collection.mineru_api_token.placeholder':
-    "Please enter your API Token",
+  'collection.mineru_api_token.placeholder': 'Please enter your API Token',
   'collection.mineru_api_token.required': 'API Token is required',
   'collection.mineru_api_token.extra':
     'Tips: The official MinerU API Token is valid for 14 days, please replace it before it expires.',

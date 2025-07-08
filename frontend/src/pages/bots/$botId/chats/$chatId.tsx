@@ -21,7 +21,7 @@ export default () => {
   const protocol = window.location.protocol === 'http:' ? 'ws://' : 'wss://';
   const host = window.location.host;
 
-  const { sendMessage, readyState } = useWebSocket(
+  const { sendMessage, readyState, disconnect, connect } = useWebSocket(
     `${protocol}${host}/api/v1/bots/${botId}/chats/${chatId}/connect`,
     {
       onMessage: (message) => {
@@ -87,6 +87,12 @@ export default () => {
     sendMessage(JSON.stringify(msg));
   }, []);
 
+  const handleCancel = useCallback(() => {
+    disconnect();
+    connect();
+    setLoading(false);
+  }, []);
+
   const onVote = async (item: ChatMessage, feedback: Feedback) => {
     if (!botId || !chatId || !item.id) return;
 
@@ -123,7 +129,7 @@ export default () => {
   }, [messages, chat]);
 
   return (
-    <PageContainer style={{ paddingBottom: 100 }}>
+    <PageContainer style={{ paddingBottom: 140 }}>
       {!_.isEmpty(chat) && _.isEmpty(messages) ? (
         <Result
           icon={
@@ -148,10 +154,11 @@ export default () => {
           );
         })
       )}
-
       <ChatInput
-        loading={readyState !== ReadyState.Open || loading}
+        disabled={readyState !== ReadyState.Open}
+        loading={loading}
         onSubmit={onSubmit}
+        onCancel={handleCancel}
       />
     </PageContainer>
   );

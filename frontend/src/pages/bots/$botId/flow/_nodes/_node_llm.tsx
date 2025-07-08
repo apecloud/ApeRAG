@@ -98,7 +98,6 @@ export const ApeNodeLlm = ({ node }: { node: ApeNode }) => {
                     />
                   </Form.Item>
                   <Form.Item
-                    required
                     label={formatMessage({ id: 'flow.temperature' })}
                     tooltip={formatMessage({ id: 'flow.temperature.tips' })}
                   >

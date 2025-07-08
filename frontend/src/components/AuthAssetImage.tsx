@@ -1,7 +1,7 @@
 import { api } from '@/services';
 import { useRequest } from 'ahooks';
-import { Spin, Image } from 'antd';
-import { useEffect, useState, useRef } from 'react';
+import { Image, Spin } from 'antd';
+import { useEffect, useRef, useState } from 'react';
 
 interface AuthAssetImageProps {
   src: string;
@@ -10,7 +10,12 @@ interface AuthAssetImageProps {
   onLoad?: () => void;
 }
 
-export const AuthAssetImage = ({ src, collectionId, documentId, onLoad }: AuthAssetImageProps) => {
+export const AuthAssetImage = ({
+  src,
+  collectionId,
+  documentId,
+  onLoad,
+}: AuthAssetImageProps) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isIntersecting, setIntersecting] = useState(false);
   const placeholderRef = useRef<HTMLDivElement>(null);
@@ -96,13 +101,29 @@ export const AuthAssetImage = ({ src, collectionId, documentId, onLoad }: AuthAs
 
   // If the image has been loaded, display it.
   if (imageUrl) {
-    return <Image src={imageUrl} alt={src} style={{ maxWidth: '100%' }} onLoad={onLoad} />;
+    return (
+      <Image
+        src={imageUrl}
+        alt={src}
+        style={{ maxWidth: '100%' }}
+        onLoad={onLoad}
+      />
+    );
   }
 
   // Otherwise, render a placeholder that will be observed for lazy loading.
   // A min-height is set to prevent layout shift when the image loads.
   return (
-    <div ref={placeholderRef} style={{ minHeight: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+    <div
+      ref={placeholderRef}
+      style={{
+        minHeight: 50,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
+      }}
+    >
       {isIntersecting && loading && <Spin />}
     </div>
   );

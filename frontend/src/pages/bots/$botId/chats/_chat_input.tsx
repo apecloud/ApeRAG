@@ -1,6 +1,6 @@
 import { NAVIGATION_WIDTH, SIDEBAR_WIDTH } from '@/constants';
-import { SendOutlined } from '@ant-design/icons';
-import { Button, GlobalToken, Input, theme, Typography } from 'antd';
+import { PauseCircleFilled, PlayCircleFilled } from '@ant-design/icons';
+import { GlobalToken, Input, Space, theme } from 'antd';
 import alpha from 'color-alpha';
 import _ from 'lodash';
 import { useState } from 'react';
@@ -26,25 +26,42 @@ export const StyledChatInputContainer = styled('div').withConfig({
   }}
 `;
 
-export const StyledChatInput = styled(Input).withConfig({
+export const StyledChatInput = styled(Input.TextArea).withConfig({
+  shouldForwardProp: (prop) => !['token'].includes(prop),
+})<{ token: GlobalToken }>`
+  ${() => {
+    return css`
+      background: none !important;
+      border: none !important;
+      box-shadow: none !important;
+      resize: none !important;
+      padding: 0;
+    `;
+  }}
+`;
+
+export const StyledChatInputOuter = styled('div').withConfig({
   shouldForwardProp: (prop) => !['token'].includes(prop),
 })<{ token: GlobalToken }>`
   ${({ token }) => {
     return css`
-      background: none !important;
-      border-radius: 100px;
-      padding: 8px 8px 8px 24px;
       width: 75%;
       box-shadow: ${token.boxShadow};
-      border-color: ${token.colorPrimary};
+      border-radius: 12px;
+      background: ${token.colorBgContainer};
+      padding: 12px;
     `;
   }}
 `;
 
 export const ChatInput = ({
+  onCancel,
   onSubmit,
   loading,
+  disabled,
 }: {
+  disabled: boolean;
+  onCancel: () => void;
   onSubmit: (v: string) => void;
   loading?: boolean;
 }) => {
@@ -53,6 +70,8 @@ export const ChatInput = ({
   const { formatMessage } = useIntl();
 
   const onPressEnter = async () => {
+    if (disabled) return;
+
     const data = _.trim(value);
     if (loading || _.isEmpty(data)) return;
     onSubmit(data);
@@ -61,30 +80,57 @@ export const ChatInput = ({
 
   return (
     <StyledChatInputContainer token={token}>
-      <StyledChatInput
-        value={value}
-        onChange={(e) => setValue(e.currentTarget.value)}
-        token={token}
-        onPressEnter={() => onPressEnter()}
-        placeholder={formatMessage(
-          { id: 'chat.input_placeholder' },
-          { title: APERAG_CONFIG.title },
-        )}
-        autoFocus
-        suffix={
-          <Button
+      <StyledChatInputOuter token={token}>
+        <StyledChatInput
+          value={value}
+          onChange={(e) => setValue(e.currentTarget.value)}
+          token={token}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' || e.shiftKey) return;
+            onPressEnter();
+            e.preventDefault();
+          }}
+          placeholder={formatMessage(
+            { id: 'chat.input_placeholder' },
+            { title: APERAG_CONFIG.title },
+          )}
+          rows={2}
+          autoSize={false}
+          autoFocus
+        />
+        <Space style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <div />
+          {/* <Button
+            type="primary"
             loading={loading}
-            type="text"
             shape="circle"
             onClick={() => onPressEnter()}
-            icon={
-              <Typography.Text type="secondary">
-                <SendOutlined />
-              </Typography.Text>
-            }
-          />
-        }
-      />
+            icon={<CaretRightFilled />}
+          /> */}
+
+          <div
+            onClick={() => {
+              if (disabled) return;
+
+              if (loading) {
+                onCancel();
+              } else {
+                onPressEnter();
+              }
+            }}
+            style={{
+              cursor: 'pointer',
+              color: disabled ? token.colorTextDisabled : token.colorPrimary,
+              fontSize: 32,
+              width: 32,
+              height: 32,
+              display: 'flex',
+            }}
+          >
+            {loading ? <PauseCircleFilled /> : <PlayCircleFilled />}
+          </div>
+        </Space>
+      </StyledChatInputOuter>
     </StyledChatInputContainer>
   );
 };

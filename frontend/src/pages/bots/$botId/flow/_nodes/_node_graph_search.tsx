@@ -49,10 +49,7 @@ export const ApeNodeGraphSearch = ({ node }: { node: ApeNode }) => {
             children: (
               <>
                 <Form layout="vertical" autoComplete="off">
-                  <Form.Item
-                    required
-                    label={formatMessage({ id: 'collection.name' })}
-                  >
+                  <Form.Item label={formatMessage({ id: 'collection.name' })}>
                     <Select
                       variant="filled"
                       mode="multiple"
@@ -70,7 +67,6 @@ export const ApeNodeGraphSearch = ({ node }: { node: ApeNode }) => {
                     />
                   </Form.Item>
                   <Form.Item
-                    required
                     label={formatMessage({ id: 'flow.top_k' })}
                     tooltip={formatMessage({ id: 'flow.top_k.tips' })}
                     style={{ marginBottom: 0 }}

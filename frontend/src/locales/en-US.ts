@@ -240,12 +240,14 @@ export default {
   'document.index.rebuild.success': 'Index rebuild task initiated',
   'document.index.rebuild.failed': 'Index rebuild failed',
   'document.view.title': 'View: {name}',
-  'document.view.unsupportedFormat': 'This file format is not supported for viewing.',
+  'document.view.unsupportedFormat':
+    'This file format is not supported for viewing.',
 
   'chunk.viewer.chunks.title': 'Chunks',
   'chunk.viewer.markdown.empty': 'No markdown content available for preview.',
   'chunk.viewer.data.loadFailed': 'Failed to load preview data.',
-  'chunk.viewer.unsupported': 'This document format is not supported for preview.',
+  'chunk.viewer.unsupported':
+    'This document format is not supported for preview.',
 
   flow: '---------------',
   'flow.name': 'Workflow',

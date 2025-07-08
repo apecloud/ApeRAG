@@ -426,10 +426,7 @@ export default () => {
         destroyOnClose
       >
         {viewingDocument && collectionId && (
-          <ChunkViewer
-            document={viewingDocument}
-            collectionId={collectionId}
-          />
+          <ChunkViewer document={viewingDocument} collectionId={collectionId} />
         )}
       </Drawer>
 

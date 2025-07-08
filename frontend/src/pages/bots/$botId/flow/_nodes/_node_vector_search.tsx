@@ -66,7 +66,6 @@ export const ApeNodeVectorSearch = ({ node }: { node: ApeNode }) => {
                     />
                   </Form.Item>
                   <Form.Item
-                    required
                     label={formatMessage({ id: 'flow.top_k' })}
                     tooltip={formatMessage({ id: 'flow.top_k.tips' })}
                   >
@@ -83,7 +82,6 @@ export const ApeNodeVectorSearch = ({ node }: { node: ApeNode }) => {
                     />
                   </Form.Item>
                   <Form.Item
-                    required
                     label={formatMessage({ id: 'flow.similarity_threshold' })}
                     tooltip={formatMessage({
                       id: 'flow.similarity_threshold.tips',

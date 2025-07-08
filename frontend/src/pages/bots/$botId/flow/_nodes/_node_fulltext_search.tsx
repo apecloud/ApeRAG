@@ -71,7 +71,6 @@ export const ApeNodeFulltextSearch = ({ node }: { node: ApeNode }) => {
                     />
                   </Form.Item>
                   <Form.Item
-                    required
                     label={formatMessage({ id: 'flow.top_k' })}
                     tooltip={formatMessage({ id: 'flow.top_k.tips' })}
                   >

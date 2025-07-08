@@ -122,7 +122,6 @@ export const ApeNodeMerge = ({ node }: { node: ApeNode }) => {
                   />
                 </Form.Item>
                 <Form.Item
-                  required
                   label={formatMessage({ id: 'flow.merge.deduplicate' })}
                   valuePropName="checked"
                   tooltip={formatMessage({ id: 'flow.merge.deduplicate.tips' })}
