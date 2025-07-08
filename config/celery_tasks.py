@@ -189,8 +189,8 @@ class BaseIndexTask(Task):
     
 # ========== Core Document Processing Tasks ==========
 
-@current_app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3, 'countdown': 60})
-def parse_document_task(self, document_id: str) -> dict:
+@current_app.task(bind=True, base=BaseIndexTask, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3, 'countdown': 60})
+def parse_document_task(self, document_id: str, index_types: List[str]) -> dict:
     """
     Parse document content task
     
@@ -208,6 +208,11 @@ def parse_document_task(self, document_id: str) -> dict:
     except Exception as e:
         error_msg = f"Failed to parse document {document_id}: {str(e)}"
         logger.error(error_msg, exc_info=True)
+
+        # Only mark as failed if all retries are exhausted
+        if self.request.retries >= self.max_retries:
+            self._handle_index_failure(document_id, index_types, error_msg)
+
         raise
 
 
@@ -621,7 +626,7 @@ def create_document_indexes_workflow(document_id: str, index_types: List[str], c
     logger.info(f"Starting create indexes workflow for document {document_id} with types: {index_types}")
     # Create the workflow chain: parse -> dynamic trigger
     workflow_chain = chain(
-        parse_document_task.s(document_id),
+        parse_document_task.s(document_id, index_types),
         trigger_create_indexes_workflow.s(document_id, index_types, context)
     )
     
@@ -672,7 +677,7 @@ def update_document_indexes_workflow(document_id: str, index_types: List[str], c
     
     # Create the workflow chain: parse -> dynamic trigger
     workflow_chain = chain(
-        parse_document_task.s(document_id),
+        parse_document_task.s(document_id, index_types),
         trigger_update_indexes_workflow.s(document_id, index_types, context)
     )
     
