@@ -159,7 +159,7 @@ jobs:
       REMOVE_PREFIX: false
       APECD_REF: "v0.1.93"
       ENABLE_SUBMODULE: true
-      MAKE_OPS_PRE: "build-aperag-frontend"
+      MAKE_OPS_PRE: "build-aperag-frontend-assets"
     secrets: inherit
 
   release-aperag-frontend-result:

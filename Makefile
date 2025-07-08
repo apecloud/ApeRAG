@@ -255,6 +255,10 @@ clean-builder:
 		docker buildx rm multi-platform; \
 	fi
 
+build-aperag-frontend-assets:
+	cp frontend/deploy/env.local.template frontend/.env
+	cd frontend && yarn install && yarn build
+
 # Production builds (multi-platform with registry push)
 .PHONY: build build-aperag build-aperag-frontend
 build: build-aperag build-aperag-frontend
@@ -264,9 +268,7 @@ build-aperag: setup-builder version
 		--platform $(BUILDX_PLATFORM) $(BUILDX_ARGS) --push \
 		-f ./Dockerfile .
 
-build-aperag-frontend: setup-builder
-	cp frontend/deploy/env.local.template frontend/.env
-	cd frontend && yarn install && yarn build
+build-aperag-frontend: setup-builder build-aperag-frontend-assets
 	cd frontend && docker buildx build \
 		--platform=$(BUILDX_PLATFORM) -f Dockerfile --push \
 		-t $(REGISTRY)/$(APERAG_FRONTEND_IMG):$(VERSION) .
@@ -280,9 +282,7 @@ build-aperag-local: setup-builder version
 		--platform $(LOCAL_PLATFORM) $(BUILDX_ARGS) --load \
 		-f ./Dockerfile .
 
-build-aperag-frontend-local: setup-builder
-	cp frontend/deploy/env.local.template frontend/.env
-	cd frontend && yarn install && yarn build
+build-aperag-frontend-local: setup-builder build-aperag-frontend-assets
 	cd frontend && docker buildx build \
 		--platform=$(LOCAL_PLATFORM) -f Dockerfile --load \
 		-t $(APERAG_FRONTEND_IMG):$(VERSION) .
