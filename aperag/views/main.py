@@ -97,6 +97,18 @@ async def delete_collection_view(
     return await collection_service.delete_collection(str(user.id), collection_id)
 
 
+@router.post("/collections/test-mineru-token")
+async def test_mineru_token_view(
+    request: Request,
+    data: dict = Body(...),
+    user: User = Depends(current_user),
+):
+    token = data.get("token")
+    if not token:
+        raise HTTPException(status_code=400, detail="Token is required")
+    return await collection_service.test_mineru_token(token)
+
+
 @router.post("/collections/{collection_id}/documents")
 @audit(resource_type="document", api_name="CreateDocuments")
 async def create_documents_view(

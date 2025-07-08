@@ -3028,6 +3028,7 @@ components:
       properties:
         doc_object_path:
           type: string
+          nullable: true
           description: The path to the document object.
         doc_filename:
           type: string
