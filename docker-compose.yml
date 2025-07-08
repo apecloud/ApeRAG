@@ -220,7 +220,7 @@ services:
   # DocRay Services (existing profiles)
   # ==============================================
   docray:
-    image: ${REGISTRY:-docker.io}/apecloud/doc-ray:${DOCRAY_VERSION:-v0.1.1}
+    image: ${REGISTRY:-docker.io}/apecloud/doc-ray:${DOCRAY_VERSION:-v0.2.0}
     container_name: aperag-docray
     ports:
       - "8265:8265"
@@ -234,7 +234,7 @@ services:
           memory: "8G"
 
   docray-gpu:
-    image: ${REGISTRY:-docker.io}/apecloud/doc-ray:${DOCRAY_VERSION:-v0.1.1}
+    image: ${REGISTRY:-docker.io}/apecloud/doc-ray:${DOCRAY_VERSION:-v0.2.0}
     container_name: aperag-docray-gpu
     ports:
       - "8265:8265"

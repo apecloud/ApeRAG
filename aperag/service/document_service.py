@@ -522,7 +522,10 @@ class DocumentService:
                 # If the parsing result contains pdf_source_map metadata,
                 # it means it is a PDF or has been converted to a PDF.
                 # But only converted documents have a converted.pdf file.
-                converted_pdf_object_path = "converted.pdf"
+                pdf_path = f"{document.object_store_base_path()}/converted.pdf"
+                exists = await sync_to_async(obj_store.obj_exists)(pdf_path)
+                if exists:
+                    converted_pdf_object_path = "converted.pdf"
 
             # 5. Construct and return response
             return DocumentPreview(

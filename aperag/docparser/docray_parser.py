@@ -26,6 +26,7 @@ from aperag.docparser.base import (
     BaseParser,
     FallbackError,
     Part,
+    PdfPart,
 )
 from aperag.docparser.mineru_common import middle_json_to_parts, to_md_part
 
@@ -112,7 +113,12 @@ class DocRayParser(BaseParser):
             parts = middle_json_to_parts(temp_dir_path / "images", middle_json, metadata)
             if not parts:
                 return []
-            # TODO: add PdfPart
+
+            pdf_data = result.get("pdf_data", None)
+            if pdf_data:
+                pdf_part = PdfPart(data=base64.b64decode(pdf_data), metadata=metadata.copy())
+                parts.append(pdf_part)
+
             md_part = to_md_part(parts, metadata.copy())
             return [md_part] + parts
 

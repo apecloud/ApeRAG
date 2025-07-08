@@ -14,7 +14,7 @@ service:
 ingress:
   className: ""
   annotations: {}
-  
+
 postgres:
   enabled: true  # Enable/disable PostgreSQL database integration
   POSTGRES_HOST: "pg-cluster-postgresql-postgresql"
@@ -286,7 +286,7 @@ docray:
   enabled: true
   image:
     repository: "docker.io/apecloud/doc-ray"
-    tag: "v0.1.1"
+    tag: "v0.2.0"
     pullPolicy: "IfNotPresent"
   service:
     type: ClusterIP
@@ -295,10 +295,10 @@ docray:
   resources:
     requests:
       cpu: "4"
-      memory: "8Gi"
+      memory: "10Gi"
     limits:
       cpu: "8"
-      memory: "8Gi"
+      memory: "10Gi"
 
   gpu:
     enabled: false
@@ -306,11 +306,11 @@ docray:
     resources:
       requests:
         cpu: "2"
-        memory: "4Gi"
+        memory: "6Gi"
         nvidia.com/gpu: "1" # Request 1 GPU
       limits:
         cpu: "8"
-        memory: "8Gi"
+        memory: "10Gi"
         nvidia.com/gpu: "1" # Limit to 1 GPU
 
   # nodeSelector allows scheduling pods on nodes with specific labels (e.g., GPU-enabled nodes)
