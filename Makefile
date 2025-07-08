@@ -265,9 +265,10 @@ build-aperag: setup-builder version
 		-f ./Dockerfile .
 
 build-aperag-frontend: setup-builder
-	cd frontend && BASE_PATH=/web/ yarn build
+	cp frontend/deploy/env.local.template frontend/.env
+	cd frontend && yarn install && yarn build
 	cd frontend && docker buildx build \
-		--platform=$(BUILDX_PLATFORM) -f Dockerfile.prod --push \
+		--platform=$(BUILDX_PLATFORM) -f Dockerfile --push \
 		-t $(REGISTRY)/$(APERAG_FRONTEND_IMG):$(VERSION) .
 
 # Local builds (single platform for testing)
@@ -280,9 +281,10 @@ build-aperag-local: setup-builder version
 		-f ./Dockerfile .
 
 build-aperag-frontend-local: setup-builder
-	cd frontend && BASE_PATH=/web/ yarn build
+	cp frontend/deploy/env.local.template frontend/.env
+	cd frontend && yarn install && yarn build
 	cd frontend && docker buildx build \
-		--platform=$(LOCAL_PLATFORM) -f Dockerfile.prod --load \
+		--platform=$(LOCAL_PLATFORM) -f Dockerfile --load \
 		-t $(APERAG_FRONTEND_IMG):$(VERSION) .
 
 # Kubernetes deployment helpers
