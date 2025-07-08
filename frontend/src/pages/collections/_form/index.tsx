@@ -112,7 +112,9 @@ export default ({ onSubmit, action, values, form }: Props) => {
     setTestResult(null);
     const token = form.getFieldValue(configParserMineruApiTokenKey);
     if (!token) {
-      message.error(formatMessage({ id: 'collection.mineru_api_token.required' }));
+      message.error(
+        formatMessage({ id: 'collection.mineru_api_token.required' }),
+      );
       setIsTesting(false);
       return;
     }
@@ -147,7 +149,9 @@ export default ({ onSubmit, action, values, form }: Props) => {
       } else if (status_code === 404 || (res && res.code === -60012)) {
         setTestResult({
           type: 'success',
-          message: formatMessage({ id: 'collection.mineru_api_token.test.valid' }),
+          message: formatMessage({
+            id: 'collection.mineru_api_token.test.valid',
+          }),
         });
       } else {
         setTestResult({
@@ -160,7 +164,9 @@ export default ({ onSubmit, action, values, form }: Props) => {
     } catch (error) {
       setTestResult({
         type: 'danger',
-        message: formatMessage({ id: 'collection.mineru_api_token.test.fetch_error' }),
+        message: formatMessage({
+          id: 'collection.mineru_api_token.test.fetch_error',
+        }),
       });
     } finally {
       setIsTesting(false);

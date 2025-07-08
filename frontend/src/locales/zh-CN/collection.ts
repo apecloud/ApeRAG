@@ -38,7 +38,6 @@ export const collection = {
   'collection.mineru_api_token.required': '请输入API Token',
   'collection.mineru_api_token.extra':
     'Tips: MinerU API Token 官方有效期为 14 天，请在过期前及时更换。',
-  'collection.mineru_api_token.extra': 'Tips: MinerU API Token 官方有效期为 14 天，请在过期前及时更换。',
   'collection.mineru_api_token.test.valid': 'Token 有效',
   'collection.mineru_api_token.test.invalid': '无效的 Token',
   'collection.mineru_api_token.test.expired': 'Token 已过期',
