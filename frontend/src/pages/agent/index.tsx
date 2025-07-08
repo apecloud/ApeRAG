@@ -146,7 +146,9 @@ export default function AgentPage() {
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      if (inputValue.trim() && !isLoading) {
+        handleSendMessage();
+      }
     }
   };
 
@@ -221,120 +223,114 @@ export default function AgentPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Collection Selection Area */}
-      <div className={styles.collectionArea}>
-        <Dropdown
-          open={collectionDropdownOpen}
-          onOpenChange={setCollectionDropdownOpen}
-          placement="topLeft"
-          trigger={['click']}
-          dropdownRender={() => (
-            <div className={styles.collectionDropdown}>
-              <div className={styles.dropdownHeader}>
-                <Input
-                  placeholder="🔍 搜索collection..."
-                  value={searchKeyword}
-                  onChange={(e) => setSearchKeyword(e.target.value)}
-                  allowClear
-                  size="small"
-                />
-              </div>
-              <div className={styles.dropdownContent}>
-                {filteredCollections.map((collection) => (
-                  <div key={collection.id} className={styles.collectionItem}>
-                    <Checkbox
-                      checked={selectedCollections.includes(collection.id)}
-                      onChange={(e) => handleCollectionToggle(collection.id, e.target.checked)}
-                    >
-                      <div className={styles.collectionInfo}>
-                        <Text strong>{collection.name}</Text>
-                        <Text type="secondary" className={styles.collectionCount}>
-                          ({collection.documentCount} docs)
-                        </Text>
-                      </div>
-                    </Checkbox>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        >
-          <Button
-            type="text"
-            className={styles.addCollectionBtn}
-          >
-            @
-          </Button>
-        </Dropdown>
-        
-        {selectedCollections.length === 0 ? (
-          <Text type="secondary" className={styles.placeholder}>
-            点击 @ 选择knowledge collection
-          </Text>
-        ) : (
-          <Space wrap>
-            {selectedCollections.map(id => (
-              <Tag
-                key={id}
-                closable
-                onClose={() => removeCollection(id)}
-                className={styles.collectionTag}
-              >
-                @{getCollectionName(id)}
-              </Tag>
-            ))}
-          </Space>
-        )}
-      </div>
-
-      {/* Input Area */}
-      <div className={styles.inputArea}>
-        <div className={styles.inputContainer}>
-          <TextArea
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Message ApeRAG Agent..."
-            autoSize={{ minRows: 3, maxRows: 8 }}
-            className={styles.messageInput}
-            disabled={isLoading}
-          />
-          {inputValue.trim() && !isLoading && (
-            <Button
-              type="text"
-              icon={<SendOutlined />}
-              onClick={handleSendMessage}
-              className={styles.sendIcon}
-              size="small"
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Bottom Control Bar */}
-      <div className={styles.controlBar}>
-        <div className={styles.leftControls}>
-          <div className={styles.webSearchToggle}>
-            <Space>
-              <SearchOutlined />
-              <Switch
-                checked={webSearchEnabled}
-                onChange={setWebSearchEnabled}
-                size="small"
-              />
-              <Text type={webSearchEnabled ? 'default' : 'secondary'}>
-                Web Search
-              </Text>
+      {/* Integrated Input Area */}
+      <div className={styles.chatContainer}>
+        {/* Collection Tags (when selected) */}
+        {selectedCollections.length > 0 && (
+          <div className={styles.selectedCollections}>
+            <Space wrap size={[4, 4]}>
+              {selectedCollections.map(id => (
+                <Tag
+                  key={id}
+                  closable
+                  onClose={() => removeCollection(id)}
+                  className={styles.collectionTag}
+                >
+                  @{getCollectionName(id)}
+                </Tag>
+              ))}
             </Space>
           </div>
+        )}
+
+        {/* Text Input Area */}
+        <div className={styles.inputWrapper}>
+          <div className={styles.inputContainer}>
+            <TextArea
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Message ApeRAG Agent..."
+              autoSize={{ minRows: 1, maxRows: 6 }}
+              className={styles.messageInput}
+              disabled={isLoading}
+              bordered={false}
+            />
+            {inputValue.trim() && !isLoading && (
+              <Button
+                type="text"
+                icon={<SendOutlined />}
+                onClick={handleSendMessage}
+                className={styles.sendButton}
+                size="small"
+              />
+            )}
+          </div>
         </div>
-        
-        <div className={styles.rightControls}>
-          <div className={styles.modelSelector}>
+
+        {/* Bottom Controls */}
+        <div className={styles.bottomControls}>
+          <div className={styles.leftTools}>
+            <Dropdown
+              open={collectionDropdownOpen}
+              onOpenChange={setCollectionDropdownOpen}
+              placement="topLeft"
+              trigger={['click']}
+              dropdownRender={() => (
+                <div className={styles.collectionDropdown}>
+                  <div className={styles.dropdownHeader}>
+                    <Input
+                      placeholder="🔍 搜索collection..."
+                      value={searchKeyword}
+                      onChange={(e) => setSearchKeyword(e.target.value)}
+                      allowClear
+                      size="small"
+                    />
+                  </div>
+                  <div className={styles.dropdownContent}>
+                    {filteredCollections.map((collection) => (
+                      <div key={collection.id} className={styles.collectionItem}>
+                        <Checkbox
+                          checked={selectedCollections.includes(collection.id)}
+                          onChange={(e) => handleCollectionToggle(collection.id, e.target.checked)}
+                        >
+                          <div className={styles.collectionInfo}>
+                            <Text strong>{collection.name}</Text>
+                            <Text type="secondary" className={styles.collectionCount}>
+                              ({collection.documentCount} docs)
+                            </Text>
+                          </div>
+                        </Checkbox>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            >
+              <Button
+                type="text"
+                className={styles.toolButton}
+                size="small"
+              >
+                @
+              </Button>
+            </Dropdown>
+
+            <Button
+              type="text"
+              className={`${styles.toolButton} ${webSearchEnabled ? styles.toolButtonActive : ''}`}
+              icon={<SearchOutlined />}
+              onClick={() => setWebSearchEnabled(!webSearchEnabled)}
+              size="small"
+            />
+          </div>
+
+          <div className={styles.rightTools}>
             <Select
               value={selectedModel}
               onChange={setSelectedModel}
-              style={{ minWidth: 200 }}
+              className={styles.modelSelector}
+              variant="borderless"
               size="small"
             >
               {mockModels.map(model => (
@@ -342,7 +338,7 @@ export default function AgentPage() {
                   <Space align="center">
                     {MODEL_PROVIDER_ICON[model.provider] && (
                       <Avatar
-                        size={16}
+                        size={14}
                         shape="square"
                         src={MODEL_PROVIDER_ICON[model.provider]}
                       />
