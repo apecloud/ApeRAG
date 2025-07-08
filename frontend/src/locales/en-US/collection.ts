@@ -43,4 +43,10 @@ export const collection = {
   'collection.mineru_api_token.required': 'API Token is required',
   'collection.mineru_api_token.extra':
     'Tips: The official MinerU API Token is valid for 14 days, please replace it before it expires.',
+  'collection.mineru_api_token.test.valid': 'Token is valid',
+  'collection.mineru_api_token.test.invalid': 'Invalid Token',
+  'collection.mineru_api_token.test.expired': 'Token is expired',
+  'collection.mineru_api_token.test.error': 'Test request failed',
+  'collection.mineru_api_token.test.fetch_error': 'Network request error',
+  'collection.mineru_api_token.test.btn': 'Check Token',
 };

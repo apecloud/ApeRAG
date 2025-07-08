@@ -14,6 +14,7 @@
 
 from typing import Optional
 
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.config import settings
@@ -308,6 +309,18 @@ class CollectionService:
             raise CollectionNotFoundException(collection_id)
 
         return await self.db_ops.delete_search(user, collection_id, search_id)
+
+    async def test_mineru_token(self, token: str) -> dict:
+        """Test the MinerU API token."""
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(
+                    "https://mineru.net/api/v4/extract-results/batch/test-token",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                return {"status_code": response.status_code, "data": response.json()}
+            except httpx.RequestError as e:
+                return {"status_code": 500, "data": {"msg": f"Request failed: {e}"}}
 
 
 # Create a global service instance for easy access
