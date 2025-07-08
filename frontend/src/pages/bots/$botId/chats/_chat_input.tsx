@@ -67,10 +67,11 @@ export const ChatInput = ({
 }) => {
   const { token } = theme.useToken();
   const [value, setValue] = useState<string>();
+  const [isComposing, setIsComposing] = useState<boolean>(false);
   const { formatMessage } = useIntl();
 
   const onPressEnter = async () => {
-    if (disabled) return;
+    if (disabled || isComposing) return;
 
     const data = _.trim(value);
     if (loading || _.isEmpty(data)) return;
@@ -94,20 +95,14 @@ export const ChatInput = ({
             { id: 'chat.input_placeholder' },
             { title: APERAG_CONFIG.title },
           )}
+          onCompositionStart={() => setIsComposing(true)}
+          onCompositionEnd={() => setIsComposing(false)}
           rows={2}
           autoSize={false}
           autoFocus
         />
         <Space style={{ display: 'flex', justifyContent: 'space-between' }}>
           <div />
-          {/* <Button
-            type="primary"
-            loading={loading}
-            shape="circle"
-            onClick={() => onPressEnter()}
-            icon={<CaretRightFilled />}
-          /> */}
-
           <div
             onClick={() => {
               if (disabled) return;
