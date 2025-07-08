@@ -92,7 +92,7 @@ jobs:
       run: |
         DOCKERFILE_PATH="./Dockerfile"
         if [[ "${{ matrix.image }}" == "aperag-frontend" ]]; then
-          DOCKERFILE_PATH="./frontend/Dockerfile.prod"
+          DOCKERFILE_PATH="./frontend/Dockerfile"
         fi
         echo "dockerfile_path=${DOCKERFILE_PATH}" >> $GITHUB_OUTPUT
 
