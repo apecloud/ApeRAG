@@ -14,7 +14,7 @@ spec:
       {{- include "aperag.selectorLabels" . | nindent 6 }}
       {{- include "celeryworker.labels" . | nindent 6 }}
   strategy:
-    type: Recreate
+    type: RollingUpdate
   template:
     metadata:
       {{- with .Values.podAnnotations }}
