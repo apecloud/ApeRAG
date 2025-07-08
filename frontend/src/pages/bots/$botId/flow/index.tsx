@@ -328,6 +328,7 @@ export default () => {
         onConnect={onConnect}
         nodeTypes={NodeTypes}
         colorMode={themeName}
+        minZoom={0.6}
       >
         <Background
           bgColor={token.colorBgLayout}
@@ -342,7 +343,6 @@ export default () => {
               <Tooltip title={formatMessage({ id: 'flow.edge.smoothstep' })}>
                 <Button
                   type="text"
-                  size="large"
                   icon={<BsDiagram3 />}
                   disabled={_.isEmpty(nodes)}
                   onClick={() =>
@@ -353,7 +353,6 @@ export default () => {
               <Tooltip title={formatMessage({ id: 'flow.edge.bezier' })}>
                 <Button
                   type="text"
-                  size="large"
                   icon={<BsBezier />}
                   disabled={_.isEmpty(nodes)}
                   onClick={() =>
@@ -366,7 +365,6 @@ export default () => {
               <Tooltip title={formatMessage({ id: 'text.direction.TB' })}>
                 <Button
                   type="text"
-                  size="large"
                   icon={<BsArrowsExpand />}
                   disabled={_.isEmpty(nodes)}
                   onClick={() => setLayout('TB')}
@@ -375,7 +373,6 @@ export default () => {
               <Tooltip title={formatMessage({ id: 'text.direction.LR' })}>
                 <Button
                   type="text"
-                  size="large"
                   icon={<BsArrowsExpandVertical />}
                   disabled={_.isEmpty(nodes)}
                   onClick={() => setLayout('LR')}
@@ -385,7 +382,6 @@ export default () => {
             <Tooltip title={formatMessage({ id: 'action.fitView' })}>
               <Button
                 type="text"
-                size="large"
                 icon={<BsFullscreenExit />}
                 disabled={_.isEmpty(nodes)}
                 onClick={() => setCenterView()}
@@ -402,7 +398,6 @@ export default () => {
               }
             >
               <Button
-                size="large"
                 type={flowStatus === 'running' ? 'link' : 'text'}
                 disabled={_.isEmpty(nodes)}
                 onClick={() => {
@@ -420,7 +415,6 @@ export default () => {
             <Tooltip title={formatMessage({ id: 'action.save' })}>
               <Button
                 type="primary"
-                size="large"
                 disabled={_.isEmpty(nodes)}
                 onClick={async () => {
                   const isSave = await saveFlow();

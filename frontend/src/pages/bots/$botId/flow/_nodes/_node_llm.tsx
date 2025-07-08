@@ -113,7 +113,10 @@ export const ApeNodeLlm = ({ node }: { node: ApeNode }) => {
                       }}
                     />
                   </Form.Item>
-                  <Form.Item label={formatMessage({ id: 'flow.input.source' })}>
+                  <Form.Item
+                    required
+                    label={formatMessage({ id: 'flow.input.source' })}
+                  >
                     <NodeInput
                       variant="filled"
                       disabled
