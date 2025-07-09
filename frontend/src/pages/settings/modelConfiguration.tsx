@@ -776,14 +776,19 @@ export default () => {
             <Form.Item
               name="api_key"
               label={formatMessage({ id: 'model.provider.api_key' })}
-              rules={[
-                {
-                  required: true,
-                  message: formatMessage({
-                    id: 'model.provider.api_key.required',
-                  }),
-                },
-              ]}
+              rules={
+                !editingProvider
+                  ? [{
+                      required: true,
+                      message: formatMessage({ id: 'model.provider.api_key.required' }),
+                    }]
+                  : !editingProvider.api_key
+                    ? [{
+                        required: true,
+                        message: formatMessage({ id: 'model.provider.api_key.required' }),
+                      }]
+                    : []
+              }
               help={
                 editingProvider
                   ? editingProvider.api_key
