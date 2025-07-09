@@ -54,6 +54,8 @@ export default {
   'common.disabled': '已禁用',
   'common.configured': '已配置',
   'common.not_configured': '未配置',
+  'common.edit': '编辑',
+  'common.delete': '删除',
   'common.pagination.total': '显示 {start}-{end} 条，共 {total} 条记录',
 
   'text.welcome': '欢迎使用ApeRAG',
@@ -88,6 +90,7 @@ export default {
   'action.signin': '登录',
   'action.signout': '登出',
   'action.back': '返回',
+  'action.edit': '编辑',
   'action.delete': '删除',
   'action.sync': '同步',
   'action.settings': '设置',

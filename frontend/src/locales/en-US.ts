@@ -54,6 +54,8 @@ export default {
   'common.disabled': 'Disabled',
   'common.configured': 'Configured',
   'common.not_configured': 'Not Configured',
+  'common.edit': 'Edit',
+  'common.delete': 'Delete',
   'common.pagination.total': 'Showing {start}-{end} of {total} records',
 
   'text.welcome': 'Welcome to ApeRAG',
@@ -89,6 +91,7 @@ export default {
   'action.signin': 'Sign in',
   'action.signout': 'Sign out',
   'action.back': 'Back',
+  'action.edit': 'Edit',
   'action.delete': 'Delete',
   'action.sync': 'Sync',
   'action.settings': 'Settings',

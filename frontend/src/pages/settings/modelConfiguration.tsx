@@ -476,14 +476,21 @@ export default () => {
         key: 'action',
         render: (text: string, record: any) => (
           <Space size="middle">
-            <Tooltip title={formatMessage({ id: 'common.edit' })}>
+            <Tooltip title={formatMessage({ id: 'model.provider.manage' })}>
+              <Button
+                icon={<SettingOutlined />}
+                size="small"
+                onClick={() => handleManageModels(record)}
+              />
+            </Tooltip>
+            <Tooltip title={formatMessage({ id: 'action.edit' })}>
               <Button
                 icon={<EditOutlined />}
                 size="small"
                 onClick={() => handleEditProvider(record)}
               />
             </Tooltip>
-            <Tooltip title={formatMessage({ id: 'common.delete' })}>
+            <Tooltip title={formatMessage({ id: 'action.delete' })}>
               <Button
                 icon={<DeleteOutlined />}
                 size="small"
@@ -497,7 +504,7 @@ export default () => {
     );
 
     return baseColumns;
-  }, [formatMessage, user?.role, isProviderEnabled, getProviderModelCount, handleEditProvider, handleDeleteProvider]);
+  }, [formatMessage, user?.role, isProviderEnabled, getProviderModelCount, handleManageModels, handleEditProvider, handleDeleteProvider]);
 
   // Model table columns
   const modelColumns: TableProps<LlmProviderModel>['columns'] = [
