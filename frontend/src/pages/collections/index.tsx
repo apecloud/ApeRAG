@@ -41,11 +41,11 @@ export default () => {
     useModel('collection');
 
   useInterval(() => {
-    if(collections?.some((collection) => collection.status !== 'ACTIVE')) {
-      getCollections()
+    if (collections?.some((collection) => collection.status !== 'ACTIVE')) {
+      getCollections();
     }
   }, 3000);
-  
+
   const header = (
     <PageHeader
       title={formatMessage({ id: 'collection.name' })}

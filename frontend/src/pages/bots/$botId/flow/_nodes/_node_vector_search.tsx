@@ -112,6 +112,7 @@ export const ApeNodeVectorSearch = ({ node }: { node: ApeNode }) => {
                   >
                     <NodeInput
                       value={_.get(values, 'query')}
+                      disabled
                       onChange={(e) => {
                         _.set(values, 'query', e.currentTarget.value);
                         applyChanges();

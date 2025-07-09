@@ -134,6 +134,7 @@ export const ApeNodeLlm = ({ node }: { node: ApeNode }) => {
                     <NodeInput
                       variant="filled"
                       value={_.get(values, 'query')}
+                      disabled
                       onChange={(e) => {
                         _.set(values, 'query', e.currentTarget.value);
                         applyChanges();

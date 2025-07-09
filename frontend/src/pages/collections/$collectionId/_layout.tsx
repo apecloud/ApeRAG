@@ -12,7 +12,7 @@ import {
   Typography,
 } from 'antd';
 import moment from 'moment';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'react-toastify';
 import {
   FormattedMessage,
@@ -29,10 +29,10 @@ export const LayoutCollection = () => {
   const { collectionId } = useParams();
   const { collection, deleteCollection, getCollection, setCollection } =
     useModel('collection');
-  
+
   const clearInterval = useInterval(() => {
-    if(collectionId && collection?.status !== 'ACTIVE') {
-      getCollection(collectionId)
+    if (collectionId && collection?.status !== 'ACTIVE') {
+      getCollection(collectionId);
     }
   }, 3000);
 
@@ -62,16 +62,15 @@ export const LayoutCollection = () => {
       setCollection(undefined);
     }
     return () => {
-      setCollection(undefined)
+      setCollection(undefined);
     };
   }, [collectionId]);
 
-
   useEffect(() => {
-    if(collection?.status === 'ACTIVE') {
-      clearInterval()
+    if (collection?.status === 'ACTIVE') {
+      clearInterval();
     }
-  }, [collection])
+  }, [collection]);
 
   if (!collection) return;
 
