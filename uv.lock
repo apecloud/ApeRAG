@@ -193,6 +193,7 @@ dependencies = [
     { name = "channels" },
     { name = "cryptography" },
     { name = "dashscope" },
+    { name = "ddgs" },
     { name = "django-celery-beat" },
     { name = "django-environ" },
     { name = "duckduckgo-search" },
@@ -295,6 +296,7 @@ requires-dist = [
     { name = "channels", specifier = ">=4.0.0,<5.0.0" },
     { name = "cryptography", specifier = ">=41.0.1,<42.0.0" },
     { name = "dashscope", specifier = ">=1.23.1,<2.0.0" },
+    { name = "ddgs", specifier = ">=9.0.0" },
     { name = "django-celery-beat", specifier = ">=2.5.0,<3.0.0" },
     { name = "django-environ", specifier = ">=0.12.0" },
     { name = "duckduckgo-search", specifier = ">=8.1.1" },
@@ -1190,6 +1192,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a9/30/064144f0df1749e7bb5faaa7f52b007d7c2d08ec08fed8411aba87207f68/dateparser-1.2.2.tar.gz", hash = "sha256:986316f17cb8cdc23ea8ce563027c5ef12fc725b6fb1d137c14ca08777c5ecf7", size = 329840, upload-time = "2025-06-26T09:29:23.211Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/87/22/f020c047ae1346613db9322638186468238bcfa8849b4668a22b97faad65/dateparser-1.2.2-py3-none-any.whl", hash = "sha256:5a5d7211a09013499867547023a2a0c91d5a27d15dd4dbcea676ea9fe66f2482", size = 315453, upload-time = "2025-06-26T09:29:21.412Z" },
+]
+
+[[package]]
+name = "ddgs"
+version = "9.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "lxml" },
+    { name = "primp" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1f/08/0e84549a1d7d5950573f73d7bc5d36f2a00f92ad8e644b59066afd430a6f/ddgs-9.0.0.tar.gz", hash = "sha256:53b47c74a8060457cb02cbb64acdf59655d799ce8e0934e945bcd878fcab3a7f", size = 21795, upload-time = "2025-07-06T15:43:50.862Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e5/05/bd3ed9a28212b313f5678533152c4d79fbc386e44245ca5eed426d75f019/ddgs-9.0.0-py3-none-any.whl", hash = "sha256:5dd11d666d6caf1cfdbd341579637bb670c4b2f41df5413b76705519d8e7a22c", size = 17944, upload-time = "2025-07-06T15:43:49.564Z" },
 ]
 
 [[package]]

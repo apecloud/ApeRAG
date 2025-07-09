@@ -43,8 +43,8 @@ ApeRAG supports [MCP (Model Context Protocol)](https://modelcontextprotocol.io/)
   "mcpServers": {
     "aperag-mcp": {
       "url": "http://localhost:8000/mcp",
-      "env": {
-        "APERAG_API_KEY": "your-api-key-here"
+      "headers": {
+        "Authorization": "Bearer your-api-key-here"
       }
     }
   }

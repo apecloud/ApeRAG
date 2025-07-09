@@ -204,3 +204,28 @@ class SearchService:
             SearchService instance
         """
         return cls(provider_name=provider_name, provider_config=config)
+
+    async def close(self):
+        """
+        Close provider and cleanup resources.
+        """
+        if hasattr(self.provider, "close"):
+            await self.provider.close()
+
+    async def cleanup(self):
+        """
+        Cleanup resources (alias for close).
+        """
+        await self.close()
+
+    async def __aenter__(self):
+        """
+        Async context manager entry.
+        """
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """
+        Async context manager exit.
+        """
+        await self.close()

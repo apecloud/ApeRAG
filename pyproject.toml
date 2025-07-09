@@ -67,6 +67,7 @@ dependencies = [
     "trafilatura>=2.0.0",
     "markdownify>=1.1.0",
     "aiohttp>=3.11.16",
+    "ddgs>=9.0.0",
 ]
 name = "aperag"
 version = "0.1.0"

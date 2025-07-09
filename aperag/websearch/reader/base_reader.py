@@ -86,3 +86,12 @@ class BaseReaderProvider(ABC):
         """
         # Basic URL validation - providers can override for more specific validation
         return url.startswith(("http://", "https://"))
+
+    async def close(self):
+        """
+        Close and cleanup resources.
+
+        This is a base implementation that does nothing.
+        Subclasses should override if they need to cleanup resources.
+        """
+        pass

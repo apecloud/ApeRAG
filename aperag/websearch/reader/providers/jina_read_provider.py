@@ -291,3 +291,11 @@ class JinaReaderProvider(BaseReaderProvider):
             return True
         except Exception:
             return False
+
+    async def close(self):
+        """
+        Close and cleanup resources.
+        """
+        # JINA provider doesn't maintain persistent connections
+        # No resources to close
+        pass

@@ -74,3 +74,12 @@ class BaseSearchProvider(ABC):
             True if supported, False otherwise
         """
         return search_engine in self.get_supported_engines()
+
+    async def close(self):
+        """
+        Close and cleanup resources.
+
+        This is a base implementation that does nothing.
+        Subclasses should override if they need to cleanup resources.
+        """
+        pass

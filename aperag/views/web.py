@@ -44,18 +44,17 @@ async def web_search(http_request: Request, request: WebSearchRequest, user: Use
         # Log the search request
         logger.info(f"Web search request from user {user.id}: query='{request.query}', engine={request.search_engine}")
 
-        # Create search service (use default provider for now)
-        search_service = SearchService()
+        # Create search service and ensure proper cleanup
+        async with SearchService() as search_service:
+            # Perform search
+            response = await search_service.search(request)
 
-        # Perform search
-        response = await search_service.search(request)
+            # Log successful search
+            logger.info(
+                f"Web search completed for user {user.id}: {len(response.results)} results in {response.search_time:.2f}s"
+            )
 
-        # Log successful search
-        logger.info(
-            f"Web search completed for user {user.id}: {len(response.results)} results in {response.search_time:.2f}s"
-        )
-
-        return response
+            return response
 
     except Exception as e:
         logger.error(f"Web search failed for user {user.id}: {e}")
@@ -92,18 +91,17 @@ async def web_read(http_request: Request, request: WebReadRequest, user: User = 
         # Log the read request
         logger.info(f"Web read request from user {user.id}: {len(url_list)} URLs, timeout={request.timeout}s")
 
-        # Create reader service (use default provider for now)
-        reader_service = ReaderService()
+        # Create reader service and ensure proper cleanup
+        async with ReaderService() as reader_service:
+            # Perform reading
+            response = await reader_service.read(request)
 
-        # Perform reading
-        response = await reader_service.read(request)
+            # Log successful read
+            logger.info(
+                f"Web read completed for user {user.id}: {response.successful}/{response.total_urls} successful in {response.processing_time:.2f}s"
+            )
 
-        # Log successful read
-        logger.info(
-            f"Web read completed for user {user.id}: {response.successful}/{response.total_urls} successful in {response.processing_time:.2f}s"
-        )
-
-        return response
+            return response
 
     except Exception as e:
         logger.error(f"Web read failed for user {user.id}: {e}")

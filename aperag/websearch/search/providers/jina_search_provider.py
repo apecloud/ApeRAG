@@ -228,3 +228,11 @@ class JinaSearchProvider(BaseSearchProvider):
             List of supported search engine names
         """
         return self.supported_engines.copy()
+
+    async def close(self):
+        """
+        Close and cleanup resources.
+        """
+        # JINA provider doesn't maintain persistent connections
+        # No resources to close
+        pass

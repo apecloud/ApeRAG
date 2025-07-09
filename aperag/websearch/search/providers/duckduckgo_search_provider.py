@@ -161,3 +161,11 @@ class DuckDuckGoProvider(BaseSearchProvider):
             "requires_api_key": False,
             "rate_limit": "None (but may be throttled by DuckDuckGo)",
         }
+
+    async def close(self):
+        """
+        Close and cleanup resources.
+        """
+        # DuckDuckGo provider doesn't maintain persistent connections
+        # No resources to close
+        pass
