@@ -3578,7 +3578,6 @@ components:
           type: array
           items:
             type: string
-            minLength: 1
           description: List of entity IDs to merge (supports 1 or more entities)
           example:
             - 墨香居

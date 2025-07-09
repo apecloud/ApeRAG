@@ -429,17 +429,28 @@ async def merge_nodes_view(
 
     try:
         # Log merge operation
-        target_name = merge_request.target_entity_data.get("entity_name") if merge_request.target_entity_data else None
+        target_name = merge_request.target_entity_data.entity_name if merge_request.target_entity_data else None
         entity_info = f"entities {merge_request.entity_ids} -> {target_name or 'auto-select'}"
         logger.info(f"Merging nodes: {entity_info} in collection {collection_id}")
 
-        # Get collection object for service interface
-        collection = await collection_service.get_collection(str(user.id), collection_id)
+        # Get collection object (database model) for service interface
+        collection_view = await collection_service.get_collection(str(user.id), collection_id)
+        # Convert view model to database model for service
+        from aperag.db.repositories.collection import collection_repo
+
+        collection_db = await collection_repo.get_by_id(collection_view.id)
+        if not collection_db:
+            raise CollectionNotFoundException()
+
+        # Convert target_entity_data to dict if provided
+        target_entity_data_dict = None
+        if merge_request.target_entity_data:
+            target_entity_data_dict = merge_request.target_entity_data.model_dump(exclude_unset=True)
 
         result = await graph_service.merge_nodes(
-            collection=collection,
+            collection=collection_db,
             entity_ids=merge_request.entity_ids,
-            target_entity_data=merge_request.target_entity_data,
+            target_entity_data=target_entity_data_dict,
             collection_id=collection_id,
         )
 
