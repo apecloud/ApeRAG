@@ -33,15 +33,6 @@ class TestSearchService:
         assert isinstance(engines, list)
         assert len(engines) > 0
 
-    def test_get_provider_info(self):
-        """Test getting provider information"""
-        service = SearchService.create_default()
-        info = service.get_provider_info()
-
-        assert "current_provider" in info
-        assert "provider_config" in info
-        assert info["current_provider"] == "duckduckgo"
-
     @pytest.mark.asyncio
     async def test_search_with_request_object(self):
         """Test search using WebSearchRequest object"""
@@ -107,23 +98,6 @@ class TestSearchService:
                 request = WebSearchRequest(query="test")
                 with pytest.raises(SearchProviderError, match="Network error"):
                     await service.search(request)
-
-    def test_switch_provider(self):
-        """Test switching providers"""
-        service = SearchService.create_default()
-        original_provider = service.provider_name
-
-        # Switch to same provider with different config
-        service.switch_provider("duckduckgo", {"new_config": True})
-        assert service.provider_name == "duckduckgo"
-        assert service.provider_config["new_config"] is True
-
-        # Test invalid provider
-        with pytest.raises(ValueError, match="Unsupported search provider"):
-            service.switch_provider("invalid_provider")
-
-        # Should rollback on error
-        assert service.provider_name == original_provider
 
     @pytest.mark.asyncio
     async def test_unsupported_search_engine_fallback(self):

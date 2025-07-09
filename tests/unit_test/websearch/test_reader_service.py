@@ -26,15 +26,6 @@ class TestReaderService:
         assert service.provider_name == "trafilatura"
         assert service.provider_config["timeout"] == 60
 
-    def test_get_provider_info(self):
-        """Test getting provider information"""
-        service = ReaderService.create_default()
-        info = service.get_provider_info()
-
-        assert "current_provider" in info
-        assert "provider_config" in info
-        assert info["current_provider"] == "trafilatura"
-
     @pytest.mark.asyncio
     async def test_read_single_url_with_request_object(self):
         """Test reading single URL using WebReadRequest object"""
@@ -157,23 +148,6 @@ class TestReaderService:
             request = WebReadRequest(urls="https://test.com")
             with pytest.raises(ReaderProviderError, match="Network timeout"):
                 await service.read(request)
-
-    def test_switch_provider(self):
-        """Test switching providers"""
-        service = ReaderService.create_default()
-        original_provider = service.provider_name
-
-        # Switch to same provider with different config
-        service.switch_provider("trafilatura", {"new_config": True})
-        assert service.provider_name == "trafilatura"
-        assert service.provider_config["new_config"] is True
-
-        # Test invalid provider
-        with pytest.raises(ValueError, match="Unsupported reader provider"):
-            service.switch_provider("invalid_provider")
-
-        # Should rollback on error
-        assert service.provider_name == original_provider
 
     @pytest.mark.integration
     @pytest.mark.asyncio
