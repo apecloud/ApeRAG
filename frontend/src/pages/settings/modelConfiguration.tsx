@@ -464,9 +464,11 @@ export default () => {
       },
       {
         title: formatMessage({ id: 'model.provider.model_count' }),
-        dataIndex: 'model_count',
         key: 'model_count',
-        render: (text: string, record: any) => <span>{text}</span>,
+        dataIndex: '',  // Add empty dataIndex to satisfy type requirement
+        render: (_, record: LlmProvider) => (
+          <span>{getProviderModelCount(record.name)}</span>
+        ),
       },
       {
         title: formatMessage({ id: 'common.actions' }),
@@ -495,7 +497,7 @@ export default () => {
     );
 
     return baseColumns;
-  }, [formatMessage, user?.role, isProviderEnabled]);
+  }, [formatMessage, user?.role, isProviderEnabled, getProviderModelCount, handleEditProvider, handleDeleteProvider]);
 
   // Model table columns
   const modelColumns: TableProps<LlmProviderModel>['columns'] = [
