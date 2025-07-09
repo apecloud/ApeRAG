@@ -7,6 +7,7 @@ import {
 } from '@/constants';
 import { CollectionConfigSource } from '@/types';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { useInterval } from 'ahooks';
 import {
   Avatar,
   Badge,
@@ -25,7 +26,7 @@ import {
 } from 'antd';
 import _ from 'lodash';
 import moment from 'moment';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { UndrawEmpty } from 'react-undraw-illustrations';
 import { FormattedMessage, Link, useIntl, useModel } from 'umi';
 
@@ -39,10 +40,12 @@ export default () => {
   const { collections, collectionsLoading, getCollections } =
     useModel('collection');
 
-  // State for polling control
-  const [isPolling, setIsPolling] = useState<boolean>(false);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
+  useInterval(() => {
+    if(collections?.some((collection) => collection.status !== 'ACTIVE')) {
+      getCollections()
+    }
+  }, 3000);
+  
   const header = (
     <PageHeader
       title={formatMessage({ id: 'collection.name' })}
@@ -116,57 +119,8 @@ export default () => {
     </PageHeader>
   );
 
-  // Check if there are any collections with INACTIVE status
-  const hasInactiveCollections = () => {
-    return collections?.some((collection) => collection.status === 'INACTIVE');
-  };
-
-  // Start polling collections from the backend every 3 seconds
-  const startPolling = () => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-    }
-    setIsPolling(true);
-    pollingIntervalRef.current = setInterval(() => {
-      getCollections();
-    }, 3000); // Poll every 3 seconds
-  };
-
-  // Stop polling
-  const stopPolling = () => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-    setIsPolling(false);
-  };
-
-  // Initial fetch of collections on component mount
   useEffect(() => {
     getCollections();
-  }, []);
-
-  // Watch for changes in collections and polling state
-  // If any collection is INACTIVE, start polling; otherwise, stop polling
-  useEffect(() => {
-    if (collections && !collectionsLoading) {
-      if (hasInactiveCollections()) {
-        if (!isPolling) {
-          startPolling();
-        }
-      } else {
-        if (isPolling) {
-          stopPolling();
-        }
-      }
-    }
-  }, [collections, collectionsLoading]);
-
-  // Cleanup polling interval on component unmount
-  useEffect(() => {
-    return () => {
-      stopPolling();
-    };
   }, []);
 
   if (collections === undefined) return;

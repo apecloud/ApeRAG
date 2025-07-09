@@ -1,6 +1,7 @@
 import { PageContainer, PageHeader } from '@/components';
 import { DATETIME_FORMAT, UI_COLLECTION_STATUS } from '@/constants';
 import { DeleteOutlined } from '@ant-design/icons';
+import { useInterval } from 'ahooks';
 import {
   Badge,
   Button,
@@ -11,7 +12,7 @@ import {
   Typography,
 } from 'antd';
 import moment from 'moment';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import {
   FormattedMessage,
@@ -28,6 +29,12 @@ export const LayoutCollection = () => {
   const { collectionId } = useParams();
   const { collection, deleteCollection, getCollection, setCollection } =
     useModel('collection');
+  
+  const clearInterval = useInterval(() => {
+    if(collectionId && collection?.status !== 'ACTIVE') {
+      getCollection(collectionId)
+    }
+  }, 3000);
 
   const onDeleteCollection = useCallback(async () => {
     const confirmed = await modal.confirm({
@@ -54,8 +61,17 @@ export const LayoutCollection = () => {
     } else {
       setCollection(undefined);
     }
-    return () => setCollection(undefined);
+    return () => {
+      setCollection(undefined)
+    };
   }, [collectionId]);
+
+
+  useEffect(() => {
+    if(collection?.status === 'ACTIVE') {
+      clearInterval()
+    }
+  }, [collection])
 
   if (!collection) return;
 
