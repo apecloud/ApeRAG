@@ -2,16 +2,18 @@
 
 ## 1. 设计概述
 
-### 1.1 设计思想
+### 1.1 设计理念
 
-基于现有LLM服务架构（EmbeddingService、RerankService等），采用**Provider抽象模式**设计Web搜索和内容读取服务。核心思想：
+ApeRAG Web搜索模块采用**Provider抽象模式**，参考现有LLM服务架构（EmbeddingService、RerankService等），提供统一的Web搜索和内容读取能力。
 
+**核心特性**：
 - **统一接口**：上层Service统一调用，底层可切换Provider
-- **插件化**：新增搜索引擎或内容提取器只需实现Provider接口
-- **双路供给**：同时提供HTTP API和MCP工具
-- **渐进替换**：初期使用Crawl4AI/JINA，后续可无缝切换自研实现
+- **插件化架构**：新增搜索引擎或内容提取器只需实现Provider接口
+- **资源安全管理**：完整的异步资源生命周期管理
+- **双路供给**：同时提供HTTP API和MCP工具支持
+- **生产就绪**：内置错误处理、超时控制、并发限制
 
-### 1.2 技术架构决策
+### 1.2 已实现架构
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -23,342 +25,714 @@
 └──────────────┬──────────└─────────────────┘────────────┘
                │                  │
         ┌──────▼──────┐    ┌──────▼──────┐
-        │WebSearchSvc │    │ WebReadSvc  │
+        │SearchService│    │ReaderService│
+        │+ async with │    │+ async with │
         └──────┬──────┘    └──────┬──────┘
                │                  │
      ┌─────────▼─────────┐ ┌─────▼─────────┐
-     │SearchProviderBase│ │ReadProviderBase│
+     │BaseSearchProvider│ │BaseReaderProvider│
+     │+ close() support │ │+ close() support│
      └─────────┬─────────┘ └─────┬─────────┘
                │                 │
     ┌──────────▼──────────┐ ┌────▼──────────┐
-    │  DuckDuckGoProvider │ │ Crawl4AIProvider│
-    │  BingProvider       │ │ JINAProvider    │
-    │  GoogleProvider     │ │ TrafilaturaProvider│
+    │  DuckDuckGoProvider │ │TrafilaturaProvider│
+    │  JinaSearchProvider │ │JinaReaderProvider │
     └─────────────────────┘ └─────────────────┘
 ```
 
-## 2. 目录结构设计
+## 2. 实际目录结构
 
-### 2.1 新增目录结构
-
-```
-aperag/
-├── websearch/                          # 新增：Web搜索模块
-│   ├── __init__.py
-│   ├── search/                         # 搜索相关
-│   │   ├── __init__.py
-│   │   ├── base_search.py              # 搜索Provider抽象基类
-│   │   ├── search_service.py           # 搜索服务类
-│   │   └── providers/                  # 搜索Provider实现
-│   │       ├── __init__.py
-│   │       ├── duckduckgo.py          # DuckDuckGo搜索实现
-│   │       ├── bing.py                # Bing搜索实现（可选）
-│   │       └── google.py              # Google搜索实现（可选）
-│   ├── reader/                         # 内容读取相关
-│   │   ├── __init__.py
-│   │   ├── base_reader.py              # 内容读取Provider抽象基类
-│   │   ├── reader_service.py           # 内容读取服务类
-│   │   └── providers/                  # 内容读取Provider实现
-│   │       ├── __init__.py
-│   │       ├── crawl4ai.py            # Crawl4AI实现（主力）
-│   │       ├── jina.py                # JINA实现（备选）
-│   │       └── trafilatura.py         # Trafilatura实现（轻量级）
-│   └── utils/                          # 工具类
-│       ├── __init__.py
-│       ├── url_validator.py           # URL验证
-│       └── content_processor.py       # 内容处理
-```
-
-### 2.2 现有目录改动
+### 2.1 已实现的模块结构
 
 ```
-aperag/
-├── views/                              # 改动：新增web相关视图
-│   ├── web.py                         # 新增：Web服务HTTP接口
-│   └── __init__.py                    # 修改：导入web视图
-├── mcp/                               # 改动：新增web相关MCP工具
-│   ├── server.py                      # 修改：注册web_search和web_read工具
-│   └── __init__.py                    # 可能需要修改
-└── schema/
-    └── view_models.py                 # 改动：新增Web相关数据模型
+aperag/websearch/                       # Web搜索模块根目录
+├── __init__.py                         # 导出SearchService, ReaderService
+├── search/                             # 搜索功能模块
+│   ├── __init__.py                     # 导出SearchService, BaseSearchProvider
+│   ├── base_search.py                  # 搜索Provider抽象基类
+│   ├── search_service.py               # 搜索服务（支持上下文管理器）
+│   └── providers/                      # 搜索Provider实现
+│       ├── __init__.py                 # 导出所有Provider
+│       ├── duckduckgo_search_provider.py   # DuckDuckGo实现（默认）
+│       └── jina_search_provider.py     # JINA搜索实现
+├── reader/                             # 内容读取功能模块
+│   ├── __init__.py                     # 导出ReaderService, BaseReaderProvider
+│   ├── base_reader.py                  # 读取Provider抽象基类
+│   ├── reader_service.py               # 读取服务（支持上下文管理器）
+│   └── providers/                      # 读取Provider实现
+│       ├── __init__.py                 # 导出所有Provider
+│       ├── trafilatura_read_provider.py    # Trafilatura实现（默认）
+│       └── jina_read_provider.py       # JINA读取实现
+├── utils/                              # 工具模块
+│   ├── __init__.py                     # 导出工具类
+│   ├── url_validator.py                # URL验证和规范化
+│   └── content_processor.py            # 内容处理和清理
+└── README-zh.md                        # 模块使用文档
+```
+
+### 2.2 集成的系统模块
+
+```
+aperag/views/web.py                     # HTTP API视图（已实现）
+aperag/mcp/server.py                    # MCP工具注册（待集成）
+aperag/schema/view_models.py            # 数据模型（已扩展）
 ```
 
 ## 3. API接口设计
 
-### 3.1 HTTP API路径规划
+### 3.1 HTTP API接口
 
+**已实现的RESTful API**：
+
+```yaml
+# OpenAPI规范片段
+/api/v1/web/search:
+  post:
+    summary: 执行Web搜索
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/WebSearchRequest'
+    responses:
+      '200':
+        description: 搜索成功
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebSearchResponse'
+
+/api/v1/web/read:
+  post:
+    summary: 读取Web页面内容
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/WebReadRequest'
+    responses:
+      '200':
+        description: 读取成功
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebReadResponse'
 ```
-/api/v1/web/
-├── search                             # POST - Web搜索
-└── read                               # POST - Web内容读取
+
+### 3.2 请求/响应数据模型
+
+**WebSearchRequest**:
+```python
+class WebSearchRequest(BaseModel):
+    query: str                          # 搜索查询
+    max_results: int = 5               # 最大结果数
+    search_engine: str = "duckduckgo"  # 搜索引擎
+    timeout: int = 30                  # 超时时间（秒）
+    locale: str = "zh-CN"             # 语言地区
 ```
 
-**设计决策**：
-- 独立于`/api/v1/agent/`路径，体现Web服务的通用性
-- 只有两个端点，简洁清晰
-- 使用POST方法，支持复杂参数传递
-
-### 3.2 MCP工具接口
-
-```
-MCP Tools:
-├── web_search(query, max_results, search_engine, ...)
-└── web_read(urls, timeout, css_selector, ...)
+**WebSearchResponse**:
+```python
+class WebSearchResponse(BaseModel):
+    query: str                         # 原始查询
+    results: List[WebSearchResultItem] # 搜索结果列表
+    search_engine: str                 # 使用的搜索引擎
+    total_results: int                 # 结果总数
+    search_time: float                 # 搜索耗时（秒）
 ```
 
-## 4. 核心组件设计
+**WebReadRequest**:
+```python
+class WebReadRequest(BaseModel):
+    urls: Union[str, List[str]]        # 单个或多个URL
+    timeout: int = 30                  # 超时时间（秒）
+    locale: str = "zh-CN"             # 语言地区
+    max_concurrent: int = 3            # 最大并发数（批量读取）
+```
 
-### 4.1 SearchService设计思想
+**WebReadResponse**:
+```python
+class WebReadResponse(BaseModel):
+    results: List[WebReadResultItem]   # 读取结果列表
+    total_urls: int                    # 总URL数量
+    successful: int                    # 成功数量
+    failed: int                        # 失败数量
+    processing_time: float             # 处理耗时（秒）
+```
 
-**参考**：`aperag/llm/embed/embedding_service.py`
+## 4. 核心组件实现
 
-**核心特性**：
-- Provider抽象：支持多种搜索引擎切换
-- 统一接口：`async def search(query, **kwargs) -> SearchResult`
-- 配置驱动：通过环境变量选择Provider
-- 错误处理：统一的异常处理和降级策略
+### 4.1 SearchService实现特性
 
-### 4.2 ReaderService设计思想
+**参考架构**：`aperag/llm/embed/embedding_service.py`
 
-**参考**：`aperag/llm/rerank/rerank_service.py`
+**实现特性**：
+```python
+class SearchService:
+    # 支持的Provider切换
+    def __init__(self, provider_name: str = None, provider_config: Dict = None)
+    
+    # 异步搜索接口
+    async def search(self, request: WebSearchRequest) -> WebSearchResponse
+    
+    # 简化搜索接口
+    async def search_simple(self, query: str, **kwargs) -> List[WebSearchResultItem]
+    
+    # 资源管理
+    async def close(self)
+    async def __aenter__(self) / __aexit__(self)  # 上下文管理器支持
+    
+    # 工厂方法
+    @classmethod
+    def create_default(cls) -> "SearchService"
+    @classmethod
+    def create_with_provider(cls, provider_name: str, **config) -> "SearchService"
+```
 
-**核心特性**：
-- Provider抽象：支持多种内容提取库切换
-- 批量处理：支持并发读取多个URL
-- 格式统一：输出标准化的Markdown格式
-- 智能降级：主Provider失败时自动切换备用Provider
+**资源安全使用**：
+```python
+# 推荐使用方式：上下文管理器
+async with SearchService() as search_service:
+    response = await search_service.search(request)
+    # 资源自动清理
 
-### 4.3 Provider接口设计
+# 或手动管理
+search_service = SearchService()
+try:
+    response = await search_service.search(request)
+finally:
+    await search_service.close()
+```
 
-**搜索Provider接口**：
+### 4.2 ReaderService实现特性
+
+**参考架构**：`aperag/llm/rerank/rerank_service.py`
+
+**实现特性**：
+```python
+class ReaderService:
+    # 支持单个和批量读取
+    async def read(self, request: WebReadRequest) -> WebReadResponse
+    async def read_simple(self, url: str, **kwargs) -> WebReadResultItem
+    async def read_batch_simple(self, urls: List[str], **kwargs) -> List[WebReadResultItem]
+    
+    # 完整的资源管理
+    async def close(self)
+    async def cleanup(self)  # 别名
+    async def __aenter__(self) / __aexit__(self)
+```
+
+**并发控制实现**：
+```python
+# 内部使用asyncio.Semaphore控制并发
+async def read_batch(self, urls: List[str], max_concurrent: int = 3):
+    semaphore = asyncio.Semaphore(max_concurrent)
+    
+    async def read_single(url: str):
+        async with semaphore:
+            return await self.read(url)
+    
+    results = await asyncio.gather(*[read_single(url) for url in urls])
+```
+
+### 4.3 Provider接口规范
+
+**BaseSearchProvider接口**：
 ```python
 class BaseSearchProvider(ABC):
     @abstractmethod
-    async def search(self, query: str, **kwargs) -> List[SearchResult]
+    async def search(self, query: str, **kwargs) -> List[WebSearchResultItem]
     
     @abstractmethod
     def get_supported_engines(self) -> List[str]
+    
+    def validate_search_engine(self, search_engine: str) -> bool
+    
+    async def close(self):  # 资源清理
+        pass
 ```
 
-**读取Provider接口**：
+**BaseReaderProvider接口**：
 ```python
 class BaseReaderProvider(ABC):
     @abstractmethod
-    async def read(self, url: str, **kwargs) -> ReaderResult
+    async def read(self, url: str, **kwargs) -> WebReadResultItem
     
     @abstractmethod
-    async def read_batch(self, urls: List[str], **kwargs) -> List[ReaderResult]
+    async def read_batch(self, urls: List[str], **kwargs) -> List[WebReadResultItem]
+    
+    def validate_url(self, url: str) -> bool
+    
+    async def close(self):  # 资源清理
+        pass
 ```
 
-## 5. 改动范围明确
+## 5. Provider实现详情
 
-### 5.1 新增文件（约15个文件）
+### 5.1 DuckDuckGoProvider（默认搜索）
 
-```
-aperag/websearch/ - 完全新增目录
-├── 搜索模块：5个文件
-├── 读取模块：5个文件  
-├── 工具模块：3个文件
-└── 其他：2个文件
-```
+**实现特性**：
+- ✅ 免费使用，无需API密钥
+- ✅ 基于`duckduckgo-search`库
+- ✅ 支持地区和语言定制
+- ✅ 异步包装（使用`loop.run_in_executor`）
 
-### 5.2 修改现有文件（约4个文件）
+**配置示例**：
+```python
+# 无需配置，开箱即用
+service = SearchService()  # 默认使用DuckDuckGo
 
-```
-1. aperag/views/__init__.py           - 导入web视图
-2. aperag/views/web.py                - 新增Web HTTP接口
-3. aperag/mcp/server.py               - 注册MCP工具
-4. aperag/schema/view_models.py       - 新增数据模型
+# 显式指定
+service = SearchService(provider_name="duckduckgo")
 ```
 
-### 5.3 配置文件改动
+### 5.2 JinaSearchProvider
 
+**实现特性**：
+- 🚀 专为LLM优化的搜索结果
+- 🔧 支持多搜索引擎后端（Google、Bing）
+- 📊 提供引用信息和结构化输出
+- 🌐 基于JINA s.jina.ai API
+
+**配置示例**：
+```python
+service = SearchService(
+    provider_name="jina",
+    provider_config={"api_key": "jina_xxxxxxxxxxxxxxxx"}
+)
 ```
-1. envs/env.template                  - 新增Web服务配置
-2. requirements.txt                   - 新增依赖包
+
+### 5.3 TrafilaturaProvider（默认读取）
+
+**实现特性**：
+- ⚡ 高性能本地处理，无需外部API
+- 🎯 基于`trafilatura`库的准确正文提取
+- 📱 支持多种网页格式
+- 💰 完全免费
+
+**配置示例**：
+```python
+# 无需配置，开箱即用
+service = ReaderService()  # 默认使用Trafilatura
 ```
 
-## 6. 关键技术决策
+### 5.4 JinaReaderProvider
 
-### 6.1 Provider选择策略
+**实现特性**：
+- 🤖 LLM优化的内容提取
+- 📝 Markdown格式输出
+- 🎯 智能内容识别
+- 🌐 基于JINA r.jina.ai API
 
-**第一阶段Provider组合**：
-- **搜索**：DuckDuckGo（免费、无限制、隐私友好）
-- **读取**：Crawl4AI（专为LLM设计、功能强大、维护活跃）
+**配置示例**：
+```python
+service = ReaderService(
+    provider_name="jina",
+    provider_config={"api_key": "jina_xxxxxxxxxxxxxxxx"}
+)
+```
 
-**第二阶段扩展**：
-- 搜索：新增Bing、Google Provider
-- 读取：新增JINA、Trafilatura Provider
+## 6. 使用示例
 
-### 6.2 错误处理策略
+### 6.1 基础搜索示例
 
-**多层降级机制**：
-1. 主Provider失败 → 自动切换备用Provider
-2. 所有Provider失败 → 返回标准错误响应
-3. 部分URL失败 → 返回成功和失败混合结果
+```python
+from aperag.websearch import SearchService
+from aperag.schema.view_models import WebSearchRequest
 
-### 6.3 配置管理策略
+async def basic_search():
+    async with SearchService() as search_service:
+        request = WebSearchRequest(
+            query="ApeRAG RAG系统架构",
+            max_results=5,
+            search_engine="duckduckgo"
+        )
+        
+        response = await search_service.search(request)
+        
+        for result in response.results:
+            print(f"标题: {result.title}")
+            print(f"URL: {result.url}")
+            print(f"摘要: {result.snippet}")
+            print(f"域名: {result.domain}")
+            print("---")
+```
 
-**环境变量配置**：
+### 6.2 内容读取示例
+
+```python
+from aperag.websearch import ReaderService
+from aperag.schema.view_models import WebReadRequest
+
+async def basic_read():
+    async with ReaderService() as reader_service:
+        # 单个URL读取
+        request = WebReadRequest(urls="https://example.com/article")
+        response = await reader_service.read(request)
+        
+        result = response.results[0]
+        if result.status == "success":
+            print(f"标题: {result.title}")
+            print(f"内容长度: {result.word_count} 词")
+            print(f"内容预览: {result.content[:200]}...")
+```
+
+### 6.3 批量处理示例
+
+```python
+async def batch_processing():
+    """搜索并批量读取内容的完整示例"""
+    
+    # 1. 执行搜索
+    async with SearchService(provider_name="jina", 
+                           provider_config={"api_key": "your_key"}) as search_service:
+        search_request = WebSearchRequest(
+            query="人工智能最新发展",
+            max_results=5
+        )
+        search_response = await search_service.search(search_request)
+        urls = [result.url for result in search_response.results]
+    
+    # 2. 批量读取内容
+    async with ReaderService() as reader_service:
+        read_request = WebReadRequest(
+            urls=urls,
+            max_concurrent=3,
+            timeout=30
+        )
+        read_response = await reader_service.read(read_request)
+    
+    # 3. 整合结果
+    for i, search_result in enumerate(search_response.results):
+        read_result = read_response.results[i]
+        
+        print(f"\n=== {search_result.title} ===")
+        print(f"URL: {search_result.url}")
+        print(f"搜索摘要: {search_result.snippet}")
+        
+        if read_result.status == "success":
+            print(f"完整内容: {read_result.content[:300]}...")
+            print(f"字数: {read_result.word_count}")
+        else:
+            print(f"内容读取失败: {read_result.error}")
+```
+
+### 6.4 HTTP API使用示例
+
 ```bash
-# 搜索配置
-WEB_SEARCH_PROVIDER=duckduckgo
-WEB_SEARCH_FALLBACK_PROVIDER=bing
+# 搜索API调用
+curl -X POST "http://localhost:8000/api/v1/web/search" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_token" \
+  -d '{
+    "query": "ApeRAG RAG系统",
+    "max_results": 5,
+    "search_engine": "duckduckgo"
+  }'
 
-# 读取配置  
-WEB_READER_PROVIDER=crawl4ai
-WEB_READER_FALLBACK_PROVIDER=jina
-WEB_READER_TIMEOUT=30
-WEB_READER_MAX_CONCURRENT=3
+# 读取API调用
+curl -X POST "http://localhost:8000/api/v1/web/read" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your_token" \
+  -d '{
+    "urls": ["https://example.com/article1", "https://example.com/article2"],
+    "max_concurrent": 2,
+    "timeout": 30
+  }'
 ```
 
-### 6.4 性能优化策略
+## 7. 资源管理与安全
 
-**核心优化点**：
-- **异步处理**：所有网络请求使用asyncio
-- **并发控制**：读取多个URL时限制并发数
-- **超时控制**：所有外部请求设置超时
-- **连接复用**：Provider内部使用连接池
+### 7.1 资源泄漏解决方案
 
-## 7. 实现优先级
+**问题**：在异步环境中，未正确关闭的资源会导致`ResourceWarning: Unclosed <MemoryObjectReceiveStream>`。
 
-### 7.1 第一阶段（核心MVP）
+**解决方案**：
+1. **所有Provider实现close()方法**
+2. **Service层支持上下文管理器**
+3. **HTTP视图层使用上下文管理器**
 
-**目标**：提供基础的搜索和读取功能
+**实现细节**：
+```python
+# 所有Provider基类都实现close()
+async def close(self):
+    # 子类可重写进行资源清理
+    pass
 
-1. **基础架构搭建**
-   - Provider抽象接口定义
-   - Service层实现
-   - 基础数据模型
+# Service层上下文管理器
+async def __aenter__(self):
+    return self
 
-2. **DuckDuckGo搜索Provider**
-   - 免费、无需API Key
-   - 基础搜索功能
+async def __aexit__(self, exc_type, exc_val, exc_tb):
+    await self.close()
 
-3. **Crawl4AI读取Provider**
-   - 安装和基础配置
-   - 单URL读取功能
+# HTTP视图层安全使用
+async def web_search(request: WebSearchRequest):
+    async with SearchService() as search_service:
+        response = await search_service.search(request)
+        return response
+    # 资源自动清理，避免泄漏
+```
 
-4. **HTTP API接口**
-   - `/api/v1/web/search`
-   - `/api/v1/web/read`
+### 7.2 错误处理机制
 
-5. **MCP工具接口**
-   - `web_search`工具
-   - `web_read`工具
+**多层错误处理**：
+```python
+# Provider层：具体错误
+class SearchProviderError(Exception):
+    pass
 
-### 7.2 第二阶段（功能完善）
+class ReaderProviderError(Exception):
+    pass
 
-1. **批量读取功能**
-2. **错误处理完善**
-3. **参数验证和安全检查**
-4. **基础性能优化**
+# Service层：统一包装
+try:
+    results = await self.provider.search(...)
+except SearchProviderError:
+    raise  # 重新抛出Provider错误
+except Exception as e:
+    raise SearchProviderError(f"Search service error: {str(e)}")
 
-### 7.3 第三阶段（扩展增强）
+# HTTP视图层：用户友好的错误响应
+except SearchProviderError as e:
+    raise HTTPException(status_code=500, detail=f"搜索失败: {str(e)}")
+```
 
-1. **多Provider支持**
-2. **智能降级机制**
-3. **缓存和性能优化**
-4. **监控和日志集成**
+## 8. 性能优化
 
-## 8. 依赖管理
+### 8.1 并发控制
 
-### 8.1 新增核心依赖
+**批量处理优化**：
+```python
+# 使用Semaphore控制并发数
+semaphore = asyncio.Semaphore(max_concurrent)
 
-```bash
+async def read_single(url: str):
+    async with semaphore:
+        return await self.provider.read(url)
+
+# 并发执行，自动限制并发数
+results = await asyncio.gather(*[read_single(url) for url in urls])
+```
+
+### 8.2 超时控制
+
+**多层超时保护**：
+```python
+# Provider层：网络请求超时
+async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as session:
+    async with session.post(url, json=payload) as response:
+        # 自动超时保护
+
+# Service层：整体操作超时
+response = await asyncio.wait_for(
+    self.provider.search(query),
+    timeout=request.timeout
+)
+```
+
+## 9. 依赖管理
+
+### 9.1 已集成依赖
+
+```python
 # 搜索相关
-duckduckgo-search>=6.0.0           # DuckDuckGo搜索
+duckduckgo-search>=6.0.0      # DuckDuckGo搜索
+aiohttp>=3.9.0                # 异步HTTP客户端
 
-# 内容读取相关  
-crawl4ai>=0.3.0                    # 主力内容读取库
-trafilatura>=1.12.0                # 轻量级备选
-requests>=2.31.0                   # HTTP请求
-aiohttp>=3.9.0                     # 异步HTTP请求
+# 内容读取相关
+trafilatura>=1.12.0           # 内容提取
+markdownify>=0.11.0           # HTML转Markdown
 
 # 内容处理
-beautifulsoup4>=4.12.0             # HTML解析
-lxml>=5.0.0                        # XML/HTML解析器
+beautifulsoup4>=4.12.0        # HTML解析（可选）
+lxml>=5.0.0                   # 解析器（可选）
 ```
 
-### 8.2 可选依赖（按需安装）
+### 9.2 安装方法
 
 ```bash
-# JINA Reader集成（可选）
-jina>=3.0.0
+# 通过项目Makefile安装
+make install
 
-# 高级搜索API（可选）
-bing-search-api>=1.0.0
-google-search-results>=2.4.0
+# 或直接pip安装
+pip install duckduckgo-search trafilatura markdownify aiohttp
 ```
 
-## 9. 测试策略
+## 10. 配置管理
 
-### 9.1 单元测试范围
+### 10.1 推荐配置方式
+
+**代码配置（推荐）**：
+```python
+# 直接传递配置，最灵活
+search_config = {
+    "api_key": "your_jina_api_key",
+    "timeout": 30,
+    "max_retries": 3
+}
+
+service = SearchService(provider_name="jina", provider_config=search_config)
+```
+
+**环境变量配置（可选）**：
+```bash
+# .env文件
+JINA_API_KEY=jina_xxxxxxxxxxxxxxxx
+WEB_SEARCH_TIMEOUT=30
+WEB_READ_MAX_CONCURRENT=3
+```
+
+### 10.2 Provider选择策略
+
+**智能降级**：
+```python
+class SmartWebService:
+    async def search_with_fallback(self, query: str):
+        # 主Provider：JINA（如果有API Key）
+        if self.has_jina_key():
+            try:
+                async with SearchService("jina", {"api_key": self.jina_key}) as service:
+                    return await service.search_simple(query)
+            except Exception as e:
+                logger.warning(f"JINA搜索失败，降级到DuckDuckGo: {e}")
+        
+        # 降级Provider：DuckDuckGo
+        async with SearchService("duckduckgo") as service:
+            return await service.search_simple(query)
+```
+
+## 11. 测试与监控
+
+### 11.1 单元测试覆盖
 
 ```
 tests/unit_test/websearch/
-├── test_search_service.py          # 搜索服务测试
-├── test_reader_service.py          # 读取服务测试
-├── test_duckduckgo_provider.py     # DuckDuckGo Provider测试
-├── test_crawl4ai_provider.py       # Crawl4AI Provider测试
-└── test_web_views.py               # HTTP接口测试
+├── test_search_service.py           # SearchService测试
+├── test_reader_service.py           # ReaderService测试
+├── test_duckduckgo_provider.py      # DuckDuckGo Provider测试
+├── test_jina_providers.py           # JINA Providers测试
+└── test_web_views.py                # HTTP接口测试
 ```
 
-### 9.2 集成测试重点
+### 11.2 性能监控
 
-1. **真实网络请求测试**：使用实际URL验证功能
-2. **MCP工具集成测试**：验证MCP调用流程
-3. **错误场景测试**：网络超时、URL无效等
-4. **并发性能测试**：批量读取压力测试
+**关键指标**：
+- 搜索响应时间
+- 内容读取成功率
+- 并发处理能力
+- 资源使用情况
 
-## 10. 部署和配置
+**监控实现**：
+```python
+# 在Service层添加指标收集
+import time
+import logging
 
-### 10.1 环境配置
+logger = logging.getLogger(__name__)
 
-**开发环境**：
-```bash
-# 安装开发依赖
-make install  # 已有命令，会安装新依赖
-
-# 配置环境变量
-cp envs/env.template .env
-# 编辑.env添加Web服务配置
+async def search(self, request: WebSearchRequest):
+    start_time = time.time()
+    try:
+        result = await self.provider.search(...)
+        search_time = time.time() - start_time
+        
+        # 记录成功指标
+        logger.info(f"搜索成功: query={request.query}, time={search_time:.2f}s, results={len(result)}")
+        return result
+        
+    except Exception as e:
+        # 记录失败指标
+        logger.error(f"搜索失败: query={request.query}, error={str(e)}")
+        raise
 ```
 
-**生产环境**：
-- 容器化部署：更新Dockerfile包含新依赖
-- 环境变量：通过K8s ConfigMap管理配置
-- 监控：集成现有监控体系
+## 12. 集成与部署
 
-### 10.2 配置管理
+### 12.1 MCP工具集成（待完成）
 
-**配置优先级**：
-1. 环境变量（最高优先级）
-2. 配置文件
-3. 代码默认值（最低优先级）
+**计划集成的MCP工具**：
+```python
+# aperag/mcp/server.py 扩展
+@server.tool()
+async def web_search(query: str, max_results: int = 5) -> dict:
+    """执行Web搜索"""
+    async with SearchService() as service:
+        request = WebSearchRequest(query=query, max_results=max_results)
+        response = await service.search(request)
+        return response.dict()
 
-## 11. 总结
+@server.tool()  
+async def web_read(urls: List[str], max_concurrent: int = 3) -> dict:
+    """读取Web页面内容"""
+    async with ReaderService() as service:
+        request = WebReadRequest(urls=urls, max_concurrent=max_concurrent)
+        response = await service.read(request)
+        return response.dict()
+```
 
-### 11.1 设计优势
+### 12.2 生产环境配置
 
-1. **架构统一**：完全遵循现有LLM服务设计模式
-2. **扩展性强**：Provider模式支持无限扩展
-3. **实现渐进**：可从简单实现开始，逐步完善
-4. **接口双重**：HTTP + MCP双接口满足不同需求
-5. **技术领先**：Crawl4AI是当前最适合LLM的方案
+**Docker配置**：
+```dockerfile
+# Dockerfile中添加依赖
+RUN pip install duckduckgo-search trafilatura markdownify
 
-### 11.2 技术债务控制
+# 环境变量
+ENV WEB_SEARCH_PROVIDER=duckduckgo
+ENV WEB_READ_PROVIDER=trafilatura
+ENV WEB_REQUEST_TIMEOUT=30
+```
 
-- **代码复用**：最大化复用现有架构和工具
-- **依赖管理**：仅引入必要的核心依赖
-- **测试覆盖**：从设计阶段就考虑测试策略
-- **文档同步**：接口文档与实现同步更新
+**Kubernetes配置**：
+```yaml
+# 通过ConfigMap管理配置
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: websearch-config
+data:
+  JINA_API_KEY: "your_jina_api_key"
+  WEB_SEARCH_TIMEOUT: "30"
+  WEB_READ_MAX_CONCURRENT: "3"
+```
 
-### 11.3 风险控制
+## 13. 总结
 
-- **Provider切换**：架构设计支持无缝切换
-- **服务降级**：多层错误处理确保服务可用性
-- **性能监控**：关键指标监控防止性能问题
-- **安全防护**：URL验证和内容过滤防止安全问题
+### 13.1 实现成果
 
-这个设计方案在保持架构一致性的同时，为ApeRAG提供了强大的Web搜索和内容读取能力，为Agent功能奠定了坚实的技术基础。
+✅ **已完成功能**：
+- 完整的Provider抽象架构
+- DuckDuckGo和JINA搜索Provider
+- Trafilatura和JINA读取Provider
+- HTTP API接口实现
+- 资源安全管理机制
+- 并发控制和错误处理
+- 完整的单元测试
+
+✅ **技术优势**：
+- **架构统一**：完全遵循ApeRAG现有LLM服务设计模式
+- **资源安全**：解决了异步资源泄漏问题，生产环境可靠
+- **性能优化**：内置并发控制、超时保护、智能降级
+- **易于扩展**：新增Provider只需实现标准接口
+- **开箱即用**：DuckDuckGo和Trafilatura无需配置即可使用
+
+### 13.2 待完成集成
+
+⏳ **计划中功能**：
+- MCP工具注册和集成
+- 缓存机制实现
+- 监控指标完善
+- 更多Provider支持（Bing、Google等）
+
+### 13.3 最佳实践总结
+
+1. **始终使用上下文管理器**：避免资源泄漏
+2. **合理设置并发数**：防止外部服务过载
+3. **实现智能降级**：提高服务可用性
+4. **监控关键指标**：确保服务质量
+5. **遵循统一接口**：便于Provider切换
+
+这个Web搜索模块为ApeRAG Agent提供了强大的Web信息获取能力，架构设计完全符合系统整体设计理念，实现了生产级的稳定性和可扩展性。

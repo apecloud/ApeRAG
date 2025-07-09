@@ -92,14 +92,15 @@ class SearchService:
             if not request.query or not request.query.strip():
                 raise SearchProviderError("Search query cannot be empty")
 
-            # Validate search engine
+            # Validate search engine and determine effective engine to use
+            effective_search_engine = request.search_engine
             if not self.provider.validate_search_engine(request.search_engine):
                 logger.warning(
                     f"Unsupported search engine '{request.search_engine}' for provider '{self.provider_name}', "
                     f"using default supported engine"
                 )
                 # Use first supported engine as fallback
-                request.search_engine = self.provider.get_supported_engines()[0]
+                effective_search_engine = self.provider.get_supported_engines()[0]
 
             # Perform search
             start_time = self._get_current_time()
@@ -107,7 +108,7 @@ class SearchService:
             results = await self.provider.search(
                 query=request.query,
                 max_results=request.max_results,
-                search_engine=request.search_engine,
+                search_engine=effective_search_engine,
                 timeout=request.timeout,
                 locale=request.locale,
             )
@@ -118,7 +119,7 @@ class SearchService:
             return WebSearchResponse(
                 query=request.query,
                 results=results,
-                search_engine=request.search_engine,
+                search_engine=effective_search_engine,
                 total_results=len(results),  # For now, just return actual count
                 search_time=search_time,
             )
