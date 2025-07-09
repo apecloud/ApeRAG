@@ -2,7 +2,7 @@ export const model = {
   'model.name': 'Models',
   'model.configuration': 'Model Configuration',
   'model.configuration.description': 'Configure LLM providers and models',
-  'model.configuration.admin_only': '👤 Admin Notice: Only public models with "recommend" tag can be selected by regular users. User-created providers/models are not affected by this restriction.',
+  'model.configuration.admin_only': '👤 Admin Notice: Only globally shared models with "recommend" tag are visible to regular users. Private user providers/models are not affected by this restriction.',
   'model.prompt_template': 'Prompt Template',
   'model.llm.tips': 'Large language chat model',
   'model.rerank.tips':
@@ -21,6 +21,9 @@ export const model = {
   'model.provider.base_url': 'API Base URL',
   'model.provider.api_key_short': 'API KEY',
   'model.provider.model_count': 'Model Count',
+  'model.provider.type': 'Sharing Scope',
+  'model.provider.type.public': 'Global',
+  'model.provider.type.user': 'Private',
   'model.provider.completion_dialect': 'Completion API Dialect',
   'model.provider.embedding_dialect': 'Embedding API Dialect',
   'model.provider.rerank_dialect': 'Rerank API Dialect',

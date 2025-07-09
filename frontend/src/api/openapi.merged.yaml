@@ -3626,6 +3626,10 @@ components:
           type: string
           description: Unique provider name identifier
           example: openai
+        user_id:
+          type: string
+          description: User ID of the provider owner, "public" for system providers
+          example: public
         label:
           type: string
           description: Human-readable provider display name
@@ -3669,6 +3673,7 @@ components:
           description: Last update timestamp
       required:
         - name
+        - user_id
         - label
         - base_url
     llmProviderModel:

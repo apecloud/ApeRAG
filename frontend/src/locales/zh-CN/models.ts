@@ -2,8 +2,11 @@ export const model = {
   'model.name': '模型',
   'model.configuration': '模型配置',
   'model.configuration.description': '配置LLM提供商和模型',
-  'model.configuration.admin_only': '👤 管理员提示：只有打了 "recommend" 标签的 public 模型才能被普通用户选择。用户自己添加的 provider/model 不受此限制。',
+  'model.configuration.admin_only': '👤 管理员提示：只有全局共享且标记为 "recommend" 的模型才会对普通用户可见，用户私有的 provider/model 不受此限制。',
   'model.prompt_template': '提示模版',
+  'model.provider.type': '共享范围',
+  'model.provider.type.public': '全局共享',
+  'model.provider.type.user': '私有',
   'model.llm.tips': '大型语言对话模型',
   'model.rerank.tips':
     '在拿到向量查询（ANN）的结果后使用 Reranker，能够更有效地确定文档和查询之间的语义相关性，更精细地对结果重排，最终提高搜索质量。',

@@ -40,7 +40,7 @@ import {
   Tooltip,
   Typography,
 } from 'antd';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import { useIntl, useModel } from 'umi';
 
 const { Title, Text } = Typography;
@@ -389,134 +389,113 @@ export default () => {
   );
 
   // Provider table columns
-  const providerColumns: TableProps<LlmProvider>['columns'] = [
-    {
-      title: formatMessage({ id: 'model.provider.name' }),
-      dataIndex: 'label',
-      key: 'label',
-      width: 180,
-      render: (label: string) => <Text strong>{label}</Text>,
-    },
-    {
-      title: formatMessage({ id: 'model.provider.status' }),
-      key: 'status',
-      width: 100,
-      align: 'center',
-      render: (_, record) => {
-        const enabled = isProviderEnabled(record);
-        return (
-          <Tag color={enabled ? 'green' : 'default'}>
-            {enabled 
-              ? formatMessage({ id: 'model.provider.status.enabled' })
-              : formatMessage({ id: 'model.provider.status.disabled' })
+  const providerColumns: any[] = useMemo(() => {
+    const baseColumns = [
+      {
+        title: formatMessage({ id: 'model.provider.name' }),
+        dataIndex: 'label',
+        key: 'label',
+        render: (text: string, record: any) => <span>{text}</span>,
+      },
+    ];
+
+    // Add provider type column only for admin users
+    if (user?.role === 'admin') {
+      baseColumns.push({
+        title: formatMessage({ id: 'model.provider.type' }),
+        dataIndex: 'user_id',
+        key: 'user_id',
+        render: (user_id: string) => (
+          <Tag color={user_id === 'public' ? 'blue' : 'green'}>
+            {user_id === 'public' 
+              ? formatMessage({ id: 'model.provider.type.public' })
+              : formatMessage({ id: 'model.provider.type.user' })
             }
           </Tag>
-        );
+        ),
+      });
+    }
+
+    // Add status and other columns
+    baseColumns.push(
+      {
+        title: formatMessage({ id: 'common.status' }),
+        key: 'status',
+        dataIndex: '',  // Add empty dataIndex to satisfy type requirement
+        render: (_, record) => {
+          const enabled = isProviderEnabled(record);
+          return (
+            <Tag color={enabled ? 'green' : 'default'}>
+              {enabled 
+                ? formatMessage({ id: 'common.enabled' })
+                : formatMessage({ id: 'common.disabled' })
+              }
+            </Tag>
+          );
+        },
       },
-    },
-    {
-      title: formatMessage({ id: 'model.provider.url' }),
-      dataIndex: 'base_url',
-      key: 'base_url',
-      width: 280,
-      ellipsis: {
-        showTitle: false,
-      },
-      render: (url: string) => (
-        <Tooltip title={url}>
-          <Text type="secondary" style={{ fontSize: '12px' }}>
-            {url}
-          </Text>
-        </Tooltip>
-      ),
-    },
-    {
-      title: formatMessage({ id: 'model.provider.api_key_short' }),
-      key: 'api_key_status',
-      width: 180,
-      ellipsis: {
-        showTitle: false,
-      },
-      render: (_, record) => {
-        const apiKey =
-          record.api_key && record.api_key.trim() !== ''
-            ? record.api_key
-            : null;
-        return apiKey ? (
-          <Tooltip title={apiKey}>
-            <Text
-              style={{
-                fontSize: '12px',
-                fontFamily: 'monospace',
-                maxWidth: '140px',
-                display: 'inline-block',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {apiKey}
-            </Text>
+      {
+        title: 'URL',
+        dataIndex: 'base_url',
+        key: 'base_url',
+        render: (url: string) => (
+          <Tooltip title={url}>
+            <span style={{ 
+              maxWidth: '280px', 
+              display: 'inline-block',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap' 
+            }}>
+              {url}
+            </span>
           </Tooltip>
-        ) : (
-          <Text type="secondary" style={{ fontSize: '12px' }}>
-            -
-          </Text>
-        );
+        ),
       },
-    },
-    {
-      title: formatMessage({ id: 'model.provider.model_count' }),
-      key: 'model_count',
-      align: 'center',
-      width: 100,
-      render: (_, record) => {
-        const count = getProviderModelCount(record.name);
-        return (
-          <Text
-            style={{
-              fontSize: '13px',
-              fontWeight: 500,
-              color: count > 0 ? '#1890ff' : '#8c8c8c',
-            }}
-          >
-            {count}
-          </Text>
-        );
+      {
+        title: 'API Key',
+        dataIndex: 'api_key',
+        key: 'api_key',
+        render: (apiKey: string) => (
+          <Tag color={apiKey ? 'green' : 'red'}>
+            {formatMessage({ id: apiKey ? 'common.configured' : 'common.not_configured' })}
+          </Tag>
+        ),
       },
-    },
-    {
-      title: formatMessage({ id: 'action.name' }),
-      key: 'actions',
-      width: 160,
-      render: (_, record) => (
-        <Space size="small">
-          <Tooltip title={formatMessage({ id: 'model.provider.manage' })}>
-            <Button
-              type="text"
-              icon={<SettingOutlined />}
-              onClick={() => handleManageModels(record)}
-            />
-          </Tooltip>
-          <Tooltip title={formatMessage({ id: 'model.provider.edit' })}>
-            <Button
-              type="text"
-              icon={<EditOutlined />}
-              onClick={() => handleEditProvider(record)}
-            />
-          </Tooltip>
-          <Tooltip title={formatMessage({ id: 'model.provider.delete' })}>
-            <Button
-              type="text"
-              icon={<DeleteOutlined />}
-              danger
-              onClick={() => handleDeleteProvider(record)}
-            />
-          </Tooltip>
-        </Space>
-      ),
-    },
-  ];
+      {
+        title: formatMessage({ id: 'model.provider.model_count' }),
+        dataIndex: 'model_count',
+        key: 'model_count',
+        render: (text: string, record: any) => <span>{text}</span>,
+      },
+      {
+        title: formatMessage({ id: 'common.actions' }),
+        dataIndex: 'action',
+        key: 'action',
+        render: (text: string, record: any) => (
+          <Space size="middle">
+            <Tooltip title={formatMessage({ id: 'common.edit' })}>
+              <Button
+                icon={<EditOutlined />}
+                size="small"
+                onClick={() => handleEditProvider(record)}
+              />
+            </Tooltip>
+            <Tooltip title={formatMessage({ id: 'common.delete' })}>
+              <Button
+                icon={<DeleteOutlined />}
+                size="small"
+                danger
+                onClick={() => handleDeleteProvider(record)}
+              />
+            </Tooltip>
+          </Space>
+        ),
+      },
+    );
+
+    return baseColumns;
+  }, [formatMessage, user?.role, isProviderEnabled]);
 
   // Model table columns
   const modelColumns: TableProps<LlmProviderModel>['columns'] = [
