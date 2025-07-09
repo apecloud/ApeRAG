@@ -21,7 +21,7 @@ from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_headers
 
 # Import view models for type safety
-from aperag.schema.view_models import CollectionList, SearchResult
+from aperag.schema.view_models import CollectionList, SearchResult, WebReadResponse, WebSearchResponse
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +137,113 @@ async def search_collection(
         return {"error": str(e)}
 
 
+@mcp_server.tool
+async def web_search(
+    query: str,
+    max_results: int = 5,
+    search_engine: str = "duckduckgo",
+    timeout: int = 30,
+    locale: str = "zh-CN",
+) -> Dict[str, Any]:
+    """Perform web search using various search engines.
+
+    Args:
+        query: Search query
+        max_results: Maximum number of results to return (default: 5)
+                 search_engine: Search engine to use: duckduckgo, google, bing (default: duckduckgo)
+        timeout: Request timeout in seconds (default: 30)
+        locale: Browser locale (default: zh-CN)
+
+    Returns:
+        Web search results with URLs, titles, snippets, and metadata
+
+    Note:
+        Uses WebSearchResponse view model for type-safe response parsing
+    """
+    try:
+        api_key = get_api_key()
+
+        # Build search request
+        search_data = {
+            "query": query,
+            "max_results": max_results,
+            "search_engine": search_engine,
+            "timeout": timeout,
+            "locale": locale,
+        }
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{API_BASE_URL}/api/v1/web/search",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json=search_data,
+            )
+            if response.status_code == 200:
+                try:
+                    # Parse response using view model for type safety
+                    search_response = WebSearchResponse.model_validate(response.json())
+                    return search_response.model_dump()
+                except Exception as e:
+                    logger.error(f"Failed to parse web search response: {e}")
+                    return {"error": "Failed to parse web search response", "details": str(e)}
+            else:
+                return {"error": f"Web search failed: {response.status_code}", "details": response.text}
+    except ValueError as e:
+        return {"error": str(e)}
+
+
+@mcp_server.tool
+async def web_read(
+    urls: str | list[str],
+    timeout: int = 30,
+    locale: str = "zh-CN",
+    max_concurrent: int = 3,
+) -> Dict[str, Any]:
+    """Read and extract content from web pages.
+
+    Args:
+        urls: URL (string) or list of URLs to read content from
+        timeout: Request timeout in seconds (default: 30)
+        locale: Browser locale (default: zh-CN)
+        max_concurrent: Maximum concurrent requests for multiple URLs (default: 3)
+
+    Returns:
+        Web content reading results with extracted text, titles, word counts, and metadata
+
+    Note:
+        Uses WebReadResponse view model for type-safe response parsing
+    """
+    try:
+        api_key = get_api_key()
+
+        # Build read request
+        read_data = {
+            "urls": urls,
+            "timeout": timeout,
+            "locale": locale,
+            "max_concurrent": max_concurrent,
+        }
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{API_BASE_URL}/api/v1/web/read",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json=read_data,
+            )
+            if response.status_code == 200:
+                try:
+                    # Parse response using view model for type safety
+                    read_response = WebReadResponse.model_validate(response.json())
+                    return read_response.model_dump()
+                except Exception as e:
+                    logger.error(f"Failed to parse web read response: {e}")
+                    return {"error": "Failed to parse web read response", "details": str(e)}
+            else:
+                return {"error": f"Web read failed: {response.status_code}", "details": response.text}
+    except ValueError as e:
+        return {"error": str(e)}
+
+
 # Add a resource for ApeRAG usage information
 @mcp_server.resource("aperag://usage-guide")
 async def aperag_usage_guide() -> str:
@@ -149,6 +256,8 @@ ApeRAG provides powerful knowledge search capabilities across your collections.
 ## Available Operations:
 1. **list_collections**: Get all available collections with complete details
 2. **search_collection**: Search within collections using multiple search methods
+3. **web_search**: Perform web search using various search engines (Google, DuckDuckGo, Bing)
+4. **web_read**: Read and extract content from web pages
 
 ## Authentication:
 API authentication is handled automatically through one of these methods:
@@ -202,6 +311,71 @@ vector_only = search_collection(
 ```
 
 Your search results will include relevant documents with context, similarity scores, and metadata.
+
+## Web Search and Content Reading:
+You can also search the web and extract content from web pages:
+
+### Web Search Example:
+```
+# Search the web for information
+web_results = web_search(
+    query="ApeRAG RAG system 2025",
+    max_results=5,
+    search_engine="duckduckgo",  # or "google", "bing"
+    locale="zh-CN"
+)
+
+# Search results include URLs, titles, snippets, and domains
+for result in web_results.results:
+    print(f"Title: {result.title}")
+    print(f"URL: {result.url}")
+    print(f"Snippet: {result.snippet}")
+```
+
+### Web Content Reading Example:
+```
+# Read content from web pages
+content = web_read(
+    urls="https://example.com/article",  # single URL
+    timeout=30
+)
+
+# Or read from multiple URLs
+content = web_read(
+    urls=["https://example.com/page1", "https://example.com/page2"],  # multiple URLs
+    max_concurrent=2
+)
+
+# Content includes extracted text, titles, word counts
+for result in content.results:
+    if result.status == "success":
+        print(f"Title: {result.title}")
+        print(f"Content: {result.content}")
+        print(f"Word Count: {result.word_count}")
+```
+
+### Combined Workflow Example:
+```
+# 1. Search web for recent information
+web_results = web_search(query="latest AI developments 2025", max_results=3)
+
+# 2. Extract URLs from search results
+urls = [result.url for result in web_results.results]
+
+# 3. Read full content from those pages
+web_content = web_read(urls=urls, max_concurrent=2)
+
+# 4. Search your internal knowledge base for related information
+collections = list_collections()
+if collections.items:
+    internal_results = search_collection(
+        collection_id=collections.items[0].id,
+        query="AI developments",
+        topk=5
+    )
+
+# Now you have both web and internal knowledge base results!
+```
 """
 
 
@@ -224,6 +398,9 @@ I can help you search your knowledge base effectively using ApeRAG.
 - 📚 **Browse your collections** to understand what data you have (with complete details)
 - 🎯 **Find specific information** with precise queries
 - 💡 **Suggest search strategies** for complex queries
+- 🌐 **Search the web** for latest information using multiple search engines
+- 📄 **Read web content** and extract clean text from any web page
+- 🔗 **Combine web and internal search** for comprehensive results
 
 ## Search Tips:
 - Use **specific terms** for better results

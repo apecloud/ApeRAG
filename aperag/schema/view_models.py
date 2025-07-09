@@ -1436,7 +1436,7 @@ class WebSearchRequest(BaseModel):
         5, description='Maximum number of results to return', example=5
     )
     search_engine: Optional[str] = Field(
-        'google', description='Search engine to use', example='google'
+        'duckduckgo', description='Search engine to use', example='duckduckgo'
     )
     timeout: Optional[int] = Field(
         30, description='Request timeout in seconds', example=30
@@ -1489,18 +1489,6 @@ class WebReadRequest(BaseModel):
     urls: Union[str, list[str]] = Field(..., description='URL or list of URLs to read')
     timeout: Optional[int] = Field(
         30, description='Request timeout in seconds', example=30
-    )
-    css_selector: Optional[str] = Field(
-        None, description='CSS selector for content extraction'
-    )
-    wait_for_selector: Optional[str] = Field(
-        None, description='CSS selector to wait for (SPA pages)'
-    )
-    exclude_selector: Optional[str] = Field(
-        None, description='CSS selector to exclude (ads, etc.)'
-    )
-    bypass_cache: Optional[bool] = Field(
-        False, description='Bypass cache for fresh content'
     )
     locale: Optional[str] = Field(
         'zh-CN', description='Browser locale', example='zh-CN'

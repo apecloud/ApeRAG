@@ -36,30 +36,6 @@ export interface WebReadRequest {
      */
     'timeout'?: number;
     /**
-     * CSS selector for content extraction
-     * @type {string}
-     * @memberof WebReadRequest
-     */
-    'css_selector'?: string;
-    /**
-     * CSS selector to wait for (SPA pages)
-     * @type {string}
-     * @memberof WebReadRequest
-     */
-    'wait_for_selector'?: string;
-    /**
-     * CSS selector to exclude (ads, etc.)
-     * @type {string}
-     * @memberof WebReadRequest
-     */
-    'exclude_selector'?: string;
-    /**
-     * Bypass cache for fresh content
-     * @type {boolean}
-     * @memberof WebReadRequest
-     */
-    'bypass_cache'?: boolean;
-    /**
      * Browser locale
      * @type {string}
      * @memberof WebReadRequest

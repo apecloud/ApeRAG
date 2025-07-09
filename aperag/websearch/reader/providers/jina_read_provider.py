@@ -57,10 +57,6 @@ class JinaReaderProvider(BaseReaderProvider):
         self,
         url: str,
         timeout: int = 30,
-        css_selector: str = None,
-        wait_for_selector: str = None,
-        exclude_selector: str = None,
-        bypass_cache: bool = False,
         locale: str = "zh-CN",
     ) -> WebReadResultItem:
         """
@@ -69,10 +65,6 @@ class JinaReaderProvider(BaseReaderProvider):
         Args:
             url: URL to read content from
             timeout: Request timeout in seconds
-            css_selector: CSS selector for content extraction
-            wait_for_selector: CSS selector to wait for (SPA pages)
-            exclude_selector: CSS selector to exclude (ads, etc.)
-            bypass_cache: Bypass cache for fresh content
             locale: Browser locale
 
         Returns:
@@ -106,16 +98,6 @@ class JinaReaderProvider(BaseReaderProvider):
                 "return_images": False,
                 "timeout": timeout,
             }
-
-            # Add optional selectors
-            if css_selector:
-                payload["target_selector"] = css_selector
-            if wait_for_selector:
-                payload["wait_for_selector"] = wait_for_selector
-            if exclude_selector:
-                payload["exclude_selector"] = exclude_selector
-            if bypass_cache:
-                payload["bypass_cache"] = bypass_cache
 
             # Add locale-specific headers
             request_headers = self.headers.copy()
@@ -152,10 +134,6 @@ class JinaReaderProvider(BaseReaderProvider):
         self,
         urls: List[str],
         timeout: int = 30,
-        css_selector: str = None,
-        wait_for_selector: str = None,
-        exclude_selector: str = None,
-        bypass_cache: bool = False,
         locale: str = "zh-CN",
         max_concurrent: int = 3,
     ) -> List[WebReadResultItem]:
@@ -165,10 +143,6 @@ class JinaReaderProvider(BaseReaderProvider):
         Args:
             urls: List of URLs to read content from
             timeout: Request timeout in seconds
-            css_selector: CSS selector for content extraction
-            wait_for_selector: CSS selector to wait for (SPA pages)
-            exclude_selector: CSS selector to exclude (ads, etc.)
-            bypass_cache: Bypass cache for fresh content
             locale: Browser locale
             max_concurrent: Maximum concurrent requests
 
@@ -189,10 +163,6 @@ class JinaReaderProvider(BaseReaderProvider):
                 return await self.read(
                     url=url,
                     timeout=timeout,
-                    css_selector=css_selector,
-                    wait_for_selector=wait_for_selector,
-                    exclude_selector=exclude_selector,
-                    bypass_cache=bypass_cache,
                     locale=locale,
                 )
 

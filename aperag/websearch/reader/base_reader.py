@@ -31,10 +31,6 @@ class BaseReaderProvider(ABC):
         self,
         url: str,
         timeout: int = 30,
-        css_selector: str = None,
-        wait_for_selector: str = None,
-        exclude_selector: str = None,
-        bypass_cache: bool = False,
         locale: str = "zh-CN",
     ) -> WebReadResultItem:
         """
@@ -43,10 +39,6 @@ class BaseReaderProvider(ABC):
         Args:
             url: URL to read content from
             timeout: Request timeout in seconds
-            css_selector: CSS selector for content extraction
-            wait_for_selector: CSS selector to wait for (SPA pages)
-            exclude_selector: CSS selector to exclude (ads, etc.)
-            bypass_cache: Bypass cache for fresh content
             locale: Browser locale
 
         Returns:
@@ -62,10 +54,6 @@ class BaseReaderProvider(ABC):
         self,
         urls: List[str],
         timeout: int = 30,
-        css_selector: str = None,
-        wait_for_selector: str = None,
-        exclude_selector: str = None,
-        bypass_cache: bool = False,
         locale: str = "zh-CN",
         max_concurrent: int = 3,
     ) -> List[WebReadResultItem]:
@@ -75,10 +63,6 @@ class BaseReaderProvider(ABC):
         Args:
             urls: List of URLs to read content from
             timeout: Request timeout in seconds
-            css_selector: CSS selector for content extraction
-            wait_for_selector: CSS selector to wait for (SPA pages)
-            exclude_selector: CSS selector to exclude (ads, etc.)
-            bypass_cache: Bypass cache for fresh content
             locale: Browser locale
             max_concurrent: Maximum concurrent requests
 

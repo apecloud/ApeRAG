@@ -58,10 +58,6 @@ class TrafilaturaProvider(BaseReaderProvider):
         self,
         url: str,
         timeout: int = 30,
-        css_selector: str = None,
-        wait_for_selector: str = None,
-        exclude_selector: str = None,
-        bypass_cache: bool = False,
         locale: str = "zh-CN",
     ) -> WebReadResultItem:
         """
@@ -70,10 +66,6 @@ class TrafilaturaProvider(BaseReaderProvider):
         Args:
             url: URL to read content from
             timeout: Request timeout in seconds
-            css_selector: CSS selector for content extraction (ignored)
-            wait_for_selector: CSS selector to wait for (ignored - no JS support)
-            exclude_selector: CSS selector to exclude (ignored)
-            bypass_cache: Bypass cache for fresh content
             locale: Browser locale (used for User-Agent)
 
         Returns:
@@ -236,10 +228,6 @@ class TrafilaturaProvider(BaseReaderProvider):
         self,
         urls: List[str],
         timeout: int = 30,
-        css_selector: str = None,
-        wait_for_selector: str = None,
-        exclude_selector: str = None,
-        bypass_cache: bool = False,
         locale: str = "zh-CN",
         max_concurrent: int = 3,
     ) -> List[WebReadResultItem]:
@@ -249,10 +237,6 @@ class TrafilaturaProvider(BaseReaderProvider):
         Args:
             urls: List of URLs to read content from
             timeout: Request timeout in seconds
-            css_selector: CSS selector for content extraction (ignored)
-            wait_for_selector: CSS selector to wait for (ignored)
-            exclude_selector: CSS selector to exclude (ignored)
-            bypass_cache: Bypass cache for fresh content
             locale: Browser locale
             max_concurrent: Maximum concurrent requests
 
@@ -273,10 +257,6 @@ class TrafilaturaProvider(BaseReaderProvider):
                 return await self.read(
                     url=url,
                     timeout=timeout,
-                    css_selector=css_selector,
-                    wait_for_selector=wait_for_selector,
-                    exclude_selector=exclude_selector,
-                    bypass_cache=bypass_cache,
                     locale=locale,
                 )
 

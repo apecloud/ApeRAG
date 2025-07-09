@@ -14,8 +14,8 @@ webSearchRequest:
     search_engine:
       type: string
       description: Search engine to use
-      default: "google"
-      example: "google"
+      default: "duckduckgo"
+      example: "duckduckgo"
     timeout:
       type: integer
       description: Request timeout in seconds
@@ -110,19 +110,6 @@ webReadRequest:
       description: Request timeout in seconds
       default: 30
       example: 30
-    css_selector:
-      type: string
-      description: CSS selector for content extraction
-    wait_for_selector:
-      type: string
-      description: CSS selector to wait for (SPA pages)
-    exclude_selector:
-      type: string
-      description: CSS selector to exclude (ads, etc.)
-    bypass_cache:
-      type: boolean
-      description: Bypass cache for fresh content
-      default: false
     locale:
       type: string
       description: Browser locale

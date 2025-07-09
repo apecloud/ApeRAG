@@ -105,10 +105,6 @@ class ReaderService:
                 result = await self.provider.read(
                     url=urls[0],
                     timeout=request.timeout,
-                    css_selector=request.css_selector,
-                    wait_for_selector=request.wait_for_selector,
-                    exclude_selector=request.exclude_selector,
-                    bypass_cache=request.bypass_cache,
                     locale=request.locale,
                 )
                 results = [result]
@@ -117,10 +113,6 @@ class ReaderService:
                 results = await self.provider.read_batch(
                     urls=urls,
                     timeout=request.timeout,
-                    css_selector=request.css_selector,
-                    wait_for_selector=request.wait_for_selector,
-                    exclude_selector=request.exclude_selector,
-                    bypass_cache=request.bypass_cache,
                     locale=request.locale,
                     max_concurrent=request.max_concurrent,
                 )
@@ -151,10 +143,6 @@ class ReaderService:
         self,
         url: str,
         timeout: int = 30,
-        css_selector: str = None,
-        wait_for_selector: str = None,
-        exclude_selector: str = None,
-        bypass_cache: bool = False,
         locale: str = "zh-CN",
     ) -> WebReadResultItem:
         """
@@ -163,10 +151,6 @@ class ReaderService:
         Args:
             url: URL to read content from
             timeout: Request timeout in seconds
-            css_selector: CSS selector for content extraction
-            wait_for_selector: CSS selector to wait for (SPA pages)
-            exclude_selector: CSS selector to exclude (ads, etc.)
-            bypass_cache: Bypass cache for fresh content
             locale: Browser locale
 
         Returns:
@@ -178,10 +162,6 @@ class ReaderService:
         request = WebReadRequest(
             urls=url,
             timeout=timeout,
-            css_selector=css_selector,
-            wait_for_selector=wait_for_selector,
-            exclude_selector=exclude_selector,
-            bypass_cache=bypass_cache,
             locale=locale,
         )
 
@@ -192,10 +172,6 @@ class ReaderService:
         self,
         urls: List[str],
         timeout: int = 30,
-        css_selector: str = None,
-        wait_for_selector: str = None,
-        exclude_selector: str = None,
-        bypass_cache: bool = False,
         locale: str = "zh-CN",
         max_concurrent: int = 3,
     ) -> List[WebReadResultItem]:
@@ -205,10 +181,6 @@ class ReaderService:
         Args:
             urls: List of URLs to read content from
             timeout: Request timeout in seconds
-            css_selector: CSS selector for content extraction
-            wait_for_selector: CSS selector to wait for (SPA pages)
-            exclude_selector: CSS selector to exclude (ads, etc.)
-            bypass_cache: Bypass cache for fresh content
             locale: Browser locale
             max_concurrent: Maximum concurrent requests
 
@@ -221,10 +193,6 @@ class ReaderService:
         request = WebReadRequest(
             urls=urls,
             timeout=timeout,
-            css_selector=css_selector,
-            wait_for_selector=wait_for_selector,
-            exclude_selector=exclude_selector,
-            bypass_cache=bypass_cache,
             locale=locale,
             max_concurrent=max_concurrent,
         )
