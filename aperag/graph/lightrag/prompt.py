@@ -51,7 +51,7 @@ PROMPTS["DEFAULT_ENTITY_TYPES"] = [
     "event",
     "product",
     "technology",
-    # "date",
+    "date",
     "category",
 ]
 
