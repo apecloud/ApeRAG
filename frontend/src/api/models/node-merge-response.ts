@@ -13,6 +13,9 @@
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { NodeMergeResponseTargetEntityData } from './node-merge-response-target-entity-data';
 
 /**
  * Response containing node merge results
@@ -33,11 +36,11 @@ export interface NodeMergeResponse {
      */
     'message': string;
     /**
-     * The entity that was kept (merge target)
-     * @type {string}
+     * 
+     * @type {NodeMergeResponseTargetEntityData}
      * @memberof NodeMergeResponse
      */
-    'target_entity': string;
+    'target_entity_data': NodeMergeResponseTargetEntityData;
     /**
      * List of entities that were merged into the target
      * @type {Array<string>}

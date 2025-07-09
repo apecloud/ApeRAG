@@ -1165,13 +1165,27 @@ class LightRAG:
         if len(entity_ids) == 1:
             entity_id = entity_ids[0]
             self.lightrag_logger.info(f"Single entity provided, returning success: {entity_id}")
+
+            # Get the entity data for response
+            node_data = await self.chunk_entity_relation_graph.get_node(entity_id)
+            if not node_data:
+                raise ValueError(f"Entity '{entity_id}' does not exist")
+
+            target_entity_response_data = {
+                "entity_name": entity_id,
+                "entity_type": node_data.get("entity_type", "UNKNOWN"),
+                "description": node_data.get("description", ""),
+                "source_id": node_data.get("source_id", ""),
+                "file_path": node_data.get("file_path", ""),
+            }
+
             return {
                 "status": "success",
                 "message": "Single entity provided, no merge needed",
-                "target_entity": entity_id,
+                "target_entity_data": target_entity_response_data,
                 "source_entities": [],
                 "redirected_edges": 0,
-                "merged_description_length": 0,
+                "merged_description_length": len(node_data.get("description", "")),
                 "used_llm_summary": False,
                 "collection_id": collection_id,
             }
@@ -1398,10 +1412,19 @@ class LightRAG:
             f"Multi-node merge completed: {source_entities} -> {target_entity_name}, redirected {redirected_edges} edges"
         )
 
+        # Prepare complete target entity data for response
+        target_entity_response_data = {
+            "entity_name": target_entity_name,
+            "entity_type": merged_entity_data.get("entity_type", "UNKNOWN"),
+            "description": merged_entity_data.get("description", ""),
+            "source_id": merged_entity_data.get("source_id", ""),
+            "file_path": merged_entity_data.get("file_path", ""),
+        }
+
         return {
             "status": "success",
             "message": f"Successfully merged {len(source_entities)} entities into {target_entity_name}",
-            "target_entity": target_entity_name,
+            "target_entity_data": target_entity_response_data,
             "source_entities": source_entities,
             "redirected_edges": redirected_edges,
             "merged_description_length": len(merged_entity_data.get("description", "")),

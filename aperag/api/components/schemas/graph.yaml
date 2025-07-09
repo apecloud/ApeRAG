@@ -198,10 +198,34 @@ nodeMergeResponse:
       type: string
       description: Detailed message about the merge operation
       example: "Successfully merged 2 entities into 墨香居"
-    target_entity:
-      type: string
-      description: The entity that was kept (merge target)
-      example: "墨香居"
+    target_entity_data:
+      type: object
+      description: Complete data of the target entity after merge
+      properties:
+        entity_name:
+          type: string
+          description: The entity name that was kept (merge target)
+          example: "墨香居"
+        entity_type:
+          type: string
+          description: Entity type of the target entity
+          example: "ORGANIZATION"
+        description:
+          type: string
+          description: Merged description of the target entity
+          example: "墨香居是这条老巷子里唯一的旧书店，经营着各种书籍，承载了老板李明华的情怀。"
+        source_id:
+          type: string
+          description: Source ID information
+          example: "chunk-001,chunk-002"
+        file_path:
+          type: string
+          description: File path information
+          example: "story.txt,book.txt"
+      required:
+        - entity_name
+        - entity_type
+        - description
       nullable: true
     source_entities:
       type: array
@@ -231,7 +255,7 @@ nodeMergeResponse:
   required:
     - status
     - message
-    - target_entity
+    - target_entity_data
     - source_entities
     - redirected_edges
     - merged_description_length

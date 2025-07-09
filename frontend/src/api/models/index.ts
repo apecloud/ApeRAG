@@ -82,6 +82,7 @@ export * from './node-measured';
 export * from './node-merge-request';
 export * from './node-merge-request-target-entity-data';
 export * from './node-merge-response';
+export * from './node-merge-response-target-entity-data';
 export * from './node-position';
 export * from './page-result';
 export * from './parser-config';
