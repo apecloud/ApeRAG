@@ -2,6 +2,7 @@ export const model = {
   'model.name': 'Models',
   'model.configuration': 'Model Configuration',
   'model.configuration.description': 'Configure LLM providers and models',
+  'model.configuration.admin_only': '👤 Admin Notice: Only public models with "recommend" tag can be selected by regular users. User-created providers/models are not affected by this restriction.',
   'model.prompt_template': 'Prompt Template',
   'model.llm.tips': 'Large language chat model',
   'model.rerank.tips':

@@ -2,6 +2,7 @@ export const model = {
   'model.name': '模型',
   'model.configuration': '模型配置',
   'model.configuration.description': '配置LLM提供商和模型',
+  'model.configuration.admin_only': '👤 管理员提示：只有打了 "recommend" 标签的 public 模型才能被普通用户选择。用户自己添加的 provider/model 不受此限制。',
   'model.prompt_template': '提示模版',
   'model.llm.tips': '大型语言对话模型',
   'model.rerank.tips':

@@ -15,11 +15,13 @@ import {
   ArrowLeftOutlined,
   DeleteOutlined,
   EditOutlined,
+  InfoCircleOutlined,
   PlusOutlined,
   SearchOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
 import {
+  Alert,
   Button,
   Col,
   Divider,
@@ -50,6 +52,7 @@ type ModalViewType = 'list' | 'add' | 'edit';
 
 export default () => {
   const { loading, setLoading } = useModel('global');
+  const { user } = useModel('user');
   const { formatMessage } = useIntl();
 
   const [configuration, setConfiguration] = useState<LlmConfigurationResponse>({
@@ -597,6 +600,15 @@ export default () => {
         </Button>
         <RefreshButton onClick={() => fetchConfiguration()} loading={loading} />
       </PageHeader>
+      {user?.role === 'admin' && (
+        <Alert
+          message={formatMessage({ id: 'model.configuration.admin_only' })}
+          type="info"
+          showIcon
+          icon={<InfoCircleOutlined />}
+          style={{ marginBottom: '16px' }}
+        />
+      )}
       <Table
         columns={providerColumns}
         dataSource={configuration.providers}
