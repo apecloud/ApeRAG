@@ -19,7 +19,10 @@ import { AuthAssetImage } from './AuthAssetImage';
 import styles from './ChunkViewer.module.css';
 
 // Set up worker
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString();
 
 interface ChunkViewerProps {
   document: ApeDocument;
