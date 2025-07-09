@@ -957,6 +957,69 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
+  /collections/{collection_id}/graphs/nodes/merge:
+    post:
+      summary: Merge graph nodes
+      description: |
+        Merge two graph nodes into one, combining their descriptions, relationships, and vector data.
+
+        The operation:
+        1. Determines merge direction (node with smaller degree merges into larger degree)
+        2. Combines descriptions (using LLM summarization if needed)
+        3. Merges source_id, chunk_ids, and file_path information
+        4. Updates all relationships to point to the target node
+        5. Updates vector storage data
+        6. Removes the source node
+
+        The operation is idempotent - if the source node doesn't exist, it returns success.
+      tags:
+        - graph
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Collection ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/nodeMergeRequest'
+      responses:
+        '200':
+          description: Node merge completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/nodeMergeResponse'
+        '400':
+          description: Bad request - invalid parameters or entity IDs are the same
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
   /apikeys:
     get:
       summary: Get API keys
@@ -3504,6 +3567,70 @@ components:
         - nodes
         - edges
         - is_truncated
+    nodeMergeRequest:
+      type: object
+      description: Request to merge two graph nodes
+      properties:
+        entity_id1:
+          type: string
+          description: First entity ID to merge
+          example: 墨香居
+          minLength: 1
+        entity_id2:
+          type: string
+          description: Second entity ID to merge
+          example: 书店
+          minLength: 1
+      required:
+        - entity_id1
+        - entity_id2
+    nodeMergeResponse:
+      type: object
+      description: Response containing node merge results
+      properties:
+        status:
+          type: string
+          description: Status of the merge operation
+          example: success
+          enum:
+            - success
+            - error
+        message:
+          type: string
+          description: Detailed message about the merge operation
+          example: Successfully merged 书店 into 墨香居
+        target_entity:
+          type: string
+          description: The entity that was kept (merge target)
+          example: 墨香居
+          nullable: true
+        source_entity:
+          type: string
+          description: The entity that was merged (merge source)
+          example: 书店
+          nullable: true
+        redirected_edges:
+          type: integer
+          description: Number of edges that were redirected during merge
+          example: 5
+          minimum: 0
+        merged_description_length:
+          type: integer
+          description: Length of the merged description
+          example: 256
+          minimum: 0
+        used_llm_summary:
+          type: boolean
+          description: Whether LLM was used to summarize descriptions
+          example: false
+        collection_id:
+          type: string
+          description: Collection ID where the merge was performed
+          example: col_12345
+          nullable: true
+      required:
+        - status
+        - message
     apiKey:
       type: object
       properties:

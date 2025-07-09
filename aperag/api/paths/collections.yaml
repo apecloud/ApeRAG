@@ -576,6 +576,70 @@ graph:
             schema:
               $ref: '../components/schemas/common.yaml#/failResponse'
 
+graph_nodes_merge:
+  post:
+    summary: Merge graph nodes
+    description: |
+      Merge two graph nodes into one, combining their descriptions, relationships, and vector data.
+      
+      The operation:
+      1. Determines merge direction (node with smaller degree merges into larger degree)
+      2. Combines descriptions (using LLM summarization if needed)
+      3. Merges source_id, chunk_ids, and file_path information
+      4. Updates all relationships to point to the target node
+      5. Updates vector storage data
+      6. Removes the source node
+      
+      The operation is idempotent - if the source node doesn't exist, it returns success.
+    tags:
+      - graph
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Collection ID
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/graph.yaml#/nodeMergeRequest'
+    responses:
+      '200':
+        description: Node merge completed successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/graph.yaml#/nodeMergeResponse'
+      '400':
+        description: Bad request - invalid parameters or entity IDs are the same
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Collection not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
 test_mineru_token:
   post:
     summary: Test MinerU API Token

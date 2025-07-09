@@ -141,3 +141,67 @@ graphLabelsResponse:
       example: ["墨香居", "李明华", "林晓雯", "深夜读书会"]
   required:
     - labels 
+
+nodeMergeRequest:
+  type: object
+  description: Request to merge two graph nodes
+  properties:
+    entity_id1:
+      type: string
+      description: First entity ID to merge
+      example: "墨香居"
+      minLength: 1
+    entity_id2:
+      type: string
+      description: Second entity ID to merge
+      example: "书店"
+      minLength: 1
+  required:
+    - entity_id1
+    - entity_id2
+
+nodeMergeResponse:
+  type: object
+  description: Response containing node merge results
+  properties:
+    status:
+      type: string
+      description: Status of the merge operation
+      example: "success"
+      enum: ["success", "error"]
+    message:
+      type: string
+      description: Detailed message about the merge operation
+      example: "Successfully merged 书店 into 墨香居"
+    target_entity:
+      type: string
+      description: The entity that was kept (merge target)
+      example: "墨香居"
+      nullable: true
+    source_entity:
+      type: string
+      description: The entity that was merged (merge source)
+      example: "书店"
+      nullable: true
+    redirected_edges:
+      type: integer
+      description: Number of edges that were redirected during merge
+      example: 5
+      minimum: 0
+    merged_description_length:
+      type: integer
+      description: Length of the merged description
+      example: 256
+      minimum: 0
+    used_llm_summary:
+      type: boolean
+      description: Whether LLM was used to summarize descriptions
+      example: false
+    collection_id:
+      type: string
+      description: Collection ID where the merge was performed
+      example: "col_12345"
+      nullable: true
+  required:
+    - status
+    - message

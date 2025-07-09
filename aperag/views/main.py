@@ -415,6 +415,51 @@ async def get_knowledge_graph_view(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@router.post("/collections/{collection_id}/graphs/nodes/merge", tags=["graph"])
+@audit(resource_type="index", api_name="MergeNodes")
+async def merge_nodes_view(
+    request: Request,
+    collection_id: str,
+    merge_request: view_models.NodeMergeRequest,
+    user: User = Depends(current_user),
+):
+    """Merge two graph nodes into one"""
+    from aperag.exceptions import CollectionNotFoundException
+    from aperag.service.graphindex_service import graphindex_service
+
+    try:
+        logger.info(
+            f"Merging nodes: {merge_request.entity_id1} <-> {merge_request.entity_id2} in collection {collection_id}"
+        )
+
+        # Validate entity IDs
+        if not merge_request.entity_id1 or not merge_request.entity_id2:
+            raise HTTPException(status_code=400, detail="Both entity_id1 and entity_id2 are required")
+
+        if merge_request.entity_id1 == merge_request.entity_id2:
+            raise HTTPException(status_code=400, detail="Cannot merge a node with itself")
+
+        # Call the service
+        result = await graphindex_service.merge_nodes(
+            str(user.id), collection_id, merge_request.entity_id1, merge_request.entity_id2
+        )
+
+        logger.info(f"Successfully merged nodes: {result.get('message', 'No message')}")
+        # TODO: Fix NodeMergeResponse conversion issue later
+        return result
+
+    except CollectionNotFoundException as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        # Re-raise HTTP exceptions without modification
+        raise
+    except Exception as e:
+        logger.error(f"Failed to merge nodes: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
 # LLM Configuration API endpoints
 @router.get("/llm_configuration", tags=["llm_providers"])
 async def get_llm_configuration_view(request: Request, user: User = Depends(current_user)):
