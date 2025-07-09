@@ -197,7 +197,7 @@ async def web_read(
     urls: str | list[str],
     timeout: int = 30,
     locale: str = "zh-CN",
-    max_concurrent: int = 3,
+    max_concurrent: int = 5,
 ) -> Dict[str, Any]:
     """Read and extract content from web pages.
 
@@ -205,7 +205,7 @@ async def web_read(
         urls: URL (string) or list of URLs to read content from
         timeout: Request timeout in seconds (default: 30)
         locale: Browser locale (default: zh-CN)
-        max_concurrent: Maximum concurrent requests for multiple URLs (default: 3)
+        max_concurrent: Maximum concurrent requests for multiple URLs (default: 5)
 
     Returns:
         Web content reading results with extracted text, titles, word counts, and metadata
