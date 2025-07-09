@@ -102,6 +102,7 @@ jobs:
       DOCKERFILE_PATH: "./frontend/Dockerfile"
       CONTEXT: "./frontend"
       PYTHON_VERSION: "3.11"
+      MAKE_OPS_PRE: "build-aperag-frontend-assets"
     secrets: inherit
 
   check-helm:
