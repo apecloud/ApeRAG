@@ -27,7 +27,7 @@ from aperag.views.auth import current_user
 router = APIRouter()
 
 
-@router.get("/audit-logs")
+@router.get("/audit-logs", tags=["audit"])
 async def list_audit_logs(
     user_id: Optional[str] = Query(None, description="Filter by user ID"),
     username: Optional[str] = Query(None, description="Filter by username"),
@@ -98,7 +98,7 @@ async def list_audit_logs(
     return view_models.AuditLogList(items=items)
 
 
-@router.get("/audit-logs/{audit_id}")
+@router.get("/audit-logs/{audit_id}", tags=["audit"])
 async def get_audit_log(audit_id: str, user: User = Depends(current_user)):
     """Get a specific audit log by ID"""
 

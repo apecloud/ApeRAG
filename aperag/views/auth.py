@@ -243,7 +243,7 @@ router = APIRouter()
 # --- API Implementation ---
 
 
-@router.post("/invite")
+@router.post("/invite", tags=["invitations"])
 @audit(resource_type="invitation", api_name="CreateInvitation")
 async def create_invitation_view(
     request: Request,
@@ -281,7 +281,7 @@ async def create_invitation_view(
     )
 
 
-@router.get("/invitations")
+@router.get("/invitations", tags=["invitations"])
 async def list_invitations_view(
     session: AsyncSessionDep, user: User = Depends(current_user)
 ) -> view_models.InvitationList:
@@ -309,7 +309,7 @@ async def list_invitations_view(
     return view_models.InvitationList(items=invitations)
 
 
-@router.post("/register")
+@router.post("/register", tags=["auth"])
 @audit(resource_type="user", api_name="RegisterUser")
 async def register_view(
     request: Request,
@@ -379,7 +379,7 @@ async def register_view(
     )
 
 
-@router.post("/login")
+@router.post("/login", tags=["auth"])
 async def login_view(
     request: Request,
     response: Response,
@@ -422,14 +422,14 @@ async def login_view(
     )
 
 
-@router.post("/logout")
+@router.post("/logout", tags=["auth"])
 async def logout_view(response: Response):
     # Clear authentication cookie
     response.delete_cookie(key="session")
     return {"success": True}
 
 
-@router.get("/user")
+@router.get("/user", tags=["users"])
 async def get_user_view(request: Request, session: AsyncSessionDep, user: Optional[User] = Depends(current_user)):
     """Get user info, return 401 if not authenticated"""
     if not user:
@@ -445,7 +445,7 @@ async def get_user_view(request: Request, session: AsyncSessionDep, user: Option
     )
 
 
-@router.get("/users")
+@router.get("/users", tags=["users"])
 async def list_users_view(
     session: AsyncSessionDep, user: Optional[User] = Depends(current_user)
 ) -> view_models.UserList:
@@ -470,7 +470,7 @@ async def list_users_view(
     return view_models.UserList(items=users)
 
 
-@router.post("/change-password")
+@router.post("/change-password", tags=["auth"])
 @audit(resource_type="user", api_name="ChangePassword")
 async def change_password_view(
     request: Request,
@@ -502,7 +502,7 @@ async def change_password_view(
     )
 
 
-@router.delete("/users/{user_id}")
+@router.delete("/users/{user_id}", tags=["users"])
 @audit(resource_type="user", api_name="DeleteUser")
 async def delete_user_view(
     request: Request, user_id: str, session: AsyncSessionDep, user: User = Depends(get_current_admin)

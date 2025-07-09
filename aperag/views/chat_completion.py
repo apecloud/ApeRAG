@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.post("/chat/completions")
+@router.post("/chat/completions", tags=["chats"])
 async def openai_chat_completions_view(request: Request, user: User = Depends(current_user)):
     try:
         body_data = await request.json()

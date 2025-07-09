@@ -25,14 +25,14 @@ from aperag.views.auth import current_user
 router = APIRouter()
 
 
-@router.get("/bots/{bot_id}/flow")
+@router.get("/bots/{bot_id}/flow", tags=["flows"])
 async def get_flow_view(
     request: Request, bot_id: str, user: User = Depends(current_user)
 ) -> Union[WorkflowDefinition, dict]:
     return await flow_service_global.get_flow(str(user.id), bot_id)
 
 
-@router.put("/bots/{bot_id}/flow")
+@router.put("/bots/{bot_id}/flow", tags=["flows"])
 @audit(resource_type="flow", api_name="UpdateFlow")
 async def update_flow_view(
     request: Request,
