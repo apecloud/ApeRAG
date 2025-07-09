@@ -21,7 +21,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal, Optional, Union
 
-from pydantic import BaseModel, EmailStr, Extra, Field, confloat, conint, constr
+from pydantic import BaseModel, EmailStr, Extra, Field, confloat, conint, constr, model_validator
 
 
 class Bot(BaseModel):
@@ -836,15 +836,28 @@ class KnowledgeGraph(BaseModel):
 
 class NodeMergeRequest(BaseModel):
     """
-    Request to merge two graph nodes
+    Request to merge multiple graph nodes
     """
 
-    entity_id1: constr(min_length=1) = Field(
-        ..., description='First entity ID to merge', example='墨香居'
+    entity_ids: list[constr(min_length=1)] = Field(
+        ..., 
+        description='List of entity IDs to merge (supports 1 or more entities)', 
+        example=['墨香居', '书店', '老书店'],
+        min_length=1
     )
-    entity_id2: constr(min_length=1) = Field(
-        ..., description='Second entity ID to merge', example='书店'
+    target_entity_data: Optional[dict[str, Any]] = Field(
+        None,
+        description='Optional target entity configuration. If not specified or empty, auto-select entity with highest degree',
+        example={"entity_name": "墨香居", "entity_type": "ORGANIZATION"}
     )
+
+    @model_validator(mode='after')
+    def validate_entity_params(self):
+        """Validate entity_ids has at least 1 entity"""
+        if len(self.entity_ids) < 1:
+            raise ValueError("entity_ids must contain at least 1 entity")
+            
+        return self
 
 
 class NodeMergeResponse(BaseModel):
@@ -858,22 +871,24 @@ class NodeMergeResponse(BaseModel):
     message: str = Field(
         ...,
         description='Detailed message about the merge operation',
-        example='Successfully merged 书店 into 墨香居',
+        example='Successfully merged 2 entities into 墨香居',
     )
     target_entity: Optional[str] = Field(
         None, description='The entity that was kept (merge target)', example='墨香居'
     )
-    source_entity: Optional[str] = Field(
-        None, description='The entity that was merged (merge source)', example='书店'
+    source_entities: list[str] = Field(
+        ..., 
+        description='The entities that were merged into target', 
+        example=['书店', '老书店']
     )
-    redirected_edges: Optional[conint(ge=0)] = Field(
-        None, description='Number of edges that were redirected during merge', example=5
+    redirected_edges: conint(ge=0) = Field(
+        ..., description='Number of edges that were redirected during merge', example=5
     )
-    merged_description_length: Optional[conint(ge=0)] = Field(
-        None, description='Length of the merged description', example=256
+    merged_description_length: conint(ge=0) = Field(
+        ..., description='Length of the merged description', example=256
     )
-    used_llm_summary: Optional[bool] = Field(
-        None,
+    used_llm_summary: bool = Field(
+        ...,
         description='Whether LLM was used to summarize descriptions',
         example=False,
     )

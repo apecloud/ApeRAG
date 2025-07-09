@@ -13,24 +13,35 @@
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { NodeMergeRequestTargetEntityData } from './node-merge-request-target-entity-data';
 
 /**
- * Request to merge two graph nodes
+ * Request to merge multiple graph nodes
  * @export
  * @interface NodeMergeRequest
  */
 export interface NodeMergeRequest {
+    [key: string]: any;
+
     /**
-     * First entity ID to merge
+     * List of entity IDs to merge (supports 1 or more entities)
+     * @type {Array<string>}
+     * @memberof NodeMergeRequest
+     */
+    'entity_ids': Array<string>;
+    /**
+     * 
+     * @type {NodeMergeRequestTargetEntityData}
+     * @memberof NodeMergeRequest
+     */
+    'target_entity_data'?: NodeMergeRequestTargetEntityData;
+    /**
+     * Optional collection ID for logging
      * @type {string}
      * @memberof NodeMergeRequest
      */
-    'entity_id1': string;
-    /**
-     * Second entity ID to merge
-     * @type {string}
-     * @memberof NodeMergeRequest
-     */
-    'entity_id2': string;
+    'collection_id'?: string;
 }
 

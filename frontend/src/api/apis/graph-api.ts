@@ -129,7 +129,7 @@ export const GraphApiAxiosParamCreator = function (configuration?: Configuration
             };
         },
         /**
-         * Merge two graph nodes into one, combining their descriptions, relationships, and vector data.  The operation: 1. Determines merge direction (node with smaller degree merges into larger degree) 2. Combines descriptions (using LLM summarization if needed) 3. Merges source_id, chunk_ids, and file_path information 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source node  The operation is idempotent - if the source node doesn\'t exist, it returns success. 
+         * Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.  Provide `entity_ids` array with 1+ entities and optional `target_entity_data` for customization.  The operation: 1. Auto-selects target entity (highest degree) if not specified in `target_entity_data` 2. Combines descriptions using default merge strategy (concatenate) 3. Merges metadata using default behavior: entity_type from target, others concatenated/joined 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source nodes  Entity type handling: Uses target entity\'s type if it exists, otherwise uses merged result. The operation is idempotent - if source nodes don\'t exist, it returns success. 
          * @summary Merge graph nodes
          * @param {string} collectionId Collection ID
          * @param {NodeMergeRequest} nodeMergeRequest 
@@ -212,7 +212,7 @@ export const GraphApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Merge two graph nodes into one, combining their descriptions, relationships, and vector data.  The operation: 1. Determines merge direction (node with smaller degree merges into larger degree) 2. Combines descriptions (using LLM summarization if needed) 3. Merges source_id, chunk_ids, and file_path information 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source node  The operation is idempotent - if the source node doesn\'t exist, it returns success. 
+         * Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.  Provide `entity_ids` array with 1+ entities and optional `target_entity_data` for customization.  The operation: 1. Auto-selects target entity (highest degree) if not specified in `target_entity_data` 2. Combines descriptions using default merge strategy (concatenate) 3. Merges metadata using default behavior: entity_type from target, others concatenated/joined 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source nodes  Entity type handling: Uses target entity\'s type if it exists, otherwise uses merged result. The operation is idempotent - if source nodes don\'t exist, it returns success. 
          * @summary Merge graph nodes
          * @param {string} collectionId Collection ID
          * @param {NodeMergeRequest} nodeMergeRequest 
@@ -256,7 +256,7 @@ export const GraphApiFactory = function (configuration?: Configuration, basePath
             return localVarFp.collectionsCollectionIdGraphsLabelsGet(requestParameters.collectionId, options).then((request) => request(axios, basePath));
         },
         /**
-         * Merge two graph nodes into one, combining their descriptions, relationships, and vector data.  The operation: 1. Determines merge direction (node with smaller degree merges into larger degree) 2. Combines descriptions (using LLM summarization if needed) 3. Merges source_id, chunk_ids, and file_path information 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source node  The operation is idempotent - if the source node doesn\'t exist, it returns success. 
+         * Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.  Provide `entity_ids` array with 1+ entities and optional `target_entity_data` for customization.  The operation: 1. Auto-selects target entity (highest degree) if not specified in `target_entity_data` 2. Combines descriptions using default merge strategy (concatenate) 3. Merges metadata using default behavior: entity_type from target, others concatenated/joined 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source nodes  Entity type handling: Uses target entity\'s type if it exists, otherwise uses merged result. The operation is idempotent - if source nodes don\'t exist, it returns success. 
          * @summary Merge graph nodes
          * @param {GraphApiCollectionsCollectionIdGraphsNodesMergePostRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
@@ -295,7 +295,7 @@ export interface GraphApiInterface {
     collectionsCollectionIdGraphsLabelsGet(requestParameters: GraphApiCollectionsCollectionIdGraphsLabelsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<GraphLabelsResponse>;
 
     /**
-     * Merge two graph nodes into one, combining their descriptions, relationships, and vector data.  The operation: 1. Determines merge direction (node with smaller degree merges into larger degree) 2. Combines descriptions (using LLM summarization if needed) 3. Merges source_id, chunk_ids, and file_path information 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source node  The operation is idempotent - if the source node doesn\'t exist, it returns success. 
+     * Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.  Provide `entity_ids` array with 1+ entities and optional `target_entity_data` for customization.  The operation: 1. Auto-selects target entity (highest degree) if not specified in `target_entity_data` 2. Combines descriptions using default merge strategy (concatenate) 3. Merges metadata using default behavior: entity_type from target, others concatenated/joined 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source nodes  Entity type handling: Uses target entity\'s type if it exists, otherwise uses merged result. The operation is idempotent - if source nodes don\'t exist, it returns success. 
      * @summary Merge graph nodes
      * @param {GraphApiCollectionsCollectionIdGraphsNodesMergePostRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -408,7 +408,7 @@ export class GraphApi extends BaseAPI implements GraphApiInterface {
     }
 
     /**
-     * Merge two graph nodes into one, combining their descriptions, relationships, and vector data.  The operation: 1. Determines merge direction (node with smaller degree merges into larger degree) 2. Combines descriptions (using LLM summarization if needed) 3. Merges source_id, chunk_ids, and file_path information 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source node  The operation is idempotent - if the source node doesn\'t exist, it returns success. 
+     * Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.  Provide `entity_ids` array with 1+ entities and optional `target_entity_data` for customization.  The operation: 1. Auto-selects target entity (highest degree) if not specified in `target_entity_data` 2. Combines descriptions using default merge strategy (concatenate) 3. Merges metadata using default behavior: entity_type from target, others concatenated/joined 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source nodes  Entity type handling: Uses target entity\'s type if it exists, otherwise uses merged result. The operation is idempotent - if source nodes don\'t exist, it returns success. 
      * @summary Merge graph nodes
      * @param {GraphApiCollectionsCollectionIdGraphsNodesMergePostRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.

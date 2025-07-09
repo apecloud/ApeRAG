@@ -423,41 +423,34 @@ async def merge_nodes_view(
     merge_request: view_models.NodeMergeRequest,
     user: User = Depends(current_user),
 ) -> view_models.NodeMergeResponse:
-    """Merge two graph nodes into one"""
+    """Merge multiple graph nodes into one"""
     from aperag.exceptions import CollectionNotFoundException
     from aperag.service.graph_service import graph_service
 
     try:
-        logger.info(
-            f"Merging nodes: {merge_request.entity_id1} <-> {merge_request.entity_id2} in collection {collection_id}"
-        )
+        # Log merge operation
+        target_name = merge_request.target_entity_data.get("entity_name") if merge_request.target_entity_data else None
+        entity_info = f"entities {merge_request.entity_ids} -> {target_name or 'auto-select'}"
+        logger.info(f"Merging nodes: {entity_info} in collection {collection_id}")
 
-        # Validate entity IDs
-        if not merge_request.entity_id1 or not merge_request.entity_id2:
-            raise HTTPException(status_code=400, detail="Both entity_id1 and entity_id2 are required")
+        # Get collection object for service interface
+        collection = await collection_service.get_collection(str(user.id), collection_id)
 
-        if merge_request.entity_id1 == merge_request.entity_id2:
-            raise HTTPException(status_code=400, detail="Cannot merge a node with itself")
-
-        # Call the service
         result = await graph_service.merge_nodes(
-            str(user.id), collection_id, merge_request.entity_id1, merge_request.entity_id2
+            collection=collection,
+            entity_ids=merge_request.entity_ids,
+            target_entity_data=merge_request.target_entity_data,
+            collection_id=collection_id,
         )
 
-        logger.info(f"Successfully merged nodes: {result.get('message', 'No message')}")
-
-        # Convert result dict to NodeMergeResponse
         return view_models.NodeMergeResponse(**result)
 
-    except CollectionNotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except CollectionNotFoundException:
+        raise HTTPException(status_code=404, detail="Collection not found")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except HTTPException:
-        # Re-raise HTTP exceptions without modification
-        raise
     except Exception as e:
-        logger.error(f"Failed to merge nodes: {str(e)}", exc_info=True)
+        logger.error(f"Error merging nodes in collection {collection_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 

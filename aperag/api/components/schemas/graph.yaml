@@ -144,21 +144,46 @@ graphLabelsResponse:
 
 nodeMergeRequest:
   type: object
-  description: Request to merge two graph nodes
+  description: Request to merge multiple graph nodes
   properties:
-    entity_id1:
+    entity_ids:
+      type: array
+      items:
+        type: string
+        minLength: 1
+      description: List of entity IDs to merge (supports 1 or more entities)
+      example: ["墨香居", "书店", "旧书店"]
+      minItems: 1
+    target_entity_data:
+      type: object
+      description: Optional target entity configuration. If not specified or empty, auto-select entity with highest degree
+      properties:
+        entity_name:
+          type: string
+          description: Target entity name. If not specified, auto-select entity with highest degree
+          example: "墨香居"
+        entity_type:
+          type: string
+          description: Entity type for the target entity
+          example: "ORGANIZATION"
+        description:
+          type: string
+          description: Description for the target entity
+          example: "A comprehensive bookstore and cultural space"
+        source_id:
+          type: string
+          description: Source ID for the target entity
+        file_path:
+          type: string
+          description: File path for the target entity
+      nullable: true
+    collection_id:
       type: string
-      description: First entity ID to merge
-      example: "墨香居"
-      minLength: 1
-    entity_id2:
-      type: string
-      description: Second entity ID to merge
-      example: "书店"
-      minLength: 1
+      description: Optional collection ID for logging
+      example: "12345"
   required:
-    - entity_id1
-    - entity_id2
+    - entity_ids
+  additionalProperties: false
 
 nodeMergeResponse:
   type: object
@@ -172,31 +197,32 @@ nodeMergeResponse:
     message:
       type: string
       description: Detailed message about the merge operation
-      example: "Successfully merged 书店 into 墨香居"
+      example: "Successfully merged 2 entities into 墨香居"
     target_entity:
       type: string
       description: The entity that was kept (merge target)
       example: "墨香居"
       nullable: true
-    source_entity:
-      type: string
-      description: The entity that was merged (merge source)
-      example: "书店"
-      nullable: true
+    source_entities:
+      type: array
+      items:
+        type: string
+      description: List of entities that were merged into the target
+      example: ["书店", "旧书店"]
     redirected_edges:
       type: integer
       description: Number of edges that were redirected during merge
-      example: 5
+      example: 12
       minimum: 0
     merged_description_length:
       type: integer
       description: Length of the merged description
-      example: 256
+      example: 512
       minimum: 0
     used_llm_summary:
       type: boolean
       description: Whether LLM was used to summarize descriptions
-      example: false
+      example: true
     collection_id:
       type: string
       description: Collection ID where the merge was performed
@@ -205,3 +231,8 @@ nodeMergeResponse:
   required:
     - status
     - message
+    - target_entity
+    - source_entities
+    - redirected_edges
+    - merged_description_length
+    - used_llm_summary

@@ -15,9 +15,10 @@
 import logging
 from typing import Any, Dict
 
-from aperag.exceptions import CollectionNotFoundException
+from aperag.exceptions import CollectionNotFoundException, GraphServiceError
 from aperag.graph import lightrag_manager
 from aperag.schema import view_models
+from aperag.service.collection_service import Collection
 
 logger = logging.getLogger(__name__)
 
@@ -286,50 +287,47 @@ class GraphService:
 
     async def merge_nodes(
         self,
-        user_id: str,
-        collection_id: str,
-        entity_id1: str,
-        entity_id2: str,
-    ) -> Dict[str, Any]:
+        collection: Collection,
+        entity_ids: list[str],
+        target_entity_data: dict[str, Any] | None = None,
+        collection_id: str | None = None,
+    ) -> dict[str, Any]:
         """
-        Merge two graph nodes into one
+        Merge multiple graph nodes using LightRAG.
 
         Args:
-            user_id: User ID
-            collection_id: Collection ID
-            entity_id1: First entity ID to merge
-            entity_id2: Second entity ID to merge
+            collection: Collection object containing graph data
+            entity_ids: List of entity IDs to merge
+            target_entity_data: Optional target entity configuration including entity_name and other properties
+            collection_id: Optional collection ID for logging
 
         Returns:
-            Dict with merge results
+            Dict containing merge operation results
 
         Raises:
-            CollectionNotFoundException: If collection is not found
-            ValueError: If knowledge graph is not enabled for the collection
+            GraphServiceError: If merge operation fails
         """
-        logger.info(f"Starting node merge for collection {collection_id}: {entity_id1} <-> {entity_id2}")
+        from aperag.graph.lightrag_manager import create_lightrag_instance
 
-        # Get and validate collection
-        collection = await self._get_and_validate_collection(user_id, collection_id)
-
-        # Create LightRAG instance and perform merge
-        rag = await lightrag_manager.create_lightrag_instance(collection)
         try:
+            # Create LightRAG instance
+            rag = await create_lightrag_instance(collection)
+
+            # Call LightRAG merge method
             result = await rag.amerge_nodes(
-                entity_id1=entity_id1,
-                entity_id2=entity_id2,
+                entity_ids=entity_ids,
+                target_entity_data=target_entity_data,
                 collection_id=collection_id,
             )
 
-            logger.info(
-                f"Node merge completed for collection {collection_id}: "
-                f"{result.get('source_entity')} -> {result.get('target_entity')}, "
-                f"redirected {result.get('redirected_edges', 0)} edges"
-            )
-
             return result
+
+        except Exception as e:
+            logger.error(f"Failed to merge nodes: {str(e)}")
+            raise GraphServiceError(f"Failed to merge nodes: {str(e)}") from e
         finally:
-            await rag.finalize_storages()
+            if "rag" in locals():
+                await rag.finalize_storages()
 
     # ==================== Common Helper Methods ====================
 

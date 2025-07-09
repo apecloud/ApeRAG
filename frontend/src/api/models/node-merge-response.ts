@@ -37,31 +37,31 @@ export interface NodeMergeResponse {
      * @type {string}
      * @memberof NodeMergeResponse
      */
-    'target_entity'?: string;
+    'target_entity': string;
     /**
-     * The entity that was merged (merge source)
-     * @type {string}
+     * List of entities that were merged into the target
+     * @type {Array<string>}
      * @memberof NodeMergeResponse
      */
-    'source_entity'?: string;
+    'source_entities': Array<string>;
     /**
      * Number of edges that were redirected during merge
      * @type {number}
      * @memberof NodeMergeResponse
      */
-    'redirected_edges'?: number;
+    'redirected_edges': number;
     /**
      * Length of the merged description
      * @type {number}
      * @memberof NodeMergeResponse
      */
-    'merged_description_length'?: number;
+    'merged_description_length': number;
     /**
      * Whether LLM was used to summarize descriptions
      * @type {boolean}
      * @memberof NodeMergeResponse
      */
-    'used_llm_summary'?: boolean;
+    'used_llm_summary': boolean;
     /**
      * Collection ID where the merge was performed
      * @type {string}
