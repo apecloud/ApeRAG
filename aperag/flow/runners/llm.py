@@ -74,13 +74,13 @@ async def add_human_message(history: BaseChatMessageHistory, message, message_id
         message_id = str(uuid.uuid4())
 
     human_msg = new_human_message(message, message_id)
-    human_msg = human_msg.json(exclude_none=True)
+    human_msg = human_msg.model_dump_json(exclude_none=True)
     await history.add_message(HumanMessage(content=human_msg, additional_kwargs={"role": "human"}))
 
 
 async def add_ai_message(history: BaseChatMessageHistory, message, message_id, response, references, urls):
     ai_msg = new_ai_message(message, message_id, response, references, urls)
-    ai_msg = ai_msg.json(exclude_none=True)
+    ai_msg = ai_msg.model_dump_json(exclude_none=True)
     await history.add_message(AIMessage(content=ai_msg, additional_kwargs={"role": "ai"}))
 
 

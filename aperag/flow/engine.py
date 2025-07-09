@@ -32,9 +32,10 @@ logger = logging.getLogger(__name__)
 class FlowEvent:
     """Event emitted during flow execution"""
 
-    def __init__(self, event_type: str, node_id: str, execution_id: str, data: Dict[str, Any] = None):
+    def __init__(self, event_type: str, node_id: str, node_type: str, execution_id: str, data: Dict[str, Any] = None):
         self.event_type = event_type
         self.node_id = node_id
+        self.node_type = node_type
         self.execution_id = execution_id
         self.timestamp = utc_now().isoformat()
         self.data = data or {}
@@ -43,6 +44,7 @@ class FlowEvent:
         return {
             "event_type": self.event_type,
             "node_id": self.node_id,
+            "node_type": self.node_type or "",
             "execution_id": self.execution_id,
             "timestamp": self.timestamp,
             "data": self.data,
@@ -82,7 +84,7 @@ class FlowEngine:
         await self._event_queue.put(event)
         # Also log the event
         logger.info(
-            f"Flow event: {event.event_type} for node {event.node_id}", extra={"execution_id": self.execution_id}
+            f"Flow event: {event.event_type} for {event.node_type} node {event.node_id}", extra={"execution_id": self.execution_id}
         )
 
     async def get_events(self) -> AsyncGenerator[Dict[str, Any], None]:
@@ -119,6 +121,7 @@ class FlowEngine:
                     event_type=FlowEventType.FLOW_START,
                     execution_id=self.execution_id,
                     node_id=None,
+                    node_type=None,
                     data={"flow_name": flow.name},
                 )
             )
@@ -141,6 +144,7 @@ class FlowEngine:
                     event_type=FlowEventType.FLOW_END,
                     execution_id=self.execution_id,
                     node_id=None,
+                    node_type=None,
                     data={"flow_name": flow.name},
                 )
             )
@@ -155,6 +159,7 @@ class FlowEngine:
                     event_type=FlowEventType.FLOW_ERROR,
                     execution_id=self.execution_id,
                     node_id=None,
+                    node_type=None,
                     data={"flow_name": flow.name, "error": str(e)},
                 )
             )
@@ -392,6 +397,7 @@ class FlowEngine:
                 FlowEvent(
                     FlowEventType.NODE_START,
                     node.id,
+                    node.type,
                     self.execution_id,
                     {"node_type": node.type, "inputs": user_input.dict()},
                 )
@@ -406,13 +412,13 @@ class FlowEngine:
                 self.context.set_system_output(node.id, system_output)
             await self.emit_event(
                 FlowEvent(
-                    FlowEventType.NODE_END, node.id, self.execution_id, {"node_type": node.type, "outputs": output_data}
+                    FlowEventType.NODE_END, node.id, node.type, self.execution_id, {"node_type": node.type, "outputs": output_data}
                 )
             )
         except Exception as e:
             await self.emit_event(
                 FlowEvent(
-                    FlowEventType.NODE_ERROR, node.id, self.execution_id, {"node_type": node.type, "error": str(e)}
+                    FlowEventType.NODE_ERROR, node.id, node.type, self.execution_id, {"node_type": node.type, "error": str(e)}
                 )
             )
             raise e
