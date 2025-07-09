@@ -425,7 +425,7 @@ async def merge_nodes_view(
 ) -> view_models.NodeMergeResponse:
     """Merge two graph nodes into one"""
     from aperag.exceptions import CollectionNotFoundException
-    from aperag.service.graphindex_service import graphindex_service
+    from aperag.service.graph_service import graph_service
 
     try:
         logger.info(
@@ -440,7 +440,7 @@ async def merge_nodes_view(
             raise HTTPException(status_code=400, detail="Cannot merge a node with itself")
 
         # Call the service
-        result = await graphindex_service.merge_nodes(
+        result = await graph_service.merge_nodes(
             str(user.id), collection_id, merge_request.entity_id1, merge_request.entity_id2
         )
 

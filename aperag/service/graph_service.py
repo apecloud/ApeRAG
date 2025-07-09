@@ -23,13 +23,15 @@ logger = logging.getLogger(__name__)
 
 
 class GraphService:
-    """Service for handling knowledge graph operations"""
+    """Service for handling knowledge graph operations and index management"""
 
     def __init__(self):
         # Import here to avoid circular imports
         from aperag.service.collection_service import collection_service
 
         self.collection_service = collection_service
+
+    # ==================== Graph Query Operations ====================
 
     async def get_graph_labels(self, user_id: str, collection_id: str) -> view_models.GraphLabelsResponse:
         """
@@ -280,6 +282,57 @@ class GraphService:
 
         return result
 
+    # ==================== Graph Index Operations ====================
+
+    async def merge_nodes(
+        self,
+        user_id: str,
+        collection_id: str,
+        entity_id1: str,
+        entity_id2: str,
+    ) -> Dict[str, Any]:
+        """
+        Merge two graph nodes into one
+
+        Args:
+            user_id: User ID
+            collection_id: Collection ID
+            entity_id1: First entity ID to merge
+            entity_id2: Second entity ID to merge
+
+        Returns:
+            Dict with merge results
+
+        Raises:
+            CollectionNotFoundException: If collection is not found
+            ValueError: If knowledge graph is not enabled for the collection
+        """
+        logger.info(f"Starting node merge for collection {collection_id}: {entity_id1} <-> {entity_id2}")
+
+        # Get and validate collection
+        collection = await self._get_and_validate_collection(user_id, collection_id)
+
+        # Create LightRAG instance and perform merge
+        rag = await lightrag_manager.create_lightrag_instance(collection)
+        try:
+            result = await rag.amerge_nodes(
+                entity_id1=entity_id1,
+                entity_id2=entity_id2,
+                collection_id=collection_id,
+            )
+
+            logger.info(
+                f"Node merge completed for collection {collection_id}: "
+                f"{result.get('source_entity')} -> {result.get('target_entity')}, "
+                f"redirected {result.get('redirected_edges', 0)} edges"
+            )
+
+            return result
+        finally:
+            await rag.finalize_storages()
+
+    # ==================== Common Helper Methods ====================
+
     async def _get_and_validate_collection(self, user_id: str, collection_id: str):
         """
         Get collection database model and validate that knowledge graph is enabled
@@ -295,7 +348,7 @@ class GraphService:
             CollectionNotFoundException: If collection is not found
             ValueError: If knowledge graph is not enabled
         """
-        # First validate that user has access to the collection
+        # Validate that user has access to the collection
         try:
             view_collection: view_models.Collection = await self.collection_service.get_collection(
                 user_id, collection_id
@@ -319,5 +372,5 @@ class GraphService:
         return db_collection
 
 
-# Global service instance
+# Global service instances (maintaining backward compatibility)
 graph_service = GraphService()
