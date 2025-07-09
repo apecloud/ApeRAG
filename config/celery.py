@@ -36,10 +36,11 @@ app.conf.update(
     task_track_started=settings.celery_task_track_started,
     # Auto-discover tasks in the aperag.tasks package
     include=['config.celery_tasks'],
-    # Enable detailed logging for celery workers
+    # Enable detailed logging for celery workers - let our custom config handle formatting
     worker_log_format='[%(asctime)s: %(levelname)s/%(processName)s] %(name)s - %(message)s',
     worker_task_log_format='[%(asctime)s: %(levelname)s/%(processName)s] %(name)s - %(message)s',
-    worker_hijack_root_logger=False,  # Don't hijack root logger
+    # Let our custom logging configuration handle the root logger
+    worker_hijack_root_logger=True,
 )
 
 app.conf.beat_schedule = {
@@ -77,8 +78,35 @@ CELERY_LOGGING_CONFIG = {
             'level': 'WARNING',
             'handlers': ['console'],
             'propagate': False,
-        }
-    }
+        },
+        # Configure all aperag loggers
+        'aperag': {
+            'level': 'INFO',
+            'handlers': ['console'],
+            'propagate': False,
+        },
+        # Configure celery loggers
+        'celery': {
+            'level': 'INFO',
+            'handlers': ['console'],
+            'propagate': False,
+        },
+        'celery.task': {
+            'level': 'INFO',
+            'handlers': ['console'],
+            'propagate': False,
+        },
+        'celery.worker': {
+            'level': 'INFO',
+            'handlers': ['console'],
+            'propagate': False,
+        },
+    },
+    # Configure root logger to ensure all logs have timestamps
+    'root': {
+        'level': 'INFO',
+        'handlers': ['console'],
+    },
 }
 
 @worker_process_init.connect

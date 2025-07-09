@@ -151,7 +151,7 @@ class RedisChatMessageHistory:
 
     async def add_message(self, message: BaseMessage) -> None:
         """Append the message to the record in Redis"""
-        message_json = json.dumps({"type": message.type, "data": message.model_dump_json()})
+        message_json = json.dumps({"type": message.type, "data": message.model_dump()})
         await self.redis_client.lpush(self.key, message_json)
         if self.ttl:
             await self.redis_client.expire(self.key, self.ttl)
