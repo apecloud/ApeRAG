@@ -52,19 +52,16 @@ class GraphIndexService:
 
         Raises:
             CollectionNotFoundException: If collection is not found
-            ValueError: If knowledge graph is not enabled for the collection or validation errors
+            ValueError: If knowledge graph is not enabled for the collection
         """
         logger.info(f"Starting node merge for collection {collection_id}: {entity_id1} <-> {entity_id2}")
 
         # Get and validate collection
         collection = await self._get_and_validate_collection(user_id, collection_id)
 
-        rag = None
+        # Create LightRAG instance and perform merge
+        rag = await lightrag_manager.create_lightrag_instance(collection)
         try:
-            # Create LightRAG instance
-            rag = await lightrag_manager.create_lightrag_instance(collection)
-
-            # Perform node merge
             result = await rag.amerge_nodes(
                 entity_id1=entity_id1,
                 entity_id2=entity_id2,
@@ -78,24 +75,8 @@ class GraphIndexService:
             )
 
             return result
-
-        except CollectionNotFoundException:
-            # Re-raise without logging - this is an expected user error
-            raise
-        except ValueError as e:
-            # Log the specific ValueError for debugging
-            logger.debug(f"Validation error during node merge: {str(e)}")
-            raise
-        except Exception as e:
-            logger.error(f"Failed to merge nodes for collection {collection_id}: {str(e)}", exc_info=True)
-            raise
         finally:
-            # Clean up LightRAG instance if it was created
-            if rag:
-                try:
-                    await rag.finalize_storages()
-                except Exception as cleanup_error:
-                    logger.warning(f"Failed to cleanup LightRAG instance: {cleanup_error}")
+            await rag.finalize_storages()
 
     async def _get_and_validate_collection(self, user_id: str, collection_id: str):
         """
@@ -112,23 +93,14 @@ class GraphIndexService:
             CollectionNotFoundException: If collection is not found
             ValueError: If knowledge graph is not enabled
         """
-        # First validate that user has access to the collection
-        try:
-            view_collection: view_models.Collection = await self.collection_service.get_collection(
-                user_id, collection_id
-            )
-        except Exception:
-            raise CollectionNotFoundException(collection_id)
+        # Validate that user has access to the collection
+        view_collection: view_models.Collection = await self.collection_service.get_collection(user_id, collection_id)
 
-        # Check if knowledge graph is enabled in the view model
-        if view_collection.config:
-            config = view_collection.config
-            if not config.enable_knowledge_graph:
-                raise ValueError(f"Knowledge graph is not enabled for collection {collection_id}")
-        else:
+        # Check if knowledge graph is enabled
+        if not view_collection.config or not view_collection.config.enable_knowledge_graph:
             raise ValueError(f"Knowledge graph is not enabled for collection {collection_id}")
 
-        # Get the database model (needed for lightrag_manager which expects config as JSON string)
+        # Get the database model (needed for lightrag_manager)
         db_collection = await self.collection_service.db_ops.query_collection(user_id, collection_id)
         if not db_collection:
             raise CollectionNotFoundException(collection_id)

@@ -422,7 +422,7 @@ async def merge_nodes_view(
     collection_id: str,
     merge_request: view_models.NodeMergeRequest,
     user: User = Depends(current_user),
-):
+) -> view_models.NodeMergeResponse:
     """Merge two graph nodes into one"""
     from aperag.exceptions import CollectionNotFoundException
     from aperag.service.graphindex_service import graphindex_service
@@ -445,8 +445,9 @@ async def merge_nodes_view(
         )
 
         logger.info(f"Successfully merged nodes: {result.get('message', 'No message')}")
-        # TODO: Fix NodeMergeResponse conversion issue later
-        return result
+
+        # Convert result dict to NodeMergeResponse
+        return view_models.NodeMergeResponse(**result)
 
     except CollectionNotFoundException as e:
         raise HTTPException(status_code=404, detail=str(e))
