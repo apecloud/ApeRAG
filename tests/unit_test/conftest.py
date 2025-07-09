@@ -3,6 +3,9 @@ import sys
 
 from dotenv import load_dotenv
 
+# Configure pytest-asyncio
+pytest_plugins = ("pytest_asyncio",)
+
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, project_root)
 

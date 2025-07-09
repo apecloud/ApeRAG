@@ -125,3 +125,9 @@ paths:
     $ref: './paths/auth.yaml#/changePassword'
   /users/{user_id}:
     $ref: './paths/auth.yaml#/deleteUser'
+
+  # web services
+  /web/search:
+    $ref: './paths/web.yaml#/webSearch'
+  /web/read:
+    $ref: './paths/web.yaml#/webRead'

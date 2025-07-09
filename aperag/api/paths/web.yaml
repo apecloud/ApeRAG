@@ -1,0 +1,216 @@
+webSearch:
+  post:
+    summary: Web search
+    description: Perform web search using various search engines
+    tags:
+      - web
+    security:
+      - BearerAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/web.yaml#/webSearchRequest'
+          examples:
+            simple_search:
+              summary: Simple search
+              description: Basic web search
+              value:
+                query: "ApeRAG 2025年最新发展"
+                max_results: 5
+                search_engine: "google"
+            advanced_search:
+              summary: Advanced search
+              description: Search with custom parameters
+              value:
+                query: "机器学习最新进展"
+                max_results: 10
+                search_engine: "duckduckgo"
+                timeout: 30
+                locale: "zh-CN"
+    responses:
+      '200':
+        description: Search completed successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/web.yaml#/webSearchResponse'
+            examples:
+              search_results:
+                summary: Search results
+                description: Successful search with results
+                value:
+                  query: "ApeRAG 2025年最新发展"
+                  results:
+                    - rank: 1
+                      title: "ApeRAG 2025年技术路线图"
+                      url: "https://example.com/aperag-2025-roadmap"
+                      snippet: "ApeRAG在2025年将重点发展..."
+                      domain: "example.com"
+                      timestamp: "2025-01-01T00:00:00Z"
+                  search_engine: "google"
+                  total_results: 1
+                  search_time: 1.2
+      '400':
+        description: Bad request - Invalid search parameters
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+            examples:
+              empty_query:
+                summary: Empty query
+                description: Query cannot be empty
+                value:
+                  code: "400"
+                  message: "Search query cannot be empty"
+              invalid_engine:
+                summary: Invalid search engine
+                description: Unsupported search engine
+                value:
+                  code: "400"
+                  message: "Unsupported search engine: invalid_engine"
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        description: Internal server error - Search failed
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+            examples:
+              search_error:
+                summary: Search failed
+                description: Search operation failed
+                value:
+                  code: "500"
+                  message: "Search failed: Network timeout"
+
+webRead:
+  post:
+    summary: Web content reading
+    description: Read and extract content from web pages
+    tags:
+      - web
+    security:
+      - BearerAuth: []
+      - CookieAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/web.yaml#/webReadRequest'
+          examples:
+            single_url:
+              summary: Single URL
+              description: Read content from a single URL
+              value:
+                urls: "https://example.com/article"
+                timeout: 30
+            multiple_urls:
+              summary: Multiple URLs
+              description: Read content from multiple URLs
+              value:
+                urls:
+                  - "https://example.com/article1"
+                  - "https://example.com/article2"
+                max_concurrent: 2
+            advanced_reading:
+              summary: Advanced content extraction
+              description: Content extraction with CSS selectors
+              value:
+                urls: "https://example.com/spa-page"
+                css_selector: "article .content"
+                wait_for_selector: ".loading-complete"
+                exclude_selector: ".ads, .sidebar"
+                timeout: 45
+                locale: "zh-CN"
+    responses:
+      '200':
+        description: Content reading completed
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/web.yaml#/webReadResponse'
+            examples:
+              single_success:
+                summary: Single URL success
+                description: Successfully read single URL
+                value:
+                  results:
+                    - url: "https://example.com/article"
+                      status: "success"
+                      title: "示例文章标题"
+                      content: "# 示例文章\n\n这是文章内容..."
+                      extracted_at: "2025-01-07T10:00:00Z"
+                      word_count: 500
+                      token_count: 750
+                  total_urls: 1
+                  successful: 1
+                  failed: 0
+                  processing_time: 2.5
+              mixed_results:
+                summary: Mixed results
+                description: Some URLs succeeded, some failed
+                value:
+                  results:
+                    - url: "https://example.com/article1"
+                      status: "success"
+                      title: "成功的文章"
+                      content: "# 成功读取\n\n内容..."
+                      extracted_at: "2025-01-07T10:00:00Z"
+                      word_count: 300
+                      token_count: 450
+                    - url: "https://invalid-url.com/404"
+                      status: "error"
+                      error: "页面无法访问"
+                      error_code: "TIMEOUT"
+                  total_urls: 2
+                  successful: 1
+                  failed: 1
+                  processing_time: 5.2
+      '400':
+        description: Bad request - Invalid read parameters
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+            examples:
+              empty_urls:
+                summary: Empty URLs
+                description: URLs list cannot be empty
+                value:
+                  code: "400"
+                  message: "URLs list cannot be empty"
+              invalid_url:
+                summary: Invalid URL format
+                description: URL format is invalid
+                value:
+                  code: "400"
+                  message: "Invalid URL format"
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        description: Internal server error - Reading failed
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+            examples:
+              read_error:
+                summary: Reading failed
+                description: Content reading operation failed
+                value:
+                  code: "500"
+                  message: "Content reading failed: Provider error" 

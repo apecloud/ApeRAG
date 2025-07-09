@@ -14,9 +14,11 @@
 
 
 
-export * from './apis/audit-api';
-export * from './apis/default-api';
-export * from './apis/graph-api';
-export * from './apis/llmapi';
-export * from './apis/web-api';
+/**
+ * @type WebReadRequestUrls
+ * URL or list of URLs to read
+ * @export
+ */
+export type WebReadRequestUrls = Array<string> | string;
+
 

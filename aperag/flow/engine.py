@@ -84,7 +84,8 @@ class FlowEngine:
         await self._event_queue.put(event)
         # Also log the event
         logger.info(
-            f"Flow event: {event.event_type} for {event.node_type} node {event.node_id}", extra={"execution_id": self.execution_id}
+            f"Flow event: {event.event_type} for {event.node_type} node {event.node_id}",
+            extra={"execution_id": self.execution_id},
         )
 
     async def get_events(self) -> AsyncGenerator[Dict[str, Any], None]:
@@ -412,13 +413,21 @@ class FlowEngine:
                 self.context.set_system_output(node.id, system_output)
             await self.emit_event(
                 FlowEvent(
-                    FlowEventType.NODE_END, node.id, node.type, self.execution_id, {"node_type": node.type, "outputs": output_data}
+                    FlowEventType.NODE_END,
+                    node.id,
+                    node.type,
+                    self.execution_id,
+                    {"node_type": node.type, "outputs": output_data},
                 )
             )
         except Exception as e:
             await self.emit_event(
                 FlowEvent(
-                    FlowEventType.NODE_ERROR, node.id, node.type, self.execution_id, {"node_type": node.type, "error": str(e)}
+                    FlowEventType.NODE_ERROR,
+                    node.id,
+                    node.type,
+                    self.execution_id,
+                    {"node_type": node.type, "error": str(e)},
                 )
             )
             raise e

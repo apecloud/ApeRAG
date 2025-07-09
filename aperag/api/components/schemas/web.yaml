@@ -1,0 +1,202 @@
+webSearchRequest:
+  type: object
+  description: Web search request
+  properties:
+    query:
+      type: string
+      description: Search query
+      example: "ApeRAG 2025年最新发展"
+    max_results:
+      type: integer
+      description: Maximum number of results to return
+      default: 5
+      example: 5
+    search_engine:
+      type: string
+      description: Search engine to use
+      default: "google"
+      example: "google"
+    timeout:
+      type: integer
+      description: Request timeout in seconds
+      default: 30
+      example: 30
+    locale:
+      type: string
+      description: Browser locale
+      default: "zh-CN"
+      example: "zh-CN"
+  required:
+    - query
+
+webSearchResultItem:
+  type: object
+  description: Individual web search result
+  properties:
+    rank:
+      type: integer
+      description: Result rank
+      example: 1
+    title:
+      type: string
+      description: Page title
+      example: "ApeRAG 2025年技术路线图"
+    url:
+      type: string
+      description: Page URL
+      example: "https://example.com/aperag-2025-roadmap"
+    snippet:
+      type: string
+      description: Page snippet
+      example: "ApeRAG在2025年将重点发展..."
+    domain:
+      type: string
+      description: Domain name
+      example: "example.com"
+    timestamp:
+      type: string
+      format: date-time
+      description: Result timestamp
+      example: "2025-01-01T00:00:00Z"
+  required:
+    - rank
+    - title
+    - url
+    - snippet
+    - domain
+
+webSearchResponse:
+  type: object
+  description: Web search response
+  properties:
+    query:
+      type: string
+      description: Original search query
+    results:
+      type: array
+      description: List of search results
+      items:
+        $ref: '#/webSearchResultItem'
+    search_engine:
+      type: string
+      description: Search engine used
+    total_results:
+      type: integer
+      description: Total number of results found
+    search_time:
+      type: number
+      format: float
+      description: Search time in seconds
+  required:
+    - query
+    - results
+    - search_engine
+
+webReadRequest:
+  type: object
+  description: Web content reading request
+  properties:
+    urls:
+      oneOf:
+        - type: string
+          description: Single URL to read
+        - type: array
+          description: List of URLs to read
+          items:
+            type: string
+      description: URL or list of URLs to read
+    timeout:
+      type: integer
+      description: Request timeout in seconds
+      default: 30
+      example: 30
+    css_selector:
+      type: string
+      description: CSS selector for content extraction
+    wait_for_selector:
+      type: string
+      description: CSS selector to wait for (SPA pages)
+    exclude_selector:
+      type: string
+      description: CSS selector to exclude (ads, etc.)
+    bypass_cache:
+      type: boolean
+      description: Bypass cache for fresh content
+      default: false
+    locale:
+      type: string
+      description: Browser locale
+      default: "zh-CN"
+      example: "zh-CN"
+    max_concurrent:
+      type: integer
+      description: Maximum concurrent requests for multiple URLs
+      default: 3
+      example: 3
+  required:
+    - urls
+
+webReadResultItem:
+  type: object
+  description: Individual web content reading result
+  properties:
+    url:
+      type: string
+      description: Requested URL
+    status:
+      type: string
+      enum: ["success", "error"]
+      description: Processing status
+    title:
+      type: string
+      description: Page title
+    content:
+      type: string
+      description: Extracted content in Markdown format
+    extracted_at:
+      type: string
+      format: date-time
+      description: Content extraction timestamp
+    word_count:
+      type: integer
+      description: Word count of content
+    token_count:
+      type: integer
+      description: Estimated token count
+    error:
+      type: string
+      description: Error message if failed
+    error_code:
+      type: string
+      description: Error code if failed
+  required:
+    - url
+    - status
+
+webReadResponse:
+  type: object
+  description: Web content reading response
+  properties:
+    results:
+      type: array
+      description: List of reading results
+      items:
+        $ref: '#/webReadResultItem'
+    total_urls:
+      type: integer
+      description: Total number of URLs processed
+    successful:
+      type: integer
+      description: Number of successful extractions
+    failed:
+      type: integer
+      description: Number of failed extractions
+    processing_time:
+      type: number
+      format: float
+      description: Total processing time in seconds
+  required:
+    - results
+    - total_urls
+    - successful
+    - failed 

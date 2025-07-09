@@ -1424,3 +1424,121 @@ class ChangePassword(BaseModel):
     new_password: Optional[str] = Field(
         None, description='The new password of the user'
     )
+
+
+class WebSearchRequest(BaseModel):
+    """
+    Web search request
+    """
+
+    query: str = Field(..., description='Search query', example='ApeRAG 2025年最新发展')
+    max_results: Optional[int] = Field(
+        5, description='Maximum number of results to return', example=5
+    )
+    search_engine: Optional[str] = Field(
+        'google', description='Search engine to use', example='google'
+    )
+    timeout: Optional[int] = Field(
+        30, description='Request timeout in seconds', example=30
+    )
+    locale: Optional[str] = Field(
+        'zh-CN', description='Browser locale', example='zh-CN'
+    )
+
+
+class WebSearchResultItem(BaseModel):
+    """
+    Individual web search result
+    """
+
+    rank: int = Field(..., description='Result rank', example=1)
+    title: str = Field(..., description='Page title', example='ApeRAG 2025年技术路线图')
+    url: str = Field(
+        ..., description='Page URL', example='https://example.com/aperag-2025-roadmap'
+    )
+    snippet: str = Field(
+        ..., description='Page snippet', example='ApeRAG在2025年将重点发展...'
+    )
+    domain: str = Field(..., description='Domain name', example='example.com')
+    timestamp: Optional[datetime] = Field(
+        None, description='Result timestamp', example='2025-01-01T00:00:00Z'
+    )
+
+
+class WebSearchResponse(BaseModel):
+    """
+    Web search response
+    """
+
+    query: str = Field(..., description='Original search query')
+    results: list[WebSearchResultItem] = Field(
+        ..., description='List of search results'
+    )
+    search_engine: str = Field(..., description='Search engine used')
+    total_results: Optional[int] = Field(
+        None, description='Total number of results found'
+    )
+    search_time: Optional[float] = Field(None, description='Search time in seconds')
+
+
+class WebReadRequest(BaseModel):
+    """
+    Web content reading request
+    """
+
+    urls: Union[str, list[str]] = Field(..., description='URL or list of URLs to read')
+    timeout: Optional[int] = Field(
+        30, description='Request timeout in seconds', example=30
+    )
+    css_selector: Optional[str] = Field(
+        None, description='CSS selector for content extraction'
+    )
+    wait_for_selector: Optional[str] = Field(
+        None, description='CSS selector to wait for (SPA pages)'
+    )
+    exclude_selector: Optional[str] = Field(
+        None, description='CSS selector to exclude (ads, etc.)'
+    )
+    bypass_cache: Optional[bool] = Field(
+        False, description='Bypass cache for fresh content'
+    )
+    locale: Optional[str] = Field(
+        'zh-CN', description='Browser locale', example='zh-CN'
+    )
+    max_concurrent: Optional[int] = Field(
+        3, description='Maximum concurrent requests for multiple URLs', example=3
+    )
+
+
+class WebReadResultItem(BaseModel):
+    """
+    Individual web content reading result
+    """
+
+    url: str = Field(..., description='Requested URL')
+    status: Literal['success', 'error'] = Field(..., description='Processing status')
+    title: Optional[str] = Field(None, description='Page title')
+    content: Optional[str] = Field(
+        None, description='Extracted content in Markdown format'
+    )
+    extracted_at: Optional[datetime] = Field(
+        None, description='Content extraction timestamp'
+    )
+    word_count: Optional[int] = Field(None, description='Word count of content')
+    token_count: Optional[int] = Field(None, description='Estimated token count')
+    error: Optional[str] = Field(None, description='Error message if failed')
+    error_code: Optional[str] = Field(None, description='Error code if failed')
+
+
+class WebReadResponse(BaseModel):
+    """
+    Web content reading response
+    """
+
+    results: list[WebReadResultItem] = Field(..., description='List of reading results')
+    total_urls: int = Field(..., description='Total number of URLs processed')
+    successful: int = Field(..., description='Number of successful extractions')
+    failed: int = Field(..., description='Number of failed extractions')
+    processing_time: Optional[float] = Field(
+        None, description='Total processing time in seconds'
+    )
