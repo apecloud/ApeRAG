@@ -1,4 +1,14 @@
-import { LlmConfigurationResponse, LlmProvider, LlmProviderModel } from '@/api';
+import { 
+  LlmConfigurationResponse, 
+  LlmProvider, 
+  LlmProviderModel,
+  LlmProviderModelCreate,
+  LlmProviderModelUpdate
+} from '@/api';
+import { 
+  LlmProvidersProviderNameModelsApiModelDeleteApiEnum,
+  LlmProvidersProviderNameModelsApiModelPutApiEnum
+} from '@/api/apis/default-api';
 import { PageContainer, PageHeader, RefreshButton } from '@/components';
 import { api } from '@/services';
 import {
@@ -252,18 +262,23 @@ export default () => {
       try {
         setLoading(true);
         if (editingModel) {
-          await api.llmProviderModelsPut({
-            llmProviderModelUpdate: {
-              ...values,
-              provider_name: editingModel.provider_name,
-              model: editingModel.model,
-              api: editingModel.api,
-            },
+          // Update existing model
+          await api.llmProvidersProviderNameModelsApiModelPut({
+            providerName: editingModel.provider_name,
+            api: editingModel.api as LlmProvidersProviderNameModelsApiModelPutApiEnum,
+            model: editingModel.model,
+            llmProviderModelUpdate: values as LlmProviderModelUpdate,
           });
           message.success(formatMessage({ id: 'model.update.success' }));
         } else {
-          await api.llmProviderModelsPost({
-            llmProviderModelCreate: values,
+          // Create new model - ensure provider_name is included
+          const modelCreateData: LlmProviderModelCreate = {
+            ...values,
+            provider_name: currentProvider!.name,
+          };
+          await api.llmProvidersProviderNameModelsPost({
+            providerName: currentProvider!.name,
+            llmProviderModelCreate: modelCreateData,
           });
           message.success(formatMessage({ id: 'model.create.success' }));
         }
@@ -275,7 +290,7 @@ export default () => {
         setLoading(false);
       }
     },
-    [editingModel, setLoading, fetchConfiguration, formatMessage],
+    [editingModel, currentProvider, setLoading, fetchConfiguration, formatMessage],
   );
 
   const handleDeleteModel = useCallback(
@@ -292,12 +307,10 @@ export default () => {
       if (confirmed) {
         setLoading(true);
         try {
-          await api.llmProviderModelsDelete({
-            llmProviderModelDelete: {
-              provider_name: model.provider_name,
-              model: model.model,
-              api: model.api,
-            },
+          await api.llmProvidersProviderNameModelsApiModelDelete({
+            providerName: model.provider_name,
+            api: model.api as LlmProvidersProviderNameModelsApiModelDeleteApiEnum,
+            model: model.model,
           });
           message.success(formatMessage({ id: 'model.delete.success' }));
           await fetchConfiguration();
