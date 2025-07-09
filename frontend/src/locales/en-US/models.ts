@@ -28,6 +28,15 @@ export const model = {
   'model.provider.delete.confirm':
     'Are you sure to delete provider "{name}"? This will also delete all models under this provider.',
 
+  // Provider status related
+  'model.provider.status': 'Status',
+  'model.provider.status.enabled': 'Enabled',
+  'model.provider.status.disabled': 'Disabled',
+  'model.provider.enable': 'Enable',
+  'model.provider.disable': 'Disable',
+  'model.provider.enable.help': 'Enable to configure API key and use model services',
+  'model.provider.disable.help': 'Disable to remove API key and stop using model services',
+
   // Model related
   'model.management.title': '{provider} - Model Management',
   'model.list.title': 'Model List',
@@ -37,7 +46,7 @@ export const model = {
   'model.edit': 'Edit Model',
   'model.edit.title': 'Edit Model: {model}',
   'model.delete': 'Delete Model',
-  'model.delete.confirm': 'Are you sure to delete model "{model}"?',
+  'model.delete.confirm': 'Are you sure to delete model "{name}"?',
   'model.back_to_list': 'Back to List',
   'model.api_type': 'API Type',
   'model.model_name': 'Model Name',
@@ -60,6 +69,7 @@ export const model = {
     'Please enter embedding API dialect',
   'model.provider.rerank_dialect.placeholder': 'jina_ai',
   'model.provider.rerank_dialect.required': 'Please enter rerank API dialect',
+  'model.provider.api_key.required': 'Please enter API key',
 
   'model.provider.required': 'Please select provider',
   'model.api_type.required': 'Please select API type',

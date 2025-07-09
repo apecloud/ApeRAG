@@ -28,6 +28,15 @@ export const model = {
   'model.provider.delete.confirm':
     '确定要删除提供商 "{name}" 吗？这将同时删除该提供商下的所有模型。',
 
+  // Provider status related
+  'model.provider.status': '状态',
+  'model.provider.status.enabled': '启用',
+  'model.provider.status.disabled': '禁用',
+  'model.provider.enable': '启用',
+  'model.provider.disable': '禁用',
+  'model.provider.enable.help': '启用后可配置API密钥使用模型服务',
+  'model.provider.disable.help': '禁用后将删除API密钥，无法使用模型服务',
+
   // Model related
   'model.management.title': '{provider} - 模型管理',
   'model.list.title': '模型列表',
@@ -37,7 +46,7 @@ export const model = {
   'model.edit': '编辑模型',
   'model.edit.title': '编辑模型：{model}',
   'model.delete': '删除模型',
-  'model.delete.confirm': '确定要删除模型 "{model}" 吗？',
+  'model.delete.confirm': '确定要删除模型 "{name}" 吗？',
   'model.back_to_list': '返回列表',
   'model.api_type': 'API类型',
   'model.model_name': '模型名称',
@@ -58,6 +67,7 @@ export const model = {
   'model.provider.embedding_dialect.required': '请输入嵌入API方言',
   'model.provider.rerank_dialect.placeholder': 'jina_ai',
   'model.provider.rerank_dialect.required': '请输入重排API方言',
+  'model.provider.api_key.required': '请输入API密钥',
 
   'model.provider.required': '请选择提供商',
   'model.api_type.required': '请选择API类型',

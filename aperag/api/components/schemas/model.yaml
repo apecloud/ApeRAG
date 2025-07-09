@@ -232,6 +232,10 @@ llmProviderUpdateWithApiKey:
     api_key:
       type: string
       description: Optional API key for this provider
+    status:
+      type: string
+      enum: [enable, disable]
+      description: Provider status - enable to create/update API key, disable to remove API key
 
 llmProviderModel:
   type: object

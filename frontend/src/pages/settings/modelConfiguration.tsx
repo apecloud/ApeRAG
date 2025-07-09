@@ -21,6 +21,7 @@ import {
   Row,
   Select,
   Space,
+  Switch,
   Table,
   TableProps,
   Tag,
@@ -52,6 +53,9 @@ export default () => {
   const [editingProvider, setEditingProvider] = useState<LlmProvider | null>(
     null,
   );
+  
+  // Provider status state
+  const [providerStatus, setProviderStatus] = useState<'enable' | 'disable'>('enable');
 
   // API Key配置相关状态 - 已移除，API Key现在直接在LLM Provider中管理
 
@@ -69,6 +73,11 @@ export default () => {
   const [modelSearchText, setModelSearchText] = useState<string>('');
 
   const [modal, contextHolder] = Modal.useModal();
+
+  // Check if provider is enabled (has API key)
+  const isProviderEnabled = useCallback((provider: LlmProvider) => {
+    return provider.api_key && provider.api_key.trim() !== '';
+  }, []);
 
   // Fetch LLM configuration
   const fetchConfiguration = useCallback(async () => {
@@ -88,6 +97,7 @@ export default () => {
   // Provider operations
   const handleCreateProvider = useCallback(() => {
     setEditingProvider(null);
+    setProviderStatus('enable');
     providerForm.resetFields();
     providerForm.setFieldsValue({
       completion_dialect: 'openai',
@@ -101,6 +111,10 @@ export default () => {
   const handleEditProvider = useCallback(
     async (provider: LlmProvider) => {
       setEditingProvider(provider);
+      
+      // Set provider status based on API key presence
+      const enabled = isProviderEnabled(provider);
+      setProviderStatus(enabled ? 'enable' : 'disable');
 
       // 加载provider数据
       const providerData: any = { ...provider };
@@ -114,7 +128,7 @@ export default () => {
       providerForm.setFieldsValue(providerData);
       setProviderModalVisible(true);
     },
-    [providerForm],
+    [providerForm, isProviderEnabled],
   );
 
   const handleSaveProvider = useCallback(async () => {
@@ -122,15 +136,21 @@ export default () => {
       const values = await providerForm.validateFields();
       setLoading(true);
 
+      // Add status to the request
+      const requestData = {
+        ...values,
+        status: providerStatus,
+      };
+
       if (editingProvider) {
         await api.llmProvidersProviderNamePut({
           providerName: editingProvider.name,
-          llmProviderUpdateWithApiKey: values,
+          llmProviderUpdateWithApiKey: requestData,
         });
         message.success(formatMessage({ id: 'model.provider.update.success' }));
       } else {
         await api.llmProvidersPost({
-          llmProviderCreateWithApiKey: values,
+          llmProviderCreateWithApiKey: requestData,
         });
         message.success(formatMessage({ id: 'model.provider.create.success' }));
       }
@@ -146,6 +166,7 @@ export default () => {
   }, [
     editingProvider,
     providerForm,
+    providerStatus,
     setLoading,
     fetchConfiguration,
     formatMessage,
@@ -182,6 +203,17 @@ export default () => {
     [modal, formatMessage, setLoading, fetchConfiguration],
   );
 
+  // Handle provider status toggle
+  const handleProviderStatusChange = useCallback((enabled: boolean) => {
+    const newStatus = enabled ? 'enable' : 'disable';
+    setProviderStatus(newStatus);
+    
+    // If disabling, clear the API key field
+    if (newStatus === 'disable') {
+      providerForm.setFieldValue('api_key', '');
+    }
+  }, [providerForm]);
+
   // Model management operations
   const handleManageModels = useCallback((provider: LlmProvider) => {
     setCurrentProvider(provider);
@@ -206,54 +238,45 @@ export default () => {
   const handleEditModel = useCallback(
     (model: LlmProviderModel) => {
       setEditingModel(model);
-      modelForm.setFieldsValue(model);
+      modelForm.setFieldsValue({
+        ...model,
+        tags: model.tags || [],
+      });
       setModalView('edit');
     },
     [modelForm],
   );
 
-  const handleSaveModel = useCallback(async () => {
-    try {
-      const values = await modelForm.validateFields();
-      setLoading(true);
-
-      // 确保包含provider_name
-      const modelData = {
-        ...values,
-        provider_name: currentProvider?.name,
-      };
-
-      if (editingModel) {
-        await api.llmProvidersProviderNameModelsApiModelPut({
-          providerName: editingModel.provider_name,
-          api: editingModel.api as any,
-          model: editingModel.model,
-          llmProviderModelUpdate: modelData,
-        });
-        message.success(formatMessage({ id: 'model.update.success' }));
-      } else {
-        await api.llmProvidersProviderNameModelsPost({
-          providerName: currentProvider?.name || '',
-          llmProviderModelCreate: modelData,
-        });
-        message.success(formatMessage({ id: 'model.create.success' }));
+  const handleSaveModel = useCallback(
+    async (values: any) => {
+      try {
+        setLoading(true);
+        if (editingModel) {
+          await api.llmProviderModelsPut({
+            llmProviderModelUpdate: {
+              ...values,
+              provider_name: editingModel.provider_name,
+              model: editingModel.model,
+              api: editingModel.api,
+            },
+          });
+          message.success(formatMessage({ id: 'model.update.success' }));
+        } else {
+          await api.llmProviderModelsPost({
+            llmProviderModelCreate: values,
+          });
+          message.success(formatMessage({ id: 'model.create.success' }));
+        }
+        setModalView('list');
+        await fetchConfiguration();
+      } catch (error) {
+        message.error(formatMessage({ id: 'model.save.failed' }));
+      } finally {
+        setLoading(false);
       }
-
-      setModalView('list');
-      await fetchConfiguration();
-    } catch (error) {
-      message.error(formatMessage({ id: 'model.save.failed' }));
-    } finally {
-      setLoading(false);
-    }
-  }, [
-    editingModel,
-    modelForm,
-    setLoading,
-    fetchConfiguration,
-    formatMessage,
-    currentProvider,
-  ]);
+    },
+    [editingModel, setLoading, fetchConfiguration, formatMessage],
+  );
 
   const handleDeleteModel = useCallback(
     async (model: LlmProviderModel) => {
@@ -261,7 +284,7 @@ export default () => {
         title: formatMessage({ id: 'action.confirm' }),
         content: formatMessage(
           { id: 'model.delete.confirm' },
-          { model: model.model },
+          { name: model.model },
         ),
         okButtonProps: { danger: true },
       });
@@ -269,10 +292,12 @@ export default () => {
       if (confirmed) {
         setLoading(true);
         try {
-          await api.llmProvidersProviderNameModelsApiModelDelete({
-            providerName: model.provider_name,
-            api: model.api as any,
-            model: model.model,
+          await api.llmProviderModelsDelete({
+            llmProviderModelDelete: {
+              provider_name: model.provider_name,
+              model: model.model,
+              api: model.api,
+            },
           });
           message.success(formatMessage({ id: 'model.delete.success' }));
           await fetchConfiguration();
@@ -289,12 +314,7 @@ export default () => {
   const handleBackToList = useCallback(() => {
     setModalView('list');
     setEditingModel(null);
-    // 重置表单但保留provider_name
-    const providerName = modelForm.getFieldValue('provider_name');
     modelForm.resetFields();
-    if (providerName) {
-      modelForm.setFieldValue('provider_name', providerName);
-    }
   }, [modelForm]);
 
   const handleCloseModelManagement = useCallback(() => {
@@ -363,6 +383,23 @@ export default () => {
       key: 'label',
       width: 180,
       render: (label: string) => <Text strong>{label}</Text>,
+    },
+    {
+      title: formatMessage({ id: 'model.provider.status' }),
+      key: 'status',
+      width: 100,
+      align: 'center',
+      render: (_, record) => {
+        const enabled = isProviderEnabled(record);
+        return (
+          <Tag color={enabled ? 'green' : 'default'}>
+            {enabled 
+              ? formatMessage({ id: 'model.provider.status.enabled' })
+              : formatMessage({ id: 'model.provider.status.disabled' })
+            }
+          </Tag>
+        );
+      },
     },
     {
       title: formatMessage({ id: 'model.provider.url' }),
@@ -703,29 +740,59 @@ export default () => {
           </Divider>
 
           <Form.Item
-            name="api_key"
-            label={formatMessage({ id: 'model.provider.api_key' })}
-            help={
-              editingProvider
-                ? editingProvider.api_key
-                  ? formatMessage({ id: 'model.provider.api_key.edit.help' })
-                  : formatMessage({ id: 'model.provider.api_key.help' })
-                : formatMessage({ id: 'model.provider.api_key.help' })
-            }
+            label={formatMessage({ id: 'model.provider.status' })}
+            style={{ marginBottom: '16px' }}
           >
-            <Input
-              placeholder={
-                editingProvider && editingProvider.api_key
-                  ? formatMessage({
-                      id: 'model.provider.api_key.edit.placeholder',
-                    })
-                  : formatMessage({ id: 'model.provider.api_key.placeholder' })
-              }
-              autoComplete="off"
-              spellCheck={false}
-              style={{ borderRadius: '6px', fontFamily: 'monospace' }}
-            />
+            <Space align="center">
+              <Switch
+                checked={providerStatus === 'enable'}
+                onChange={handleProviderStatusChange}
+                checkedChildren={formatMessage({ id: 'model.provider.enable' })}
+                unCheckedChildren={formatMessage({ id: 'model.provider.disable' })}
+              />
+              <Text type="secondary" style={{ fontSize: '12px' }}>
+                {providerStatus === 'enable' 
+                  ? formatMessage({ id: 'model.provider.enable.help' })
+                  : formatMessage({ id: 'model.provider.disable.help' })
+                }
+              </Text>
+            </Space>
           </Form.Item>
+
+          {providerStatus === 'enable' && (
+            <Form.Item
+              name="api_key"
+              label={formatMessage({ id: 'model.provider.api_key' })}
+              rules={[
+                {
+                  required: true,
+                  message: formatMessage({
+                    id: 'model.provider.api_key.required',
+                  }),
+                },
+              ]}
+              help={
+                editingProvider
+                  ? editingProvider.api_key
+                    ? formatMessage({ id: 'model.provider.api_key.edit.help' })
+                    : formatMessage({ id: 'model.provider.api_key.help' })
+                  : formatMessage({ id: 'model.provider.api_key.help' })
+              }
+            >
+              <Input
+                placeholder={
+                  editingProvider && editingProvider.api_key
+                    ? formatMessage({
+                        id: 'model.provider.api_key.edit.placeholder',
+                      })
+                    : formatMessage({ id: 'model.provider.api_key.placeholder' })
+                }
+                autoComplete="off"
+                spellCheck={false}
+                style={{ borderRadius: '6px', fontFamily: 'monospace' }}
+              />
+            </Form.Item>
+          )}
         </Form>
       </Modal>
 
@@ -807,13 +874,9 @@ export default () => {
           <div>
             <div
               style={{
-                marginBottom: 24,
+                marginBottom: 20,
                 display: 'flex',
                 alignItems: 'center',
-                padding: '12px 16px',
-                background: '#fafafa',
-                borderRadius: '6px',
-                border: '1px solid #f0f0f0',
               }}
             >
               <Button
