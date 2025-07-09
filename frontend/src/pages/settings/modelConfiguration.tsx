@@ -129,11 +129,8 @@ export default () => {
       // 加载provider数据
       const providerData: any = { ...provider };
 
-      // 如果API key存在且是掩码形式（包含***），则清空字段让用户重新输入
-      // 这样用户知道需要重新输入API密钥
-      if (providerData.api_key && providerData.api_key.includes('***')) {
-        providerData.api_key = ''; // Clear masked API key for re-entry
-      }
+      // 无论原有key是否mask，编辑时都清空输入框
+      providerData.api_key = '';
 
       providerForm.setFieldsValue(providerData);
       setProviderModalVisible(true);
