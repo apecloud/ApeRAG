@@ -18,7 +18,6 @@ from typing import Any, Dict
 from aperag.exceptions import CollectionNotFoundException, GraphServiceError
 from aperag.graph import lightrag_manager
 from aperag.schema import view_models
-from aperag.service.collection_service import Collection
 
 logger = logging.getLogger(__name__)
 
@@ -287,31 +286,34 @@ class GraphService:
 
     async def merge_nodes(
         self,
-        collection: Collection,
+        user_id: str,
+        collection_id: str,
         entity_ids: list[str],
         target_entity_data: dict[str, Any] | None = None,
-        collection_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Merge multiple graph nodes using LightRAG.
 
         Args:
-            collection: Collection object containing graph data
+            user_id: User ID
+            collection_id: Collection ID
             entity_ids: List of entity IDs to merge
             target_entity_data: Optional target entity configuration including entity_name and other properties
-            collection_id: Optional collection ID for logging
 
         Returns:
             Dict containing merge operation results
 
         Raises:
+            CollectionNotFoundException: If collection is not found
+            ValueError: If knowledge graph is not enabled for the collection
             GraphServiceError: If merge operation fails
         """
-        from aperag.graph.lightrag_manager import create_lightrag_instance
+        # Get and validate collection
+        collection = await self._get_and_validate_collection(user_id, collection_id)
 
         try:
             # Create LightRAG instance
-            rag = await create_lightrag_instance(collection)
+            rag = await lightrag_manager.create_lightrag_instance(collection)
 
             # Call LightRAG merge method
             result = await rag.amerge_nodes(
@@ -323,7 +325,7 @@ class GraphService:
             return result
 
         except Exception as e:
-            logger.error(f"Failed to merge nodes: {str(e)}")
+            logger.error(f"Failed to merge nodes in collection {collection_id}: {str(e)}")
             raise GraphServiceError(f"Failed to merge nodes: {str(e)}") from e
         finally:
             if "rag" in locals():

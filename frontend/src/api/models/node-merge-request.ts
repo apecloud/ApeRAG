@@ -37,11 +37,5 @@ export interface NodeMergeRequest {
      * @memberof NodeMergeRequest
      */
     'target_entity_data'?: NodeMergeRequestTargetEntityData;
-    /**
-     * Optional collection ID for logging
-     * @type {string}
-     * @memberof NodeMergeRequest
-     */
-    'collection_id'?: string;
 }
 

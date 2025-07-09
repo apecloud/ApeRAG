@@ -176,10 +176,6 @@ nodeMergeRequest:
           type: string
           description: File path for the target entity
       nullable: true
-    collection_id:
-      type: string
-      description: Optional collection ID for logging
-      example: "12345"
   required:
     - entity_ids
   additionalProperties: false

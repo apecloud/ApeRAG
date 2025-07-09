@@ -424,7 +424,7 @@ async def merge_nodes_view(
     user: User = Depends(current_user),
 ) -> view_models.NodeMergeResponse:
     """Merge multiple graph nodes into one"""
-    from aperag.exceptions import CollectionNotFoundException
+    from aperag.exceptions import CollectionNotFoundException, GraphServiceError
     from aperag.service.graph_service import graph_service
 
     try:
@@ -433,25 +433,17 @@ async def merge_nodes_view(
         entity_info = f"entities {merge_request.entity_ids} -> {target_name or 'auto-select'}"
         logger.info(f"Merging nodes: {entity_info} in collection {collection_id}")
 
-        # Get collection object (database model) for service interface
-        collection_view = await collection_service.get_collection(str(user.id), collection_id)
-        # Convert view model to database model for service
-        from aperag.db.repositories.collection import collection_repo
-
-        collection_db = await collection_repo.get_by_id(collection_view.id)
-        if not collection_db:
-            raise CollectionNotFoundException()
-
         # Convert target_entity_data to dict if provided
         target_entity_data_dict = None
         if merge_request.target_entity_data:
             target_entity_data_dict = merge_request.target_entity_data.model_dump(exclude_unset=True)
 
+        # Call graph service (it will handle collection access and validation)
         result = await graph_service.merge_nodes(
-            collection=collection_db,
+            user_id=str(user.id),
+            collection_id=collection_id,
             entity_ids=merge_request.entity_ids,
             target_entity_data=target_entity_data_dict,
-            collection_id=collection_id,
         )
 
         return view_models.NodeMergeResponse(**result)
@@ -459,6 +451,10 @@ async def merge_nodes_view(
     except CollectionNotFoundException:
         raise HTTPException(status_code=404, detail="Collection not found")
     except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except GraphServiceError as e:
+        # Handle business logic errors from Graph Service (e.g., entity not found, invalid merge operation)
+        logger.warning(f"Graph service error for collection {collection_id}: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error merging nodes in collection {collection_id}: {str(e)}")
