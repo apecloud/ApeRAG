@@ -152,6 +152,8 @@ class WebReadRequest(BaseModel):
     max_concurrent: int = 3            # 最大并发数（批量读取）
 ```
 
+> **注意**：统一的接口设计确保了所有provider都使用相同的参数。JINA等高级provider的特有功能（如CSS选择器、SPA支持等）在provider内部使用合理的默认值自动处理。
+
 **WebReadResponse**:
 ```python
 class WebReadResponse(BaseModel):

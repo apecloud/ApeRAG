@@ -113,22 +113,24 @@ for result in response.results:
     print(f"域名: {result.domain}")
 ```
 
-#### 高级配置
+#### 高级特性
 
 ```python
-# JINA搜索支持丰富的参数配置
+# JINA搜索使用标准的WebSearchRequest接口
+# 高级特性（引用信息、图片、时间范围等）在provider内部自动处理
 request = WebSearchRequest(
     query="机器学习最新发展",
     max_results=10,
-    search_engine="google",      # 搜索引擎选择
-    include_citations=True,      # 包含引用信息
-    include_images=False,        # 是否包含图片
-    include_answer=True,         # 包含AI总结回答
-    freshness="week",           # 时间范围: day/week/month/year
+    search_engine="google",      # 支持: "google", "bing", "jina"
     locale="zh-CN",             # 语言地区
-    market="CN",                # 市场地区
     timeout=30                  # 超时时间
 )
+
+# JINA provider内部自动启用以下特性：
+# - 引用信息提取 (include_citations=True)
+# - LLM优化的结果格式
+# - 相关性评分
+# - 智能内容摘要
 ```
 
 #### 支持的搜索引擎
@@ -227,10 +229,8 @@ reader_service = ReaderService(
 # 读取网页内容
 request = WebReadRequest(
     urls="https://example.com/article",
-    target_selector=None,      # CSS选择器，提取特定内容
-    wait_for_selector=None,    # 等待元素加载（适用于SPA）
-    exclude_selector=None,     # 排除元素（如广告）
-    format="markdown"          # 输出格式
+    timeout=30,                # 请求超时时间
+    locale="zh-CN"             # 语言地区
 )
 
 response = await reader_service.read(request)
@@ -240,34 +240,33 @@ for result in response.results:
     print(f"Token数: {result.token_count}")
 ```
 
-#### 高级功能
+#### 高级特性
 
 ```python
-# 使用CSS选择器提取特定内容
+# JINA读取服务使用标准的WebReadRequest接口
+# 高级特性（CSS选择器、SPA支持、缓存控制等）在provider内部自动处理
 request = WebReadRequest(
     urls="https://news.example.com/article",
-    target_selector="article .content",     # 只提取文章内容
-    exclude_selector=".ads, .sidebar",      # 排除广告和侧边栏
-    wait_for_selector=".dynamic-content",   # 等待动态内容加载
-    bypass_cache=True,                      # 绕过缓存
-    include_links=True,                     # 包含链接信息
-    include_images=True                     # 包含图片信息
+    timeout=45,                # 适当增加超时用于复杂页面
+    locale="zh-CN",           # 语言地区
+    max_concurrent=2          # 控制并发数
 )
 
 response = await reader_service.read(request)
 result = response.results[0]
 
 if result.status == "success":
-    print(f"内容: {result.content}")
-    if hasattr(result, 'links') and result.links:
-        print("页面链接:")
-        for link in result.links:
-            print(f"  - {link.text}: {link.url}")
-    
-    if hasattr(result, 'images') and result.images:
-        print("页面图片:")
-        for img in result.images:
-            print(f"  - {img.alt}: {img.src}")
+    print(f"标题: {result.title}")
+    print(f"内容: {result.content}")  # 已优化的Markdown格式
+    print(f"字数: {result.word_count}")
+    print(f"Token数: {result.token_count}")
+
+# JINA provider内部自动启用以下特性：
+# - 智能内容提取 (target_selector自动识别)
+# - 广告和无关内容过滤 (exclude_selector自动处理)
+# - SPA页面支持 (wait_for_selector自动处理)
+# - LLM优化的Markdown输出
+# - 元数据和结构化信息提取
 ```
 
 ## 服务使用指南
@@ -495,11 +494,11 @@ pip install lxml             # XML/HTML解析器
 
 4. **内容提取失败**
    ```python
-   # 使用更宽松的选择器
+   # 增加超时时间，让provider有更多时间处理复杂页面
    request = WebReadRequest(
        urls=url,
-       target_selector=None,  # 让provider自动选择
-       exclude_selector=".ads, script, style"
+       timeout=60,           # 增加超时时间
+       max_concurrent=1      # 降低并发数
    )
    ```
 
