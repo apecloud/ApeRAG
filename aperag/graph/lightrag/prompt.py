@@ -393,3 +393,74 @@ Similarity score criteria:
 0.5: Partially related and answer needs modification to be used
 Return only a number between 0-1, without any additional content.
 """
+
+PROMPTS["batch_merge_analysis"] = """---Goal---
+Given a list of entities from a knowledge graph, identify groups of entities that should be merged because they refer to the same real-world object or concept.
+
+---Steps---
+1. Analyze each entity based on name, type, and description
+2. Group entities that refer to the same real-world object/concept
+3. For each merge group, determine the best target entity and provide merge reasoning
+4. Only return groups that should be merged - do not return entities that should remain separate
+
+---Output Format---
+For each group of entities that should be merged, return:
+("merge_group"{tuple_delimiter}<entity_names_list>{tuple_delimiter}<confidence_score>{tuple_delimiter}<merge_reason>{tuple_delimiter}<suggested_target_name>{tuple_delimiter}<suggested_target_type>{tuple_delimiter}<suggested_target_description>)
+
+Where:
+- entity_names_list: Comma-separated list of entity names to be merged (e.g., "Entity A,Entity B,Entity C")
+- confidence_score: Confidence level (0.0-1.0) for this merge suggestion
+- merge_reason: Brief explanation why these entities should be merged
+- suggested_target_name: Recommended name for the merged entity
+- suggested_target_type: Recommended type for the merged entity  
+- suggested_target_description: Recommended description for the merged entity
+
+Use **{record_delimiter}** as the list delimiter between merge groups.
+When finished, output {completion_delimiter}
+
+######################
+---Example---
+######################
+
+Input Entities:
+Entity 1:
+- Name: Apple Inc
+- Type: ORGANIZATION
+- Description: Apple Inc. is an American multinational technology company
+- Degree: 15
+
+Entity 2:
+- Name: Apple
+- Type: ORGANIZATION  
+- Description: Technology company known for iPhone and Mac products
+- Degree: 12
+
+Entity 3:
+- Name: Microsoft Corporation
+- Type: ORGANIZATION
+- Description: Microsoft Corporation is an American multinational technology company
+- Degree: 18
+
+Entity 4:
+- Name: Microsoft
+- Type: ORGANIZATION
+- Description: Software company that develops Windows and Office
+- Degree: 10
+
+Entity 5:
+- Name: Google
+- Type: ORGANIZATION
+- Description: Google LLC is an American multinational technology company
+- Degree: 20
+
+Output:
+("merge_group"{tuple_delimiter}Apple Inc,Apple{tuple_delimiter}0.92{tuple_delimiter}Both entities refer to the same technology company - Apple Inc is the official name while Apple is the commonly used short form{tuple_delimiter}Apple Inc{tuple_delimiter}ORGANIZATION{tuple_delimiter}Apple Inc. is an American multinational technology company known for iPhone, Mac, and other innovative products){record_delimiter}
+("merge_group"{tuple_delimiter}Microsoft Corporation,Microsoft{tuple_delimiter}0.89{tuple_delimiter}Both entities refer to the same software company - Microsoft Corporation is the official name while Microsoft is the abbreviated form{tuple_delimiter}Microsoft Corporation{tuple_delimiter}ORGANIZATION{tuple_delimiter}Microsoft Corporation is an American multinational technology company that develops Windows, Office, and cloud services){completion_delimiter}
+
+#############################
+---Real Data---
+######################
+---Entities to Analyze---
+{entities_list}
+
+---Output---"""

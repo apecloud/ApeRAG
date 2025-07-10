@@ -284,6 +284,58 @@ class GraphService:
 
     # ==================== Graph Index Operations ====================
 
+    async def generate_merge_suggestions(
+        self,
+        user_id: str,
+        collection_id: str,
+        max_suggestions: int = 10,
+        entity_types: list[str] | None = None,
+        debug_mode: bool = False,
+        max_concurrent_llm_calls: int = 4,
+    ) -> dict[str, Any]:
+        """
+        Generate node merge suggestions using LLM analysis.
+
+        Args:
+            user_id: User ID
+            collection_id: Collection ID
+            max_suggestions: Maximum number of suggestions to return (default: 10)
+            entity_types: Optional filter for specific entity types
+            debug_mode: Enable debug mode with lower confidence threshold and verbose logging
+            max_concurrent_llm_calls: Maximum concurrent LLM calls for batch analysis (default: 4)
+
+        Returns:
+            Dict containing merge suggestions and processing statistics
+
+        Raises:
+            CollectionNotFoundException: If collection is not found
+            ValueError: If knowledge graph is not enabled for the collection
+            GraphServiceError: If suggestion generation fails
+        """
+        # Get and validate collection
+        collection = await self._get_and_validate_collection(user_id, collection_id)
+
+        try:
+            # Create LightRAG instance
+            rag = await lightrag_manager.create_lightrag_instance(collection)
+
+            # Call LightRAG method to generate suggestions
+            result = await rag.agenerate_merge_suggestions(
+                max_suggestions=max_suggestions,
+                entity_types=entity_types,
+                debug_mode=debug_mode,
+                max_concurrent_llm_calls=max_concurrent_llm_calls,
+            )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to generate merge suggestions for collection {collection_id}: {str(e)}")
+            raise GraphServiceError(f"Failed to generate merge suggestions: {str(e)}") from e
+        finally:
+            if "rag" in locals():
+                await rag.finalize_storages()
+
     async def merge_nodes(
         self,
         user_id: str,
@@ -319,7 +371,6 @@ class GraphService:
             result = await rag.amerge_nodes(
                 entity_ids=entity_ids,
                 target_entity_data=target_entity_data,
-                collection_id=collection_id,
             )
 
             return result

@@ -28,6 +28,10 @@ import type { GraphLabelsResponse } from '../models';
 // @ts-ignore
 import type { KnowledgeGraph } from '../models';
 // @ts-ignore
+import type { MergeSuggestionsRequest } from '../models';
+// @ts-ignore
+import type { MergeSuggestionsResponse } from '../models';
+// @ts-ignore
 import type { NodeMergeRequest } from '../models';
 // @ts-ignore
 import type { NodeMergeResponse } from '../models';
@@ -129,6 +133,48 @@ export const GraphApiAxiosParamCreator = function (configuration?: Configuration
             };
         },
         /**
+         * Analyze knowledge graph to identify potentially mergeable nodes using LLM for semantic similarity. Returns confidence-ranked merge suggestions for user review and decision.  This is a stateless endpoint that analyzes the current graph and returns suggestions without persisting any state. Users can then use the suggestions with the existing merge_nodes endpoint to perform actual merges.  The algorithm prioritizes high-degree nodes and uses LLM to judge semantic similarity based on entity names, types, and descriptions. 
+         * @summary Generate node merge suggestions
+         * @param {string} collectionId Collection ID
+         * @param {MergeSuggestionsRequest} [mergeSuggestionsRequest] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdGraphsMergeSuggestionsPost: async (collectionId: string, mergeSuggestionsRequest?: MergeSuggestionsRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('collectionsCollectionIdGraphsMergeSuggestionsPost', 'collectionId', collectionId)
+            const localVarPath = `/collections/{collection_id}/graphs/merge-suggestions`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(mergeSuggestionsRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.  Provide `entity_ids` array with 1+ entities and optional `target_entity_data` for customization.  The operation: 1. Auto-selects target entity (highest degree) if not specified in `target_entity_data` 2. Combines descriptions using default merge strategy (concatenate) 3. Merges metadata using default behavior: entity_type from target, others concatenated/joined 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source nodes  Entity type handling: Uses target entity\'s type if it exists, otherwise uses merged result. The operation is idempotent - if source nodes don\'t exist, it returns success. 
          * @summary Merge graph nodes
          * @param {string} collectionId Collection ID
@@ -212,6 +258,20 @@ export const GraphApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Analyze knowledge graph to identify potentially mergeable nodes using LLM for semantic similarity. Returns confidence-ranked merge suggestions for user review and decision.  This is a stateless endpoint that analyzes the current graph and returns suggestions without persisting any state. Users can then use the suggestions with the existing merge_nodes endpoint to perform actual merges.  The algorithm prioritizes high-degree nodes and uses LLM to judge semantic similarity based on entity names, types, and descriptions. 
+         * @summary Generate node merge suggestions
+         * @param {string} collectionId Collection ID
+         * @param {MergeSuggestionsRequest} [mergeSuggestionsRequest] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async collectionsCollectionIdGraphsMergeSuggestionsPost(collectionId: string, mergeSuggestionsRequest?: MergeSuggestionsRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<MergeSuggestionsResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdGraphsMergeSuggestionsPost(collectionId, mergeSuggestionsRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['GraphApi.collectionsCollectionIdGraphsMergeSuggestionsPost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.  Provide `entity_ids` array with 1+ entities and optional `target_entity_data` for customization.  The operation: 1. Auto-selects target entity (highest degree) if not specified in `target_entity_data` 2. Combines descriptions using default merge strategy (concatenate) 3. Merges metadata using default behavior: entity_type from target, others concatenated/joined 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source nodes  Entity type handling: Uses target entity\'s type if it exists, otherwise uses merged result. The operation is idempotent - if source nodes don\'t exist, it returns success. 
          * @summary Merge graph nodes
          * @param {string} collectionId Collection ID
@@ -256,6 +316,16 @@ export const GraphApiFactory = function (configuration?: Configuration, basePath
             return localVarFp.collectionsCollectionIdGraphsLabelsGet(requestParameters.collectionId, options).then((request) => request(axios, basePath));
         },
         /**
+         * Analyze knowledge graph to identify potentially mergeable nodes using LLM for semantic similarity. Returns confidence-ranked merge suggestions for user review and decision.  This is a stateless endpoint that analyzes the current graph and returns suggestions without persisting any state. Users can then use the suggestions with the existing merge_nodes endpoint to perform actual merges.  The algorithm prioritizes high-degree nodes and uses LLM to judge semantic similarity based on entity names, types, and descriptions. 
+         * @summary Generate node merge suggestions
+         * @param {GraphApiCollectionsCollectionIdGraphsMergeSuggestionsPostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdGraphsMergeSuggestionsPost(requestParameters: GraphApiCollectionsCollectionIdGraphsMergeSuggestionsPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<MergeSuggestionsResponse> {
+            return localVarFp.collectionsCollectionIdGraphsMergeSuggestionsPost(requestParameters.collectionId, requestParameters.mergeSuggestionsRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.  Provide `entity_ids` array with 1+ entities and optional `target_entity_data` for customization.  The operation: 1. Auto-selects target entity (highest degree) if not specified in `target_entity_data` 2. Combines descriptions using default merge strategy (concatenate) 3. Merges metadata using default behavior: entity_type from target, others concatenated/joined 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source nodes  Entity type handling: Uses target entity\'s type if it exists, otherwise uses merged result. The operation is idempotent - if source nodes don\'t exist, it returns success. 
          * @summary Merge graph nodes
          * @param {GraphApiCollectionsCollectionIdGraphsNodesMergePostRequest} requestParameters Request parameters.
@@ -293,6 +363,16 @@ export interface GraphApiInterface {
      * @memberof GraphApiInterface
      */
     collectionsCollectionIdGraphsLabelsGet(requestParameters: GraphApiCollectionsCollectionIdGraphsLabelsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<GraphLabelsResponse>;
+
+    /**
+     * Analyze knowledge graph to identify potentially mergeable nodes using LLM for semantic similarity. Returns confidence-ranked merge suggestions for user review and decision.  This is a stateless endpoint that analyzes the current graph and returns suggestions without persisting any state. Users can then use the suggestions with the existing merge_nodes endpoint to perform actual merges.  The algorithm prioritizes high-degree nodes and uses LLM to judge semantic similarity based on entity names, types, and descriptions. 
+     * @summary Generate node merge suggestions
+     * @param {GraphApiCollectionsCollectionIdGraphsMergeSuggestionsPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof GraphApiInterface
+     */
+    collectionsCollectionIdGraphsMergeSuggestionsPost(requestParameters: GraphApiCollectionsCollectionIdGraphsMergeSuggestionsPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<MergeSuggestionsResponse>;
 
     /**
      * Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.  Provide `entity_ids` array with 1+ entities and optional `target_entity_data` for customization.  The operation: 1. Auto-selects target entity (highest degree) if not specified in `target_entity_data` 2. Combines descriptions using default merge strategy (concatenate) 3. Merges metadata using default behavior: entity_type from target, others concatenated/joined 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source nodes  Entity type handling: Uses target entity\'s type if it exists, otherwise uses merged result. The operation is idempotent - if source nodes don\'t exist, it returns success. 
@@ -356,6 +436,27 @@ export interface GraphApiCollectionsCollectionIdGraphsLabelsGetRequest {
 }
 
 /**
+ * Request parameters for collectionsCollectionIdGraphsMergeSuggestionsPost operation in GraphApi.
+ * @export
+ * @interface GraphApiCollectionsCollectionIdGraphsMergeSuggestionsPostRequest
+ */
+export interface GraphApiCollectionsCollectionIdGraphsMergeSuggestionsPostRequest {
+    /**
+     * Collection ID
+     * @type {string}
+     * @memberof GraphApiCollectionsCollectionIdGraphsMergeSuggestionsPost
+     */
+    readonly collectionId: string
+
+    /**
+     * 
+     * @type {MergeSuggestionsRequest}
+     * @memberof GraphApiCollectionsCollectionIdGraphsMergeSuggestionsPost
+     */
+    readonly mergeSuggestionsRequest?: MergeSuggestionsRequest
+}
+
+/**
  * Request parameters for collectionsCollectionIdGraphsNodesMergePost operation in GraphApi.
  * @export
  * @interface GraphApiCollectionsCollectionIdGraphsNodesMergePostRequest
@@ -405,6 +506,18 @@ export class GraphApi extends BaseAPI implements GraphApiInterface {
      */
     public collectionsCollectionIdGraphsLabelsGet(requestParameters: GraphApiCollectionsCollectionIdGraphsLabelsGetRequest, options?: RawAxiosRequestConfig) {
         return GraphApiFp(this.configuration).collectionsCollectionIdGraphsLabelsGet(requestParameters.collectionId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Analyze knowledge graph to identify potentially mergeable nodes using LLM for semantic similarity. Returns confidence-ranked merge suggestions for user review and decision.  This is a stateless endpoint that analyzes the current graph and returns suggestions without persisting any state. Users can then use the suggestions with the existing merge_nodes endpoint to perform actual merges.  The algorithm prioritizes high-degree nodes and uses LLM to judge semantic similarity based on entity names, types, and descriptions. 
+     * @summary Generate node merge suggestions
+     * @param {GraphApiCollectionsCollectionIdGraphsMergeSuggestionsPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof GraphApi
+     */
+    public collectionsCollectionIdGraphsMergeSuggestionsPost(requestParameters: GraphApiCollectionsCollectionIdGraphsMergeSuggestionsPostRequest, options?: RawAxiosRequestConfig) {
+        return GraphApiFp(this.configuration).collectionsCollectionIdGraphsMergeSuggestionsPost(requestParameters.collectionId, requestParameters.mergeSuggestionsRequest, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

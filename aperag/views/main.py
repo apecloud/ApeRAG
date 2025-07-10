@@ -461,6 +461,60 @@ async def merge_nodes_view(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@router.post("/collections/{collection_id}/graphs/merge-suggestions", tags=["graph"])
+@audit(resource_type="index", api_name="GenerateMergeSuggestions")
+async def generate_merge_suggestions_view(
+    request: Request,
+    collection_id: str,
+    suggestions_request: Optional[view_models.MergeSuggestionsRequest] = Body(None),
+    user: User = Depends(current_user),
+) -> view_models.MergeSuggestionsResponse:
+    """Generate node merge suggestions using LLM analysis"""
+    from aperag.exceptions import CollectionNotFoundException, GraphServiceError
+    from aperag.service.graph_service import graph_service
+
+    try:
+        # If no request body provided, create default request
+        if suggestions_request is None:
+            suggestions_request = view_models.MergeSuggestionsRequest()
+
+        logger.info(
+            f"Generating merge suggestions for collection {collection_id}, "
+            f"max_suggestions={suggestions_request.max_suggestions}, "
+            f"entity_types={suggestions_request.entity_types}, "
+            f"debug_mode={suggestions_request.debug_mode}"
+        )
+
+        # Call graph service to generate suggestions
+        result = await graph_service.generate_merge_suggestions(
+            user_id=str(user.id),
+            collection_id=collection_id,
+            max_suggestions=suggestions_request.max_suggestions,
+            entity_types=suggestions_request.entity_types,
+            debug_mode=suggestions_request.debug_mode,
+            max_concurrent_llm_calls=suggestions_request.max_concurrent_llm_calls,
+        )
+
+        logger.info(
+            f"Generated {len(result['suggestions'])} merge suggestions for collection {collection_id} "
+            f"(analyzed {result['total_analyzed_nodes']} nodes in {result['processing_time_seconds']:.2f}s)"
+        )
+
+        return view_models.MergeSuggestionsResponse(**result)
+
+    except CollectionNotFoundException:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except GraphServiceError as e:
+        # Handle business logic errors from Graph Service
+        logger.warning(f"Graph service error for collection {collection_id}: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error generating merge suggestions for collection {collection_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
 # LLM Configuration API endpoints
 @router.get("/llm_configuration", tags=["llm_providers"])
 async def get_llm_configuration_view(request: Request, user: User = Depends(current_user)):

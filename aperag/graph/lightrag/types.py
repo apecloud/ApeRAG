@@ -33,7 +33,7 @@ Modifications by ApeRAG Team:
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -61,3 +61,96 @@ class KnowledgeGraph(BaseModel):
     nodes: list[KnowledgeGraphNode] = []
     edges: list[KnowledgeGraphEdge] = []
     is_truncated: bool = False
+
+
+# ============= Graph Data Types =============
+
+
+class GraphNodeData(BaseModel):
+    """Represents complete data of a graph node"""
+
+    entity_id: str
+    entity_name: Optional[str] = None
+    entity_type: Optional[str] = None
+    description: Optional[str] = None
+    source_id: Optional[str] = None
+    file_path: Optional[str] = None
+    created_at: Optional[int] = None
+    degree: Optional[int] = None  # Node degree (optional, only when queried)
+
+    class Config:
+        extra = "allow"  # Allow additional fields
+
+
+class GraphEdgeData(BaseModel):
+    """Represents complete data of a graph edge"""
+
+    source: str
+    target: str
+    weight: Optional[float] = None
+    description: Optional[str] = None
+    keywords: Optional[str] = None
+    source_id: Optional[str] = None
+    file_path: Optional[str] = None
+    created_at: Optional[int] = None
+
+    class Config:
+        extra = "allow"  # Allow additional fields
+
+
+# ============= Graph Collections Types =============
+
+
+class GraphNodeDataDict(BaseModel):
+    """Dictionary of graph nodes with utility methods"""
+
+    nodes_by_id: Dict[str, GraphNodeData]
+
+    def get_node(self, node_id: str) -> Optional[GraphNodeData]:
+        """Get node by ID"""
+        return self.nodes_by_id.get(node_id)
+
+    def get_node_degree(self, node_id: str) -> int:
+        """Get degree for a specific node"""
+        node = self.nodes_by_id.get(node_id)
+        return node.degree if node and node.degree is not None else 0
+
+    def get_high_degree_nodes(self, limit: int = None) -> List[GraphNodeData]:
+        """Get nodes sorted by degree (highest first)"""
+        sorted_nodes = sorted(self.nodes_by_id.values(), key=lambda x: x.degree or 0, reverse=True)
+        return sorted_nodes[:limit] if limit else sorted_nodes
+
+    @property
+    def labels(self) -> List[str]:
+        """Get all node IDs for backward compatibility"""
+        return list(self.nodes_by_id.keys())
+
+    @property
+    def degrees_map(self) -> Dict[str, int]:
+        """Get degrees mapping for backward compatibility"""
+        return {node_id: node.degree or 0 for node_id, node in self.nodes_by_id.items()}
+
+    @property
+    def nodes_map(self) -> Dict[str, GraphNodeData]:
+        """Get nodes mapping for backward compatibility"""
+        return self.nodes_by_id
+
+
+# ============= Merge Suggestions Types =============
+
+
+class MergeSuggestion(BaseModel):
+    """Single merge suggestion with simplified structure"""
+
+    entities: List[GraphNodeData]  # Entities to be merged
+    confidence_score: float
+    merge_reason: str
+    suggested_target_entity: GraphNodeData  # Suggested target after merge
+
+
+class MergeSuggestionsResult(BaseModel):
+    """Complete result of merge suggestions analysis"""
+
+    suggestions: List[MergeSuggestion]
+    total_analyzed_nodes: int
+    processing_time_seconds: float

@@ -1125,11 +1125,122 @@ class LightRAG:
             self.lightrag_logger.error(f"Error while deleting document {doc_id}: {e}")
             raise
 
+    async def agenerate_merge_suggestions(
+        self,
+        max_suggestions: int = 10,
+        entity_types: list[str] | None = None,
+        debug_mode: bool = False,  # Add debug mode for troubleshooting
+        max_concurrent_llm_calls: int = 4,  # Add concurrent LLM calls limit
+    ) -> dict[str, Any]:
+        """
+        Generate node merge suggestions using LLM analysis.
+
+        Args:
+            max_suggestions: Maximum number of suggestions to return (default: 10)
+            entity_types: Optional filter for specific entity types
+            debug_mode: Enable debug mode with lower confidence threshold and verbose logging
+            max_concurrent_llm_calls: Maximum concurrent LLM calls for batch analysis (default: 4)
+
+        Returns:
+            Dict containing merge suggestions and processing statistics
+
+        Raises:
+            Exception: If suggestion generation fails
+        """
+        import time
+
+        from .operate import (
+            analyze_entities_with_llm,
+            filter_and_deduplicate_suggestions,
+            filter_and_group_entities,
+            get_high_degree_nodes,
+        )
+        from .types import MergeSuggestionsResult
+
+        start_time = time.time()
+
+        try:
+            # Configuration constants
+            MAX_ANALYZE_NODES = 500
+            BATCH_SIZE = 100
+            LLM_BATCH_SIZE = 50
+            CONFIDENCE_THRESHOLD = 0.3 if debug_mode else 0.6  # Lower threshold in debug mode
+
+            self.lightrag_logger.info(
+                f"Starting merge suggestions generation: max_suggestions={max_suggestions}, "
+                f"entity_types={entity_types}, debug_mode={debug_mode}, "
+                f"confidence_threshold={CONFIDENCE_THRESHOLD}, "
+                f"max_concurrent_llm_calls={max_concurrent_llm_calls}"
+            )
+
+            # Step 1: Get high-degree nodes from graph
+            selected_nodes_dict, total_analyzed = await get_high_degree_nodes(
+                self.chunk_entity_relation_graph,
+                max_analyze_nodes=MAX_ANALYZE_NODES,
+                batch_size=BATCH_SIZE,
+                lightrag_logger=self.lightrag_logger,
+            )
+
+            if not selected_nodes_dict.labels:
+                return MergeSuggestionsResult(
+                    suggestions=[],
+                    total_analyzed_nodes=0,
+                    processing_time_seconds=time.time() - start_time,
+                ).dict()
+
+            # Step 2: Filter and group entities by type
+            entities_by_type = await filter_and_group_entities(selected_nodes_dict, entity_types=entity_types)
+
+            if not entities_by_type:
+                return MergeSuggestionsResult(
+                    suggestions=[],
+                    total_analyzed_nodes=len(selected_nodes_dict.labels),
+                    processing_time_seconds=time.time() - start_time,
+                ).dict()
+
+            # Step 3: Analyze entities with LLM (with early exit optimization and concurrency)
+            suggestions = await analyze_entities_with_llm(
+                entities_by_type,
+                self.llm_model_func,
+                confidence_threshold=CONFIDENCE_THRESHOLD,
+                batch_size=LLM_BATCH_SIZE,
+                max_suggestions=max_suggestions,  # Pass max_suggestions for early exit
+                max_concurrent_llm_calls=max_concurrent_llm_calls,  # Pass concurrent limit
+                tokenizer=self.tokenizer,
+                llm_model_max_token_size=self.llm_model_max_token_size,
+                summary_to_max_tokens=self.summary_to_max_tokens,
+                lightrag_logger=self.lightrag_logger,
+            )
+
+            # Step 4: Final filtering (now mostly redundant due to early exit optimization)
+            # Keep this for backward compatibility and final sorting by confidence
+            final_suggestions = filter_and_deduplicate_suggestions(suggestions, max_suggestions)
+
+            processing_time = time.time() - start_time
+            total_analyzed_nodes = sum(len(entities) for entities in entities_by_type.values())
+
+            # Convert to dict format for API response
+            result = MergeSuggestionsResult(
+                suggestions=final_suggestions,
+                total_analyzed_nodes=total_analyzed_nodes,
+                processing_time_seconds=processing_time,
+            )
+
+            self.lightrag_logger.info(
+                f"Generated {len(final_suggestions)} merge suggestions using concurrent batch analysis "
+                f"(processed {total_analyzed_nodes} entities in {processing_time:.2f}s with {max_concurrent_llm_calls} concurrent LLM calls)"
+            )
+
+            return result.dict()
+
+        except Exception as e:
+            self.lightrag_logger.error(f"Failed to generate merge suggestions: {str(e)}")
+            raise e
+
     async def amerge_nodes(
         self,
         entity_ids: str | list[str],
         target_entity_data: dict[str, Any] | None = None,
-        collection_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.
@@ -1146,7 +1257,6 @@ class LightRAG:
             entity_ids: Single entity ID or list of entity IDs to merge
             target_entity_data: Optional target entity configuration including entity_name and other properties.
                               If not specified or empty, auto-select entity with highest degree
-            collection_id: Optional collection ID for logging
 
         Returns:
             Dict with merge results including target entity info
@@ -1187,7 +1297,6 @@ class LightRAG:
                 "redirected_edges": 0,
                 "merged_description_length": len(node_data.get("description", "")),
                 "used_llm_summary": False,
-                "collection_id": collection_id,
             }
 
         # Handle target_entity_data
@@ -1429,7 +1538,6 @@ class LightRAG:
             "redirected_edges": redirected_edges,
             "merged_description_length": len(merged_entity_data.get("description", "")),
             "used_llm_summary": used_llm_summary,
-            "collection_id": collection_id,
         }
 
     def _merge_entity_attributes(

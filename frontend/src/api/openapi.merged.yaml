@@ -1023,6 +1023,117 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
+  /collections/{collection_id}/graphs/merge-suggestions:
+    post:
+      summary: Generate node merge suggestions
+      description: |
+        Analyze knowledge graph to identify potentially mergeable nodes using LLM for semantic similarity.
+        Returns confidence-ranked merge suggestions for user review and decision.
+
+        This is a stateless endpoint that analyzes the current graph and returns suggestions
+        without persisting any state. Users can then use the suggestions with the existing
+        merge_nodes endpoint to perform actual merges.
+
+        The algorithm prioritizes high-degree nodes and uses LLM to judge semantic similarity
+        based on entity names, types, and descriptions.
+      tags:
+        - graph
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Collection ID
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/mergeSuggestionsRequest'
+            examples:
+              default:
+                summary: Default request
+                description: Generate up to 10 suggestions for all entity types
+                value:
+                  max_suggestions: 10
+              specific_types:
+                summary: Specific entity types
+                description: Only analyze PERSON and ORGANIZATION entities
+                value:
+                  max_suggestions: 20
+                  entity_types:
+                    - PERSON
+                    - ORGANIZATION
+              minimal:
+                summary: Minimal request
+                description: Empty request body uses default values
+                value: {}
+      responses:
+        '200':
+          description: Merge suggestions generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/mergeSuggestionsResponse'
+              examples:
+                with_suggestions:
+                  summary: Response with suggestions
+                  description: Successful analysis with merge suggestions
+                  value:
+                    suggestions:
+                      - entities:
+                          - entity_id: 墨香居
+                            entity_name: 墨香居
+                            entity_type: ORGANIZATION
+                            description: 这条老巷子里唯一的旧书店
+                            degree: 8
+                          - entity_id: 旧书店
+                            entity_name: 旧书店
+                            entity_type: ORGANIZATION
+                            description: 经营各种书籍的小店
+                            degree: 5
+                        confidence_score: 0.85
+                        merge_reason: 两个实体都描述同一个书店，'墨香居'是具体名称，'旧书店'是通用描述，应该合并为同一实体
+                        suggested_target_entity:
+                          entity_name: 墨香居
+                          entity_type: ORGANIZATION
+                          description: 墨香居是这条老巷子里唯一的旧书店，经营各种书籍
+                    total_analyzed_nodes: 156
+                    processing_time_seconds: 12.5
+                no_suggestions:
+                  summary: No suggestions found
+                  description: Analysis completed but no merge candidates found
+                  value:
+                    suggestions: []
+                    total_analyzed_nodes: 45
+                    processing_time_seconds: 3.2
+        '400':
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Collection not found or knowledge graph not enabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
   /apikeys:
     get:
       summary: Get API keys
@@ -3676,11 +3787,6 @@ components:
           type: boolean
           description: Whether LLM was used to summarize descriptions
           example: true
-        collection_id:
-          type: string
-          description: Collection ID where the merge was performed
-          example: col_12345
-          nullable: true
       required:
         - status
         - message
@@ -3689,6 +3795,141 @@ components:
         - redirected_edges
         - merged_description_length
         - used_llm_summary
+    mergeSuggestionsRequest:
+      type: object
+      description: Request for generating node merge suggestions
+      properties:
+        max_suggestions:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 10
+          description: Maximum number of merge suggestions to return
+          example: 10
+        entity_types:
+          type: array
+          items:
+            type: string
+          description: Only consider entities of specified types (empty means all types)
+          example:
+            - PERSON
+            - ORGANIZATION
+          nullable: true
+        debug_mode:
+          type: boolean
+          default: false
+          description: Enable debug mode with lower confidence threshold (0.3 vs 0.6) and verbose logging
+          example: false
+        max_concurrent_llm_calls:
+          type: integer
+          minimum: 1
+          maximum: 16
+          default: 4
+          description: Maximum number of concurrent LLM calls for batch analysis
+          example: 4
+    mergeSuggestionEntity:
+      type: object
+      description: Entity information in merge suggestion
+      properties:
+        entity_id:
+          type: string
+          description: Entity ID
+          example: 墨香居
+        entity_name:
+          type: string
+          description: Entity name
+          example: 墨香居
+        entity_type:
+          type: string
+          description: Entity type
+          example: ORGANIZATION
+        description:
+          type: string
+          description: Entity description
+          example: 这条老巷子里唯一的旧书店
+        degree:
+          type: integer
+          description: Node degree (number of connections)
+          example: 8
+          minimum: 0
+          nullable: true
+      required:
+        - entity_id
+        - entity_name
+        - entity_type
+        - description
+    mergeSuggestionTargetEntity:
+      type: object
+      description: Suggested target entity for merge
+      properties:
+        entity_name:
+          type: string
+          description: Suggested entity name after merge
+          example: 墨香居
+        entity_type:
+          type: string
+          description: Suggested entity type after merge
+          example: ORGANIZATION
+        description:
+          type: string
+          description: Suggested description after merge
+          example: 墨香居是这条老巷子里唯一的旧书店，经营各种书籍
+      required:
+        - entity_name
+        - entity_type
+        - description
+    mergeSuggestion:
+      type: object
+      description: Node merge suggestion
+      properties:
+        entities:
+          type: array
+          items:
+            $ref: '#/components/schemas/mergeSuggestionEntity'
+          description: List of entities suggested for merging
+          minItems: 2
+        confidence_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: LLM confidence score for this merge suggestion
+          example: 0.85
+        merge_reason:
+          type: string
+          description: LLM-generated reason for suggesting this merge
+          example: 两个实体都描述同一个书店，'墨香居'是具体名称，'旧书店'是通用描述，应该合并为同一实体
+        suggested_target_entity:
+          $ref: '#/components/schemas/mergeSuggestionTargetEntity'
+      required:
+        - entities
+        - confidence_score
+        - merge_reason
+        - suggested_target_entity
+    mergeSuggestionsResponse:
+      type: object
+      description: Response containing node merge suggestions
+      properties:
+        suggestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/mergeSuggestion'
+          description: List of merge suggestions ordered by confidence score (highest first)
+        total_analyzed_nodes:
+          type: integer
+          description: Total number of nodes analyzed
+          example: 156
+          minimum: 0
+        processing_time_seconds:
+          type: number
+          format: float
+          description: Processing time in seconds
+          example: 12.5
+          minimum: 0
+      required:
+        - suggestions
+        - total_analyzed_nodes
+        - processing_time_seconds
     apiKey:
       type: object
       properties:

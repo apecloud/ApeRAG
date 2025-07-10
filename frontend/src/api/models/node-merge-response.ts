@@ -65,12 +65,6 @@ export interface NodeMergeResponse {
      * @memberof NodeMergeResponse
      */
     'used_llm_summary': boolean;
-    /**
-     * Collection ID where the merge was performed
-     * @type {string}
-     * @memberof NodeMergeResponse
-     */
-    'collection_id'?: string;
 }
 
 export const NodeMergeResponseStatusEnum = {

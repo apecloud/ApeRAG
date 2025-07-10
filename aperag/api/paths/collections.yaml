@@ -643,6 +643,116 @@ graph_nodes_merge:
             schema:
               $ref: '../components/schemas/common.yaml#/failResponse'
 
+graph_merge_suggestions:
+  post:
+    summary: Generate node merge suggestions
+    description: |
+      Analyze knowledge graph to identify potentially mergeable nodes using LLM for semantic similarity.
+      Returns confidence-ranked merge suggestions for user review and decision.
+      
+      This is a stateless endpoint that analyzes the current graph and returns suggestions
+      without persisting any state. Users can then use the suggestions with the existing
+      merge_nodes endpoint to perform actual merges.
+      
+      The algorithm prioritizes high-degree nodes and uses LLM to judge semantic similarity
+      based on entity names, types, and descriptions.
+    tags:
+      - graph
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Collection ID
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/graph.yaml#/mergeSuggestionsRequest'
+          examples:
+            default:
+              summary: Default request
+              description: Generate up to 10 suggestions for all entity types
+              value:
+                max_suggestions: 10
+            specific_types:
+              summary: Specific entity types
+              description: Only analyze PERSON and ORGANIZATION entities
+              value:
+                max_suggestions: 20
+                entity_types: ["PERSON", "ORGANIZATION"]
+            minimal:
+              summary: Minimal request
+              description: Empty request body uses default values
+              value: {}
+    responses:
+      '200':
+        description: Merge suggestions generated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/graph.yaml#/mergeSuggestionsResponse'
+            examples:
+              with_suggestions:
+                summary: Response with suggestions
+                description: Successful analysis with merge suggestions
+                value:
+                  suggestions:
+                    - entities:
+                        - entity_id: "墨香居"
+                          entity_name: "墨香居"
+                          entity_type: "ORGANIZATION"
+                          description: "这条老巷子里唯一的旧书店"
+                          degree: 8
+                        - entity_id: "旧书店"
+                          entity_name: "旧书店"
+                          entity_type: "ORGANIZATION"
+                          description: "经营各种书籍的小店"
+                          degree: 5
+                      confidence_score: 0.85
+                      merge_reason: "两个实体都描述同一个书店，'墨香居'是具体名称，'旧书店'是通用描述，应该合并为同一实体"
+                      suggested_target_entity:
+                        entity_name: "墨香居"
+                        entity_type: "ORGANIZATION"
+                        description: "墨香居是这条老巷子里唯一的旧书店，经营各种书籍"
+                  total_analyzed_nodes: 156
+                  processing_time_seconds: 12.5
+              no_suggestions:
+                summary: No suggestions found
+                description: Analysis completed but no merge candidates found
+                value:
+                  suggestions: []
+                  total_analyzed_nodes: 45
+                  processing_time_seconds: 3.2
+      '400':
+        description: Bad request - invalid parameters
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Collection not found or knowledge graph not enabled
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
 test_mineru_token:
   post:
     summary: Test MinerU API Token

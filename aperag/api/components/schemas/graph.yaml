@@ -242,11 +242,6 @@ nodeMergeResponse:
       type: boolean
       description: Whether LLM was used to summarize descriptions
       example: true
-    collection_id:
-      type: string
-      description: Collection ID where the merge was performed
-      example: "col_12345"
-      nullable: true
   required:
     - status
     - message
@@ -255,3 +250,141 @@ nodeMergeResponse:
     - redirected_edges
     - merged_description_length
     - used_llm_summary
+
+mergeSuggestionEntity:
+  type: object
+  description: Entity information in merge suggestion
+  properties:
+    entity_id:
+      type: string
+      description: Entity ID
+      example: "墨香居"
+    entity_name:
+      type: string
+      description: Entity name
+      example: "墨香居"
+    entity_type:
+      type: string
+      description: Entity type
+      example: "ORGANIZATION"
+    description:
+      type: string
+      description: Entity description
+      example: "这条老巷子里唯一的旧书店"
+    degree:
+      type: integer
+      description: Node degree (number of connections)
+      example: 8
+      minimum: 0
+      nullable: true
+  required:
+    - entity_id
+    - entity_name
+    - entity_type
+    - description
+
+mergeSuggestionTargetEntity:
+  type: object
+  description: Suggested target entity for merge
+  properties:
+    entity_name:
+      type: string
+      description: Suggested entity name after merge
+      example: "墨香居"
+    entity_type:
+      type: string
+      description: Suggested entity type after merge
+      example: "ORGANIZATION"
+    description:
+      type: string
+      description: Suggested description after merge
+      example: "墨香居是这条老巷子里唯一的旧书店，经营各种书籍"
+  required:
+    - entity_name
+    - entity_type
+    - description
+
+mergeSuggestion:
+  type: object
+  description: Node merge suggestion
+  properties:
+    entities:
+      type: array
+      items:
+        $ref: '#/mergeSuggestionEntity'
+      description: List of entities suggested for merging
+      minItems: 2
+    confidence_score:
+      type: number
+      format: float
+      minimum: 0.0
+      maximum: 1.0
+      description: LLM confidence score for this merge suggestion
+      example: 0.85
+    merge_reason:
+      type: string
+      description: LLM-generated reason for suggesting this merge
+      example: "两个实体都描述同一个书店，'墨香居'是具体名称，'旧书店'是通用描述，应该合并为同一实体"
+    suggested_target_entity:
+      $ref: '#/mergeSuggestionTargetEntity'
+  required:
+    - entities
+    - confidence_score
+    - merge_reason
+    - suggested_target_entity
+
+mergeSuggestionsRequest:
+  type: object
+  description: Request for generating node merge suggestions
+  properties:
+    max_suggestions:
+      type: integer
+      minimum: 1
+      maximum: 50
+      default: 10
+      description: Maximum number of merge suggestions to return
+      example: 10
+    entity_types:
+      type: array
+      items:
+        type: string
+      description: Only consider entities of specified types (empty means all types)
+      example: ["PERSON", "ORGANIZATION"]
+      nullable: true
+    debug_mode:
+      type: boolean
+      default: false
+      description: Enable debug mode with lower confidence threshold (0.3 vs 0.6) and verbose logging
+      example: false
+    max_concurrent_llm_calls:
+      type: integer
+      minimum: 1
+      maximum: 16
+      default: 4
+      description: Maximum number of concurrent LLM calls for batch analysis
+      example: 4
+
+mergeSuggestionsResponse:
+  type: object
+  description: Response containing node merge suggestions
+  properties:
+    suggestions:
+      type: array
+      items:
+        $ref: '#/mergeSuggestion'
+      description: List of merge suggestions ordered by confidence score (highest first)
+    total_analyzed_nodes:
+      type: integer
+      description: Total number of nodes analyzed
+      example: 156
+      minimum: 0
+    processing_time_seconds:
+      type: number
+      format: float
+      description: Processing time in seconds
+      example: 12.5
+      minimum: 0.0
+  required:
+    - suggestions
+    - total_analyzed_nodes
+    - processing_time_seconds
