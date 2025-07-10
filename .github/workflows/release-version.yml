@@ -16,9 +16,42 @@ run-name: ref_name:${{ github.ref_name }} release_version:${{ inputs.release_ver
 
 jobs:
   release-version:
+    if: !contains(inputs.content, 'nightly')
     uses: apecloud/apecloud-cd/.github/workflows/release-version.yml@v0.1.34
     with:
       RELEASE_VERSION: "${{ inputs.release_version }}"
       CONTENT: "${{ inputs.content }}"
       APECD_REF: "v0.1.34"
+    secrets: inherit
+
+  release-nightly:
+    if: contains(inputs.content, 'nightly')
+    uses: apecloud/apecloud-cd/.github/workflows/feishui-message.yml@v0.1.94
+    with:
+      TYPE: "1"
+      VERSION: "${{ vars.NIGHTLY_RELEASE_VERSION }}"
+      APECD_REF: "v0.1.94"
+      BOT_TYPE: "release"
+    secrets: inherit
+
+  release-chart:
+    needs: [ release-nightly ]
+    uses: apecloud/apecloud-cd/.github/workflows/trigger-workflow.yml@v0.1.94
+    with:
+      GITHUB_REPO: "apecloud/ApeRAG"
+      WORKFLOW_ID: "release-chart.yml"
+      APECD_REF: "v0.1.94"
+      BRANCH_NAME: "${{ vars.NIGHTLY_RELEASE_BRANCH }}"
+      EXTRA_ARGS: "chart_version=${{ vars.NIGHTLY_RELEASE_VERSION }}"
+    secrets: inherit
+
+  release-image:
+    needs: [ release-nightly ]
+    uses: apecloud/apecloud-cd/.github/workflows/trigger-workflow.yml@v0.1.94
+    with:
+      GITHUB_REPO: "apecloud/ApeRAG"
+      WORKFLOW_ID: "release-image.yml"
+      APECD_REF: "v0.1.94"
+      BRANCH_NAME: "${{ vars.NIGHTLY_RELEASE_BRANCH }}"
+      EXTRA_ARGS: "image_tag=${{ vars.NIGHTLY_RELEASE_VERSION }}"
     secrets: inherit

@@ -61,7 +61,7 @@ jobs:
   release-result:
     runs-on: ubuntu-latest
     needs: [ release-aperag-image ]
-    if: ${{ always() && github.event.action == 'published' }}
+    if: ${{ always() && (github.event.action == 'published' || contains(inputs.image_name, 'nightly')) }}
     outputs:
       release-result: ${{ steps.get_release_result.outputs.release_result }}
     steps:
@@ -104,7 +104,7 @@ jobs:
 
   send-message:
     needs: [ image-tag, release-result ]
-    if: ${{ always() && github.event.action == 'published' }}
+    if: ${{ always() && (github.event.action == 'published' || contains(inputs.image_name, 'nightly')) }}
     uses: apecloud/apecloud-cd/.github/workflows/feishui-message.yml@v0.1.36
     with:
       TYPE: "2"
@@ -165,7 +165,7 @@ jobs:
   release-aperag-frontend-result:
     runs-on: ubuntu-latest
     needs: [ release-aperag-frontend-image ]
-    if: ${{ always() && github.event.action == 'published' }}
+    if: ${{ always() && (github.event.action == 'published' || contains(inputs.image_name, 'nightly')) }}
     outputs:
       release-result: ${{ steps.get_release_result.outputs.release_result }}
     steps:
@@ -180,7 +180,7 @@ jobs:
 
   send-aperag-frontend-message:
     needs: [ image-tag, release-aperag-frontend-result ]
-    if: ${{ always() && github.event.action == 'published' }}
+    if: ${{ always() && (github.event.action == 'published' || contains(inputs.image_name, 'nightly')) }}
     uses: apecloud/apecloud-cd/.github/workflows/feishui-message.yml@v0.1.36
     with:
       TYPE: "2"
