@@ -138,11 +138,11 @@ export default () => {
 
   useEffect(() => {
     if (activeNode) {
-      graphRef.current.centerAt(activeNode.x, activeNode.y, 300);
-      graphRef.current.zoom(3, 800);
+      graphRef.current.centerAt(activeNode.x, activeNode.y, 400);
+      graphRef.current.zoom(3, 600);
     } else {
-      graphRef.current.centerAt(0, 0, 300);
-      graphRef.current.zoom(1.5, 800);
+      graphRef.current.centerAt(0, 0, 400);
+      graphRef.current.zoom(1.5, 600);
     }
   }, [activeNode]);
 
