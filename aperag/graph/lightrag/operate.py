@@ -2052,8 +2052,9 @@ async def analyze_entities_with_llm(
             f"{total_entities_processed} entities, max_concurrent={max_concurrent_llm_calls}"
         )
 
-    # Create semaphore for controlling concurrency
+    # Create semaphore for controlling concurrency and lock for protecting shared state
     semaphore = asyncio.Semaphore(max_concurrent_llm_calls)
+    shared_state_lock = asyncio.Lock()  # Lock to protect shared variables
     successful_batches = 0
     processed_batches = 0
 
@@ -2080,34 +2081,38 @@ async def analyze_entities_with_llm(
                     lightrag_logger,
                 )
 
-                processed_batches += 1
+                # Protect shared state modifications with lock
+                async with shared_state_lock:
+                    processed_batches += 1
 
-                if batch_suggestions:
-                    # Apply immediate filtering and deduplication
-                    filtered_batch_suggestions = []
-                    for suggestion in batch_suggestions:
-                        entity_ids = {entity.entity_id for entity in suggestion.entities}
-                        # Check for overlap with already seen entities
-                        if not (entity_ids & seen_entities):
-                            filtered_batch_suggestions.append(suggestion)
-                            seen_entities.update(entity_ids)
+                    if batch_suggestions:
+                        # Apply immediate filtering and deduplication
+                        filtered_batch_suggestions = []
+                        for suggestion in batch_suggestions:
+                            entity_ids = {entity.entity_id for entity in suggestion.entities}
+                            # Check for overlap with already seen entities
+                            if not (entity_ids & seen_entities):
+                                filtered_batch_suggestions.append(suggestion)
+                                seen_entities.update(entity_ids)
 
-                    successful_batches += 1
+                        successful_batches += 1
 
-                    if lightrag_logger:
-                        lightrag_logger.debug(
-                            f"Batch {batch_id} produced {len(batch_suggestions)} raw suggestions, "
-                            f"{len(filtered_batch_suggestions)} after filtering"
-                        )
+                        if lightrag_logger:
+                            lightrag_logger.debug(
+                                f"Batch {batch_id} produced {len(batch_suggestions)} raw suggestions, "
+                                f"{len(filtered_batch_suggestions)} after filtering"
+                            )
 
-                    return filtered_batch_suggestions
-                else:
-                    if lightrag_logger:
-                        lightrag_logger.debug(f"Batch {batch_id} produced no suggestions")
-                    return []
+                        return filtered_batch_suggestions
+                    else:
+                        if lightrag_logger:
+                            lightrag_logger.debug(f"Batch {batch_id} produced no suggestions")
+                        return []
 
             except Exception as e:
-                processed_batches += 1
+                # Protect shared state modifications with lock
+                async with shared_state_lock:
+                    processed_batches += 1
                 if lightrag_logger:
                     lightrag_logger.warning(f"Batch LLM analysis failed for {entity_type} batch {batch_id}: {e}")
                 return []
