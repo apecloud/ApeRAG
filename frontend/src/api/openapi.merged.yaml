@@ -3851,7 +3851,6 @@ components:
           type: integer
           description: Node degree (number of connections)
           example: 8
-          minimum: 0
           nullable: true
       required:
         - entity_id
