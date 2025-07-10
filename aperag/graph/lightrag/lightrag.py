@@ -1296,7 +1296,6 @@ class LightRAG:
                 "source_entities": [],
                 "redirected_edges": 0,
                 "merged_description_length": len(node_data.get("description", "")),
-                "used_llm_summary": False,
             }
 
         # Handle target_entity_data
@@ -1365,26 +1364,11 @@ class LightRAG:
         # Calculate description info for LLM summary decision
         descriptions = [data.get("description", "") for data in entities_data.values() if data.get("description")]
         merged_description = GRAPH_FIELD_SEP.join(descriptions)
-        num_fragments = len(descriptions)
-        used_llm_summary = False
 
-        # Check if we need LLM summarization
-        if num_fragments > 1 and num_fragments >= self.force_llm_summary_on_merge:
-            self.lightrag_logger.info(f"Using LLM to summarize descriptions: {num_fragments} fragments")
-            from .operate import _handle_entity_relation_summary
-
-            merged_description = await _handle_entity_relation_summary(
-                target_entity_name,
-                merged_description,
-                self.llm_model_func,
-                self.tokenizer,
-                self.llm_model_max_token_size,
-                self.summary_to_max_tokens,
-                self.addon_params.get("language", "English"),
-                self.lightrag_logger,
-            )
-            merged_entity_data["description"] = merged_description
-            used_llm_summary = True
+        # Skip LLM summarization to save cost and time
+        # Previously we would call _handle_entity_relation_summary if num_fragments >= self.force_llm_summary_on_merge
+        # Now we simply use the concatenated description as-is
+        merged_entity_data["description"] = merged_description
 
         # Create/update target entity
         await self.chunk_entity_relation_graph.upsert_node(target_entity_name, merged_entity_data)
@@ -1537,7 +1521,6 @@ class LightRAG:
             "source_entities": source_entities,
             "redirected_edges": redirected_edges,
             "merged_description_length": len(merged_entity_data.get("description", "")),
-            "used_llm_summary": used_llm_summary,
         }
 
     def _merge_entity_attributes(

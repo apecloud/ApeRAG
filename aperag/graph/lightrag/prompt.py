@@ -395,31 +395,86 @@ Return only a number between 0-1, without any additional content.
 """
 
 PROMPTS["batch_merge_analysis"] = """---Goal---
-Given a list of entities from a knowledge graph, identify groups of entities that should be merged because they refer to the same real-world object or concept.
+Given a list of entities from a knowledge graph, identify groups of entities that should be merged because they refer to the EXACT SAME real-world object/individual/specific instance.
+
+---Critical Rules---
+1. ONLY merge entities that refer to the EXACT SAME specific real-world object/individual/instance
+2. DO NOT merge entities that are merely related, similar, or belong to the same category/group/class
+3. DO NOT perform conceptual abstraction or create abstract groupings
+4. DO NOT merge distinct individuals who happen to have similar roles or belong to the same organization/group
+5. Each entity must be a different name/expression for the IDENTICAL real-world object
 
 ---Steps---
 1. Analyze each entity based on name, type, and description
-2. Group entities that refer to the same real-world object/concept
+2. Group ONLY entities that are different names/expressions for the EXACT SAME real-world object
 3. For each merge group, determine the best target entity and provide merge reasoning
 4. Only return groups that should be merged - do not return entities that should remain separate
 
+---What TO Merge (Acceptable Cases)---
+- Different names for the same company: "Apple Inc" ↔ "Apple"
+- Full name vs abbreviation of same person: "John Smith" ↔ "J. Smith" 
+- Different language names for same entity: "中国生态农业学报" ↔ "Chinese Journal of Eco-Agriculture"
+- Former vs current name of same entity: "Tesla Motors" ↔ "Tesla Inc"
+- Full name vs nickname/abbreviation: "New York City" ↔ "NYC"
+
+---Confidence Score Guidelines---
+Use these guidelines for confidence scoring:
+
+**0.95-1.0: Perfect Match**
+- Identical entities with only capitalization/formatting differences: "OpenAI" ↔ "openai", "iPhone" ↔ "iphone"
+- Same entity with punctuation variations: "McDonald's" ↔ "McDonalds"
+
+**0.9-0.94: Very High Confidence**
+- Official name vs widely recognized abbreviation: "New York City" ↔ "NYC", "United States" ↔ "USA"
+- Different language names for same entity: "Microsoft" ↔ "微软", "Apple" ↔ "苹果公司"
+
+**0.8-0.89: High Confidence**
+- Full name vs abbreviated form: "John Smith" ↔ "J. Smith", "Robert Johnson" ↔ "Bob Johnson"
+- Formal vs informal name variations: "Apple Inc" ↔ "Apple", "Microsoft Corporation" ↔ "Microsoft"
+
+**0.7-0.79: Moderate Confidence**
+- Likely same entity but requires careful consideration
+- Some ambiguity in descriptions or naming patterns
+
+**Below 0.7: Low Confidence**
+- Uncertain or potentially different entities
+- Insufficient evidence for confident merging
+
+---What NOT TO Merge (Prohibited Cases)---
+- Different people with similar roles: "John Smith (CEO)" ≠ "Jane Smith (CEO)" (different individuals with same title)
+- Members of same organization: "Apple" ≠ "Google" ≠ "Microsoft" (all are tech companies but distinct entities)
+- Different locations in same region: "New York" ≠ "Boston" (both are US cities but different places)
+- Related but separate events: "World War I" ≠ "World War II" (related conflicts but distinct events)
+- Similar products from different companies: "iPhone" ≠ "Samsung Galaxy" (both are smartphones but different products)
+- Related technologies: "Machine Learning" ≠ "Deep Learning" (related but distinct concepts)
+- Different time periods: "2023" ≠ "2024" (consecutive years but different time periods)
+- Sub-categories vs parent categories: "Smartphone" ≠ "Mobile Device" (specific vs general category)
+- Companies and their subsidiaries: "Alphabet Inc" ≠ "Google LLC" (parent vs subsidiary)
+- Different branches/departments: "Apple Marketing" ≠ "Apple Engineering" (different departments of same company)
+- Sequential events in same process: "User Registration" ≠ "User Login" ≠ "User Logout" (different steps)
+- Different versions of same product: "iPhone 14" ≠ "iPhone 15" (different product versions)
+- **Parent entity vs specific service**: "Azure" ≠ "Azure OpenAI" (platform vs specific service)
+- **Abstract concept vs implementation**: "Model Context Protocol" ≠ "MCP Server" (protocol vs server implementing it)
+- **Company vs repository/project**: "LastMile AI" ≠ "lastmile-ai/mcp-agent" (company vs specific repository)
+- **Company vs division vs product**: "Google" ≠ "Google AI" ≠ "Google Gemini" (different organizational levels)
+- **Different functional classes**: "OpenAISettings" ≠ "MCPSettings" (different configuration purposes)
+
 ---Output Format---
 For each group of entities that should be merged, return:
-("merge_group"{tuple_delimiter}<entity_names_list>{tuple_delimiter}<confidence_score>{tuple_delimiter}<merge_reason>{tuple_delimiter}<suggested_target_name>{tuple_delimiter}<suggested_target_type>{tuple_delimiter}<suggested_target_description>)
+("merge_group"{tuple_delimiter}<entity_names_list>{tuple_delimiter}<confidence_score>{tuple_delimiter}<merge_reason>{tuple_delimiter}<suggested_target_name>{tuple_delimiter}<suggested_target_type>)
 
 Where:
 - entity_names_list: List of entity names to be merged separated by {graph_field_sep} (e.g., "Entity A{graph_field_sep}Entity B{graph_field_sep}Entity C")
-- confidence_score: Confidence level (0.0-1.0) for this merge suggestion
-- merge_reason: Brief explanation why these entities should be merged
+- confidence_score: Confidence level (0.0-1.0) for this merge suggestion. Use the confidence guidelines above.
+- merge_reason: Brief explanation why these entities should be merged (must refer to EXACT SAME object)
 - suggested_target_name: Recommended name for the merged entity
-- suggested_target_type: Recommended type for the merged entity  
-- suggested_target_description: Recommended description for the merged entity
+- suggested_target_type: Recommended type for the merged entity
 
 Use **{record_delimiter}** as the list delimiter between merge groups.
 When finished, output {completion_delimiter}
 
 ######################
----Example---
+---Positive Examples (What TO Merge)---
 ######################
 
 Input Entities:
@@ -436,78 +491,46 @@ Entity 2:
 - Degree: 12
 
 Entity 3:
-- Name: Microsoft Corporation
-- Type: ORGANIZATION
-- Description: Microsoft Corporation is an American multinational technology company
-- Degree: 18
-
-Entity 4:
-- Name: Microsoft
-- Type: ORGANIZATION
-- Description: Software company that develops Windows and Office
-- Degree: 10
-
-Entity 5:
-- Name: Google
-- Type: ORGANIZATION
-- Description: Google LLC is an American multinational technology company
-- Degree: 20
-
-Entity 6:
 - Name: John Smith
 - Type: PERSON
 - Description: John Smith is a software engineer at Apple Inc
 - Degree: 5
 
-Entity 7:
+Entity 4:
 - Name: J. Smith
 - Type: PERSON
 - Description: Software engineer working on iOS development at Apple
 - Degree: 3
 
-Entity 8:
+Entity 5:
 - Name: 中国生态农业学报
 - Type: ORGANIZATION
 - Description: 中国生态农业学报是一份学术期刊，发表关于生态农业的研究文章
 - Degree: 8
 
-Entity 9:
+Entity 6:
 - Name: Chinese Journal of Eco-Agriculture
 - Type: ORGANIZATION
 - Description: An academic journal publishing research articles on ecological agriculture
 - Degree: 6
 
-Entity 10:
-- Name: Tesla Inc
-- Type: ORGANIZATION
-- Description: Tesla Inc. is an American electric vehicle and clean energy company
-- Degree: 12
+Entity 7:
+- Name: NYC
+- Type: GEO
+- Description: NYC is the largest city in the United States
+- Degree: 20
 
-Entity 11:
-- Name: Tesla Motors
-- Type: ORGANIZATION
-- Description: Electric car manufacturer founded by Elon Musk
-- Degree: 7
-
-Entity 12:
+Entity 8:
 - Name: New York City
-- Type: LOCATION
+- Type: GEO
 - Description: New York City is the most populous city in the United States
 - Degree: 25
 
-Entity 13:
-- Name: NYC
-- Type: LOCATION
-- Description: The largest city in the US, known for its diverse culture and economy
-- Degree: 18
-
 Output:
-("merge_group"{tuple_delimiter}Apple Inc{graph_field_sep}Apple{tuple_delimiter}0.92{tuple_delimiter}Both entities refer to the same technology company - Apple Inc is the official name while Apple is the commonly used short form{tuple_delimiter}Apple Inc{tuple_delimiter}ORGANIZATION{tuple_delimiter}Apple Inc. is an American multinational technology company known for iPhone, Mac, and other innovative products){record_delimiter}
-("merge_group"{tuple_delimiter}Microsoft Corporation{graph_field_sep}Microsoft{tuple_delimiter}0.89{tuple_delimiter}Both entities refer to the same software company - Microsoft Corporation is the official name while Microsoft is the abbreviated form{tuple_delimiter}Microsoft Corporation{tuple_delimiter}ORGANIZATION{tuple_delimiter}Microsoft Corporation is an American multinational technology company that develops Windows, Office, and cloud services){record_delimiter}
-("merge_group"{tuple_delimiter}John Smith{graph_field_sep}J. Smith{tuple_delimiter}0.85{tuple_delimiter}Both entities refer to the same person - John Smith working as a software engineer at Apple, with J. Smith being the abbreviated name form{tuple_delimiter}John Smith{tuple_delimiter}PERSON{tuple_delimiter}John Smith is a software engineer at Apple Inc specializing in iOS development){record_delimiter}
-("merge_group"{tuple_delimiter}中国生态农业学报{graph_field_sep}Chinese Journal of Eco-Agriculture{tuple_delimiter}0.95{tuple_delimiter}These entities are the Chinese and English names for the same academic journal. The descriptions confirm they refer to the same publication and content{tuple_delimiter}中国生态农业学报{tuple_delimiter}ORGANIZATION{tuple_delimiter}《中国生态农业学报》(Chinese Journal of Eco-Agriculture)是一份学术期刊，发表关于生态农业的研究文章){record_delimiter}
-("merge_group"{tuple_delimiter}Tesla Inc{graph_field_sep}Tesla Motors{tuple_delimiter}0.88{tuple_delimiter}Both entities refer to the same electric vehicle company - Tesla Inc is the current official name while Tesla Motors was the former name{tuple_delimiter}Tesla Inc{tuple_delimiter}ORGANIZATION{tuple_delimiter}Tesla Inc. is an American electric vehicle and clean energy company founded by Elon Musk){record_delimiter}
-("merge_group"{tuple_delimiter}New York City{graph_field_sep}NYC{tuple_delimiter}0.91{tuple_delimiter}Both entities refer to the same city - New York City is the full official name while NYC is the widely used abbreviation{tuple_delimiter}New York City{tuple_delimiter}LOCATION{tuple_delimiter}New York City is the most populous city in the United States, known for its diverse culture, economy, and iconic landmarks){completion_delimiter}
+("merge_group"{tuple_delimiter}Apple Inc{graph_field_sep}Apple{tuple_delimiter}0.88{tuple_delimiter}Both entities refer to the exact same technology company - Apple Inc is the official name while Apple is the commonly used short form{tuple_delimiter}Apple Inc{tuple_delimiter}ORGANIZATION){record_delimiter}
+("merge_group"{tuple_delimiter}John Smith{graph_field_sep}J. Smith{tuple_delimiter}0.85{tuple_delimiter}Both entities refer to the exact same person - John Smith working as a software engineer at Apple, with J. Smith being the abbreviated name form{tuple_delimiter}John Smith{tuple_delimiter}PERSON){record_delimiter}
+("merge_group"{tuple_delimiter}中国生态农业学报{graph_field_sep}Chinese Journal of Eco-Agriculture{tuple_delimiter}0.92{tuple_delimiter}These entities are the Chinese and English names for the exact same academic journal. The descriptions confirm they refer to the same publication{tuple_delimiter}中国生态农业学报{tuple_delimiter}ORGANIZATION){record_delimiter}
+("merge_group"{tuple_delimiter}New York City{graph_field_sep}NYC{tuple_delimiter}0.93{tuple_delimiter}Both entities refer to the exact same city - New York City is the full official name while NYC is the widely used abbreviation{tuple_delimiter}New York City{tuple_delimiter}GEO){completion_delimiter}
 
 #############################
 ---Real Data---

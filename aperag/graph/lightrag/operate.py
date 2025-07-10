@@ -319,19 +319,11 @@ async def _merge_nodes_then_upsert(
         # 5.1. Check if LLM summarization is needed based on fragment count threshold
         if num_fragment >= force_llm_summary_on_merge:
             # 5.1.1. Log LLM summarization decision
-            lightrag_logger.log_entity_merge(entity_name, num_fragment, num_new_fragment, is_llm_summary=True)
+            lightrag_logger.log_entity_merge(entity_name, num_fragment, num_new_fragment, is_llm_summary=False)
 
-            # 5.1.2. Use LLM to summarize lengthy descriptions
-            description = await _handle_entity_relation_summary(
-                entity_name,
-                description,
-                llm_model_func,
-                tokenizer,
-                llm_model_max_token_size,
-                summary_to_max_tokens,
-                language,
-                lightrag_logger,
-            )
+            # 5.1.2. Skip LLM summarization to save cost and time
+            # Previously: description = await _handle_entity_relation_summary(...)
+            # Now: keep the concatenated description as-is
         else:
             # 5.2. Simple merge without LLM summarization (fragment count below threshold)
             lightrag_logger.log_entity_merge(entity_name, num_fragment, num_new_fragment, is_llm_summary=False)
@@ -448,18 +440,11 @@ async def _merge_edges_then_upsert(
 
     if num_fragment > 1:
         if num_fragment >= force_llm_summary_on_merge:
-            lightrag_logger.log_relation_merge(src_id, tgt_id, num_fragment, num_new_fragment, is_llm_summary=True)
+            lightrag_logger.log_relation_merge(src_id, tgt_id, num_fragment, num_new_fragment, is_llm_summary=False)
 
-            description = await _handle_entity_relation_summary(
-                f"({src_id}, {tgt_id})",
-                description,
-                llm_model_func,
-                tokenizer,
-                llm_model_max_token_size,
-                summary_to_max_tokens,
-                language,
-                lightrag_logger,
-            )
+            # Skip LLM summarization to save cost and time
+            # Previously: description = await _handle_entity_relation_summary(...)
+            # Now: keep the concatenated description as-is
         else:
             lightrag_logger.log_relation_merge(src_id, tgt_id, num_fragment, num_new_fragment, is_llm_summary=False)
 
@@ -2234,29 +2219,10 @@ async def _batch_analyze_entities_with_llm(
         # Prepare entities list for prompt with description handling
         entities_text = ""
         for i, entity in enumerate(entities_list):
-            # Handle long descriptions using summary function
+            # Skip description summarization to save LLM calls and time
+            # Previously we would summarize long descriptions using _handle_entity_relation_summary
+            # Now we use the original description as-is
             description = entity.description or ""
-            if tokenizer and len(description) > 0:
-                try:
-                    # Check if description is too long and summarize if needed
-                    description_tokens = len(tokenizer.encode(description))
-                    if description_tokens > summary_to_max_tokens:
-                        description = await _handle_entity_relation_summary(
-                            entity_or_relation_name=entity.entity_name or entity.entity_id,
-                            description=description,
-                            llm_model_func=llm_model_func,
-                            tokenizer=tokenizer,
-                            llm_model_max_token_size=llm_model_max_token_size,
-                            summary_to_max_tokens=summary_to_max_tokens,
-                            language="english",  # Default to english for merge analysis
-                            lightrag_logger=lightrag_logger,
-                        )
-                except Exception as e:
-                    if lightrag_logger:
-                        lightrag_logger.warning(
-                            f"Failed to summarize description for {entity.entity_name or entity.entity_id}: {e}"
-                        )
-                    # Keep original description if summarization fails
 
             entities_text += f"Entity {i + 1}:\n"
             entities_text += f"- Name: {entity.entity_name or entity.entity_id}\n"
@@ -2366,7 +2332,7 @@ def parse_single_merge_record(
     Parse a single merge record from LLM response.
 
     Expected format:
-    ("merge_group"<|>Entity A<SEP>Entity B<|>0.85<|>reason<|>target_name<|>target_type<|>target_description)
+    ("merge_group"<|>Entity A<SEP>Entity B<|>0.85<|>reason<|>target_name<|>target_type)
 
     Args:
         record: Raw record string from LLM
@@ -2393,9 +2359,9 @@ def parse_single_merge_record(
         # Filter out empty parts (especially the first one if content starts with delimiter)
         parts = [part.strip() for part in parts if part.strip()]
 
-        if len(parts) != 6:  # Exactly 6 parts expected
+        if len(parts) != 5:  # Now expecting 5 parts instead of 6
             if lightrag_logger:
-                lightrag_logger.warning(f"Record has {len(parts)} parts, expected 6. Parts: {parts}")
+                lightrag_logger.warning(f"Record has {len(parts)} parts, expected 5. Parts: {parts}")
                 lightrag_logger.debug(f"Raw record: {record[:200]}...")
             return None
 
@@ -2435,15 +2401,10 @@ def parse_single_merge_record(
                 lightrag_logger.debug(f"Confidence {confidence_score} below threshold {confidence_threshold}")
             return None
 
-        # Extract other fields
+        # Extract other fields (no longer processing description)
         merge_reason = parts[2].strip()
         suggested_name = parts[3].strip()
         suggested_type = parts[4].strip()
-        suggested_description = parts[5].strip()
-
-        # Clean up any remaining quotes from description
-        if suggested_description.startswith('"') and suggested_description.endswith('"'):
-            suggested_description = suggested_description[1:-1]
 
         # Build entities list
         entities = [entity_lookup[name] for name in entity_names]
@@ -2453,12 +2414,12 @@ def parse_single_merge_record(
                 f"Successfully parsed suggestion: {entity_names} -> {suggested_name} (confidence: {confidence_score})"
             )
 
-        # Create suggested target entity as GraphNodeData object
+        # Create suggested target entity as GraphNodeData object (without description)
         suggested_target_entity = GraphNodeData(
             entity_id=suggested_name,  # Use suggested name as entity_id
             entity_name=suggested_name,
             entity_type=suggested_type,
-            description=suggested_description,
+            description="",  # Empty description since we're not generating it
         )
 
         return MergeSuggestion(

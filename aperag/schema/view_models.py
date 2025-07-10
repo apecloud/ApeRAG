@@ -933,9 +933,6 @@ class NodeMergeResponse(BaseModel):
     merged_description_length: conint(ge=0) = Field(
         ..., description='Length of the merged description', example=512
     )
-    used_llm_summary: bool = Field(
-        ..., description='Whether LLM was used to summarize descriptions', example=True
-    )
 
 
 class MergeSuggestionsRequest(BaseModel):
@@ -989,11 +986,6 @@ class MergeSuggestionTargetEntity(BaseModel):
     )
     entity_type: str = Field(
         ..., description='Suggested entity type after merge', example='ORGANIZATION'
-    )
-    description: str = Field(
-        ...,
-        description='Suggested description after merge',
-        example='墨香居是这条老巷子里唯一的旧书店，经营各种书籍',
     )
 
 
