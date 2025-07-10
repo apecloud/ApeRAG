@@ -34,7 +34,8 @@ import {
   GlobalToken,
   theme,
 } from 'antd';
-import { css, styled } from '@emotion/react';
+import styled from '@emotion/styled';
+import { css } from '@emotion/react';
 import _ from 'lodash';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useModel } from 'umi';
