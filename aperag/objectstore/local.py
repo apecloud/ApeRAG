@@ -243,11 +243,41 @@ class Local(ObjectStore):
         except OSError:  # Catch potential permission errors etc. as object not accessible/existing
             return False
 
+    def _cleanup_empty_dirs(self, dir_path: Path):
+        """
+        Recursively deletes empty parent directories of a given path until a non-empty
+        directory or the base storage path is reached.
+        """
+        # Loop until we reach a non-empty directory, the base path, or outside of it
+        while dir_path.is_dir() and dir_path != self._base_storage_path and self._base_storage_path in dir_path.parents:
+            try:
+                # Check if directory is empty. An empty directory has no items.
+                if not any(dir_path.iterdir()):
+                    dir_path.rmdir()
+                    logger.debug(f"Removed empty directory: {dir_path}")
+                    # Move up to the parent directory for the next iteration
+                    dir_path = dir_path.parent
+                else:
+                    # Directory is not empty, stop cleanup
+                    break
+            except OSError as e:
+                # Log error and stop, as we can't proceed.
+                # This could happen due to permissions or if the dir was deleted by another process.
+                logger.warning(f"Could not remove directory {dir_path} during cleanup: {e}")
+                break
+
     def delete(self, path: str):
         try:
             full_path = self._resolve_object_path(path)
+            if not full_path.is_file():
+                # If it's not a file (e.g., doesn't exist or is a dir), do nothing.
+                # unlink(missing_ok=True) handles non-existence, but this is an extra guard.
+                return
+
             # missing_ok=True requires Python 3.8+
             full_path.unlink(missing_ok=True)
+            # After deleting the file, try to clean up empty parent directories.
+            self._cleanup_empty_dirs(full_path.parent)
         except ValueError:  # From _resolve_object_path
             logger.warning(f"Invalid path provided for delete: {path}")
             # Path is invalid, so object effectively doesn't exist at that path to delete. Do nothing.
@@ -275,15 +305,21 @@ class Local(ObjectStore):
             return
 
         files_deleted_count = 0
+        # Keep track of parent directories of deleted files to check for emptiness later.
+        parent_dirs_to_check = set()
         try:
             # The path_prefix is relative to the conceptual root of the object store.
             # We iterate files under _base_storage_path and check their relative path.
-            for item_path in self._base_storage_path.rglob("*"):
+            # Use a list to realize the generator from rglob, avoiding issues with modifying the file system while iterating
+            paths_to_check = list(self._base_storage_path.rglob("*"))
+            for item_path in paths_to_check:
                 if item_path.is_file():
                     try:
                         # Get path relative to the effective object store root (_base_storage_path)
                         relative_to_base_str = str(item_path.relative_to(self._base_storage_path)).replace("\\", "/")
                         if relative_to_base_str.startswith(normalized_prefix):
+                            # Add parent directory to the set for later cleanup check.
+                            parent_dirs_to_check.add(item_path.parent)
                             item_path.unlink()
                             files_deleted_count += 1
                     except ValueError:
@@ -291,6 +327,12 @@ class Local(ObjectStore):
                         logger.debug(f"Item {item_path} not relative to {self._base_storage_path}, skipping.")
                     except OSError as e:
                         logger.error(f"Failed to delete file {item_path} during prefix deletion: {e}")
+
+            # After deleting all matching files, clean up empty directories.
+            # We process them in reverse order of path length to handle nested empty dirs correctly.
+            sorted_dirs = sorted(list(parent_dirs_to_check), key=lambda p: len(str(p)), reverse=True)
+            for dir_path in sorted_dirs:
+                self._cleanup_empty_dirs(dir_path)
 
             if files_deleted_count > 0:
                 logger.info(f"Deleted {files_deleted_count} objects with prefix '{path_prefix}'.")

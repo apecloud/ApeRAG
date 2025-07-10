@@ -232,6 +232,9 @@ async def test_delete_objects_by_prefix_deletes_many_files(async_local_service: 
     for i in range(num_files):
         assert not await async_local_service.obj_exists(f"{prefix}file_{i}.txt")
 
+    # With the new cleanup logic, the directory should be removed after becoming empty.
+    assert not (async_local_service._sync_store._base_storage_path / prefix).exists()
+
 
 @pytest.mark.asyncio
 async def test_delete_objects_by_prefix_no_objects(async_local_service: AsyncLocal):
@@ -277,3 +280,89 @@ async def test_delete_object_when_root_dir_removed_after_init(local_config: Loca
         )
 
     assert not await service.obj_exists(object_path)
+
+
+@pytest.mark.asyncio
+async def test_delete_removes_empty_parent_directories(async_local_service: AsyncLocal):
+    """Tests that deleting a file also removes all its parent directories if they become empty."""
+    file_path = "a/b/c/d_async.txt"
+    await async_local_service.put(file_path, b"some data")
+
+    # Verify that the nested directories were created
+    base_path = async_local_service._sync_store._base_storage_path
+    dir_a = base_path / "a"
+    dir_b = dir_a / "b"
+    dir_c = dir_b / "c"
+    assert dir_a.is_dir()
+    assert dir_b.is_dir()
+    assert dir_c.is_dir()
+
+    # Delete the only file in the nested structure
+    await async_local_service.delete(file_path)
+
+    # Assert that the file is gone
+    assert not await async_local_service.obj_exists(file_path)
+    # Assert that all parent directories have been cleaned up because they became empty
+    assert not dir_c.exists()
+    assert not dir_b.exists()
+    assert not dir_a.exists()
+
+
+@pytest.mark.asyncio
+async def test_delete_does_not_remove_non_empty_parent_directory(async_local_service: AsyncLocal):
+    """Tests that deleting a file does not remove its parent if it contains other files."""
+    file_path1 = "a/b/1_async.txt"
+    file_path2 = "a/b/2_async.txt"
+    await async_local_service.put(file_path1, b"data 1")
+    await async_local_service.put(file_path2, b"data 2")
+
+    base_path = async_local_service._sync_store._base_storage_path
+    dir_path = base_path / "a" / "b"
+    assert dir_path.is_dir()
+
+    # Delete one of the files
+    await async_local_service.delete(file_path1)
+
+    # Assert that the first file is gone, but the second remains
+    assert not await async_local_service.obj_exists(file_path1)
+    assert await async_local_service.obj_exists(file_path2)
+    # Assert that the parent directory still exists because it's not empty
+    assert dir_path.is_dir()
+
+
+@pytest.mark.asyncio
+async def test_delete_by_prefix_removes_empty_directories(async_local_service: AsyncLocal):
+    """Tests that deleting by prefix also cleans up directories that become empty."""
+    prefix_to_delete = "level1_async/level2/"
+    files_to_delete = [
+        f"{prefix_to_delete}file1.txt",
+        f"{prefix_to_delete}sub/file2.txt",
+    ]
+    other_file_in_parent = "level1_async/other.txt"
+
+    for f_path in files_to_delete:
+        await async_local_service.put(f_path, b"data")
+    await async_local_service.put(other_file_in_parent, b"other data")
+
+    base_path = async_local_service._sync_store._base_storage_path
+    level1_dir = base_path / "level1_async"
+    level2_dir = level1_dir / "level2"
+    sub_dir = level2_dir / "sub"
+
+    assert level1_dir.is_dir()
+    assert level2_dir.is_dir()
+    assert sub_dir.is_dir()
+
+    # Perform the prefix deletion
+    await async_local_service.delete_objects_by_prefix(prefix_to_delete)
+
+    # Assert that all files under the prefix are gone
+    for f_path in files_to_delete:
+        assert not await async_local_service.obj_exists(f_path)
+
+    # Assert that the directories that became empty are also gone
+    assert not sub_dir.exists()
+    assert not level2_dir.exists()
+    # Assert that the parent directory `level1_async` still exists because it contains `other.txt`
+    assert level1_dir.is_dir()
+    assert await async_local_service.obj_exists(other_file_in_parent)

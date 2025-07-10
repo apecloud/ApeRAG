@@ -291,12 +291,9 @@ def test_delete_objects_by_prefix_simple(local_service: Local):
     assert local_service.obj_exists(other_file), "Other file should still exist"
     assert (local_service._base_storage_path / other_file).exists()
 
-    # Check that parent directories of deleted files might still exist if they contain other files
-    # or if they were part of other_file's path.
-    # The current delete_objects_by_prefix does not remove empty directories.
-    assert (local_service._base_storage_path / "logs").is_dir()  # Parent of "logs/today/"
-    assert (local_service._base_storage_path / "logs" / "today").is_dir()  # Parent of deleted files
-    assert (local_service._base_storage_path / "logs" / "today" / "sub_folder").is_dir()
+    # With the new cleanup logic, the 'logs' directory should be completely removed
+    # as it becomes empty after deleting all files under 'logs/today/'.
+    assert not (local_service._base_storage_path / "logs").exists()
 
 
 def test_delete_objects_by_prefix_no_objects(local_service: Local):
@@ -327,10 +324,9 @@ def test_delete_objects_by_prefix_deletes_many_files(local_service: Local):
     for i in range(num_files):
         assert not local_service.obj_exists(f"{prefix}file_{i}.txt")
 
-    # The directory "many_files_local" should still exist but be empty of files.
-    # Subdirectories are not created in this test case.
-    assert (local_service._base_storage_path / prefix).is_dir()
-    assert not list((local_service._base_storage_path / prefix).glob("*"))  # Check if it's empty
+    # With the new cleanup logic, the "many_files_local/" directory should be removed
+    # after all files within it are deleted.
+    assert not (local_service._base_storage_path / prefix).exists()
 
 
 def test_resolve_object_path_security(local_service: Local):
@@ -374,3 +370,84 @@ def test_init_with_non_creatable_root_dir():
         config_protected = LocalConfig(root_dir=protected_path)
         with pytest.raises(OSError):
             Local(cfg=config_protected)
+
+
+def test_delete_removes_empty_parent_directories(local_service: Local):
+    """Tests that deleting a file also removes all its parent directories if they become empty."""
+    file_path = "a/b/c/d.txt"
+    local_service.put(file_path, b"some data")
+
+    # Verify that the nested directories were created
+    dir_a = local_service._base_storage_path / "a"
+    dir_b = dir_a / "b"
+    dir_c = dir_b / "c"
+    assert dir_a.is_dir()
+    assert dir_b.is_dir()
+    assert dir_c.is_dir()
+
+    # Delete the only file in the nested structure
+    local_service.delete(file_path)
+
+    # Assert that the file is gone
+    assert not local_service.obj_exists(file_path)
+    # Assert that all parent directories have been cleaned up because they became empty
+    assert not dir_c.exists()
+    assert not dir_b.exists()
+    assert not dir_a.exists()
+
+
+def test_delete_does_not_remove_non_empty_parent_directory(local_service: Local):
+    """Tests that deleting a file does not remove its parent if it contains other files."""
+    file_path1 = "a/b/1.txt"
+    file_path2 = "a/b/2.txt"
+    local_service.put(file_path1, b"data 1")
+    local_service.put(file_path2, b"data 2")
+
+    dir_path = local_service._base_storage_path / "a" / "b"
+    assert dir_path.is_dir()
+
+    # Delete one of the files
+    local_service.delete(file_path1)
+
+    # Assert that the first file is gone, but the second remains
+    assert not local_service.obj_exists(file_path1)
+    assert local_service.obj_exists(file_path2)
+    # Assert that the parent directory still exists because it's not empty
+    assert dir_path.is_dir()
+
+
+def test_delete_by_prefix_removes_empty_directories(local_service: Local):
+    """Tests that deleting by prefix also cleans up directories that become empty."""
+    prefix_to_delete = "level1/level2/"
+    files_to_delete = [
+        f"{prefix_to_delete}file1.txt",
+        f"{prefix_to_delete}sub/file2.txt",
+    ]
+    # This file is in a parent directory of the prefix, so it should not be deleted.
+    other_file_in_parent = "level1/other.txt"
+
+    for f_path in files_to_delete:
+        local_service.put(f_path, b"data")
+    local_service.put(other_file_in_parent, b"other data")
+
+    level1_dir = local_service._base_storage_path / "level1"
+    level2_dir = level1_dir / "level2"
+    sub_dir = level2_dir / "sub"
+
+    assert level1_dir.is_dir()
+    assert level2_dir.is_dir()
+    assert sub_dir.is_dir()
+
+    # Perform the prefix deletion
+    local_service.delete_objects_by_prefix(prefix_to_delete)
+
+    # Assert that all files under the prefix are gone
+    for f_path in files_to_delete:
+        assert not local_service.obj_exists(f_path)
+
+    # Assert that the directories that became empty are also gone
+    assert not sub_dir.exists()
+    assert not level2_dir.exists()
+    # Assert that the parent directory `level1` still exists because it contains `other.txt`
+    assert level1_dir.is_dir()
+    assert local_service.obj_exists(other_file_in_parent)
