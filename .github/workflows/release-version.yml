@@ -16,7 +16,7 @@ run-name: ref_name:${{ github.ref_name }} release_version:${{ inputs.release_ver
 
 jobs:
   release-version:
-    if: !contains(inputs.content, 'nightly')
+    if: ! contains(inputs.content, 'nightly')
     uses: apecloud/apecloud-cd/.github/workflows/release-version.yml@v0.1.34
     with:
       RELEASE_VERSION: "${{ inputs.release_version }}"
