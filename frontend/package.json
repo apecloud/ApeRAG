@@ -26,6 +26,7 @@
     "base-64": "^1.0.0",
     "byte-size": "^9.0.1",
     "classnames": "^2.5.1",
+    "color": "^5.0.0",
     "color-alpha": "^2.0.0",
     "d3": "^7.9.0",
     "eventsource-parser": "^3.0.2",

@@ -1,22 +1,24 @@
 import { GraphNode } from '@/api';
 import { CloseOutlined } from '@ant-design/icons';
 import { Button, Card, theme } from 'antd';
-import { useEffect, useState } from 'react';
 
-export const NodeDetail = ({ data }: { data?: GraphNode }) => {
-  const [node, setNode] = useState<GraphNode>();
+export const NodeDetail = ({
+  node,
+  onClose,
+}: {
+  node?: GraphNode;
+  onClose: () => void;
+}) => {
   const { token } = theme.useToken();
   const width = 300;
-
-  useEffect(() => {
-    setNode(data)
-  }, [data])
 
   return (
     <Card
       title={node?.labels || node?.id}
       extra={
-        <Button shape="circle" type="text" onClick={() => setNode(undefined)}><CloseOutlined /></Button>
+        <Button shape="circle" type="text" onClick={onClose}>
+          <CloseOutlined />
+        </Button>
       }
       style={{
         width,
@@ -32,13 +34,13 @@ export const NodeDetail = ({ data }: { data?: GraphNode }) => {
         display: 'flex',
         flexDirection: 'column',
         transform: `translateX(${node ? 0 : 2 * width}px)`,
-        transition: `0.3s`
+        transition: `0.3s`,
       }}
       styles={{
         header: {},
         body: {
-          overflow: 'auto'
-        }
+          overflow: 'auto',
+        },
       }}
     >
       {node?.properties.description}

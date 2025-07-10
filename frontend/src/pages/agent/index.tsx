@@ -1,26 +1,18 @@
+import { MODEL_PROVIDER_ICON } from '@/constants';
+import { RobotOutlined, SearchOutlined, SendOutlined } from '@ant-design/icons';
 import {
+  Avatar,
   Button,
+  Checkbox,
+  Dropdown,
   Input,
   Select,
   Space,
-  Tag,
-  Dropdown,
-  Checkbox,
-  List,
-  Avatar,
-  Typography,
-  Switch,
-  message,
   Spin,
+  Tag,
+  Typography,
 } from 'antd';
-import {
-  SendOutlined,
-  SearchOutlined,
-  CloseOutlined,
-  RobotOutlined,
-} from '@ant-design/icons';
-import { useState, useRef, useEffect } from 'react';
-import { MODEL_PROVIDER_ICON } from '@/constants';
+import { useEffect, useRef, useState } from 'react';
 import styles from './index.less';
 
 const { Text } = Typography;
@@ -80,24 +72,26 @@ export default function AgentPage() {
   }, [messages]);
 
   // Filter collections based on search
-  const filteredCollections = mockCollections.filter(collection =>
-    collection.name.toLowerCase().includes(searchKeyword.toLowerCase())
+  const filteredCollections = mockCollections.filter((collection) =>
+    collection.name.toLowerCase().includes(searchKeyword.toLowerCase()),
   );
 
   const handleCollectionToggle = (collectionId: string, checked: boolean) => {
     if (checked) {
-      setSelectedCollections(prev => [...prev, collectionId]);
+      setSelectedCollections((prev) => [...prev, collectionId]);
     } else {
-      setSelectedCollections(prev => prev.filter(id => id !== collectionId));
+      setSelectedCollections((prev) =>
+        prev.filter((id) => id !== collectionId),
+      );
     }
   };
 
   const removeCollection = (collectionId: string) => {
-    setSelectedCollections(prev => prev.filter(id => id !== collectionId));
+    setSelectedCollections((prev) => prev.filter((id) => id !== collectionId));
   };
 
   const getCollectionName = (id: string) => {
-    return mockCollections.find(c => c.id === id)?.name || id;
+    return mockCollections.find((c) => c.id === id)?.name || id;
   };
 
   const handleSendMessage = async () => {
@@ -112,7 +106,7 @@ export default function AgentPage() {
       timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    setMessages((prev) => [...prev, userMessage]);
     setInputValue('');
     setIsLoading(true);
 
@@ -122,23 +116,26 @@ export default function AgentPage() {
         id: (Date.now() + 1).toString(),
         type: 'assistant',
         content: `基于${selectedCollections.length > 0 ? selectedCollections.map(getCollectionName).join('、') : 'AI分析'}，我来回答您的问题：\n\n${inputValue}\n\n这是一个模拟的回答。在实际实现中，这里会调用真实的ApeRAG搜索API和模型API来生成回答。`,
-        sources: selectedCollections.length > 0 ? [
-          {
-            collection: getCollectionName(selectedCollections[0]),
-            document: '相关文档1.pdf',
-            score: 0.95,
-          },
-          {
-            collection: getCollectionName(selectedCollections[0]),
-            document: '相关文档2.md',
-            score: 0.88,
-          },
-        ] : undefined,
+        sources:
+          selectedCollections.length > 0
+            ? [
+                {
+                  collection: getCollectionName(selectedCollections[0]),
+                  document: '相关文档1.pdf',
+                  score: 0.95,
+                },
+                {
+                  collection: getCollectionName(selectedCollections[0]),
+                  document: '相关文档2.md',
+                  score: 0.88,
+                },
+              ]
+            : undefined,
         webSearch: webSearchEnabled,
         timestamp: new Date(),
       };
 
-      setMessages(prev => [...prev, assistantMessage]);
+      setMessages((prev) => [...prev, assistantMessage]);
       setIsLoading(false);
     }, 2000);
   };
@@ -154,23 +151,21 @@ export default function AgentPage() {
 
   const renderMessage = (message: Message) => {
     const isUser = message.type === 'user';
-    
+
     return (
       <div
         key={message.id}
         className={`${styles.message} ${isUser ? styles.userMessage : styles.assistantMessage}`}
       >
         <div className={styles.messageContent}>
-          <div className={styles.messageText}>
-            {message.content}
-          </div>
-          
+          <div className={styles.messageText}>{message.content}</div>
+
           {isUser && message.collections && message.collections.length > 0 && (
             <div className={styles.messageCollections}>
               📁 {message.collections.map(getCollectionName).join(' ')}
             </div>
           )}
-          
+
           {!isUser && message.sources && (
             <div className={styles.messageSources}>
               <Text type="secondary">📚 来源：</Text>
@@ -178,14 +173,15 @@ export default function AgentPage() {
                 {message.sources.map((source, index) => (
                   <li key={index}>
                     <Text type="secondary">
-                      • {source.collection}：{source.document} (相关度: {source.score})
+                      • {source.collection}：{source.document} (相关度:{' '}
+                      {source.score})
                     </Text>
                   </li>
                 ))}
               </ul>
             </div>
           )}
-          
+
           {!isUser && message.webSearch && (
             <div className={styles.messageWebSearch}>
               <Text type="secondary">🔍 网络信息：已包含最新网络搜索结果</Text>
@@ -206,9 +202,9 @@ export default function AgentPage() {
             <Text type="secondary">开始与ApeRAG智能助手对话</Text>
           </div>
         )}
-        
+
         {messages.map(renderMessage)}
-        
+
         {isLoading && (
           <div className={styles.loadingMessage}>
             <div className={styles.messageContent}>
@@ -219,7 +215,7 @@ export default function AgentPage() {
             </div>
           </div>
         )}
-        
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -229,7 +225,7 @@ export default function AgentPage() {
         {selectedCollections.length > 0 && (
           <div className={styles.selectedCollections}>
             <Space wrap size={[4, 4]}>
-              {selectedCollections.map(id => (
+              {selectedCollections.map((id) => (
                 <Tag
                   key={id}
                   closable
@@ -289,14 +285,26 @@ export default function AgentPage() {
                   </div>
                   <div className={styles.dropdownContent}>
                     {filteredCollections.map((collection) => (
-                      <div key={collection.id} className={styles.collectionItem}>
+                      <div
+                        key={collection.id}
+                        className={styles.collectionItem}
+                      >
                         <Checkbox
                           checked={selectedCollections.includes(collection.id)}
-                          onChange={(e) => handleCollectionToggle(collection.id, e.target.checked)}
+                          onChange={(e) =>
+                            handleCollectionToggle(
+                              collection.id,
+                              e.target.checked,
+                            )
+                          }
                         >
                           <div className={styles.collectionInfo}>
-                            <span className={styles.collectionName}>{collection.name}</span>
-                            <span className={styles.collectionCount}>{collection.documentCount}</span>
+                            <span className={styles.collectionName}>
+                              {collection.name}
+                            </span>
+                            <span className={styles.collectionCount}>
+                              {collection.documentCount}
+                            </span>
                           </div>
                         </Checkbox>
                       </div>
@@ -305,11 +313,7 @@ export default function AgentPage() {
                 </div>
               )}
             >
-              <Button
-                type="text"
-                className={styles.toolButton}
-                size="small"
-              >
+              <Button type="text" className={styles.toolButton} size="small">
                 @
               </Button>
             </Dropdown>
@@ -331,7 +335,7 @@ export default function AgentPage() {
               variant="borderless"
               size="small"
             >
-              {mockModels.map(model => (
+              {mockModels.map((model) => (
                 <Select.Option key={model.id} value={model.id}>
                   <Space align="center">
                     {MODEL_PROVIDER_ICON[model.provider] && (
@@ -349,8 +353,6 @@ export default function AgentPage() {
           </div>
         </div>
       </div>
-
-
     </div>
   );
-} 
+}
