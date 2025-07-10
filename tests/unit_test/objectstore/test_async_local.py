@@ -39,8 +39,10 @@ async def test_put_and_get_bytes(async_local_service: AsyncLocal):
 
     await async_local_service.put(file_path, file_content)
 
-    iterator = await async_local_service.get(file_path)
-    assert iterator is not None
+    get_info = await async_local_service.get(file_path)
+    assert get_info is not None
+    iterator, size = get_info
+    assert size == len(file_content)
     retrieved_content = b"".join([chunk async for chunk in iterator])
     assert retrieved_content == file_content
 

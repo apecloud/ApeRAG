@@ -266,13 +266,14 @@ class AsyncS3(AsyncObjectStore):
             await self._ensure_bucket(client)
             await client.upload_fileobj(data, self.cfg.bucket, path)
 
-    async def get(self, path: str) -> AsyncIterator[bytes] | None:
+    async def get(self, path: str) -> Tuple[AsyncIterator[bytes], int] | None:
         await self._ensure_conn()
         path = self._final_path(path)
         try:
             client = self.session.client("s3", **self._get_client_kwargs())
             response = await client.get_object(Bucket=self.cfg.bucket, Key=path)
             stream = response["Body"]
+            size = response["ContentLength"]
         except ClientError as e:
             if e.response["Error"]["Code"] in ("NoSuchKey", "NoSuchBucket"):
                 return None
@@ -286,7 +287,7 @@ class AsyncS3(AsyncObjectStore):
                 stream.close()
                 client.close()
 
-        return generator()
+        return generator(), size
 
     async def get_obj_size(self, path: str) -> int | None:
         await self._ensure_conn()

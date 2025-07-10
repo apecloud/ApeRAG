@@ -297,10 +297,15 @@ class AsyncLocal(AsyncObjectStore):
     async def put(self, path: str, data: bytes | IO[bytes]):
         return await sync_to_async(self._sync_store.put)(path=path, data=data)
 
-    async def get(self, path: str) -> AsyncIterator[bytes] | None:
-        # First, check for existence and get a sync stream handle without blocking
+    async def get(self, path: str) -> Tuple[AsyncIterator[bytes], int] | None:
+        # First, get the size and a sync stream handle without blocking
+        size = await sync_to_async(self._sync_store.get_obj_size)(path=path)
+        if size is None:
+            return None
+
         stream_handle = await sync_to_async(self._sync_store.get)(path=path)
         if stream_handle is None:
+            # This case should be rare if size is not None, but handle it for safety
             return None
 
         # Now, return an async generator that wraps the sync stream
@@ -314,7 +319,7 @@ class AsyncLocal(AsyncObjectStore):
             finally:
                 await sync_to_async(stream_handle.close)()
 
-        return generator()
+        return generator(), size
 
     async def get_obj_size(self, path: str) -> int | None:
         return await sync_to_async(self._sync_store.get_obj_size)(path=path)

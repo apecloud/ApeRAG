@@ -51,8 +51,10 @@ async def test_put_and_get(async_s3_service: AsyncS3):
     content = b"Hello from async S3!"
     await async_s3_service.put(file_path, content)
 
-    iterator = await async_s3_service.get(file_path)
-    assert iterator is not None
+    get_info = await async_s3_service.get(file_path)
+    assert get_info is not None
+    iterator, size = get_info
+    assert size == len(content)
     read_content = b"".join([chunk async for chunk in iterator])
     assert read_content == content
 

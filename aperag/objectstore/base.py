@@ -127,7 +127,7 @@ class AsyncObjectStore(ABC):
         ...
 
     @abstractmethod
-    async def get(self, path: str) -> AsyncIterator[bytes] | None:
+    async def get(self, path: str) -> Tuple[AsyncIterator[bytes], int] | None:
         """
         Asynchronously retrieves an object from the specified path as a stream of bytes.
 
@@ -135,7 +135,8 @@ class AsyncObjectStore(ABC):
             path: The path of the object to retrieve.
 
         Returns:
-            An async iterator yielding chunks of the object's content, or None if not found.
+            A tuple containing an async iterator yielding chunks of the object's content
+            and the total object size in bytes, or None if not found.
             The underlying resources are automatically managed.
         """
         ...
