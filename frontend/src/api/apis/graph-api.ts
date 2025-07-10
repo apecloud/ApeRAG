@@ -27,6 +27,10 @@ import type { FailResponse } from '../models';
 import type { GraphLabelsResponse } from '../models';
 // @ts-ignore
 import type { KnowledgeGraph } from '../models';
+// @ts-ignore
+import type { NodeMergeRequest } from '../models';
+// @ts-ignore
+import type { NodeMergeResponse } from '../models';
 /**
  * GraphApi - axios parameter creator
  * @export
@@ -124,6 +128,50 @@ export const GraphApiAxiosParamCreator = function (configuration?: Configuration
                 options: localVarRequestOptions,
             };
         },
+        /**
+         * Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.  Provide `entity_ids` array with 1+ entities and optional `target_entity_data` for customization.  The operation: 1. Auto-selects target entity (highest degree) if not specified in `target_entity_data` 2. Combines descriptions using default merge strategy (concatenate) 3. Merges metadata using default behavior: entity_type from target, others concatenated/joined 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source nodes  Entity type handling: Uses target entity\'s type if it exists, otherwise uses merged result. The operation is idempotent - if source nodes don\'t exist, it returns success. 
+         * @summary Merge graph nodes
+         * @param {string} collectionId Collection ID
+         * @param {NodeMergeRequest} nodeMergeRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdGraphsNodesMergePost: async (collectionId: string, nodeMergeRequest: NodeMergeRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('collectionsCollectionIdGraphsNodesMergePost', 'collectionId', collectionId)
+            // verify required parameter 'nodeMergeRequest' is not null or undefined
+            assertParamExists('collectionsCollectionIdGraphsNodesMergePost', 'nodeMergeRequest', nodeMergeRequest)
+            const localVarPath = `/collections/{collection_id}/graphs/nodes/merge`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(nodeMergeRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
     }
 };
 
@@ -163,6 +211,20 @@ export const GraphApiFp = function(configuration?: Configuration) {
             const localVarOperationServerBasePath = operationServerMap['GraphApi.collectionsCollectionIdGraphsLabelsGet']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
+        /**
+         * Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.  Provide `entity_ids` array with 1+ entities and optional `target_entity_data` for customization.  The operation: 1. Auto-selects target entity (highest degree) if not specified in `target_entity_data` 2. Combines descriptions using default merge strategy (concatenate) 3. Merges metadata using default behavior: entity_type from target, others concatenated/joined 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source nodes  Entity type handling: Uses target entity\'s type if it exists, otherwise uses merged result. The operation is idempotent - if source nodes don\'t exist, it returns success. 
+         * @summary Merge graph nodes
+         * @param {string} collectionId Collection ID
+         * @param {NodeMergeRequest} nodeMergeRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async collectionsCollectionIdGraphsNodesMergePost(collectionId: string, nodeMergeRequest: NodeMergeRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<NodeMergeResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdGraphsNodesMergePost(collectionId, nodeMergeRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['GraphApi.collectionsCollectionIdGraphsNodesMergePost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
     }
 };
 
@@ -193,6 +255,16 @@ export const GraphApiFactory = function (configuration?: Configuration, basePath
         collectionsCollectionIdGraphsLabelsGet(requestParameters: GraphApiCollectionsCollectionIdGraphsLabelsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<GraphLabelsResponse> {
             return localVarFp.collectionsCollectionIdGraphsLabelsGet(requestParameters.collectionId, options).then((request) => request(axios, basePath));
         },
+        /**
+         * Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.  Provide `entity_ids` array with 1+ entities and optional `target_entity_data` for customization.  The operation: 1. Auto-selects target entity (highest degree) if not specified in `target_entity_data` 2. Combines descriptions using default merge strategy (concatenate) 3. Merges metadata using default behavior: entity_type from target, others concatenated/joined 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source nodes  Entity type handling: Uses target entity\'s type if it exists, otherwise uses merged result. The operation is idempotent - if source nodes don\'t exist, it returns success. 
+         * @summary Merge graph nodes
+         * @param {GraphApiCollectionsCollectionIdGraphsNodesMergePostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdGraphsNodesMergePost(requestParameters: GraphApiCollectionsCollectionIdGraphsNodesMergePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<NodeMergeResponse> {
+            return localVarFp.collectionsCollectionIdGraphsNodesMergePost(requestParameters.collectionId, requestParameters.nodeMergeRequest, options).then((request) => request(axios, basePath));
+        },
     };
 };
 
@@ -221,6 +293,16 @@ export interface GraphApiInterface {
      * @memberof GraphApiInterface
      */
     collectionsCollectionIdGraphsLabelsGet(requestParameters: GraphApiCollectionsCollectionIdGraphsLabelsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<GraphLabelsResponse>;
+
+    /**
+     * Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.  Provide `entity_ids` array with 1+ entities and optional `target_entity_data` for customization.  The operation: 1. Auto-selects target entity (highest degree) if not specified in `target_entity_data` 2. Combines descriptions using default merge strategy (concatenate) 3. Merges metadata using default behavior: entity_type from target, others concatenated/joined 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source nodes  Entity type handling: Uses target entity\'s type if it exists, otherwise uses merged result. The operation is idempotent - if source nodes don\'t exist, it returns success. 
+     * @summary Merge graph nodes
+     * @param {GraphApiCollectionsCollectionIdGraphsNodesMergePostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof GraphApiInterface
+     */
+    collectionsCollectionIdGraphsNodesMergePost(requestParameters: GraphApiCollectionsCollectionIdGraphsNodesMergePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<NodeMergeResponse>;
 
 }
 
@@ -274,6 +356,27 @@ export interface GraphApiCollectionsCollectionIdGraphsLabelsGetRequest {
 }
 
 /**
+ * Request parameters for collectionsCollectionIdGraphsNodesMergePost operation in GraphApi.
+ * @export
+ * @interface GraphApiCollectionsCollectionIdGraphsNodesMergePostRequest
+ */
+export interface GraphApiCollectionsCollectionIdGraphsNodesMergePostRequest {
+    /**
+     * Collection ID
+     * @type {string}
+     * @memberof GraphApiCollectionsCollectionIdGraphsNodesMergePost
+     */
+    readonly collectionId: string
+
+    /**
+     * 
+     * @type {NodeMergeRequest}
+     * @memberof GraphApiCollectionsCollectionIdGraphsNodesMergePost
+     */
+    readonly nodeMergeRequest: NodeMergeRequest
+}
+
+/**
  * GraphApi - object-oriented interface
  * @export
  * @class GraphApi
@@ -302,6 +405,18 @@ export class GraphApi extends BaseAPI implements GraphApiInterface {
      */
     public collectionsCollectionIdGraphsLabelsGet(requestParameters: GraphApiCollectionsCollectionIdGraphsLabelsGetRequest, options?: RawAxiosRequestConfig) {
         return GraphApiFp(this.configuration).collectionsCollectionIdGraphsLabelsGet(requestParameters.collectionId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.  Provide `entity_ids` array with 1+ entities and optional `target_entity_data` for customization.  The operation: 1. Auto-selects target entity (highest degree) if not specified in `target_entity_data` 2. Combines descriptions using default merge strategy (concatenate) 3. Merges metadata using default behavior: entity_type from target, others concatenated/joined 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source nodes  Entity type handling: Uses target entity\'s type if it exists, otherwise uses merged result. The operation is idempotent - if source nodes don\'t exist, it returns success. 
+     * @summary Merge graph nodes
+     * @param {GraphApiCollectionsCollectionIdGraphsNodesMergePostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof GraphApi
+     */
+    public collectionsCollectionIdGraphsNodesMergePost(requestParameters: GraphApiCollectionsCollectionIdGraphsNodesMergePostRequest, options?: RawAxiosRequestConfig) {
+        return GraphApiFp(this.configuration).collectionsCollectionIdGraphsNodesMergePost(requestParameters.collectionId, requestParameters.nodeMergeRequest, options).then((request) => request(this.axios, this.basePath));
     }
 }
 

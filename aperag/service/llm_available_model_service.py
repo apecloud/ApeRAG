@@ -34,31 +34,59 @@ class LlmAvailableModelService:
         self, user_id: str, tag_filter_request: view_models.TagFilterRequest
     ) -> view_models.ModelConfigList:
         """Get available models with optional tag filtering"""
-        # Get all supported providers from model configs
-        available_providers = await self._build_model_config_objects(user_id)
+        # Get providers and models data with user_id information
+        providers_and_models_data = await self.db_ops.query_available_providers_with_models(user_id, True)
+        available_providers = providers_and_models_data["providers"]
+        provider_models = providers_and_models_data["models"]
 
-        # Apply tag filtering based on request
-        if tag_filter_request.tag_filters is None or len(tag_filter_request.tag_filters) == 0:
-            # Default to showing only models with 'recommend' tag when no filters are provided
-            default_filter = [view_models.TagFilterCondition(tags=["recommend"], operation="AND")]
-            filtered_providers = filter_providers_by_tags(available_providers, default_filter)
-        else:
-            filtered_providers = filter_providers_by_tags(available_providers, tag_filter_request.tag_filters)
+        # Build provider configs and separate by type
+        provider_configs = self._build_provider_configs_from_data(available_providers, provider_models)
+
+        # Separate public and user-created providers
+        public_providers = []
+        user_created_providers = []
+
+        for provider_config in provider_configs:
+            # Find the original provider data to check user_id
+            provider_name = provider_config.name
+            original_provider = next((p for p in available_providers if p.name == provider_name), None)
+
+            if original_provider and original_provider.user_id == "public":
+                public_providers.append(provider_config)
+            else:
+                user_created_providers.append(provider_config)
+
+        # Apply filtering logic
+        filtered_providers = []
+
+        # Handle public providers with default recommend filter
+        if public_providers:
+            if tag_filter_request.tag_filters is None or len(tag_filter_request.tag_filters) == 0:
+                # Default to showing only models with 'recommend' tag for public providers
+                default_filter = [view_models.TagFilterCondition(tags=["recommend"], operation="AND")]
+                filtered_public_providers = filter_providers_by_tags(public_providers, default_filter)
+            else:
+                # Apply user-specified filters to public providers
+                filtered_public_providers = filter_providers_by_tags(public_providers, tag_filter_request.tag_filters)
+
+            filtered_providers.extend(filtered_public_providers)
+
+        # Handle user-created providers (only affected by user input, no default filter)
+        if user_created_providers:
+            if tag_filter_request.tag_filters is None or len(tag_filter_request.tag_filters) == 0:
+                # For user-created providers, show all models if no filter is specified
+                filtered_providers.extend(user_created_providers)
+            else:
+                # Apply user-specified filters to user-created providers
+                filtered_user_providers = filter_providers_by_tags(
+                    user_created_providers, tag_filter_request.tag_filters
+                )
+                filtered_providers.extend(filtered_user_providers)
 
         return view_models.ModelConfigList(items=filtered_providers, pageResult=None)
 
-    async def _build_model_config_objects(self, user_id: str) -> List[view_models.ModelConfig]:
-        """Build ModelConfig objects from database data using optimized single query
-
-        This function replaces the functionality from llm_config_service.py with optimized database queries
-        """
-        # Use optimized query to get providers with API keys and their models in single operation
-        data = await self.db_ops.query_available_providers_with_models(user_id, True)
-
-        available_providers = data["providers"]
-        provider_models = data["models"]
-
-        # Group models by provider and API type using defaultdict for cleaner code
+    def _build_provider_configs_from_data(self, available_providers, provider_models) -> List[view_models.ModelConfig]:
+        """Build ModelConfig objects from already fetched data"""
         from collections import defaultdict
 
         provider_model_map = defaultdict(lambda: {"completion": [], "embedding": [], "rerank": []})

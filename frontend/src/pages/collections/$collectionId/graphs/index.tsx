@@ -1,6 +1,7 @@
 import { GraphEdge, GraphNode } from '@/api';
 import { graphApi } from '@/services';
 import { Card, Tag, theme } from 'antd';
+import Color from 'color';
 import * as d3 from 'd3';
 import _ from 'lodash';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -10,6 +11,8 @@ import ForceGraph2D from 'react-force-graph-2d';
 import { NodeDetail } from './NodeDetail';
 
 const color = d3.scaleOrdinal(d3.schemeCategory10);
+
+// type HierarchicalNode = GraphNode & { children: GraphNode[] };
 
 export default () => {
   const params = useParams();
@@ -35,14 +38,41 @@ export default () => {
   const [hoverNode, setHoverNode] = useState<GraphNode>();
   const [activeNode, setActiveNode] = useState<GraphNode>();
 
-
+  // const hierarchicalNodes: HierarchicalNode[] = useMemo(() => {
+  //   const nodeMap = new Map();
+  //   const rootNodes: HierarchicalNode[] = [];
+  //   graphData?.nodes.forEach((node) => {
+  //     nodeMap.set(node.id, {
+  //       ...node,
+  //       children: [],
+  //     });
+  //   });
+  //   graphData?.links.forEach((edge) => {
+  //     const { source, target } = edge;
+  //     const parentNode = nodeMap.get(source);
+  //     const childNode = nodeMap.get(target);
+  //     if (parentNode && childNode) {
+  //       parentNode.children.push(childNode);
+  //     }
+  //   });
+  //   const childNodeIds = new Set();
+  //   graphData?.links.forEach((edge) => {
+  //     childNodeIds.add(edge.target);
+  //   });
+  //   graphData?.nodes.forEach((node) => {
+  //     if (!childNodeIds.has(node.id)) {
+  //       rootNodes.push(nodeMap.get(node.id));
+  //     }
+  //   });
+  //   return rootNodes;
+  // }, [graphData]);
 
   const { NODE_MIN, NODE_MAX, LINK_MIN, LINK_MAX } = useMemo(
     () => ({
       NODE_MIN: 6,
       NODE_MAX: 18,
-      LINK_MIN: 12,
-      LINK_MAX: 24,
+      LINK_MIN: 18,
+      LINK_MAX: 36,
     }),
     [],
   );
@@ -77,6 +107,13 @@ export default () => {
     setAllEntities(_.groupBy(nodes, (n) => n.properties.entity_type));
   }, [params.collectionId]);
 
+  const handleCloseDetail = useCallback(() => {
+    setActiveNode(undefined);
+    setHoverNode(undefined);
+    highlightNodes.clear();
+    highlightLinks.clear();
+  }, []);
+
   useEffect(() => {
     if (activeEntities.length) return;
     setActiveEntities(Object.keys(allEntities));
@@ -100,6 +137,16 @@ export default () => {
   }, [graphData]);
 
   useEffect(() => {
+    if (activeNode) {
+      graphRef.current.centerAt(activeNode.x, activeNode.y, 300);
+      graphRef.current.zoom(3, 800);
+    } else {
+      graphRef.current.centerAt(0, 0, 300);
+      graphRef.current.zoom(1.5, 800);
+    }
+  }, [activeNode]);
+
+  useEffect(() => {
     getData();
     graphRef.current
       .d3Force(
@@ -111,11 +158,10 @@ export default () => {
           );
         }),
       )
-      // .d3Force('collision', d3.forceCollide().radius(NODE_MIN))
+      .d3Force('collision', d3.forceCollide().radius(NODE_MIN))
       .d3Force('charge', d3.forceManyBody().strength(-40))
       .d3Force('x', d3.forceX())
-      .d3Force('y', d3.forceY())
-      .zoom(1.5)
+      .d3Force('y', d3.forceY());
   }, [graphRef]);
 
   return (
@@ -143,9 +189,17 @@ export default () => {
           );
         }}
         minZoom={0.5}
-        onNodeHover={(node) => {
+        maxZoom={8}
+        onNodeClick={(node) => {
+          if (activeNode === node) {
+            handleCloseDetail();
+            return;
+          }
+
+          setActiveNode(node);
           highlightNodes.clear();
           highlightLinks.clear();
+
           if (node) {
             const nodeLinks = graphData?.links.filter((link: any) => {
               return link.source.id === node.id || link.target.id === node.id;
@@ -160,14 +214,32 @@ export default () => {
           setHighlightNodes(highlightNodes);
           setHighlightLinks(highlightLinks);
         }}
-        onNodeClick={(node) => setActiveNode(node)}
+        onNodeHover={(node) => {
+          if (activeNode) return;
+          highlightNodes.clear();
+          highlightLinks.clear();
+          if (node) {
+            const nodeLinks = graphData?.links.filter((link: any) => {
+              return link.source.id === node.id || link.target.id === node.id;
+            });
+            nodeLinks?.forEach((link: GraphEdge) => {
+              highlightLinks.add(link);
+              // highlightNodes.add(link.source);
+              // highlightNodes.add(link.target);
+            });
+          }
+          setHoverNode(node || undefined);
+          setHighlightNodes(highlightNodes);
+          setHighlightLinks(highlightLinks);
+        }}
         onLinkHover={(link) => {
+          if (activeNode) return;
           highlightNodes.clear();
           highlightLinks.clear();
           if (link) {
             highlightLinks.add(link);
-            highlightNodes.add(link.source);
-            highlightNodes.add(link.target);
+            // highlightNodes.add(link.source);
+            // highlightNodes.add(link.target);
           }
           setHighlightNodes(highlightNodes);
           setHighlightLinks(highlightLinks);
@@ -180,16 +252,26 @@ export default () => {
           if (node === hoverNode) size += 1;
           ctx.beginPath();
           ctx.arc(x, y, size, 0, 2 * Math.PI, false);
-          ctx.fillStyle = color(node.properties.entity_type || '');
+
+          const colorNormal = color(node.properties.entity_type || '');
+          let colorSecondary =
+            themeName === 'dark'
+              ? Color(colorNormal).grayscale().darken(0.3)
+              : Color(colorNormal).grayscale().lighten(0.6);
+          ctx.fillStyle =
+            highlightNodes.size === 0 || highlightNodes.has(node)
+              ? colorNormal
+              : colorSecondary.string();
           ctx.fill();
 
-          if (node !== hoverNode) {
-            ctx.beginPath();
-            ctx.arc(x, y, size, 0, 2 * Math.PI, false);
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = '#FFF';
-            ctx.stroke();
-          }
+          // node circle
+          ctx.beginPath();
+          ctx.arc(x, y, size, 0, 2 * Math.PI, false);
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = highlightNodes.has(node)
+            ? Color('#FFF').grayscale().string()
+            : '#FFF';
+          ctx.stroke();
 
           // node label
           let fontSize = 15;
@@ -224,9 +306,9 @@ export default () => {
         linkWidth={(link) => {
           return highlightLinks.has(link) ? 2 : 1;
         }}
-        linkDirectionalParticleWidth={(link) =>
-          highlightLinks.has(link) ? 4 : 2
-        }
+        linkDirectionalParticleWidth={(link) => {
+          return highlightLinks.has(link) ? 3 : 0;
+        }}
         linkDirectionalParticles={2}
         linkVisibility={(link: any) => {
           const sourceEntityType = link.source?.properties?.entity_type || '';
@@ -270,7 +352,7 @@ export default () => {
           );
         })}
       </div>
-      <NodeDetail data={activeNode} />
+      <NodeDetail node={activeNode} onClose={handleCloseDetail} />
     </Card>
   );
 };

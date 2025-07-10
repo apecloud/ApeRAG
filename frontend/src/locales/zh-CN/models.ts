@@ -2,7 +2,11 @@ export const model = {
   'model.name': '模型',
   'model.configuration': '模型配置',
   'model.configuration.description': '配置LLM提供商和模型',
+  'model.configuration.admin_only': '👤 管理员提示：只有全局共享且标记为 "recommend" 的模型才会对普通用户可见，用户私有的 provider/model 不受此限制。',
   'model.prompt_template': '提示模版',
+  'model.provider.type': '共享范围',
+  'model.provider.type.public': '全局共享',
+  'model.provider.type.user': '私有',
   'model.llm.tips': '大型语言对话模型',
   'model.rerank.tips':
     '在拿到向量查询（ANN）的结果后使用 Reranker，能够更有效地确定文档和查询之间的语义相关性，更精细地对结果重排，最终提高搜索质量。',
@@ -28,6 +32,15 @@ export const model = {
   'model.provider.delete.confirm':
     '确定要删除提供商 "{name}" 吗？这将同时删除该提供商下的所有模型。',
 
+  // Provider status related
+  'model.provider.status': '状态',
+  'model.provider.status.enabled': '启用',
+  'model.provider.status.disabled': '禁用',
+  'model.provider.enable': '启用',
+  'model.provider.disable': '禁用',
+  'model.provider.enable.help': '启用后可配置API密钥使用模型服务',
+  'model.provider.disable.help': '禁用后将删除API密钥，无法使用模型服务',
+
   // Model related
   'model.management.title': '{provider} - 模型管理',
   'model.list.title': '模型列表',
@@ -37,7 +50,7 @@ export const model = {
   'model.edit': '编辑模型',
   'model.edit.title': '编辑模型：{model}',
   'model.delete': '删除模型',
-  'model.delete.confirm': '确定要删除模型 "{model}" 吗？',
+  'model.delete.confirm': '确定要删除模型 "{name}" 吗？',
   'model.back_to_list': '返回列表',
   'model.api_type': 'API类型',
   'model.model_name': '模型名称',
@@ -58,6 +71,7 @@ export const model = {
   'model.provider.embedding_dialect.required': '请输入嵌入API方言',
   'model.provider.rerank_dialect.placeholder': 'jina_ai',
   'model.provider.rerank_dialect.required': '请输入重排API方言',
+  'model.provider.api_key.required': '请输入API密钥',
 
   'model.provider.required': '请选择提供商',
   'model.api_type.required': '请选择API类型',

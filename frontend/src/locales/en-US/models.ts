@@ -2,6 +2,7 @@ export const model = {
   'model.name': 'Models',
   'model.configuration': 'Model Configuration',
   'model.configuration.description': 'Configure LLM providers and models',
+  'model.configuration.admin_only': '👤 Admin Notice: Only globally shared models with "recommend" tag are visible to regular users. Private user providers/models are not affected by this restriction.',
   'model.prompt_template': 'Prompt Template',
   'model.llm.tips': 'Large language chat model',
   'model.rerank.tips':
@@ -20,6 +21,9 @@ export const model = {
   'model.provider.base_url': 'API Base URL',
   'model.provider.api_key_short': 'API KEY',
   'model.provider.model_count': 'Model Count',
+  'model.provider.type': 'Sharing Scope',
+  'model.provider.type.public': 'Global',
+  'model.provider.type.user': 'Private',
   'model.provider.completion_dialect': 'Completion API Dialect',
   'model.provider.embedding_dialect': 'Embedding API Dialect',
   'model.provider.rerank_dialect': 'Rerank API Dialect',
@@ -27,6 +31,15 @@ export const model = {
   'model.provider.extra_config': 'Extra Configuration (JSON)',
   'model.provider.delete.confirm':
     'Are you sure to delete provider "{name}"? This will also delete all models under this provider.',
+
+  // Provider status related
+  'model.provider.status': 'Status',
+  'model.provider.status.enabled': 'Enabled',
+  'model.provider.status.disabled': 'Disabled',
+  'model.provider.enable': 'Enable',
+  'model.provider.disable': 'Disable',
+  'model.provider.enable.help': 'Enable to configure API key and use model services',
+  'model.provider.disable.help': 'Disable to remove API key and stop using model services',
 
   // Model related
   'model.management.title': '{provider} - Model Management',
@@ -37,7 +50,7 @@ export const model = {
   'model.edit': 'Edit Model',
   'model.edit.title': 'Edit Model: {model}',
   'model.delete': 'Delete Model',
-  'model.delete.confirm': 'Are you sure to delete model "{model}"?',
+  'model.delete.confirm': 'Are you sure to delete model "{name}"?',
   'model.back_to_list': 'Back to List',
   'model.api_type': 'API Type',
   'model.model_name': 'Model Name',
@@ -60,6 +73,7 @@ export const model = {
     'Please enter embedding API dialect',
   'model.provider.rerank_dialect.placeholder': 'jina_ai',
   'model.provider.rerank_dialect.required': 'Please enter rerank API dialect',
+  'model.provider.api_key.required': 'Please enter API key',
 
   'model.provider.required': 'Please select provider',
   'model.api_type.required': 'Please select API type',

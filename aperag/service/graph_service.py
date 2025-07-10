@@ -15,7 +15,7 @@
 import logging
 from typing import Any, Dict
 
-from aperag.exceptions import CollectionNotFoundException
+from aperag.exceptions import CollectionNotFoundException, GraphServiceError
 from aperag.graph import lightrag_manager
 from aperag.schema import view_models
 
@@ -23,13 +23,15 @@ logger = logging.getLogger(__name__)
 
 
 class GraphService:
-    """Service for handling knowledge graph operations"""
+    """Service for handling knowledge graph operations and index management"""
 
     def __init__(self):
         # Import here to avoid circular imports
         from aperag.service.collection_service import collection_service
 
         self.collection_service = collection_service
+
+    # ==================== Graph Query Operations ====================
 
     async def get_graph_labels(self, user_id: str, collection_id: str) -> view_models.GraphLabelsResponse:
         """
@@ -280,6 +282,57 @@ class GraphService:
 
         return result
 
+    # ==================== Graph Index Operations ====================
+
+    async def merge_nodes(
+        self,
+        user_id: str,
+        collection_id: str,
+        entity_ids: list[str],
+        target_entity_data: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Merge multiple graph nodes using LightRAG.
+
+        Args:
+            user_id: User ID
+            collection_id: Collection ID
+            entity_ids: List of entity IDs to merge
+            target_entity_data: Optional target entity configuration including entity_name and other properties
+
+        Returns:
+            Dict containing merge operation results
+
+        Raises:
+            CollectionNotFoundException: If collection is not found
+            ValueError: If knowledge graph is not enabled for the collection
+            GraphServiceError: If merge operation fails
+        """
+        # Get and validate collection
+        collection = await self._get_and_validate_collection(user_id, collection_id)
+
+        try:
+            # Create LightRAG instance
+            rag = await lightrag_manager.create_lightrag_instance(collection)
+
+            # Call LightRAG merge method
+            result = await rag.amerge_nodes(
+                entity_ids=entity_ids,
+                target_entity_data=target_entity_data,
+                collection_id=collection_id,
+            )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to merge nodes in collection {collection_id}: {str(e)}")
+            raise GraphServiceError(f"Failed to merge nodes: {str(e)}") from e
+        finally:
+            if "rag" in locals():
+                await rag.finalize_storages()
+
+    # ==================== Common Helper Methods ====================
+
     async def _get_and_validate_collection(self, user_id: str, collection_id: str):
         """
         Get collection database model and validate that knowledge graph is enabled
@@ -295,7 +348,7 @@ class GraphService:
             CollectionNotFoundException: If collection is not found
             ValueError: If knowledge graph is not enabled
         """
-        # First validate that user has access to the collection
+        # Validate that user has access to the collection
         try:
             view_collection: view_models.Collection = await self.collection_service.get_collection(
                 user_id, collection_id
@@ -319,5 +372,5 @@ class GraphService:
         return db_collection
 
 
-# Global service instance
+# Global service instances (maintaining backward compatibility)
 graph_service = GraphService()

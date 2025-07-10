@@ -141,3 +141,117 @@ graphLabelsResponse:
       example: ["墨香居", "李明华", "林晓雯", "深夜读书会"]
   required:
     - labels 
+
+nodeMergeRequest:
+  type: object
+  description: Request to merge multiple graph nodes
+  properties:
+    entity_ids:
+      type: array
+      items:
+        type: string
+      description: List of entity IDs to merge (supports 1 or more entities)
+      example: ["墨香居", "书店", "旧书店"]
+      minItems: 1
+    target_entity_data:
+      type: object
+      description: Optional target entity configuration. If not specified or empty, auto-select entity with highest degree
+      properties:
+        entity_name:
+          type: string
+          description: Target entity name. If not specified, auto-select entity with highest degree
+          example: "墨香居"
+        entity_type:
+          type: string
+          description: Entity type for the target entity
+          example: "ORGANIZATION"
+        description:
+          type: string
+          description: Description for the target entity
+          example: "A comprehensive bookstore and cultural space"
+        source_id:
+          type: string
+          description: Source ID for the target entity
+        file_path:
+          type: string
+          description: File path for the target entity
+      nullable: true
+  required:
+    - entity_ids
+  additionalProperties: false
+
+nodeMergeResponse:
+  type: object
+  description: Response containing node merge results
+  properties:
+    status:
+      type: string
+      description: Status of the merge operation
+      example: "success"
+      enum: ["success", "error"]
+    message:
+      type: string
+      description: Detailed message about the merge operation
+      example: "Successfully merged 2 entities into 墨香居"
+    target_entity_data:
+      type: object
+      description: Complete data of the target entity after merge
+      properties:
+        entity_name:
+          type: string
+          description: The entity name that was kept (merge target)
+          example: "墨香居"
+        entity_type:
+          type: string
+          description: Entity type of the target entity
+          example: "ORGANIZATION"
+        description:
+          type: string
+          description: Merged description of the target entity
+          example: "墨香居是这条老巷子里唯一的旧书店，经营着各种书籍，承载了老板李明华的情怀。"
+        source_id:
+          type: string
+          description: Source ID information
+          example: "chunk-001,chunk-002"
+        file_path:
+          type: string
+          description: File path information
+          example: "story.txt,book.txt"
+      required:
+        - entity_name
+        - entity_type
+        - description
+      nullable: true
+    source_entities:
+      type: array
+      items:
+        type: string
+      description: List of entities that were merged into the target
+      example: ["书店", "旧书店"]
+    redirected_edges:
+      type: integer
+      description: Number of edges that were redirected during merge
+      example: 12
+      minimum: 0
+    merged_description_length:
+      type: integer
+      description: Length of the merged description
+      example: 512
+      minimum: 0
+    used_llm_summary:
+      type: boolean
+      description: Whether LLM was used to summarize descriptions
+      example: true
+    collection_id:
+      type: string
+      description: Collection ID where the merge was performed
+      example: "col_12345"
+      nullable: true
+  required:
+    - status
+    - message
+    - target_entity_data
+    - source_entities
+    - redirected_edges
+    - merged_description_length
+    - used_llm_summary

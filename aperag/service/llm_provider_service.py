@@ -183,11 +183,22 @@ async def create_llm_provider(provider_data: dict, user_id: str, is_admin: bool 
             extra=provider_data.get("extra"),
         )
 
-    # Handle API key if provided
-    api_key = provider_data.get("api_key")
-    if api_key and api_key.strip():  # Only create/update if non-empty API key is provided
-        # Create or update API key for this provider
-        await async_db_ops.upsert_msp(name=provider_data["name"], api_key=api_key)
+    # Handle status parameter for enable/disable functionality
+    status = provider_data.get("status")
+    if status == "enable":
+        # Enable: Create or update API key if provided
+        api_key = provider_data.get("api_key")
+        if api_key and api_key.strip():
+            await async_db_ops.upsert_msp(name=provider_data["name"], api_key=api_key)
+    elif status == "disable":
+        # Disable: Delete API key (MSP) for this provider
+        await async_db_ops.delete_msp_by_name(provider_data["name"])
+    else:
+        # Legacy behavior: Handle API key if provided (for backward compatibility)
+        api_key = provider_data.get("api_key")
+        if api_key and api_key.strip():  # Only create/update if non-empty API key is provided
+            # Create or update API key for this provider
+            await async_db_ops.upsert_msp(name=provider_data["name"], api_key=api_key)
 
     return {
         "name": provider.name,
@@ -270,11 +281,21 @@ async def update_llm_provider(provider_name: str, update_data: dict, user_id: st
         extra=update_data.get("extra"),
     )
 
-    # Handle API key if provided
-    api_key = update_data.get("api_key")
-    if api_key and api_key.strip():  # Only update if non-empty API key is provided
-        # Create or update API key for this provider
-        await async_db_ops.upsert_msp(name=provider_name, api_key=api_key)
+    # Handle status parameter for enable/disable functionality
+    status = update_data.get("status")
+    if status == "enable":
+        # Enable: Create or update API key if provided
+        api_key = update_data.get("api_key")
+        if api_key and api_key.strip():
+            await async_db_ops.upsert_msp(name=provider_name, api_key=api_key)
+    elif status == "disable":
+        # Disable: Delete API key (MSP) for this provider
+        await async_db_ops.delete_msp_by_name(provider_name)
+    else:
+        # Legacy behavior: Handle API key if provided (for backward compatibility)
+        api_key = update_data.get("api_key")
+        if api_key and api_key.strip():
+            await async_db_ops.upsert_msp(name=provider_name, api_key=api_key)
 
     return {
         "name": provider.name,
