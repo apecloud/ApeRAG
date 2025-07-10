@@ -2267,6 +2267,7 @@ async def _batch_analyze_entities_with_llm(
             tuple_delimiter=PROMPTS["DEFAULT_TUPLE_DELIMITER"],
             record_delimiter=PROMPTS["DEFAULT_RECORD_DELIMITER"],
             completion_delimiter=PROMPTS["DEFAULT_COMPLETION_DELIMITER"],
+            graph_field_sep=GRAPH_FIELD_SEP,
         )
 
         if lightrag_logger:
@@ -2359,101 +2360,106 @@ def parse_single_merge_record(
     """
     Parse a single merge record from LLM response.
 
+    Expected format:
+    ("merge_group"<|>Entity A<SEP>Entity B<|>0.85<|>reason<|>target_name<|>target_type<|>target_description)
+
     Args:
-        record: Single record string from LLM response
-        entity_lookup: Dictionary mapping entity names to GraphNodeData objects
-        confidence_threshold: Minimum confidence score for suggestions
-        lightrag_logger: Logger instance for debugging
+        record: Raw record string from LLM
+        entity_lookup: Dict mapping entity names to GraphNodeData
+        confidence_threshold: Minimum confidence score to accept
+        lightrag_logger: Logger for debugging
 
     Returns:
-        MergeSuggestion object or None if parsing fails
-
-    Example:
-        Input: '("merge_group"<|>Apple Inc,Apple Company<|>0.9<|>Same organization<|>Apple Inc<|>ORGANIZATION<|>Merged description)'
-        Output: MergeSuggestion(entities=[...], confidence_score=0.9, ...)
+        MergeSuggestion if successfully parsed and meets threshold, None otherwise
     """
-    # Look for merge_group pattern
-    if not record.startswith('("merge_group"'):
-        if lightrag_logger:
-            lightrag_logger.debug(f"Record doesn't start with merge_group pattern: {record[:50]}...")
-        return None
-
     try:
+        # Import required constants and types
+        from .prompt import GRAPH_FIELD_SEP, PROMPTS
+        from .types import GraphNodeData
+
         # Extract content between quotes and parentheses
         content = record.split('("merge_group"')[1].strip()
         if content.endswith(")"):
             content = content[:-1]
 
-        # Split by tuple delimiter
-        from .prompt import PROMPTS
-
+        # Parse the content using tuple delimiter
         parts = content.split(PROMPTS["DEFAULT_TUPLE_DELIMITER"])
+
+        # Filter out empty parts (especially the first one if content starts with delimiter)
+        parts = [part.strip() for part in parts if part.strip()]
+
         if len(parts) != 6:  # Exactly 6 parts expected
             if lightrag_logger:
-                lightrag_logger.debug(f"Record has {len(parts)} parts, expected 6: {record[:100]}...")
+                lightrag_logger.warning(f"Record has {len(parts)} parts, expected 6. Parts: {parts}")
+                lightrag_logger.debug(f"Raw record: {record[:200]}...")
             return None
 
-        # Extract entity names from comma-separated list
+        # Extract entity names from GRAPH_FIELD_SEP-separated list
         entity_names_str = parts[0].strip()
         entity_names = []
-        for name in entity_names_str.split(","):
+        for name in entity_names_str.split(GRAPH_FIELD_SEP):
             name = name.strip()
             if name and name in entity_lookup:
                 entity_names.append(name)
+            elif name and lightrag_logger:
+                lightrag_logger.debug(f"Entity '{name}' not found in lookup")
 
         if len(entity_names) < 2:
             if lightrag_logger:
-                lightrag_logger.debug(f"Not enough valid entity names found: {entity_names_str}")
+                lightrag_logger.debug(f"Not enough valid entities found: {entity_names}")
             return None
 
-        # Extract other fields
+        # Parse confidence score
         try:
             confidence_score = float(parts[1].strip())
         except ValueError:
             if lightrag_logger:
-                lightrag_logger.debug(f"Invalid confidence score: {parts[1].strip()}")
+                lightrag_logger.warning(f"Invalid confidence score: {parts[1]}")
             return None
 
+        # Check confidence threshold
+        if confidence_score < confidence_threshold:
+            if lightrag_logger:
+                lightrag_logger.debug(f"Confidence {confidence_score} below threshold {confidence_threshold}")
+            return None
+
+        # Extract other fields
         merge_reason = parts[2].strip()
         suggested_name = parts[3].strip()
         suggested_type = parts[4].strip()
         suggested_description = parts[5].strip()
 
-        # Filter low confidence suggestions
-        if confidence_score < confidence_threshold:
-            if lightrag_logger:
-                lightrag_logger.debug(f"Confidence score {confidence_score} below threshold {confidence_threshold}")
-            return None
+        # Clean up any remaining quotes from description
+        if suggested_description.startswith('"') and suggested_description.endswith('"'):
+            suggested_description = suggested_description[1:-1]
 
-        # Build suggestion
-        suggestion_entities = []
-        for name in entity_names:
-            entity = entity_lookup[name]
-            suggestion_entities.append(entity)
-
-        # Create suggested target entity as GraphNodeData
-        suggested_target_entity = GraphNodeData(
-            entity_id=suggested_name,
-            entity_name=suggested_name,
-            entity_type=suggested_type,
-            description=suggested_description,
-        )
+        # Build entities list
+        entities = [entity_lookup[name] for name in entity_names]
 
         if lightrag_logger:
             lightrag_logger.debug(
                 f"Successfully parsed suggestion: {entity_names} -> {suggested_name} (confidence: {confidence_score})"
             )
 
+        # Create suggested target entity as GraphNodeData object
+        suggested_target_entity = GraphNodeData(
+            entity_id=suggested_name,  # Use suggested name as entity_id
+            entity_name=suggested_name,
+            entity_type=suggested_type,
+            description=suggested_description,
+        )
+
         return MergeSuggestion(
-            entities=suggestion_entities,
+            entities=entities,
             confidence_score=confidence_score,
             merge_reason=merge_reason,
             suggested_target_entity=suggested_target_entity,
         )
 
-    except (ValueError, IndexError) as e:
+    except Exception as e:
         if lightrag_logger:
-            lightrag_logger.debug(f"Failed to parse merge record: {record[:100]}... - {e}")
+            lightrag_logger.warning(f"Failed to parse merge record: {e}")
+            lightrag_logger.debug(f"Record content: {record}")
         return None
 
 
@@ -2470,6 +2476,10 @@ def filter_and_deduplicate_suggestions(
     Returns:
         Filtered and deduplicated list of suggestions
     """
+    # Handle edge case where max_suggestions is 0
+    if max_suggestions <= 0:
+        return []
+
     # Sort by confidence score (highest first)
     suggestions.sort(key=lambda x: x.confidence_score, reverse=True)
 

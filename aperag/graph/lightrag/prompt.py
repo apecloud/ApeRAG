@@ -408,7 +408,7 @@ For each group of entities that should be merged, return:
 ("merge_group"{tuple_delimiter}<entity_names_list>{tuple_delimiter}<confidence_score>{tuple_delimiter}<merge_reason>{tuple_delimiter}<suggested_target_name>{tuple_delimiter}<suggested_target_type>{tuple_delimiter}<suggested_target_description>)
 
 Where:
-- entity_names_list: Comma-separated list of entity names to be merged (e.g., "Entity A,Entity B,Entity C")
+- entity_names_list: List of entity names to be merged separated by {graph_field_sep} (e.g., "Entity A{graph_field_sep}Entity B{graph_field_sep}Entity C")
 - confidence_score: Confidence level (0.0-1.0) for this merge suggestion
 - merge_reason: Brief explanation why these entities should be merged
 - suggested_target_name: Recommended name for the merged entity
@@ -453,9 +453,61 @@ Entity 5:
 - Description: Google LLC is an American multinational technology company
 - Degree: 20
 
+Entity 6:
+- Name: John Smith
+- Type: PERSON
+- Description: John Smith is a software engineer at Apple Inc
+- Degree: 5
+
+Entity 7:
+- Name: J. Smith
+- Type: PERSON
+- Description: Software engineer working on iOS development at Apple
+- Degree: 3
+
+Entity 8:
+- Name: 中国生态农业学报
+- Type: ORGANIZATION
+- Description: 中国生态农业学报是一份学术期刊，发表关于生态农业的研究文章
+- Degree: 8
+
+Entity 9:
+- Name: Chinese Journal of Eco-Agriculture
+- Type: ORGANIZATION
+- Description: An academic journal publishing research articles on ecological agriculture
+- Degree: 6
+
+Entity 10:
+- Name: Tesla Inc
+- Type: ORGANIZATION
+- Description: Tesla Inc. is an American electric vehicle and clean energy company
+- Degree: 12
+
+Entity 11:
+- Name: Tesla Motors
+- Type: ORGANIZATION
+- Description: Electric car manufacturer founded by Elon Musk
+- Degree: 7
+
+Entity 12:
+- Name: New York City
+- Type: LOCATION
+- Description: New York City is the most populous city in the United States
+- Degree: 25
+
+Entity 13:
+- Name: NYC
+- Type: LOCATION
+- Description: The largest city in the US, known for its diverse culture and economy
+- Degree: 18
+
 Output:
-("merge_group"{tuple_delimiter}Apple Inc,Apple{tuple_delimiter}0.92{tuple_delimiter}Both entities refer to the same technology company - Apple Inc is the official name while Apple is the commonly used short form{tuple_delimiter}Apple Inc{tuple_delimiter}ORGANIZATION{tuple_delimiter}Apple Inc. is an American multinational technology company known for iPhone, Mac, and other innovative products){record_delimiter}
-("merge_group"{tuple_delimiter}Microsoft Corporation,Microsoft{tuple_delimiter}0.89{tuple_delimiter}Both entities refer to the same software company - Microsoft Corporation is the official name while Microsoft is the abbreviated form{tuple_delimiter}Microsoft Corporation{tuple_delimiter}ORGANIZATION{tuple_delimiter}Microsoft Corporation is an American multinational technology company that develops Windows, Office, and cloud services){completion_delimiter}
+("merge_group"{tuple_delimiter}Apple Inc{graph_field_sep}Apple{tuple_delimiter}0.92{tuple_delimiter}Both entities refer to the same technology company - Apple Inc is the official name while Apple is the commonly used short form{tuple_delimiter}Apple Inc{tuple_delimiter}ORGANIZATION{tuple_delimiter}Apple Inc. is an American multinational technology company known for iPhone, Mac, and other innovative products){record_delimiter}
+("merge_group"{tuple_delimiter}Microsoft Corporation{graph_field_sep}Microsoft{tuple_delimiter}0.89{tuple_delimiter}Both entities refer to the same software company - Microsoft Corporation is the official name while Microsoft is the abbreviated form{tuple_delimiter}Microsoft Corporation{tuple_delimiter}ORGANIZATION{tuple_delimiter}Microsoft Corporation is an American multinational technology company that develops Windows, Office, and cloud services){record_delimiter}
+("merge_group"{tuple_delimiter}John Smith{graph_field_sep}J. Smith{tuple_delimiter}0.85{tuple_delimiter}Both entities refer to the same person - John Smith working as a software engineer at Apple, with J. Smith being the abbreviated name form{tuple_delimiter}John Smith{tuple_delimiter}PERSON{tuple_delimiter}John Smith is a software engineer at Apple Inc specializing in iOS development){record_delimiter}
+("merge_group"{tuple_delimiter}中国生态农业学报{graph_field_sep}Chinese Journal of Eco-Agriculture{tuple_delimiter}0.95{tuple_delimiter}These entities are the Chinese and English names for the same academic journal. The descriptions confirm they refer to the same publication and content{tuple_delimiter}中国生态农业学报{tuple_delimiter}ORGANIZATION{tuple_delimiter}《中国生态农业学报》(Chinese Journal of Eco-Agriculture)是一份学术期刊，发表关于生态农业的研究文章){record_delimiter}
+("merge_group"{tuple_delimiter}Tesla Inc{graph_field_sep}Tesla Motors{tuple_delimiter}0.88{tuple_delimiter}Both entities refer to the same electric vehicle company - Tesla Inc is the current official name while Tesla Motors was the former name{tuple_delimiter}Tesla Inc{tuple_delimiter}ORGANIZATION{tuple_delimiter}Tesla Inc. is an American electric vehicle and clean energy company founded by Elon Musk){record_delimiter}
+("merge_group"{tuple_delimiter}New York City{graph_field_sep}NYC{tuple_delimiter}0.91{tuple_delimiter}Both entities refer to the same city - New York City is the full official name while NYC is the widely used abbreviation{tuple_delimiter}New York City{tuple_delimiter}LOCATION{tuple_delimiter}New York City is the most populous city in the United States, known for its diverse culture, economy, and iconic landmarks){completion_delimiter}
 
 #############################
 ---Real Data---
