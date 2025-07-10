@@ -316,9 +316,9 @@ async def _merge_nodes_then_upsert(
 
     # 5. Handle description summarization if there are multiple fragments
     if num_fragment > 1:
-        # 5.1. Check if LLM summarization is needed based on fragment count threshold
+        # 5.1. Check if LLM summarization threshold is met
         if num_fragment >= force_llm_summary_on_merge:
-            # 5.1.1. Log LLM summarization decision
+            # 5.1.1. Log that LLM summarization was deliberately skipped by design
             lightrag_logger.log_entity_merge(entity_name, num_fragment, num_new_fragment, is_llm_summary=False)
 
             # 5.1.2. Skip LLM summarization to save cost and time
@@ -2419,7 +2419,6 @@ def parse_single_merge_record(
             entity_id=suggested_name,  # Use suggested name as entity_id
             entity_name=suggested_name,
             entity_type=suggested_type,
-            description="",  # Empty description since we're not generating it
         )
 
         return MergeSuggestion(

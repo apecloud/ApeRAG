@@ -3783,10 +3783,6 @@ components:
           description: Length of the merged description
           example: 512
           minimum: 0
-        used_llm_summary:
-          type: boolean
-          description: Whether LLM was used to summarize descriptions
-          example: true
       required:
         - status
         - message
@@ -3794,7 +3790,6 @@ components:
         - source_entities
         - redirected_edges
         - merged_description_length
-        - used_llm_summary
     mergeSuggestionsRequest:
       type: object
       description: Request for generating node merge suggestions
@@ -3869,14 +3864,9 @@ components:
           type: string
           description: Suggested entity type after merge
           example: ORGANIZATION
-        description:
-          type: string
-          description: Suggested description after merge
-          example: 墨香居是这条老巷子里唯一的旧书店，经营各种书籍
       required:
         - entity_name
         - entity_type
-        - description
     mergeSuggestion:
       type: object
       description: Node merge suggestion

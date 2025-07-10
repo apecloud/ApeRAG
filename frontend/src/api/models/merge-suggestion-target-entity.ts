@@ -32,11 +32,5 @@ export interface MergeSuggestionTargetEntity {
      * @memberof MergeSuggestionTargetEntity
      */
     'entity_type': string;
-    /**
-     * Suggested description after merge
-     * @type {string}
-     * @memberof MergeSuggestionTargetEntity
-     */
-    'description': string;
 }
 
