@@ -415,53 +415,195 @@ def get_content_summary(content: str, max_length: int = 250) -> str:
 
 
 def normalize_extracted_info(name: str, is_entity=False) -> str:
-    """Normalize entity/relation names and description with the following rules:
-    1. Remove spaces between Chinese characters
-    2. Remove spaces between Chinese characters and English letters/numbers
-    3. Preserve spaces within English text and numbers
-    4. Replace Chinese parentheses with English parentheses
-    5. Replace Chinese dash with English dash
-    6. Remove English quotation marks from the beginning and end of the text
-    7. Remove English quotation marks in and around chinese
-    8. Remove Chinese quotation marks
+    """Normalize entity/relation names and description with optimized processing order.
+
+    Processing steps:
+    1. Input validation and cleanup
+    2. Chinese punctuation normalization
+    3. Quote removal and cleanup
+    4. Space normalization between Chinese/English
+    5. Entity-specific processing (title case, etc.)
 
     Args:
         name: Entity name to normalize
+        is_entity: Whether this is an entity name (affects title case normalization)
 
     Returns:
         Normalized entity name
     """
-    # Replace Chinese parentheses with English parentheses
+    if not name or not isinstance(name, str):
+        return name
+
+    # Step 1: Early cleanup and validation
+    name = name.strip()
+    if not name:
+        return name
+
+    # Step 2: Chinese punctuation normalization
+    name = _normalize_chinese_punctuation(name)
+
+    # Step 3: Quote removal and cleanup
+    name = _remove_wrapping_quotes(name)
+    if is_entity:
+        name = _remove_entity_quotes(name)
+
+    # Step 4: Space normalization
+    name = _normalize_spaces(name)
+
+    # Step 5: Entity-specific processing
+    if is_entity:
+        name = _apply_smart_title_case(name)
+
+    return name
+
+
+def _normalize_chinese_punctuation(name: str) -> str:
+    """Normalize Chinese punctuation to English equivalents.
+
+    Args:
+        name: Input text
+
+    Returns:
+        Text with normalized punctuation
+    """
+    # Replace Chinese parentheses with English ones
     name = name.replace("（", "(").replace("）", ")")
-
-    # Replace Chinese dash with English dash
+    # Replace Chinese dashes with English dash
     name = name.replace("—", "-").replace("－", "-")
+    return name
 
-    # Use regex to remove spaces between Chinese characters
-    # Regex explanation:
-    # (?<=[\u4e00-\u9fa5]): Positive lookbehind for Chinese character
-    # \s+: One or more whitespace characters
-    # (?=[\u4e00-\u9fa5]): Positive lookahead for Chinese character
+
+def _remove_wrapping_quotes(name: str) -> str:
+    """Remove wrapping quotes from start and end of text.
+
+    Args:
+        name: Input text
+
+    Returns:
+        Text with wrapping quotes removed and trimmed
+    """
+    if len(name) >= 2:
+        if (name.startswith('"') and name.endswith('"')) or (name.startswith("'") and name.endswith("'")):
+            return name[1:-1].strip()
+    return name
+
+
+def _remove_entity_quotes(name: str) -> str:
+    """Remove various types of quotes for entity names.
+
+    Args:
+        name: Input entity name
+
+    Returns:
+        Entity name with quotes removed
+    """
+    # Remove Unicode Chinese quotation marks and other quote types
+    quote_chars = ["\u201c", "\u201d", "\u2018", "\u2019", "「", "」", "『", "』"]
+    for quote in quote_chars:
+        name = name.replace(quote, "")
+
+    # Remove English quotes adjacent to Chinese characters
+    name = re.sub(r"['\"]+(?=[\u4e00-\u9fa5])", "", name)
+    name = re.sub(r"(?<=[\u4e00-\u9fa5])['\"]+", "", name)
+
+    return name
+
+
+def _normalize_spaces(name: str) -> str:
+    """Normalize spaces between Chinese and English characters.
+
+    Args:
+        name: Input text
+
+    Returns:
+        Text with normalized spaces
+    """
+    # Remove spaces between Chinese characters
     name = re.sub(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])", "", name)
 
     # Remove spaces between Chinese and English/numbers/symbols
     name = re.sub(r"(?<=[\u4e00-\u9fa5])\s+(?=[a-zA-Z0-9\(\)\[\]@#$%!&\*\-=+_])", "", name)
     name = re.sub(r"(?<=[a-zA-Z0-9\(\)\[\]@#$%!&\*\-=+_])\s+(?=[\u4e00-\u9fa5])", "", name)
 
-    # Remove English quotation marks from the beginning and end
-    if len(name) >= 2 and name.startswith('"') and name.endswith('"'):
-        name = name[1:-1]
-    if len(name) >= 2 and name.startswith("'") and name.endswith("'"):
-        name = name[1:-1]
-
-    if is_entity:
-        # remove Chinese quotes
-        name = name.replace(""", "").replace(""", "").replace("'", "").replace("'", "")
-        # remove English queotes in and around chinese
-        name = re.sub(r"['\"]+(?=[\u4e00-\u9fa5])", "", name)
-        name = re.sub(r"(?<=[\u4e00-\u9fa5])['\"]+", "", name)
-
     return name
+
+
+def _apply_smart_title_case(name: str) -> str:
+    """Apply smart title case normalization for English entities.
+
+    Rules:
+    1. Only apply to text that appears to be English entity names
+    2. Preserve technical terms, URLs, emails, and code-like strings
+    3. Handle hyphenated words correctly
+    4. Preserve acronyms and abbreviations
+
+    Args:
+        name: Input name to potentially title-case
+
+    Returns:
+        Title-cased name if appropriate, otherwise original name
+    """
+    if not name:
+        return name
+
+    # Don't title-case if it contains Chinese characters
+    if re.search(r"[\u4e00-\u9fa5]", name):
+        return name
+
+    # Don't title-case technical/code-like patterns (enhanced coverage)
+    technical_patterns = [
+        r"[a-zA-Z]+://",  # URLs (http://, https://, ftp://)
+        r"\w+@\w+\.\w+",  # Email addresses
+        r"\w+\.\w+\.\w+",  # Domain-like patterns (x.y.z)
+        r"[a-zA-Z]+_[a-zA-Z_]+",  # Snake_case identifiers
+        r"[a-zA-Z]*[A-Z][a-z]+[A-Z]",  # CamelCase patterns
+        r"\w*[#\+\*%@\$]\w*",  # Technical symbols (C++, C#, etc.)
+        r"^\d+(\.\d+)*$",  # Version numbers (1.0, 2.1.3)
+        r"\[[^\]]*\]",  # Bracket notation
+        r"\{[^\}]*\}",  # Brace notation
+        r"[A-Z]:\\\\",  # Windows paths (C:\)
+        r"[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}",  # UUIDs
+        r"\w+\.(exe|dll|so|dylib|jar|war|zip|tar|gz)$",  # File extensions
+        r"[a-zA-Z0-9]+\.[a-zA-Z0-9]+\.[a-zA-Z0-9]+",  # Semantic versions (1.2.3)
+        r".*\.(com|org|net|edu|gov|mil|io)$",  # Domain suffixes
+        r"[A-Z]{2,}[0-9]+",  # Model numbers (GPT4, iPhone13)
+        r"\w+::\w+",  # Namespace notation (C++, PHP)
+        r"\/[a-zA-Z0-9_\/\-]+",  # Unix paths
+    ]
+
+    for pattern in technical_patterns:
+        if re.search(pattern, name):
+            return name
+
+    # Check if it's primarily English letters, numbers, spaces, hyphens, and basic punctuation
+    if not re.match(r"^[a-zA-Z0-9\s\-\(\)&.,'/]+$", name):
+        return name
+
+    # Apply title case normalization
+    words = name.split()
+    normalized_words = []
+
+    # Articles and prepositions that should be lowercase when not first
+    small_words = {"and", "or", "of", "the", "in", "on", "at", "to", "for", "with", "by", "a", "an"}
+
+    for i, word in enumerate(words):
+        # Preserve all-caps acronyms (short words or containing &)
+        if (len(word) <= 4 and word.isupper()) or ("&" in word and word.isupper()):
+            normalized_words.append(word)
+        # Handle hyphenated words
+        elif "-" in word:
+            hyphen_parts = word.split("-")
+            # For hyphenated words, capitalize all parts (don't apply small word rules within hyphens)
+            capitalized_parts = [part.capitalize() for part in hyphen_parts]
+            normalized_words.append("-".join(capitalized_parts))
+        # Handle small words (lowercase when not first)
+        elif word.lower() in small_words and i > 0:
+            normalized_words.append(word.lower())
+        # Regular title case
+        else:
+            normalized_words.append(word.capitalize())
+
+    return " ".join(normalized_words)
 
 
 def clean_text(text: str) -> str:

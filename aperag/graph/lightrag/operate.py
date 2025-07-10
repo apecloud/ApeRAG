@@ -2397,16 +2397,23 @@ def parse_single_merge_record(
         # Extract entity names from GRAPH_FIELD_SEP-separated list
         entity_names_str = parts[0].strip()
         entity_names = []
+        seen_names = set()  # Prevent duplicate entity names in the same suggestion
+
         for name in entity_names_str.split(GRAPH_FIELD_SEP):
             name = name.strip()
             if name and name in entity_lookup:
-                entity_names.append(name)
+                # Only add if we haven't seen this entity name before
+                if name not in seen_names:
+                    entity_names.append(name)
+                    seen_names.add(name)
+                elif lightrag_logger:
+                    lightrag_logger.debug(f"Skipping duplicate entity name '{name}' in merge suggestion")
             elif name and lightrag_logger:
                 lightrag_logger.debug(f"Entity '{name}' not found in lookup")
 
         if len(entity_names) < 2:
             if lightrag_logger:
-                lightrag_logger.debug(f"Not enough valid entities found: {entity_names}")
+                lightrag_logger.debug(f"Not enough unique valid entities found: {entity_names}")
             return None
 
         # Parse confidence score
