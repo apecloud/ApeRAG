@@ -29,5 +29,5 @@ def downgrade() -> None:
     # Note: PostgreSQL doesn't support removing enum values directly
     # This would require recreating the type and updating all references
     # For now, we'll just log a warning
-    print("WARNING: Cannot remove enum value 'graph' from auditresource. Manual cleanup required.")
+    print("WARNING: Cannot remove enum value 'index' from auditresource. Manual cleanup required.")
     pass 
