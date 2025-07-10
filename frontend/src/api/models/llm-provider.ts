@@ -27,6 +27,12 @@ export interface LlmProvider {
      */
     'name': string;
     /**
+     * User ID of the provider owner, \"public\" for system providers
+     * @type {string}
+     * @memberof LlmProvider
+     */
+    'user_id': string;
+    /**
      * Human-readable provider display name
      * @type {string}
      * @memberof LlmProvider

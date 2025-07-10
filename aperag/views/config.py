@@ -21,7 +21,7 @@ from aperag.schema.view_models import Auth, Auth0, Authing, Config, Logto
 router = APIRouter()
 
 
-@router.get("")
+@router.get("", tags=["config"])
 async def config_view() -> Config:
     auth = Auth(
         type=settings.auth_type,

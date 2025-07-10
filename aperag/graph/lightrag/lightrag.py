@@ -1125,6 +1125,406 @@ class LightRAG:
             self.lightrag_logger.error(f"Error while deleting document {doc_id}: {e}")
             raise
 
+    async def amerge_nodes(
+        self,
+        entity_ids: str | list[str],
+        target_entity_data: dict[str, Any] | None = None,
+        collection_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.
+
+        This function merges multiple entities by:
+        1. Determining target entity (auto-select by highest degree if not specified)
+        2. Combining descriptions using default merge strategy
+        3. Merging source_id, chunk_ids, and file_path information
+        4. Updating all relationships to point to the target node
+        5. Updating vector storage data
+        6. Removing the source nodes
+
+        Args:
+            entity_ids: Single entity ID or list of entity IDs to merge
+            target_entity_data: Optional target entity configuration including entity_name and other properties.
+                              If not specified or empty, auto-select entity with highest degree
+            collection_id: Optional collection ID for logging
+
+        Returns:
+            Dict with merge results including target entity info
+
+        Raises:
+            ValueError: If entities don't exist or invalid parameters
+        """
+        # Ensure entity_ids is a list
+        if isinstance(entity_ids, str):
+            entity_ids = [entity_ids]
+
+        if not entity_ids or len(entity_ids) < 1:
+            raise ValueError("At least one entity ID must be provided")
+
+        # If only one entity provided, return success (idempotent)
+        if len(entity_ids) == 1:
+            entity_id = entity_ids[0]
+            self.lightrag_logger.info(f"Single entity provided, returning success: {entity_id}")
+
+            # Get the entity data for response
+            node_data = await self.chunk_entity_relation_graph.get_node(entity_id)
+            if not node_data:
+                raise ValueError(f"Entity '{entity_id}' does not exist")
+
+            target_entity_response_data = {
+                "entity_name": entity_id,
+                "entity_type": node_data.get("entity_type", "UNKNOWN"),
+                "description": node_data.get("description", ""),
+                "source_id": node_data.get("source_id", ""),
+                "file_path": node_data.get("file_path", ""),
+            }
+
+            return {
+                "status": "success",
+                "message": "Single entity provided, no merge needed",
+                "target_entity_data": target_entity_response_data,
+                "source_entities": [],
+                "redirected_edges": 0,
+                "merged_description_length": len(node_data.get("description", "")),
+                "used_llm_summary": False,
+                "collection_id": collection_id,
+            }
+
+        # Handle target_entity_data
+        target_entity_data = {} if target_entity_data is None else target_entity_data.copy()
+
+        # Extract target entity name
+        target_entity_name = target_entity_data.get("entity_name")
+
+        self.lightrag_logger.info(f"Starting multi-node merge: {entity_ids} -> {target_entity_name or 'auto-select'}")
+
+        # Fixed merge strategy (no longer configurable)
+        default_strategy = {
+            "description": "concatenate",
+            "entity_type": "keep_first",
+            "source_id": "join_unique",
+            "file_path": "join_unique",
+        }
+
+        # Get all entities and check they exist
+        entities_data = {}
+        for entity_id in entity_ids:
+            node_data = await self.chunk_entity_relation_graph.get_node(entity_id)
+            if not node_data:
+                raise ValueError(f"Entity '{entity_id}' does not exist")
+            entities_data[entity_id] = node_data
+
+        # Determine target entity
+        if target_entity_name is None:
+            # Auto-select entity with highest degree (edge changes minimized)
+            degrees = await self.chunk_entity_relation_graph.node_degrees_batch(entity_ids)
+            target_entity_name = max(entity_ids, key=lambda x: degrees.get(x, 0))
+            self.lightrag_logger.info(
+                f"Auto-selected target entity: {target_entity_name} (degree: {degrees.get(target_entity_name, 0)})"
+            )
+        else:
+            # Ensure target entity is in the list or exists
+            if target_entity_name not in entity_ids:
+                target_exists = await self.chunk_entity_relation_graph.has_node(target_entity_name)
+                if target_exists:
+                    # Target entity exists but not in merge list, add its data
+                    target_data = await self.chunk_entity_relation_graph.get_node(target_entity_name)
+                    entities_data[target_entity_name] = target_data
+                    self.lightrag_logger.info(f"Target entity '{target_entity_name}' exists, merging into it")
+                else:
+                    self.lightrag_logger.info(f"Target entity '{target_entity_name}' will be created as new")
+
+        # Determine source entities (all entities except target)
+        source_entities = [eid for eid in entity_ids if eid != target_entity_name]
+
+        # Merge entity data using default strategy
+        merged_entity_data = self._merge_entity_attributes(list(entities_data.values()), default_strategy)
+
+        # For entity_type, use the target entity's type if it exists, otherwise use the merged result
+        if target_entity_name in entities_data:
+            target_entity_type = entities_data[target_entity_name].get("entity_type")
+            if target_entity_type:
+                merged_entity_data["entity_type"] = target_entity_type
+
+        # Apply target entity data overrides (from target_entity_data parameter)
+        for key, value in target_entity_data.items():
+            if key != "entity_name":  # Don't override entity_name in the data
+                merged_entity_data[key] = value
+
+        merged_entity_data["entity_id"] = target_entity_name
+
+        # Calculate description info for LLM summary decision
+        descriptions = [data.get("description", "") for data in entities_data.values() if data.get("description")]
+        merged_description = GRAPH_FIELD_SEP.join(descriptions)
+        num_fragments = len(descriptions)
+        used_llm_summary = False
+
+        # Check if we need LLM summarization
+        if num_fragments > 1 and num_fragments >= self.force_llm_summary_on_merge:
+            self.lightrag_logger.info(f"Using LLM to summarize descriptions: {num_fragments} fragments")
+            from .operate import _handle_entity_relation_summary
+
+            merged_description = await _handle_entity_relation_summary(
+                target_entity_name,
+                merged_description,
+                self.llm_model_func,
+                self.tokenizer,
+                self.llm_model_max_token_size,
+                self.summary_to_max_tokens,
+                self.addon_params.get("language", "English"),
+                self.lightrag_logger,
+            )
+            merged_entity_data["description"] = merged_description
+            used_llm_summary = True
+
+        # Create/update target entity
+        await self.chunk_entity_relation_graph.upsert_node(target_entity_name, merged_entity_data)
+        self.lightrag_logger.debug(f"Updated target entity {target_entity_name} with merged data")
+
+        # Process relationships
+        all_relations = []
+        relations_to_delete_vdb = []
+
+        for entity_id in entity_ids:
+            if entity_id == target_entity_name:
+                continue  # Skip target entity to avoid self-processing
+
+            source_edges = await self.chunk_entity_relation_graph.get_node_edges(entity_id)
+            if source_edges:
+                for src, tgt in source_edges:
+                    edge_data = await self.chunk_entity_relation_graph.get_edge(src, tgt)
+                    if edge_data:
+                        all_relations.append((src, tgt, edge_data))
+                        # Mark old relations for deletion from vector db
+                        relations_to_delete_vdb.extend(
+                            [
+                                compute_mdhash_id(src + tgt, prefix="rel-", workspace=self.workspace),
+                                compute_mdhash_id(tgt + src, prefix="rel-", workspace=self.workspace),
+                            ]
+                        )
+
+        # Redirect relationships to target entity
+        relation_updates = {}  # Track relationships that need to be merged
+        redirected_edges = 0
+
+        for src, tgt, edge_data in all_relations:
+            new_src = target_entity_name if src in entity_ids else src
+            new_tgt = target_entity_name if tgt in entity_ids else tgt
+
+            # Skip self-loops
+            if new_src == new_tgt:
+                self.lightrag_logger.debug(f"Skipping self-loop edge: {src} -> {tgt}")
+                continue
+
+            # Check for duplicate relationships and merge them
+            relation_key = tuple(sorted([new_src, new_tgt]))  # Undirected
+            if relation_key in relation_updates:
+                # Merge relationship data using default strategy
+                existing_data = relation_updates[relation_key]["data"]
+                merged_relation = self._merge_relation_attributes(
+                    [existing_data, edge_data],
+                    {
+                        "description": "concatenate",
+                        "keywords": "join_unique",
+                        "source_id": "join_unique",
+                        "file_path": "join_unique",
+                        "weight": "max",
+                    },
+                )
+                relation_updates[relation_key]["data"] = merged_relation
+                self.lightrag_logger.debug(f"Merged duplicate relationship: {new_src} <-> {new_tgt}")
+            else:
+                relation_updates[relation_key] = {
+                    "src": new_src,
+                    "tgt": new_tgt,
+                    "data": edge_data.copy(),
+                }
+
+            redirected_edges += 1
+
+        # Apply relationship updates to graph
+        for rel_data in relation_updates.values():
+            await self.chunk_entity_relation_graph.upsert_edge(rel_data["src"], rel_data["tgt"], rel_data["data"])
+            self.lightrag_logger.debug(f"Updated relationship: {rel_data['src']} <-> {rel_data['tgt']}")
+
+        # Update vector storage for entities
+        if self.entities_vdb:
+            # Delete source entities from vector storage
+            for entity_id in source_entities:
+                await self.entities_vdb.delete_entity(entity_id)
+                self.lightrag_logger.debug(f"Deleted source entity {entity_id} from vector storage")
+
+            # Update target entity in vector storage
+            entity_content = f"{target_entity_name}\n{merged_entity_data.get('description', '')}"
+            entity_id = compute_mdhash_id(target_entity_name, prefix="ent-", workspace=self.workspace)
+
+            entity_vdb_data = {
+                entity_id: {
+                    "entity_name": target_entity_name,
+                    "entity_type": merged_entity_data.get("entity_type", "UNKNOWN"),
+                    "content": entity_content,
+                    "source_id": merged_entity_data.get("source_id", ""),
+                    "file_path": merged_entity_data.get("file_path", ""),
+                }
+            }
+            await self.entities_vdb.upsert(entity_vdb_data)
+            self.lightrag_logger.debug(f"Updated target entity {target_entity_name} in vector storage")
+
+        # Update vector storage for relationships
+        if self.relationships_vdb:
+            # Delete old relationship records
+            if relations_to_delete_vdb:
+                await self.relationships_vdb.delete(relations_to_delete_vdb)
+                self.lightrag_logger.debug(
+                    f"Deleted {len(relations_to_delete_vdb)} old relationship records from vector storage"
+                )
+
+            # Create new relationship records
+            new_rel_data = {}
+            for rel_data in relation_updates.values():
+                src, tgt = rel_data["src"], rel_data["tgt"]
+                edge_data = rel_data["data"]
+
+                rel_content = f"{src}\t{tgt}\n{edge_data.get('keywords', '')}\n{edge_data.get('description', '')}"
+                rel_id = compute_mdhash_id(src + tgt, prefix="rel-", workspace=self.workspace)
+
+                new_rel_data[rel_id] = {
+                    "src_id": src,
+                    "tgt_id": tgt,
+                    "content": rel_content,
+                    "source_id": edge_data.get("source_id", ""),
+                    "file_path": edge_data.get("file_path", ""),
+                    "keywords": edge_data.get("keywords", ""),
+                    "description": edge_data.get("description", ""),
+                    "weight": edge_data.get("weight", 1.0),
+                }
+
+            if new_rel_data:
+                await self.relationships_vdb.upsert(new_rel_data)
+                self.lightrag_logger.debug(f"Updated {len(new_rel_data)} relationship records in vector storage")
+
+        # Delete source entities from graph storage
+        for entity_id in source_entities:
+            await self.chunk_entity_relation_graph.delete_node(entity_id)
+            self.lightrag_logger.debug(f"Deleted source entity {entity_id} from graph storage")
+
+        self.lightrag_logger.info(
+            f"Multi-node merge completed: {source_entities} -> {target_entity_name}, redirected {redirected_edges} edges"
+        )
+
+        # Prepare complete target entity data for response
+        target_entity_response_data = {
+            "entity_name": target_entity_name,
+            "entity_type": merged_entity_data.get("entity_type", "UNKNOWN"),
+            "description": merged_entity_data.get("description", ""),
+            "source_id": merged_entity_data.get("source_id", ""),
+            "file_path": merged_entity_data.get("file_path", ""),
+        }
+
+        return {
+            "status": "success",
+            "message": f"Successfully merged {len(source_entities)} entities into {target_entity_name}",
+            "target_entity_data": target_entity_response_data,
+            "source_entities": source_entities,
+            "redirected_edges": redirected_edges,
+            "merged_description_length": len(merged_entity_data.get("description", "")),
+            "used_llm_summary": used_llm_summary,
+            "collection_id": collection_id,
+        }
+
+    def _merge_entity_attributes(
+        self, entity_data_list: list[dict[str, Any]], merge_strategy: dict[str, str]
+    ) -> dict[str, Any]:
+        """Merge attributes from multiple entities using specified strategy."""
+        merged_data = {}
+
+        # Collect all possible keys
+        all_keys = set()
+        for data in entity_data_list:
+            all_keys.update(data.keys())
+
+        # Merge values for each key
+        for key in all_keys:
+            # Get all non-empty values for this key
+            values = [data.get(key) for data in entity_data_list if data.get(key)]
+
+            if not values:
+                continue
+
+            # Apply merge strategy
+            strategy = merge_strategy.get(key, "keep_first")
+
+            if strategy == "concatenate":
+                merged_data[key] = GRAPH_FIELD_SEP.join(str(v) for v in values)
+            elif strategy == "keep_first":
+                merged_data[key] = values[0]
+            elif strategy == "keep_last":
+                merged_data[key] = values[-1]
+            elif strategy == "join_unique":
+                # Handle fields separated by GRAPH_FIELD_SEP
+                unique_items = set()
+                for value in values:
+                    if value:
+                        items = str(value).split(GRAPH_FIELD_SEP)
+                        unique_items.update(item.strip() for item in items if item.strip())
+                merged_data[key] = GRAPH_FIELD_SEP.join(sorted(unique_items))
+            else:
+                # Default: keep first
+                merged_data[key] = values[0]
+
+        return merged_data
+
+    def _merge_relation_attributes(
+        self, relation_data_list: list[dict[str, Any]], merge_strategy: dict[str, str]
+    ) -> dict[str, Any]:
+        """Merge attributes from multiple relationships using specified strategy."""
+        merged_data = {}
+
+        # Collect all possible keys
+        all_keys = set()
+        for data in relation_data_list:
+            all_keys.update(data.keys())
+
+        # Merge values for each key
+        for key in all_keys:
+            # Get all non-None values for this key
+            values = [data.get(key) for data in relation_data_list if data.get(key) is not None]
+
+            if not values:
+                continue
+
+            # Apply merge strategy
+            strategy = merge_strategy.get(key, "keep_first")
+
+            if strategy == "concatenate":
+                merged_data[key] = GRAPH_FIELD_SEP.join(str(v) for v in values)
+            elif strategy == "keep_first":
+                merged_data[key] = values[0]
+            elif strategy == "keep_last":
+                merged_data[key] = values[-1]
+            elif strategy == "join_unique":
+                # Handle fields separated by GRAPH_FIELD_SEP or commas
+                unique_items = set()
+                for value in values:
+                    if value:
+                        # Try both separators
+                        items = str(value).replace(",", GRAPH_FIELD_SEP).split(GRAPH_FIELD_SEP)
+                        unique_items.update(item.strip() for item in items if item.strip())
+                merged_data[key] = (
+                    ",".join(sorted(unique_items)) if key == "keywords" else GRAPH_FIELD_SEP.join(sorted(unique_items))
+                )
+            elif strategy == "max":
+                # For numeric fields like weight
+                try:
+                    merged_data[key] = max(float(v) for v in values)
+                except (ValueError, TypeError):
+                    merged_data[key] = values[0]
+            else:
+                # Default: keep first
+                merged_data[key] = values[0]
+
+        return merged_data
+
     async def export_for_kg_eval(
         self,
         sample_size: int = 100000,

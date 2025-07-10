@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.post("/embeddings", response_model=EmbeddingResponse)
+@router.post("/embeddings", response_model=EmbeddingResponse, tags=["llm"])
 @audit(resource_type="llm", api_name="CreateEmbeddings")
 async def create_embeddings(http_request: Request, request: EmbeddingRequest, user: User = Depends(current_user)):
     """
@@ -158,7 +158,7 @@ async def _get_provider_info(provider: str, model: str, user_id: str, api_type: 
         ) from e
 
 
-@router.post("/rerank", response_model=RerankResponse)
+@router.post("/rerank", response_model=RerankResponse, tags=["llm"])
 @audit(resource_type="llm", api_name="CreateRerank")
 async def create_rerank(http_request: Request, request: RerankRequest, user: User = Depends(current_user)):
     """

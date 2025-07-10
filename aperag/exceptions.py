@@ -71,8 +71,10 @@ class ErrorCode(Enum):
     LLM_PROVIDER_ALREADY_EXISTS = ("LLM_PROVIDER_ALREADY_EXISTS", 1801, HTTPStatus.CONFLICT)
     LLM_MODEL_NOT_FOUND = ("LLM_MODEL_NOT_FOUND", 1802, HTTPStatus.NOT_FOUND)
 
+    # Graph errors (1900-1999)
+    GRAPH_SERVICE_ERROR = ("GRAPH_SERVICE_ERROR", 1901, HTTPStatus.INTERNAL_SERVER_ERROR)
+
     # Future resources can use ranges:
-    # 1900-1999: Reserved for future resource type 1
     # 2000-2099: Reserved for future resource type 2
     # ... and so on
 
@@ -161,6 +163,13 @@ class ChatNotFoundException(BusinessException):
 
     def __init__(self, chat_id: str):
         super().__init__(ErrorCode.CHAT_NOT_FOUND, f"Chat not found: {chat_id}")
+
+
+class GraphServiceError(BusinessException):
+    """Graph service operation error"""
+
+    def __init__(self, message: str):
+        super().__init__(ErrorCode.GRAPH_SERVICE_ERROR, message)
 
 
 class InvalidParameterException(BusinessException):

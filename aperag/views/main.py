@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/prompt-templates")
+@router.get("/prompt-templates", tags=["templates"])
 async def list_prompt_templates_view(
     request: Request, user: User = Depends(current_user)
 ) -> view_models.PromptTemplateList:
@@ -56,7 +56,7 @@ async def list_prompt_templates_view(
     return list_prompt_templates(language)
 
 
-@router.post("/collections")
+@router.post("/collections", tags=["collections"])
 @audit(resource_type="collection", api_name="CreateCollection")
 async def create_collection_view(
     request: Request,
@@ -66,19 +66,19 @@ async def create_collection_view(
     return await collection_service.create_collection(str(user.id), collection)
 
 
-@router.get("/collections")
+@router.get("/collections", tags=["collections"])
 async def list_collections_view(request: Request, user: User = Depends(current_user)) -> view_models.CollectionList:
     return await collection_service.list_collections(str(user.id))
 
 
-@router.get("/collections/{collection_id}")
+@router.get("/collections/{collection_id}", tags=["collections"])
 async def get_collection_view(
     request: Request, collection_id: str, user: User = Depends(current_user)
 ) -> view_models.Collection:
     return await collection_service.get_collection(str(user.id), collection_id)
 
 
-@router.put("/collections/{collection_id}")
+@router.put("/collections/{collection_id}", tags=["collections"])
 @audit(resource_type="collection", api_name="UpdateCollection")
 async def update_collection_view(
     request: Request,
@@ -89,7 +89,7 @@ async def update_collection_view(
     return await collection_service.update_collection(str(user.id), collection_id, collection)
 
 
-@router.delete("/collections/{collection_id}")
+@router.delete("/collections/{collection_id}", tags=["collections"])
 @audit(resource_type="collection", api_name="DeleteCollection")
 async def delete_collection_view(
     request: Request, collection_id: str, user: User = Depends(current_user)
@@ -97,7 +97,7 @@ async def delete_collection_view(
     return await collection_service.delete_collection(str(user.id), collection_id)
 
 
-@router.post("/collections/test-mineru-token")
+@router.post("/collections/test-mineru-token", tags=["collections"])
 async def test_mineru_token_view(
     request: Request,
     data: dict = Body(...),
@@ -109,7 +109,7 @@ async def test_mineru_token_view(
     return await collection_service.test_mineru_token(token)
 
 
-@router.post("/collections/{collection_id}/documents")
+@router.post("/collections/{collection_id}/documents", tags=["documents"])
 @audit(resource_type="document", api_name="CreateDocuments")
 async def create_documents_view(
     request: Request,
@@ -120,14 +120,14 @@ async def create_documents_view(
     return await document_service.create_documents(str(user.id), collection_id, files)
 
 
-@router.get("/collections/{collection_id}/documents")
+@router.get("/collections/{collection_id}/documents", tags=["documents"])
 async def list_documents_view(
     request: Request, collection_id: str, user: User = Depends(current_user)
 ) -> view_models.DocumentList:
     return await document_service.list_documents(str(user.id), collection_id)
 
 
-@router.get("/collections/{collection_id}/documents/{document_id}")
+@router.get("/collections/{collection_id}/documents/{document_id}", tags=["documents"])
 async def get_document_view(
     request: Request,
     collection_id: str,
@@ -137,7 +137,7 @@ async def get_document_view(
     return await document_service.get_document(str(user.id), collection_id, document_id)
 
 
-@router.delete("/collections/{collection_id}/documents/{document_id}")
+@router.delete("/collections/{collection_id}/documents/{document_id}", tags=["documents"])
 @audit(resource_type="document", api_name="DeleteDocument")
 async def delete_document_view(
     request: Request,
@@ -148,7 +148,7 @@ async def delete_document_view(
     return await document_service.delete_document(str(user.id), collection_id, document_id)
 
 
-@router.delete("/collections/{collection_id}/documents")
+@router.delete("/collections/{collection_id}/documents", tags=["documents"])
 @audit(resource_type="document", api_name="DeleteDocuments")
 async def delete_documents_view(
     request: Request,
@@ -159,7 +159,11 @@ async def delete_documents_view(
     return await document_service.delete_documents(str(user.id), collection_id, document_ids)
 
 
-@router.get("/collections/{collection_id}/documents/{document_id}/preview", operation_id="get_document_preview")
+@router.get(
+    "/collections/{collection_id}/documents/{document_id}/preview",
+    tags=["documents"],
+    operation_id="get_document_preview",
+)
 async def get_document_preview(
     collection_id: str,
     document_id: str,
@@ -168,7 +172,11 @@ async def get_document_preview(
     return await document_service.get_document_preview(user.id, collection_id, document_id)
 
 
-@router.get("/collections/{collection_id}/documents/{document_id}/object", operation_id="get_document_object")
+@router.get(
+    "/collections/{collection_id}/documents/{document_id}/object",
+    tags=["documents"],
+    operation_id="get_document_object",
+)
 async def get_document_object(
     collection_id: str,
     document_id: str,
@@ -178,7 +186,7 @@ async def get_document_object(
     return await document_service.get_document_object(user.id, collection_id, document_id, path)
 
 
-@router.post("/collections/{collection_id}/documents/{document_id}/rebuild_indexes")
+@router.post("/collections/{collection_id}/documents/{document_id}/rebuild_indexes", tags=["documents"])
 @audit(resource_type="document", api_name="RebuildDocumentIndexes")
 async def rebuild_document_indexes_view(
     request: Request,
@@ -193,25 +201,25 @@ async def rebuild_document_indexes_view(
     )
 
 
-@router.post("/bots/{bot_id}/chats")
+@router.post("/bots/{bot_id}/chats", tags=["chats"])
 @audit(resource_type="chat", api_name="CreateChat")
 async def create_chat_view(request: Request, bot_id: str, user: User = Depends(current_user)) -> view_models.Chat:
     return await chat_service_global.create_chat(str(user.id), bot_id)
 
 
-@router.get("/bots/{bot_id}/chats")
+@router.get("/bots/{bot_id}/chats", tags=["chats"])
 async def list_chats_view(request: Request, bot_id: str, user: User = Depends(current_user)) -> view_models.ChatList:
     return await chat_service_global.list_chats(str(user.id), bot_id)
 
 
-@router.get("/bots/{bot_id}/chats/{chat_id}")
+@router.get("/bots/{bot_id}/chats/{chat_id}", tags=["chats"])
 async def get_chat_view(
     request: Request, bot_id: str, chat_id: str, user: User = Depends(current_user)
 ) -> view_models.ChatDetails:
     return await chat_service_global.get_chat(str(user.id), bot_id, chat_id)
 
 
-@router.put("/bots/{bot_id}/chats/{chat_id}")
+@router.put("/bots/{bot_id}/chats/{chat_id}", tags=["chats"])
 @audit(resource_type="chat", api_name="UpdateChat")
 async def update_chat_view(
     request: Request,
@@ -223,7 +231,7 @@ async def update_chat_view(
     return await chat_service_global.update_chat(str(user.id), bot_id, chat_id, chat_in)
 
 
-@router.post("/bots/{bot_id}/chats/{chat_id}/messages/{message_id}")
+@router.post("/bots/{bot_id}/chats/{chat_id}/messages/{message_id}", tags=["chats"])
 @audit(resource_type="message", api_name="FeedbackMessage")
 async def feedback_message_view(
     request: Request,
@@ -238,14 +246,14 @@ async def feedback_message_view(
     )
 
 
-@router.delete("/bots/{bot_id}/chats/{chat_id}")
+@router.delete("/bots/{bot_id}/chats/{chat_id}", tags=["chats"])
 @audit(resource_type="chat", api_name="DeleteChat")
 async def delete_chat_view(request: Request, bot_id: str, chat_id: str, user: User = Depends(current_user)):
     await chat_service_global.delete_chat(str(user.id), bot_id, chat_id)
     return Response(status_code=204)
 
 
-@router.post("/bots")
+@router.post("/bots", tags=["bots"])
 @audit(resource_type="bot", api_name="CreateBot")
 async def create_bot_view(
     request: Request,
@@ -255,17 +263,17 @@ async def create_bot_view(
     return await bot_service.create_bot(str(user.id), bot_in)
 
 
-@router.get("/bots")
+@router.get("/bots", tags=["bots"])
 async def list_bots_view(request: Request, user: User = Depends(current_user)) -> view_models.BotList:
     return await bot_service.list_bots(str(user.id))
 
 
-@router.get("/bots/{bot_id}")
+@router.get("/bots/{bot_id}", tags=["bots"])
 async def get_bot_view(request: Request, bot_id: str, user: User = Depends(current_user)) -> view_models.Bot:
     return await bot_service.get_bot(str(user.id), bot_id)
 
 
-@router.put("/bots/{bot_id}")
+@router.put("/bots/{bot_id}", tags=["bots"])
 @audit(resource_type="bot", api_name="UpdateBot")
 async def update_bot_view(
     request: Request,
@@ -276,14 +284,14 @@ async def update_bot_view(
     return await bot_service.update_bot(str(user.id), bot_id, bot_in)
 
 
-@router.delete("/bots/{bot_id}")
+@router.delete("/bots/{bot_id}", tags=["bots"])
 @audit(resource_type="bot", api_name="DeleteBot")
 async def delete_bot_view(request: Request, bot_id: str, user: User = Depends(current_user)):
     await bot_service.delete_bot(str(user.id), bot_id)
     return Response(status_code=204)
 
 
-@router.post("/available_models")
+@router.post("/available_models", tags=["llm_models"])
 async def get_available_models_view(
     request: Request,
     tag_filter_request: Optional[view_models.TagFilterRequest] = Body(None),
@@ -297,7 +305,7 @@ async def get_available_models_view(
     return await llm_available_model_service.get_available_models(str(user.id), tag_filter_request)
 
 
-@router.post("/chat/completions/frontend")
+@router.post("/chat/completions/frontend", tags=["chats"])
 async def frontend_chat_completions_view(request: Request, user: User = Depends(current_user)):
     body = await request.body()
     message = body.decode("utf-8")
@@ -309,7 +317,7 @@ async def frontend_chat_completions_view(request: Request, user: User = Depends(
     return await chat_service_global.frontend_chat_completions(str(user.id), message, stream, bot_id, chat_id, msg_id)
 
 
-@router.post("/collections/{collection_id}/searches")
+@router.post("/collections/{collection_id}/searches", tags=["search"])
 @audit(resource_type="search", api_name="CreateSearch")
 async def create_search_view(
     request: Request,
@@ -331,14 +339,14 @@ async def delete_search_view(
     return await collection_service.delete_search(str(user.id), collection_id, search_id)
 
 
-@router.get("/collections/{collection_id}/searches")
+@router.get("/collections/{collection_id}/searches", tags=["search"])
 async def list_searches_view(
     request: Request, collection_id: str, user: User = Depends(current_user)
 ) -> view_models.SearchResultList:
     return await collection_service.list_searches(str(user.id), collection_id)
 
 
-@router.post("/bots/{bot_id}/flow/debug")
+@router.post("/bots/{bot_id}/flow/debug", tags=["flows"])
 async def debug_flow_stream_view(
     request: Request,
     bot_id: str,
@@ -407,8 +415,54 @@ async def get_knowledge_graph_view(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@router.post("/collections/{collection_id}/graphs/nodes/merge", tags=["graph"])
+@audit(resource_type="index", api_name="MergeNodes")
+async def merge_nodes_view(
+    request: Request,
+    collection_id: str,
+    merge_request: view_models.NodeMergeRequest,
+    user: User = Depends(current_user),
+) -> view_models.NodeMergeResponse:
+    """Merge multiple graph nodes into one"""
+    from aperag.exceptions import CollectionNotFoundException, GraphServiceError
+    from aperag.service.graph_service import graph_service
+
+    try:
+        # Log merge operation
+        target_name = merge_request.target_entity_data.entity_name if merge_request.target_entity_data else None
+        entity_info = f"entities {merge_request.entity_ids} -> {target_name or 'auto-select'}"
+        logger.info(f"Merging nodes: {entity_info} in collection {collection_id}")
+
+        # Convert target_entity_data to dict if provided
+        target_entity_data_dict = None
+        if merge_request.target_entity_data:
+            target_entity_data_dict = merge_request.target_entity_data.model_dump(exclude_unset=True)
+
+        # Call graph service (it will handle collection access and validation)
+        result = await graph_service.merge_nodes(
+            user_id=str(user.id),
+            collection_id=collection_id,
+            entity_ids=merge_request.entity_ids,
+            target_entity_data=target_entity_data_dict,
+        )
+
+        return view_models.NodeMergeResponse(**result)
+
+    except CollectionNotFoundException:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except GraphServiceError as e:
+        # Handle business logic errors from Graph Service (e.g., entity not found, invalid merge operation)
+        logger.warning(f"Graph service error for collection {collection_id}: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error merging nodes in collection {collection_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
 # LLM Configuration API endpoints
-@router.get("/llm_configuration")
+@router.get("/llm_configuration", tags=["llm_providers"])
 async def get_llm_configuration_view(request: Request, user: User = Depends(current_user)):
     """Get complete LLM configuration including providers and models"""
     from aperag.db.models import Role
@@ -417,7 +471,7 @@ async def get_llm_configuration_view(request: Request, user: User = Depends(curr
     return await get_llm_configuration(str(user.id), is_admin)
 
 
-@router.post("/llm_providers")
+@router.post("/llm_providers", tags=["llm_providers"])
 @audit(resource_type="llm_provider", api_name="CreateLLMProvider")
 async def create_llm_provider_view(
     request: Request,
@@ -431,7 +485,7 @@ async def create_llm_provider_view(
     return await create_llm_provider(provider_data.model_dump(), str(user.id), is_admin)
 
 
-@router.get("/llm_providers/{provider_name}")
+@router.get("/llm_providers/{provider_name}", tags=["llm_providers"])
 async def get_llm_provider_view(request: Request, provider_name: str, user: User = Depends(current_user)):
     """Get a specific LLM provider"""
     from aperag.db.models import Role
@@ -440,7 +494,7 @@ async def get_llm_provider_view(request: Request, provider_name: str, user: User
     return await get_llm_provider(provider_name, str(user.id), is_admin)
 
 
-@router.put("/llm_providers/{provider_name}")
+@router.put("/llm_providers/{provider_name}", tags=["llm_providers"])
 @audit(resource_type="llm_provider", api_name="UpdateLLMProvider")
 async def update_llm_provider_view(
     request: Request,
@@ -455,7 +509,7 @@ async def update_llm_provider_view(
     return await update_llm_provider(provider_name, provider_data.model_dump(), str(user.id), is_admin)
 
 
-@router.delete("/llm_providers/{provider_name}")
+@router.delete("/llm_providers/{provider_name}", tags=["llm_providers"])
 @audit(resource_type="llm_provider", api_name="DeleteLLMProvider")
 async def delete_llm_provider_view(request: Request, provider_name: str, user: User = Depends(current_user)):
     """Delete an LLM provider"""
@@ -465,7 +519,7 @@ async def delete_llm_provider_view(request: Request, provider_name: str, user: U
     return await delete_llm_provider(provider_name, str(user.id), is_admin)
 
 
-@router.get("/llm_provider_models")
+@router.get("/llm_provider_models", tags=["llm_models"])
 async def list_llm_provider_models_view(
     request: Request, provider_name: str = None, user: User = Depends(current_user)
 ):
@@ -476,7 +530,7 @@ async def list_llm_provider_models_view(
     return await list_llm_provider_models(provider_name, str(user.id), is_admin)
 
 
-@router.get("/llm_providers/{provider_name}/models")
+@router.get("/llm_providers/{provider_name}/models", tags=["llm_models"])
 async def get_provider_models_view(request: Request, provider_name: str, user: User = Depends(current_user)):
     """Get all models for a specific provider"""
     from aperag.db.models import Role
@@ -485,7 +539,7 @@ async def get_provider_models_view(request: Request, provider_name: str, user: U
     return await list_llm_provider_models(provider_name=provider_name, user_id=str(user.id), is_admin=is_admin)
 
 
-@router.post("/llm_providers/{provider_name}/models")
+@router.post("/llm_providers/{provider_name}/models", tags=["llm_models"])
 @audit(resource_type="llm_provider_model", api_name="CreateProviderModel")
 async def create_provider_model_view(request: Request, provider_name: str, user: User = Depends(current_user)):
     """Create a new model for a specific provider"""
@@ -499,7 +553,7 @@ async def create_provider_model_view(request: Request, provider_name: str, user:
     return await create_llm_provider_model(provider_name, data, str(user.id), is_admin)
 
 
-@router.put("/llm_providers/{provider_name}/models/{api}/{model:path}")
+@router.put("/llm_providers/{provider_name}/models/{api}/{model:path}", tags=["llm_models"])
 @audit(resource_type="llm_provider_model", api_name="UpdateProviderModel")
 async def update_provider_model_view(
     request: Request,
@@ -519,7 +573,7 @@ async def update_provider_model_view(
     return await update_llm_provider_model(provider_name, api, model, data, str(user.id), is_admin)
 
 
-@router.delete("/llm_providers/{provider_name}/models/{api}/{model:path}")
+@router.delete("/llm_providers/{provider_name}/models/{api}/{model:path}", tags=["llm_models"])
 @audit(resource_type="llm_provider_model", api_name="DeleteProviderModel")
 async def delete_provider_model_view(
     request: Request,

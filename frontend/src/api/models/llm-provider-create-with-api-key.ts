@@ -74,5 +74,19 @@ export interface LlmProviderCreateWithApiKey {
      * @memberof LlmProviderCreateWithApiKey
      */
     'api_key'?: string;
+    /**
+     * Provider status - enable to create/update API key, disable to remove API key
+     * @type {string}
+     * @memberof LlmProviderCreateWithApiKey
+     */
+    'status'?: LlmProviderCreateWithApiKeyStatusEnum;
 }
+
+export const LlmProviderCreateWithApiKeyStatusEnum = {
+    enable: 'enable',
+    disable: 'disable'
+} as const;
+
+export type LlmProviderCreateWithApiKeyStatusEnum = typeof LlmProviderCreateWithApiKeyStatusEnum[keyof typeof LlmProviderCreateWithApiKeyStatusEnum];
+
 

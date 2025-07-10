@@ -695,6 +695,7 @@ class AuditResource(str, Enum):
     LLM = "llm"
     FLOW = "flow"
     SYSTEM = "system"
+    INDEX = "index"
 
 
 class AuditLog(Base):
