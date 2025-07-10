@@ -28,7 +28,7 @@ class Bot(BaseModel):
     id: Optional[str] = None
     title: Optional[str] = None
     description: Optional[str] = None
-    type: Optional[Literal['knowledge', 'common']] = None
+    type: Optional[Literal['knowledge', 'common', 'agent']] = None
     config: Optional[str] = None
     collection_ids: Optional[list[str]] = None
     created: Optional[datetime] = None
@@ -64,7 +64,7 @@ class FailResponse(BaseModel):
 class BotCreate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    type: Optional[Literal['knowledge', 'common']] = None
+    type: Optional[Literal['knowledge', 'common', 'agent']] = None
     config: Optional[str] = None
     collection_ids: Optional[list[str]] = None
 
@@ -73,7 +73,7 @@ class BotUpdate(BaseModel):
     id: Optional[str] = None
     title: Optional[str] = None
     description: Optional[str] = None
-    type: Optional[Literal['knowledge', 'common']] = None
+    type: Optional[Literal['knowledge', 'common', 'agent']] = None
     config: Optional[str] = None
     collection_ids: Optional[list[str]] = None
 
@@ -319,6 +319,22 @@ class ChatMessage(BaseModel):
     references: Optional[list[Reference]] = None
     urls: Optional[list[str]] = None
     feedback: Optional[Feedback] = None
+
+
+class AgentMessage(BaseModel):
+    """
+    Message format for agent-type bots with additional capabilities
+    """
+    query: str = Field(..., description='User query', example='Tell me about ApeRAG features')
+    collection_ids: Optional[list[str]] = Field(
+        None, description='List of collection IDs to search in', example=['col_123', 'col_456']
+    )
+    model_name: Optional[str] = Field(
+        None, description='LLM model to use for response generation', example='gpt-4o-mini'
+    )
+    web_search_enabled: Optional[bool] = Field(
+        False, description='Whether to enable web search', example=True
+    )
 
 
 class ChatDetails(BaseModel):

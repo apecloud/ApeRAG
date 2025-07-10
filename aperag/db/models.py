@@ -103,6 +103,7 @@ class BotStatus(str, Enum):
 class BotType(str, Enum):
     KNOWLEDGE = "knowledge"
     COMMON = "common"
+    AGENT = "agent"
 
 
 class Role(str, Enum):

@@ -68,7 +68,13 @@ export default () => {
         chatCreate: { title: '' },
       });
       setCreateVisible(false);
-      history.push(`/bots/${botRes.data.id}/flow`);
+      
+      // Route agent bots directly to chat, others to flow configuration
+      if (values.type === 'agent') {
+        history.push(`/bots/${botRes.data.id}/chats`);
+      } else {
+        history.push(`/bots/${botRes.data.id}/flow`);
+      }
     }
   };
 
@@ -242,6 +248,11 @@ export default () => {
                   label: <FormattedMessage id="bot.type_common" />,
                   icon: BOT_TYPE_ICON['common'],
                   value: 'common',
+                },
+                {
+                  label: <FormattedMessage id="bot.type_agent" />,
+                  icon: BOT_TYPE_ICON['agent'],
+                  value: 'agent',
                 },
               ]}
             />

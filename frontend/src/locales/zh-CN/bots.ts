@@ -9,6 +9,7 @@ export const bot = {
   'bot.type': '应用类型',
   'bot.type_knowledge': '知识库应用',
   'bot.type_common': '通用应用',
+  'bot.type_agent': '智能代理',
   'bot.colelction_required': '知识库为必填项',
   'bot.character': '应用角色',
   'bot.character_required': '请选择应用角色',

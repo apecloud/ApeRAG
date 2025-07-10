@@ -60,7 +60,8 @@ export interface BotUpdate {
 
 export const BotUpdateTypeEnum = {
     knowledge: 'knowledge',
-    common: 'common'
+    common: 'common',
+    agent: 'agent'
 } as const;
 
 export type BotUpdateTypeEnum = typeof BotUpdateTypeEnum[keyof typeof BotUpdateTypeEnum];

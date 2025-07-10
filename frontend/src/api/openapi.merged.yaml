@@ -2633,6 +2633,7 @@ components:
           enum:
             - knowledge
             - common
+            - agent
         config:
           type: string
         collection_ids:
@@ -2691,6 +2692,7 @@ components:
           enum:
             - knowledge
             - common
+            - agent
         config:
           type: string
         collection_ids:
@@ -2711,6 +2713,7 @@ components:
           enum:
             - knowledge
             - common
+            - agent
         config:
           type: string
         collection_ids:

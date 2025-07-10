@@ -35,6 +35,7 @@ import QQGmailIcon from '@/assets/collection_source/qq.png';
 
 import iconCommon from '@/assets/bots/common.svg';
 import iconKnowledge from '@/assets/bots/knowledge.svg';
+import iconAgent from '@/assets/bots/agent.svg';
 
 import {
   BotTypeEnum,
@@ -96,6 +97,7 @@ export const MODEL_PROVIDER_ICON: {
 export const BOT_TYPE_ICON: { [key in BotTypeEnum]: React.ReactNode } = {
   knowledge: iconKnowledge,
   common: iconCommon,
+  agent: iconAgent,
 };
 
 export const COLLECTION_SOURCE: {

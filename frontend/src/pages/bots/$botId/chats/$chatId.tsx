@@ -11,13 +11,18 @@ import { UndrawFirmware } from 'react-undraw-illustrations';
 import { FormattedMessage, useModel, useParams } from 'umi';
 import { ChatInput } from './_chat_input';
 import { ChatMessageItem } from './_chat_message';
+import { AgentChat } from './_agent_chat'; // Import agent chat component
 
 export default () => {
-  const { chat, getChat, setChat } = useModel('bot');
+  const { chat, getChat, setChat, bot } = useModel('bot');
   const { botId, chatId } = useParams();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const { token } = theme.useToken();
+  
+  // Check if this is an agent bot
+  const isAgentBot = bot?.type === 'agent';
+  
   const protocol = window.location.protocol === 'http:' ? 'ws://' : 'wss://';
   const host = window.location.host;
 
@@ -87,6 +92,25 @@ export default () => {
     sendMessage(JSON.stringify(msg));
   }, []);
 
+  // Agent-specific message handler that includes agent parameters
+  const onAgentSubmit = useCallback(async (agentMessage: {
+    query: string;
+    collection_ids: string[];
+    model_name: string;
+    web_search_enabled: boolean;
+  }) => {
+    const timestamp = new Date().getTime();
+    const msg: ChatMessage = {
+      type: 'message',
+      role: 'human',
+      data: agentMessage.query,
+      timestamp,
+    };
+    setMessages((msgs) => msgs?.concat(msg));
+    // Send agent message format to backend
+    sendMessage(JSON.stringify(agentMessage));
+  }, []);
+
   const handleCancel = useCallback(() => {
     disconnect();
     connect();
@@ -128,6 +152,23 @@ export default () => {
     scroll.scrollToBottom({ duration: 0 });
   }, [messages, chat]);
 
+  // Render agent interface for agent bots
+  if (isAgentBot) {
+    return (
+      <PageContainer style={{ paddingBottom: 140 }}>
+        <AgentChat
+          messages={messages}
+          loading={loading}
+          onSubmit={onAgentSubmit}
+          onCancel={handleCancel}
+          onVote={onVote}
+          readyState={readyState}
+        />
+      </PageContainer>
+    );
+  }
+
+  // Regular bot chat interface
   return (
     <PageContainer style={{ paddingBottom: 140 }}>
       {!_.isEmpty(chat) && _.isEmpty(messages) ? (
