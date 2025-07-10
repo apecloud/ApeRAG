@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import io
+import shutil
 import tempfile
 import uuid
 
@@ -155,6 +156,21 @@ async def test_stream_range_partial_middle(async_local_service: AsyncLocal):
 
 
 @pytest.mark.asyncio
+async def test_stream_range_partial_start(async_local_service: AsyncLocal):
+    file_path = "test_async_stream_partial_start.txt"
+    file_content = b"0123456789"
+    await async_local_service.put(file_path, file_content)
+
+    # Stream from byte 4 to the end
+    range_info = await async_local_service.stream_range(file_path, 4)
+    assert range_info is not None
+    iterator, length = range_info
+    assert length == 6
+    content = b"".join([chunk async for chunk in iterator])
+    assert content == b"456789"
+
+
+@pytest.mark.asyncio
 async def test_stream_range_exceeds_bounds(async_local_service: AsyncLocal):
     file_path = "test_async_stream_exceeds.txt"
     file_content = b"short file"
@@ -198,3 +214,66 @@ async def test_delete_by_prefix(async_local_service: AsyncLocal):
     for f in files_to_delete:
         assert not await async_local_service.obj_exists(f)
     assert await async_local_service.obj_exists(other_file)
+
+
+@pytest.mark.asyncio
+async def test_delete_objects_by_prefix_deletes_many_files(async_local_service: AsyncLocal):
+    prefix = "many_files_async/"
+    num_files = 50
+
+    for i in range(num_files):
+        f_path = f"{prefix}file_{i}.txt"
+        await async_local_service.put(f_path, f"content_{i}".encode())
+
+    assert await async_local_service.obj_exists(f"{prefix}file_{num_files // 2}.txt")
+
+    await async_local_service.delete_objects_by_prefix(prefix)
+
+    for i in range(num_files):
+        assert not await async_local_service.obj_exists(f"{prefix}file_{i}.txt")
+
+
+@pytest.mark.asyncio
+async def test_delete_objects_by_prefix_no_objects(async_local_service: AsyncLocal):
+    prefix = "empty_prefix_async/"
+    try:
+        await async_local_service.delete_objects_by_prefix(prefix)
+    except Exception as e:
+        pytest.fail(f"delete_objects_by_prefix raised an error for a non-existent prefix: {e}")
+
+
+@pytest.mark.asyncio
+async def test_get_object_when_root_dir_removed_after_init(local_config: LocalConfig):
+    service = AsyncLocal(local_config)
+    object_path = "test_get_gone_root_async.txt"
+    await service.put(object_path, b"data")
+    assert await service.obj_exists(object_path)
+
+    # Simulate external removal of the entire root directory
+    shutil.rmtree(service._sync_store._base_storage_path)
+    assert not service._sync_store._base_storage_path.exists()
+
+    result = await service.get(object_path)
+    assert result is None, "get() should return None when the root_dir does not exist."
+
+
+@pytest.mark.asyncio
+async def test_delete_object_when_root_dir_removed_after_init(local_config: LocalConfig):
+    service = AsyncLocal(local_config)
+    object_path = "some_object_in_soon_to_be_gone_bucket_async.txt"
+
+    await service.put(object_path, b"test data")
+    assert await service.obj_exists(object_path)
+
+    # Simulate external removal of the entire root directory
+    shutil.rmtree(service._sync_store._base_storage_path)
+    assert not service._sync_store._base_storage_path.exists()
+
+    try:
+        await service.delete(object_path)
+    except Exception as e:
+        pytest.fail(
+            f"AsyncLocal.delete() raised an unexpected exception when root_dir was removed: {type(e).__name__} - {e}"
+        )
+
+    assert not await service.obj_exists(object_path)
