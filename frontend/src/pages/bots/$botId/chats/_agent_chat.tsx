@@ -165,10 +165,10 @@ export const AgentChat: React.FC<AgentChatProps> = ({
     const loadModels = async () => {
       setModelsLoading(true);
       try {
-        const res = await api.llm_provider_modelsGet();
+        const res = await api.llmProviderModelsGet();
         const allModels = res.data.items || [];
         // Filter for completion models
-        const completionModels = allModels.filter(model => model.api === 'completion');
+        const completionModels = allModels.filter((model: any) => model.api === 'completion');
         setModels(completionModels);
         if (completionModels.length > 0) {
           setSelectedModel(completionModels[0].name || 'gpt-4');
@@ -184,7 +184,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
 
   // Filter collections based on search
   const filteredCollections = collections.filter(collection =>
-    collection.title?.toLowerCase().includes(searchKeyword.toLowerCase())
+    (collection as any).title?.toLowerCase().includes(searchKeyword.toLowerCase())
   );
 
   const handleCollectionToggle = (collectionId: string, checked: boolean) => {
@@ -252,9 +252,9 @@ export const AgentChat: React.FC<AgentChatProps> = ({
               onChange={(e) => handleCollectionToggle(collection.id!, e.target.checked)}
             >
               <Space direction="vertical" size={0}>
-                <Text strong>{collection.title}</Text>
+                <Text strong>{(collection as any).title}</Text>
                 <Text type="secondary" style={{ fontSize: '12px' }}>
-                  {collection.document_count || 0} documents
+                  {(collection as any).documentCount || (collection as any).document_count || 0} documents
                 </Text>
               </Space>
             </Checkbox>
@@ -266,80 +266,6 @@ export const AgentChat: React.FC<AgentChatProps> = ({
 
   return (
     <AgentChatContainer token={token}>
-      <div className="agent-header">
-        <div className="agent-controls">
-          {/* Collection Selector */}
-          <div>
-            <Text type="secondary" style={{ marginRight: 8 }}>Collections:</Text>
-            <Dropdown
-              menu={collectionDropdownItems}
-              open={collectionDropdownOpen}
-              onOpenChange={setCollectionDropdownOpen}
-              trigger={['click']}
-              placement="bottomLeft"
-            >
-              <Button className="collection-selector">
-                <Space>
-                  📁 {selectedCollections.length > 0 ? `${selectedCollections.length} selected` : 'Select collections'}
-                  <SearchOutlined />
-                </Space>
-              </Button>
-            </Dropdown>
-          </div>
-
-          {/* Selected Collections Tags */}
-          {selectedCollections.length > 0 && (
-            <div>
-              {selectedCollections.map(id => (
-                <Tag
-                  key={id}
-                  closable
-                  onClose={() => removeCollection(id)}
-                  style={{ marginBottom: 4 }}
-                >
-                  {getCollectionName(id)}
-                </Tag>
-              ))}
-            </div>
-          )}
-
-          {/* Model Selector */}
-          <div>
-            <Text type="secondary" style={{ marginRight: 8 }}>Model:</Text>
-            <Select
-              className="model-selector"
-              value={selectedModel}
-              onChange={setSelectedModel}
-              loading={modelsLoading}
-              placeholder="Select model"
-            >
-              {models.map(model => (
-                <Select.Option key={model.name} value={model.name}>
-                  <Space>
-                    <Avatar
-                      size="small"
-                      src={MODEL_PROVIDER_ICON[model.provider]}
-                    />
-                    {model.name}
-                  </Space>
-                </Select.Option>
-              ))}
-            </Select>
-          </div>
-
-          {/* Web Search Toggle */}
-          <div>
-            <Text type="secondary" style={{ marginRight: 8 }}>Web Search:</Text>
-            <Switch
-              checked={webSearchEnabled}
-              onChange={setWebSearchEnabled}
-              checkedChildren="ON"
-              unCheckedChildren="OFF"
-            />
-          </div>
-        </div>
-      </div>
-
       {/* Messages Area */}
       <div className="agent-messages">
         {messages.length === 0 && (
@@ -351,7 +277,6 @@ export const AgentChat: React.FC<AgentChatProps> = ({
             </Text>
           </div>
         )}
-        
         {messages.map((item, index) => (
           <ChatMessageItem
             key={index}
@@ -365,32 +290,149 @@ export const AgentChat: React.FC<AgentChatProps> = ({
             item={item}
           />
         ))}
-        
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
-      <div className="agent-input-area">
-        <Space.Compact style={{ width: '100%' }}>
-          <TextArea
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Ask your question..."
-            autoSize={{ minRows: 2, maxRows: 6 }}
-            disabled={readyState !== ReadyState.Open}
-            style={{ resize: 'none' }}
-          />
-          <Button
-            type="primary"
-            icon={loading ? <CloseOutlined /> : <SendOutlined />}
-            onClick={loading ? onCancel : handleSendMessage}
-            disabled={readyState !== ReadyState.Open || (!inputValue.trim() && !loading)}
-            style={{ height: 'auto', alignSelf: 'stretch' }}
-          >
-            {loading ? 'Stop' : 'Send'}
-          </Button>
-        </Space.Compact>
+      {/* Input Area - 输入框+下方按钮区布局（左右分布，风格统一） */}
+      <div
+        className="input-bar"
+        style={{
+          background: '#fff',
+          borderRadius: 24,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+          padding: '12px 16px 8px 16px',
+          margin: '12px 0 0 0',
+          minHeight: 0,
+        }}
+      >
+        <TextArea
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyPress={handleKeyPress}
+          placeholder="Ask your question..."
+          autoSize={{ minRows: 1, maxRows: 4 }}
+          disabled={readyState !== ReadyState.Open}
+          style={{
+            border: 'none',
+            background: 'transparent',
+            resize: 'none',
+            fontSize: 16,
+            minHeight: 40,
+            outline: 'none',
+            boxShadow: 'none',
+            width: '100%',
+            padding: 0,
+            lineHeight: 1.5,
+          }}
+        />
+        {/* 按钮区 - flex两端对齐 */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, marginBottom: 0 }}>
+          {/* 左侧：collection选择、websearch */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* @collection 选择 */}
+            <Dropdown
+              menu={collectionDropdownItems}
+              open={collectionDropdownOpen}
+              onOpenChange={setCollectionDropdownOpen}
+              trigger={['click']}
+              placement="topLeft"
+            >
+              <Button
+                icon={<span>@</span>}
+                style={{
+                  height: 36,
+                  minWidth: 36,
+                  maxWidth: 120,
+                  borderRadius: '50%',
+                  background: 'none',
+                  border: 'none',
+                  boxShadow: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'background 0.2s',
+                  overflow: 'visible',
+                  textOverflow: 'clip',
+                  whiteSpace: 'normal',
+                  padding: '0 8px',
+                }}
+                className="input-bar-btn"
+              />
+            </Dropdown>
+            {/* Web Search 开关 */}
+            <Button
+              icon={<SearchOutlined />}
+              type={webSearchEnabled ? 'primary' : 'default'}
+              onClick={() => setWebSearchEnabled((v) => !v)}
+              style={{
+                height: 36,
+                minWidth: 36,
+                borderRadius: '50%',
+                background: 'none',
+                border: 'none',
+                boxShadow: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'background 0.2s',
+              }}
+              className="input-bar-btn"
+            />
+          </div>
+          {/* 右侧：模型选择、发送按钮 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* 模型下拉 */}
+            <Select
+              className="input-bar-select"
+              value={selectedModel}
+              onChange={setSelectedModel}
+              loading={modelsLoading}
+              placeholder="Model"
+              style={{ minWidth: 120, maxWidth: 400, height: 36, borderRadius: 18, background: '#f7f7f8', border: 'none', outline: 'none', overflow: 'visible', textOverflow: 'clip', whiteSpace: 'normal' }}
+              dropdownStyle={{ minWidth: 120, maxWidth: 400, overflow: 'visible', whiteSpace: 'normal' }}
+              bordered={false}
+            >
+              {(models as any[]).map((model) => (
+                <Select.Option key={model['name'] || model['model']} value={model['name'] || model['model']} style={{ maxWidth: 400, overflow: 'visible', textOverflow: 'clip', whiteSpace: 'normal', wordBreak: 'break-all' }}>
+                  {model['name'] || model['model']}
+                </Select.Option>
+              ))}
+            </Select>
+            {/* 发送/停止按钮 */}
+            <Button
+              type="primary"
+              icon={loading ? <CloseOutlined /> : <SendOutlined />}
+              onClick={loading ? onCancel : handleSendMessage}
+              disabled={readyState !== ReadyState.Open || (!inputValue.trim() && !loading)}
+              style={{
+                height: 36,
+                minWidth: 36,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 18,
+                boxShadow: 'none',
+              }}
+              className="input-bar-send"
+            />
+          </div>
+        </div>
+        {/* 已选 collection tag 展示 */}
+        {selectedCollections.length > 0 && (
+          <div style={{ marginTop: 8, marginBottom: 0 }}>
+            {selectedCollections.map(id => (
+              <Tag
+                key={id}
+                closable
+                onClose={() => removeCollection(id)}
+                style={{ marginBottom: 4 }}
+              >
+                {getCollectionName(id)}
+              </Tag>
+            ))}
+          </div>
+        )}
       </div>
     </AgentChatContainer>
   );

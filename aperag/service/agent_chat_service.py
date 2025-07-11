@@ -28,18 +28,8 @@ from aperag.schema import view_models
 from aperag.utils.constant import DOC_QA_REFERENCES, DOCUMENT_URLS
 from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
 from aperag.utils.utils import now_unix_milliseconds
-
-# Import MCP components
-try:
-    from mcp_agent import MCPApp, Settings, LoggerSettings, MCPSettings, MCPServerSettings, OpenAISettings
-except ImportError:
-    # Fallback if mcp_agent is not available
-    MCPApp = None
-    Settings = None
-    LoggerSettings = None
-    MCPSettings = None
-    MCPServerSettings = None
-    OpenAISettings = None
+from mcp_agent.app import MCPApp
+from mcp_agent.config import Settings, LoggerSettings, MCPSettings, MCPServerSettings, OpenAISettings
 
 logger = logging.getLogger(__name__)
 
@@ -136,10 +126,6 @@ class AgentChatService:
         web_search_enabled: bool = False
     ) -> Optional[MCPApp]:
         """Create MCPApp instance dynamically based on agent parameters"""
-        if not MCPApp:
-            logger.error("MCPApp not available")
-            return None
-
         settings = self._create_mcp_settings(collection_ids, model_name, web_search_enabled)
         if not settings:
             return None
@@ -166,39 +152,19 @@ class AgentChatService:
 
                 # Generate message ID
                 message_id = str(uuid.uuid4())
+                query = message_data.get("query", "")
+                if not query or not query.strip():
+                    error_response = self._format_error("Invalid message format")
+                    await websocket.send_text(json.dumps(error_response))
+                    continue
 
                 try:
-                    # Check if this is an AgentMessage format (has query, collection_ids, etc.)
-                    if "query" in message_data:
-                        # Direct AgentMessage format from frontend
-                        agent_message = view_models.AgentMessage(
-                            query=message_data.get("query", ""),
-                            collection_ids=message_data.get("collection_ids"),
-                            model_name=message_data.get("model_name"),
-                            web_search_enabled=message_data.get("web_search_enabled", False)
-                        )
-                    elif "data" in message_data:
-                        # Legacy format - create AgentMessage with default settings
-                        message_content = message_data.get("data", "")
-                        if not message_content.strip():
-                            continue
-                        
-                        agent_message = view_models.AgentMessage(
-                            query=message_content,
-                            collection_ids=None,
-                            model_name=None,
-                            web_search_enabled=False
-                        )
-                    else:
-                        # Invalid message format
-                        error_response = self._format_error("Invalid message format")
-                        await websocket.send_text(json.dumps(error_response))
-                        continue
-
-                    # Validate query content
-                    if not agent_message.query or not agent_message.query.strip():
-                        continue
-
+                    agent_message = view_models.AgentMessage(
+                        query=query,
+                        collection_ids=message_data.get("collection_ids"),
+                        model_name=message_data.get("model_name"),
+                        web_search_enabled=message_data.get("web_search_enabled", False)
+                    )
                     # Process the agent message and stream responses
                     async for response_chunk in self.process_agent_message(
                         agent_message, user, chat_id, message_id
