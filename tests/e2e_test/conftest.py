@@ -1,4 +1,5 @@
 import json
+import os
 import time
 from http import HTTPStatus
 
@@ -174,7 +175,12 @@ def register_user():
     email = f"{username}@example.com"
     password = f"TestPwd!{random.randint(1000, 9999)}"
     data = {"username": username, "email": email, "password": password}
-    resp = httpx.post(f"{API_BASE_URL}/api/v1/register", json=data)
+    headers = {"X-Test-Secret": os.environ.get("TEST_ADMIN_SECRET", "").strip()}
+    resp = httpx.post(
+        f"{API_BASE_URL}/api/v1/test/register_admin",
+        json=data,
+        headers=headers,
+    )
     assert resp.status_code == HTTPStatus.OK, f"register failed: {resp.text}"
     user = resp.json()
     return {"username": username, "email": email, "password": password, "user": user}
