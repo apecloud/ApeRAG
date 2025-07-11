@@ -139,63 +139,55 @@ async def search_collection(
 
 @mcp_server.tool
 async def web_search(
-    query: str,
+    query: str = "",
     max_results: int = 5,
     search_engine: str = "duckduckgo",
     timeout: int = 30,
     locale: str = "en-US",
-    source: str | None = None,
-    use_source_domain_only: bool = False,
-    search_llms_txt: bool = True,
+    source: str = "",
+    search_llms_txt: str = "",
 ) -> Dict[str, Any]:
     """Perform web search using various search engines with advanced domain targeting.
 
     Args:
-        query: Search query
+        query: Search query for regular web search. Optional if only using LLM.txt discovery.
         max_results: Maximum number of results to return (default: 5)
         search_engine: Search engine to use: duckduckgo, google, bing (default: duckduckgo)
         timeout: Request timeout in seconds (default: 30)
         locale: Browser locale (default: en-US)
-        source: Optional domain or URL for targeted processing. Can be a domain name 
-                (e.g., 'vercel.com') or URL (e.g., 'https://vercel.com/docs/llms.txt'). 
-                When provided, the system will discover LLM-optimized content (llms.txt) 
-                and perform site-specific searches
-        use_source_domain_only: When True, only returns results from the domain specified in 
-                                'source'. When False (default), may include additional 
-                                relevant results from other domains. Has no effect when 
-                                'source' is empty
-        search_llms_txt: Enable LLM.txt discovery search. When True, searches for 
-                        LLM-optimized content indexes (llms.txt files) from the specified 
-                        domain in 'source'. When 'source' is not provided, this feature 
-                        is silently skipped. LLM.txt files provide AI-optimized content 
-                        summaries and documentation
+        source: Optional domain or URL for site-specific filtering. When provided with query,
+                limits search results to this domain (e.g., 'site:vercel.com query').
+        search_llms_txt: Domain for LLM.txt discovery search. When provided, performs additional
+                        LLM-optimized content discovery from the specified domain, independent
+                        of the main search. Results are merged with regular search results.
 
     Returns:
         Web search results with URLs, titles, snippets, and metadata
 
     Note:
-        Uses WebSearchResponse view model for type-safe response parsing.
-        When source is provided, the search will prioritize LLM-optimized content discovery.
+        Supports parallel execution of regular search and LLM.txt discovery.
+        Results are automatically merged and ranked.
     """
     try:
         api_key = get_api_key()
 
         # Build search request
         search_data = {
-            "query": query,
             "max_results": max_results,
             "search_engine": search_engine,
             "timeout": timeout,
             "locale": locale,
         }
 
-        # Add domain targeting parameters if provided
-        if source:
-            search_data["source"] = source
-            search_data["use_source_domain_only"] = use_source_domain_only
-        
-        # Always include search_llms_txt parameter (API handles it gracefully)
-        search_data["search_llms_txt"] = search_llms_txt
+        # Only include non-empty optional parameters
+        if query and query.strip():
+            search_data["query"] = query.strip()
+
+        if source and source.strip():
+            search_data["source"] = source.strip()
+
+        if search_llms_txt and search_llms_txt.strip():
+            search_data["search_llms_txt"] = search_llms_txt.strip()
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -350,30 +342,24 @@ web_results = web_search(
     locale="zh-CN"
 )
 
-# Domain-specific search with LLM.txt discovery
-domain_results = web_search(
+# Site-specific regular search
+site_results = web_search(
     query="deployment documentation",
-    source="vercel.com",  # target specific domain
-    use_source_domain_only=True,  # only return results from this domain
-    search_llms_txt=True,  # enable LLM.txt discovery from vercel.com
+    source="vercel.com",  # limit search to vercel.com domain
     max_results=10
 )
 
-# Direct LLM.txt URL targeting
+# LLM.txt discovery search (independent)
 llms_txt_results = web_search(
-    query="API documentation",
-    source="https://modelcontextprotocol.io/llms-full.txt",  # direct LLM.txt URL
-    use_source_domain_only=False,  # allow additional results from other domains
-    search_llms_txt=True,  # enable LLM.txt processing
+    search_llms_txt="anthropic.com",  # discover LLM.txt content from anthropic.com
     max_results=5
 )
 
-# General search with LLM.txt discovery disabled
-general_results = web_search(
+# Combined search: regular + LLM.txt discovery
+combined_results = web_search(
     query="machine learning tutorials",
-    source="docs.python.org",  # focus on Python docs
-    search_llms_txt=False,  # disable LLM.txt discovery for this search
-    use_source_domain_only=False,  # allow results from other domains too
+    source="docs.python.org",  # regular search limited to Python docs
+    search_llms_txt="openai.com",  # plus LLM.txt discovery from OpenAI
     max_results=8
 )
 
@@ -412,9 +398,8 @@ for result in content.results:
 # 1. Search web for recent information with LLM.txt discovery
 web_results = web_search(
     query="latest AI developments 2025", 
-    source="anthropic.com",  # focus on Anthropic's content
-    search_llms_txt=True,  # discover LLM-optimized content
-    use_source_domain_only=False,  # allow results from other domains too
+    source="anthropic.com",  # limit regular search to Anthropic's content
+    search_llms_txt="anthropic.com",  # discover LLM-optimized content from Anthropic
     max_results=3
 )
 

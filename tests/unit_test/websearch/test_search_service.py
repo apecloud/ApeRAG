@@ -86,9 +86,9 @@ class TestSearchService:
         """Test search error handling"""
         service = SearchService.create_default()
 
-        # Test empty query
+        # Test empty query and no source
         request = WebSearchRequest(query="")
-        with pytest.raises(ValueError, match="cannot be empty"):
+        with pytest.raises(ValueError, match="Either 'query' or 'source' parameter is required"):
             await service.search(request)
 
         # Test provider error

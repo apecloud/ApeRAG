@@ -35,7 +35,6 @@ class BaseSearchProvider(ABC):
         timeout: int = 30,
         locale: str = "en-US",
         source: Optional[str] = None,
-        use_source_domain_only: bool = False,
     ) -> List[WebSearchResultItem]:
         """
         Perform web search.
@@ -46,13 +45,12 @@ class BaseSearchProvider(ABC):
             search_engine: Search engine to use
             timeout: Request timeout in seconds
             locale: Browser locale
-            source: Domain or URL for site-specific search
-            use_source_domain_only: If True, only return results from specified source
+            source: Domain or URL for targeted processing. When provided, search will be limited to this domain.
 
         Returns:
             List of search result items
         """
-        pass
+        raise NotImplementedError("Subclasses must implement search method")
 
     @abstractmethod
     def get_supported_engines(self) -> List[str]:

@@ -5088,7 +5088,7 @@ components:
       properties:
         query:
           type: string
-          description: Search query
+          description: Search query for regular web search. Optional if only using LLM.txt discovery.
           example: ApeRAG 2025年最新发展
         max_results:
           type: integer
@@ -5112,20 +5112,13 @@ components:
           example: en-US
         source:
           type: string
-          description: Domain or URL for targeted processing. Can be a domain name (e.g., 'vercel.com') or URL (e.g., 'https://vercel.com/docs/llms.txt'). When provided, the system will discover LLM-optimized content (llms.txt) and perform site-specific searches.
+          description: Domain or URL for site-specific filtering. When provided with query, limits search results to this domain (e.g., 'site:vercel.com query').
           example: vercel.com
-        use_source_domain_only:
-          type: boolean
-          description: Strict domain limitation flag. When true, only returns results from the domain specified in 'source'. When false (default), may include additional relevant results from other domains. Has no effect when 'source' is empty.
-          default: false
-          example: false
         search_llms_txt:
-          type: boolean
-          description: Enable LLM.txt discovery search. When true, searches for LLM-optimized content indexes (llms.txt files) from the specified domain in 'source'. When 'source' is not provided, this feature is silently skipped. LLM.txt files provide AI-optimized content summaries and documentation.
-          default: true
-          example: true
-      required:
-        - query
+          type: string
+          description: Domain for LLM.txt discovery search. When provided, performs additional LLM-optimized content discovery from the specified domain, independent of the main search. Results are merged with regular search results.
+          example: anthropic.com
+      required: []
     webSearchResultItem:
       type: object
       description: Individual web search result

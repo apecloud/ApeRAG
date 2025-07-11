@@ -105,8 +105,8 @@ class URLValidator:
             result = urlparse(url)
             # Remove port from netloc if present
             netloc = result.netloc.lower()
-            if ':' in netloc:
-                netloc = netloc.split(':')[0]
+            if ":" in netloc:
+                netloc = netloc.split(":")[0]
             return netloc
         except Exception:
             return ""
@@ -124,38 +124,38 @@ class URLValidator:
         """
         if not source or not source.strip():
             return None
-            
+
         source = source.strip()
-        
+
         # Check if it's already a domain name
         if URLValidator.is_valid_domain(source):
             return source.lower()
-            
+
         # Check if it's a URL
         if URLValidator.is_valid_url(source):
             domain = URLValidator.extract_domain(source)
             if domain:
                 return domain
-                
+
         # If it looks like a domain but failed validation, try to extract anyway
         try:
             parsed = urlparse(source)
             if parsed.netloc:
                 # Remove port from netloc if present
                 netloc = parsed.netloc.lower()
-                if ':' in netloc:
-                    netloc = netloc.split(':')[0]
+                if ":" in netloc:
+                    netloc = netloc.split(":")[0]
                 return netloc
         except Exception as e:
             logger.warning(f"Failed to parse source '{source}': {e}")
-            
+
         # Try as plain domain
-        if '.' in source and not source.startswith('http'):
+        if "." in source and not source.startswith("http"):
             # Remove protocol if accidentally included
-            clean_source = source.replace('http://', '').replace('https://', '')
+            clean_source = source.replace("http://", "").replace("https://", "")
             if URLValidator.is_valid_domain(clean_source):
                 return clean_source.lower()
-            
+
         logger.warning(f"Invalid source format: '{source}'")
         return None
 
@@ -163,23 +163,23 @@ class URLValidator:
     def extract_domains_from_sources(sources: List[str]) -> List[str]:
         """
         Extract valid domains from a list of sources (URLs or domain names).
-        
+
         Args:
             sources: List of source strings (URLs or domain names)
-            
+
         Returns:
             Sorted list of unique domain names
         """
         if not sources:
             return []
-            
+
         domains = set()
-        
+
         for source in sources:
             domain = URLValidator.extract_domain_from_source(source)
             if domain:
                 domains.add(domain)
-                
+
         # Return sorted list for consistent output
         return sorted(list(domains))
 

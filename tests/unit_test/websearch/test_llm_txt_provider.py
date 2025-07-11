@@ -3,7 +3,7 @@ Simplified LLM.txt Search Provider Tests
 
 Tests the core functionality of LLMTxtSearchProvider including:
 - Pattern-based discovery
-- Direct URL support  
+- Direct URL support
 - Parameter validation
 - Error handling
 """
@@ -29,31 +29,29 @@ class TestLLMTxtSearchProvider:
     def mock_success_response(self):
         """Mock successful read response."""
         return WebReadResponse(
-            results=[WebReadResultItem(
-                url="https://example.com/llms.txt",
-                status="success",
-                title="Example LLM.txt",
-                content="# Documentation\n\nThis is LLM-optimized content.",
-                extracted_at=datetime.now(),
-                word_count=50
-            )],
+            results=[
+                WebReadResultItem(
+                    url="https://example.com/llms.txt",
+                    status="success",
+                    title="Example LLM.txt",
+                    content="# Documentation\n\nThis is LLM-optimized content.",
+                    extracted_at=datetime.now(),
+                    word_count=50,
+                )
+            ],
             total_urls=1,
             successful=1,
-            failed=0
+            failed=0,
         )
 
-    @pytest.fixture  
+    @pytest.fixture
     def mock_failed_response(self):
         """Mock failed read response."""
         return WebReadResponse(
-            results=[WebReadResultItem(
-                url="https://example.com/llms.txt",
-                status="error",
-                error="404 Not Found"
-            )],
+            results=[WebReadResultItem(url="https://example.com/llms.txt", status="error", error="404 Not Found")],
             total_urls=1,
             successful=0,
-            failed=1
+            failed=1,
         )
 
     def test_initialization(self, provider):
@@ -69,10 +67,10 @@ class TestLLMTxtSearchProvider:
         # Invalid max_results
         with pytest.raises(ValueError, match="max_results must be positive"):
             await provider.search(query="test", source="example.com", max_results=0)
-            
+
         with pytest.raises(ValueError, match="max_results cannot exceed 100"):
             await provider.search(query="test", source="example.com", max_results=101)
-            
+
         # Invalid timeout
         with pytest.raises(ValueError, match="timeout must be positive"):
             await provider.search(query="test", source="example.com", timeout=0)
@@ -90,15 +88,11 @@ class TestLLMTxtSearchProvider:
         mock_reader = AsyncMock()
         mock_reader.read.return_value = mock_success_response
         provider.reader_service = mock_reader
-        
+
         # Test direct URL
         direct_url = "https://modelcontextprotocol.io/llms-full.txt"
-        results = await provider.search(
-            query="test",
-            source=direct_url,
-            max_results=5
-        )
-        
+        results = await provider.search(query="test", source=direct_url, max_results=5)
+
         assert len(results) == 1
         assert results[0].url == direct_url
         assert results[0].rank == 1
@@ -111,14 +105,10 @@ class TestLLMTxtSearchProvider:
         mock_reader = AsyncMock()
         mock_reader.read.return_value = mock_success_response
         provider.reader_service = mock_reader
-        
+
         # Test domain
-        results = await provider.search(
-            query="test", 
-            source="example.com",
-            max_results=5
-        )
-        
+        results = await provider.search(query="test", source="example.com", max_results=5)
+
         assert len(results) == 1
         assert results[0].domain == "example.com"
         assert results[0].rank == 1
@@ -130,46 +120,38 @@ class TestLLMTxtSearchProvider:
         mock_reader = AsyncMock()
         mock_reader.read.return_value = mock_failed_response
         provider.reader_service = mock_reader
-        
-        results = await provider.search(
-            query="test",
-            source="example.com", 
-            max_results=5
-        )
-        
+
+        results = await provider.search(query="test", source="example.com", max_results=5)
+
         # Should return empty results when all patterns fail
         assert results == []
-        
+
         # Should have tried multiple patterns (reader called multiple times)
         assert mock_reader.read.call_count > 1
 
     @pytest.mark.asyncio
     async def test_invalid_source_url(self, provider):
         """Test handling of invalid source URLs."""
-        results = await provider.search(
-            query="test",
-            source="not-a-valid-url",
-            max_results=5
-        )
-        
+        results = await provider.search(query="test", source="not-a-valid-url", max_results=5)
+
         # Should return empty results for invalid domain
         assert results == []
 
-    @pytest.mark.asyncio  
+    @pytest.mark.asyncio
     async def test_snippet_creation(self, provider):
         """Test snippet creation from content."""
         # Test basic snippet creation
         content = "This is a test content with some information about the documentation."
         snippet = provider._create_snippet_from_content(content, max_length=50)
-        
+
         assert len(snippet) <= 53  # 50 + "..."
         assert snippet.endswith("...")
-        
+
         # Test short content (no truncation)
         short_content = "Short content"
         snippet = provider._create_snippet_from_content(short_content)
         assert snippet == "Short content"
-        
+
         # Test markdown removal
         markdown_content = "# Title\n\nThis is **bold** and *italic* text with `code`."
         snippet = provider._create_snippet_from_content(markdown_content)
@@ -181,15 +163,15 @@ class TestLLMTxtSearchProvider:
     async def test_url_detection_helper(self, provider):
         """Test LLM.txt URL detection helper."""
         # Valid LLM.txt URLs
-        assert provider._is_llms_txt_url("https://example.com/llms.txt") == True
-        assert provider._is_llms_txt_url("http://example.com/llms-full.txt") == True
-        assert provider._is_llms_txt_url("https://sub.example.com/path/llms.txt") == True
-        
+        assert provider._is_llms_txt_url("https://example.com/llms.txt")
+        assert provider._is_llms_txt_url("http://example.com/llms-full.txt")
+        assert provider._is_llms_txt_url("https://sub.example.com/path/llms.txt")
+
         # Invalid URLs
-        assert provider._is_llms_txt_url("https://example.com/docs.txt") == False
-        assert provider._is_llms_txt_url("example.com/llms.txt") == False  # No protocol
-        assert provider._is_llms_txt_url("") == False
-        assert provider._is_llms_txt_url(None) == False
+        assert not provider._is_llms_txt_url("https://example.com/docs.txt")
+        assert not provider._is_llms_txt_url("example.com/llms.txt")  # No protocol
+        assert not provider._is_llms_txt_url("")
+        assert not provider._is_llms_txt_url(None)
 
     @pytest.mark.asyncio
     async def test_cleanup(self, provider):
@@ -198,9 +180,9 @@ class TestLLMTxtSearchProvider:
         mock_reader = AsyncMock()
         mock_reader.close = AsyncMock()
         provider.reader_service = mock_reader
-        
+
         await provider.close()
-        
+
         mock_reader.close.assert_called_once()
 
     def test_supported_engines(self, provider):
@@ -209,4 +191,4 @@ class TestLLMTxtSearchProvider:
         assert engines == ["llm_txt"]
         # Ensure it returns a copy
         engines.append("test")
-        assert provider.get_supported_engines() == ["llm_txt"] 
+        assert provider.get_supported_engines() == ["llm_txt"]

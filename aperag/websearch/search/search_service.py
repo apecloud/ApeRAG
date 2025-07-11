@@ -77,10 +77,14 @@ class SearchService:
         Returns:
             Search response
         """
-        # Validate request parameters
-        if not request.query or not request.query.strip():
-            raise ValueError("Search query cannot be empty")
-        
+        # Allow empty query if source is provided (site-specific search)
+        # Only require query when neither query nor source is provided
+        has_query = request.query and request.query.strip()
+        has_source = request.source and request.source.strip()
+
+        if not has_query and not has_source:
+            raise ValueError("Either 'query' or 'source' parameter is required for search")
+
         if request.max_results <= 0:
             raise ValueError("max_results must be positive")
         if request.max_results > 100:
@@ -92,26 +96,21 @@ class SearchService:
 
         start_time = self._get_current_time()
 
-        # Pass all parameters to provider with error handling
-        try:
-            results = await self.provider.search(
-                query=request.query,
-                max_results=request.max_results,
-                search_engine=request.search_engine,
-                timeout=request.timeout,
-                locale=request.locale,
-                source=request.source,
-                use_source_domain_only=request.use_source_domain_only,
-            )
-        except Exception as e:
-            logger.error(f"Provider {self.provider_name} search failed: {e}")
-            raise
+        # Call the provider's search method
+        results = await self.provider.search(
+            query=request.query,
+            max_results=request.max_results,
+            search_engine=request.search_engine,
+            timeout=request.timeout,
+            locale=request.locale,
+            source=request.source,
+        )
 
         search_time = self._get_current_time() - start_time
 
         # Create response
         return WebSearchResponse(
-            query=request.query,
+            query=request.query or "",
             results=results,
             search_engine=request.search_engine,
             total_results=len(results),
@@ -163,6 +162,7 @@ class SearchService:
     def _get_current_time() -> float:
         """Get current time in seconds."""
         import time
+
         return time.time()
 
     @classmethod
@@ -199,5 +199,5 @@ class SearchService:
 
     async def close(self):
         """Close and cleanup resources."""
-        if hasattr(self.provider, 'close'):
+        if hasattr(self.provider, "close"):
             await self.provider.close()

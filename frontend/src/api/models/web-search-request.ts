@@ -21,11 +21,11 @@
  */
 export interface WebSearchRequest {
     /**
-     * Search query
+     * Search query for regular web search. Optional if only using LLM.txt discovery.
      * @type {string}
      * @memberof WebSearchRequest
      */
-    'query': string;
+    'query'?: string;
     /**
      * Maximum number of results to return
      * @type {number}
@@ -51,22 +51,16 @@ export interface WebSearchRequest {
      */
     'locale'?: string;
     /**
-     * Domain or URL for targeted processing. Can be a domain name (e.g., \'vercel.com\') or URL (e.g., \'https://vercel.com/docs/llms.txt\'). When provided, the system will discover LLM-optimized content (llms.txt) and perform site-specific searches.
+     * Domain or URL for site-specific filtering. When provided with query, limits search results to this domain (e.g., \'site:vercel.com query\').
      * @type {string}
      * @memberof WebSearchRequest
      */
     'source'?: string;
     /**
-     * Strict domain limitation flag. When true, only returns results from the domain specified in \'source\'. When false (default), may include additional relevant results from other domains. Has no effect when \'source\' is empty.
-     * @type {boolean}
+     * Domain for LLM.txt discovery search. When provided, performs additional LLM-optimized content discovery from the specified domain, independent of the main search. Results are merged with regular search results.
+     * @type {string}
      * @memberof WebSearchRequest
      */
-    'use_source_domain_only'?: boolean;
-    /**
-     * Enable LLM.txt discovery search. When true, searches for LLM-optimized content indexes (llms.txt files) from the specified domain in \'source\'. When \'source\' is not provided, this feature is silently skipped. LLM.txt files provide AI-optimized content summaries and documentation.
-     * @type {boolean}
-     * @memberof WebSearchRequest
-     */
-    'search_llms_txt'?: boolean;
+    'search_llms_txt'?: string;
 }
 
