@@ -196,6 +196,20 @@ class AsyncMergeSuggestionRepositoryMixin(AsyncRepositoryProtocol):
 
         return await self.execute_with_transaction(_operation)
 
+    async def delete_all_suggestions_for_collection(self, collection_id: str) -> int:
+        """Physically delete all suggestions for a collection"""
+
+        async def _operation(session):
+            from sqlalchemy import delete
+
+            stmt = delete(MergeSuggestion).where(MergeSuggestion.collection_id == collection_id)
+
+            result = await session.execute(stmt)
+            await session.flush()
+            return result.rowcount
+
+        return await self.execute_with_transaction(_operation)
+
     def _generate_random_id(self) -> str:
         """Generate a random ID for batch operations"""
         import random

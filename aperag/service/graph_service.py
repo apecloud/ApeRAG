@@ -173,7 +173,7 @@ class GraphService:
             user_id, collection_id, max_suggestions, max_concurrent_llm_calls
         )
 
-        # Store suggestions
+        # Prepare suggestion data
         suggestion_data = [
             {
                 "collection_id": collection_id,
@@ -186,8 +186,16 @@ class GraphService:
         ]
 
         if suggestion_data:
+            # If force_refresh=true, delete all existing suggestions before storing new ones
+            if force_refresh:
+                deleted_count = await self.db_ops.delete_all_suggestions_for_collection(collection_id)
+                logger.info(
+                    f"Deleted {deleted_count} existing suggestions for collection {collection_id} (force_refresh=true)"
+                )
+
+            # Store new suggestions
             stored_suggestions = await self.db_ops.batch_create_suggestions(suggestion_data)
-            logger.info(f"Stored {len(stored_suggestions)} suggestions for collection {collection_id}")
+            logger.info(f"Stored {len(stored_suggestions)} new suggestions for collection {collection_id}")
             # Extract metadata from llm_result, excluding 'suggestions' to avoid parameter conflict
             llm_metadata = {k: v for k, v in llm_result.items() if k != "suggestions"}
             return self._format_suggestions_response(stored_suggestions, from_cache=False, **llm_metadata)
