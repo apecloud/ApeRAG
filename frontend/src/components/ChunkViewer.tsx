@@ -65,6 +65,19 @@ export const ChunkViewer = ({
   const chunkItemRefs = useRef<Map<string, HTMLElement>>(new Map());
   const [pdfWidth, setPdfWidth] = useState<number | undefined>();
   const lastHighlightedLines = useRef<number[]>([]);
+  // Refs to track programmatic scrolling states to prevent infinite loops.
+  // When a pane is scrolled programmatically, its corresponding flag is set to true.
+  // This prevents the scroll event from triggering a reciprocal scroll in the other pane.
+  // A timeout resets the flag after the scroll animation, re-enabling user-triggered sync.
+  const isLeftPaneScrolling = useRef(false);
+  const leftPaneScrollTimeout = useRef<NodeJS.Timeout | null>(null);
+  const isRightPaneScrolling = useRef(false);
+  const rightPaneScrollTimeout = useRef<NodeJS.Timeout | null>(null);
+  // This flag tracks if the user is actively scrolling the right pane (chunk list).
+  // It's used to temporarily disable the left pane's scroll-to-sync behavior
+  // to prevent jittery interactions when the user is in control of the right pane.
+  const isUserScrollingRight = useRef(false);
+  const userScrollTimeout = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch all preview data in one go
   const { loading: previewLoading, error: previewError } = useRequest(
@@ -167,6 +180,46 @@ export const ChunkViewer = ({
 
       if (!highlightedChunk) return;
 
+      const scrollIfNeeded = (
+        containerElement: HTMLElement,
+        overallTop: number,
+        overallBottom: number,
+      ) => {
+        const containerScrollTop = containerElement.scrollTop;
+        const containerHeight = containerElement.clientHeight;
+        const overallHeight = overallBottom - overallTop;
+
+        const isFullyVisible =
+          overallTop >= containerScrollTop &&
+          overallBottom <= containerScrollTop + containerHeight;
+
+        if (!isFullyVisible) {
+          let newScrollTop;
+          // If the chunk is taller than the viewport, align its top with the viewport's top.
+          // Otherwise, center the chunk in the viewport.
+          if (overallHeight > containerHeight) {
+            newScrollTop = overallTop;
+          } else {
+            newScrollTop = overallTop - (containerHeight - overallHeight) / 2;
+          }
+
+          // Programmatically scroll the left pane (document view)
+          isLeftPaneScrolling.current = true;
+          if (leftPaneScrollTimeout.current) {
+            clearTimeout(leftPaneScrollTimeout.current);
+          }
+
+          containerElement.scrollTo({
+            top: newScrollTop,
+            behavior: 'smooth',
+          });
+
+          leftPaneScrollTimeout.current = setTimeout(() => {
+            isLeftPaneScrolling.current = false;
+          }, 500); // Should be longer than the smooth scroll duration
+        }
+      };
+
       if (viewMode === 'markdown' && highlightedChunk.metadata?.md_source_map) {
         const [start_line, end_line] = highlightedChunk.metadata.md_source_map;
         const linesToHighlight = Array.from(
@@ -188,31 +241,9 @@ export const ChunkViewer = ({
         const containerElement = markdownContainerRef.current;
 
         if (startElement && endElement && containerElement) {
-          const containerScrollTop = containerElement.scrollTop;
-          const containerHeight = containerElement.clientHeight;
           const overallTop = startElement.offsetTop;
           const overallBottom = endElement.offsetTop + endElement.offsetHeight;
-          const overallHeight = overallBottom - overallTop;
-
-          const isFullyVisible =
-            overallTop >= containerScrollTop &&
-            overallBottom <= containerScrollTop + containerHeight;
-
-          if (!isFullyVisible) {
-            let newScrollTop;
-            if (
-              overallHeight > containerHeight ||
-              overallTop < containerScrollTop
-            ) {
-              newScrollTop = overallTop;
-            } else {
-              newScrollTop = overallBottom - containerHeight;
-            }
-            containerElement.scrollTo({
-              top: newScrollTop,
-              behavior: 'smooth',
-            });
-          }
+          scrollIfNeeded(containerElement, overallTop, overallBottom);
         }
       } else if (
         viewMode === 'pdf' &&
@@ -245,15 +276,7 @@ export const ChunkViewer = ({
 
         if (overallTop === Infinity) return;
 
-        const containerScrollTop = containerElement.scrollTop;
-        const containerHeight = containerElement.clientHeight;
-        const isFullyVisible =
-          overallTop >= containerScrollTop &&
-          overallBottom <= containerScrollTop + containerHeight;
-
-        if (!isFullyVisible) {
-          containerElement.scrollTo({ top: overallTop, behavior: 'smooth' });
-        }
+        scrollIfNeeded(containerElement, overallTop, overallBottom);
       }
     },
     { wait: 100 },
@@ -282,14 +305,92 @@ export const ChunkViewer = ({
     };
   }, [previewData, syncAndHighlight]);
 
+  const { run: handleScroll } = useDebounceFn(
+    () => {
+      // Ignore scroll events under two conditions:
+      // 1. The left pane is being scrolled programmatically (by highlighting a chunk).
+      // 2. The user is actively scrolling the right pane (via mouse wheel).
+      // This prevents jitter and conflicting scroll behaviors.
+      if (isLeftPaneScrolling.current || isUserScrollingRight.current) return;
+
+      const container =
+        viewMode === 'pdf'
+          ? pdfContainerRef.current
+          : markdownContainerRef.current;
+      if (!container) return;
+
+      const containerScrollTop = container.scrollTop;
+      let focusChunkId = null;
+
+      for (const chunk of adaptedChunks) {
+        let top = Infinity;
+
+        if (viewMode === 'pdf' && chunk.metadata?.pdf_source_map) {
+          chunk.metadata.pdf_source_map.forEach((sourceMap: any) => {
+            const pageNumber = sourceMap.page_idx + 1;
+            const pageElement = pageRefs.current.get(pageNumber);
+            const pageDim = pageDimensions.get(pageNumber);
+            if (pageElement && pageDim) {
+              const [, y1] = sourceMap.bbox;
+              const scale = (pdfWidth || pageDim.width) / pageDim.width;
+              const pageTopInContainer = pageElement.offsetTop;
+              const bboxTop = pageTopInContainer + y1 * scale;
+              if (bboxTop < top) top = bboxTop;
+            }
+          });
+        } else if (viewMode === 'markdown' && chunk.metadata?.md_source_map) {
+          const [start_line] = chunk.metadata.md_source_map;
+          const el = document.getElementById(`line-${start_line + 1}`);
+          if (el) {
+            top = el.offsetTop;
+          }
+        }
+
+        if (top === Infinity) continue;
+
+        if (top > containerScrollTop) {
+          focusChunkId = chunk.id;
+          break;
+        }
+      }
+
+      if (
+        container.scrollTop + container.clientHeight >=
+        container.scrollHeight - 2
+      ) {
+        if (adaptedChunks.length > 0) {
+          focusChunkId = adaptedChunks[adaptedChunks.length - 1].id;
+        }
+      }
+
+      if (focusChunkId && focusChunkId !== scrolledToChunkId) {
+        setScrolledToChunkId(focusChunkId);
+      }
+    },
+    { wait: 150 },
+  );
+
   useEffect(() => {
     if (scrolledToChunkId) {
       const chunkItem = chunkItemRefs.current.get(scrolledToChunkId);
       if (chunkItem) {
-        chunkItem.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Programmatically scroll the right pane (chunk list)
+        isRightPaneScrolling.current = true;
+        if (rightPaneScrollTimeout.current) {
+          clearTimeout(rightPaneScrollTimeout.current);
+        }
+
+        chunkItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+        // Reset the flag after the scroll animation
+        rightPaneScrollTimeout.current = setTimeout(() => {
+          isRightPaneScrolling.current = false;
+          // Manually trigger a scroll check to update highlighting if needed
+          handleScroll();
+        }, 500); // Should be longer than the smooth scroll duration
       }
     }
-  }, [scrolledToChunkId]);
+  }, [scrolledToChunkId, handleScroll]);
 
   useEffect(() => {
     const observer = new ResizeObserver((entries) => {
@@ -359,64 +460,6 @@ export const ChunkViewer = ({
     return highlights;
   };
 
-  const { run: handleScroll } = useDebounceFn(
-    () => {
-      const container =
-        viewMode === 'pdf'
-          ? pdfContainerRef.current
-          : markdownContainerRef.current;
-      if (!container) return;
-
-      const containerScrollTop = container.scrollTop;
-      let focusChunkId = null;
-
-      for (const chunk of adaptedChunks) {
-        let top = Infinity;
-
-        if (viewMode === 'pdf' && chunk.metadata?.pdf_source_map) {
-          chunk.metadata.pdf_source_map.forEach((sourceMap: any) => {
-            const pageNumber = sourceMap.page_idx + 1;
-            const pageElement = pageRefs.current.get(pageNumber);
-            const pageDim = pageDimensions.get(pageNumber);
-            if (pageElement && pageDim) {
-              const [, y1] = sourceMap.bbox;
-              const scale = (pdfWidth || pageDim.width) / pageDim.width;
-              const pageTopInContainer = pageElement.offsetTop;
-              const bboxTop = pageTopInContainer + y1 * scale;
-              if (bboxTop < top) top = bboxTop;
-            }
-          });
-        } else if (viewMode === 'markdown' && chunk.metadata?.md_source_map) {
-          const [start_line] = chunk.metadata.md_source_map;
-          const el = document.getElementById(`line-${start_line + 1}`);
-          if (el) {
-            top = el.offsetTop;
-          }
-        }
-
-        if (top === Infinity) continue;
-
-        if (top > containerScrollTop) {
-          focusChunkId = chunk.id;
-          break;
-        }
-      }
-
-      if (
-        container.scrollTop + container.clientHeight >=
-        container.scrollHeight - 2
-      ) {
-        if (adaptedChunks.length > 0) {
-          focusChunkId = adaptedChunks[adaptedChunks.length - 1].id;
-        }
-      }
-
-      if (focusChunkId && focusChunkId !== scrolledToChunkId) {
-        setScrolledToChunkId(focusChunkId);
-      }
-    },
-    { wait: 150 },
-  );
 
   const markdownComponents: Components = useMemo(
     () => ({
@@ -439,13 +482,14 @@ export const ChunkViewer = ({
               src={src}
               collectionId={collectionId}
               documentId={initialDoc.id!}
+              onLoad={syncAndHighlight}
             />
           );
         }
-        return <img {...props} />;
+        return <img {...props} onLoad={syncAndHighlight} />;
       },
     }),
-    [collectionId, initialDoc.id],
+    [collectionId, initialDoc.id, syncAndHighlight],
   );
 
   const renderMarkdownView = () => {
@@ -629,6 +673,19 @@ export const ChunkViewer = ({
           <div
             ref={chunkListRef}
             onMouseLeave={() => setHighlightedChunk(null)}
+            // Detect user-initiated scrolling on the right pane.
+            // This sets a flag to prevent the left pane from syncing,
+            // which avoids conflicts and improves the user's scrolling experience.
+            onWheel={() => {
+              isUserScrollingRight.current = true;
+              if (userScrollTimeout.current) {
+                clearTimeout(userScrollTimeout.current);
+              }
+              userScrollTimeout.current = setTimeout(
+                () => (isUserScrollingRight.current = false),
+                200,
+              );
+            }}
             style={{ height: '80vh', overflowY: 'auto' }}
           >
             <List
@@ -650,7 +707,13 @@ export const ChunkViewer = ({
                       if (el) chunkItemRefs.current.set(item.id, el);
                       else chunkItemRefs.current.delete(item.id);
                     }}
-                    onMouseEnter={() => setHighlightedChunk(item)}
+                    onMouseEnter={() => {
+                      // The check for `isRightPaneScrolling` was removed here.
+                      // While it prevented loops, it also caused a regression where highlighting
+                      // wouldn't trigger during user scrolling. The new `onWheel` logic on the
+                      // parent container is a more robust solution that handles this correctly.
+                      setHighlightedChunk(item);
+                    }}
                     className={styles.chunkListItem}
                     style={{
                       cursor: 'pointer',
