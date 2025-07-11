@@ -1356,11 +1356,14 @@ class LightRAG:
 
         # Apply target entity data overrides (from target_entity_data parameter)
         user_provided_description = None
-        for key, value in target_entity_data.items():
-            if key != "entity_name":  # Don't override entity_name in the data
-                merged_entity_data[key] = value
-                if key == "description" and value:  # Track if user provided description
-                    user_provided_description = value
+        if target_entity_data:  # Only iterate if target_entity_data is not None
+            for key, value in target_entity_data.items():
+                if key != "entity_name":  # Don't override entity_name in the data
+                    merged_entity_data[key] = value
+                    if (
+                        key == "description" and value is not None
+                    ):  # Track if user provided description (including empty strings)
+                        user_provided_description = value
 
         merged_entity_data["entity_id"] = target_entity_name
 
