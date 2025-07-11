@@ -576,14 +576,14 @@ class DocumentService:
 
             converted_pdf_object_path = None
             index_data = json.loads(doc_index.index_data) if doc_index and doc_index.index_data else {}
-            if index_data.get("has_pdf_source_map") and not document.name.lower().endswith(".pdf"):
+            if index_data.get("has_pdf_source_map"):
                 # If the parsing result contains pdf_source_map metadata,
                 # it means it is a PDF or has been converted to a PDF.
-                # But only converted documents have a converted.pdf file.
-                pdf_path = f"{document.object_store_base_path()}/converted.pdf"
+                converted_pdf_name = "converted.pdf"
+                pdf_path = f"{document.object_store_base_path()}/{converted_pdf_name}"
                 exists = await async_obj_store.obj_exists(pdf_path)
                 if exists:
-                    converted_pdf_object_path = "converted.pdf"
+                    converted_pdf_object_path = converted_pdf_name
 
             # 5. Construct and return response
             return DocumentPreview(

@@ -146,6 +146,9 @@ export const ChunkViewer = ({
   const pdfOptions = useMemo(() => {
     return {
       httpHeaders: getAuthorizationHeader(),
+      rangeChunkSize: 256*1024,
+      disableStream: true,
+      disableAutoFetch: true,
     };
   }, []);
 
@@ -519,7 +522,6 @@ export const ChunkViewer = ({
           file={pdfUrl}
           options={pdfOptions}
           onLoadSuccess={onDocumentLoadSuccess}
-          loading={<Spin />}
         >
           {Array.from(new Array(numPages), (el, index) => (
             <div

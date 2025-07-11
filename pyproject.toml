@@ -70,6 +70,7 @@ dependencies = [
     "aiohttp>=3.11.16",
     "ddgs>=9.0.0",
     "aiosqlite>=0.21.0",
+    "pikepdf>=9.9.0",
 ]
 name = "aperag"
 version = "0.1.0"

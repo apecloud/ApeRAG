@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import pikepdf
+
+from aperag.docparser.base import AssetBinPart, MarkdownPart, PdfPart
 from aperag.docparser.doc_parser import DocParser
 from aperag.objectstore.base import get_object_store
 
@@ -61,8 +65,21 @@ class DocumentParser:
             raise ValueError(f"unsupported file type: {filepath_obj.suffix}")
 
         parts = parser.parse_file(filepath_obj, file_metadata)
+
+        # If there are no PdfPart in parts and the doc is a pdf, then add the doc itself as a PdfPart
+        if filepath_obj.suffix.lower() == ".pdf":
+            if not any(isinstance(p, PdfPart) for p in parts):
+                with open(filepath_obj, "rb") as f:
+                    parts.append(PdfPart(data=f.read()))
+
         logger.info(f"Parsed document {filepath} into {len(parts)} parts")
         return parts
+
+    def linearize_pdf(self, data: bytes) -> bytes:
+        with pikepdf.open(io.BytesIO(data)) as pdf:
+            with io.BytesIO() as buffer:
+                pdf.save(buffer, linearize=True)
+                return buffer.getvalue()
 
     def save_processed_content_and_assets(self, doc_parts: List[Any], object_store_base_path: Optional[str]) -> str:
         """
@@ -78,7 +95,6 @@ class DocumentParser:
         Raises:
             Exception: If object storage operations fail
         """
-        from aperag.docparser.base import AssetBinPart, MarkdownPart, PdfPart
 
         content = ""
 
@@ -104,8 +120,9 @@ class DocumentParser:
 
             if pdf_part is not None:
                 converted_pdf_upload_path = f"{base_path}/converted.pdf"
-                obj_store.put(converted_pdf_upload_path, pdf_part.data)
-                logger.info(f"uploaded converted pdf to {md_upload_path}, size: {len(pdf_part.data)}")
+                linearized_pdf_data = self.linearize_pdf(pdf_part.data)
+                obj_store.put(converted_pdf_upload_path, linearized_pdf_data)
+                logger.info(f"uploaded converted pdf to {converted_pdf_upload_path}, size: {len(linearized_pdf_data)}")
 
             # Save assets
             asset_count = 0
