@@ -50,6 +50,13 @@ class Config(BaseSettings):
 
     # Database
     database_url: str = Field(f"sqlite:///{BASE_DIR}/db.sqlite3", alias="DATABASE_URL")
+    
+    # Database connection pool settings
+    db_pool_size: int = Field(20, alias="DB_POOL_SIZE")
+    db_max_overflow: int = Field(40, alias="DB_MAX_OVERFLOW")
+    db_pool_timeout: int = Field(60, alias="DB_POOL_TIMEOUT")
+    db_pool_recycle: int = Field(3600, alias="DB_POOL_RECYCLE")
+    db_pool_pre_ping: bool = Field(True, alias="DB_POOL_PRE_PING")
 
     # Auth
     auth_type: str = Field("none", alias="AUTH_TYPE")
@@ -174,8 +181,25 @@ def get_async_database_url(url: str):
 
 settings = Config()
 
-async_engine = create_async_engine(get_async_database_url(settings.database_url), echo=settings.debug)
-sync_engine = create_engine(get_sync_database_url(settings.database_url), echo=settings.debug)
+# Database connection pool settings from configuration
+async_engine = create_async_engine(
+    get_async_database_url(settings.database_url), 
+    echo=settings.debug,
+    pool_size=settings.db_pool_size,
+    max_overflow=settings.db_max_overflow,
+    pool_timeout=settings.db_pool_timeout,
+    pool_recycle=settings.db_pool_recycle,
+    pool_pre_ping=settings.db_pool_pre_ping,
+)
+sync_engine = create_engine(
+    get_sync_database_url(settings.database_url), 
+    echo=settings.debug,
+    pool_size=settings.db_pool_size,
+    max_overflow=settings.db_max_overflow,
+    pool_timeout=settings.db_pool_timeout,
+    pool_recycle=settings.db_pool_recycle,
+    pool_pre_ping=settings.db_pool_pre_ping,
+)
 
 
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
