@@ -18,7 +18,6 @@ import mimetypes
 import os
 from typing import List
 
-from asgiref.sync import sync_to_async
 from fastapi import HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
@@ -36,7 +35,7 @@ from aperag.exceptions import (
     invalid_param,
 )
 from aperag.index.manager import document_index_manager
-from aperag.objectstore.base import get_object_store
+from aperag.objectstore.base import get_async_object_store
 from aperag.schema import view_models
 from aperag.schema.view_models import Chunk, DocumentList, DocumentPreview
 from aperag.utils.constant import QuotaType
@@ -179,7 +178,7 @@ class DocumentService:
             from aperag.db.models import Document, DocumentStatus
 
             documents_created = []
-            obj_store = get_object_store()
+            async_obj_store = get_async_object_store()
             uploaded_files = []  # Track uploaded files for cleanup
 
             try:
@@ -198,7 +197,7 @@ class DocumentService:
 
                     # Upload to object store
                     upload_path = f"{document_instance.object_store_base_path()}/original{file_info['suffix']}"
-                    await sync_to_async(obj_store.put)(upload_path, file_info["content"])
+                    await async_obj_store.put(upload_path, file_info["content"])
                     uploaded_files.append(upload_path)
 
                     # Update document with object path
@@ -229,7 +228,7 @@ class DocumentService:
                 # Clean up uploaded files on database transaction failure
                 for upload_path in uploaded_files:
                     try:
-                        await sync_to_async(obj_store.delete_objects_by_prefix)(upload_path)
+                        await async_obj_store.delete_objects_by_prefix(upload_path)
                     except Exception as cleanup_error:
                         logger.warning(f"Failed to cleanup uploaded file during rollback: {cleanup_error}")
                 raise e
@@ -272,12 +271,12 @@ class DocumentService:
         await document_index_manager.delete_document_indexes(document_id=document.id, index_types=None, session=session)
 
         # Delete from object store
-        obj_store = get_object_store()
+        async_obj_store = get_async_object_store()
         metadata = json.loads(document.doc_metadata) if document.doc_metadata else {}
         if metadata.get("object_path"):
             try:
                 # Use delete_objects_by_prefix to remove all related files (original, chunks, etc.)
-                await sync_to_async(obj_store.delete_objects_by_prefix)(document.object_store_base_path())
+                await async_obj_store.delete_objects_by_prefix(document.object_store_base_path())
                 logger.info(f"Deleted objects from object store with prefix: {document.object_store_base_path()}")
             except Exception as e:
                 logger.warning(f"Failed to delete objects for document {document.id} from object store: {e}")
@@ -499,14 +498,18 @@ class DocumentService:
             chunks = await self.get_document_chunks(user_id, collection_id, document_id)
 
             # 3. Get markdown content
-            obj_store = get_object_store()
+            async_obj_store = get_async_object_store()
             markdown_content = ""
             # The parsed markdown file is stored with the name "parsed.md"
             markdown_path = f"{document.object_store_base_path()}/parsed.md"
             try:
-                md_stream = await sync_to_async(obj_store.get)(markdown_path)
-                if md_stream:
-                    markdown_content = md_stream.read().decode("utf-8")
+                md_obj_result = await async_obj_store.get(markdown_path)
+                if md_obj_result:
+                    md_stream, _ = md_obj_result
+                    content = b""
+                    async for data in md_stream:
+                        content += data
+                    markdown_content = content.decode("utf-8")
             except Exception:
                 logger.warning(f"Could not find or read markdown file at {markdown_path}")
 
@@ -523,7 +526,7 @@ class DocumentService:
                 # it means it is a PDF or has been converted to a PDF.
                 # But only converted documents have a converted.pdf file.
                 pdf_path = f"{document.object_store_base_path()}/converted.pdf"
-                exists = await sync_to_async(obj_store.obj_exists)(pdf_path)
+                exists = await async_obj_store.obj_exists(pdf_path)
                 if exists:
                     converted_pdf_object_path = "converted.pdf"
 
@@ -559,22 +562,20 @@ class DocumentService:
 
             # 2. Get the object from object store
             try:
-                obj_store = get_object_store()
-                file_data_stream = await sync_to_async(obj_store.get)(full_path)
+                async_obj_store = get_async_object_store()
+                get_obj_result = await async_obj_store.get(full_path)
 
-                if not file_data_stream:
+                if not get_obj_result:
                     raise HTTPException(status_code=404, detail="Object not found at specified path")
 
-                def file_iterator():
-                    with file_data_stream:
-                        yield from file_data_stream
+                data_stream, _ = get_obj_result
 
                 # 3. Stream the response
                 content_type, _ = mimetypes.guess_type(full_path)
                 if content_type is None:
                     content_type = "application/octet-stream"
 
-                return StreamingResponse(file_iterator(), media_type=content_type)
+                return StreamingResponse(data_stream, media_type=content_type)
             except Exception as e:
                 logger.error(f"Failed to get object for document {document_id} at path {full_path}: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail="Failed to get object from store")

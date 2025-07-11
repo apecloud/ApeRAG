@@ -401,7 +401,6 @@ async def test_delete_by_prefix_pagination(async_s3_service: AsyncS3):
 
 @pytest.mark.asyncio
 async def test_get_object_from_non_existent_bucket(async_s3_service: AsyncS3):
-    original_bucket_name = async_s3_service.cfg.bucket
     non_existent_bucket_name = f"non-existent-bucket-{uuid.uuid4().hex}"
 
     # Create a new config and service for this test
