@@ -69,6 +69,7 @@ dependencies = [
     "markdownify>=1.1.0",
     "aiohttp>=3.11.16",
     "ddgs>=9.0.0",
+    "aiosqlite>=0.21.0",
 ]
 name = "aperag"
 version = "0.1.0"
@@ -115,7 +116,6 @@ test = [
     "pytest-benchmark>=5.1.0",
     "moto",
     "pytest-aioboto3>=0.6.0",
-    "aiosqlite>=0.21.0",
 ]
 
 [tool.ruff]

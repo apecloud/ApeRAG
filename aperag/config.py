@@ -153,20 +153,22 @@ def get_sync_database_url(url: str):
     """Convert async database URL to sync version for celery"""
     if url.startswith("postgresql+asyncpg://"):
         return url.replace("postgresql+asyncpg://", "postgresql://")
-    elif url.startswith("postgres+asyncpg://"):
+    if url.startswith("postgres+asyncpg://"):
         return url.replace("postgres+asyncpg://", "postgres://")
-    else:
-        return url
+    if url.startswith("sqlite+aiosqlite://"):
+        return url.replace("sqlite+aiosqlite://", "sqlite://")
+    return url
 
 
 def get_async_database_url(url: str):
-    """Convert sync database URL to async version for celery"""
+    """Convert sync database URL to async version"""
     if url.startswith("postgresql://"):
         return url.replace("postgresql://", "postgresql+asyncpg://")
-    elif url.startswith("postgres://"):
+    if url.startswith("postgres://"):
         return url.replace("postgres://", "postgresql+asyncpg://")
-    else:
-        return url
+    if url.startswith("sqlite://"):
+        return url.replace("sqlite://", "sqlite+aiosqlite://")
+    return url
 
 
 settings = Config()
