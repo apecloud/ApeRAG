@@ -31,13 +31,13 @@ def _extract_response_data(response: Any) -> Optional[Dict[str, Any]]:
         if isinstance(response, dict):
             return response
 
-        # If response has a dict() method (Pydantic models)
-        elif hasattr(response, "dict"):
-            return response.dict()
-
         # If response has a model_dump() method (Pydantic v2)
         elif hasattr(response, "model_dump"):
             return response.model_dump()
+
+        # If response has a dict() method (Pydantic models)
+        elif hasattr(response, "dict"):
+            return response.dict()
 
         # If response is a list of dicts or models
         elif isinstance(response, list):
@@ -45,10 +45,10 @@ def _extract_response_data(response: Any) -> Optional[Dict[str, Any]]:
             for item in response:
                 if isinstance(item, dict):
                     result.append(item)
-                elif hasattr(item, "dict"):
-                    result.append(item.dict())
                 elif hasattr(item, "model_dump"):
                     result.append(item.model_dump())
+                elif hasattr(item, "dict"):
+                    result.append(item.dict())
                 else:
                     result.append(str(item))
             return {"items": result}
@@ -119,15 +119,15 @@ def _extract_request_data_from_args(request: Request, kwargs: dict) -> Optional[
 
             # Try to serialize the value
             try:
-                if hasattr(value, "dict"):  # Pydantic model
-                    serialized = value.dict()
-                    # Clean up the serialized data - remove null values and filter sensitive data
+                if hasattr(value, "model_dump"):  # Pydantic v2
+                    serialized = value.model_dump()
+                    # Clean up the serialized data
                     cleaned_data = _clean_data_for_audit(serialized)
                     if cleaned_data:  # Only add if there's actual data
                         parsed_data[key] = cleaned_data
-                elif hasattr(value, "model_dump"):  # Pydantic v2
-                    serialized = value.model_dump()
-                    # Clean up the serialized data
+                elif hasattr(value, "dict"):  # Pydantic model
+                    serialized = value.dict()
+                    # Clean up the serialized data - remove null values and filter sensitive data
                     cleaned_data = _clean_data_for_audit(serialized)
                     if cleaned_data:  # Only add if there's actual data
                         parsed_data[key] = cleaned_data

@@ -378,7 +378,7 @@ class FlowEngine:
         resolved_inputs = self.resolve_expression(raw_inputs, node.id)
         input_model = runner_info["input_model"]
         try:
-            user_input = input_model.parse_obj(resolved_inputs)
+            user_input = input_model.model_validate(resolved_inputs)
         except Exception as e:
             raise ValidationError(f"Input validation error for node {node.id}: {e}")
         sys_input = SystemInput(**self.context.global_variables)
@@ -400,7 +400,7 @@ class FlowEngine:
                     node.id,
                     node.type,
                     self.execution_id,
-                    {"node_type": node.type, "inputs": user_input.dict()},
+                    {"node_type": node.type, "inputs": user_input.model_dump()},
                 )
             )
             outputs = await runner.run(user_input, sys_input)

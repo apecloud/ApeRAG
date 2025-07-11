@@ -37,14 +37,14 @@ class FulltextIndexer(BaseIndexer):
         # Add timeout configuration for sync ES client
         self.es = Elasticsearch(
             self.es_host,
-            timeout=settings.es_timeout,  # Use timeout from settings
+            request_timeout=settings.es_timeout,  # Use timeout from settings
             max_retries=settings.es_max_retries,  # Use max retries from settings
             retry_on_timeout=True,  # Retry on timeout errors
         )
         # Add timeout configuration for async ES client using settings
         self.async_es = AsyncElasticsearch(
             self.es_host,
-            timeout=settings.es_timeout,  # Use timeout from settings
+            request_timeout=settings.es_timeout,  # Use timeout from settings
             max_retries=settings.es_max_retries,  # Use max retries from settings
             retry_on_timeout=True,  # Retry on timeout errors
         )
@@ -266,7 +266,7 @@ class IKExtractor(KeywordExtractor):
         # Add timeout configuration for ES client using settings
         self.client = AsyncElasticsearch(
             ctx.get("es_host", "http://127.0.0.1:9200"),
-            timeout=ctx.get("es_timeout", settings.es_timeout),  # Use timeout from context or settings
+            request_timeout=ctx.get("es_timeout", settings.es_timeout),  # Use timeout from context or settings
             max_retries=ctx.get("es_max_retries", settings.es_max_retries),  # Use max retries from context or settings
             retry_on_timeout=True,  # Retry on timeout errors
         )
@@ -291,7 +291,7 @@ class IKExtractor(KeywordExtractor):
                 logger.warning("index %s not exists", self.index_name)
                 return []
 
-            resp = await self.client.indices.analyze(index=self.index_name, body={"text": text}, analyzer="ik_smart")
+            resp = await self.client.indices.analyze(index=self.index_name, body={"text": text, "analyzer": "ik_smart"})
             tokens = {}
             for item in resp.body["tokens"]:
                 token = item["token"]
@@ -307,7 +307,7 @@ class IKExtractor(KeywordExtractor):
 
 es = Elasticsearch(
     settings.es_host,
-    timeout=settings.es_timeout,  # Use timeout from settings
+    request_timeout=settings.es_timeout,  # Use timeout from settings
     max_retries=settings.es_max_retries,  # Use max retries from settings
     retry_on_timeout=True,  # Retry on timeout errors
 )

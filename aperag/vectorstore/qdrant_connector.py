@@ -53,9 +53,9 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
         search_params = kwargs.get("search_params")
         score_threshold = kwargs.get("score_threshold", 0.1)
 
-        hits = self.client.search(
+        hits = self.client.query_points(
             collection_name=self.collection_name,
-            query_vector=query.embedding,
+            query=query.embedding,
             with_vectors=True,
             limit=query.top_k,
             consistency=consistency,

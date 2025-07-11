@@ -254,10 +254,10 @@ class CollectionService:
             user=user,
             collection_id=collection_id,
             query=data.query,
-            vector_search=data.vector_search.dict() if data.vector_search else None,
-            fulltext_search=data.fulltext_search.dict() if data.fulltext_search else None,
-            graph_search=data.graph_search.dict() if data.graph_search else None,
-            items=[item.dict() for item in items],
+            vector_search=data.vector_search.model_dump() if data.vector_search else None,
+            fulltext_search=data.fulltext_search.model_dump() if data.fulltext_search else None,
+            graph_search=data.graph_search.model_dump() if data.graph_search else None,
+            items=[item.model_dump() for item in items],
         )
         return SearchResult(
             id=record.id,
