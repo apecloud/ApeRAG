@@ -92,25 +92,25 @@ def test_rechunking_with_title_merge_prevention():
     assert rechunked_parts[0].metadata.get("titles") is None
 
     assert rechunked_parts[1].content == "# Main Title"
-    assert rechunked_parts[1].metadata.get("titles") is None
+    assert rechunked_parts[1].metadata.get("titles") == ["# Main Title"]
 
     assert rechunked_parts[2].content == "Content under main title"
     assert rechunked_parts[2].metadata.get("titles") == ["# Main Title"]
 
     assert rechunked_parts[3].content == "## Subtitle 1"
-    assert rechunked_parts[3].metadata.get("titles") == ["# Main Title"]
+    assert rechunked_parts[3].metadata.get("titles") == ["# Main Title", "## Subtitle 1"]
 
     assert rechunked_parts[4].content == "Content under subtitle 1"
     assert rechunked_parts[4].metadata.get("titles") == ["# Main Title", "## Subtitle 1"]
 
     assert rechunked_parts[5].content == "## Subtitle 2"
-    assert rechunked_parts[5].metadata.get("titles") == ["# Main Title"]
+    assert rechunked_parts[5].metadata.get("titles") == ["# Main Title", "## Subtitle 2"]
 
     assert rechunked_parts[6].content == "Content under subtitle 2"
     assert rechunked_parts[6].metadata.get("titles") == ["# Main Title", "## Subtitle 2"]
 
     assert rechunked_parts[7].content == "# Main Title 2"
-    assert rechunked_parts[7].metadata.get("titles") is None
+    assert rechunked_parts[7].metadata.get("titles") == ["# Main Title 2"]
 
     assert rechunked_parts[8].content == "Content under main title 2"
     assert rechunked_parts[8].metadata.get("titles") == ["# Main Title 2"]
