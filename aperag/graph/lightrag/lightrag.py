@@ -1355,20 +1355,29 @@ class LightRAG:
                 merged_entity_data["entity_type"] = target_entity_type
 
         # Apply target entity data overrides (from target_entity_data parameter)
+        user_provided_description = None
         for key, value in target_entity_data.items():
             if key != "entity_name":  # Don't override entity_name in the data
                 merged_entity_data[key] = value
+                if key == "description" and value:  # Track if user provided description
+                    user_provided_description = value
 
         merged_entity_data["entity_id"] = target_entity_name
 
-        # Calculate description info for LLM summary decision
-        descriptions = [data.get("description", "") for data in entities_data.values() if data.get("description")]
-        merged_description = GRAPH_FIELD_SEP.join(descriptions)
+        # Only use auto-generated description if user didn't provide one
+        if user_provided_description is None:
+            # Calculate description info for LLM summary decision
+            descriptions = [data.get("description", "") for data in entities_data.values() if data.get("description")]
+            merged_description = GRAPH_FIELD_SEP.join(descriptions)
 
-        # Skip LLM summarization to save cost and time
-        # Previously we would call _handle_entity_relation_summary if num_fragments >= self.force_llm_summary_on_merge
-        # Now we simply use the concatenated description as-is
-        merged_entity_data["description"] = merged_description
+            # Skip LLM summarization to save cost and time
+            # Previously we would call _handle_entity_relation_summary if num_fragments >= self.force_llm_summary_on_merge
+            # Now we simply use the concatenated description as-is
+            merged_entity_data["description"] = merged_description
+        else:
+            # Use user-provided description
+            self.lightrag_logger.info(f"Using user-provided description for target entity {target_entity_name}")
+            merged_entity_data["description"] = user_provided_description
 
         # Create/update target entity
         await self.chunk_entity_relation_graph.upsert_node(target_entity_name, merged_entity_data)
