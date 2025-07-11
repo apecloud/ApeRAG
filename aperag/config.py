@@ -108,8 +108,9 @@ class Config(BaseSettings):
     redis_password: str = Field("", alias="REDIS_PASSWORD")
 
     # Fulltext search
-    enable_fulltext_search: bool = Field(True, alias="ENABLE_FULLTEXT_SEARCH")
     es_host: str = Field("http://localhost:9200", alias="ES_HOST")
+    es_timeout: int = Field(30, alias="ES_TIMEOUT")  # ES request timeout in seconds
+    es_max_retries: int = Field(3, alias="ES_MAX_RETRIES")  # Max retries for ES requests
 
     # Qianfan
     qianfan_api_key: str = Field("", alias="QIANFAN_API_KEY")

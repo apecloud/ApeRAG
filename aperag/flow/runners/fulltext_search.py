@@ -68,7 +68,14 @@ class FulltextSearchService:
         from aperag.index.fulltext_index import fulltext_indexer
 
         index = generate_vector_db_collection_name(collection.id)
-        async with IKExtractor({"index_name": index, "es_host": settings.es_host}) as extractor:
+        async with IKExtractor(
+            {
+                "index_name": index,
+                "es_host": settings.es_host,
+                "es_timeout": settings.es_timeout,
+                "es_max_retries": settings.es_max_retries,
+            }
+        ) as extractor:
             keywords = await extractor.extract(query)
 
         # Find the related documents using keywords
