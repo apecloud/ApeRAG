@@ -50,7 +50,7 @@ class Config(BaseSettings):
 
     # Database
     database_url: str = Field(f"sqlite:///{BASE_DIR}/db.sqlite3", alias="DATABASE_URL")
-    
+
     # Database connection pool settings
     db_pool_size: int = Field(20, alias="DB_POOL_SIZE")
     db_max_overflow: int = Field(40, alias="DB_MAX_OVERFLOW")
@@ -183,7 +183,7 @@ settings = Config()
 
 # Database connection pool settings from configuration
 async_engine = create_async_engine(
-    get_async_database_url(settings.database_url), 
+    get_async_database_url(settings.database_url),
     echo=settings.debug,
     pool_size=settings.db_pool_size,
     max_overflow=settings.db_max_overflow,
@@ -192,7 +192,7 @@ async_engine = create_async_engine(
     pool_pre_ping=settings.db_pool_pre_ping,
 )
 sync_engine = create_engine(
-    get_sync_database_url(settings.database_url), 
+    get_sync_database_url(settings.database_url),
     echo=settings.debug,
     pool_size=settings.db_pool_size,
     max_overflow=settings.db_max_overflow,

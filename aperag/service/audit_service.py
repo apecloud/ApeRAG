@@ -164,7 +164,7 @@ class AuditService:
                 session.add(audit_log)
                 await session.commit()
                 return audit_log
-            
+
             # Use get_async_session with proper session management
             async for session in get_async_session():
                 await _save_audit_log(session)
@@ -185,6 +185,7 @@ class AuditService:
         limit: int = 1000,
     ) -> List[AuditLog]:
         """List audit logs with filtering"""
+
         # Use proper session management
         async def _list_audit_logs(session):
             # Build query
@@ -217,7 +218,7 @@ class AuditService:
             result = await session.execute(stmt)
             audit_logs = result.scalars().all()
             return audit_logs
-        
+
         # Execute query with proper session management
         async for session in get_async_session():
             return await _list_audit_logs(session)
