@@ -63,7 +63,7 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
             score_threshold=score_threshold,
         )
 
-        results = [self._convert_scored_point_to_document_with_score(point) for point in hits]
+        results = [self._convert_scored_point_to_document_with_score(point) for point in hits.points]
         results = [result for result in results if result is not None]
 
         return QueryResult(
