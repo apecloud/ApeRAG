@@ -15,7 +15,7 @@
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from sqlalchemy import and_, select, update
+from sqlalchemy import and_, select, text, update
 
 from aperag.db.models import MergeSuggestion, MergeSuggestionStatus
 from aperag.db.repositories.base import AsyncRepositoryProtocol
@@ -77,11 +77,11 @@ class AsyncMergeSuggestionRepositoryMixin(AsyncRepositoryProtocol):
                 and_(
                     MergeSuggestion.collection_id == collection_id,
                     MergeSuggestion.gmt_deleted.is_(None),
-                    MergeSuggestion.entity_ids.overlap(entity_ids),  # PostgreSQL array overlap
+                    text("entity_ids && :entity_ids"),  # PostgreSQL array overlap operator
                 )
             )
 
-            result = await session.execute(stmt)
+            result = await session.execute(stmt, {"entity_ids": entity_ids})
             return result.scalars().all()
 
         return await self._execute_query(_query)

@@ -341,9 +341,6 @@ class GraphService:
             # Update suggestion status to ACCEPTED
             await self.db_ops.update_suggestion_status(suggestion_id, MergeSuggestionStatus.ACCEPTED, utc_now())
 
-            # Expire related suggestions involving the same entities
-            await self.db_ops.expire_related_suggestions(collection_id, suggestion.entity_ids)
-
             logger.info(f"Suggestion {suggestion_id} has been accepted and merge completed")
             return {
                 "status": "success",
