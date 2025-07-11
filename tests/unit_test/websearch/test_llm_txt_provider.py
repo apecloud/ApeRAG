@@ -84,50 +84,56 @@ class TestLLMTxtSearchProvider:
     @pytest.mark.asyncio
     async def test_direct_llms_txt_url(self, provider, mock_success_response):
         """Test direct LLM.txt URL detection and processing."""
-        # Mock reader service
-        mock_reader = AsyncMock()
-        mock_reader.read.return_value = mock_success_response
-        provider.reader_service = mock_reader
+        # Mock the direct fetch method instead of reader service
+        provider._fetch_llm_txt_content_directly = AsyncMock(
+            return_value="- [Test](https://example.com/test): Test content"
+        )
 
         # Test direct URL
-        direct_url = "https://modelcontextprotocol.io/llms-full.txt"
+        direct_url = "https://example.com/llms.txt"
         results = await provider.search(query="test", source=direct_url, max_results=5)
 
         assert len(results) == 1
-        assert results[0].url == direct_url
+        assert results[0].url == "https://example.com/test"
         assert results[0].rank == 1
-        assert results[0].domain == "modelcontextprotocol.io"
+        assert results[0].domain == "example.com"
 
     @pytest.mark.asyncio
     async def test_domain_pattern_discovery(self, provider, mock_success_response):
         """Test pattern-based discovery from domain."""
-        # Mock reader service
-        mock_reader = AsyncMock()
-        mock_reader.read.return_value = mock_success_response
-        provider.reader_service = mock_reader
+        # Mock the direct fetch method to return content on first call, empty on others
+        fetch_calls = 0
+
+        async def mock_fetch(url, timeout):
+            nonlocal fetch_calls
+            fetch_calls += 1
+            if fetch_calls == 1:  # First pattern succeeds
+                return "- [Test](https://example.com/test): Test content"
+            return ""  # Other patterns fail
+
+        provider._fetch_llm_txt_content_directly = AsyncMock(side_effect=mock_fetch)
 
         # Test domain
         results = await provider.search(query="test", source="example.com", max_results=5)
 
         assert len(results) == 1
+        assert results[0].url == "https://example.com/test"
         assert results[0].domain == "example.com"
         assert results[0].rank == 1
 
     @pytest.mark.asyncio
     async def test_pattern_failure_fallback(self, provider, mock_failed_response):
         """Test that provider tries multiple patterns when earlier ones fail."""
-        # Mock reader service to fail
-        mock_reader = AsyncMock()
-        mock_reader.read.return_value = mock_failed_response
-        provider.reader_service = mock_reader
+        # Mock the direct fetch method to always return empty content (simulate 404s)
+        provider._fetch_llm_txt_content_directly = AsyncMock(return_value="")
 
         results = await provider.search(query="test", source="example.com", max_results=5)
 
         # Should return empty results when all patterns fail
         assert results == []
 
-        # Should have tried multiple patterns (reader called multiple times)
-        assert mock_reader.read.call_count > 1
+        # Should have tried multiple patterns (fetch called multiple times)
+        assert provider._fetch_llm_txt_content_directly.call_count > 1
 
     @pytest.mark.asyncio
     async def test_invalid_source_url(self, provider):
@@ -139,25 +145,23 @@ class TestLLMTxtSearchProvider:
 
     @pytest.mark.asyncio
     async def test_snippet_creation(self, provider):
-        """Test snippet creation from content."""
-        # Test basic snippet creation
-        content = "This is a test content with some information about the documentation."
-        snippet = provider._create_snippet_from_content(content, max_length=50)
+        """Test snippet creation from line content."""
+        # Test basic line content cleaning
+        line_content = "- [Test Content](https://example.com): This is a test content with some information about the documentation."
+        snippet = provider._clean_line_content_for_snippet(line_content)
 
-        assert len(snippet) <= 53  # 50 + "..."
-        assert snippet.endswith("...")
+        assert "Test Content: This is a test content" in snippet
+        assert len(snippet) <= 203  # 200 + "..."
 
         # Test short content (no truncation)
-        short_content = "Short content"
-        snippet = provider._create_snippet_from_content(short_content)
-        assert snippet == "Short content"
+        short_content = "- [Short](https://example.com): Brief description"
+        snippet = provider._clean_line_content_for_snippet(short_content)
+        assert snippet == "Short: Brief description"
 
-        # Test markdown removal
-        markdown_content = "# Title\n\nThis is **bold** and *italic* text with `code`."
-        snippet = provider._create_snippet_from_content(markdown_content)
-        assert "#" not in snippet
-        assert "**" not in snippet
-        assert "`" not in snippet
+        # Test content without description
+        simple_content = "- [Simple Link](https://example.com)"
+        snippet = provider._clean_line_content_for_snippet(simple_content)
+        assert snippet == "Simple Link"
 
     @pytest.mark.asyncio
     async def test_url_detection_helper(self, provider):

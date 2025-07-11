@@ -159,9 +159,9 @@ class TestResourceLimits:
         """Test handling of extremely long strings."""
         provider = LLMTxtSearchProvider()
 
-        # Test very long content
-        very_long_content = "x" * 10000
-        snippet = provider._create_snippet_from_content(very_long_content, max_length=200)
+        # Test very long line content
+        very_long_content = "[Very Long Title](https://example.com): " + "x" * 10000
+        snippet = provider._clean_line_content_for_snippet(very_long_content)
 
         assert len(snippet) <= 203  # 200 + "..."
         assert snippet.endswith("...")
@@ -222,14 +222,10 @@ class TestMaliciousInputs:
         """Test that XSS patterns don't crash snippet creation."""
         provider = LLMTxtSearchProvider()
 
-        xss_content = """
-        <script>alert('xss')</script>
-        <img src=x onerror=alert('xss')>
-        javascript:alert('xss')
-        """
+        xss_content = """- [Script Link](https://example.com): <script>alert('xss')</script> test content"""
 
         # Should not crash when creating snippet
-        snippet = provider._create_snippet_from_content(xss_content)
+        snippet = provider._clean_line_content_for_snippet(xss_content)
 
         # Basic check that snippet is created without errors
         assert isinstance(snippet, str)
@@ -240,13 +236,13 @@ class TestMaliciousInputs:
         provider = LLMTxtSearchProvider()
 
         # Test various unicode patterns
-        unicode_content = "测试内容 🚀 émojis café naïve résumé"
-        snippet = provider._create_snippet_from_content(unicode_content)
-        assert snippet == unicode_content  # Should handle unicode correctly
+        unicode_content = "- [测试](https://example.com): 测试内容 🚀 émojis café naïve résumé"
+        snippet = provider._clean_line_content_for_snippet(unicode_content)
+        assert "测试: 测试内容 🚀 émojis café naïve résumé" in snippet  # Should handle unicode correctly
 
         # Test null bytes and control characters
-        control_content = "test\x00null\x01control\x02chars"
-        snippet = provider._create_snippet_from_content(control_content)
+        control_content = "- [Control](https://example.com): test\x00null\x01control\x02chars"
+        snippet = provider._clean_line_content_for_snippet(control_content)
         assert isinstance(snippet, str)  # Should not crash
 
 
