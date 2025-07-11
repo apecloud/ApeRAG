@@ -181,6 +181,79 @@ def test_get_non_existent_object(local_service: Local):
     assert local_service.get("this_file_does_not_exist_local.txt") is None
 
 
+def test_get_obj_size(local_service: Local):
+    file_path = "test_size.txt"
+    file_content = b"1234567890"
+    local_service.put(file_path, file_content)
+
+    assert local_service.get_obj_size(file_path) == 10
+    assert local_service.get_obj_size("non_existent_file.txt") is None
+
+
+def test_stream_range_full_file(local_service: Local):
+    file_path = "test_stream_full.txt"
+    file_content = b"This is the full content."
+    local_service.put(file_path, file_content)
+
+    stream, length = local_service.stream_range(file_path, 0)
+    assert length == len(file_content)
+    with stream:
+        content = stream.read()
+    assert content == file_content
+
+
+def test_stream_range_partial_start(local_service: Local):
+    file_path = "test_stream_partial_start.txt"
+    file_content = b"0123456789"
+    local_service.put(file_path, file_content)
+
+    # Stream from byte 4 to the end
+    stream, length = local_service.stream_range(file_path, 4)
+    assert length == 6
+    with stream:
+        content = stream.read()
+    assert content == b"456789"
+
+
+def test_stream_range_partial_middle(local_service: Local):
+    file_path = "test_stream_partial_middle.txt"
+    file_content = b"0123456789abcdef"
+    local_service.put(file_path, file_content)
+
+    # Stream from byte 5 to 10
+    stream, length = local_service.stream_range(file_path, 5, 10)
+    assert length == 6  # 10 - 5 + 1
+    with stream:
+        content = stream.read()
+    assert content == b"56789a"
+
+
+def test_stream_range_exceeds_bounds(local_service: Local):
+    file_path = "test_stream_exceeds.txt"
+    file_content = b"short file"
+    local_service.put(file_path, file_content)
+
+    # End is beyond the file length, should stream to the actual end
+    stream, length = local_service.stream_range(file_path, 2, 1000)
+    assert length == len(file_content) - 2
+    with stream:
+        content = stream.read()
+    assert content == b"ort file"
+
+
+def test_stream_range_invalid_start(local_service: Local):
+    file_path = "test_stream_invalid_start.txt"
+    file_content = b"content"
+    local_service.put(file_path, file_content)
+
+    with pytest.raises(ValueError):
+        local_service.stream_range(file_path, 100)
+
+
+def test_stream_range_non_existent_file(local_service: Local):
+    assert local_service.stream_range("non_existent.txt", 0) is None
+
+
 def test_get_object_when_root_dir_removed_after_init(local_config: LocalConfig):
     service = Local(local_config)
     object_path = "test_get_gone_root.txt"

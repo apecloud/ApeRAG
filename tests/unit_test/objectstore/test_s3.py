@@ -424,6 +424,66 @@ def test_get_non_existent_object(s3_service: S3):
     assert s3_service.get("this_file_does_not_exist.txt") is None
 
 
+def test_get_obj_size(s3_service: S3):
+    file_path = "test_size_s3.txt"
+    file_content = b"1234567890"
+    s3_service.put(file_path, file_content)
+
+    assert s3_service.get_obj_size(file_path) == 10
+    assert s3_service.get_obj_size("non_existent_file.txt") is None
+
+
+def test_stream_range_full_file(s3_service: S3):
+    file_path = "test_stream_full_s3.txt"
+    file_content = b"This is the full content for S3."
+    s3_service.put(file_path, file_content)
+
+    stream, length = s3_service.stream_range(file_path, 0)
+    assert length == len(file_content)
+    with stream:
+        content = stream.read()
+    assert content == file_content
+
+
+def test_stream_range_partial_middle(s3_service: S3):
+    file_path = "test_stream_partial_middle_s3.txt"
+    file_content = b"0123456789abcdef"
+    s3_service.put(file_path, file_content)
+
+    # Stream from byte 5 to 10
+    stream, length = s3_service.stream_range(file_path, 5, 10)
+    assert length == 6  # 10 - 5 + 1
+    with stream:
+        content = stream.read()
+    assert content == b"56789a"
+
+
+def test_stream_range_exceeds_bounds(s3_service: S3):
+    file_path = "test_stream_exceeds_s3.txt"
+    file_content = b"short s3 file"
+    s3_service.put(file_path, file_content)
+
+    # End is beyond the file length, should stream to the actual end
+    stream, length = s3_service.stream_range(file_path, 2, 1000)
+    assert length == len(file_content) - 2
+    with stream:
+        content = stream.read()
+    assert content == b"ort s3 file"
+
+
+def test_stream_range_invalid_start(s3_service: S3):
+    file_path = "test_stream_invalid_start_s3.txt"
+    file_content = b"content"
+    s3_service.put(file_path, file_content)
+
+    with pytest.raises(ValueError):
+        s3_service.stream_range(file_path, 100)
+
+
+def test_stream_range_non_existent_file(s3_service: S3):
+    assert s3_service.stream_range("non_existent_s3.txt", 0) is None
+
+
 def test_get_object_from_non_existent_bucket(s3_service: S3):
     original_bucket_name = s3_service.cfg.bucket
     non_existent_bucket_name = "non-existent-bucket-" + uuid.uuid4().hex

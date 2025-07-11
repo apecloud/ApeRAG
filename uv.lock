@@ -29,6 +29,51 @@ wheels = [
 ]
 
 [[package]]
+name = "aioboto3"
+version = "15.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiobotocore", extra = ["boto3"] },
+    { name = "aiofiles" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/80/d0/ed107e16551ba1b93ddcca9a6bf79580450945268a8bc396530687b3189f/aioboto3-15.0.0.tar.gz", hash = "sha256:dce40b701d1f8e0886dc874d27cd9799b8bf6b32d63743f57e7bef7e4a562756", size = 225278, upload-time = "2025-06-26T16:30:48.967Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bf/95/d69c744f408e5e4592fe53ed98fc244dd13b83d84cf1f83b2499d98bfcc9/aioboto3-15.0.0-py3-none-any.whl", hash = "sha256:9cf54b3627c8b34bb82eaf43ab327e7027e37f92b1e10dd5cfe343cd512568d0", size = 35785, upload-time = "2025-06-26T16:30:47.444Z" },
+]
+
+[[package]]
+name = "aiobotocore"
+version = "2.23.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "aioitertools" },
+    { name = "botocore" },
+    { name = "jmespath" },
+    { name = "multidict" },
+    { name = "python-dateutil" },
+    { name = "wrapt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9d/25/4b06ea1214ddf020a28df27dc7136ac9dfaf87929d51e6f6044dd350ed67/aiobotocore-2.23.0.tar.gz", hash = "sha256:0333931365a6c7053aee292fe6ef50c74690c4ae06bb019afdf706cb6f2f5e32", size = 115825, upload-time = "2025-06-12T23:46:38.055Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ea/43/ccf9b29669cdb09fd4bfc0a8effeb2973b22a0f3c3be4142d0b485975d11/aiobotocore-2.23.0-py3-none-any.whl", hash = "sha256:8202cebbf147804a083a02bc282fbfda873bfdd0065fd34b64784acb7757b66e", size = 84161, upload-time = "2025-06-12T23:46:36.305Z" },
+]
+
+[package.optional-dependencies]
+boto3 = [
+    { name = "boto3" },
+]
+
+[[package]]
+name = "aiofiles"
+version = "24.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0b/03/a88171e277e8caa88a4c77808c20ebb04ba74cc4681bf1e9416c862de237/aiofiles-24.1.0.tar.gz", hash = "sha256:22a075c9e5a3810f0c2e48f3008c94d68c65d763b9b03857924c99e57355166c", size = 30247, upload-time = "2024-06-24T11:02:03.584Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a5/45/30bb92d442636f570cb5651bc661f52b610e2eec3f891a5dc3a4c3667db0/aiofiles-24.1.0-py3-none-any.whl", hash = "sha256:b4ec55f4195e3eb5d7abd1bf7e061763e864dd4954231fb8539a0ef8bb8260e5", size = 15896, upload-time = "2024-06-24T11:02:01.529Z" },
+]
+
+[[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
 source = { registry = "https://pypi.org/simple" }
@@ -84,6 +129,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/73/2a/08a68eec3c99a6659067d271d7553e4d490a0828d588e1daa3970dc2b771/aiohttp-3.11.16-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:fa73e8c2656a3653ae6c307b3f4e878a21f87859a9afab228280ddccd7369d71", size = 1697619, upload-time = "2025-04-02T02:16:32.873Z" },
     { url = "https://files.pythonhosted.org/packages/61/d5/fea8dbbfb0cd68fbb56f0ae913270a79422d9a41da442a624febf72d2aaf/aiohttp-3.11.16-cp312-cp312-win32.whl", hash = "sha256:f244b8e541f414664889e2c87cac11a07b918cb4b540c36f7ada7bfa76571ea2", size = 411710, upload-time = "2025-04-02T02:16:34.525Z" },
     { url = "https://files.pythonhosted.org/packages/33/fb/41cde15fbe51365024550bf77b95a4fc84ef41365705c946da0421f0e1e0/aiohttp-3.11.16-cp312-cp312-win_amd64.whl", hash = "sha256:23a15727fbfccab973343b6d1b7181bfb0b4aa7ae280f36fd2f90f5476805682", size = 438012, upload-time = "2025-04-02T02:16:36.103Z" },
+]
+
+[[package]]
+name = "aioitertools"
+version = "0.12.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/06/de/38491a84ab323b47c7f86e94d2830e748780525f7a10c8600b67ead7e9ea/aioitertools-0.12.0.tar.gz", hash = "sha256:c2a9055b4fbb7705f561b9d86053e8af5d10cc845d22c32008c43490b2d8dd6b", size = 19369, upload-time = "2024-09-02T03:33:40.349Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/85/13/58b70a580de00893223d61de8fea167877a3aed97d4a5e1405c9159ef925/aioitertools-0.12.0-py3-none-any.whl", hash = "sha256:fc1f5fac3d737354de8831cbba3eb04f79dd649d8f3afb4c5b114925e662a796", size = 24345, upload-time = "2024-09-02T03:34:59.454Z" },
 ]
 
 [[package]]
@@ -183,6 +237,7 @@ name = "aperag"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "aioboto3" },
     { name = "aiohttp" },
     { name = "alembic" },
     { name = "arrow" },
@@ -249,14 +304,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-evaluation = [
-    { name = "ragas" },
-]
-lightrag-dev = [
-    { name = "nano-vectordb" },
-]
-
-[package.dev-dependencies]
 dev = [
     { name = "datamodel-code-generator" },
     { name = "deptry" },
@@ -267,6 +314,12 @@ dev = [
     { name = "types-requests" },
     { name = "types-toml" },
     { name = "vulture" },
+]
+evaluation = [
+    { name = "ragas" },
+]
+lightrag-dev = [
+    { name = "nano-vectordb" },
 ]
 model = [
     { name = "flagembedding" },
@@ -286,6 +339,7 @@ test = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aioboto3", specifier = ">=15.0.0" },
     { name = "aiohttp", specifier = ">=3.11.16" },
     { name = "alembic", specifier = ">=1.16.1" },
     { name = "arrow", specifier = ">=1.2.3,<2.0.0" },
@@ -296,7 +350,9 @@ requires-dist = [
     { name = "channels", specifier = ">=4.0.0,<5.0.0" },
     { name = "cryptography", specifier = ">=41.0.1,<42.0.0" },
     { name = "dashscope", specifier = ">=1.23.1,<2.0.0" },
+    { name = "datamodel-code-generator", marker = "extra == 'dev'", specifier = ">=0.30.0" },
     { name = "ddgs", specifier = ">=9.0.0" },
+    { name = "deptry", marker = "extra == 'dev'", specifier = ">=0.23.0,<1.0.0" },
     { name = "django-celery-beat", specifier = ">=2.5.0,<3.0.0" },
     { name = "django-environ", specifier = ">=0.12.0" },
     { name = "duckduckgo-search", specifier = ">=8.1.1" },
@@ -304,6 +360,7 @@ requires-dist = [
     { name = "fastapi", extras = ["standard"], specifier = ">=0.115.12" },
     { name = "fastapi-users", extras = ["sqlalchemy"], specifier = ">=14.0.1" },
     { name = "fastmcp", specifier = ">=2.10.0" },
+    { name = "flagembedding", marker = "extra == 'model'", specifier = ">=1.3.4,<2.0.0" },
     { name = "flower", specifier = ">=2.0.0,<3.0.0" },
     { name = "func-timeout", specifier = ">=4.3.5,<5.0.0" },
     { name = "gevent", specifier = ">=23.9.1,<24.0.0" },
@@ -319,6 +376,8 @@ requires-dist = [
     { name = "markdownify", specifier = ">=1.1.0" },
     { name = "markitdown", extras = ["all"], specifier = ">=0.1.1" },
     { name = "mcp-agent", specifier = ">=0.1.6" },
+    { name = "moto", marker = "extra == 'test'" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.4.1,<2.0.0" },
     { name = "nano-vectordb", specifier = ">=0.0.4.3" },
     { name = "nano-vectordb", marker = "extra == 'lightrag-dev'" },
     { name = "nebula3-python", specifier = "==3.8.3" },
@@ -337,6 +396,10 @@ requires-dist = [
     { name = "pydantic", extras = ["email"], specifier = ">=2.10.3,<3.0.0" },
     { name = "pydantic-settings", specifier = ">=2.9.1" },
     { name = "pytablewriter", specifier = ">=1.2.1,<2.0.0" },
+    { name = "pytablewriter", marker = "extra == 'test'", specifier = ">=1.0.0,<2.0.0" },
+    { name = "pytest", marker = "extra == 'test'" },
+    { name = "pytest-asyncio", marker = "extra == 'test'" },
+    { name = "pytest-benchmark", marker = "extra == 'test'", specifier = ">=5.1.0" },
     { name = "python-dotenv", specifier = ">=1.0.0,<2.0.0" },
     { name = "qdrant-client", marker = "python_full_version >= '3.8.1' and python_full_version < '3.12'", specifier = ">=1.3.0,<2.0.0" },
     { name = "qianfan", specifier = ">=0.4.12.3,<1.0.0.0" },
@@ -345,43 +408,26 @@ requires-dist = [
     { name = "redis", specifier = ">=4.6.0,<5.0.0" },
     { name = "requests" },
     { name = "requests", specifier = ">=2.31.0,<3.0.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.11.2,<1.0.0" },
+    { name = "sentence-transformers", marker = "extra == 'model'", specifier = ">=4.0.2,<5.0.0" },
     { name = "socksio", specifier = ">=1.0.0,<2.0.0" },
     { name = "sqlalchemy", specifier = ">=2.0.40" },
+    { name = "tabulate", marker = "extra == 'test'", specifier = ">=0.9.0,<1.0.0" },
     { name = "terminal", specifier = ">=0.4.0,<1.0.0" },
+    { name = "text2vec", marker = "extra == 'model'", specifier = ">=1.3.3,<2.0.0" },
+    { name = "torch", marker = "extra == 'model'", specifier = ">=2.6.0,<3.0.0" },
     { name = "trafilatura", specifier = ">=2.0.0" },
+    { name = "transformers", marker = "extra == 'model'", specifier = "==4.49.0" },
+    { name = "types-chardet", marker = "extra == 'dev'", specifier = ">=5.0.4.6,<6.0.0.0" },
+    { name = "types-redis", marker = "extra == 'dev'", specifier = ">=4.3.21.6,<5.0.0.0" },
+    { name = "types-requests", marker = "extra == 'dev'", specifier = ">=2.31.0.2,<3.0.0.0" },
+    { name = "types-toml", marker = "extra == 'dev'", specifier = ">=0.10.8.1,<1.0.0.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.23.1,<1.0.0" },
+    { name = "vulture", marker = "extra == 'dev'", specifier = ">=2.14,<3.0" },
     { name = "watchfiles", specifier = ">=0.19.0,<1.0.0" },
     { name = "whitenoise", specifier = ">=6.5.0,<7.0.0" },
 ]
-provides-extras = ["all", "lightrag-dev", "evaluation"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "datamodel-code-generator", specifier = ">=0.30.0" },
-    { name = "deptry", specifier = ">=0.23.0,<1.0.0" },
-    { name = "mypy", specifier = ">=1.4.1,<2.0.0" },
-    { name = "ruff", specifier = ">=0.11.2,<1.0.0" },
-    { name = "types-chardet", specifier = ">=5.0.4.6,<6.0.0.0" },
-    { name = "types-redis", specifier = ">=4.3.21.6,<5.0.0.0" },
-    { name = "types-requests", specifier = ">=2.31.0.2,<3.0.0.0" },
-    { name = "types-toml", specifier = ">=0.10.8.1,<1.0.0.0" },
-    { name = "vulture", specifier = ">=2.14,<3.0" },
-]
-model = [
-    { name = "flagembedding", specifier = ">=1.3.4,<2.0.0" },
-    { name = "sentence-transformers", specifier = ">=4.0.2,<5.0.0" },
-    { name = "text2vec", specifier = ">=1.3.3,<2.0.0" },
-    { name = "torch", specifier = ">=2.6.0,<3.0.0" },
-    { name = "transformers", specifier = "==4.49.0" },
-]
-test = [
-    { name = "moto" },
-    { name = "pytablewriter", specifier = ">=1.0.0,<2.0.0" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-benchmark", specifier = ">=5.1.0" },
-    { name = "tabulate", specifier = ">=0.9.0,<1.0.0" },
-]
+provides-extras = ["all", "lightrag-dev", "evaluation", "model", "dev", "test"]
 
 [[package]]
 name = "appdirs"
@@ -706,16 +752,16 @@ wheels = [
 
 [[package]]
 name = "boto3"
-version = "1.37.37"
+version = "1.38.27"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "botocore" },
     { name = "jmespath" },
     { name = "s3transfer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/82/8c/2ca661db6c9e591d9dc46149b43a91385283c852436ccba62e199643e196/boto3-1.37.37.tar.gz", hash = "sha256:752d31105a45e3e01c8c68471db14ae439990b75a35e72b591ca528e2575b28f", size = 111666, upload-time = "2025-04-18T19:21:46.741Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e7/96/fc74d8521d2369dd8c412438401ff12e1350a1cd3eab5c758ed3dd5e5f82/boto3-1.38.27.tar.gz", hash = "sha256:94bd7fdd92d5701b362d4df100d21e28f8307a67ff56b6a8b0398119cf22f859", size = 111875, upload-time = "2025-05-30T19:32:41.352Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e4/5f/032d93e74949222ffbfbc3270f29a3ee423fe648de8a31c49cce0cbb0a09/boto3-1.37.37-py3-none-any.whl", hash = "sha256:d125cb11e22817f7a2581bade4bf7b75247b401888890239ceb5d3e902ccaf38", size = 139917, upload-time = "2025-04-18T19:21:43.769Z" },
+    { url = "https://files.pythonhosted.org/packages/43/8b/b2361188bd1e293eede1bc165e2461d390394f71ec0c8c21211c8dabf62c/boto3-1.38.27-py3-none-any.whl", hash = "sha256:95f5fe688795303a8a15e8b7e7f255cadab35eae459d00cc281a4fd77252ea80", size = 139938, upload-time = "2025-05-30T19:32:38.006Z" },
 ]
 
 [[package]]
@@ -739,16 +785,16 @@ bedrock-runtime = [
 
 [[package]]
 name = "botocore"
-version = "1.37.37"
+version = "1.38.27"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jmespath" },
     { name = "python-dateutil" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/96/d0/70969515e3ae8ff0fcccf22827d5d131bc7b8729331127415cf8f2861d63/botocore-1.37.37.tar.gz", hash = "sha256:3eadde6fed95c4cb469cc39d1c3558528b7fa76d23e7e16d4bddc77250431a64", size = 13828530, upload-time = "2025-04-18T19:21:32.145Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/36/5e/67899214ad57f7f26af5bd776ac5eb583dc4ecf5c1e52e2cbfdc200e487a/botocore-1.38.27.tar.gz", hash = "sha256:9788f7efe974328a38cbade64cc0b1e67d27944b899f88cb786ae362973133b6", size = 13919963, upload-time = "2025-05-30T19:32:29.657Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fe/17/602915b29cb695e1e66f65e33b1026f1534e49975d99ea4e32e58d963542/botocore-1.37.37-py3-none-any.whl", hash = "sha256:eb730ff978f47c02f0c8ed07bccdc0db6d8fa098ed32ac31bee1da0e9be480d1", size = 13495584, upload-time = "2025-04-18T19:21:26.45Z" },
+    { url = "https://files.pythonhosted.org/packages/7e/83/a753562020b69fa90cebc39e8af2c753b24dcdc74bee8355ee3f6cefdf34/botocore-1.38.27-py3-none-any.whl", hash = "sha256:a785d5e9a5eda88ad6ab9ed8b87d1f2ac409d0226bba6ff801c55359e94d91a8", size = 13580545, upload-time = "2025-05-30T19:32:26.712Z" },
 ]
 
 [[package]]
@@ -5132,14 +5178,14 @@ wheels = [
 
 [[package]]
 name = "s3transfer"
-version = "0.11.5"
+version = "0.13.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "botocore" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c4/2b/5c9562795c2eb2b5f63536961754760c25bf0f34af93d36aa28dea2fb303/s3transfer-0.11.5.tar.gz", hash = "sha256:8c8aad92784779ab8688a61aefff3e28e9ebdce43142808eaa3f0b0f402f68b7", size = 149107, upload-time = "2025-04-17T19:23:19.051Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ed/5d/9dcc100abc6711e8247af5aa561fc07c4a046f72f659c3adea9a449e191a/s3transfer-0.13.0.tar.gz", hash = "sha256:f5e6db74eb7776a37208001113ea7aa97695368242b364d73e91c981ac522177", size = 150232, upload-time = "2025-05-22T19:24:50.245Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/45/39/13402e323666d17850eca87e4cd6ecfcf9fd7809cac9efdcce10272fc29d/s3transfer-0.11.5-py3-none-any.whl", hash = "sha256:757af0f2ac150d3c75bc4177a32355c3862a98d20447b69a0161812992fe0bd4", size = 84782, upload-time = "2025-04-17T19:23:17.516Z" },
+    { url = "https://files.pythonhosted.org/packages/18/17/22bf8155aa0ea2305eefa3a6402e040df7ebe512d1310165eda1e233c3f8/s3transfer-0.13.0-py3-none-any.whl", hash = "sha256:0148ef34d6dd964d0d8cf4311b2b21c474693e57c2e069ec708ce043d2b527be", size = 85152, upload-time = "2025-05-22T19:24:48.703Z" },
 ]
 
 [[package]]

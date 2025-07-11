@@ -12,21 +12,98 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
 import logging
 import os
 import shutil
 from pathlib import Path
-from typing import IO
+from typing import IO, AsyncIterator, Tuple
 
+from asgiref.sync import sync_to_async
 from pydantic import BaseModel
 
-from aperag.objectstore.base import ObjectStore
+from aperag.objectstore.base import AsyncObjectStore, ObjectStore
 
 logger = logging.getLogger(__name__)
 
 
 class LocalConfig(BaseModel):
     root_dir: str
+
+
+class RangedFileStream(IO[bytes]):
+    """
+    A file-like object that reads a specific range of bytes from an underlying file handle.
+    This class is a context manager and can be used in a 'with' statement.
+    """
+
+    def __init__(self, file_handle: IO[bytes], start: int, end: int):
+        self._handle = file_handle
+        self._start = start
+        self._end = end
+        self._pos = start
+        self._handle.seek(start)
+
+    def read(self, size: int = -1) -> bytes:
+        """
+        Reads bytes from the stream, respecting the defined range.
+        """
+        bytes_left = self._end - self._pos + 1
+        if bytes_left <= 0:
+            return b""
+
+        read_size = bytes_left if size < 0 else min(size, bytes_left)
+        data = self._handle.read(read_size)
+        self._pos += len(data)
+        return data
+
+    def seek(self, offset: int, whence: int = 0) -> int:
+        """
+        Seeks to a position within the allowed range.
+        """
+        if whence == 0:  # Absolute
+            self._pos = self._start + offset
+        elif whence == 1:  # Relative to current
+            self._pos += offset
+        elif whence == 2:  # Relative to end
+            self._pos = self._end + 1 + offset
+        else:
+            raise ValueError(f"Invalid whence value: {whence}")
+
+        self._pos = max(self._start, min(self._pos, self._end + 1))
+        self._handle.seek(self._pos)
+        return self._pos - self._start
+
+    def tell(self) -> int:
+        """
+        Returns the current position relative to the start of the range.
+        """
+        return self._pos - self._start
+
+    def close(self) -> None:
+        """
+        Closes the underlying file handle.
+        """
+        self._handle.close()
+
+    def __enter__(self) -> "RangedFileStream":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    # Add other IO methods if needed, delegating to self._handle
+    def isatty(self) -> bool:
+        return self._handle.isatty()
+
+    def readable(self) -> bool:
+        return self._handle.readable()
+
+    def writable(self) -> bool:
+        return False  # This stream is read-only
+
+    def seekable(self) -> bool:
+        return self._handle.seekable()
 
 
 class Local(ObjectStore):
@@ -108,6 +185,40 @@ class Local(ObjectStore):
             )
             return None
 
+    def get_obj_size(self, path: str) -> int | None:
+        try:
+            full_path = self._resolve_object_path(path)
+            if full_path.is_file():
+                return full_path.stat().st_size
+            return None
+        except (ValueError, OSError):
+            return None
+
+    def stream_range(self, path: str, start: int, end: int | None = None) -> Tuple[IO[bytes], int] | None:
+        try:
+            full_path = self._resolve_object_path(path)
+            if not full_path.is_file():
+                return None
+
+            file_size = full_path.stat().st_size
+            if start < 0 or start >= file_size:
+                raise ValueError("Start position is out of file bounds.")
+
+            # If end is None or beyond the file, read to the end.
+            actual_end = file_size - 1 if end is None or end >= file_size else end
+            content_length = actual_end - start + 1
+
+            if content_length <= 0:
+                return io.BytesIO(b""), 0
+
+            file_handle = full_path.open("rb")
+            ranged_stream = RangedFileStream(file_handle, start, actual_end)
+            return ranged_stream, content_length
+
+        except (ValueError, OSError) as e:
+            logger.warning(f"Failed to stream range for object at {path}: {e}")
+            return None
+
     def obj_exists(self, path: str) -> bool:
         try:
             full_path = self._resolve_object_path(path)
@@ -174,3 +285,68 @@ class Local(ObjectStore):
         except Exception as e:
             logger.error(f"Error during deletion of objects with prefix '{path_prefix}': {e}")
             raise IOError(f"Error during deletion of objects with prefix '{path_prefix}'") from e
+
+
+class AsyncLocal(AsyncObjectStore):
+    """Asynchronous wrapper for the Local object store."""
+
+    def __init__(self, cfg: LocalConfig):
+        self._sync_store = Local(cfg)
+        self.chunk_size = 8192  # 8KB chunks
+
+    async def put(self, path: str, data: bytes | IO[bytes]):
+        return await sync_to_async(self._sync_store.put)(path=path, data=data)
+
+    async def get(self, path: str) -> AsyncIterator[bytes] | None:
+        # First, check for existence and get a sync stream handle without blocking
+        stream_handle = await sync_to_async(self._sync_store.get)(path=path)
+        if stream_handle is None:
+            return None
+
+        # Now, return an async generator that wraps the sync stream
+        async def generator():
+            try:
+                while True:
+                    chunk = await sync_to_async(stream_handle.read)(self.chunk_size)
+                    if not chunk:
+                        break
+                    yield chunk
+            finally:
+                await sync_to_async(stream_handle.close)()
+
+        return generator()
+
+    async def get_obj_size(self, path: str) -> int | None:
+        return await sync_to_async(self._sync_store.get_obj_size)(path=path)
+
+    async def stream_range(
+        self, path: str, start: int, end: int | None = None
+    ) -> Tuple[AsyncIterator[bytes], int] | None:
+        # Get the ranged stream and content length synchronously first
+        range_info = await sync_to_async(self._sync_store.stream_range)(path=path, start=start, end=end)
+        if range_info is None:
+            return None
+
+        stream_handle, content_length = range_info
+
+        # Define an async generator to wrap the synchronous ranged stream
+        async def generator():
+            try:
+                while True:
+                    chunk = await sync_to_async(stream_handle.read)(self.chunk_size)
+                    if not chunk:
+                        break
+                    yield chunk
+            finally:
+                await sync_to_async(stream_handle.close)()
+
+        return generator(), content_length
+
+    async def obj_exists(self, path: str) -> bool:
+        return await sync_to_async(self._sync_store.obj_exists)(path=path)
+
+    async def delete(self, path: str):
+        return await sync_to_async(self._sync_store.delete)(path=path)
+
+    async def delete_objects_by_prefix(self, path_prefix: str):
+        return await sync_to_async(self._sync_store.delete_objects_by_prefix)(path_prefix=path_prefix)

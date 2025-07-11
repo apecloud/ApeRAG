@@ -14,14 +14,15 @@
 
 import logging
 from io import BytesIO
-from typing import IO
+from typing import IO, AsyncIterator, Tuple
 
+import aioboto3
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from pydantic import BaseModel
 
-from aperag.objectstore.base import ObjectStore
+from aperag.objectstore.base import AsyncObjectStore, ObjectStore
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +105,47 @@ class S3(ObjectStore):
         except (self.conn.exceptions.NoSuchKey, self.conn.exceptions.NoSuchBucket):
             return None
 
+    def get_obj_size(self, path: str) -> int | None:
+        self._ensure_conn()
+        path = self._final_path(path)
+        try:
+            response = self.conn.head_object(Bucket=self.cfg.bucket, Key=path)
+            return response.get("ContentLength")
+        except (self.conn.exceptions.NoSuchKey, self.conn.exceptions.NoSuchBucket, ClientError):
+            return None
+
+    def stream_range(self, path: str, start: int, end: int | None = None) -> Tuple[IO[bytes], int] | None:
+        self._ensure_conn()
+        path = self._final_path(path)
+
+        # Get total file size to validate range
+        total_size = self.get_obj_size(path)
+        if total_size is None:
+            return None  # Object doesn't exist
+
+        if start < 0 or start >= total_size:
+            raise ValueError("Start position is out of file bounds.")
+
+        # Format the range header
+        range_str = f"bytes={start}-"
+        if end is not None:
+            # Ensure end is within bounds
+            actual_end = min(end, total_size - 1)
+            range_str += str(actual_end)
+        else:
+            actual_end = total_size - 1
+
+        content_length = actual_end - start + 1
+        if content_length <= 0:
+            return BytesIO(b""), 0
+
+        try:
+            response = self.conn.get_object(Bucket=self.cfg.bucket, Key=path, Range=range_str)
+            return response["Body"], content_length
+        except (self.conn.exceptions.NoSuchKey, self.conn.exceptions.NoSuchBucket, ClientError) as e:
+            logger.warning(f"Failed to stream range for S3 object at {path}: {e}")
+            return None
+
     def obj_exists(self, path: str) -> bool:
         self._ensure_conn()
         path = self._final_path(path)
@@ -161,3 +203,185 @@ class S3(ObjectStore):
         for i in range(0, len(all_objects_to_delete), 1000):
             delete_batch = all_objects_to_delete[i : i + 1000]
             self.conn.delete_objects(Bucket=self.cfg.bucket, Delete={"Objects": delete_batch, "Quiet": True})
+
+
+class AsyncS3(AsyncObjectStore):
+    def __init__(self, cfg: S3Config):
+        self.session = None
+        self.cfg = cfg
+        self._checked_bucket = None
+
+    async def _ensure_conn(self):
+        if self.session is not None:
+            return
+
+        try:
+            self.session = aioboto3.Session()
+        except Exception:
+            logging.exception("Failed to create aioboto3 session")
+            raise
+
+    def _get_client_kwargs(self):
+        params = {
+            "endpoint_url": self.cfg.endpoint,
+            "region_name": self.cfg.region,
+            "aws_access_key_id": self.cfg.access_key,
+            "aws_secret_access_key": self.cfg.secret_key,
+        }
+        if self.cfg.use_path_style:
+            params["config"] = Config(s3={"addressing_style": "path"})
+        return params
+
+    async def _ensure_bucket(self, client):
+        if self._checked_bucket == self.cfg.bucket:
+            return
+        if await self.bucket_exists(self.cfg.bucket):
+            self._checked_bucket = self.cfg.bucket
+            return
+        await client.create_bucket(Bucket=self.cfg.bucket)
+
+    def _final_path(self, path: str) -> str:
+        if self.cfg.prefix_path:
+            return f"{self.cfg.prefix_path.rstrip('/')}/{path.lstrip('/')}"
+        return path
+
+    async def bucket_exists(self, bucket: str) -> bool:
+        await self._ensure_conn()
+        async with self.session.client("s3", **self._get_client_kwargs()) as client:
+            try:
+                await client.head_bucket(Bucket=bucket)
+                return True
+            except ClientError as e:
+                if e.response["Error"]["Code"] in ("404", "NoSuchBucket"):
+                    return False
+                raise
+
+    async def put(self, path: str, data: bytes | IO[bytes]):
+        await self._ensure_conn()
+        path = self._final_path(path)
+        if isinstance(data, bytes):
+            data = BytesIO(data)
+
+        async with self.session.client("s3", **self._get_client_kwargs()) as client:
+            await self._ensure_bucket(client)
+            await client.upload_fileobj(data, self.cfg.bucket, path)
+
+    async def get(self, path: str) -> AsyncIterator[bytes] | None:
+        await self._ensure_conn()
+        path = self._final_path(path)
+        try:
+            client = self.session.client("s3", **self._get_client_kwargs())
+            response = await client.get_object(Bucket=self.cfg.bucket, Key=path)
+            stream = response["Body"]
+        except ClientError as e:
+            if e.response["Error"]["Code"] in ("NoSuchKey", "NoSuchBucket"):
+                return None
+            raise
+
+        async def generator():
+            try:
+                async for chunk in stream:
+                    yield chunk
+            finally:
+                stream.close()
+                client.close()
+
+        return generator()
+
+    async def get_obj_size(self, path: str) -> int | None:
+        await self._ensure_conn()
+        path = self._final_path(path)
+        try:
+            async with self.session.client("s3", **self._get_client_kwargs()) as client:
+                response = await client.head_object(Bucket=self.cfg.bucket, Key=path)
+                return response.get("ContentLength")
+        except ClientError:
+            return None
+
+    async def stream_range(
+        self, path: str, start: int, end: int | None = None
+    ) -> Tuple[AsyncIterator[bytes], int] | None:
+        await self._ensure_conn()
+        path = self._final_path(path)
+
+        total_size = await self.get_obj_size(path)
+        if total_size is None:
+            return None
+
+        if start < 0 or start >= total_size:
+            raise ValueError("Start position is out of file bounds.")
+
+        range_str = f"bytes={start}-"
+        if end is not None:
+            actual_end = min(end, total_size - 1)
+            range_str += str(actual_end)
+        else:
+            actual_end = total_size - 1
+
+        content_length = actual_end - start + 1
+        if content_length <= 0:
+            # Create an empty async generator
+            async def empty_generator():
+                if False:
+                    yield
+
+            return empty_generator(), 0
+
+        try:
+            client = self.session.client("s3", **self._get_client_kwargs())
+            response = await client.get_object(Bucket=self.cfg.bucket, Key=path, Range=range_str)
+            stream = response["Body"]
+        except ClientError as e:
+            logger.warning(f"Failed to async stream range for S3 object at {path}: {e}")
+            return None
+
+        async def generator():
+            try:
+                async for chunk in stream:
+                    yield chunk
+            finally:
+                stream.close()
+                client.close()
+
+        return generator(), content_length
+
+    async def obj_exists(self, path: str) -> bool:
+        await self._ensure_conn()
+        path = self._final_path(path)
+        try:
+            async with self.session.client("s3", **self._get_client_kwargs()) as client:
+                await client.head_object(Bucket=self.cfg.bucket, Key=path)
+                return True
+        except ClientError as e:
+            if e.response["Error"]["Code"] in ("404", "NoSuchKey"):
+                return False
+            raise
+
+    async def delete(self, path: str):
+        await self._ensure_conn()
+        path = self._final_path(path)
+        try:
+            async with self.session.client("s3", **self._get_client_kwargs()) as client:
+                await client.delete_object(Bucket=self.cfg.bucket, Key=path)
+        except ClientError as e:
+            if e.response["Error"]["Code"] not in ("NoSuchKey", "NoSuchBucket"):
+                raise
+
+    async def delete_objects_by_prefix(self, path_prefix: str):
+        await self._ensure_conn()
+        path_prefix = self._final_path(path_prefix)
+
+        async with self.session.client("s3", **self._get_client_kwargs()) as client:
+            all_objects_to_delete = []
+            paginator = client.get_paginator("list_objects_v2")
+            async for page in paginator.paginate(Bucket=self.cfg.bucket, Prefix=path_prefix):
+                if "Contents" in page:
+                    for obj in page["Contents"]:
+                        all_objects_to_delete.append({"Key": obj["Key"]})
+
+            if not all_objects_to_delete:
+                return
+
+            for i in range(0, len(all_objects_to_delete), 1000):
+                delete_batch = all_objects_to_delete[i : i + 1000]
+                await client.delete_objects(Bucket=self.cfg.bucket, Delete={"Objects": delete_batch, "Quiet": True})
