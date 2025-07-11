@@ -223,8 +223,6 @@ class MergeSuggestionRepository(AsyncMergeSuggestionRepositoryMixin):
     """Legacy repository class - use AsyncMergeSuggestionRepositoryMixin instead"""
 
     def __init__(self, session):
-        from aperag.db.repositories.base import AsyncBaseRepository
-
-        # Initialize as AsyncBaseRepository for standalone usage
-        super(AsyncBaseRepository, self).__init__()
+        # Initialize the parent mixin properly
+        super().__init__()
         self._session = session
