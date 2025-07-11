@@ -818,14 +818,14 @@ class MergeSuggestionStatus(str, Enum):
 class MergeSuggestion(Base):
     """Merge suggestion storage model for knowledge graph node merging"""
 
-    __tablename__ = "merge_suggestions"
+    __tablename__ = "graph_index_merge_suggestions"
     __table_args__ = (
         # Prevent duplicate suggestions for the same entity combination
-        UniqueConstraint("collection_id", "entity_ids_hash", "gmt_deleted", name="uq_merge_suggestion"),
-        Index("idx_merge_suggestion_collection_status", "collection_id", "status"),
-        Index("idx_merge_suggestion_batch", "collection_id", "suggestion_batch_id"),
-        Index("idx_merge_suggestion_created", "gmt_created"),
-        Index("idx_merge_suggestion_expires", "expires_at"),
+        UniqueConstraint("collection_id", "entity_ids_hash", "gmt_deleted", name="uq_graph_index_merge_suggestion"),
+        Index("idx_graph_index_merge_suggestion_collection_status", "collection_id", "status"),
+        Index("idx_graph_index_merge_suggestion_batch", "collection_id", "suggestion_batch_id"),
+        Index("idx_graph_index_merge_suggestion_created", "gmt_created"),
+        Index("idx_graph_index_merge_suggestion_expires", "expires_at"),
     )
 
     id = Column(String(24), primary_key=True, default=lambda: "msug" + random_id())
