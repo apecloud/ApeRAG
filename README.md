@@ -1,5 +1,7 @@
 # ApeRAG
 
+![HarryPotterKG.png](docs%2Fimages%2FHarryPotterKG.png)
+
 [阅读中文文档](README-zh.md)
 
 - [Quick Start](#quick-start)

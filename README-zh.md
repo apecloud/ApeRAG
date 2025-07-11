@@ -1,5 +1,7 @@
 # ApeRAG
 
+![HarryPotterKG.png](docs%2Fimages%2FHarryPotterKG.png)
+
 [Read English Documentation](README.md)
 
 - [快速开始](#快速开始)
