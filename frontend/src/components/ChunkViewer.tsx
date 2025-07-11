@@ -47,9 +47,9 @@ export const ChunkViewer = ({
   document: initialDoc,
   collectionId,
 }: ChunkViewerProps) => {
-  const [viewMode, setViewMode] = useState<'markdown' | 'pdf' | 'unsupported'>(
-    'markdown',
-  );
+  const [viewMode, setViewMode] = useState<
+    'markdown' | 'pdf' | 'unsupported' | 'determining'
+  >('determining');
   const [previewData, setPreviewData] = useState<DocumentPreview | null>(null);
   const [adaptedChunks, setAdaptedChunks] = useState<Chunk[]>([]);
   const [highlightedChunk, setHighlightedChunk] = useState<Chunk | null>(null);
@@ -574,6 +574,19 @@ export const ChunkViewer = ({
         return <div key="markdown-view">{renderMarkdownView()}</div>;
       case 'pdf':
         return <div key="pdf-view">{renderPdfView()}</div>;
+      case 'determining':
+        return (
+          <div
+            style={{
+              height: '80vh',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Spin />
+          </div>
+        );
       default:
         return (
           <div
