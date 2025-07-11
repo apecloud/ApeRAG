@@ -262,7 +262,7 @@ class DocumentService:
                     )
 
                     # Build response object
-                    doc_response = await self._build_document_response(document_instance, session)
+                    doc_response = await self._build_document_response(document_instance)
                     documents_created.append(doc_response)
 
                 return documents_created
