@@ -18,7 +18,7 @@ from typing import Any, Dict, List
 from aperag.db.models import MergeSuggestionStatus
 from aperag.db.ops import async_db_ops
 from aperag.exceptions import CollectionNotFoundException
-from aperag.graph.lightrag_manager import lightrag_manager
+from aperag.graph import lightrag_manager
 from aperag.schema import view_models
 from aperag.utils.utils import utc_now
 
@@ -190,9 +190,13 @@ class GraphService:
         if suggestion_data:
             stored_suggestions = await self.db_ops.batch_create_suggestions(suggestion_data)
             logger.info(f"Stored {len(stored_suggestions)} suggestions for collection {collection_id}")
-            return self._format_suggestions_response(stored_suggestions, from_cache=False, **llm_result)
+            # Extract metadata from llm_result, excluding 'suggestions' to avoid parameter conflict
+            llm_metadata = {k: v for k, v in llm_result.items() if k != "suggestions"}
+            return self._format_suggestions_response(stored_suggestions, from_cache=False, **llm_metadata)
 
-        return self._format_suggestions_response([], from_cache=False, **llm_result)
+        # Extract metadata from llm_result, excluding 'suggestions' to avoid parameter conflict
+        llm_metadata = {k: v for k, v in llm_result.items() if k != "suggestions"}
+        return self._format_suggestions_response([], from_cache=False, **llm_metadata)
 
     def _format_suggestions_response(self, suggestions: List, from_cache: bool = False, **kwargs) -> dict[str, Any]:
         """Format suggestions response with statistics"""
@@ -225,7 +229,10 @@ class GraphService:
             "from_cache": from_cache,
             "generated_at": utc_now(),
             "total_suggestions": len(suggestion_items),
-            **status_counts,
+            "pending_count": status_counts["PENDING"],
+            "accepted_count": status_counts["ACCEPTED"],
+            "rejected_count": status_counts["REJECTED"],
+            "expired_count": status_counts["EXPIRED"],
         }
 
     async def generate_merge_suggestions(
