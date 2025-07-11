@@ -16,6 +16,7 @@ import logging
 from typing import Any, Dict, List
 
 from aperag.db.models import MergeSuggestionStatus
+from aperag.db.ops import async_db_ops
 from aperag.exceptions import CollectionNotFoundException
 from aperag.graph.lightrag_manager import lightrag_manager
 from aperag.schema import view_models
@@ -31,6 +32,7 @@ class GraphService:
         from aperag.service.collection_service import collection_service
 
         self.collection_service = collection_service
+        self.db_ops = async_db_ops
 
     async def get_graph_labels(self, user_id: str, collection_id: str) -> view_models.GraphLabelsResponse:
         """Get available node labels in the knowledge graph"""
@@ -160,11 +162,9 @@ class GraphService:
         """Get cached suggestions or generate new ones"""
         await self._get_and_validate_collection(user_id, collection_id)
 
-        from aperag.service.merge_suggestion_service import merge_suggestion_service
-
         # Check cache first
         if not force_refresh:
-            cached_suggestions = await merge_suggestion_service.get_valid_suggestions(collection_id)
+            cached_suggestions = await self.db_ops.get_valid_suggestions(collection_id)
             if cached_suggestions:
                 logger.info(f"Found {len(cached_suggestions)} cached suggestions for collection {collection_id}")
                 return self._format_suggestions_response(cached_suggestions, from_cache=True)
@@ -188,7 +188,7 @@ class GraphService:
         ]
 
         if suggestion_data:
-            stored_suggestions = await merge_suggestion_service.batch_create_suggestions(suggestion_data)
+            stored_suggestions = await self.db_ops.batch_create_suggestions(suggestion_data)
             logger.info(f"Stored {len(stored_suggestions)} suggestions for collection {collection_id}")
             return self._format_suggestions_response(stored_suggestions, from_cache=False, **llm_result)
 
@@ -265,11 +265,9 @@ class GraphService:
 
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
-        from aperag.service.merge_suggestion_service import merge_suggestion_service
-
         # Prepare merge parameters
         if suggestion_id:
-            suggestions = await merge_suggestion_service.get_suggestions_by_ids([suggestion_id])
+            suggestions = await self.db_ops.get_suggestions_by_ids([suggestion_id])
             if not suggestions:
                 raise ValueError(f"Suggestion not found: {suggestion_id}")
 
@@ -297,10 +295,8 @@ class GraphService:
 
             # Update suggestion status if applicable
             if suggestion_id:
-                await merge_suggestion_service.update_suggestion_status(
-                    suggestion_id, MergeSuggestionStatus.ACCEPTED, utc_now()
-                )
-                await merge_suggestion_service.expire_related_suggestions(collection_id, merge_entity_ids)
+                await self.db_ops.update_suggestion_status(suggestion_id, MergeSuggestionStatus.ACCEPTED, utc_now())
+                await self.db_ops.expire_related_suggestions(collection_id, merge_entity_ids)
 
             logger.info(f"Successfully merged entities {merge_entity_ids} in collection {collection_id}")
             return result
