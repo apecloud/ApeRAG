@@ -18,13 +18,13 @@ from typing import List, Optional
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Path, Request, Response, UploadFile, WebSocket
 
 from aperag.db.models import User
+from aperag.exceptions import CollectionNotFoundException
 from aperag.schema import view_models
 from aperag.service.bot_service import bot_service
 from aperag.service.chat_service import chat_service_global
 from aperag.service.collection_service import collection_service
 from aperag.service.document_service import document_service
 from aperag.service.flow_service import flow_service_global
-from aperag.service.graph_service import graph_service
 from aperag.service.llm_available_model_service import llm_available_model_service
 from aperag.service.llm_provider_service import (
     create_llm_provider,
@@ -380,13 +380,15 @@ async def get_graph_labels_view(
     user: User = Depends(current_user),
 ) -> view_models.GraphLabelsResponse:
     """Get all available node labels in the collection's knowledge graph"""
+    from aperag.service.graph_service import graph_service
+
     try:
-        return await graph_service.get_graph_labels(str(user.id), collection_id)
+        result = await graph_service.get_graph_labels(str(user.id), collection_id)
+        return result
+    except CollectionNotFoundException:
+        raise HTTPException(status_code=404, detail="Collection not found")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to get graph labels: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/collections/{collection_id}/graphs", tags=["graph"])
@@ -399,20 +401,21 @@ async def get_knowledge_graph_view(
     user: User = Depends(current_user),
 ):
     """Get knowledge graph - overview mode or subgraph mode"""
-    try:
-        # Validate parameters
-        if max_nodes < 1 or max_nodes > 10000:
-            raise HTTPException(status_code=400, detail="max_nodes must be between 1 and 10000")
-        if max_depth < 1 or max_depth > 10:
-            raise HTTPException(status_code=400, detail="max_depth must be between 1 and 10")
+    from aperag.service.graph_service import graph_service
 
-        # Single method handles both modes based on label parameter
-        return await graph_service.get_knowledge_graph(str(user.id), collection_id, label, max_depth, max_nodes)
+    # Validate parameters
+    if not (1 <= max_nodes <= 10000):
+        raise HTTPException(status_code=400, detail="max_nodes must be between 1 and 10000")
+    if not (1 <= max_depth <= 10):
+        raise HTTPException(status_code=400, detail="max_depth must be between 1 and 10")
+
+    try:
+        result = await graph_service.get_knowledge_graph(str(user.id), collection_id, label, max_depth, max_nodes)
+        return result
+    except CollectionNotFoundException:
+        raise HTTPException(status_code=404, detail="Collection not found")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to get knowledge graph: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/collections/{collection_id}/graphs/nodes/merge", tags=["graph"])
@@ -424,47 +427,29 @@ async def merge_nodes_view(
     user: User = Depends(current_user),
 ) -> view_models.NodeMergeResponse:
     """Merge multiple graph nodes into one"""
-    from aperag.exceptions import CollectionNotFoundException, GraphServiceError
     from aperag.service.graph_service import graph_service
 
+    # Log merge operation
+    operation_type = "suggestion" if merge_request.suggestion_id else "entity_ids"
+    operation_value = merge_request.suggestion_id or merge_request.entity_ids
+    logger.info(f"Merging nodes: {operation_type}={operation_value} in collection {collection_id}")
+
     try:
-        # Log merge operation
-        target_name = merge_request.target_entity_data.entity_name if merge_request.target_entity_data else None
-        
-        if merge_request.entity_ids:
-            entity_info = f"entities {merge_request.entity_ids} -> {target_name or 'auto-select'}"
-        else:
-            entity_info = f"suggestion {merge_request.suggestion_id} -> {target_name or 'auto-select'}"
-        
-        logger.info(f"Merging nodes: {entity_info} in collection {collection_id}")
-
-        # Convert target_entity_data to dict if provided
-        target_entity_data_dict = None
-        if merge_request.target_entity_data:
-            target_entity_data_dict = merge_request.target_entity_data.model_dump(exclude_unset=True)
-
-        # Call graph service (it will handle collection access and validation)
+        # Call graph service
         result = await graph_service.merge_nodes(
             user_id=str(user.id),
             collection_id=collection_id,
             entity_ids=merge_request.entity_ids,
             suggestion_id=merge_request.suggestion_id,
-            target_entity_data=target_entity_data_dict,
+            target_entity_data=merge_request.target_entity_data.model_dump(exclude_unset=True)
+            if merge_request.target_entity_data
+            else None,
         )
-
         return view_models.NodeMergeResponse(**result)
-
     except CollectionNotFoundException:
         raise HTTPException(status_code=404, detail="Collection not found")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except GraphServiceError as e:
-        # Handle business logic errors from Graph Service (e.g., entity not found, invalid merge operation)
-        logger.warning(f"Graph service error for collection {collection_id}: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error merging nodes in collection {collection_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/collections/{collection_id}/graphs/merge-suggestions", tags=["graph"])
@@ -476,23 +461,20 @@ async def merge_suggestions_view(
     user: User = Depends(current_user),
 ) -> view_models.MergeSuggestionsResponse:
     """Get cached suggestions or generate new ones using LLM analysis"""
-    from aperag.exceptions import CollectionNotFoundException, GraphServiceError
     from aperag.service.graph_service import graph_service
 
+    # If no request body provided, create default request
+    if suggestions_request is None:
+        suggestions_request = view_models.MergeSuggestionsRequest()
+
+    logger.info(
+        f"Getting merge suggestions for collection {collection_id}, "
+        f"max_suggestions={suggestions_request.max_suggestions}, "
+        f"force_refresh={suggestions_request.force_refresh}"
+    )
+
     try:
-        # If no request body provided, create default request
-        if suggestions_request is None:
-            suggestions_request = view_models.MergeSuggestionsRequest()
-
-        logger.info(
-            f"Getting merge suggestions for collection {collection_id}, "
-            f"max_suggestions={suggestions_request.max_suggestions}, "
-            f"entity_types={suggestions_request.entity_types}, "
-            f"debug_mode={suggestions_request.debug_mode}, "
-            f"force_refresh={suggestions_request.force_refresh}"
-        )
-
-        # Call graph service to get or generate suggestions
+        # Call graph service
         result = await graph_service.get_or_generate_merge_suggestions(
             user_id=str(user.id),
             collection_id=collection_id,
@@ -505,22 +487,14 @@ async def merge_suggestions_view(
 
         logger.info(
             f"Returned {len(result['suggestions'])} merge suggestions for collection {collection_id} "
-            f"(from_cache={result['from_cache']}, analyzed {result['total_analyzed_nodes']} nodes in {result['processing_time_seconds']:.2f}s)"
+            f"(from_cache={result['from_cache']}, {result['processing_time_seconds']:.2f}s)"
         )
 
         return view_models.MergeSuggestionsResponse(**result)
-
     except CollectionNotFoundException:
         raise HTTPException(status_code=404, detail="Collection not found")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except GraphServiceError as e:
-        # Handle business logic errors from Graph Service
-        logger.warning(f"Graph service error for collection {collection_id}: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error getting merge suggestions for collection {collection_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # LLM Configuration API endpoints

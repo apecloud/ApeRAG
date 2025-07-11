@@ -830,37 +830,40 @@ class MergeSuggestion(Base):
 
     id = Column(String(24), primary_key=True, default=lambda: "msug" + random_id())
     collection_id = Column(String(24), nullable=False, index=True)
-    
+
     # Suggestion batch (same batch_id for suggestions generated in the same LLM call)
     suggestion_batch_id = Column(String(24), nullable=False, index=True, default=lambda: "batch" + random_id())
-    
+
     # Entity combination for merging
     entity_ids = Column(ARRAY(String), nullable=False)  # Entity IDs suggested for merging
     entity_ids_hash = Column(String(64), nullable=False)  # Hash of entity ID combination for uniqueness
-    
+
     # LLM analysis results
     confidence_score = Column(Numeric(3, 2), nullable=False)  # 0.00-1.00
     merge_reason = Column(Text, nullable=False)  # LLM-generated reason for merging
     suggested_target_entity = Column(JSON, nullable=False)  # Suggested target entity {entity_name, entity_type}
-    
+
     # Status and lifecycle
-    status = Column(EnumColumn(MergeSuggestionStatus), nullable=False, default=MergeSuggestionStatus.PENDING, index=True)
-    
+    status = Column(
+        EnumColumn(MergeSuggestionStatus), nullable=False, default=MergeSuggestionStatus.PENDING, index=True
+    )
+
     # Timestamps
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)
     expires_at = Column(DateTime(timezone=True), nullable=False)  # Suggestion expiration time, default 7 days
-    
+
     # User operation tracking
     operated_at = Column(DateTime(timezone=True), nullable=True)  # User operation timestamp
-    
+
     @classmethod
     def generate_entity_ids_hash(cls, entity_ids: list) -> str:
         """Generate hash for entity ID combination"""
         import hashlib
+
         sorted_ids = sorted(entity_ids)
         return hashlib.md5(":".join(sorted_ids).encode()).hexdigest()
-    
+
     def __repr__(self):
         return f"<MergeSuggestion(id={self.id}, collection_id={self.collection_id}, status={self.status})>"
