@@ -302,3 +302,81 @@ def test_rechunker_with_overlapping_chunks():
     assert len(rechunked_parts) == 3
     # Check overlapped
     assert len("".join([part.content for part in rechunked_parts])) > len(parts[0].content)
+
+
+def test_merge_consecutive_title_groups():
+    rechunker = Rechunker(chunk_size=15, chunk_overlap=0, tokenizer=mock_tokenizer)
+
+    # Case 1: Merge consecutive pure titles
+    groups1 = [
+        Group(title_level=1, title="# T1", items=[Part(content="# T1", metadata={})], tokens=2),
+        Group(title_level=2, title="## T2", items=[Part(content="## T2", metadata={})], tokens=2),
+        Group(title_level=2, title="## T3", items=[Part(content="## T3", metadata={})], tokens=2),
+        Group(title_level=0, title="", items=[Part(content="Content 1", metadata={})], tokens=2),
+    ]
+    merged1 = rechunker._merge_consecutive_title_groups(groups1)
+    assert len(merged1) == 1
+    assert len(merged1[0].items) == 4
+
+    # Case 2: Stop merging due to title hierarchy
+    groups2 = [
+        Group(title_level=2, title="## T1", items=[Part(content="## T1", metadata={})], tokens=2),
+        Group(title_level=1, title="# T2", items=[Part(content="# T2", metadata={})], tokens=2),
+        Group(title_level=0, title="", items=[Part(content="Content", metadata={})], tokens=2),
+    ]
+    merged2 = rechunker._merge_consecutive_title_groups(groups2)
+    assert len(merged2) == 2  # T1 is not merged with T2
+    assert len(merged2[0].items) == 1
+    assert len(merged2[1].items) == 2
+
+    # Case 3: Merge pure title with subsequent content
+    groups3 = [
+        Group(title_level=1, title="# T1", items=[Part(content="# T1", metadata={})], tokens=2),
+        Group(title_level=0, title="", items=[Part(content="Content", metadata={})], tokens=5),
+    ]
+    merged3 = rechunker._merge_consecutive_title_groups(groups3)
+    assert len(merged3) == 1
+    assert len(merged3[0].items) == 2
+
+    # Case 4: No merge for non-pure-title group
+    groups4 = [
+        Group(
+            title_level=1,
+            title="# T1",
+            items=[Part(content="# T1", metadata={}), Part(content="Content", metadata={})],
+            tokens=4,
+        ),
+        Group(title_level=2, title="## T2", items=[Part(content="## T2", metadata={})], tokens=2),
+    ]
+    merged4 = rechunker._merge_consecutive_title_groups(groups4)
+    assert len(merged4) == 2
+    assert len(merged4[0].items) == 2
+    assert len(merged4[1].items) == 1
+
+    # Case 5: Empty and single group lists
+    assert rechunker._merge_consecutive_title_groups([]) == []
+    single_group = [Group(title_level=1, title="# T1", items=[Part(content="# T1", metadata={})])]
+    assert rechunker._merge_consecutive_title_groups(single_group) == single_group
+
+    # Case 6:
+    groups6 = [
+        Group(title_level=1, title="# T1", items=[Part(content="# T1", metadata={})], tokens=2),
+        Group(
+            title_level=1, title="# T1", items=[Part(content="# T1"), Part(content="Content", metadata={})], tokens=5
+        ),
+    ]
+    merged6 = rechunker._merge_consecutive_title_groups(groups6)
+    assert len(merged6) == 1
+    assert len(merged6[0].items) == 3
+
+    # Case 7:
+    groups7 = [
+        Group(title_level=2, title="## T2", items=[Part(content="## T2", metadata={})], tokens=2),
+        Group(
+            title_level=1, title="# T1", items=[Part(content="# T1"), Part(content="Content", metadata={})], tokens=5
+        ),
+    ]
+    merged7 = rechunker._merge_consecutive_title_groups(groups7)
+    assert len(merged7) == 2
+    assert len(merged7[0].items) == 1
+    assert len(merged7[1].items) == 2

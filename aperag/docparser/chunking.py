@@ -41,7 +41,66 @@ class Rechunker:
 
     def __call__(self, parts: list[Part]) -> list[Part]:
         groups = self._to_groups(parts)
+        groups = self._merge_consecutive_title_groups(groups)
         return self._rechunk(groups)
+
+    def _is_pure_title_group(self, group: Group) -> bool:
+        """A group is considered a pure title if it has a title and only one item."""
+        return group.title_level > 0 and len(group.items) == 1
+
+    def _merge_consecutive_title_groups(self, groups: list[Group]) -> list[Group]:
+        if not groups:
+            return []
+
+        new_groups: list[Group] = []
+        i = 0
+        while i < len(groups):
+            current_group = groups[i]
+
+            if not self._is_pure_title_group(current_group):
+                new_groups.append(current_group)
+                i += 1
+                continue
+
+            # It's a pure title group, let's look ahead to merge.
+            merged_items = list(current_group.items)
+            # The highest level is the smallest number.
+            highest_level = current_group.title_level
+
+            j = i + 1
+            # 1. Merge consecutive pure title groups
+            while j < len(groups):
+                next_group = groups[j]
+                if not self._is_pure_title_group(next_group):
+                    break  # Stop merging titles
+
+                # Check hierarchy: don't merge a higher-level title (e.g., H2 into an H3 group)
+                if next_group.title_level < highest_level:
+                    break
+
+                # Merge it
+                merged_items.extend(next_group.items)
+                j += 1
+
+            # 2. After merging titles, try to merge one more content group
+            if j < len(groups):
+                next_group = groups[j]
+                if not self._is_pure_title_group(next_group):
+                    if next_group.title_level == 0 or next_group.title_level >= current_group.title_level:
+                        merged_items.extend(next_group.items)
+                        j += 1  # This content group is also merged
+
+            # Create the new merged group
+            # The title and title_level of the merged group should be from the first group.
+            new_group = Group(
+                title_level=current_group.title_level,
+                title=current_group.title,
+                items=merged_items,
+            )
+            new_groups.append(new_group)
+            i = j  # Move index to the next un-processed group
+
+        return new_groups
 
     def _to_groups(self, parts: list[Part]) -> list[Group]:
         result: list[Group] = []
