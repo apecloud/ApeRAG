@@ -35,6 +35,10 @@ import type { MergeSuggestionsResponse } from '../models';
 import type { NodeMergeRequest } from '../models';
 // @ts-ignore
 import type { NodeMergeResponse } from '../models';
+// @ts-ignore
+import type { SuggestionActionRequest } from '../models';
+// @ts-ignore
+import type { SuggestionActionResponse } from '../models';
 /**
  * GraphApi - axios parameter creator
  * @export
@@ -175,6 +179,54 @@ export const GraphApiAxiosParamCreator = function (configuration?: Configuration
             };
         },
         /**
+         * Take action on a specific merge suggestion.  Actions: - accept: Accept the suggestion and perform the merge operation - reject: Reject the suggestion and mark it as rejected  When accepting, the system will: 1. Update suggestion status to ACCEPTED 2. Perform the actual node merge using suggested entity IDs 3. Mark related suggestions involving the same entities as EXPIRED  When rejecting, the system will: 1. Update suggestion status to REJECTED 2. No merge operation is performed  The target entity data can be optionally overridden when accepting a suggestion. 
+         * @summary Accept or reject a merge suggestion
+         * @param {string} collectionId Collection ID
+         * @param {string} suggestionId Suggestion ID
+         * @param {SuggestionActionRequest} suggestionActionRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPost: async (collectionId: string, suggestionId: string, suggestionActionRequest: SuggestionActionRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('collectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPost', 'collectionId', collectionId)
+            // verify required parameter 'suggestionId' is not null or undefined
+            assertParamExists('collectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPost', 'suggestionId', suggestionId)
+            // verify required parameter 'suggestionActionRequest' is not null or undefined
+            assertParamExists('collectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPost', 'suggestionActionRequest', suggestionActionRequest)
+            const localVarPath = `/collections/{collection_id}/graphs/merge-suggestions/{suggestion_id}/action`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)))
+                .replace(`{${"suggestion_id"}}`, encodeURIComponent(String(suggestionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(suggestionActionRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.  Provide `entity_ids` array with 1+ entities and optional `target_entity_data` for customization.  The operation: 1. Auto-selects target entity (highest degree) if not specified in `target_entity_data` 2. Combines descriptions using default merge strategy (concatenate) 3. Merges metadata using default behavior: entity_type from target, others concatenated/joined 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source nodes  Entity type handling: Uses target entity\'s type if it exists, otherwise uses merged result. The operation is idempotent - if source nodes don\'t exist, it returns success. 
          * @summary Merge graph nodes
          * @param {string} collectionId Collection ID
@@ -272,6 +324,21 @@ export const GraphApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Take action on a specific merge suggestion.  Actions: - accept: Accept the suggestion and perform the merge operation - reject: Reject the suggestion and mark it as rejected  When accepting, the system will: 1. Update suggestion status to ACCEPTED 2. Perform the actual node merge using suggested entity IDs 3. Mark related suggestions involving the same entities as EXPIRED  When rejecting, the system will: 1. Update suggestion status to REJECTED 2. No merge operation is performed  The target entity data can be optionally overridden when accepting a suggestion. 
+         * @summary Accept or reject a merge suggestion
+         * @param {string} collectionId Collection ID
+         * @param {string} suggestionId Suggestion ID
+         * @param {SuggestionActionRequest} suggestionActionRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async collectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPost(collectionId: string, suggestionId: string, suggestionActionRequest: SuggestionActionRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SuggestionActionResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPost(collectionId, suggestionId, suggestionActionRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['GraphApi.collectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.  Provide `entity_ids` array with 1+ entities and optional `target_entity_data` for customization.  The operation: 1. Auto-selects target entity (highest degree) if not specified in `target_entity_data` 2. Combines descriptions using default merge strategy (concatenate) 3. Merges metadata using default behavior: entity_type from target, others concatenated/joined 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source nodes  Entity type handling: Uses target entity\'s type if it exists, otherwise uses merged result. The operation is idempotent - if source nodes don\'t exist, it returns success. 
          * @summary Merge graph nodes
          * @param {string} collectionId Collection ID
@@ -326,6 +393,16 @@ export const GraphApiFactory = function (configuration?: Configuration, basePath
             return localVarFp.collectionsCollectionIdGraphsMergeSuggestionsPost(requestParameters.collectionId, requestParameters.mergeSuggestionsRequest, options).then((request) => request(axios, basePath));
         },
         /**
+         * Take action on a specific merge suggestion.  Actions: - accept: Accept the suggestion and perform the merge operation - reject: Reject the suggestion and mark it as rejected  When accepting, the system will: 1. Update suggestion status to ACCEPTED 2. Perform the actual node merge using suggested entity IDs 3. Mark related suggestions involving the same entities as EXPIRED  When rejecting, the system will: 1. Update suggestion status to REJECTED 2. No merge operation is performed  The target entity data can be optionally overridden when accepting a suggestion. 
+         * @summary Accept or reject a merge suggestion
+         * @param {GraphApiCollectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPost(requestParameters: GraphApiCollectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<SuggestionActionResponse> {
+            return localVarFp.collectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPost(requestParameters.collectionId, requestParameters.suggestionId, requestParameters.suggestionActionRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.  Provide `entity_ids` array with 1+ entities and optional `target_entity_data` for customization.  The operation: 1. Auto-selects target entity (highest degree) if not specified in `target_entity_data` 2. Combines descriptions using default merge strategy (concatenate) 3. Merges metadata using default behavior: entity_type from target, others concatenated/joined 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source nodes  Entity type handling: Uses target entity\'s type if it exists, otherwise uses merged result. The operation is idempotent - if source nodes don\'t exist, it returns success. 
          * @summary Merge graph nodes
          * @param {GraphApiCollectionsCollectionIdGraphsNodesMergePostRequest} requestParameters Request parameters.
@@ -373,6 +450,16 @@ export interface GraphApiInterface {
      * @memberof GraphApiInterface
      */
     collectionsCollectionIdGraphsMergeSuggestionsPost(requestParameters: GraphApiCollectionsCollectionIdGraphsMergeSuggestionsPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<MergeSuggestionsResponse>;
+
+    /**
+     * Take action on a specific merge suggestion.  Actions: - accept: Accept the suggestion and perform the merge operation - reject: Reject the suggestion and mark it as rejected  When accepting, the system will: 1. Update suggestion status to ACCEPTED 2. Perform the actual node merge using suggested entity IDs 3. Mark related suggestions involving the same entities as EXPIRED  When rejecting, the system will: 1. Update suggestion status to REJECTED 2. No merge operation is performed  The target entity data can be optionally overridden when accepting a suggestion. 
+     * @summary Accept or reject a merge suggestion
+     * @param {GraphApiCollectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof GraphApiInterface
+     */
+    collectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPost(requestParameters: GraphApiCollectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<SuggestionActionResponse>;
 
     /**
      * Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.  Provide `entity_ids` array with 1+ entities and optional `target_entity_data` for customization.  The operation: 1. Auto-selects target entity (highest degree) if not specified in `target_entity_data` 2. Combines descriptions using default merge strategy (concatenate) 3. Merges metadata using default behavior: entity_type from target, others concatenated/joined 4. Updates all relationships to point to the target node 5. Updates vector storage data 6. Removes the source nodes  Entity type handling: Uses target entity\'s type if it exists, otherwise uses merged result. The operation is idempotent - if source nodes don\'t exist, it returns success. 
@@ -457,6 +544,34 @@ export interface GraphApiCollectionsCollectionIdGraphsMergeSuggestionsPostReques
 }
 
 /**
+ * Request parameters for collectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPost operation in GraphApi.
+ * @export
+ * @interface GraphApiCollectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPostRequest
+ */
+export interface GraphApiCollectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPostRequest {
+    /**
+     * Collection ID
+     * @type {string}
+     * @memberof GraphApiCollectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPost
+     */
+    readonly collectionId: string
+
+    /**
+     * Suggestion ID
+     * @type {string}
+     * @memberof GraphApiCollectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPost
+     */
+    readonly suggestionId: string
+
+    /**
+     * 
+     * @type {SuggestionActionRequest}
+     * @memberof GraphApiCollectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPost
+     */
+    readonly suggestionActionRequest: SuggestionActionRequest
+}
+
+/**
  * Request parameters for collectionsCollectionIdGraphsNodesMergePost operation in GraphApi.
  * @export
  * @interface GraphApiCollectionsCollectionIdGraphsNodesMergePostRequest
@@ -518,6 +633,18 @@ export class GraphApi extends BaseAPI implements GraphApiInterface {
      */
     public collectionsCollectionIdGraphsMergeSuggestionsPost(requestParameters: GraphApiCollectionsCollectionIdGraphsMergeSuggestionsPostRequest, options?: RawAxiosRequestConfig) {
         return GraphApiFp(this.configuration).collectionsCollectionIdGraphsMergeSuggestionsPost(requestParameters.collectionId, requestParameters.mergeSuggestionsRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Take action on a specific merge suggestion.  Actions: - accept: Accept the suggestion and perform the merge operation - reject: Reject the suggestion and mark it as rejected  When accepting, the system will: 1. Update suggestion status to ACCEPTED 2. Perform the actual node merge using suggested entity IDs 3. Mark related suggestions involving the same entities as EXPIRED  When rejecting, the system will: 1. Update suggestion status to REJECTED 2. No merge operation is performed  The target entity data can be optionally overridden when accepting a suggestion. 
+     * @summary Accept or reject a merge suggestion
+     * @param {GraphApiCollectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof GraphApi
+     */
+    public collectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPost(requestParameters: GraphApiCollectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPostRequest, options?: RawAxiosRequestConfig) {
+        return GraphApiFp(this.configuration).collectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPost(requestParameters.collectionId, requestParameters.suggestionId, requestParameters.suggestionActionRequest, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

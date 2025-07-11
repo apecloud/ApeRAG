@@ -429,10 +429,7 @@ async def merge_nodes_view(
     """Merge multiple graph nodes into one"""
     from aperag.service.graph_service import graph_service
 
-    # Log merge operation
-    operation_type = "suggestion" if merge_request.suggestion_id else "entity_ids"
-    operation_value = merge_request.suggestion_id or merge_request.entity_ids
-    logger.info(f"Merging nodes: {operation_type}={operation_value} in collection {collection_id}")
+    logger.info(f"Merging nodes: entity_ids={merge_request.entity_ids} in collection {collection_id}")
 
     try:
         # Call graph service
@@ -440,12 +437,44 @@ async def merge_nodes_view(
             user_id=str(user.id),
             collection_id=collection_id,
             entity_ids=merge_request.entity_ids,
-            suggestion_id=merge_request.suggestion_id,
             target_entity_data=merge_request.target_entity_data.model_dump(exclude_unset=True)
             if merge_request.target_entity_data
             else None,
         )
         return view_models.NodeMergeResponse(**result)
+    except CollectionNotFoundException:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/collections/{collection_id}/graphs/merge-suggestions/{suggestion_id}/action", tags=["graph"])
+@audit(resource_type="index", api_name="HandleSuggestionAction")
+async def handle_suggestion_action_view(
+    request: Request,
+    collection_id: str,
+    suggestion_id: str,
+    action_request: view_models.SuggestionActionRequest,
+    user: User = Depends(current_user),
+) -> view_models.SuggestionActionResponse:
+    """Accept or reject a merge suggestion"""
+    from aperag.service.graph_service import graph_service
+
+    logger.info(
+        f"Handling suggestion action: {action_request.action} for suggestion {suggestion_id} in collection {collection_id}"
+    )
+
+    try:
+        result = await graph_service.handle_suggestion_action(
+            user_id=str(user.id),
+            collection_id=collection_id,
+            suggestion_id=suggestion_id,
+            action=action_request.action,
+            target_entity_data=action_request.target_entity_data.model_dump(exclude_unset=True)
+            if action_request.target_entity_data
+            else None,
+        )
+        return view_models.SuggestionActionResponse(**result)
     except CollectionNotFoundException:
         raise HTTPException(status_code=404, detail="Collection not found")
     except ValueError as e:

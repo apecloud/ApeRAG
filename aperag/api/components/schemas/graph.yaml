@@ -195,32 +195,22 @@ targetEntityDataResponse:
 nodeMergeRequest:
   type: object
   description: |
-    Request to merge multiple graph nodes.
-    
-    You can provide either:
-    - entity_ids: List of entity IDs to merge directly
-    - suggestion_id: ID of a suggestion to merge
-    
-    If both are provided, suggestion_id takes precedence and entity_ids will be ignored.
+    Request to merge multiple graph nodes directly using entity IDs.
   properties:
     entity_ids:
       type: array
       items:
         type: string
-      description: List of entity IDs to merge (supports 1 or more entities). Ignored if suggestion_id is also provided.
+      description: List of entity IDs to merge directly
       example: ["墨香居", "书店", "旧书店"]
       minItems: 1
-      nullable: true
-    suggestion_id:
-      type: string
-      description: Single suggestion ID to merge. If provided, takes precedence over entity_ids.
-      example: "msug123"
-      nullable: true
     target_entity_data:
       $ref: '#/targetEntityDataRequest'
+  required:
+    - entity_ids
   additionalProperties: false
   example:
-    suggestion_id: "msug123"
+    entity_ids: ["墨香居", "书店", "旧书店"]
 
 nodeMergeResponse:
   type: object
@@ -507,3 +497,53 @@ mergeSuggestionsResponse:
     - accepted_count
     - rejected_count
     - expired_count
+
+suggestionActionRequest:
+  type: object
+  description: Request to take action on a merge suggestion
+  properties:
+    action:
+      type: string
+      enum: ["accept", "reject"]
+      description: Action to take on the suggestion
+      example: "accept"
+    target_entity_data:
+      $ref: '#/targetEntityDataRequest'
+      description: Optional override for target entity data (only used when action is 'accept')
+  required:
+    - action
+  additionalProperties: false
+  example:
+    action: "accept"
+
+suggestionActionResponse:
+  type: object
+  description: Response containing suggestion action results
+  properties:
+    status:
+      type: string
+      description: Status of the action operation
+      example: "success"
+      enum: ["success", "error"]
+    message:
+      type: string
+      description: Detailed message about the action operation
+      example: "Suggestion msug123 has been accepted and merge completed"
+    suggestion_id:
+      type: string
+      description: The suggestion ID that was processed
+      example: "msug123"
+    action:
+      type: string
+      enum: ["accept", "reject"]
+      description: The action that was performed
+      example: "accept"
+    merge_result:
+      $ref: '#/nodeMergeResponse'
+      description: Merge operation result (only present when action is 'accept')
+      nullable: true
+  required:
+    - status
+    - message
+    - suggestion_id
+    - action

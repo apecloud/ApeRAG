@@ -18,7 +18,7 @@
 import type { TargetEntityDataRequest } from './target-entity-data-request';
 
 /**
- * Request to merge multiple graph nodes.  You can provide either: - entity_ids: List of entity IDs to merge directly - suggestion_id: ID of a suggestion to merge  If both are provided, suggestion_id takes precedence and entity_ids will be ignored. 
+ * Request to merge multiple graph nodes directly using entity IDs. 
  * @export
  * @interface NodeMergeRequest
  */
@@ -26,17 +26,11 @@ export interface NodeMergeRequest {
     [key: string]: any;
 
     /**
-     * List of entity IDs to merge (supports 1 or more entities). Ignored if suggestion_id is also provided.
+     * List of entity IDs to merge directly
      * @type {Array<string>}
      * @memberof NodeMergeRequest
      */
-    'entity_ids'?: Array<string>;
-    /**
-     * Single suggestion ID to merge. If provided, takes precedence over entity_ids.
-     * @type {string}
-     * @memberof NodeMergeRequest
-     */
-    'suggestion_id'?: string;
+    'entity_ids': Array<string>;
     /**
      * 
      * @type {TargetEntityDataRequest}

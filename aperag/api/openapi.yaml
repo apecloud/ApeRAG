@@ -67,6 +67,8 @@ paths:
     $ref: './paths/collections.yaml#/graph_nodes_merge'
   /collections/{collection_id}/graphs/merge-suggestions:
     $ref: './paths/collections.yaml#/graph_merge_suggestions'
+  /collections/{collection_id}/graphs/merge-suggestions/{suggestion_id}/action:
+    $ref: './paths/collections.yaml#/graph_suggestion_action'
 
   # apikeys
   /apikeys:

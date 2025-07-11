@@ -753,6 +753,129 @@ graph_merge_suggestions:
             schema:
               $ref: '../components/schemas/common.yaml#/failResponse'
 
+graph_suggestion_action:
+  post:
+    summary: Accept or reject a merge suggestion
+    description: |
+      Take action on a specific merge suggestion.
+      
+      Actions:
+      - accept: Accept the suggestion and perform the merge operation
+      - reject: Reject the suggestion and mark it as rejected
+      
+      When accepting, the system will:
+      1. Update suggestion status to ACCEPTED
+      2. Perform the actual node merge using suggested entity IDs
+      3. Mark related suggestions involving the same entities as EXPIRED
+      
+      When rejecting, the system will:
+      1. Update suggestion status to REJECTED
+      2. No merge operation is performed
+      
+      The target entity data can be optionally overridden when accepting a suggestion.
+    tags:
+      - graph
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Collection ID
+      - name: suggestion_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Suggestion ID
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/graph.yaml#/suggestionActionRequest'
+          examples:
+            accept:
+              summary: Accept suggestion
+              description: Accept the suggestion and perform merge
+              value:
+                action: "accept"
+            reject:
+              summary: Reject suggestion
+              description: Reject the suggestion without merging
+              value:
+                action: "reject"
+            accept_with_override:
+              summary: Accept with custom target data
+              description: Accept suggestion but override target entity data
+              value:
+                action: "accept"
+                target_entity_data:
+                  entity_name: "Custom Name"
+                  description: "Custom description for merged entity"
+    responses:
+      '200':
+        description: Action completed successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/graph.yaml#/suggestionActionResponse'
+            examples:
+              accept_success:
+                summary: Accept action successful
+                description: Suggestion accepted and merge completed
+                value:
+                  status: "success"
+                  message: "Suggestion msug123 has been accepted and merge completed"
+                  suggestion_id: "msug123"
+                  action: "accept"
+                  merge_result:
+                    status: "success"
+                    message: "Successfully merged 2 entities into 墨香居"
+                    entity_ids: ["墨香居", "书店"]
+                    target_entity_data:
+                      entity_name: "墨香居"
+                      entity_type: "ORGANIZATION"
+                      description: "墨香居是这条老巷子里唯一的旧书店，经营着各种书籍"
+                    source_entities: ["书店"]
+                    redirected_edges: 5
+                    merged_description_length: 45
+              reject_success:
+                summary: Reject action successful
+                description: Suggestion rejected successfully
+                value:
+                  status: "success"
+                  message: "Suggestion msug123 has been rejected"
+                  suggestion_id: "msug123"
+                  action: "reject"
+                  merge_result: null
+      '400':
+        description: Bad request - invalid action or suggestion already processed
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Collection or suggestion not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
 test_mineru_token:
   post:
     summary: Test MinerU API Token

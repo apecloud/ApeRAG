@@ -266,50 +266,111 @@ class GraphService:
         self,
         user_id: str,
         collection_id: str,
-        entity_ids: list[str] | None = None,
-        suggestion_id: str | None = None,
+        entity_ids: list[str],
         target_entity_data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Merge graph nodes with suggestion or entity IDs (suggestion_id takes precedence)"""
-        if not suggestion_id and not entity_ids:
-            raise ValueError("Must specify either entity_ids or suggestion_id")
+        """Merge graph nodes directly using entity IDs"""
+        if not entity_ids:
+            raise ValueError("entity_ids cannot be empty")
 
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
-        # Prepare merge parameters
-        if suggestion_id:
-            suggestions = await self.db_ops.get_suggestions_by_ids([suggestion_id])
-            if not suggestions:
-                raise ValueError(f"Suggestion not found: {suggestion_id}")
+        # Execute merge directly
+        result = await self._execute_merge_operation(
+            db_collection=db_collection,
+            entity_ids=entity_ids,
+            target_entity_data=target_entity_data,
+            collection_id=collection_id,
+        )
 
-            suggestion = suggestions[0]
-            merge_entity_ids = suggestion.entity_ids
+        logger.info(f"Successfully merged entities {entity_ids} in collection {collection_id}")
+        return result
+
+    async def handle_suggestion_action(
+        self,
+        user_id: str,
+        collection_id: str,
+        suggestion_id: str,
+        action: str,
+        target_entity_data: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Handle accept/reject action on a merge suggestion"""
+        if action not in ["accept", "reject"]:
+            raise ValueError(f"Invalid action: {action}. Must be 'accept' or 'reject'")
+
+        db_collection = await self._get_and_validate_collection(user_id, collection_id)
+
+        # Get and validate suggestion
+        suggestions = await self.db_ops.get_suggestions_by_ids([suggestion_id])
+        if not suggestions:
+            raise ValueError(f"Suggestion not found: {suggestion_id}")
+
+        suggestion = suggestions[0]
+
+        if suggestion.status != MergeSuggestionStatus.PENDING:
+            raise ValueError(f"Cannot act on suggestion with status: {suggestion.status}")
+
+        if suggestion.collection_id != collection_id:
+            raise ValueError(f"Suggestion {suggestion_id} does not belong to collection {collection_id}")
+
+        if action == "reject":
+            # Simple rejection - just update status
+            await self.db_ops.update_suggestion_status(suggestion_id, MergeSuggestionStatus.REJECTED, utc_now())
+
+            logger.info(f"Suggestion {suggestion_id} has been rejected")
+            return {
+                "status": "success",
+                "message": f"Suggestion {suggestion_id} has been rejected",
+                "suggestion_id": suggestion_id,
+                "action": "reject",
+                "merge_result": None,
+            }
+
+        else:  # action == "accept"
+            # Accept and perform merge
             merge_target_data = target_entity_data or suggestion.suggested_target_entity
-        else:
-            merge_entity_ids = entity_ids
-            merge_target_data = target_entity_data
 
-        # Execute merge
+            # Execute merge operation
+            merge_result = await self._execute_merge_operation(
+                db_collection=db_collection,
+                entity_ids=suggestion.entity_ids,
+                target_entity_data=merge_target_data,
+                collection_id=collection_id,
+            )
+
+            # Update suggestion status to ACCEPTED
+            await self.db_ops.update_suggestion_status(suggestion_id, MergeSuggestionStatus.ACCEPTED, utc_now())
+
+            # Expire related suggestions involving the same entities
+            await self.db_ops.expire_related_suggestions(collection_id, suggestion.entity_ids)
+
+            logger.info(f"Suggestion {suggestion_id} has been accepted and merge completed")
+            return {
+                "status": "success",
+                "message": f"Suggestion {suggestion_id} has been accepted and merge completed",
+                "suggestion_id": suggestion_id,
+                "action": "accept",
+                "merge_result": merge_result,
+            }
+
+    async def _execute_merge_operation(
+        self,
+        db_collection,
+        entity_ids: list[str],
+        target_entity_data: dict[str, Any] | None,
+        collection_id: str,
+    ) -> dict[str, Any]:
+        """Execute the actual node merge operation"""
         rag = await lightrag_manager.create_lightrag_instance(db_collection)
         try:
             result = await rag.amerge_nodes(
-                entity_ids=merge_entity_ids,
-                target_entity_data=merge_target_data,
+                entity_ids=entity_ids,
+                target_entity_data=target_entity_data,
             )
 
-            result.update(
-                {
-                    "suggestion_id": suggestion_id,
-                    "entity_ids": merge_entity_ids,
-                }
-            )
+            # Add entity_ids to result for consistency
+            result["entity_ids"] = entity_ids
 
-            # Update suggestion status if applicable
-            if suggestion_id:
-                await self.db_ops.update_suggestion_status(suggestion_id, MergeSuggestionStatus.ACCEPTED, utc_now())
-                await self.db_ops.expire_related_suggestions(collection_id, merge_entity_ids)
-
-            logger.info(f"Successfully merged entities {merge_entity_ids} in collection {collection_id}")
             return result
         finally:
             await rag.finalize_storages()
