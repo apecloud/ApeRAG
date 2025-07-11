@@ -44,5 +44,11 @@ export interface MergeSuggestionsRequest {
      * @memberof MergeSuggestionsRequest
      */
     'max_concurrent_llm_calls'?: number;
+    /**
+     * Force regeneration of suggestions even if valid cached suggestions exist
+     * @type {boolean}
+     * @memberof MergeSuggestionsRequest
+     */
+    'force_refresh'?: boolean;
 }
 

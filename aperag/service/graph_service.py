@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, List
 
+from aperag.db.models import MergeSuggestionStatus
 from aperag.exceptions import CollectionNotFoundException, GraphServiceError
 from aperag.graph import lightrag_manager
 from aperag.schema import view_models
+from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -284,6 +286,133 @@ class GraphService:
 
     # ==================== Graph Index Operations ====================
 
+    async def get_or_generate_merge_suggestions(
+        self,
+        user_id: str,
+        collection_id: str,
+        max_suggestions: int = 10,
+        entity_types: list[str] | None = None,
+        debug_mode: bool = False,
+        max_concurrent_llm_calls: int = 4,
+        force_refresh: bool = False,
+    ) -> dict[str, Any]:
+        """
+        Get cached suggestions or generate new ones using LLM analysis.
+
+        Args:
+            user_id: User ID
+            collection_id: Collection ID
+            max_suggestions: Maximum number of suggestions to return (default: 10)
+            entity_types: Optional filter for specific entity types
+            debug_mode: Enable debug mode with lower confidence threshold and verbose logging
+            max_concurrent_llm_calls: Maximum concurrent LLM calls for batch analysis (default: 4)
+            force_refresh: Force regeneration even if valid cached suggestions exist
+
+        Returns:
+            Dict containing merge suggestions and processing statistics
+
+        Raises:
+            CollectionNotFoundException: If collection is not found
+            ValueError: If knowledge graph is not enabled for the collection
+            GraphServiceError: If suggestion generation fails
+        """
+        # Get and validate collection
+        collection = await self._get_and_validate_collection(user_id, collection_id)
+
+        try:
+            # Import here to avoid circular imports
+            from aperag.db.async_db_ops import get_async_db_ops
+            from aperag.db.repositories.merge_suggestion import MergeSuggestionRepository
+
+            # Get database session
+            db_ops = get_async_db_ops()
+            session = db_ops.get_session()
+            
+            # Create repository
+            suggestion_repo = MergeSuggestionRepository(session)
+
+            # Check for cached suggestions if not force refresh
+            if not force_refresh:
+                cached_suggestions = await suggestion_repo.get_valid_suggestions(collection_id)
+                if cached_suggestions:
+                    logger.info(f"Found {len(cached_suggestions)} cached suggestions for collection {collection_id}")
+                    return self._format_suggestions_response(cached_suggestions, from_cache=True)
+
+            # Generate new suggestions
+            logger.info(f"Generating new merge suggestions for collection {collection_id}")
+            llm_result = await self.generate_merge_suggestions(
+                user_id=user_id,
+                collection_id=collection_id,
+                max_suggestions=max_suggestions,
+                entity_types=entity_types,
+                debug_mode=debug_mode,
+                max_concurrent_llm_calls=max_concurrent_llm_calls,
+            )
+
+            # Store suggestions in database
+            suggestion_data = []
+            for suggestion in llm_result.get("suggestions", []):
+                suggestion_data.append({
+                    "collection_id": collection_id,
+                    "entity_ids": [entity["entity_id"] for entity in suggestion["entities"]],
+                    "confidence_score": suggestion["confidence_score"],
+                    "merge_reason": suggestion["merge_reason"],
+                    "suggested_target_entity": suggestion["suggested_target_entity"],
+                })
+
+            if suggestion_data:
+                stored_suggestions = await suggestion_repo.batch_create(suggestion_data)
+                logger.info(f"Stored {len(stored_suggestions)} suggestions for collection {collection_id}")
+                return self._format_suggestions_response(stored_suggestions, from_cache=False, **llm_result)
+            else:
+                logger.info(f"No suggestions generated for collection {collection_id}")
+                return self._format_suggestions_response([], from_cache=False, **llm_result)
+
+        except Exception as e:
+            logger.error(f"Failed to get or generate merge suggestions for collection {collection_id}: {str(e)}")
+            raise GraphServiceError(f"Failed to get or generate merge suggestions: {str(e)}") from e
+
+    def _format_suggestions_response(
+        self, 
+        suggestions: List, 
+        from_cache: bool = False,
+        **kwargs
+    ) -> dict[str, Any]:
+        """Format suggestions response with statistics"""
+        suggestion_items = []
+        for suggestion in suggestions:
+            suggestion_items.append({
+                "id": suggestion.id,
+                "collection_id": suggestion.collection_id,
+                "suggestion_batch_id": suggestion.suggestion_batch_id,
+                "entity_ids": suggestion.entity_ids,
+                "confidence_score": float(suggestion.confidence_score),
+                "merge_reason": suggestion.merge_reason,
+                "suggested_target_entity": suggestion.suggested_target_entity,
+                "status": suggestion.status,
+                "created": suggestion.gmt_created,
+                "expires_at": suggestion.expires_at,
+                "operated_at": suggestion.operated_at,
+            })
+
+        # Count by status
+        status_counts = {"PENDING": 0, "ACCEPTED": 0, "REJECTED": 0, "EXPIRED": 0}
+        for suggestion in suggestions:
+            status_counts[suggestion.status] += 1
+
+        return {
+            "suggestions": suggestion_items,
+            "total_analyzed_nodes": kwargs.get("total_analyzed_nodes", 0),
+            "processing_time_seconds": kwargs.get("processing_time_seconds", 0.0),
+            "from_cache": from_cache,
+            "generated_at": utc_now(),
+            "total_suggestions": len(suggestion_items),
+            "pending_count": status_counts["PENDING"],
+            "accepted_count": status_counts["ACCEPTED"],
+            "rejected_count": status_counts["REJECTED"],
+            "expired_count": status_counts["EXPIRED"],
+        }
+
     async def generate_merge_suggestions(
         self,
         user_id: str,
@@ -340,7 +469,8 @@ class GraphService:
         self,
         user_id: str,
         collection_id: str,
-        entity_ids: list[str],
+        entity_ids: list[str] | None = None,
+        suggestion_id: str | None = None,
         target_entity_data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
@@ -349,30 +479,85 @@ class GraphService:
         Args:
             user_id: User ID
             collection_id: Collection ID
-            entity_ids: List of entity IDs to merge
-            target_entity_data: Optional target entity configuration including entity_name and other properties
+            entity_ids: List of entity IDs to merge (ignored if suggestion_id is provided)
+            suggestion_id: Single suggestion ID to merge (takes precedence over entity_ids)
+            target_entity_data: Optional target entity configuration
 
         Returns:
             Dict containing merge operation results
 
         Raises:
             CollectionNotFoundException: If collection is not found
-            ValueError: If knowledge graph is not enabled for the collection
+            ValueError: If knowledge graph is not enabled for the collection or invalid parameters
             GraphServiceError: If merge operation fails
         """
+        # Validate parameters - suggestion_id takes precedence
+        if not suggestion_id and not entity_ids:
+            raise ValueError("Must specify either entity_ids or suggestion_id")
+
         # Get and validate collection
         collection = await self._get_and_validate_collection(user_id, collection_id)
 
         try:
+            # Import here to avoid circular imports
+            from aperag.db.async_db_ops import get_async_db_ops
+            from aperag.db.repositories.merge_suggestion import MergeSuggestionRepository
+
+            # Get database session
+            db_ops = get_async_db_ops()
+            session = db_ops.get_session()
+            suggestion_repo = MergeSuggestionRepository(session)
+
+            # Prepare merge operation
+            if suggestion_id:
+                # Get suggestion from database
+                suggestions = await suggestion_repo.get_suggestions_by_ids([suggestion_id])
+                
+                if not suggestions:
+                    raise ValueError(f"Suggestion not found: {suggestion_id}")
+                
+                suggestion = suggestions[0]
+                merge_entity_ids = suggestion.entity_ids
+                
+                # Use provided target_entity_data if available, otherwise use suggestion's target
+                if target_entity_data:
+                    merge_target_entity_data = target_entity_data
+                else:
+                    merge_target_entity_data = suggestion.suggested_target_entity
+            
+            else:  # entity_ids provided
+                merge_entity_ids = entity_ids
+                merge_target_entity_data = target_entity_data
+
             # Create LightRAG instance
             rag = await lightrag_manager.create_lightrag_instance(collection)
 
-            # Call LightRAG merge method
+            # Execute merge operation
             result = await rag.amerge_nodes(
-                entity_ids=entity_ids,
-                target_entity_data=target_entity_data,
+                entity_ids=merge_entity_ids,
+                target_entity_data=merge_target_entity_data,
             )
-
+            
+            # Add suggestion_id and entity_ids to result
+            result["suggestion_id"] = suggestion_id
+            result["entity_ids"] = merge_entity_ids
+            
+            # Update suggestion status if applicable
+            if suggestion_id:
+                await suggestion_repo.update_status(
+                    suggestion_id,
+                    MergeSuggestionStatus.ACCEPTED,
+                    utc_now()
+                )
+                
+                # Expire related suggestions
+                await suggestion_repo.expire_related_suggestions(
+                    collection_id,
+                    merge_entity_ids
+                )
+            
+            logger.info(f"Successfully merged entities {merge_entity_ids} in collection {collection_id}")
+            
             return result
 
         except Exception as e:

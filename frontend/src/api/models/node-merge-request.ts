@@ -15,10 +15,10 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { NodeMergeRequestTargetEntityData } from './node-merge-request-target-entity-data';
+import type { TargetEntityDataRequest } from './target-entity-data-request';
 
 /**
- * Request to merge multiple graph nodes
+ * Request to merge multiple graph nodes.  You can provide either: - entity_ids: List of entity IDs to merge directly - suggestion_id: ID of a suggestion to merge  If both are provided, suggestion_id takes precedence and entity_ids will be ignored. 
  * @export
  * @interface NodeMergeRequest
  */
@@ -26,16 +26,22 @@ export interface NodeMergeRequest {
     [key: string]: any;
 
     /**
-     * List of entity IDs to merge (supports 1 or more entities)
+     * List of entity IDs to merge (supports 1 or more entities). Ignored if suggestion_id is also provided.
      * @type {Array<string>}
      * @memberof NodeMergeRequest
      */
-    'entity_ids': Array<string>;
+    'entity_ids'?: Array<string>;
     /**
-     * 
-     * @type {NodeMergeRequestTargetEntityData}
+     * Single suggestion ID to merge. If provided, takes precedence over entity_ids.
+     * @type {string}
      * @memberof NodeMergeRequest
      */
-    'target_entity_data'?: NodeMergeRequestTargetEntityData;
+    'suggestion_id'?: string;
+    /**
+     * 
+     * @type {TargetEntityDataRequest}
+     * @memberof NodeMergeRequest
+     */
+    'target_entity_data'?: TargetEntityDataRequest;
 }
 

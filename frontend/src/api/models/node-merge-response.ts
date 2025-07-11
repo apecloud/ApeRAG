@@ -15,7 +15,7 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { NodeMergeResponseTargetEntityData } from './node-merge-response-target-entity-data';
+import type { TargetEntityDataResponse } from './target-entity-data-response';
 
 /**
  * Response containing node merge results
@@ -36,11 +36,17 @@ export interface NodeMergeResponse {
      */
     'message': string;
     /**
-     * 
-     * @type {NodeMergeResponseTargetEntityData}
+     * Entity IDs that were merged
+     * @type {Array<string>}
      * @memberof NodeMergeResponse
      */
-    'target_entity_data': NodeMergeResponseTargetEntityData;
+    'entity_ids': Array<string>;
+    /**
+     * 
+     * @type {TargetEntityDataResponse}
+     * @memberof NodeMergeResponse
+     */
+    'target_entity_data': TargetEntityDataResponse;
     /**
      * List of entities that were merged into the target
      * @type {Array<string>}
@@ -59,6 +65,12 @@ export interface NodeMergeResponse {
      * @memberof NodeMergeResponse
      */
     'merged_description_length': number;
+    /**
+     * Suggestion ID if this merge was based on a suggestion
+     * @type {string}
+     * @memberof NodeMergeResponse
+     */
+    'suggestion_id'?: string;
 }
 
 export const NodeMergeResponseStatusEnum = {

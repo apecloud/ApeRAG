@@ -15,7 +15,7 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { MergeSuggestion } from './merge-suggestion';
+import type { MergeSuggestionItem } from './merge-suggestion-item';
 
 /**
  * Response containing node merge suggestions
@@ -25,10 +25,10 @@ import type { MergeSuggestion } from './merge-suggestion';
 export interface MergeSuggestionsResponse {
     /**
      * List of merge suggestions ordered by confidence score (highest first)
-     * @type {Array<MergeSuggestion>}
+     * @type {Array<MergeSuggestionItem>}
      * @memberof MergeSuggestionsResponse
      */
-    'suggestions': Array<MergeSuggestion>;
+    'suggestions': Array<MergeSuggestionItem>;
     /**
      * Total number of nodes analyzed
      * @type {number}
@@ -41,5 +41,47 @@ export interface MergeSuggestionsResponse {
      * @memberof MergeSuggestionsResponse
      */
     'processing_time_seconds': number;
+    /**
+     * Whether suggestions were loaded from cache
+     * @type {boolean}
+     * @memberof MergeSuggestionsResponse
+     */
+    'from_cache': boolean;
+    /**
+     * Generation timestamp
+     * @type {string}
+     * @memberof MergeSuggestionsResponse
+     */
+    'generated_at': string;
+    /**
+     * Total number of suggestions
+     * @type {number}
+     * @memberof MergeSuggestionsResponse
+     */
+    'total_suggestions': number;
+    /**
+     * Number of pending suggestions
+     * @type {number}
+     * @memberof MergeSuggestionsResponse
+     */
+    'pending_count': number;
+    /**
+     * Number of accepted suggestions
+     * @type {number}
+     * @memberof MergeSuggestionsResponse
+     */
+    'accepted_count': number;
+    /**
+     * Number of rejected suggestions
+     * @type {number}
+     * @memberof MergeSuggestionsResponse
+     */
+    'rejected_count': number;
+    /**
+     * Number of expired suggestions
+     * @type {number}
+     * @memberof MergeSuggestionsResponse
+     */
+    'expired_count': number;
 }
 

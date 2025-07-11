@@ -430,7 +430,12 @@ async def merge_nodes_view(
     try:
         # Log merge operation
         target_name = merge_request.target_entity_data.entity_name if merge_request.target_entity_data else None
-        entity_info = f"entities {merge_request.entity_ids} -> {target_name or 'auto-select'}"
+        
+        if merge_request.entity_ids:
+            entity_info = f"entities {merge_request.entity_ids} -> {target_name or 'auto-select'}"
+        else:
+            entity_info = f"suggestion {merge_request.suggestion_id} -> {target_name or 'auto-select'}"
+        
         logger.info(f"Merging nodes: {entity_info} in collection {collection_id}")
 
         # Convert target_entity_data to dict if provided
@@ -443,6 +448,7 @@ async def merge_nodes_view(
             user_id=str(user.id),
             collection_id=collection_id,
             entity_ids=merge_request.entity_ids,
+            suggestion_id=merge_request.suggestion_id,
             target_entity_data=target_entity_data_dict,
         )
 
@@ -463,13 +469,13 @@ async def merge_nodes_view(
 
 @router.post("/collections/{collection_id}/graphs/merge-suggestions", tags=["graph"])
 @audit(resource_type="index", api_name="GenerateMergeSuggestions")
-async def generate_merge_suggestions_view(
+async def merge_suggestions_view(
     request: Request,
     collection_id: str,
     suggestions_request: Optional[view_models.MergeSuggestionsRequest] = Body(None),
     user: User = Depends(current_user),
 ) -> view_models.MergeSuggestionsResponse:
-    """Generate node merge suggestions using LLM analysis"""
+    """Get cached suggestions or generate new ones using LLM analysis"""
     from aperag.exceptions import CollectionNotFoundException, GraphServiceError
     from aperag.service.graph_service import graph_service
 
@@ -479,25 +485,27 @@ async def generate_merge_suggestions_view(
             suggestions_request = view_models.MergeSuggestionsRequest()
 
         logger.info(
-            f"Generating merge suggestions for collection {collection_id}, "
+            f"Getting merge suggestions for collection {collection_id}, "
             f"max_suggestions={suggestions_request.max_suggestions}, "
             f"entity_types={suggestions_request.entity_types}, "
-            f"debug_mode={suggestions_request.debug_mode}"
+            f"debug_mode={suggestions_request.debug_mode}, "
+            f"force_refresh={suggestions_request.force_refresh}"
         )
 
-        # Call graph service to generate suggestions
-        result = await graph_service.generate_merge_suggestions(
+        # Call graph service to get or generate suggestions
+        result = await graph_service.get_or_generate_merge_suggestions(
             user_id=str(user.id),
             collection_id=collection_id,
             max_suggestions=suggestions_request.max_suggestions,
             entity_types=suggestions_request.entity_types,
             debug_mode=suggestions_request.debug_mode,
             max_concurrent_llm_calls=suggestions_request.max_concurrent_llm_calls,
+            force_refresh=suggestions_request.force_refresh,
         )
 
         logger.info(
-            f"Generated {len(result['suggestions'])} merge suggestions for collection {collection_id} "
-            f"(analyzed {result['total_analyzed_nodes']} nodes in {result['processing_time_seconds']:.2f}s)"
+            f"Returned {len(result['suggestions'])} merge suggestions for collection {collection_id} "
+            f"(from_cache={result['from_cache']}, analyzed {result['total_analyzed_nodes']} nodes in {result['processing_time_seconds']:.2f}s)"
         )
 
         return view_models.MergeSuggestionsResponse(**result)
@@ -511,7 +519,7 @@ async def generate_merge_suggestions_view(
         logger.warning(f"Graph service error for collection {collection_id}: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Error generating merge suggestions for collection {collection_id}: {str(e)}")
+        logger.error(f"Error getting merge suggestions for collection {collection_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 

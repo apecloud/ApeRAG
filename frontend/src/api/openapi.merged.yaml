@@ -3681,46 +3681,87 @@ components:
         - nodes
         - edges
         - is_truncated
+    targetEntityDataRequest:
+      type: object
+      description: Optional target entity configuration. If not specified, auto-select entity with highest degree.
+      properties:
+        entity_name:
+          type: string
+          description: Target entity name. If not specified, auto-select entity with highest degree
+          example: 墨香居
+        entity_type:
+          type: string
+          description: Entity type for the target entity
+          example: ORGANIZATION
+        description:
+          type: string
+          description: Description for the target entity
+          example: A comprehensive bookstore and cultural space
+        source_id:
+          type: string
+          description: Source ID for the target entity
+        file_path:
+          type: string
+          description: File path for the target entity
+      nullable: true
     nodeMergeRequest:
       type: object
-      description: Request to merge multiple graph nodes
+      description: |
+        Request to merge multiple graph nodes.
+
+        You can provide either:
+        - entity_ids: List of entity IDs to merge directly
+        - suggestion_id: ID of a suggestion to merge
+
+        If both are provided, suggestion_id takes precedence and entity_ids will be ignored.
       properties:
         entity_ids:
           type: array
           items:
             type: string
-          description: List of entity IDs to merge (supports 1 or more entities)
+          description: List of entity IDs to merge (supports 1 or more entities). Ignored if suggestion_id is also provided.
           example:
             - 墨香居
             - 书店
             - 旧书店
           minItems: 1
-        target_entity_data:
-          type: object
-          description: Optional target entity configuration. If not specified or empty, auto-select entity with highest degree
-          properties:
-            entity_name:
-              type: string
-              description: Target entity name. If not specified, auto-select entity with highest degree
-              example: 墨香居
-            entity_type:
-              type: string
-              description: Entity type for the target entity
-              example: ORGANIZATION
-            description:
-              type: string
-              description: Description for the target entity
-              example: A comprehensive bookstore and cultural space
-            source_id:
-              type: string
-              description: Source ID for the target entity
-            file_path:
-              type: string
-              description: File path for the target entity
           nullable: true
-      required:
-        - entity_ids
+        suggestion_id:
+          type: string
+          description: Single suggestion ID to merge. If provided, takes precedence over entity_ids.
+          example: msug123
+          nullable: true
+        target_entity_data:
+          $ref: '#/components/schemas/targetEntityDataRequest'
       additionalProperties: false
+    targetEntityDataResponse:
+      type: object
+      description: Complete data of the target entity after merge
+      properties:
+        entity_name:
+          type: string
+          description: The entity name that was kept (merge target)
+          example: 墨香居
+        entity_type:
+          type: string
+          description: Entity type of the target entity
+          example: ORGANIZATION
+        description:
+          type: string
+          description: Merged description of the target entity
+          example: 墨香居是这条老巷子里唯一的旧书店，经营着各种书籍，承载了老板李明华的情怀。
+        source_id:
+          type: string
+          description: Source ID information
+          example: chunk-001,chunk-002
+        file_path:
+          type: string
+          description: File path information
+          example: story.txt,book.txt
+      required:
+        - entity_name
+        - entity_type
+        - description
     nodeMergeResponse:
       type: object
       description: Response containing node merge results
@@ -3736,35 +3777,17 @@ components:
           type: string
           description: Detailed message about the merge operation
           example: Successfully merged 2 entities into 墨香居
+        entity_ids:
+          type: array
+          items:
+            type: string
+          description: Entity IDs that were merged
+          example:
+            - 墨香居
+            - 书店
+            - 旧书店
         target_entity_data:
-          type: object
-          description: Complete data of the target entity after merge
-          properties:
-            entity_name:
-              type: string
-              description: The entity name that was kept (merge target)
-              example: 墨香居
-            entity_type:
-              type: string
-              description: Entity type of the target entity
-              example: ORGANIZATION
-            description:
-              type: string
-              description: Merged description of the target entity
-              example: 墨香居是这条老巷子里唯一的旧书店，经营着各种书籍，承载了老板李明华的情怀。
-            source_id:
-              type: string
-              description: Source ID information
-              example: chunk-001,chunk-002
-            file_path:
-              type: string
-              description: File path information
-              example: story.txt,book.txt
-          required:
-            - entity_name
-            - entity_type
-            - description
-          nullable: true
+          $ref: '#/components/schemas/targetEntityDataResponse'
         source_entities:
           type: array
           items:
@@ -3783,9 +3806,15 @@ components:
           description: Length of the merged description
           example: 512
           minimum: 0
+        suggestion_id:
+          type: string
+          description: Suggestion ID if this merge was based on a suggestion
+          example: msug123
+          nullable: true
       required:
         - status
         - message
+        - entity_ids
         - target_entity_data
         - source_entities
         - redirected_edges
@@ -3822,36 +3851,11 @@ components:
           default: 4
           description: Maximum number of concurrent LLM calls for batch analysis
           example: 4
-    mergeSuggestionEntity:
-      type: object
-      description: Entity information in merge suggestion
-      properties:
-        entity_id:
-          type: string
-          description: Entity ID
-          example: 墨香居
-        entity_name:
-          type: string
-          description: Entity name
-          example: 墨香居
-        entity_type:
-          type: string
-          description: Entity type
-          example: ORGANIZATION
-        description:
-          type: string
-          description: Entity description
-          example: 这条老巷子里唯一的旧书店
-        degree:
-          type: integer
-          description: Node degree (number of connections)
-          example: 8
-          nullable: true
-      required:
-        - entity_id
-        - entity_name
-        - entity_type
-        - description
+        force_refresh:
+          type: boolean
+          default: false
+          description: Force regeneration of suggestions even if valid cached suggestions exist
+          example: false
     mergeSuggestionTargetEntity:
       type: object
       description: Suggested target entity for merge
@@ -3867,16 +3871,31 @@ components:
       required:
         - entity_name
         - entity_type
-    mergeSuggestion:
+    mergeSuggestionItem:
       type: object
-      description: Node merge suggestion
+      description: Individual merge suggestion item
       properties:
-        entities:
+        id:
+          type: string
+          description: Suggestion ID
+          example: msug123
+        collection_id:
+          type: string
+          description: Collection ID
+          example: col123
+        suggestion_batch_id:
+          type: string
+          description: Suggestion batch ID
+          example: batch456
+        entity_ids:
           type: array
           items:
-            $ref: '#/components/schemas/mergeSuggestionEntity'
-          description: List of entities suggested for merging
-          minItems: 2
+            type: string
+          description: Entity IDs suggested for merging
+          example:
+            - 墨香居
+            - 书店
+            - 旧书店
         confidence_score:
           type: number
           format: float
@@ -3890,11 +3909,42 @@ components:
           example: 两个实体都描述同一个书店，'墨香居'是具体名称，'旧书店'是通用描述，应该合并为同一实体
         suggested_target_entity:
           $ref: '#/components/schemas/mergeSuggestionTargetEntity'
+        status:
+          type: string
+          enum:
+            - PENDING
+            - ACCEPTED
+            - REJECTED
+            - EXPIRED
+          description: Status of the suggestion
+          example: PENDING
+        created:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: '2025-01-07T10:00:00Z'
+        expires_at:
+          type: string
+          format: date-time
+          description: Expiration timestamp
+          example: '2025-01-14T10:00:00Z'
+        operated_at:
+          type: string
+          format: date-time
+          description: User operation timestamp
+          example: '2025-01-08T15:30:00Z'
+          nullable: true
       required:
-        - entities
+        - id
+        - collection_id
+        - suggestion_batch_id
+        - entity_ids
         - confidence_score
         - merge_reason
         - suggested_target_entity
+        - status
+        - created
+        - expires_at
     mergeSuggestionsResponse:
       type: object
       description: Response containing node merge suggestions
@@ -3902,7 +3952,7 @@ components:
         suggestions:
           type: array
           items:
-            $ref: '#/components/schemas/mergeSuggestion'
+            $ref: '#/components/schemas/mergeSuggestionItem'
           description: List of merge suggestions ordered by confidence score (highest first)
         total_analyzed_nodes:
           type: integer
@@ -3915,10 +3965,52 @@ components:
           description: Processing time in seconds
           example: 12.5
           minimum: 0
+        from_cache:
+          type: boolean
+          description: Whether suggestions were loaded from cache
+          example: false
+          default: false
+        generated_at:
+          type: string
+          format: date-time
+          description: Generation timestamp
+          example: '2025-01-07T10:00:00Z'
+        total_suggestions:
+          type: integer
+          description: Total number of suggestions
+          example: 5
+          minimum: 0
+        pending_count:
+          type: integer
+          description: Number of pending suggestions
+          example: 3
+          minimum: 0
+        accepted_count:
+          type: integer
+          description: Number of accepted suggestions
+          example: 1
+          minimum: 0
+        rejected_count:
+          type: integer
+          description: Number of rejected suggestions
+          example: 1
+          minimum: 0
+        expired_count:
+          type: integer
+          description: Number of expired suggestions
+          example: 0
+          minimum: 0
       required:
         - suggestions
         - total_analyzed_nodes
         - processing_time_seconds
+        - from_cache
+        - generated_at
+        - total_suggestions
+        - pending_count
+        - accepted_count
+        - rejected_count
+        - expired_count
     apiKey:
       type: object
       properties:
