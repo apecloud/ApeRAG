@@ -7,7 +7,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from aperag.schema.view_models import WebSearchRequest, WebSearchResultItem
-from aperag.websearch.search.providers.duckduckgo_search_provider import SearchProviderError
+
+# SearchProviderError removed - using standard exceptions
 from aperag.websearch.search.search_service import SearchService
 
 
@@ -20,8 +21,8 @@ class TestSearchService:
         service = SearchService.create_default()
         assert service.provider_name == "duckduckgo"
 
-        # Custom provider
-        service = SearchService.create_with_provider("duckduckgo", timeout=60)
+        # Custom provider with config
+        service = SearchService.create_with_provider("duckduckgo", {"timeout": 60})
         assert service.provider_name == "duckduckgo"
         assert service.provider_config["timeout"] == 60
 
@@ -87,35 +88,33 @@ class TestSearchService:
 
         # Test empty query
         request = WebSearchRequest(query="")
-        with pytest.raises(SearchProviderError, match="cannot be empty"):
+        with pytest.raises(ValueError, match="cannot be empty"):
             await service.search(request)
 
         # Test provider error
         with patch.object(service.provider, "search", new_callable=AsyncMock) as mock_search:
             with patch.object(service.provider, "validate_search_engine", return_value=True):
-                mock_search.side_effect = SearchProviderError("Network error")
+                mock_search.side_effect = ValueError("Network error")
 
                 request = WebSearchRequest(query="test")
-                with pytest.raises(SearchProviderError, match="Network error"):
+                with pytest.raises(ValueError, match="Network error"):
                     await service.search(request)
 
     @pytest.mark.asyncio
-    async def test_unsupported_search_engine_fallback(self):
-        """Test fallback when using unsupported search engine"""
+    async def test_unsupported_search_engine_no_fallback(self):
+        """Test that unsupported search engine is passed through to provider"""
         service = SearchService.create_default()
 
         with patch.object(service.provider, "search", new_callable=AsyncMock) as mock_search:
-            with patch.object(service.provider, "validate_search_engine", return_value=False):
-                with patch.object(service.provider, "get_supported_engines", return_value=["duckduckgo"]):
-                    mock_search.return_value = []
+            mock_search.return_value = []
 
-                    # Use unsupported engine
-                    await service.search_simple("test", search_engine="unsupported")
+            # Use unsupported engine
+            await service.search_simple("test", search_engine="unsupported")
 
-                    # Should fallback to supported engine
-                    mock_search.assert_called_once()
-                    call_args = mock_search.call_args.kwargs
-                    assert call_args["search_engine"] == "duckduckgo"
+            # Should pass the unsupported engine to provider
+            mock_search.assert_called_once()
+            call_args = mock_search.call_args.kwargs
+            assert call_args["search_engine"] == "unsupported"
 
     @pytest.mark.integration
     @pytest.mark.asyncio

@@ -9,8 +9,9 @@ from typing import Dict, List
 
 from aperag.schema.view_models import WebSearchRequest, WebSearchResponse, WebSearchResultItem
 from aperag.websearch.search.base_search import BaseSearchProvider
-from aperag.websearch.search.providers.duckduckgo_search_provider import DuckDuckGoProvider, SearchProviderError
+from aperag.websearch.search.providers.duckduckgo_search_provider import DuckDuckGoProvider
 from aperag.websearch.search.providers.jina_search_provider import JinaSearchProvider
+from aperag.websearch.search.providers.llm_txt_search_provider import LLMTxtSearchProvider
 
 logger = logging.getLogger(__name__)
 
@@ -35,18 +36,9 @@ class SearchService:
             provider_name: Name of the search provider to use
             provider_config: Provider-specific configuration
         """
-        self.provider_name = provider_name or self._get_default_provider()
+        self.provider_name = provider_name or "duckduckgo"
         self.provider_config = provider_config or {}
         self.provider = self._create_provider()
-
-    def _get_default_provider(self) -> str:
-        """
-        Get default search provider.
-
-        Returns:
-            Default provider name
-        """
-        return "duckduckgo"
 
     def _create_provider(self) -> BaseSearchProvider:
         """
@@ -63,6 +55,7 @@ class SearchService:
             "ddg": DuckDuckGoProvider,
             "jina": JinaSearchProvider,
             "jina_search": JinaSearchProvider,
+            "llm_txt": LLMTxtSearchProvider,
         }
 
         provider_class = provider_registry.get(self.provider_name.lower())
@@ -83,53 +76,47 @@ class SearchService:
 
         Returns:
             Search response
-
-        Raises:
-            SearchProviderError: If search fails
         """
+        # Validate request parameters
+        if not request.query or not request.query.strip():
+            raise ValueError("Search query cannot be empty")
+        
+        if request.max_results <= 0:
+            raise ValueError("max_results must be positive")
+        if request.max_results > 100:
+            raise ValueError("max_results cannot exceed 100")
+        if request.timeout <= 0:
+            raise ValueError("timeout must be positive")
+        if request.timeout > 300:
+            raise ValueError("timeout cannot exceed 300 seconds")
+
+        start_time = self._get_current_time()
+
+        # Pass all parameters to provider with error handling
         try:
-            # Validate request
-            if not request.query or not request.query.strip():
-                raise SearchProviderError("Search query cannot be empty")
-
-            # Validate search engine and determine effective engine to use
-            effective_search_engine = request.search_engine
-            if not self.provider.validate_search_engine(request.search_engine):
-                logger.warning(
-                    f"Unsupported search engine '{request.search_engine}' for provider '{self.provider_name}', "
-                    f"using default supported engine"
-                )
-                # Use first supported engine as fallback
-                effective_search_engine = self.provider.get_supported_engines()[0]
-
-            # Perform search
-            start_time = self._get_current_time()
-
             results = await self.provider.search(
                 query=request.query,
                 max_results=request.max_results,
-                search_engine=effective_search_engine,
+                search_engine=request.search_engine,
                 timeout=request.timeout,
                 locale=request.locale,
+                source=request.source,
+                use_source_domain_only=request.use_source_domain_only,
             )
-
-            search_time = self._get_current_time() - start_time
-
-            # Create response
-            return WebSearchResponse(
-                query=request.query,
-                results=results,
-                search_engine=effective_search_engine,
-                total_results=len(results),  # For now, just return actual count
-                search_time=search_time,
-            )
-
-        except SearchProviderError:
-            # Re-raise provider errors
-            raise
         except Exception as e:
-            logger.error(f"Search service failed: {e}")
-            raise SearchProviderError(f"Search service error: {str(e)}")
+            logger.error(f"Provider {self.provider_name} search failed: {e}")
+            raise
+
+        search_time = self._get_current_time() - start_time
+
+        # Create response
+        return WebSearchResponse(
+            query=request.query,
+            results=results,
+            search_engine=request.search_engine,
+            total_results=len(results),
+            search_time=search_time,
+        )
 
     async def search_simple(
         self,
@@ -137,7 +124,7 @@ class SearchService:
         max_results: int = 5,
         search_engine: str = "google",
         timeout: int = 30,
-        locale: str = "zh-CN",
+        locale: str = "en-US",
     ) -> List[WebSearchResultItem]:
         """
         Simplified search interface that returns only results.
@@ -151,9 +138,6 @@ class SearchService:
 
         Returns:
             List of search result items
-
-        Raises:
-            SearchProviderError: If search fails
         """
         request = WebSearchRequest(
             query=query,
@@ -179,7 +163,6 @@ class SearchService:
     def _get_current_time() -> float:
         """Get current time in seconds."""
         import time
-
         return time.time()
 
     @classmethod
@@ -193,40 +176,28 @@ class SearchService:
         return cls()
 
     @classmethod
-    def create_with_provider(cls, provider_name: str, **config) -> "SearchService":
+    def create_with_provider(cls, provider_name: str, provider_config: Dict = None) -> "SearchService":
         """
         Create search service with specific provider.
 
         Args:
             provider_name: Name of the search provider
-            **config: Provider-specific configuration
+            provider_config: Provider-specific configuration
 
         Returns:
-            SearchService instance
+            SearchService instance with specified provider
         """
-        return cls(provider_name=provider_name, provider_config=config)
-
-    async def close(self):
-        """
-        Close provider and cleanup resources.
-        """
-        if hasattr(self.provider, "close"):
-            await self.provider.close()
-
-    async def cleanup(self):
-        """
-        Cleanup resources (alias for close).
-        """
-        await self.close()
+        return cls(provider_name=provider_name, provider_config=provider_config)
 
     async def __aenter__(self):
-        """
-        Async context manager entry.
-        """
+        """Async context manager entry."""
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """
-        Async context manager exit.
-        """
+        """Async context manager exit."""
         await self.close()
+
+    async def close(self):
+        """Close and cleanup resources."""
+        if hasattr(self.provider, 'close'):
+            await self.provider.close()

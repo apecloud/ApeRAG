@@ -45,7 +45,7 @@ class TestReaderService:
         with patch.object(service.provider, "read", new_callable=AsyncMock) as mock_read:
             mock_read.return_value = mock_result
 
-            request = WebReadRequest(urls="https://example.com", timeout=30, css_selector=".content")
+            request = WebReadRequest(urls="https://example.com", timeout=30)
 
             response = await service.read(request)
 
@@ -106,7 +106,7 @@ class TestReaderService:
         with patch.object(service.provider, "read", new_callable=AsyncMock) as mock_read:
             mock_read.return_value = mock_result
 
-            result = await service.read_simple(url="https://test.com", css_selector=".article")
+            result = await service.read_simple(url="https://test.com")
 
             assert result.url == "https://test.com"
             assert result.status == "success"

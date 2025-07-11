@@ -5,7 +5,7 @@ Abstract base class for web search providers.
 """
 
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Optional
 
 from aperag.schema.view_models import WebSearchResultItem
 
@@ -33,7 +33,9 @@ class BaseSearchProvider(ABC):
         max_results: int = 5,
         search_engine: str = "google",
         timeout: int = 30,
-        locale: str = "zh-CN",
+        locale: str = "en-US",
+        source: Optional[str] = None,
+        use_source_domain_only: bool = False,
     ) -> List[WebSearchResultItem]:
         """
         Perform web search.
@@ -44,12 +46,11 @@ class BaseSearchProvider(ABC):
             search_engine: Search engine to use
             timeout: Request timeout in seconds
             locale: Browser locale
+            source: Domain or URL for site-specific search
+            use_source_domain_only: If True, only return results from specified source
 
         Returns:
             List of search result items
-
-        Raises:
-            SearchProviderError: If search fails
         """
         pass
 
