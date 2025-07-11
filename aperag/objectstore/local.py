@@ -191,32 +191,47 @@ class Local(ObjectStore):
             if full_path.is_file():
                 return full_path.stat().st_size
             return None
-        except (ValueError, OSError):
+        except ValueError:  # From _resolve_object_path for invalid paths
+            logger.warning(f"Invalid path provided for get: {path}")
+            return None
+        except OSError as e:
+            # Log access errors (e.g., permissions) but treat as "not found" for the caller.
+            logger.warning(
+                f"Failed to access object at {path} (resolved to {full_path if 'full_path' in locals() else 'unknown'}) for get: {e}"
+            )
             return None
 
     def stream_range(self, path: str, start: int, end: int | None = None) -> Tuple[IO[bytes], int] | None:
         try:
             full_path = self._resolve_object_path(path)
+        except ValueError:  # Path validation error
+            return None
+
+        try:
             if not full_path.is_file():
                 return None
 
             file_size = full_path.stat().st_size
-            if start < 0 or start >= file_size:
-                raise ValueError("Start position is out of file bounds.")
+        except OSError as e:
+            logger.warning(f"Failed to access object at {path} for streaming: {e}")
+            return None
 
-            # If end is None or beyond the file, read to the end.
-            actual_end = file_size - 1 if end is None or end >= file_size else end
-            content_length = actual_end - start + 1
+        if start < 0 or start >= file_size:
+            raise ValueError("Start position is out of file bounds.")
 
-            if content_length <= 0:
-                return io.BytesIO(b""), 0
+        # If end is None or beyond the file, read to the end.
+        actual_end = file_size - 1 if end is None or end >= file_size else end
+        content_length = actual_end - start + 1
 
+        if content_length <= 0:
+            return io.BytesIO(b""), 0
+
+        try:
             file_handle = full_path.open("rb")
             ranged_stream = RangedFileStream(file_handle, start, actual_end)
             return ranged_stream, content_length
-
-        except (ValueError, OSError) as e:
-            logger.warning(f"Failed to stream range for object at {path}: {e}")
+        except OSError as e:
+            logger.warning(f"Failed to open object at {path} for streaming: {e}")
             return None
 
     def obj_exists(self, path: str) -> bool:
@@ -292,7 +307,7 @@ class AsyncLocal(AsyncObjectStore):
 
     def __init__(self, cfg: LocalConfig):
         self._sync_store = Local(cfg)
-        self.chunk_size = 8192  # 8KB chunks
+        self.chunk_size = 32 * 1024
 
     async def put(self, path: str, data: bytes | IO[bytes]):
         return await sync_to_async(self._sync_store.put)(path=path, data=data)

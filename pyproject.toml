@@ -114,6 +114,7 @@ test = [
     "pytest-asyncio",
     "pytest-benchmark>=5.1.0",
     "moto",
+    "pytest-aioboto3>=0.6.0",
 ]
 
 [tool.ruff]

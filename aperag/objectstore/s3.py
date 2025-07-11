@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import logging
+import sys
 from io import BytesIO
 from typing import IO, AsyncIterator, Tuple
 
@@ -59,7 +60,7 @@ class S3(ObjectStore):
                 config = Config(s3={"addressing_style": "path"})
             self.conn = boto3.client("s3", config=config, **s3_params)
         except Exception:
-            logging.exception(f"Fail to connect at region {self.region} or endpoint {self.endpoint_url}")
+            logger.exception(f"Fail to connect at region {self.region} or endpoint {self.endpoint_url}")
 
     def _ensure_bucket(self):
         self._ensure_conn()
@@ -142,7 +143,9 @@ class S3(ObjectStore):
         try:
             response = self.conn.get_object(Bucket=self.cfg.bucket, Key=path, Range=range_str)
             return response["Body"], content_length
-        except (self.conn.exceptions.NoSuchKey, self.conn.exceptions.NoSuchBucket, ClientError) as e:
+        except ClientError as e:
+            # Catching ClientError here because an invalid range can also cause it.
+            # We log the warning and return None, letting the caller handle it.
             logger.warning(f"Failed to stream range for S3 object at {path}: {e}")
             return None
 
@@ -206,8 +209,8 @@ class S3(ObjectStore):
 
 
 class AsyncS3(AsyncObjectStore):
-    def __init__(self, cfg: S3Config):
-        self.session = None
+    def __init__(self, cfg: S3Config, session: aioboto3.Session | None = None):
+        self.session = session
         self.cfg = cfg
         self._checked_bucket = None
 
@@ -218,16 +221,18 @@ class AsyncS3(AsyncObjectStore):
         try:
             self.session = aioboto3.Session()
         except Exception:
-            logging.exception("Failed to create aioboto3 session")
+            logger.exception("Failed to create aioboto3 session")
             raise
 
     def _get_client_kwargs(self):
         params = {
-            "endpoint_url": self.cfg.endpoint,
             "region_name": self.cfg.region,
             "aws_access_key_id": self.cfg.access_key,
             "aws_secret_access_key": self.cfg.secret_key,
         }
+        if self.cfg.endpoint:
+            params["endpoint_url"] = self.cfg.endpoint
+
         if self.cfg.use_path_style:
             params["config"] = Config(s3={"addressing_style": "path"})
         return params
@@ -269,14 +274,20 @@ class AsyncS3(AsyncObjectStore):
     async def get(self, path: str) -> Tuple[AsyncIterator[bytes], int] | None:
         await self._ensure_conn()
         path = self._final_path(path)
+
+        client_context = self.session.client("s3", **self._get_client_kwargs())
+        client = await client_context.__aenter__()
         try:
-            client = self.session.client("s3", **self._get_client_kwargs())
             response = await client.get_object(Bucket=self.cfg.bucket, Key=path)
             stream = response["Body"]
             size = response["ContentLength"]
         except ClientError as e:
+            await client_context.__aexit__(*sys.exc_info())
             if e.response["Error"]["Code"] in ("NoSuchKey", "NoSuchBucket"):
                 return None
+            raise
+        except Exception:
+            await client_context.__aexit__(*sys.exc_info())
             raise
 
         async def generator():
@@ -285,7 +296,7 @@ class AsyncS3(AsyncObjectStore):
                     yield chunk
             finally:
                 stream.close()
-                client.close()
+                await client_context.__aexit__(None, None, None)
 
         return generator(), size
 
@@ -305,36 +316,28 @@ class AsyncS3(AsyncObjectStore):
         await self._ensure_conn()
         path = self._final_path(path)
 
-        total_size = await self.get_obj_size(path)
-        if total_size is None:
-            return None
-
-        if start < 0 or start >= total_size:
-            raise ValueError("Start position is out of file bounds.")
+        if start < 0 or (end is not None and end < start):
+            raise ValueError("Invalid range: start/end positions are illogical.")
 
         range_str = f"bytes={start}-"
         if end is not None:
-            actual_end = min(end, total_size - 1)
-            range_str += str(actual_end)
-        else:
-            actual_end = total_size - 1
+            range_str += str(end)
 
-        content_length = actual_end - start + 1
-        if content_length <= 0:
-            # Create an empty async generator
-            async def empty_generator():
-                if False:
-                    yield
-
-            return empty_generator(), 0
-
+        client_context = self.session.client("s3", **self._get_client_kwargs())
+        client = await client_context.__aenter__()
         try:
-            client = self.session.client("s3", **self._get_client_kwargs())
             response = await client.get_object(Bucket=self.cfg.bucket, Key=path, Range=range_str)
             stream = response["Body"]
+            content_length = response["ContentLength"]
         except ClientError as e:
-            logger.warning(f"Failed to async stream range for S3 object at {path}: {e}")
-            return None
+            await client_context.__aexit__(*sys.exc_info())
+            if e.response["Error"]["Code"] in ("InvalidRange", "NoSuchKey", "NoSuchBucket"):
+                logger.warning(f"Failed to stream range for S3 object at {path} with range '{range_str}': {e}")
+                return None
+            raise
+        except Exception:
+            await client_context.__aexit__(*sys.exc_info())
+            raise
 
         async def generator():
             try:
@@ -342,7 +345,7 @@ class AsyncS3(AsyncObjectStore):
                     yield chunk
             finally:
                 stream.close()
-                client.close()
+                await client_context.__aexit__(None, None, None)
 
         return generator(), content_length
 
