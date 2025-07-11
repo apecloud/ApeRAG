@@ -458,5 +458,5 @@ class LLMTxtSearchProvider(BaseSearchProvider):
         """
         Close and cleanup resources.
         """
-        if self.reader_service and hasattr(self.reader_service, "close"):
-            await self.reader_service.close()
+        # No resources to clean up since we use direct HTTP requests
+        pass
