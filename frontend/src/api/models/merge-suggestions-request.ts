@@ -27,18 +27,6 @@ export interface MergeSuggestionsRequest {
      */
     'max_suggestions'?: number;
     /**
-     * Only consider entities of specified types (empty means all types)
-     * @type {Array<string>}
-     * @memberof MergeSuggestionsRequest
-     */
-    'entity_types'?: Array<string>;
-    /**
-     * Enable debug mode with lower confidence threshold (0.3 vs 0.6) and verbose logging
-     * @type {boolean}
-     * @memberof MergeSuggestionsRequest
-     */
-    'debug_mode'?: boolean;
-    /**
      * Maximum number of concurrent LLM calls for batch analysis
      * @type {number}
      * @memberof MergeSuggestionsRequest

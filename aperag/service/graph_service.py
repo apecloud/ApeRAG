@@ -154,8 +154,6 @@ class GraphService:
         user_id: str,
         collection_id: str,
         max_suggestions: int = 10,
-        entity_types: list[str] | None = None,
-        debug_mode: bool = False,
         max_concurrent_llm_calls: int = 4,
         force_refresh: bool = False,
     ) -> dict[str, Any]:
@@ -172,7 +170,7 @@ class GraphService:
         # Generate new suggestions
         logger.info(f"Generating new merge suggestions for collection {collection_id}")
         llm_result = await self.generate_merge_suggestions(
-            user_id, collection_id, max_suggestions, entity_types, debug_mode, max_concurrent_llm_calls
+            user_id, collection_id, max_suggestions, max_concurrent_llm_calls
         )
 
         # Store suggestions
@@ -240,8 +238,6 @@ class GraphService:
         user_id: str,
         collection_id: str,
         max_suggestions: int = 10,
-        entity_types: list[str] | None = None,
-        debug_mode: bool = False,
         max_concurrent_llm_calls: int = 4,
     ) -> dict[str, Any]:
         """Generate node merge suggestions using LLM analysis"""
@@ -251,8 +247,8 @@ class GraphService:
         try:
             return await rag.agenerate_merge_suggestions(
                 max_suggestions=max_suggestions,
-                entity_types=entity_types,
-                debug_mode=debug_mode,
+                entity_types=None,  # Default to None (consider all entity types)
+                debug_mode=False,  # Default to False
                 max_concurrent_llm_calls=max_concurrent_llm_calls,
             )
         finally:

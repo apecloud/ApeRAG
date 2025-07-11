@@ -361,18 +361,6 @@ mergeSuggestionsRequest:
       default: 10
       description: Maximum number of merge suggestions to return
       example: 10
-    entity_types:
-      type: array
-      items:
-        type: string
-      description: Only consider entities of specified types (empty means all types)
-      example: ["PERSON", "ORGANIZATION"]
-      nullable: true
-    debug_mode:
-      type: boolean
-      default: false
-      description: Enable debug mode with lower confidence threshold (0.3 vs 0.6) and verbose logging
-      example: false
     max_concurrent_llm_calls:
       type: integer
       minimum: 1

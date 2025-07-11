@@ -479,8 +479,6 @@ async def merge_suggestions_view(
             user_id=str(user.id),
             collection_id=collection_id,
             max_suggestions=suggestions_request.max_suggestions,
-            entity_types=suggestions_request.entity_types,
-            debug_mode=suggestions_request.debug_mode,
             max_concurrent_llm_calls=suggestions_request.max_concurrent_llm_calls,
             force_refresh=suggestions_request.force_refresh,
         )
