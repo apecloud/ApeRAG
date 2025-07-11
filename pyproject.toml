@@ -115,6 +115,7 @@ test = [
     "pytest-benchmark>=5.1.0",
     "moto",
     "pytest-aioboto3>=0.6.0",
+    "aiosqlite>=0.21.0",
 ]
 
 [tool.ruff]
