@@ -5184,15 +5184,13 @@ components:
       type: object
       description: Web content reading request
       properties:
-        urls:
-          oneOf:
-            - type: string
-              description: Single URL to read
-            - type: array
-              description: List of URLs to read
-              items:
-                type: string
-          description: URL or list of URLs to read
+        url_list:
+          type: array
+          description: List of URLs to read (for single URL, use array with one element)
+          items:
+            type: string
+          example:
+            - https://example.com/article
         timeout:
           type: integer
           description: Request timeout in seconds
@@ -5209,7 +5207,7 @@ components:
           default: 3
           example: 3
       required:
-        - urls
+        - url_list
     webReadResultItem:
       type: object
       description: Individual web content reading result

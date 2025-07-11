@@ -211,7 +211,7 @@ async def web_search(
 
 @mcp_server.tool
 async def web_read(
-    urls: str | list[str],
+    url_list: list[str],
     timeout: int = 30,
     locale: str = "en-US",
     max_concurrent: int = 5,
@@ -219,7 +219,7 @@ async def web_read(
     """Read and extract content from web pages.
 
     Args:
-        urls: URL (string) or list of URLs to read content from
+        url_list: List of URLs to read content from (for single URL, use array with one element)
         timeout: Request timeout in seconds (default: 30)
         locale: Browser locale (default: en-US)
         max_concurrent: Maximum concurrent requests for multiple URLs (default: 5)
@@ -233,9 +233,13 @@ async def web_read(
     try:
         api_key = get_api_key()
 
-        # Build read request
+        # Validate url_list parameter
+        if not url_list or len(url_list) == 0:
+            return {"error": "url_list parameter is required and must contain at least one URL"}
+
+        # Build read request using the correct WebReadRequest model
         read_data = {
-            "urls": urls,
+            "url_list": url_list,
             "timeout": timeout,
             "locale": locale,
             "max_concurrent": max_concurrent,
@@ -373,15 +377,15 @@ for result in web_results.results:
 
 ### Web Content Reading Example:
 ```
-# Read content from web pages
+# Read content from web pages (single URL - use array with one element)
 content = web_read(
-    urls="https://example.com/article",  # single URL
+    url_list=["https://example.com/article"],  # single URL in array
     timeout=30
 )
 
-# Or read from multiple URLs
+# Read from multiple URLs
 content = web_read(
-    urls=["https://example.com/page1", "https://example.com/page2"],  # multiple URLs
+    url_list=["https://example.com/page1", "https://example.com/page2"],  # multiple URLs
     max_concurrent=2
 )
 
@@ -407,7 +411,7 @@ web_results = web_search(
 urls = [result.url for result in web_results.results]
 
 # 3. Read full content from those pages
-web_content = web_read(urls=urls, max_concurrent=2)
+web_content = web_read(url_list=urls, max_concurrent=2)
 
 # 4. Search your internal knowledge base for related information
 collections = list_collections()

@@ -115,7 +115,6 @@ export * from './user';
 export * from './user-list';
 export * from './vector-search-params';
 export * from './web-read-request';
-export * from './web-read-request-urls';
 export * from './web-read-response';
 export * from './web-read-result-item';
 export * from './web-search-request';

@@ -13,9 +13,6 @@
  */
 
 
-// May contain unused imports in some cases
-// @ts-ignore
-import type { WebReadRequestUrls } from './web-read-request-urls';
 
 /**
  * Web content reading request
@@ -24,11 +21,11 @@ import type { WebReadRequestUrls } from './web-read-request-urls';
  */
 export interface WebReadRequest {
     /**
-     * 
-     * @type {WebReadRequestUrls}
+     * List of URLs to read (for single URL, use array with one element)
+     * @type {Array<string>}
      * @memberof WebReadRequest
      */
-    'urls': WebReadRequestUrls;
+    'url_list': Array<string>;
     /**
      * Request timeout in seconds
      * @type {number}

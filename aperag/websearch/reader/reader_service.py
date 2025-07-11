@@ -87,11 +87,17 @@ class ReaderService:
             ReaderProviderError: If reading fails
         """
         try:
-            # Normalize URLs input
-            if isinstance(request.urls, str):
-                urls = [request.urls]
+            # Normalize URLs input from the new url_list attribute
+            if hasattr(request, "url_list") and request.url_list:
+                urls = request.url_list
+            elif hasattr(request, "urls"):
+                # Backward compatibility for old urls attribute
+                if isinstance(request.urls, str):
+                    urls = [request.urls]
+                else:
+                    urls = request.urls
             else:
-                urls = request.urls
+                raise ReaderProviderError("No URLs provided in request")
 
             if not urls:
                 raise ReaderProviderError("URLs list cannot be empty")
@@ -160,7 +166,7 @@ class ReaderService:
             ReaderProviderError: If reading fails
         """
         request = WebReadRequest(
-            urls=url,
+            url_list=[url],  # Use url_list with single URL
             timeout=timeout,
             locale=locale,
         )
@@ -191,7 +197,7 @@ class ReaderService:
             ReaderProviderError: If reading fails
         """
         request = WebReadRequest(
-            urls=urls,
+            url_list=urls,  # Use url_list directly
             timeout=timeout,
             locale=locale,
             max_concurrent=max_concurrent,

@@ -18,7 +18,8 @@ from typing import List
 
 from fastapi import APIRouter, HTTPException
 
-from aperag.schema.view_models import WebSearchRequest, WebSearchResponse
+from aperag.schema.view_models import WebReadRequest, WebReadResponse, WebSearchRequest, WebSearchResponse
+from aperag.websearch.reader.reader_service import ReaderService
 from aperag.websearch.search.search_service import SearchService
 
 logger = logging.getLogger(__name__)
@@ -182,3 +183,37 @@ async def web_search_endpoint(request: WebSearchRequest) -> WebSearchResponse:
     Results are merged and ranked automatically.
     """
     return await web_search_view(request)
+
+
+@router.post("/web/read", response_model=WebReadResponse, tags=["websearch"])
+async def web_read_endpoint(request: WebReadRequest) -> WebReadResponse:
+    """
+    Read and extract content from web pages.
+
+    Supports:
+    - Single URL or multiple URLs (use url_list array)
+    - Concurrent processing for multiple URLs
+    - Configurable timeout and locale settings
+    - Multiple reader providers (Trafilatura, JINA)
+    """
+    try:
+        # Validate url_list parameter
+        if not request.url_list or len(request.url_list) == 0:
+            raise HTTPException(
+                status_code=400, detail="url_list parameter is required and must contain at least one URL"
+            )
+
+        # Create reader service with default provider (Trafilatura)
+        reader_service = ReaderService()
+
+        # Use the reader service directly with the URL list
+        response = await reader_service.read(request)
+
+        return response
+
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        logger.error(f"Web read endpoint failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Web read failed: {str(e)}")
