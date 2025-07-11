@@ -131,6 +131,14 @@ class Config(BaseSettings):
     # Register mode
     register_mode: str = Field("unlimited", alias="REGISTER_MODE")
 
+    # Cache
+    cache_enabled: bool = Field(True, alias="CACHE_ENABLED")
+    cache_ttl: int = Field(86400, alias="CACHE_TTL")
+
+    # Opik
+    opik_api_key: str = Field("", alias="OPIK_API_KEY")
+    opik_workspace: str = Field("", alias="OPIK_WORKSPACE")
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Set celery_result_backend if not set

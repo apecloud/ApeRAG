@@ -47,18 +47,18 @@ _cache_stats = {
 def setup_litellm_cache(default_type=LiteLLMCacheType.DISK):
     from litellm.caching.caching import CacheMode
 
-    from config.settings import CACHE_ENABLED, CACHE_TTL, REDIS_HOST, REDIS_PASSWORD, REDIS_PORT
+    from aperag.config import settings
 
-    if not CACHE_ENABLED:
+    if not settings.cache_enabled:
         return
 
     litellm.enable_cache(
         type=default_type,
         mode=CacheMode.default_on,
-        host=REDIS_HOST,
-        port=REDIS_PORT,
-        password=REDIS_PASSWORD,
-        ttl=CACHE_TTL,
+        host=settings.redis_host,
+        port=settings.redis_port,
+        password=settings.redis_password,
+        ttl=settings.cache_ttl,
         disk_cache_dir="/tmp/litellm_cache",
     )
     # Setup custom cache handlers with local stats tracking

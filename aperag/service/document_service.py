@@ -42,7 +42,7 @@ from aperag.utils.constant import QuotaType
 from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
 from aperag.utils.utils import generate_vector_db_collection_name, utc_now
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
-from config.settings import VECTOR_DB_CONTEXT, VECTOR_DB_TYPE
+from aperag.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -262,7 +262,7 @@ class DocumentService:
                     )
 
                     # Build response object
-                    doc_response = await self.build_document_response(document_instance, session)
+                    doc_response = await self._build_document_response(document_instance, session)
                     documents_created.append(doc_response)
 
                 return documents_created
@@ -475,9 +475,9 @@ class DocumentService:
             # 3. Retrieve chunks from Qdrant
             try:
                 collection_name = generate_vector_db_collection_name(collection_id=document.collection_id)
-                ctx = json.loads(VECTOR_DB_CONTEXT)
+                ctx = json.loads(settings.vector_db_context)
                 ctx["collection"] = collection_name
-                vector_store_adaptor = VectorStoreConnectorAdaptor(VECTOR_DB_TYPE, ctx=ctx)
+                vector_store_adaptor = VectorStoreConnectorAdaptor(settings.vector_db_type, ctx=ctx)
                 qdrant_client = vector_store_adaptor.connector.client
 
                 points = qdrant_client.retrieve(
