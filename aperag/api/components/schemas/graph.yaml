@@ -505,7 +505,7 @@ suggestionActionRequest:
     action:
       type: string
       enum: ["accept", "reject"]
-      description: Action to take on the suggestion
+      description: Action to take on the suggestion (case-insensitive, e.g., 'Accept', 'REJECT', 'accept')
       example: "accept"
     target_entity_data:
       $ref: '#/targetEntityDataRequest'
@@ -536,7 +536,7 @@ suggestionActionResponse:
     action:
       type: string
       enum: ["accept", "reject"]
-      description: The action that was performed
+      description: The action that was performed (normalized to lowercase)
       example: "accept"
     merge_result:
       $ref: '#/nodeMergeResponse'

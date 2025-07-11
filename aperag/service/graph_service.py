@@ -280,7 +280,6 @@ class GraphService:
             db_collection=db_collection,
             entity_ids=entity_ids,
             target_entity_data=target_entity_data,
-            collection_id=collection_id,
         )
 
         logger.info(f"Successfully merged entities {entity_ids} in collection {collection_id}")
@@ -295,8 +294,10 @@ class GraphService:
         target_entity_data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Handle accept/reject action on a merge suggestion"""
-        if action not in ["accept", "reject"]:
-            raise ValueError(f"Invalid action: {action}. Must be 'accept' or 'reject'")
+        # Normalize action to lowercase for case-insensitive comparison
+        normalized_action = action.lower().strip()
+        if normalized_action not in ["accept", "reject"]:
+            raise ValueError(f"Invalid action: {action}. Must be 'accept' or 'reject' (case-insensitive)")
 
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
@@ -313,7 +314,7 @@ class GraphService:
         if suggestion.collection_id != collection_id:
             raise ValueError(f"Suggestion {suggestion_id} does not belong to collection {collection_id}")
 
-        if action == "reject":
+        if normalized_action == "reject":
             # Simple rejection - just update status
             await self.db_ops.update_suggestion_status(suggestion_id, MergeSuggestionStatus.REJECTED, utc_now())
 
@@ -322,11 +323,11 @@ class GraphService:
                 "status": "success",
                 "message": f"Suggestion {suggestion_id} has been rejected",
                 "suggestion_id": suggestion_id,
-                "action": "reject",
+                "action": normalized_action,
                 "merge_result": None,
             }
 
-        else:  # action == "accept"
+        else:  # normalized_action == "accept"
             # Accept and perform merge
             merge_target_data = target_entity_data or suggestion.suggested_target_entity
 
@@ -335,7 +336,6 @@ class GraphService:
                 db_collection=db_collection,
                 entity_ids=suggestion.entity_ids,
                 target_entity_data=merge_target_data,
-                collection_id=collection_id,
             )
 
             # Update suggestion status to ACCEPTED
@@ -346,7 +346,7 @@ class GraphService:
                 "status": "success",
                 "message": f"Suggestion {suggestion_id} has been accepted and merge completed",
                 "suggestion_id": suggestion_id,
-                "action": "accept",
+                "action": normalized_action,
                 "merge_result": merge_result,
             }
 
@@ -355,7 +355,6 @@ class GraphService:
         db_collection,
         entity_ids: list[str],
         target_entity_data: dict[str, Any] | None,
-        collection_id: str,
     ) -> dict[str, Any]:
         """Execute the actual node merge operation"""
         rag = await lightrag_manager.create_lightrag_instance(db_collection)

@@ -42,7 +42,7 @@ export interface SuggestionActionResponse {
      */
     'suggestion_id': string;
     /**
-     * The action that was performed
+     * The action that was performed (normalized to lowercase)
      * @type {string}
      * @memberof SuggestionActionResponse
      */

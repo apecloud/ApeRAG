@@ -26,7 +26,7 @@ export interface SuggestionActionRequest {
     [key: string]: any;
 
     /**
-     * Action to take on the suggestion
+     * Action to take on the suggestion (case-insensitive, e.g., \'Accept\', \'REJECT\', \'accept\')
      * @type {string}
      * @memberof SuggestionActionRequest
      */
