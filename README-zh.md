@@ -2,6 +2,8 @@
 
 ![HarryPotterKG.png](docs%2Fimages%2FHarryPotterKG.png)
 
+ApeRAG 是一个生产级 RAG（检索增强生成）平台，结合了图 RAG、向量搜索和全文搜索。构建具有混合检索、多模态文档处理和企业级管理功能的复杂 AI 应用程序。
+
 [Read English Documentation](README.md)
 
 - [快速开始](#快速开始)
@@ -11,8 +13,6 @@
 - [构建 Docker 镜像](./docs/build-docker-image-zh.md)
 - [致谢](#致谢)
 - [许可证](#许可证)
-
-ApeRAG 是一个生产级 RAG（检索增强生成）平台，结合了图 RAG、向量搜索和全文搜索。构建具有混合检索、多模态文档处理和企业级管理功能的复杂 AI 应用程序。
 
 ## 快速开始
 

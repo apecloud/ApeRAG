@@ -2,6 +2,8 @@
 
 ![HarryPotterKG.png](docs%2Fimages%2FHarryPotterKG.png)
 
+ApeRAG is a production-ready RAG (Retrieval-Augmented Generation) platform that combines Graph RAG, vector search, and full-text search. Build sophisticated AI applications with hybrid retrieval, multimodal document processing, and enterprise-grade management features.
+
 [阅读中文文档](README-zh.md)
 
 - [Quick Start](#quick-start)
@@ -11,8 +13,6 @@
 - [Build Docker Image](./docs/build-docker-image.md)
 - [Acknowledgments](#acknowledgments)
 - [License](#license)
-
-ApeRAG is a production-ready RAG (Retrieval-Augmented Generation) platform that combines Graph RAG, vector search, and full-text search. Build sophisticated AI applications with hybrid retrieval, multimodal document processing, and enterprise-grade management features.
 
 ## Quick Start
 
