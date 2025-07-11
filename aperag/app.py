@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from fastapi import FastAPI
 
 from aperag.exception_handlers import register_exception_handlers
@@ -60,6 +61,11 @@ app.include_router(llm_router, prefix="/api/v1")
 app.include_router(web_router, prefix="/api/v1")  # Add web search router
 app.include_router(chat_completion_router, prefix="/v1")
 app.include_router(config_router, prefix="/api/v1/config")
+
+# Only include test router in dev mode
+if os.environ.get("DEPLOYMENT_MODE") == "dev":
+    from aperag.views.test import router as test_router
+    app.include_router(test_router, prefix="/api/v1")
 
 # Mount the MCP server at /mcp path
 app.mount("/mcp", mcp_app)
