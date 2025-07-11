@@ -149,15 +149,12 @@ targetEntityDataRequest:
     entity_name:
       type: string
       description: Target entity name. If not specified, auto-select entity with highest degree
-      example: "墨香居"
     entity_type:
       type: string
       description: Entity type for the target entity
-      example: "ORGANIZATION"
     description:
       type: string
       description: Description for the target entity
-      example: "A comprehensive bookstore and cultural space"
     source_id:
       type: string
       description: Source ID for the target entity
@@ -222,6 +219,8 @@ nodeMergeRequest:
     target_entity_data:
       $ref: '#/targetEntityDataRequest'
   additionalProperties: false
+  example:
+    suggestion_id: "msug123"
 
 nodeMergeResponse:
   type: object
