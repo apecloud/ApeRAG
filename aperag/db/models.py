@@ -24,7 +24,6 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
-    ForeignKey,
     Index,
     Integer,
     Numeric,
@@ -214,8 +213,6 @@ class Document(Base):
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
-
-    document_indexes = relationship("DocumentIndex", backref="document", lazy="dynamic")
 
     def get_document_indexes(self, session):
         """Get document indexes from the merged table"""
@@ -653,7 +650,7 @@ class DocumentIndex(Base):
     __table_args__ = (UniqueConstraint("document_id", "index_type", name="uq_document_index"),)
 
     id = Column(Integer, primary_key=True, index=True)
-    document_id = Column(String(24), ForeignKey("document.id"), nullable=False, index=True)
+    document_id = Column(String(24), nullable=False, index=True)
     index_type = Column(EnumColumn(DocumentIndexType), nullable=False, index=True)
 
     status = Column(EnumColumn(DocumentIndexStatus), nullable=False, default=DocumentIndexStatus.PENDING, index=True)

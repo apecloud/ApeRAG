@@ -79,52 +79,95 @@ class DocumentService:
         else:
             self.db_ops = AsyncDatabaseOps(session)  # Create custom instance for transaction control
 
-    async def build_document_response(
-        self, document: db_models.Document, session: AsyncSession
-    ) -> view_models.Document:
-        """Build Document response object for API return using new status model."""
-        from sqlalchemy import select
+    async def _query_documents_with_indexes(self, user: str, collection_id: str, document_id: str = None) -> List[db_models.Document]:
+        """
+        Common function to query documents with their indexes using JOIN.
+        If document_id is provided, query single document, otherwise query all documents.
+        """
+        async def _execute_query(session):
+            from sqlalchemy import select, and_, outerjoin
+            
+            # Create JOIN query between Document and DocumentIndex tables
+            # Use outerjoin to get all documents even if they don't have indexes
+            query = select(
+                db_models.Document,
+                db_models.DocumentIndex.index_type,
+                db_models.DocumentIndex.status.label('index_status'),
+                db_models.DocumentIndex.gmt_created.label('index_created_at'),
+                db_models.DocumentIndex.gmt_updated.label('index_updated_at'),
+                db_models.DocumentIndex.error_message.label('index_error_message'),
+            ).select_from(
+                outerjoin(
+                    db_models.Document,
+                    db_models.DocumentIndex,
+                    db_models.Document.id == db_models.DocumentIndex.document_id
+                )
+            ).where(
+                and_(
+                    db_models.Document.user == user,
+                    db_models.Document.collection_id == collection_id,
+                    db_models.Document.status != db_models.DocumentStatus.DELETED
+                )
+            ).order_by(db_models.Document.gmt_created.desc())
+            
+            # Add document_id filter if provided (for single document query)
+            if document_id:
+                query = query.where(db_models.Document.id == document_id)
+            
+            result = await session.execute(query)
+            rows = result.fetchall()
+            
+            # Group results by document and attach all index information
+            documents_dict = {}
+            for row in rows:
+                doc = row.Document
+                if doc.id not in documents_dict:
+                    documents_dict[doc.id] = doc
+                    # Initialize index information for all types
+                    doc.indexes = {
+                        'VECTOR': None,
+                        'FULLTEXT': None,
+                        'GRAPH': None
+                    }
+                
+                # Add index information if exists
+                if row.index_type:
+                    doc.indexes[row.index_type] = {
+                        'index_type': row.index_type,
+                        'status': row.index_status,
+                        'created_at': row.index_created_at,
+                        'updated_at': row.index_updated_at,
+                        'error_message': row.index_error_message
+                    }
+            
+            return list(documents_dict.values())
+        
+        return await self.db_ops._execute_query(_execute_query)
 
-        from aperag.db.models import DocumentIndex
-
-        # Get all document indexes for status calculation
-        document_indexes = await session.execute(
-            select(DocumentIndex).where(
-                DocumentIndex.document_id == document.id,
-                DocumentIndex.status != db_models.DocumentIndexStatus.DELETING,
-                DocumentIndex.status != db_models.DocumentIndexStatus.DELETION_IN_PROGRESS,
-            )
-        )
-        indexes = document_indexes.scalars().all()
-
-        # Map index states to API response format
-        index_status = {}
-        index_updated = {}
-
-        # Initialize all types as SKIPPED (when no record exists)
-        all_types = [
-            db_models.DocumentIndexType.VECTOR,
-            db_models.DocumentIndexType.FULLTEXT,
-            db_models.DocumentIndexType.GRAPH,
-        ]
-        for index_type in all_types:
-            index_status[index_type] = "SKIPPED"
-
-        # Update with actual states from database
-        for index in indexes:
-            index_status[index.index_type] = index.status
-            index_updated[index.index_type] = index.gmt_updated
-
+    async def _build_document_response(self, document: db_models.Document) -> view_models.Document:
+        """
+        Build document response object with all index types information.
+        """
+        # Get all index information if available
+        indexes = getattr(document, 'indexes', {
+            'VECTOR': None,
+            'FULLTEXT': None,
+            'GRAPH': None
+        })
+        
         return view_models.Document(
             id=document.id,
             name=document.name,
             status=document.status,
-            vector_index_status=index_status.get(db_models.DocumentIndexType.VECTOR, "SKIPPED"),
-            fulltext_index_status=index_status.get(db_models.DocumentIndexType.FULLTEXT, "SKIPPED"),
-            graph_index_status=index_status.get(db_models.DocumentIndexType.GRAPH, "SKIPPED"),
-            vector_index_updated=index_updated.get(db_models.DocumentIndexType.VECTOR, None),
-            fulltext_index_updated=index_updated.get(db_models.DocumentIndexType.FULLTEXT, None),
-            graph_index_updated=index_updated.get(db_models.DocumentIndexType.GRAPH, None),
+            # Vector index information
+            vector_index_status=indexes['VECTOR']['status'] if indexes['VECTOR'] else "SKIPPED",
+            vector_index_updated=indexes['VECTOR']['updated_at'] if indexes['VECTOR'] else None,
+            # Fulltext index information
+            fulltext_index_status=indexes['FULLTEXT']['status'] if indexes['FULLTEXT'] else "SKIPPED",
+            fulltext_index_updated=indexes['FULLTEXT']['updated_at'] if indexes['FULLTEXT'] else None,
+            # Graph index information
+            graph_index_status=indexes['GRAPH']['status'] if indexes['GRAPH'] else "SKIPPED",
+            graph_index_updated=indexes['GRAPH']['updated_at'] if indexes['GRAPH'] else None,
             size=document.size,
             created=document.gmt_created,
             updated=document.gmt_updated,
@@ -241,143 +284,24 @@ class DocumentService:
         return DocumentList(items=response)
 
     async def list_documents(self, user: str, collection_id: str) -> view_models.DocumentList:
-        # Use database operations with proper session management
-        async def _get_documents_with_indexes(session):
-            from sqlalchemy.orm import selectinload
-            from sqlalchemy import select
-            
-            # Get all documents with their indexes in a single query using eager loading
-            stmt = select(db_models.Document).options(
-                selectinload(db_models.Document.document_indexes)
-            ).where(
-                db_models.Document.user == user,
-                db_models.Document.collection_id == collection_id,
-                db_models.Document.status != db_models.DocumentStatus.DELETED,
-            ).order_by(db_models.Document.gmt_created.desc())
-            
-            result = await session.execute(stmt)
-            documents = result.scalars().all()
-            
-            # Build response objects efficiently
-            response = []
-            for document in documents:
-                # Get document indexes (already loaded via selectinload)
-                indexes = [
-                    idx for idx in document.document_indexes 
-                    if idx.status not in [
-                        db_models.DocumentIndexStatus.DELETING,
-                        db_models.DocumentIndexStatus.DELETION_IN_PROGRESS
-                    ]
-                ]
-                
-                # Map index states to API response format
-                index_status = {}
-                index_updated = {}
-                
-                # Initialize all types as SKIPPED
-                all_types = [
-                    db_models.DocumentIndexType.VECTOR,
-                    db_models.DocumentIndexType.FULLTEXT,
-                    db_models.DocumentIndexType.GRAPH,
-                ]
-                for index_type in all_types:
-                    index_status[index_type] = "SKIPPED"
-                
-                # Update with actual states from database
-                for index in indexes:
-                    index_status[index.index_type] = index.status
-                    index_updated[index.index_type] = index.gmt_updated
-                
-                # Build document response
-                doc_response = view_models.Document(
-                    id=document.id,
-                    name=document.name,
-                    status=document.status,
-                    vector_index_status=index_status.get(db_models.DocumentIndexType.VECTOR, "SKIPPED"),
-                    fulltext_index_status=index_status.get(db_models.DocumentIndexType.FULLTEXT, "SKIPPED"),
-                    graph_index_status=index_status.get(db_models.DocumentIndexType.GRAPH, "SKIPPED"),
-                    vector_index_updated=index_updated.get(db_models.DocumentIndexType.VECTOR, None),
-                    fulltext_index_updated=index_updated.get(db_models.DocumentIndexType.FULLTEXT, None),
-                    graph_index_updated=index_updated.get(db_models.DocumentIndexType.GRAPH, None),
-                    size=document.size,
-                    created=document.gmt_created,
-                    updated=document.gmt_updated,
-                )
-                response.append(doc_response)
-            
-            return response
+        """List all documents for a user in a collection."""
+        documents = await self._query_documents_with_indexes(user, collection_id)
         
-        # Execute query with proper session management
-        response = await self.db_ops._execute_query(_get_documents_with_indexes)
+        response = []
+        for document in documents:
+            response.append(await self._build_document_response(document))
+        
         return view_models.DocumentList(items=response)
 
     async def get_document(self, user: str, collection_id: str, document_id: str) -> view_models.Document:
-        # Use database operations with proper session management
-        async def _get_document_with_indexes(session):
-            from sqlalchemy.orm import selectinload
-            from sqlalchemy import select
-            
-            # Get document with its indexes in a single query using eager loading
-            stmt = select(db_models.Document).options(
-                selectinload(db_models.Document.document_indexes)
-            ).where(
-                db_models.Document.id == document_id,
-                db_models.Document.collection_id == collection_id,
-                db_models.Document.user == user,
-                db_models.Document.status != db_models.DocumentStatus.DELETED,
-            )
-            
-            result = await session.execute(stmt)
-            document = result.scalars().first()
-            
-            if document is None:
-                raise DocumentNotFoundException(document_id)
-            
-            # Get document indexes (already loaded via selectinload)
-            indexes = [
-                idx for idx in document.document_indexes 
-                if idx.status not in [
-                    db_models.DocumentIndexStatus.DELETING,
-                    db_models.DocumentIndexStatus.DELETION_IN_PROGRESS
-                ]
-            ]
-            
-            # Map index states to API response format
-            index_status = {}
-            index_updated = {}
-            
-            # Initialize all types as SKIPPED
-            all_types = [
-                db_models.DocumentIndexType.VECTOR,
-                db_models.DocumentIndexType.FULLTEXT,
-                db_models.DocumentIndexType.GRAPH,
-            ]
-            for index_type in all_types:
-                index_status[index_type] = "SKIPPED"
-            
-            # Update with actual states from database
-            for index in indexes:
-                index_status[index.index_type] = index.status
-                index_updated[index.index_type] = index.gmt_updated
-            
-            # Build document response
-            return view_models.Document(
-                id=document.id,
-                name=document.name,
-                status=document.status,
-                vector_index_status=index_status.get(db_models.DocumentIndexType.VECTOR, "SKIPPED"),
-                fulltext_index_status=index_status.get(db_models.DocumentIndexType.FULLTEXT, "SKIPPED"),
-                graph_index_status=index_status.get(db_models.DocumentIndexType.GRAPH, "SKIPPED"),
-                vector_index_updated=index_updated.get(db_models.DocumentIndexType.VECTOR, None),
-                fulltext_index_updated=index_updated.get(db_models.DocumentIndexType.FULLTEXT, None),
-                graph_index_updated=index_updated.get(db_models.DocumentIndexType.GRAPH, None),
-                size=document.size,
-                created=document.gmt_created,
-                updated=document.gmt_updated,
-            )
+        """Get a specific document by ID."""
+        documents = await self._query_documents_with_indexes(user, collection_id, document_id)
         
-        # Execute query with proper session management
-        return await self.db_ops._execute_query(_get_document_with_indexes)
+        if not documents:
+            raise DocumentNotFoundException(f"Document not found: {document_id}")
+        
+        document = documents[0]
+        return await self._build_document_response(document)
 
     async def _delete_document(self, session: AsyncSession, user: str, collection_id: str, document_id: str):
         """
