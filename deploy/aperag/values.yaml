@@ -192,6 +192,24 @@ api:
     CACHE_ENABLED: "True"
     CACHE_TTL: "86400"
 
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+    successThreshold: 1
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 3
+    successThreshold: 1
 
 celery-worker:
   replicaCount: 1
@@ -216,6 +234,28 @@ celery-worker:
             matchLabels:
               app.aperag.io/component: celery-worker
           topologyKey: kubernetes.io/hostname
+  livenessProbe:
+    exec:
+      command:
+        - sh
+        - -c
+        - "celery -A config.celery status > /dev/null 2>&1"
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+  readinessProbe:
+    exec:
+      command:
+        - sh
+        - -c
+        - "celery -A config.celery status > /dev/null 2>&1"
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
 
 celerybeat:
   replicaCount: 1
