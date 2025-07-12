@@ -240,8 +240,8 @@ celery-worker:
         - sh
         - -c
         - "celery -A config.celery status > /dev/null 2>&1"
-    initialDelaySeconds: 10
-    periodSeconds: 10
+    initialDelaySeconds: 15
+    periodSeconds: 30
     timeoutSeconds: 5
     failureThreshold: 3
     successThreshold: 1
@@ -251,8 +251,8 @@ celery-worker:
         - sh
         - -c
         - "celery -A config.celery status > /dev/null 2>&1"
-    initialDelaySeconds: 5
-    periodSeconds: 5
+    initialDelaySeconds: 15
+    periodSeconds: 30
     timeoutSeconds: 5
     failureThreshold: 3
     successThreshold: 1
