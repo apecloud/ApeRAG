@@ -179,8 +179,9 @@ class Rechunker:
                     # If the single part is too large, split it into smaller chunks
                     splitter = SimpleSemanticSplitter(self.tokenizer)
                     chunks = splitter.split(part.content, self.chunk_size, self.chunk_overlap)
-                    metadata = part.metadata
+                    metadata = part.metadata.copy()
                     metadata.pop("tokens", None)
+                    metadata["splitted"] = True
                     for chunk in chunks:
                         parts.append(Part(content=chunk, metadata=metadata.copy()))
                 else:
@@ -188,11 +189,13 @@ class Rechunker:
 
             # Rechunk the parts
             assert last_part is None
-            highest_level_in_last_part = group.title_level  # All parts are in the same group
             tokens_sum = 0
+            prev_part_splitted = False
             for part in parts:
+                curr_part_splitted = part.metadata.get("splitted", False)
                 tokens = self._count_tokens(part)
-                if tokens_sum + tokens > self.chunk_size:
+                # Don't merge parts if too many tokens, or the previous part is splitted.
+                if tokens_sum + tokens > self.chunk_size or (prev_part_splitted and not curr_part_splitted):
                     if last_part is not None:
                         result.append(last_part)
                         last_part = None
@@ -200,6 +203,13 @@ class Rechunker:
 
                 last_part = self._append_part_to_part(part, last_part, titles)
                 tokens_sum += tokens
+                prev_part_splitted = curr_part_splitted
+
+            # Don't merge any group into a partial group
+            if last_part is not None:
+                result.append(last_part)
+                last_part = None
+                highest_level_in_last_part = None
 
         if last_part is not None:
             result.append(last_part)

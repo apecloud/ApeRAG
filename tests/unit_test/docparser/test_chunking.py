@@ -278,10 +278,26 @@ def test_rechunker_edge_case_large_title():
     rechunker = Rechunker(chunk_size=35, chunk_overlap=0, tokenizer=mock_char_tokenizer)
     rechunked_parts = rechunker(parts)
 
-    assert len(rechunked_parts) == 2
+    assert len(rechunked_parts) == 3
     assert "# AAAAA" in rechunked_parts[0].content
     assert "AAAAA" in rechunked_parts[1].content
-    assert "Normal Content" in rechunked_parts[1].content
+    assert "Normal Content" in rechunked_parts[2].content
+
+
+def test_rechunker_do_not_merge_splitted_parts():
+    parts = [
+        TitlePart(content="# t1", level=1),
+        Part(content="Normal Content", metadata={}),
+        TitlePart(content="# t2", level=1),
+    ]
+
+    rechunker = Rechunker(chunk_size=13, chunk_overlap=0, tokenizer=mock_char_tokenizer)
+    rechunked_parts = rechunker(parts)
+
+    assert len(rechunked_parts) == 3
+    assert "# t1\n\nNormal" in rechunked_parts[0].content
+    assert "Content" in rechunked_parts[1].content
+    assert "# t2" in rechunked_parts[2].content
 
 
 def test_splitter_with_long_text_no_separators():
