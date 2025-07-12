@@ -13,6 +13,7 @@ import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
+import { getAuthorizationHeader } from '@/models/user';
 import { FormattedMessage } from 'umi';
 import { visit } from 'unist-util-visit';
 import { AuthAssetImage } from './AuthAssetImage';
@@ -51,12 +52,12 @@ export const ChunkViewer = ({
   );
   const [previewData, setPreviewData] = useState<DocumentPreview | null>(null);
   const [adaptedChunks, setAdaptedChunks] = useState<Chunk[]>([]);
-  const [pdfFile, setPdfFile] = useState<any>(null);
   const [highlightedChunk, setHighlightedChunk] = useState<Chunk | null>(null);
   const [scrolledToChunkId, setScrolledToChunkId] = useState<string | null>(
     null,
   );
   const [numPages, setNumPages] = useState<number>(0);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const pdfContainerRef = useRef<HTMLDivElement>(null);
   const markdownContainerRef = useRef<HTMLDivElement>(null);
   const chunkListRef = useRef<HTMLDivElement>(null);
@@ -95,28 +96,6 @@ export const ChunkViewer = ({
     },
   );
 
-  // Fetch PDF blob on demand
-  const { run: fetchPdf, loading: pdfLoading } = useRequest(
-    (path: string) => {
-      return api.getDocumentObject(
-        {
-          collectionId,
-          documentId: initialDoc.id!,
-          path,
-        },
-        {
-          responseType: 'blob',
-        },
-      );
-    },
-    {
-      manual: true,
-      onSuccess: (response) => {
-        setPdfFile(response.data);
-      },
-    },
-  );
-
   const canShowPdfPreview = useMemo(() => {
     if (!previewData) return false;
     const hasPdfSourceMap = adaptedChunks.some(
@@ -146,16 +125,29 @@ export const ChunkViewer = ({
     }
   }, [previewData, canShowPdfPreview]);
 
-  // Fetch PDF file when view mode is switched to PDF
+  // Determine the PDF URL when view mode is switched to PDF
   useEffect(() => {
-    if (viewMode === 'pdf' && canShowPdfPreview && !pdfFile && previewData) {
+    if (viewMode === 'pdf' && canShowPdfPreview && previewData) {
       const pdfPath =
         previewData.converted_pdf_object_path || previewData.doc_object_path;
       if (pdfPath) {
-        fetchPdf(pdfPath);
+        const url = `/api/v1/collections/${collectionId}/documents/${initialDoc.id!}/object?path=${encodeURIComponent(pdfPath)}`;
+        setPdfUrl(url);
       }
     }
-  }, [viewMode, canShowPdfPreview, pdfFile, fetchPdf, previewData]);
+  }, [
+    viewMode,
+    canShowPdfPreview,
+    previewData,
+    collectionId,
+    initialDoc.id,
+  ]);
+
+  const pdfOptions = useMemo(() => {
+    return {
+      httpHeaders: getAuthorizationHeader(),
+    };
+  }, []);
 
   const [pageDimensions, setPageDimensions] = useState(new Map());
 
@@ -498,7 +490,7 @@ export const ChunkViewer = ({
   };
 
   const renderPdfView = () => {
-    if (pdfLoading || !pdfFile) {
+    if (!pdfUrl) {
       return (
         <div
           style={{
@@ -512,6 +504,7 @@ export const ChunkViewer = ({
         </div>
       );
     }
+
     return (
       <div
         ref={pdfContainerRef}
@@ -522,7 +515,12 @@ export const ChunkViewer = ({
           backgroundColor: '#f0f0f0',
         }}
       >
-        <Document file={pdfFile} onLoadSuccess={onDocumentLoadSuccess}>
+        <Document
+          file={pdfUrl}
+          options={pdfOptions}
+          onLoadSuccess={onDocumentLoadSuccess}
+          loading={<Spin />}
+        >
           {Array.from(new Array(numPages), (el, index) => (
             <div
               key={`page_${index + 1}`}

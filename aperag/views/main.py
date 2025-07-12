@@ -178,12 +178,14 @@ async def get_document_preview(
     operation_id="get_document_object",
 )
 async def get_document_object(
+    request: Request,
     collection_id: str,
     document_id: str,
     path: str,
     user: User = Depends(current_user),
 ):
-    return await document_service.get_document_object(user.id, collection_id, document_id, path)
+    range_header = request.headers.get("range")
+    return await document_service.get_document_object(user.id, collection_id, document_id, path, range_header)
 
 
 @router.post("/collections/{collection_id}/documents/{document_id}/rebuild_indexes", tags=["documents"])
