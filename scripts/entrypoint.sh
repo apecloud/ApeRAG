@@ -58,28 +58,4 @@ except Exception as error:
     sys.stderr.write("Failed to create pgvector extension (this is non-critical): {}\n".format(error))
 END
 
-# Build DATABASE_URL from components
-if [[ -n "${POSTGRES_HOST:-}" && -n "${POSTGRES_USER:-}" && -n "${POSTGRES_PASSWORD:-}" ]]; then
-    export DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-postgres}"
-fi
-
-# Build CELERY_BROKER_URL from Redis components
-if [[ -n "${REDIS_HOST:-}" && -n "${REDIS_USER:-}" && -n "${REDIS_PASSWORD:-}" ]]; then
-    export CELERY_BROKER_URL="redis://${REDIS_USER}:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT:-6379}/0"
-fi
-
-# Build MEMORY_REDIS_URL from Redis components
-if [[ -n "${REDIS_HOST:-}" && -n "${REDIS_USER:-}" && -n "${REDIS_PASSWORD:-}" ]]; then
-    export MEMORY_REDIS_URL="redis://${REDIS_USER}:${REDIS_PASSWORD}@${REDIS_HOST}:${REDIS_PORT:-6379}/1"
-fi
-
-# Build ES_HOST from Elasticsearch components
-if [[ -n "${ES_HOST_NAME:-}" ]]; then
-    if [[ -n "${ES_USER:-}" && -n "${ES_PASSWORD:-}" ]]; then
-        export ES_HOST="${ES_PROTOCOL:-http}://${ES_USER}:${ES_PASSWORD}@${ES_HOST_NAME}:${ES_PORT:-9200}"
-    else
-        export ES_HOST="${ES_PROTOCOL:-http}://${ES_HOST_NAME}:${ES_PORT:-9200}"
-    fi
-fi
-
 exec "$@"

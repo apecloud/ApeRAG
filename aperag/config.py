@@ -48,8 +48,28 @@ class Config(BaseSettings):
     # Debug mode
     debug: bool = Field(False, alias="DEBUG")
 
+    # Postgres atomic fields
+    postgres_host: str = Field("127.0.0.1", alias="POSTGRES_HOST")
+    postgres_port: int = Field(5432, alias="POSTGRES_PORT")
+    postgres_db: str = Field("postgres", alias="POSTGRES_DB")
+    postgres_user: str = Field("postgres", alias="POSTGRES_USER")
+    postgres_password: str = Field("postgres", alias="POSTGRES_PASSWORD")
+
+    # Redis atomic fields
+    redis_host: str = Field("127.0.0.1", alias="REDIS_HOST")
+    redis_port: int = Field(6379, alias="REDIS_PORT")
+    redis_user: str = Field("default", alias="REDIS_USER")
+    redis_password: str = Field("password", alias="REDIS_PASSWORD")
+
+    # Elasticsearch atomic fields
+    es_host_name: str = Field("127.0.0.1", alias="ES_HOST_NAME")
+    es_port: int = Field(9200, alias="ES_PORT")
+    es_user: str = Field("", alias="ES_USER")
+    es_password: str = Field("", alias="ES_PASSWORD")
+    es_protocol: str = Field("http", alias="ES_PROTOCOL")
+
     # Database
-    database_url: str = Field(f"sqlite:///{BASE_DIR}/db.sqlite3", alias="DATABASE_URL")
+    database_url: Optional[str] = Field(None, alias="DATABASE_URL")
 
     # Database connection pool settings
     db_pool_size: int = Field(20, alias="DB_POOL_SIZE")
@@ -68,7 +88,7 @@ class Config(BaseSettings):
     logto_app_id: str = Field("", alias="LOGTO_APP_ID")
 
     # Celery
-    celery_broker_url: str = Field("redis://localhost:6379/0", alias="CELERY_BROKER_URL")
+    celery_broker_url: Optional[str] = Field(None, alias="CELERY_BROKER_URL")
     celery_result_backend: Optional[str] = None  # Will be set in __post_init__
     celery_beat_scheduler: str = "django_celery_beat.schedulers:DatabaseScheduler"
     celery_worker_send_task_events: bool = True
@@ -84,7 +104,7 @@ class Config(BaseSettings):
     embedding_max_chunks_in_batch: int = Field(10, alias="EMBEDDING_MAX_CHUNKS_IN_BATCH")
 
     # Memory backend
-    memory_redis_url: str = Field("redis://127.0.0.1:6379/1", alias="MEMORY_REDIS_URL")
+    memory_redis_url: Optional[str] = Field(None, alias="MEMORY_REDIS_URL")
 
     # Vector DB
     vector_db_type: str = Field("qdrant", alias="VECTOR_DB_TYPE")
@@ -108,14 +128,8 @@ class Config(BaseSettings):
     chunk_size: int = Field(400, alias="CHUNK_SIZE")
     chunk_overlap_size: int = Field(20, alias="CHUNK_OVERLAP_SIZE")
 
-    # Redis
-    redis_host: str = Field("localhost", alias="REDIS_HOST")
-    redis_port: str = Field("6379", alias="REDIS_PORT")
-    redis_username: str = Field("", alias="REDIS_USERNAME")
-    redis_password: str = Field("", alias="REDIS_PASSWORD")
-
     # Fulltext search
-    es_host: str = Field("http://localhost:9200", alias="ES_HOST")
+    es_host: Optional[str] = Field(None, alias="ES_HOST")
     es_timeout: int = Field(30, alias="ES_TIMEOUT")  # ES request timeout in seconds
     es_max_retries: int = Field(3, alias="ES_MAX_RETRIES")  # Max retries for ES requests
 
@@ -154,6 +168,35 @@ class Config(BaseSettings):
             with open(json_path, "r", encoding="utf-8") as f:
                 self.model_configs = json.load(f)
 
+        # DATABASE_URL
+        if not self.database_url:
+            self.database_url = (
+                f"postgresql://{self.postgres_user}:{self.postgres_password}"
+                f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+            )
+        # CELERY_BROKER_URL
+        if not self.celery_broker_url:
+            self.celery_broker_url = (
+                f"redis://{self.redis_user}:{self.redis_password}"
+                f"@{self.redis_host}:{self.redis_port}/0"
+            )
+        # MEMORY_REDIS_URL
+        if not self.memory_redis_url:
+            self.memory_redis_url = (
+                f"redis://{self.redis_user}:{self.redis_password}"
+                f"@{self.redis_host}:{self.redis_port}/1"
+            )
+        # ES_HOST
+        if not self.es_host:
+            if self.es_user and self.es_password:
+                self.es_host = (
+                    f"{self.es_protocol}://{self.es_user}:{self.es_password}"
+                    f"@{self.es_host_name}:{self.es_port}"
+                )
+            else:
+                self.es_host = (
+                    f"{self.es_protocol}://{self.es_host_name}:{self.es_port}"
+                )
         # Object store config
         if self.object_store_type == "local":
             self.object_store_local_config = LocalObjectStoreConfig()
