@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 from functools import wraps
 from pathlib import Path
@@ -24,6 +25,8 @@ from pydantic_settings import BaseSettings
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import Session, sessionmaker
+
+from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -290,3 +293,11 @@ def with_async_session(func):
 
 AsyncSessionDep = Annotated[AsyncSession, Depends(get_async_session)]
 SyncSessionDep = Annotated[Session, Depends(get_sync_session)]
+
+
+def get_vector_db_connector(collection: str) -> VectorStoreConnectorAdaptor:
+    # todo: specify the collection for different user
+    # one person one collection
+    ctx = json.loads(settings.vector_db_context)
+    ctx["collection"] = collection
+    return VectorStoreConnectorAdaptor(settings.vector_db_type, ctx=ctx)

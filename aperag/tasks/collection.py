@@ -28,7 +28,7 @@ from aperag.utils.utils import (
     generate_fulltext_index_name,
     generate_vector_db_collection_name,
 )
-from config.vector_db import get_vector_db_connector
+from aperag.config import get_vector_db_connector
 
 logger = logging.getLogger(__name__)
 
