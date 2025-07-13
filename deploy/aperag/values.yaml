@@ -239,7 +239,7 @@ celery-worker:
       command:
         - sh
         - -c
-        - "celery -A config.celery status > /dev/null 2>&1"
+        - "celery -A config.celery status -d celery@$(hostname) > /dev/null 2>&1"
     initialDelaySeconds: 15
     periodSeconds: 30
     timeoutSeconds: 5
@@ -250,7 +250,7 @@ celery-worker:
       command:
         - sh
         - -c
-        - "celery -A config.celery status > /dev/null 2>&1"
+        - "celery -A config.celery status -d celery@$(hostname) > /dev/null 2>&1"
     initialDelaySeconds: 15
     periodSeconds: 30
     timeoutSeconds: 5
