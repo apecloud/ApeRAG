@@ -155,10 +155,6 @@ class Config(BaseSettings):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # Set celery_result_backend if not set
-        if not self.celery_result_backend:
-            self.celery_result_backend = self.celery_broker_url
-
         # Load model configs from file
         import json
         import os
@@ -180,6 +176,11 @@ class Config(BaseSettings):
                 f"redis://{self.redis_user}:{self.redis_password}"
                 f"@{self.redis_host}:{self.redis_port}/0"
             )
+
+        # CELERY_RESULT_BACKEND
+        if not self.celery_result_backend:
+            self.celery_result_backend = self.celery_broker_url
+
         # MEMORY_REDIS_URL
         if not self.memory_redis_url:
             self.memory_redis_url = (
