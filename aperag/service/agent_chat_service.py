@@ -31,6 +31,7 @@ from mcp_agent.app import MCPApp
 from mcp_agent.config import Settings, LoggerSettings, MCPSettings, MCPServerSettings, OpenAISettings
 from mcp_agent.agents.agent import Agent
 from mcp_agent.workflows.llm.augmented_llm_openai import OpenAIAugmentedLLM
+from mcp_agent.workflows.llm.augmented_llm import RequestParams
 
 logger = logging.getLogger(__name__)
 
@@ -449,7 +450,7 @@ Web search is not available for this session. Rely entirely on the knowledge col
                             agent_message.collection_ids,
                             agent_message.web_search_enabled or False
                         ), 
-                        server_names=["aperag"]
+                        server_names=["aperag"],
                     )
                     
                     # Verify server connection
@@ -460,9 +461,14 @@ Web search is not available for this session. Rely entirely on the knowledge col
                     async with agent:
                         # Attach LLM to agent
                         llm = await agent.attach_llm(OpenAIAugmentedLLM)
+
+                        request_params = RequestParams(
+                            max_iterations=10,
+                            parallel_tool_calls=True,
+                        )
                         
                         # Generate response using LLM
-                        response = await llm.generate_str(agent_message.query)
+                        response = await llm.generate_str(agent_message.query, request_params)
                         full_content = response if response else "No response generated"
                         
                         # Stream the response content
