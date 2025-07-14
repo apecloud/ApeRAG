@@ -233,108 +233,52 @@ class AgentChatService:
             #     if content:
             #         conversation_messages.append({"role": role, "content": content})
 
-            try:
-                # Use agent app for intelligent conversation
-                # This integrates with the MCP system for dynamic tool usage
-                if hasattr(agent_app, 'chat'):
-                    # Add current user query to conversation
-                    conversation_messages.append({"role": "user", "content": agent_message.query})
-                    
-                    # Get response from agent app
-                    response = await agent_app.chat(
-                        messages=conversation_messages,
-                        stream=True  # Enable streaming if supported
-                    )
-                    
-                    # Handle streaming response
-                    full_content = ""
-                    if hasattr(response, '__aiter__'):
-                        # Streaming response
-                        async for chunk in response:
-                            if hasattr(chunk, 'content') and chunk.content:
-                                full_content += chunk.content
-                                yield self._format_stream_content(msg_id, chunk.content)
-                            elif isinstance(chunk, str):
-                                full_content += chunk
-                                yield self._format_stream_content(msg_id, chunk)
-                    else:
-                        # Non-streaming response
-                        full_content = str(response) if response else "No response generated"
-                        yield self._format_stream_content(msg_id, full_content)
-                    
-                    # Store messages in history
-                    await history.add_user_message(agent_message.query)
-                    await history.add_ai_message(full_content)
-                    
-                    # Prepare references based on agent configuration
-                    references = []
-                    urls = []
-                    
-                    if agent_message.collection_ids:
-                        references.extend([f"Collection: {cid}" for cid in agent_message.collection_ids])
-                    
-                    if agent_message.web_search_enabled:
-                        references.append("Web Search: Enabled")
-                    
-                    if agent_message.model_name:
-                        references.append(f"Model: {agent_message.model_name}")
-                    
-                    yield self._format_stream_end(msg_id, references=references, urls=urls)
+            # Use agent app for intelligent conversation
+            # This integrates with the MCP system for dynamic tool usage
+            # Add current user query to conversation
+            conversation_messages.append({"role": "user", "content": agent_message.query})
+            
+            # Get response from agent app
+            response = await agent_app.generate_str(agent_message.query)
+            
+            # Handle streaming response
+            full_content = ""
+            if hasattr(response, '__aiter__'):
+                # Streaming response
+                async for chunk in response:
+                    if hasattr(chunk, 'content') and chunk.content:
+                        full_content += chunk.content
+                        yield self._format_stream_content(msg_id, chunk.content)
+                    elif isinstance(chunk, str):
+                        full_content += chunk
+                        yield self._format_stream_content(msg_id, chunk)
+            else:
+                # Non-streaming response
+                full_content = str(response) if response else "No response generated"
+                yield self._format_stream_content(msg_id, full_content)
+            
+            # Store messages in history
+            await history.add_user_message(agent_message.query)
+            await history.add_ai_message(full_content)
+            
+            # Prepare references based on agent configuration
+            references = []
+            urls = []
+            
+            if agent_message.collection_ids:
+                references.extend([f"Collection: {cid}" for cid in agent_message.collection_ids])
+            
+            if agent_message.web_search_enabled:
+                references.append("Web Search: Enabled")
+            
+            if agent_message.model_name:
+                references.append(f"Model: {agent_message.model_name}")
+            
+            yield self._format_stream_end(msg_id, references=references, urls=urls)
                 
-                else:
-                    # Fallback if agent app doesn't support chat method
-                    response_content = await self._generate_fallback_response(agent_message)
-                    
-                    # Simulate streaming for fallback
-                    words = response_content.split()
-                    current_chunk = ""
-                    for i, word in enumerate(words):
-                        current_chunk += word + " "
-                        if (i + 1) % 5 == 0 or i == len(words) - 1:  # Send every 5 words or at the end
-                            yield self._format_stream_content(msg_id, current_chunk)
-                            current_chunk = ""
-                    
-                    # Store in history
-                    await history.add_user_message(agent_message.query)
-                    await history.add_ai_message(response_content)
-                    
-                    # Prepare references
-                    references = []
-                    if agent_message.collection_ids:
-                        references.extend([f"Collection: {cid}" for cid in agent_message.collection_ids])
-                    
-                    yield self._format_stream_end(msg_id, references=references)
-
-            except Exception as e:
-                logger.error(f"Error in agent conversation: {e}")
-                yield self._format_error(f"Error processing conversation: {str(e)}")
-
         except Exception as e:
             logger.error(f"Error in agent message processing: {e}")
             yield self._format_error(f"Error processing agent message: {str(e)}")
-
-    async def _generate_fallback_response(self, agent_message: view_models.AgentMessage) -> str:
-        """Generate a fallback response when MCPApp integration fails"""
-        response_parts = [
-            f"Based on your query: '{agent_message.query}'"
-        ]
-        
-        if agent_message.collection_ids:
-            response_parts.append(f"Searching in collections: {', '.join(agent_message.collection_ids)}")
-        
-        if agent_message.model_name:
-            response_parts.append(f"Using model: {agent_message.model_name}")
-        
-        if agent_message.web_search_enabled:
-            response_parts.append("Web search is enabled for additional context")
-        
-        response_parts.append(
-            "I'm working on processing your request. "
-            "The agent system is being enhanced to provide more intelligent responses. "
-            "For now, I can confirm that your request has been received and configured properly."
-        )
-        
-        return "\n\n".join(response_parts)
 
     # Helper methods for response formatting
     def _format_stream_start(self, msg_id: str) -> Dict[str, Any]:
