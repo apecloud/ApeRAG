@@ -28,11 +28,17 @@ from mcp_agent.app import MCPApp
 from mcp_agent.config import LoggerSettings, MCPServerSettings, MCPSettings, OpenAISettings, Settings
 from mcp_agent.workflows.llm.augmented_llm_openai import OpenAIAugmentedLLM
 
-os.environ["APERAG_API_KEY"] = "sk-test"
-os.environ["OPENAI_API_KEY"] = "sk-test"
-os.environ["APERAG_URL"] = "http://localhost:8000/mcp/"
-os.environ["OPENAI_BASE_URL"] = "https://openrouter.ai/api/v1"
-os.environ["DEFAULT_MODEL"] = "gpt-4o-mini"
+# Only set default values if environment variables are not already set
+if not os.getenv("APERAG_API_KEY"):
+    os.environ["APERAG_API_KEY"] = "sk-test"
+if not os.getenv("OPENAI_API_KEY"):
+    os.environ["OPENAI_API_KEY"] = "sk-test"
+if not os.getenv("APERAG_URL"):
+    os.environ["APERAG_URL"] = "http://localhost:8000/mcp/"
+if not os.getenv("OPENAI_BASE_URL"):
+    os.environ["OPENAI_BASE_URL"] = "https://openrouter.ai/api/v1"
+if not os.getenv("DEFAULT_MODEL"):
+    os.environ["DEFAULT_MODEL"] = "gpt-4o-mini"
 
 # Detailed ApeRAG Agent Instruction
 APERAG_AGENT_INSTRUCTION = """
