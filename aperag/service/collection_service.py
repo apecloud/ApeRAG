@@ -52,6 +52,7 @@ class CollectionService:
             id=instance.id,
             title=instance.title,
             description=instance.description,
+            summary=getattr(instance, "summary", None),  # Include LLM-generated summary
             type=instance.type,
             status=getattr(instance, "status", None),
             config=parseCollectionConfig(instance.config),

@@ -275,7 +275,7 @@ async def aperag_usage_guide() -> str:
 ApeRAG provides powerful knowledge search capabilities across your collections.
 
 ## Available Operations:
-1. **list_collections**: Get all available collections with complete details
+1. **list_collections**: Get all available collections with complete details including summaries
 2. **search_collection**: Search within collections using multiple search methods
 3. **web_search**: Perform web search using various search engines (Google, DuckDuckGo, Bing)
 4. **web_read**: Read and extract content from web pages
@@ -288,10 +288,16 @@ API authentication is handled automatically through one of these methods:
 The server will automatically try both methods in order of preference.
 
 ## Quick Start:
-1. First, get available collections with complete details: `list_collections()`
-2. Choose a collection from the list
+1. First, get available collections with summaries: `list_collections()`
+2. Choose a collection from the list based on the summary that best matches your query
 3. Search the collection: `search_collection(collection_id="abc123", query="your question")`
    (By default, all search types are enabled for comprehensive results)
+
+## Collection Summary Information:
+The `list_collections()` function now returns complete collection information including:
+- Basic metadata (id, title, description, type, status, created, updated)
+- LLM-generated summary for better understanding of collection content
+- This helps you make intelligent decisions about which collection to search
 
 ## Search Types:
 You can enable/disable any combination of search methods:
@@ -303,31 +309,43 @@ By default, all three search types are enabled for comprehensive results (hybrid
 
 ## Example Workflow:
 ```
-# Step 1: Get collections with complete details
+# Step 1: Get collections with summaries for better decision making
 collections = list_collections()
 
-# Step 2: Choose a collection from the list
-# (collections.items contains all collection details)
-collection_id = collections.items[0].id
+# Step 2: Choose a collection based on summary relevance
+# (collections.items contains all collection details with summaries)
+most_relevant_collection = None
+for collection in collections.items:
+    if collection.summary and "your topic" in collection.summary.lower():
+        most_relevant_collection = collection
+        break
 
-# Step 3: Search with all methods (hybrid search)
-results = search_collection(
-    collection_id=collection_id,
-    query="How to deploy applications?",
-    use_vector_index=True,
-    use_fulltext_index=True,
-    use_graph_index=True,
-    topk=5
-)
+# Step 3: Search the selected collection
+if most_relevant_collection:
+    results = search_collection(
+        collection_id=most_relevant_collection.id,
+        query="your search query",
+        topk=5
+    )
 
-# Or search with only specific methods
+# Alternative: Search with specific methods enabled/disabled
 vector_only = search_collection(
-    collection_id=collection_id,
+    collection_id=most_relevant_collection.id,
     query="deployment strategies",
     use_vector_index=True,
     use_fulltext_index=False,
     use_graph_index=False,
     topk=10
+)
+
+# Hybrid search (all methods enabled - default)
+hybrid_results = search_collection(
+    collection_id=most_relevant_collection.id,
+    query="How to deploy applications?",
+    use_vector_index=True,
+    use_fulltext_index=True,
+    use_graph_index=True,
+    topk=5
 )
 ```
 

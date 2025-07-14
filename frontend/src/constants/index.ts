@@ -166,6 +166,7 @@ export const COLLECTION_SOURCE_EMAIL: {
 export const DOCUMENT_DEFAULT_CONFIG: CollectionConfig = {
   source: 'system',
   enable_knowledge_graph: true,
+  enable_summary: false,
   crontab: {
     enabled: false,
     minute: '0',
@@ -187,6 +188,7 @@ export const UI_COLLECTION_STATUS: {
   ACTIVE: 'success',
   INACTIVE: 'error',
   DELETED: 'error',
+  SUMMARY_GENERATING: 'processing',
 };
 
 export const UI_DOCUMENT_STATUS: {
@@ -210,7 +212,9 @@ export const UI_INDEX_STATUS: {
   [key in
     | DocumentVectorIndexStatusEnum
     | DocumentFulltextIndexStatusEnum
-    | DocumentGraphIndexStatusEnum]:
+    | DocumentGraphIndexStatusEnum
+    | string // 新增，兼容 summary
+  ]:
     | 'success'
     | 'processing'
     | 'error'

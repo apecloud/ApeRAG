@@ -58,6 +58,8 @@ import type { CollectionList } from '../models';
 // @ts-ignore
 import type { CollectionUpdate } from '../models';
 // @ts-ignore
+import type { CollectionsCollectionIdSummaryGeneratePost200Response } from '../models';
+// @ts-ignore
 import type { Config } from '../models';
 // @ts-ignore
 import type { DebugFlowRequest } from '../models';
@@ -1410,6 +1412,44 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
+         * Trigger collection summary generation as background task
+         * @summary Generate collection summary
+         * @param {string} collectionId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdSummaryGeneratePost: async (collectionId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('collectionsCollectionIdSummaryGeneratePost', 'collectionId', collectionId)
+            const localVarPath = `/collections/{collection_id}/summary/generate`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Get a list of collections
          * @summary List collections
          * @param {number} [page] 
@@ -2721,6 +2761,19 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Trigger collection summary generation as background task
+         * @summary Generate collection summary
+         * @param {string} collectionId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async collectionsCollectionIdSummaryGeneratePost(collectionId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<CollectionsCollectionIdSummaryGeneratePost200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdSummaryGeneratePost(collectionId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdSummaryGeneratePost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Get a list of collections
          * @summary List collections
          * @param {number} [page] 
@@ -3356,6 +3409,16 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.collectionsCollectionIdSearchesSearchIdDelete(requestParameters.collectionId, requestParameters.searchId, options).then((request) => request(axios, basePath));
         },
         /**
+         * Trigger collection summary generation as background task
+         * @summary Generate collection summary
+         * @param {DefaultApiCollectionsCollectionIdSummaryGeneratePostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdSummaryGeneratePost(requestParameters: DefaultApiCollectionsCollectionIdSummaryGeneratePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<CollectionsCollectionIdSummaryGeneratePost200Response> {
+            return localVarFp.collectionsCollectionIdSummaryGeneratePost(requestParameters.collectionId, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Get a list of collections
          * @summary List collections
          * @param {DefaultApiCollectionsGetRequest} requestParameters Request parameters.
@@ -3905,6 +3968,16 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     collectionsCollectionIdSearchesSearchIdDelete(requestParameters: DefaultApiCollectionsCollectionIdSearchesSearchIdDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
+
+    /**
+     * Trigger collection summary generation as background task
+     * @summary Generate collection summary
+     * @param {DefaultApiCollectionsCollectionIdSummaryGeneratePostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    collectionsCollectionIdSummaryGeneratePost(requestParameters: DefaultApiCollectionsCollectionIdSummaryGeneratePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<CollectionsCollectionIdSummaryGeneratePost200Response>;
 
     /**
      * Get a list of collections
@@ -4737,6 +4810,20 @@ export interface DefaultApiCollectionsCollectionIdSearchesSearchIdDeleteRequest 
 }
 
 /**
+ * Request parameters for collectionsCollectionIdSummaryGeneratePost operation in DefaultApi.
+ * @export
+ * @interface DefaultApiCollectionsCollectionIdSummaryGeneratePostRequest
+ */
+export interface DefaultApiCollectionsCollectionIdSummaryGeneratePostRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof DefaultApiCollectionsCollectionIdSummaryGeneratePost
+     */
+    readonly collectionId: string
+}
+
+/**
  * Request parameters for collectionsGet operation in DefaultApi.
  * @export
  * @interface DefaultApiCollectionsGetRequest
@@ -5427,6 +5514,18 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      */
     public collectionsCollectionIdSearchesSearchIdDelete(requestParameters: DefaultApiCollectionsCollectionIdSearchesSearchIdDeleteRequest, options?: RawAxiosRequestConfig) {
         return DefaultApiFp(this.configuration).collectionsCollectionIdSearchesSearchIdDelete(requestParameters.collectionId, requestParameters.searchId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Trigger collection summary generation as background task
+     * @summary Generate collection summary
+     * @param {DefaultApiCollectionsCollectionIdSummaryGeneratePostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public collectionsCollectionIdSummaryGeneratePost(requestParameters: DefaultApiCollectionsCollectionIdSummaryGeneratePostRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).collectionsCollectionIdSummaryGeneratePost(requestParameters.collectionId, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

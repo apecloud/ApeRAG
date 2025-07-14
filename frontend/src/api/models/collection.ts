@@ -51,6 +51,12 @@ export interface Collection {
      */
     'description'?: string;
     /**
+     * LLM-generated summary of the collection
+     * @type {string}
+     * @memberof Collection
+     */
+    'summary'?: string;
+    /**
      * 
      * @type {CollectionConfig}
      * @memberof Collection
@@ -85,7 +91,8 @@ export interface Collection {
 export const CollectionStatusEnum = {
     ACTIVE: 'ACTIVE',
     INACTIVE: 'INACTIVE',
-    DELETED: 'DELETED'
+    DELETED: 'DELETED',
+    SUMMARY_GENERATING: 'SUMMARY_GENERATING'
 } as const;
 
 export type CollectionStatusEnum = typeof CollectionStatusEnum[keyof typeof CollectionStatusEnum];

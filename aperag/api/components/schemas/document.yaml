@@ -44,6 +44,16 @@ document:
         - DELETION_IN_PROGRESS
         - FAILED
         - SKIPPED
+    summary_index_status:
+      type: string
+      enum:
+        - PENDING
+        - CREATING
+        - ACTIVE
+        - DELETING
+        - DELETION_IN_PROGRESS
+        - FAILED
+        - SKIPPED
     vector_index_updated:
       type: string
       format: date-time
@@ -56,6 +66,13 @@ document:
       type: string
       format: date-time
       description: Graph index last updated time
+    summary_index_updated:
+      type: string
+      format: date-time
+      description: Summary index last updated time
+    summary:
+      type: string
+      description: Summary of the document
     config:
       type: string
     size:
@@ -101,6 +118,7 @@ rebuildIndexesRequest:
           - VECTOR
           - FULLTEXT
           - GRAPH
+          - SUMMARY
       description: Types of indexes to rebuild
       minItems: 1
   required:

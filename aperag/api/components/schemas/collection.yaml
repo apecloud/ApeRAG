@@ -148,6 +148,9 @@ collectionConfig:
     enable_knowledge_graph:
       type: boolean
       description: Whether to enable knowledge graph
+    enable_summary:
+      type: boolean
+      description: Whether to enable summary generation
     embedding:
       $ref: './model.yaml#/modelSpec'
     completion:
@@ -271,6 +274,9 @@ collection:
       type: string
     description:
       type: string
+    summary:
+      type: string
+      description: LLM-generated summary of the collection
     config:
       $ref: '#/collectionConfig'
     source:
@@ -281,6 +287,7 @@ collection:
         - ACTIVE
         - INACTIVE
         - DELETED
+        - SUMMARY_GENERATING
     created:
       type: string
       format: date-time

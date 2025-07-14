@@ -29,6 +29,7 @@ export * from './collection-source-oss-buckets-inner';
 export * from './collection-source-s3';
 export * from './collection-source-url';
 export * from './collection-update';
+export * from './collections-collection-id-summary-generate-post200-response';
 export * from './config';
 export * from './config-auth';
 export * from './config-auth-auth0';

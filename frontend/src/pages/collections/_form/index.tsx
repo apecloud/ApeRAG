@@ -52,6 +52,7 @@ const configEmbeddingCustomLlmProviderKey = [
 ];
 
 const configEnableKnowledgeGraphKey = ['config', 'enable_knowledge_graph'];
+const configEnableSummaryKey = ['config', 'enable_summary'];
 
 const configCompletionModelKey = ['config', 'completion', 'model'];
 const configCompletionModelServiceProviderKey = [
@@ -96,6 +97,8 @@ export default ({ onSubmit, action, values, form }: Props) => {
     configEnableKnowledgeGraphKey,
     form,
   );
+
+  const enableSummary = Form.useWatch(configEnableSummaryKey, form);
 
   const useMineru = Form.useWatch(configParserUseMineruKey, form);
   const mineruApiToken = Form.useWatch(configParserMineruApiTokenKey, form);
@@ -337,11 +340,32 @@ export default ({ onSubmit, action, values, form }: Props) => {
           </Col>
         </Row>
 
+        <Row gutter={24}>
+          <Col
+            {...{
+              xs: 24,
+              sm: 24,
+              md: 12,
+              lg: 12,
+              xl: 12,
+              xxl: 12,
+            }}
+          >
+            <Form.Item
+              label={formatMessage({ id: 'collection.enable_summary' })}
+              valuePropName="checked"
+              name={configEnableSummaryKey}
+            >
+              <Switch />
+            </Form.Item>
+          </Col>
+        </Row>
+
         {enableKnowledgeGraph ? (
           <>
             <Form.Item
               label={formatMessage({
-                id: 'collection.lightrag_model',
+                id: 'collection.completion_model',
               })}
               name={configCompletionModelKey}
               required
@@ -349,7 +373,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
                 {
                   required: true,
                   message: formatMessage({
-                    id: 'collection.lightrag_model.required',
+                    id: 'collection.completion_model.required',
                   }),
                 },
               ]}

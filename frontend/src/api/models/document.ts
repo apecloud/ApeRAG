@@ -57,6 +57,12 @@ export interface Document {
      */
     'graph_index_status'?: DocumentGraphIndexStatusEnum;
     /**
+     * 
+     * @type {string}
+     * @memberof Document
+     */
+    'summary_index_status'?: DocumentSummaryIndexStatusEnum;
+    /**
      * Vector index last updated time
      * @type {string}
      * @memberof Document
@@ -74,6 +80,18 @@ export interface Document {
      * @memberof Document
      */
     'graph_index_updated'?: string;
+    /**
+     * Summary index last updated time
+     * @type {string}
+     * @memberof Document
+     */
+    'summary_index_updated'?: string;
+    /**
+     * Summary of the document
+     * @type {string}
+     * @memberof Document
+     */
+    'summary'?: string;
     /**
      * 
      * @type {string}
@@ -143,5 +161,16 @@ export const DocumentGraphIndexStatusEnum = {
 } as const;
 
 export type DocumentGraphIndexStatusEnum = typeof DocumentGraphIndexStatusEnum[keyof typeof DocumentGraphIndexStatusEnum];
+export const DocumentSummaryIndexStatusEnum = {
+    PENDING: 'PENDING',
+    CREATING: 'CREATING',
+    ACTIVE: 'ACTIVE',
+    DELETING: 'DELETING',
+    DELETION_IN_PROGRESS: 'DELETION_IN_PROGRESS',
+    FAILED: 'FAILED',
+    SKIPPED: 'SKIPPED'
+} as const;
+
+export type DocumentSummaryIndexStatusEnum = typeof DocumentSummaryIndexStatusEnum[keyof typeof DocumentSummaryIndexStatusEnum];
 
 

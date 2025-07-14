@@ -62,6 +62,7 @@ class CollectionStatus(str, Enum):
     INACTIVE = "INACTIVE"
     ACTIVE = "ACTIVE"
     DELETED = "DELETED"
+    SUMMARY_GENERATING = "SUMMARY_GENERATING"  # Currently generating collection summary
 
 
 class CollectionType(str, Enum):
@@ -82,6 +83,7 @@ class DocumentIndexType(str, Enum):
     VECTOR = "VECTOR"
     FULLTEXT = "FULLTEXT"
     GRAPH = "GRAPH"
+    SUMMARY = "SUMMARY"
 
 
 class DocumentIndexStatus(str, Enum):
@@ -168,7 +170,8 @@ class Collection(Base):
 
     id = Column(String(24), primary_key=True, default=lambda: "col" + random_id())
     title = Column(String(256), nullable=False)
-    description = Column(Text, nullable=True)
+    description = Column(Text, nullable=True)  # User-provided description
+    summary = Column(Text, nullable=True)  # LLM-generated summary
     user = Column(String(256), nullable=False, index=True)  # Add index for frequent queries
     status = Column(EnumColumn(CollectionStatus), nullable=False, index=True)  # Add index for status queries
     type = Column(EnumColumn(CollectionType), nullable=False)

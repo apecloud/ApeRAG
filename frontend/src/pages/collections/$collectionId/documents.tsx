@@ -16,7 +16,9 @@ import { api } from '@/services';
 import { ApeDocument } from '@/types';
 import { parseConfig } from '@/utils';
 import {
+  CopyOutlined,
   DeleteOutlined,
+  EyeOutlined,
   MoreOutlined,
   ReloadOutlined,
   SearchOutlined,
@@ -39,6 +41,7 @@ import {
   Typography,
   Upload,
   UploadProps,
+  Spin,
 } from 'antd';
 import byteSize from 'byte-size';
 import alpha from 'color-alpha';
@@ -46,6 +49,7 @@ import _ from 'lodash';
 import moment from 'moment';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { defaultStyles, FileIcon } from 'react-file-icon';
+import ReactMarkdown from 'react-markdown';
 import { toast } from 'react-toastify';
 import { FormattedMessage, useIntl, useModel, useParams } from 'umi';
 
@@ -69,6 +73,9 @@ export default () => {
   const [viewingDocument, setViewingDocument] = useState<ApeDocument | null>(
     null,
   );
+  const [summaryDrawerVisible, setSummaryDrawerVisible] = useState(false);
+  const [summaryContent, setSummaryContent] = useState<string>('');
+  const [summaryDoc, setSummaryDoc] = useState<ApeDocument | null>(null);
   const {
     data: documentsRes,
     run: getDocuments,
@@ -101,7 +108,7 @@ export default () => {
 
   const handleRebuildIndex = (document: ApeDocument) => {
     setRebuildSelectedDocument(document);
-    setRebuildSelectedTypes(['VECTOR', 'FULLTEXT', 'GRAPH']);
+    setRebuildSelectedTypes(['VECTOR', 'FULLTEXT', 'GRAPH', 'SUMMARY']);
     setRebuildModalVisible(true);
   };
 
@@ -133,6 +140,13 @@ export default () => {
     }
   };
 
+  // 新增：点击查看摘要（直接用record.summary，无需再请求接口）
+  const handleViewSummary = (record: ApeDocument) => {
+    setSummaryDoc(record);
+    setSummaryContent(record.summary || '');
+    setSummaryDrawerVisible(true);
+  };
+
   const indexTypeOptions = [
     {
       label: formatMessage({ id: 'document.index.type.vector' }),
@@ -145,6 +159,10 @@ export default () => {
     {
       label: formatMessage({ id: 'document.index.type.graph' }),
       value: 'GRAPH',
+    },
+    {
+      label: formatMessage({ id: 'document.index.type.summary' }),
+      value: 'SUMMARY',
     },
   ];
 
@@ -259,6 +277,41 @@ export default () => {
           record.graph_index_status,
           record.graph_index_updated,
         );
+      },
+    },
+    {
+      title: formatMessage({ id: 'document.index.type.summary' }),
+      dataIndex: 'summary_index_status',
+      width: 140,
+      align: 'center',
+      render: (value, record) => {
+        const status = record.summary_index_status;
+        const statusBadge = renderIndexStatus(
+          status,
+          record.summary_index_updated,
+        );
+        
+        // 只有ACTIVE状态才显示查看图标
+        if (status === 'ACTIVE') {
+          return (
+            <Space size={4}>
+              {statusBadge}
+              <Tooltip title={formatMessage({ id: 'document.summary.view' })}>
+                <EyeOutlined
+                  style={{ 
+                    cursor: 'pointer', 
+                    color: '#1677ff',
+                    fontSize: '14px'
+                  }}
+                  onClick={() => handleViewSummary(record)}
+                />
+              </Tooltip>
+            </Space>
+          );
+        }
+        
+        // 其他状态只显示badge
+        return statusBadge;
       },
     },
     {
@@ -427,6 +480,52 @@ export default () => {
       >
         {viewingDocument && collectionId && (
           <ChunkViewer document={viewingDocument} collectionId={collectionId} />
+        )}
+      </Drawer>
+
+      <Drawer
+        title={formatMessage({ id: 'document.summary.view' })}
+        placement="right"
+        width={600}
+        onClose={() => {
+          setSummaryDrawerVisible(false);
+          setSummaryContent('');
+          setSummaryDoc(null);
+        }}
+        open={summaryDrawerVisible}
+        destroyOnClose
+        extra={
+          summaryContent ? (
+            <Button
+              type="text"
+              icon={<CopyOutlined />}
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(summaryContent);
+                  toast.success(formatMessage({ id: 'document.summary.copy.success' }));
+                } catch (error) {
+                  toast.error(formatMessage({ id: 'document.summary.copy.failed' }));
+                }
+              }}
+            >
+              {formatMessage({ id: 'document.summary.copy' })}
+            </Button>
+          ) : null
+        }
+      >
+        {summaryDoc && (
+          <div style={{ marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid #f0f0f0' }}>
+            <Typography.Text strong style={{ fontSize: '16px' }}>
+              {summaryDoc.name}
+            </Typography.Text>
+          </div>
+        )}
+        {summaryContent ? (
+          <ReactMarkdown>{summaryContent}</ReactMarkdown>
+        ) : (
+          <Typography.Text type="secondary">
+            {formatMessage({ id: 'document.summary.empty' })}
+          </Typography.Text>
         )}
       </Drawer>
 

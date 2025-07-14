@@ -121,6 +121,27 @@ class DocumentIndexTask:
                         error_msg = result.get("message", "Unknown error")
                         raise Exception(f"Graph indexing failed: {error_msg}")
                     result_data = result
+
+            elif index_type == DocumentIndexType.SUMMARY.value:
+                from aperag.index.summary_index import summary_indexer
+                from aperag.schema.utils import parseCollectionConfig
+
+                # Check if summary is enabled in collection config
+                config = parseCollectionConfig(collection.config)
+                if not config.enable_summary:
+                    logger.info(f"Summary indexing disabled for document {document_id}")
+                    result_data = {"success": True, "message": "Summary indexing disabled"}
+                else:
+                    result = summary_indexer.create_index(
+                        document_id=document_id,
+                        content=parsed_data.content,
+                        doc_parts=parsed_data.doc_parts,
+                        collection=collection,
+                        file_path=parsed_data.file_path,
+                    )
+                    if not result.success:
+                        raise Exception(result.error)
+                    result_data = result.data or {"success": True}
             else:
                 raise ValueError(f"Unknown index type: {index_type}")
 
@@ -178,6 +199,13 @@ class DocumentIndexTask:
                     if result.get("status") != "success":
                         error_msg = result.get("message", "Unknown error")
                         raise Exception(f"Graph index deletion failed: {error_msg}")
+
+            elif index_type == DocumentIndexType.SUMMARY.value:
+                from aperag.index.summary_index import summary_indexer
+
+                result = summary_indexer.delete_index(document_id, collection)
+                if not result.success:
+                    raise Exception(result.error)
             else:
                 raise ValueError(f"Unknown index type: {index_type}")
 
@@ -257,6 +285,27 @@ class DocumentIndexTask:
                         error_msg = result.get("message", "Unknown error")
                         raise Exception(f"Graph indexing failed: {error_msg}")
                     result_data = result
+
+            elif index_type == DocumentIndexType.SUMMARY.value:
+                from aperag.index.summary_index import summary_indexer
+                from aperag.schema.utils import parseCollectionConfig
+
+                # Check if summary is enabled in collection config
+                config = parseCollectionConfig(collection.config)
+                if not config.enable_summary:
+                    logger.info(f"Summary indexing disabled for document {document_id}")
+                    result_data = {"success": True, "message": "Summary indexing disabled"}
+                else:
+                    result = summary_indexer.update_index(
+                        document_id=document_id,
+                        content=parsed_data.content,
+                        doc_parts=parsed_data.doc_parts,
+                        collection=collection,
+                        file_path=parsed_data.file_path,
+                    )
+                    if not result.success:
+                        raise Exception(result.error)
+                    result_data = result.data or {"success": True}
             else:
                 raise ValueError(f"Unknown index type: {index_type}")
 

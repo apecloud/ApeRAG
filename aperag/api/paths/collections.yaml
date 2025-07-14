@@ -120,6 +120,41 @@ collection:
             schema:
               $ref: '../components/schemas/collection.yaml#/collection'
 
+summary_generate:
+  post:
+    summary: Generate collection summary
+    description: Trigger collection summary generation as background task
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Collection summary generation started
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                collection_id:
+                  type: string
+                success:
+                  type: boolean
+                message:
+                  type: string
+                status:
+                  type: string
+      '404':
+        description: Collection not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
 documents:
   get:
     summary: List documents

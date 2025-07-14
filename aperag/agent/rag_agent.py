@@ -28,8 +28,8 @@ from mcp_agent.app import MCPApp
 from mcp_agent.config import LoggerSettings, MCPServerSettings, MCPSettings, OpenAISettings, Settings
 from mcp_agent.workflows.llm.augmented_llm_openai import OpenAIAugmentedLLM
 
-os.environ["APERAG_API_KEY"] = "sk-test"
-os.environ["OPENAI_API_KEY"] = "sk-test"
+os.environ["APERAG_API_KEY"] = ""
+os.environ["OPENAI_API_KEY"] = ""
 os.environ["APERAG_URL"] = "http://localhost:8000/mcp/"
 os.environ["OPENAI_BASE_URL"] = "https://openrouter.ai/api/v1"
 os.environ["DEFAULT_MODEL"] = "gpt-4o-mini"
@@ -262,7 +262,7 @@ class SimpleRAGAgent:
                             continue
 
                         print("🔍 Searching knowledge base...")
-                        response = await llm.generate_str(question)
+                        response = await llm.generate(question)
                         print(f"\n🤖 **Answer:**\n{response}")
 
                     except KeyboardInterrupt:

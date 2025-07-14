@@ -96,6 +96,7 @@ class DocumentService:
                 select(
                     db_models.Document,
                     db_models.DocumentIndex.index_type,
+                    db_models.DocumentIndex.index_data,
                     db_models.DocumentIndex.status.label("index_status"),
                     db_models.DocumentIndex.gmt_created.label("index_created_at"),
                     db_models.DocumentIndex.gmt_updated.label("index_updated_at"),
@@ -132,7 +133,7 @@ class DocumentService:
                 if doc.id not in documents_dict:
                     documents_dict[doc.id] = doc
                     # Initialize index information for all types
-                    doc.indexes = {"VECTOR": None, "FULLTEXT": None, "GRAPH": None}
+                    doc.indexes = {"VECTOR": None, "FULLTEXT": None, "GRAPH": None, "SUMMARY": None}
 
                 # Add index information if exists
                 if row.index_type:
@@ -142,6 +143,7 @@ class DocumentService:
                         "created_at": row.index_created_at,
                         "updated_at": row.index_updated_at,
                         "error_message": row.index_error_message,
+                        "index_data": row.index_data,
                     }
 
             return list(documents_dict.values())
@@ -153,7 +155,18 @@ class DocumentService:
         Build document response object with all index types information.
         """
         # Get all index information if available
-        indexes = getattr(document, "indexes", {"VECTOR": None, "FULLTEXT": None, "GRAPH": None})
+        indexes = getattr(document, "indexes", {"VECTOR": None, "FULLTEXT": None, "GRAPH": None, "SUMMARY": None})
+
+        # Parse summary from SUMMARY index's index_data
+        summary = None
+        summary_index = indexes.get("SUMMARY")
+        if summary_index and summary_index.get("index_data"):
+            try:
+                index_data = json.loads(summary_index["index_data"]) if summary_index["index_data"] else None
+                if index_data:
+                    summary = index_data.get("summary")
+            except Exception:
+                summary = None
 
         return view_models.Document(
             id=document.id,
@@ -168,6 +181,10 @@ class DocumentService:
             # Graph index information
             graph_index_status=indexes["GRAPH"]["status"] if indexes["GRAPH"] else "SKIPPED",
             graph_index_updated=indexes["GRAPH"]["updated_at"] if indexes["GRAPH"] else None,
+            # Summary index information
+            summary_index_status=indexes["SUMMARY"]["status"] if indexes.get("SUMMARY") else "SKIPPED",
+            summary_index_updated=indexes["SUMMARY"]["updated_at"] if indexes.get("SUMMARY") else None,
+            summary=summary,  # Parse from index_data
             size=document.size,
             created=document.gmt_created,
             updated=document.gmt_updated,
@@ -251,7 +268,11 @@ class DocumentService:
                     await session.refresh(document_instance)
 
                     # Create index specs for the new document
-                    index_types = [db_models.DocumentIndexType.VECTOR, db_models.DocumentIndexType.FULLTEXT]
+                    index_types = [
+                        db_models.DocumentIndexType.VECTOR,
+                        db_models.DocumentIndexType.FULLTEXT,
+                        db_models.DocumentIndexType.SUMMARY,
+                    ]
                     collection_config = json.loads(collection.config)
                     if collection_config.get("enable_knowledge_graph", False):
                         index_types.append(db_models.DocumentIndexType.GRAPH)
@@ -367,17 +388,15 @@ class DocumentService:
         return result
 
     async def rebuild_document_indexes(
-        self, user_id: str, collection_id: str, document_id: str, index_types: List[str]
+        self, user_id: str, collection_id: str, document_id: str, index_types: list[str]
     ) -> dict:
         """
         Rebuild specified indexes for a document
-
         Args:
             user_id: User ID
             collection_id: Collection ID
             document_id: Document ID
-            index_types: List of index types to rebuild ('VECTOR', 'FULLTEXT', 'GRAPH')
-
+            index_types: List of index types to rebuild ('VECTOR', 'FULLTEXT', 'GRAPH', 'SUMMARY')
         Returns:
             dict: Success response
         """
@@ -386,7 +405,6 @@ class DocumentService:
 
         logger.info(f"Rebuilding indexes for document {document_id} with types: {index_types}")
 
-        # Convert index types to enum values outside transaction
         from aperag.db.models import DocumentIndexType
 
         index_type_enums = []
@@ -397,41 +415,31 @@ class DocumentService:
                 index_type_enums.append(DocumentIndexType.FULLTEXT)
             elif index_type == "GRAPH":
                 index_type_enums.append(DocumentIndexType.GRAPH)
+            elif index_type == "SUMMARY":
+                index_type_enums.append(DocumentIndexType.SUMMARY)
             else:
                 raise invalid_param("index_type", f"Invalid index type: {index_type}")
 
-        # Execute all operations atomically in a single transaction
         async def _rebuild_document_indexes_atomically(session):
-            # Verify document exists and user has access
             document = await self.db_ops.query_document(user_id, collection_id, document_id)
             if not document:
                 raise DocumentNotFoundException(f"Document {document_id} not found")
-
             if document.collection_id != collection_id:
                 raise ResourceNotFoundException(f"Document {document_id} not found in collection {collection_id}")
-
-            # Verify user has access to the collection
             collection = await self.db_ops.query_collection(user_id, collection_id)
             if not collection or collection.user != user_id:
                 raise ResourceNotFoundException(f"Collection {collection_id} not found or access denied")
             collection_config = json.loads(collection.config)
             if not collection_config.get("enable_knowledge_graph", False):
-                # Only remove GRAPH type if it's actually in the list to avoid ValueError
                 if db_models.DocumentIndexType.GRAPH in index_type_enums:
                     index_type_enums.remove(db_models.DocumentIndexType.GRAPH)
-
-            # Trigger index rebuild by incrementing version for selected index types
+            # 支持 SUMMARY 类型的重建
             await document_index_manager.create_or_update_document_indexes(session, document_id, index_type_enums)
-
             logger.info(f"Successfully triggered rebuild for document {document_id} indexes: {index_types}")
-
             return {"code": "200", "message": f"Index rebuild initiated for types: {', '.join(index_types)}"}
 
         result = await self.db_ops.execute_with_transaction(_rebuild_document_indexes_atomically)
-
-        # Trigger index reconciliation after successful rebuild initiation
         _trigger_index_reconciliation()
-
         return result
 
     async def get_document_chunks(self, user_id: str, collection_id: str, document_id: str) -> List[Chunk]:

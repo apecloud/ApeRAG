@@ -97,6 +97,38 @@ async def delete_collection_view(
     return await collection_service.delete_collection(str(user.id), collection_id)
 
 
+@router.post("/collections/{collection_id}/summary/generate", tags=["collections"])
+@audit(resource_type="collection", api_name="GenerateCollectionSummary")
+async def generate_collection_summary_view(
+    request: Request, collection_id: str, user: User = Depends(current_user)
+) -> dict:
+    """Trigger collection summary generation as background task"""
+    from aperag.service.collection_summary_service import collection_summary_service
+
+    # Check if collection exists
+    collection = await collection_service.get_collection(str(user.id), collection_id)
+    if not collection:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    # Trigger async summary generation
+    task_triggered = await collection_summary_service.trigger_collection_summary_generation(collection_id)
+
+    if task_triggered:
+        return {
+            "collection_id": collection_id,
+            "success": True,
+            "message": "Collection summary generation started",
+            "status": "SUMMARY_GENERATING",
+        }
+    else:
+        return {
+            "collection_id": collection_id,
+            "success": False,
+            "message": "Collection summary generation already in progress",
+            "status": "SUMMARY_GENERATING",
+        }
+
+
 @router.post("/collections/test-mineru-token", tags=["collections"])
 async def test_mineru_token_view(
     request: Request,
