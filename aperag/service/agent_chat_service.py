@@ -217,21 +217,21 @@ class AgentChatService:
 
             # Get chat history for context
             history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
-            chat_history = await history.get_messages()
+            # chat_history = await history.get_messages()
 
             # Prepare conversation context for the agent
             conversation_messages = []
-            for msg in chat_history[-10:]:  # Last 10 messages for context
-                if isinstance(msg, dict):
-                    role = "user" if msg.get("role") == "human" else "assistant"
-                    content = msg.get("data", "")
-                else:
-                    # Handle message objects
-                    role = "user" if msg.type == "human" else "assistant"
-                    content = msg.content if hasattr(msg, 'content') else str(msg)
+            # for msg in chat_history[-10:]:  # Last 10 messages for context
+            #     if isinstance(msg, dict):
+            #         role = "user" if msg.get("role") == "human" else "assistant"
+            #         content = msg.get("data", "")
+            #     else:
+            #         # Handle message objects
+            #         role = "user" if msg.type == "human" else "assistant"
+            #         content = msg.content if hasattr(msg, 'content') else str(msg)
                 
-                if content:
-                    conversation_messages.append({"role": role, "content": content})
+            #     if content:
+            #         conversation_messages.append({"role": role, "content": content})
 
             try:
                 # Use agent app for intelligent conversation
