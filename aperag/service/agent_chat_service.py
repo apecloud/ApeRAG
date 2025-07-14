@@ -30,6 +30,8 @@ from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
 from aperag.utils.utils import now_unix_milliseconds
 from mcp_agent.app import MCPApp
 from mcp_agent.config import Settings, LoggerSettings, MCPSettings, MCPServerSettings, OpenAISettings
+from mcp_agent.agents.agent import Agent
+from mcp_agent.workflows.llm.augmented_llm_openai import OpenAIAugmentedLLM
 
 logger = logging.getLogger(__name__)
 
@@ -217,45 +219,40 @@ class AgentChatService:
 
             # Get chat history for context
             history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
-            # chat_history = await history.get_messages()
-
-            # Prepare conversation context for the agent
-            conversation_messages = []
-            # for msg in chat_history[-10:]:  # Last 10 messages for context
-            #     if isinstance(msg, dict):
-            #         role = "user" if msg.get("role") == "human" else "assistant"
-            #         content = msg.get("data", "")
-            #     else:
-            #         # Handle message objects
-            #         role = "user" if msg.type == "human" else "assistant"
-            #         content = msg.content if hasattr(msg, 'content') else str(msg)
-                
-            #     if content:
-            #         conversation_messages.append({"role": role, "content": content})
 
             # Use agent app for intelligent conversation
             # This integrates with the MCP system for dynamic tool usage
-            # Add current user query to conversation
-            conversation_messages.append({"role": "user", "content": agent_message.query})
-            
-            # Get response from agent app
-            response = await agent_app.generate_str(agent_message.query)
-            
-            # Handle streaming response
             full_content = ""
-            if hasattr(response, '__aiter__'):
-                # Streaming response
-                async for chunk in response:
-                    if hasattr(chunk, 'content') and chunk.content:
-                        full_content += chunk.content
-                        yield self._format_stream_content(msg_id, chunk.content)
-                    elif isinstance(chunk, str):
-                        full_content += chunk
-                        yield self._format_stream_content(msg_id, chunk)
-            else:
-                # Non-streaming response
-                full_content = str(response) if response else "No response generated"
-                yield self._format_stream_content(msg_id, full_content)
+            
+            try:
+                async with agent_app.run() as running_app:
+                    # Create agent with instruction and server names
+                    agent = Agent(
+                        name="aperag_assistant", 
+                        instruction=APERAG_AGENT_INSTRUCTION, 
+                        server_names=["aperag"]
+                    )
+                    
+                    # Verify server connection
+                    if "aperag" not in running_app.server_registry.registry:
+                        yield self._format_error("ApeRAG MCP Server connection failed")
+                        return
+                    
+                    async with agent:
+                        # Attach LLM to agent
+                        llm = await agent.attach_llm(OpenAIAugmentedLLM)
+                        
+                        # Generate response using LLM
+                        response = await llm.generate_str(agent_message.query)
+                        full_content = response if response else "No response generated"
+                        
+                        # Stream the response content
+                        yield self._format_stream_content(msg_id, full_content)
+                        
+            except Exception as e:
+                logger.error(f"Error in MCP agent execution: {e}")
+                yield self._format_error(f"Error in agent execution: {str(e)}")
+                return
             
             # Store messages in history
             await history.add_user_message(agent_message.query)
