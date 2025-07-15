@@ -29,8 +29,8 @@ from aperag.views.llm import router as llm_router
 from aperag.views.main import router as main_router
 from aperag.views.web import router as web_router
 
-# Initialize MCP server integration
-mcp_app = mcp_server.http_app(path="/")
+# Initialize MCP server integration with stateless HTTP to fix OpenAI tool call sequence issues
+mcp_app = mcp_server.http_app(path="/", stateless_http=True)
 
 # Create the main FastAPI app with MCP lifespan
 app = FastAPI(

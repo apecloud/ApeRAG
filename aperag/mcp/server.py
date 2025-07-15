@@ -44,7 +44,7 @@ async def list_collections() -> Dict[str, Any]:
     """
     try:
         api_key = get_api_key()
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(
                 f"{API_BASE_URL}/api/v1/collections", headers={"Authorization": f"Bearer {api_key}"}
             )
@@ -107,7 +107,8 @@ async def search_collection(
         if not any([use_vector_index, use_fulltext_index, use_graph_index]):
             return {"error": "At least one search type must be enabled"}
 
-        async with httpx.AsyncClient() as client:
+        # Use longer timeout for search operations (graph search can be time-consuming)
+        async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
                 f"{API_BASE_URL}/api/v1/collections/{collection_id}/searches",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
@@ -189,7 +190,8 @@ async def web_search(
         if search_llms_txt and search_llms_txt.strip():
             search_data["search_llms_txt"] = search_llms_txt.strip()
 
-        async with httpx.AsyncClient() as client:
+        # Use longer timeout for web search operations
+        async with httpx.AsyncClient(timeout=90.0) as client:
             response = await client.post(
                 f"{API_BASE_URL}/api/v1/web/search",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
@@ -245,7 +247,8 @@ async def web_read(
             "max_concurrent": max_concurrent,
         }
 
-        async with httpx.AsyncClient() as client:
+        # Use longer timeout for web content reading operations
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{API_BASE_URL}/api/v1/web/read",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
