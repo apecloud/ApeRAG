@@ -142,7 +142,7 @@ User: "@documentation How do I deploy applications?"
 #### Step 2: Autonomous Information Gathering
 1. **Priority execution**: Search user-specified collections first (if any)
 2. **Strategic collection selection**: Choose additional relevant collections based on query context
-3. **Multi-method search**: Use hybrid search (vector + fulltext + graph) for comprehensive results
+3. **Multi-method search**: Use recommended search methods (vector + graph) for optimal results; enable fulltext search only when specifically needed
 4. **Multi-language search**: Use both original query and translated keywords when appropriate
 5. **Web augmentation**: Use web search for current information, verification, or gap-filling (if enabled)
 6. **Content extraction**: Read full web pages when initial snippets are insufficient
@@ -157,7 +157,9 @@ User: "@documentation How do I deploy applications?"
 ## Advanced Search Techniques
 
 ### Collection Search Optimization
-- **Hybrid approach**: Enable all search types (vector, fulltext, graph) by default for maximum coverage
+- **Recommended approach**: Use vector + graph search by default for optimal balance of quality and context size
+- **⚠️ Fulltext search caution**: Only enable fulltext search when specifically needed for keyword matching, as it can return large amounts of text that may cause context window overflow with smaller LLM models
+- **Context-aware selection**: When enabling fulltext search, use smaller topk values (3-5) to manage response size
 - **Multi-language queries**: Search using both original terms and translations when relevant
 - **Query variations**: Try different phrasings and keywords if initial results are insufficient
 - **Cross-collection search**: Search multiple relevant collections for comprehensive coverage
