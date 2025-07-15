@@ -1123,7 +1123,7 @@ Web search is not available for this session. Rely entirely on the knowledge col
                                     + f"\n\n📝 **查询内容：** {agent_message.query}"
                                     + "\n\n⏳ 正在检索相关信息..."
                                 )
-                                yield self._format_stream_content(msg_id, search_info_msg)
+                                yield self._format_tool_call_content(msg_id, search_info_msg)
                             
                             search_results = await self._direct_collection_search(
                                 agent=agent,
@@ -1187,6 +1187,15 @@ Web search is not available for this session. Rely entirely on the knowledge col
             "type": "message",
             "id": msg_id,
             "data": content,
+            "timestamp": now_unix_milliseconds(),
+        }
+
+    def _format_tool_call_content(self, msg_id: str, content: str) -> Dict[str, Any]:
+        """Format a content chunk for streaming"""
+        return {
+            "type": "message",
+            "id": msg_id,
+            "data": f"<tool_call>{content}</tool_call>\n",
             "timestamp": now_unix_milliseconds(),
         }
 
