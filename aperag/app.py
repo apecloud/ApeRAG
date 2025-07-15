@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+
 from fastapi import FastAPI
 
 from aperag.exception_handlers import register_exception_handlers

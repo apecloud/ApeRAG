@@ -18,13 +18,12 @@ from typing import Any, List
 
 from sqlalchemy import and_, select
 
-from aperag.config import settings
+from aperag.config import get_vector_db_connector, settings
 from aperag.index.base import BaseIndexer, IndexResult, IndexType
 from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
 from aperag.llm.embed.embedding_utils import create_embeddings_and_store
 from aperag.utils.tokenizer import get_default_tokenizer
 from aperag.utils.utils import generate_vector_db_collection_name
-from aperag.config import get_vector_db_connector
 
 logger = logging.getLogger(__name__)
 

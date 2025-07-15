@@ -17,6 +17,7 @@ from typing import Any
 
 from asgiref.sync import Dict, async_to_sync
 
+from aperag.config import get_vector_db_connector
 from aperag.db.models import CollectionStatus
 from aperag.db.ops import db_ops
 from aperag.graph import lightrag_manager
@@ -28,7 +29,6 @@ from aperag.utils.utils import (
     generate_fulltext_index_name,
     generate_vector_db_collection_name,
 )
-from aperag.config import get_vector_db_connector
 
 logger = logging.getLogger(__name__)
 

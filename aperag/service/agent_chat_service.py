@@ -20,25 +20,20 @@ import uuid
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from fastapi import WebSocket
+from mcp_agent.agents.agent import Agent
+from mcp_agent.app import MCPApp
+from mcp_agent.config import LoggerSettings, MCPServerSettings, MCPSettings, OpenAISettings, Settings
+from mcp_agent.workflows.llm.augmented_llm import RequestParams, SimpleMemory
+from mcp_agent.workflows.llm.augmented_llm_openai import OpenAIAugmentedLLM
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.config import settings
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.flow.runners.llm import add_ai_message, add_human_message
-from aperag.schema import view_models
-from aperag.utils.constant import DOC_QA_REFERENCES, DOCUMENT_URLS
-from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
-from aperag.utils.utils import now_unix_milliseconds
-from mcp_agent.app import MCPApp
-from mcp_agent.config import Settings, LoggerSettings, MCPSettings, MCPServerSettings, OpenAISettings
-from mcp_agent.agents.agent import Agent
-from mcp_agent.workflows.llm.augmented_llm_openai import OpenAIAugmentedLLM
-from mcp_agent.workflows.llm.augmented_llm import RequestParams
-from mcp_agent.workflows.llm.augmented_llm import SimpleMemory
 
 # Import MCP server for direct collection search access
-from aperag.mcp.server import mcp_server
-
+from aperag.schema import view_models
+from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
+from aperag.utils.utils import now_unix_milliseconds
 
 logger = logging.getLogger(__name__)
 
@@ -652,44 +647,13 @@ class AgentChatService:
         self,
         collection_ids: Optional[List[str]] = None,
         web_search_enabled: bool = False,
-        pre_search_results: Optional[List[Dict[str, Any]]] = None
     ) -> str:
         """Create dynamic instruction based on agent parameters"""
         instruction = APERAG_AGENT_INSTRUCTION
         
         # Add collection-specific context and pre-search results
-        if collection_ids:
-            if pre_search_results:
-                # Pre-searched mode: results are already available
-                search_context = self._format_pre_search_context(collection_ids, pre_search_results)
-                collection_context = f"""
 
-## Current Session Context
-
-### Pre-searched Collections:
-I have already searched these collections for relevant information:
-{chr(10).join(f"- {collection_id}" for collection_id in collection_ids)}
-
-### Retrieved Knowledge:
-{search_context}
-
-**Important**: Use the above retrieved knowledge to answer the user's question. You do not need to search these collections again. If the retrieved knowledge is insufficient, you may use web search (if enabled) for additional information.
-"""
-            else:
-                # Collection specified but no pre-search results
-                collection_context = f"""
-
-## Current Session Context
-
-### Specified Collections:
-You have been configured to search within these specific collections:
-{chr(10).join(f"- {collection_id}" for collection_id in collection_ids)}
-
-**Important**: Only use these specified collections. Do not list or search other collections.
-"""
-            instruction += collection_context
-        else:
-            collection_context = """
+        collection_context = """
 
 ## Current Session Context
 
@@ -699,7 +663,7 @@ No specific collections have been specified. You must:
 2. Analyze the user's query to determine the most relevant collections
 3. Select and search the appropriate collections for comprehensive answers
 """
-            instruction += collection_context
+        instruction += collection_context
 
         # Add web search context
         if web_search_enabled:
@@ -796,13 +760,14 @@ Web search is not available for this session. Rely entirely on the knowledge col
 
     async def _direct_collection_search(
         self, 
+        agent,
         user: str, 
         collection_ids: List[str], 
         query: str
     ) -> Optional[List[Dict[str, Any]]]:
         """
-        Directly search collections using MCP interface to maintain consistency with LLM tool calls.
-        This ensures the same logic and behavior as when LLM calls MCP interface.
+        Directly search collections using agent.call_tool interface to maintain consistency with LLM tool calls.
+        This ensures the same logic and behavior as when LLM calls agent interface.
         Includes preprocessing: deduplication, content optimization, and error handling.
         """
         try:
@@ -811,17 +776,32 @@ Web search is not available for this session. Rely entirely on the knowledge col
             
             for collection_id in collection_ids:
                 try:
-                    # Get MCP search tool and call its function to maintain consistency
+                    # Use agent.call_tool to maintain consistency with LLM tool calls
                     # Uses hybrid search by default (all search types enabled)
-                    search_tool = await mcp_server.get_tool('search_collection')
-                    mcp_result = await search_tool.fn(
-                        collection_id=collection_id,
-                        query=query,
-                        use_vector_index=True,
-                        use_fulltext_index=True,
-                        use_graph_index=True,
-                        topk=8  # Slightly more results for better preprocessing
+                    search_collection_resp = await agent.call_tool(
+                        name="search_collection",
+                        arguments={
+                            "collection_id": collection_id,
+                            "query": query,
+                            "use_vector_index": True,
+                            "use_fulltext_index": True,
+                            "use_graph_index": True,
+                            "topk": 8,
+                        },
+                        server_name="aperag",
                     )
+                    
+                    # Handle agent tool response - extract from response format
+                    mcp_result = None
+                    if search_collection_resp and hasattr(search_collection_resp, 'content'):
+                        # Extract content from agent response
+                        for content_item in search_collection_resp.content:
+                            if hasattr(content_item, 'text'):
+                                try:
+                                    mcp_result = json.loads(content_item.text)
+                                    break
+                                except json.JSONDecodeError:
+                                    logger.warning(f"Failed to parse agent response as JSON: {content_item.text}")
                     
                     # Handle MCP response (dict format)
                     if mcp_result and "error" not in mcp_result and "items" in mcp_result:
@@ -845,7 +825,7 @@ Web search is not available for this session. Rely entirely on the knowledge col
                     
                     elif mcp_result and "error" in mcp_result:
                         # Handle MCP error response
-                        logger.warning(f"MCP search error for collection {collection_id}: {mcp_result['error']}")
+                        logger.warning(f"Agent search error for collection {collection_id}: {mcp_result['error']}")
                         error_result = {
                             "collection_id": collection_id,
                             "query": query,
@@ -856,7 +836,7 @@ Web search is not available for this session. Rely entirely on the knowledge col
                         
                 except Exception as e:
                     traceback.print_exc()
-                    logger.warning(f"MCP search failed for collection {collection_id}: {e}")
+                    logger.warning(f"Agent search failed for collection {collection_id}: {e}")
                     # Add error info to results for transparency
                     error_result = {
                         "collection_id": collection_id,
@@ -950,7 +930,6 @@ Web search is not available for this session. Rely entirely on the knowledge col
         collection_ids: Optional[List[str]] = None,
         model_name: Optional[str] = None,
         web_search_enabled: bool = False,
-        pre_search_results: Optional[List[Dict[str, Any]]] = None
     ) -> Optional[Settings]:
         """Create MCP settings dynamically based on agent message parameters"""
         if not MCPApp:
@@ -961,7 +940,7 @@ Web search is not available for this session. Rely entirely on the knowledge col
         openai_settings = self._get_openai_settings(model_name)
 
         # Create dynamic instruction
-        system_instruction = self._create_dynamic_instruction(collection_ids, web_search_enabled, pre_search_results)
+        system_instruction = self._create_dynamic_instruction(collection_ids, web_search_enabled)
 
         try:
             return Settings(
@@ -1001,10 +980,9 @@ Web search is not available for this session. Rely entirely on the knowledge col
         collection_ids: Optional[List[str]] = None,
         model_name: Optional[str] = None,
         web_search_enabled: bool = False,
-        pre_search_results: Optional[List[Dict[str, Any]]] = None
     ) -> Optional[MCPApp]:
         """Create MCPApp instance dynamically based on agent parameters"""
-        settings = self._create_mcp_settings(collection_ids, model_name, web_search_enabled, pre_search_results)
+        settings = self._create_mcp_settings(collection_ids, model_name, web_search_enabled)
         if not settings:
             return None
 
@@ -1074,25 +1052,18 @@ Web search is not available for this session. Rely entirely on the knowledge col
         """
         try:
             # Validate collections if specified
-            search_results = None
             if agent_message.collection_ids:
                 for collection_id in agent_message.collection_ids:
                     collection = await self.db_ops.query_collection(user, collection_id)
                     if not collection:
                         yield self._format_error(f"Collection {collection_id} not found")
                         return
-                
-                # If collections are specified, perform direct search to avoid LLM tool call overhead
-                search_results = await self._direct_collection_search(
-                    user, agent_message.collection_ids, agent_message.query
-                )
 
             # Create dynamic agent app
             agent_app = self._create_agent_app(
                 collection_ids=agent_message.collection_ids,
                 model_name=agent_message.model_name,
                 web_search_enabled=agent_message.web_search_enabled or False,
-                pre_search_results=search_results
             )
 
             if not agent_app:
@@ -1117,8 +1088,7 @@ Web search is not available for this session. Rely entirely on the knowledge col
                         instruction=self._create_dynamic_instruction(
                             agent_message.collection_ids,
                             agent_message.web_search_enabled or False,
-                            search_results
-                        ), 
+                        ),
                         server_names=["aperag"],
                     )
                     
@@ -1128,6 +1098,40 @@ Web search is not available for this session. Rely entirely on the knowledge col
                         return
                     
                     async with agent:
+
+                        # Perform direct collection search if collections are specified
+                        if agent_message.collection_ids:
+                            # Get collection information and notify user
+                            collection_info_parts = []
+                            for collection_id in agent_message.collection_ids:
+                                try:
+                                    collection = await self.db_ops.query_collection(user, collection_id)
+                                    if collection:
+                                        collection_info_parts.append(
+                                            f"📚 **{collection.title}** (ID: {collection.id})"
+                                            + (f" - {collection.description}" if collection.description else "")
+                                        )
+                                    else:
+                                        collection_info_parts.append(f"⚠️ Collection {collection_id} (未找到)")
+                                except Exception as e:
+                                    collection_info_parts.append(f"❌ Collection {collection_id} (查询失败: {str(e)})")
+                            
+                            if collection_info_parts:
+                                search_info_msg = (
+                                    "🔍 **正在搜索以下知识库：**\n\n"
+                                    + "\n".join(collection_info_parts)
+                                    + f"\n\n📝 **查询内容：** {agent_message.query}"
+                                    + "\n\n⏳ 正在检索相关信息..."
+                                )
+                                yield self._format_stream_content(msg_id, search_info_msg)
+                            
+                            search_results = await self._direct_collection_search(
+                                agent=agent,
+                                user=user,
+                                collection_ids=agent_message.collection_ids,
+                                query=agent_message.query
+                            )
+
                         # Attach LLM to agent
                         llm = await agent.attach_llm(OpenAIAugmentedLLM)
 
@@ -1151,12 +1155,8 @@ Web search is not available for this session. Rely entirely on the knowledge col
                 return
             
             # Generate references - either from tool calls or direct search results
-            if search_results:
-                # Use direct search results as references
-                tool_references = self._format_direct_search_references(search_results)
-            else:
-                # Extract tool call results from history and format as references
-                tool_references = self._extract_tool_call_references(memory)
+            # Extract tool call results from history and format as references
+            tool_references = self._extract_tool_call_references(memory)
             
             # Store messages in history
             await add_human_message(history, agent_message.query, "")
