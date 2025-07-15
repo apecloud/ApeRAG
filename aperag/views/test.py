@@ -26,10 +26,9 @@ from aperag.utils.utils import utc_now
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+
 @router.post("/test/register_admin", tags=["test"])
-async def test_register_admin(
-    request: Request, data: view_models.Register, session: AsyncSessionDep
-):
+async def test_register_admin(request: Request, data: view_models.Register, session: AsyncSessionDep):
     if os.environ.get("DEPLOYMENT_MODE") != "dev":
         raise HTTPException(status_code=403, detail="Not allowed")
 

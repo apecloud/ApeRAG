@@ -356,6 +356,7 @@ class ChatService:
             if bot.type == db_models.BotType.AGENT:
                 # Use AgentChatService for agent-type bots
                 from aperag.service.agent_chat_service import AgentChatService
+
                 agent_service = AgentChatService()
                 await agent_service.handle_websocket_agent_chat(websocket, user, bot_id, chat_id)
                 return

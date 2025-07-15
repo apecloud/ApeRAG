@@ -176,8 +176,7 @@ class Config(BaseSettings):
         # CELERY_BROKER_URL
         if not self.celery_broker_url:
             self.celery_broker_url = (
-                f"redis://{self.redis_user}:{self.redis_password}"
-                f"@{self.redis_host}:{self.redis_port}/0"
+                f"redis://{self.redis_user}:{self.redis_password}@{self.redis_host}:{self.redis_port}/0"
             )
 
         # CELERY_RESULT_BACKEND
@@ -187,20 +186,16 @@ class Config(BaseSettings):
         # MEMORY_REDIS_URL
         if not self.memory_redis_url:
             self.memory_redis_url = (
-                f"redis://{self.redis_user}:{self.redis_password}"
-                f"@{self.redis_host}:{self.redis_port}/1"
+                f"redis://{self.redis_user}:{self.redis_password}@{self.redis_host}:{self.redis_port}/1"
             )
         # ES_HOST
         if not self.es_host:
             if self.es_user and self.es_password:
                 self.es_host = (
-                    f"{self.es_protocol}://{self.es_user}:{self.es_password}"
-                    f"@{self.es_host_name}:{self.es_port}"
+                    f"{self.es_protocol}://{self.es_user}:{self.es_password}@{self.es_host_name}:{self.es_port}"
                 )
             else:
-                self.es_host = (
-                    f"{self.es_protocol}://{self.es_host_name}:{self.es_port}"
-                )
+                self.es_host = f"{self.es_protocol}://{self.es_host_name}:{self.es_port}"
         # Object store config
         if self.object_store_type == "local":
             self.object_store_local_config = LocalObjectStoreConfig()

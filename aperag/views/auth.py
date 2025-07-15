@@ -520,4 +520,3 @@ async def delete_user_view(
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
     await async_db_ops.delete_user(session, target)
     return {"message": "User deleted successfully"}
-
