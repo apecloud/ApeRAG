@@ -17,6 +17,7 @@ import logging
 import os
 import traceback
 import uuid
+import asyncio
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from fastapi import WebSocket
@@ -34,6 +35,9 @@ from aperag.flow.runners.llm import add_ai_message, add_human_message
 from aperag.schema import view_models
 from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
 from aperag.utils.utils import now_unix_milliseconds
+from mcp_agent.logging.listeners import EventListener
+from mcp_agent.logging.events import Event
+from mcp_agent.logging.transport import AsyncEventBus
 
 logger = logging.getLogger(__name__)
 
@@ -267,6 +271,24 @@ You have powerful tools at your disposal - use them strategically and thoroughly
 
 Ready to assist with your research and knowledge discovery needs in any language!
 """
+
+
+class ToolCallListener(EventListener):
+    """简单的工具调用监听器"""
+    
+    def __init__(self):
+        self.tool_calls = []
+
+    async def handle_event(self, event: Event):
+        """处理工具调用事件"""
+        try:
+            if event.message is not None and event.message == 'Requesting tool call':
+                tool_name = event.data.get("tool_name", "unknown_tool")
+                tool_call_info = f"🔧 Calling tool: {tool_name}"
+                self.tool_calls.append(tool_call_info)
+                logger.debug(f"Tool call detected: {tool_name}")
+        except Exception as e:
+            logger.error(f"Error in tool call listener: {e}")
 
 
 class AgentChatService:
@@ -879,27 +901,63 @@ Please provide a thorough, well-researched answer that leverages all appropriate
                         return
 
                     async with agent:
-                        # Attach LLM to agent
-                        llm = await agent.attach_llm(OpenAIAugmentedLLM)
+                        # Create tool call listener
+                        tool_listener = ToolCallListener()
+                        
+                        # Register the listener with AsyncEventBus
+                        event_bus = AsyncEventBus.get()
+                        event_bus.add_listener("tool_call_monitor", tool_listener)
+                        
+                        try:
+                            # Attach LLM to agent
+                            llm = await agent.attach_llm(OpenAIAugmentedLLM)
 
-                        request_params = RequestParams(
-                            max_iterations=10,
-                            parallel_tool_calls=True,
-                            model="google/gemini-2.5-flash",
-                        )
+                            request_params = RequestParams(
+                                max_iterations=10,
+                                parallel_tool_calls=True,
+                                model="google/gemini-2.5-flash",
+                            )
 
-                        llm.history = memory
+                            llm.history = memory
 
-                        # Build comprehensive prompt with context and pre-search results
-                        comprehensive_prompt = self._build_llm_query_prompt(agent_message=agent_message, user=user)
+                            # Build comprehensive prompt with context and pre-search results
+                            comprehensive_prompt = self._build_llm_query_prompt(agent_message=agent_message, user=user)
 
-                        # Generate response using LLM with comprehensive prompt
-                        response = await llm.generate_str(comprehensive_prompt, request_params)
-                        full_content = response if response else "No response generated"
+                            # Start generate_str in background and monitor tool calls
+                            generate_task = asyncio.create_task(
+                                llm.generate_str(comprehensive_prompt, request_params)
+                            )
+                            
+                            # Monitor tool calls while generate_str is running
+                            sent_count = 0
+                            while not generate_task.done():
+                                # Check for new tool calls from event listener
+                                current_count = len(tool_listener.tool_calls)
+                                if current_count > sent_count:
+                                    # Send new tool calls immediately
+                                    for i in range(sent_count, current_count):
+                                        yield self._format_tool_call_content(msg_id, tool_listener.tool_calls[i])
+                                    sent_count = current_count
+                                
+                                # Small delay to avoid busy waiting
+                                await asyncio.sleep(0.05)
 
-                        # Stream the response content
-                        yield self._format_stream_content(msg_id, full_content)
-                        memory = llm.history
+                            # Get the final response
+                            response = await generate_task
+                            full_content = response if response else "No response generated"
+
+                            # Send any remaining tool calls that might have been missed
+                            if len(tool_listener.tool_calls) > sent_count:
+                                for i in range(sent_count, len(tool_listener.tool_calls)):
+                                    yield self._format_tool_call_content(msg_id, tool_listener.tool_calls[i])
+
+                            # Stream the response content
+                            yield self._format_stream_content(msg_id, full_content)
+                            memory = llm.history
+                            
+                        finally:
+                            # Clean up: remove the listener
+                            event_bus.remove_listener("tool_call_monitor")
 
             except Exception as e:
                 logger.error(f"Error in MCP agent execution: {e}")
