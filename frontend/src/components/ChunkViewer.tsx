@@ -1,4 +1,5 @@
 import { DocumentPreview } from '@/api';
+import { getAuthorizationHeader } from '@/models/user';
 import { api } from '@/services';
 import { ApeDocument, Chunk } from '@/types';
 import { useDebounceFn, useRequest } from 'ahooks';
@@ -13,7 +14,6 @@ import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
-import { getAuthorizationHeader } from '@/models/user';
 import { FormattedMessage } from 'umi';
 import { visit } from 'unist-util-visit';
 import { AuthAssetImage } from './AuthAssetImage';
@@ -148,18 +148,12 @@ export const ChunkViewer = ({
         setPdfUrl(url);
       }
     }
-  }, [
-    viewMode,
-    canShowPdfPreview,
-    previewData,
-    collectionId,
-    initialDoc.id,
-  ]);
+  }, [viewMode, canShowPdfPreview, previewData, collectionId, initialDoc.id]);
 
   const pdfOptions = useMemo(() => {
     return {
       httpHeaders: getAuthorizationHeader(),
-      rangeChunkSize: 256*1024,
+      rangeChunkSize: 256 * 1024,
       disableStream: true,
       disableAutoFetch: true,
     };
@@ -459,7 +453,6 @@ export const ChunkViewer = ({
     }
     return highlights;
   };
-
 
   const markdownComponents: Components = useMemo(
     () => ({

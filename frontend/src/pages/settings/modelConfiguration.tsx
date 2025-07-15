@@ -1,13 +1,13 @@
-import { 
-  LlmConfigurationResponse, 
-  LlmProvider, 
+import {
+  LlmConfigurationResponse,
+  LlmProvider,
   LlmProviderModel,
   LlmProviderModelCreate,
-  LlmProviderModelUpdate
+  LlmProviderModelUpdate,
 } from '@/api';
-import { 
+import {
   LlmProvidersProviderNameModelsApiModelDeleteApiEnum,
-  LlmProvidersProviderNameModelsApiModelPutApiEnum
+  LlmProvidersProviderNameModelsApiModelPutApiEnum,
 } from '@/api/apis/default-api';
 import { PageContainer, PageHeader, RefreshButton } from '@/components';
 import { api } from '@/services';
@@ -40,7 +40,7 @@ import {
   Tooltip,
   Typography,
 } from 'antd';
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useIntl, useModel } from 'umi';
 
 const { Title, Text } = Typography;
@@ -66,9 +66,11 @@ export default () => {
   const [editingProvider, setEditingProvider] = useState<LlmProvider | null>(
     null,
   );
-  
+
   // Provider status state
-  const [providerStatus, setProviderStatus] = useState<'enable' | 'disable'>('enable');
+  const [providerStatus, setProviderStatus] = useState<'enable' | 'disable'>(
+    'enable',
+  );
 
   // API Key配置相关状态 - 已移除，API Key现在直接在LLM Provider中管理
 
@@ -124,7 +126,7 @@ export default () => {
   const handleEditProvider = useCallback(
     async (provider: LlmProvider) => {
       setEditingProvider(provider);
-      
+
       // Set provider status based on API key presence
       const enabled = isProviderEnabled(provider);
       setProviderStatus(enabled ? 'enable' : 'disable');
@@ -214,15 +216,18 @@ export default () => {
   );
 
   // Handle provider status toggle
-  const handleProviderStatusChange = useCallback((enabled: boolean) => {
-    const newStatus = enabled ? 'enable' : 'disable';
-    setProviderStatus(newStatus);
-    
-    // If disabling, clear the API key field
-    if (newStatus === 'disable') {
-      providerForm.setFieldValue('api_key', '');
-    }
-  }, [providerForm]);
+  const handleProviderStatusChange = useCallback(
+    (enabled: boolean) => {
+      const newStatus = enabled ? 'enable' : 'disable';
+      setProviderStatus(newStatus);
+
+      // If disabling, clear the API key field
+      if (newStatus === 'disable') {
+        providerForm.setFieldValue('api_key', '');
+      }
+    },
+    [providerForm],
+  );
 
   // Model management operations
   const handleManageModels = useCallback((provider: LlmProvider) => {
@@ -290,7 +295,13 @@ export default () => {
         setLoading(false);
       }
     },
-    [editingModel, currentProvider, setLoading, fetchConfiguration, formatMessage],
+    [
+      editingModel,
+      currentProvider,
+      setLoading,
+      fetchConfiguration,
+      formatMessage,
+    ],
   );
 
   const handleDeleteModel = useCallback(
@@ -395,7 +406,7 @@ export default () => {
         title: formatMessage({ id: 'model.provider.name' }),
         dataIndex: 'label',
         key: 'label',
-        render: (text: string, record: any) => <span>{text}</span>,
+        render: (text: string) => <span>{text}</span>,
       },
     ];
 
@@ -407,10 +418,9 @@ export default () => {
         key: 'user_id',
         render: (user_id: string) => (
           <Tag color={user_id === 'public' ? 'blue' : 'green'}>
-            {user_id === 'public' 
+            {user_id === 'public'
               ? formatMessage({ id: 'model.provider.type.public' })
-              : formatMessage({ id: 'model.provider.type.user' })
-            }
+              : formatMessage({ id: 'model.provider.type.user' })}
           </Tag>
         ),
       });
@@ -421,15 +431,14 @@ export default () => {
       {
         title: formatMessage({ id: 'common.status' }),
         key: 'status',
-        dataIndex: '',  // Add empty dataIndex to satisfy type requirement
+        dataIndex: '', // Add empty dataIndex to satisfy type requirement
         render: (_, record) => {
           const enabled = isProviderEnabled(record);
           return (
             <Tag color={enabled ? 'green' : 'default'}>
-              {enabled 
+              {enabled
                 ? formatMessage({ id: 'common.enabled' })
-                : formatMessage({ id: 'common.disabled' })
-              }
+                : formatMessage({ id: 'common.disabled' })}
             </Tag>
           );
         },
@@ -440,13 +449,15 @@ export default () => {
         key: 'base_url',
         render: (url: string) => (
           <Tooltip title={url}>
-            <span style={{ 
-              maxWidth: '280px', 
-              display: 'inline-block',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap' 
-            }}>
+            <span
+              style={{
+                maxWidth: '280px',
+                display: 'inline-block',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
               {url}
             </span>
           </Tooltip>
@@ -458,14 +469,16 @@ export default () => {
         key: 'api_key',
         render: (apiKey: string) => (
           <Tag color={apiKey ? 'green' : 'red'}>
-            {formatMessage({ id: apiKey ? 'common.configured' : 'common.not_configured' })}
+            {formatMessage({
+              id: apiKey ? 'common.configured' : 'common.not_configured',
+            })}
           </Tag>
         ),
       },
       {
         title: formatMessage({ id: 'model.provider.model_count' }),
         key: 'model_count',
-        dataIndex: '',  // Add empty dataIndex to satisfy type requirement
+        dataIndex: '', // Add empty dataIndex to satisfy type requirement
         render: (_, record: LlmProvider) => (
           <span>{getProviderModelCount(record.name)}</span>
         ),
@@ -504,7 +517,15 @@ export default () => {
     );
 
     return baseColumns;
-  }, [formatMessage, user?.role, isProviderEnabled, getProviderModelCount, handleManageModels, handleEditProvider, handleDeleteProvider]);
+  }, [
+    formatMessage,
+    user?.role,
+    isProviderEnabled,
+    getProviderModelCount,
+    handleManageModels,
+    handleEditProvider,
+    handleDeleteProvider,
+  ]);
 
   // Model table columns
   const modelColumns: TableProps<LlmProviderModel>['columns'] = [
@@ -758,13 +779,14 @@ export default () => {
                 checked={providerStatus === 'enable'}
                 onChange={handleProviderStatusChange}
                 checkedChildren={formatMessage({ id: 'model.provider.enable' })}
-                unCheckedChildren={formatMessage({ id: 'model.provider.disable' })}
+                unCheckedChildren={formatMessage({
+                  id: 'model.provider.disable',
+                })}
               />
               <Text type="secondary" style={{ fontSize: '12px' }}>
-                {providerStatus === 'enable' 
+                {providerStatus === 'enable'
                   ? formatMessage({ id: 'model.provider.enable.help' })
-                  : formatMessage({ id: 'model.provider.disable.help' })
-                }
+                  : formatMessage({ id: 'model.provider.disable.help' })}
               </Text>
             </Space>
           </Form.Item>
@@ -775,15 +797,23 @@ export default () => {
               label={formatMessage({ id: 'model.provider.api_key' })}
               rules={
                 !editingProvider
-                  ? [{
-                      required: true,
-                      message: formatMessage({ id: 'model.provider.api_key.required' }),
-                    }]
-                  : !editingProvider.api_key
-                    ? [{
+                  ? [
+                      {
                         required: true,
-                        message: formatMessage({ id: 'model.provider.api_key.required' }),
-                      }]
+                        message: formatMessage({
+                          id: 'model.provider.api_key.required',
+                        }),
+                      },
+                    ]
+                  : !editingProvider.api_key
+                    ? [
+                        {
+                          required: true,
+                          message: formatMessage({
+                            id: 'model.provider.api_key.required',
+                          }),
+                        },
+                      ]
                     : []
               }
               help={
@@ -800,7 +830,9 @@ export default () => {
                     ? formatMessage({
                         id: 'model.provider.api_key.edit.placeholder',
                       })
-                    : formatMessage({ id: 'model.provider.api_key.placeholder' })
+                    : formatMessage({
+                        id: 'model.provider.api_key.placeholder',
+                      })
                 }
                 autoComplete="off"
                 spellCheck={false}

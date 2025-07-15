@@ -14,29 +14,21 @@
 
 import logging
 import os
-import secrets
-from datetime import timedelta
-from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, WebSocket
-from fastapi_users import BaseUserManager, FastAPIUsers
-from fastapi_users.authentication import AuthenticationBackend, CookieTransport, JWTStrategy
-from fastapi_users.db import SQLAlchemyUserDatabase
+from fastapi import APIRouter, HTTPException, Request
+from fastapi_users import BaseUserManager
 
-from aperag.config import AsyncSessionDep, settings
-from aperag.db.models import ApiKey, ApiKeyStatus, Invitation, Role, User
-from aperag.db.ops import async_db_ops
+from aperag.config import AsyncSessionDep
+from aperag.db.models import Role, User
 from aperag.schema import view_models
-from aperag.utils.audit_decorator import audit
 from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+
 @router.post("/test/register_admin", tags=["test"])
-async def test_register_admin(
-    request: Request, data: view_models.Register, session: AsyncSessionDep
-):
+async def test_register_admin(request: Request, data: view_models.Register, session: AsyncSessionDep):
     if os.environ.get("DEPLOYMENT_MODE") != "dev":
         raise HTTPException(status_code=403, detail="Not allowed")
 

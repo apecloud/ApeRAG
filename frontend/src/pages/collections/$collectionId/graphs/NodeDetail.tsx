@@ -34,7 +34,8 @@ export const NodeDetail = ({
         display: 'flex',
         flexDirection: 'column',
         transform: `translateX(${node ? 0 : 2 * width}px)`,
-        transition: `0.3s`,
+        transition: `0.2s`,
+        zIndex: 100,
       }}
       styles={{
         header: {},

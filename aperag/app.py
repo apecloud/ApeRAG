@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+
 from fastapi import FastAPI
 
 from aperag.exception_handlers import register_exception_handlers
@@ -65,6 +66,7 @@ app.include_router(config_router, prefix="/api/v1/config")
 # Only include test router in dev mode
 if os.environ.get("DEPLOYMENT_MODE") == "dev":
     from aperag.views.test import router as test_router
+
     app.include_router(test_router, prefix="/api/v1")
 
 # Mount the MCP server at /mcp path
