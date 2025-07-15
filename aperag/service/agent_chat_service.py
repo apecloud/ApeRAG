@@ -32,6 +32,8 @@ from mcp_agent.config import Settings, LoggerSettings, MCPSettings, MCPServerSet
 from mcp_agent.agents.agent import Agent
 from mcp_agent.workflows.llm.augmented_llm_openai import OpenAIAugmentedLLM
 from mcp_agent.workflows.llm.augmented_llm import RequestParams
+from mcp_agent.workflows.llm.augmented_llm import SimpleMemory
+
 
 logger = logging.getLogger(__name__)
 
@@ -364,6 +366,7 @@ Web search is not available for this session. Rely entirely on the knowledge col
     ):
         """Handle WebSocket connections for agent-type bot chats"""
         try:
+            memory = SimpleMemory()
             while True:
                 # Receive message from WebSocket
                 data = await websocket.receive_text()
@@ -386,7 +389,7 @@ Web search is not available for this session. Rely entirely on the knowledge col
                     )
                     # Process the agent message and stream responses
                     async for response_chunk in self.process_agent_message(
-                        agent_message, user, chat_id, message_id
+                        agent_message, user, chat_id, message_id, memory
                     ):
                         await websocket.send_text(json.dumps(response_chunk))
 
@@ -403,7 +406,8 @@ Web search is not available for this session. Rely entirely on the knowledge col
         agent_message: view_models.AgentMessage,
         user: str,
         chat_id: str,
-        msg_id: str
+        msg_id: str,
+        memory,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Process an agent message and yield streaming responses.
@@ -467,12 +471,14 @@ Web search is not available for this session. Rely entirely on the knowledge col
                             parallel_tool_calls=True,
                         )
                         
+                        llm.history = memory
                         # Generate response using LLM
                         response = await llm.generate_str(agent_message.query, request_params)
                         full_content = response if response else "No response generated"
                         
                         # Stream the response content
                         yield self._format_stream_content(msg_id, full_content)
+                        memory = llm.history
                         
             except Exception as e:
                 logger.error(f"Error in MCP agent execution: {e}")
