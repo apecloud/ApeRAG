@@ -645,7 +645,6 @@ class AgentChatService:
 
     def _create_dynamic_instruction(
         self,
-        collection_ids: Optional[List[str]] = None,
         web_search_enabled: bool = False,
     ) -> str:
         """Create dynamic instruction based on agent parameters"""
@@ -926,10 +925,8 @@ Web search is not available for this session. Rely entirely on the knowledge col
                 return truncated.strip() + "..."
 
     def _create_mcp_settings(
-        self, 
-        collection_ids: Optional[List[str]] = None,
+        self,
         model_name: Optional[str] = None,
-        web_search_enabled: bool = False,
     ) -> Optional[Settings]:
         """Create MCP settings dynamically based on agent message parameters"""
         if not MCPApp:
@@ -938,9 +935,6 @@ Web search is not available for this session. Rely entirely on the knowledge col
 
         aperag_settings = self._get_aperag_api_settings()
         openai_settings = self._get_openai_settings(model_name)
-
-        # Create dynamic instruction
-        system_instruction = self._create_dynamic_instruction(collection_ids, web_search_enabled)
 
         try:
             return Settings(
@@ -969,20 +963,16 @@ Web search is not available for this session. Rely entirely on the knowledge col
                     temperature=0.7,
                     max_tokens=2000,
                 ),
-                system_instruction=system_instruction,
             )
         except Exception as e:
             logger.error(f"Failed to create MCP settings: {e}")
             return None
 
-    def _create_agent_app(
+    def _create_mcp_app(
         self,
-        collection_ids: Optional[List[str]] = None,
-        model_name: Optional[str] = None,
-        web_search_enabled: bool = False,
     ) -> Optional[MCPApp]:
         """Create MCPApp instance dynamically based on agent parameters"""
-        settings = self._create_mcp_settings(collection_ids, model_name, web_search_enabled)
+        settings = self._create_mcp_settings()
         if not settings:
             return None
 
@@ -1060,13 +1050,9 @@ Web search is not available for this session. Rely entirely on the knowledge col
                         return
 
             # Create dynamic agent app
-            agent_app = self._create_agent_app(
-                collection_ids=agent_message.collection_ids,
-                model_name=agent_message.model_name,
-                web_search_enabled=agent_message.web_search_enabled or False,
-            )
+            mcp_app = self._create_mcp_app()
 
-            if not agent_app:
+            if not mcp_app:
                 yield self._format_error("Failed to initialize agent")
                 return
 
@@ -1081,12 +1067,11 @@ Web search is not available for this session. Rely entirely on the knowledge col
             full_content = ""
             
             try:
-                async with agent_app.run() as running_app:
+                async with mcp_app.run() as running_app:
                     # Create agent with instruction and server names
                     agent = Agent(
                         name="aperag_assistant", 
                         instruction=self._create_dynamic_instruction(
-                            agent_message.collection_ids,
                             agent_message.web_search_enabled or False,
                         ),
                         server_names=["aperag"],
@@ -1138,6 +1123,7 @@ Web search is not available for this session. Rely entirely on the knowledge col
                         request_params = RequestParams(
                             max_iterations=10,
                             parallel_tool_calls=True,
+                            model=agent_message.model_name,
                         )
                         
                         llm.history = memory
