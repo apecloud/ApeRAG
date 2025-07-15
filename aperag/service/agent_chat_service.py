@@ -883,7 +883,7 @@ Please provide a thorough, well-researched answer that leverages all appropriate
                         request_params = RequestParams(
                             max_iterations=10,
                             parallel_tool_calls=True,
-                            model=agent_message.model_name,
+                            model="google/gemini-2.5-flash",
                         )
 
                         llm.history = memory
