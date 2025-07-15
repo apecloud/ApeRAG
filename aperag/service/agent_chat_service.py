@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.config import settings
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
+from aperag.flow.runners.llm import add_ai_message, add_human_message
 from aperag.schema import view_models
 from aperag.utils.constant import DOC_QA_REFERENCES, DOCUMENT_URLS
 from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
@@ -486,8 +487,9 @@ Web search is not available for this session. Rely entirely on the knowledge col
                 return
             
             # Store messages in history
-            await history.add_user_message(agent_message.query)
-            await history.add_ai_message(full_content)
+
+            await add_human_message(history, agent_message.query, "")
+            await add_ai_message(history, agent_message.query, "", full_content, [], [])
             
             # Prepare references based on agent configuration
             references = []
