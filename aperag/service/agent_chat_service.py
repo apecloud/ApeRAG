@@ -15,6 +15,7 @@
 import json
 import logging
 import os
+import traceback
 import uuid
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
@@ -34,6 +35,9 @@ from mcp_agent.agents.agent import Agent
 from mcp_agent.workflows.llm.augmented_llm_openai import OpenAIAugmentedLLM
 from mcp_agent.workflows.llm.augmented_llm import RequestParams
 from mcp_agent.workflows.llm.augmented_llm import SimpleMemory
+
+# Import MCP server for direct collection search access
+from aperag.mcp.server import mcp_server
 
 
 logger = logging.getLogger(__name__)
@@ -62,6 +66,7 @@ You are an advanced AI assistant powered by ApeRAG's comprehensive search capabi
 - **Collection Discovery**: Automatically discover and list available knowledge collections
 - **Smart Collection Selection**: Choose the most relevant collections based on user queries
 - **Multi-Collection Search**: Search across multiple collections when needed for comprehensive coverage
+- **Pre-searched Knowledge**: Use pre-retrieved knowledge when collections have been searched in advance
 
 ### 2. Advanced Search Methods
 - **Hybrid Search (Recommended)**: Combine vector, full-text, and graph search for optimal results
@@ -79,7 +84,8 @@ You are an advanced AI assistant powered by ApeRAG's comprehensive search capabi
 ### Step 1: Query Analysis & Source Planning
 1. **Analyze User Intent**: Understand what the user is asking and what type of information they need
 2. **Collection Strategy**: 
-   - If specific collections are provided, use only those collections
+   - If pre-searched knowledge is available, use it as the primary source
+   - If specific collections are provided but not pre-searched, use only those collections
    - If no collections specified, list available collections and select the most relevant ones
    - Consider whether multiple collections might be needed for comprehensive coverage
 3. **Search Strategy**: Determine if web search is needed based on:
@@ -88,9 +94,10 @@ You are an advanced AI assistant powered by ApeRAG's comprehensive search capabi
    - Knowledge base coverage gaps
 
 ### Step 2: Information Retrieval
-1. **Collection Search**: Execute searches on selected collections using appropriate methods
-2. **Web Search** (if enabled and relevant): Search the web for additional or current information
-3. **Result Integration**: Combine and synthesize information from all sources
+1. **Pre-searched Knowledge**: If available, use the pre-retrieved knowledge as the primary source
+2. **Collection Search**: Execute searches on selected collections using appropriate methods (if not pre-searched)
+3. **Web Search** (if enabled and relevant): Search the web for additional or current information
+4. **Result Integration**: Combine and synthesize information from all sources
 
 ### Step 3: Response Generation
 1. **Synthesis**: Create a comprehensive answer combining all relevant information
@@ -99,7 +106,12 @@ You are an advanced AI assistant powered by ApeRAG's comprehensive search capabi
 
 ## Collection Selection Logic
 
-### When Collections Are Specified:
+### When Pre-searched Knowledge Is Available:
+```
+Use pre-searched knowledge → Supplement with web search if needed → Generate comprehensive response
+```
+
+### When Collections Are Specified (but not pre-searched):
 ```
 User specifies collections → Use only those collections → Search within specified scope
 ```
@@ -115,6 +127,19 @@ List available collections → Analyze query relevance → Select best matching 
 - **Scope Coverage**: Ensure selected collections can provide comprehensive answers
 - **User Context**: Consider user's domain or role if apparent
 
+## Working with Pre-searched Knowledge
+
+### When Pre-searched Knowledge Is Provided:
+- **Primary Source**: Use the pre-searched knowledge as your main information source
+- **Efficiency**: Do not search the same collections again unless explicitly needed
+- **Supplementation**: Use web search or other tools only if the pre-searched knowledge is insufficient
+- **Source Attribution**: Clearly indicate that information comes from the specified collections
+
+### Quality Assessment:
+- **Relevance**: Assess how well the pre-searched knowledge addresses the user's query
+- **Completeness**: Identify any gaps that might need additional sources
+- **Accuracy**: Cross-reference with web sources if there are doubts
+
 ## Web Search Integration
 
 ### When to Use Web Search:
@@ -122,6 +147,7 @@ List available collections → Analyze query relevance → Select best matching 
 - **Latest Developments**: Technology updates, policy changes, market information
 - **Verification**: Cross-check knowledge base information with current sources
 - **Gap Filling**: When knowledge base doesn't have sufficient information
+- **Supplementation**: When pre-searched knowledge needs additional context
 
 ### Web Search Guidelines:
 - Only use when web search is enabled in the request
@@ -196,6 +222,11 @@ List available collections → Analyze query relevance → Select best matching 
 - Synthesize information from multiple sources coherently
 - Highlight agreements and discrepancies between sources
 - Provide balanced perspectives when sources differ
+
+### Efficiency Optimization:
+- When pre-searched knowledge is available, prioritize it over new searches
+- Use additional searches only when necessary to fill gaps or provide current information
+- Always acknowledge the source and quality of pre-searched knowledge
 
 ## Your Mission
 Be the user's intelligent research partner. Help them find accurate, comprehensive, and actionable information by leveraging both their knowledge collections and web resources effectively. Always prioritize accuracy, provide clear source attribution, and deliver well-structured, helpful responses.
@@ -620,14 +651,33 @@ class AgentChatService:
     def _create_dynamic_instruction(
         self,
         collection_ids: Optional[List[str]] = None,
-        web_search_enabled: bool = False
+        web_search_enabled: bool = False,
+        pre_search_results: Optional[List[Dict[str, Any]]] = None
     ) -> str:
         """Create dynamic instruction based on agent parameters"""
         instruction = APERAG_AGENT_INSTRUCTION
         
-        # Add collection-specific context
+        # Add collection-specific context and pre-search results
         if collection_ids:
-            collection_context = f"""
+            if pre_search_results:
+                # Pre-searched mode: results are already available
+                search_context = self._format_pre_search_context(collection_ids, pre_search_results)
+                collection_context = f"""
+
+## Current Session Context
+
+### Pre-searched Collections:
+I have already searched these collections for relevant information:
+{chr(10).join(f"- {collection_id}" for collection_id in collection_ids)}
+
+### Retrieved Knowledge:
+{search_context}
+
+**Important**: Use the above retrieved knowledge to answer the user's question. You do not need to search these collections again. If the retrieved knowledge is insufficient, you may use web search (if enabled) for additional information.
+"""
+            else:
+                # Collection specified but no pre-search results
+                collection_context = f"""
 
 ## Current Session Context
 
@@ -675,11 +725,232 @@ Web search is not available for this session. Rely entirely on the knowledge col
 
         return instruction
 
+    def _format_pre_search_context(
+        self, 
+        collection_ids: List[str], 
+        search_results: List[Dict[str, Any]]
+    ) -> str:
+        """Format pre-search results into a readable context for the LLM"""
+        if not search_results:
+            return "No relevant documents found in the searched collections."
+        
+        formatted_results = []
+        
+        for collection_result in search_results:
+            collection_id = collection_result.get("collection_id", "Unknown")
+            items = collection_result.get("items", [])
+            
+            if items:
+                formatted_results.append(f"\n**Collection: {collection_id}**")
+                
+                for i, item in enumerate(items[:10], 1):  # Limit to top 10 results per collection
+                    content = item.get("content", "")
+                    score = item.get("score", 0.0) or 0.0
+                    source = item.get("source", "")
+                    recall_type = item.get("recall_type", "")
+                    
+                    # Truncate content if too long
+                    if len(content) > 800:
+                        content = content[:800] + "..."
+                    
+                    result_text = f"\n{i}. **Document** (Score: {score:.3f}, Type: {recall_type})"
+                    if source:
+                        result_text += f"\n   Source: {source}"
+                    result_text += f"\n   Content: {content}\n"
+                    
+                    formatted_results.append(result_text)
+        
+        if not formatted_results:
+            return "No relevant documents found in the searched collections."
+        
+        return "".join(formatted_results)
+
+    def _format_direct_search_references(self, search_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Format direct search results as references for chat history"""
+        references = []
+        
+        for collection_result in search_results:
+            collection_id = collection_result.get("collection_id", "Unknown")
+            items = collection_result.get("items", [])
+            
+            if items:
+                # Combine all search results from this collection into a single reference
+                combined_text = ""
+                for item in items:
+                    content = item.get("content", "")
+                    source = item.get("source", "")
+                    combined_text += f"Source: {source}\nContent: {content}\n\n"
+                
+                reference = {
+                    "text": combined_text.strip(),
+                    "metadata": {
+                        "type": "direct_search_collection",
+                        "collection_id": collection_id,
+                        "result_count": len(items)
+                    },
+                    "score": 1.0  # Default score for direct search results
+                }
+                references.append(reference)
+        
+        return references
+
+    async def _direct_collection_search(
+        self, 
+        user: str, 
+        collection_ids: List[str], 
+        query: str
+    ) -> Optional[List[Dict[str, Any]]]:
+        """
+        Directly search collections using MCP interface to maintain consistency with LLM tool calls.
+        This ensures the same logic and behavior as when LLM calls MCP interface.
+        Includes preprocessing: deduplication, content optimization, and error handling.
+        """
+        try:
+            all_search_results = []
+            seen_content = set()  # For deduplication
+            
+            for collection_id in collection_ids:
+                try:
+                    # Get MCP search tool and call its function to maintain consistency
+                    # Uses hybrid search by default (all search types enabled)
+                    search_tool = await mcp_server.get_tool('search_collection')
+                    mcp_result = await search_tool.fn(
+                        collection_id=collection_id,
+                        query=query,
+                        use_vector_index=True,
+                        use_fulltext_index=True,
+                        use_graph_index=True,
+                        topk=8  # Slightly more results for better preprocessing
+                    )
+                    
+                    # Handle MCP response (dict format)
+                    if mcp_result and "error" not in mcp_result and "items" in mcp_result:
+                        items = mcp_result["items"]
+                        
+                        if items:
+                            # Preprocess and filter results
+                            processed_items = self._preprocess_search_items(
+                                items, seen_content, max_items_per_collection=10
+                            )
+                            
+                            if processed_items:
+                                collection_results = {
+                                    "collection_id": collection_id,
+                                    "query": query,
+                                    "items": processed_items,
+                                    "total_found": len(items),
+                                    "processed_count": len(processed_items)
+                                }
+                                all_search_results.append(collection_results)
+                    
+                    elif mcp_result and "error" in mcp_result:
+                        # Handle MCP error response
+                        logger.warning(f"MCP search error for collection {collection_id}: {mcp_result['error']}")
+                        error_result = {
+                            "collection_id": collection_id,
+                            "query": query,
+                            "error": mcp_result["error"],
+                            "items": []
+                        }
+                        all_search_results.append(error_result)
+                        
+                except Exception as e:
+                    traceback.print_exc()
+                    logger.warning(f"MCP search failed for collection {collection_id}: {e}")
+                    # Add error info to results for transparency
+                    error_result = {
+                        "collection_id": collection_id,
+                        "query": query,
+                        "error": str(e),
+                        "items": []
+                    }
+                    all_search_results.append(error_result)
+                    continue
+            
+            return all_search_results if all_search_results else None
+            
+        except Exception as e:
+            logger.error(f"Error in direct collection search: {e}")
+            return None
+
+    def _preprocess_search_items(
+        self, 
+        items: List[Dict[str, Any]], 
+        seen_content: set, 
+        max_items_per_collection: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        Preprocess search items: deduplication, content optimization, filtering.
+        """
+        processed_items = []
+        
+        for item in items:
+            # Create content hash for deduplication
+            content_text = item["content"].strip()
+            if not content_text:
+                continue
+                
+            # Simple deduplication based on content similarity
+            content_hash = hash(content_text[:500])  # Use first 500 chars for hash
+            if content_hash in seen_content:
+                continue
+            seen_content.add(content_hash)
+            
+            # Optimize content length - truncate if too long but preserve meaning
+            optimized_content = self._optimize_content_length(content_text, max_length=1200)
+            
+            # Convert to dict and optimize
+            item["content"] = optimized_content
+            item["content_length"] = len(optimized_content)
+            item["is_truncated"] = len(optimized_content) < len(content_text)
+            
+            processed_items.append(item)
+            
+            # Limit items per collection
+            if len(processed_items) >= max_items_per_collection:
+                break
+        
+        # Sort by relevance score (descending)
+        processed_items.sort(key=lambda x: x.get("score", 0.0) or 0.0, reverse=True)
+        
+        return processed_items
+
+    def _optimize_content_length(self, content: str, max_length: int = 1200) -> str:
+        """
+        Optimize content length while preserving meaning.
+        Tries to cut at sentence boundaries when possible.
+        """
+        if len(content) <= max_length:
+            return content
+        
+        # Try to cut at sentence boundary
+        truncated = content[:max_length]
+        
+        # Find last sentence ending within the limit
+        sentence_endings = ['. ', '! ', '? ', '。', '！', '？']
+        last_sentence_end = -1
+        
+        for ending in sentence_endings:
+            pos = truncated.rfind(ending)
+            if pos > max_length * 0.7:  # Only if we don't lose too much content
+                last_sentence_end = max(last_sentence_end, pos + len(ending))
+        
+        if last_sentence_end > 0:
+            return content[:last_sentence_end].strip()
+        else:
+            # Fallback: cut at word boundary
+            last_space = truncated.rfind(' ')
+            if last_space > max_length * 0.8:
+                return content[:last_space].strip() + "..."
+            else:
+                return truncated.strip() + "..."
+
     def _create_mcp_settings(
         self, 
         collection_ids: Optional[List[str]] = None,
         model_name: Optional[str] = None,
-        web_search_enabled: bool = False
+        web_search_enabled: bool = False,
+        pre_search_results: Optional[List[Dict[str, Any]]] = None
     ) -> Optional[Settings]:
         """Create MCP settings dynamically based on agent message parameters"""
         if not MCPApp:
@@ -690,7 +961,7 @@ Web search is not available for this session. Rely entirely on the knowledge col
         openai_settings = self._get_openai_settings(model_name)
 
         # Create dynamic instruction
-        system_instruction = self._create_dynamic_instruction(collection_ids, web_search_enabled)
+        system_instruction = self._create_dynamic_instruction(collection_ids, web_search_enabled, pre_search_results)
 
         try:
             return Settings(
@@ -729,10 +1000,11 @@ Web search is not available for this session. Rely entirely on the knowledge col
         self,
         collection_ids: Optional[List[str]] = None,
         model_name: Optional[str] = None,
-        web_search_enabled: bool = False
+        web_search_enabled: bool = False,
+        pre_search_results: Optional[List[Dict[str, Any]]] = None
     ) -> Optional[MCPApp]:
         """Create MCPApp instance dynamically based on agent parameters"""
-        settings = self._create_mcp_settings(collection_ids, model_name, web_search_enabled)
+        settings = self._create_mcp_settings(collection_ids, model_name, web_search_enabled, pre_search_results)
         if not settings:
             return None
 
@@ -802,18 +1074,25 @@ Web search is not available for this session. Rely entirely on the knowledge col
         """
         try:
             # Validate collections if specified
+            search_results = None
             if agent_message.collection_ids:
                 for collection_id in agent_message.collection_ids:
                     collection = await self.db_ops.query_collection(user, collection_id)
                     if not collection:
                         yield self._format_error(f"Collection {collection_id} not found")
                         return
+                
+                # If collections are specified, perform direct search to avoid LLM tool call overhead
+                search_results = await self._direct_collection_search(
+                    user, agent_message.collection_ids, agent_message.query
+                )
 
             # Create dynamic agent app
             agent_app = self._create_agent_app(
                 collection_ids=agent_message.collection_ids,
                 model_name=agent_message.model_name,
-                web_search_enabled=agent_message.web_search_enabled or False
+                web_search_enabled=agent_message.web_search_enabled or False,
+                pre_search_results=search_results
             )
 
             if not agent_app:
@@ -837,7 +1116,8 @@ Web search is not available for this session. Rely entirely on the knowledge col
                         name="aperag_assistant", 
                         instruction=self._create_dynamic_instruction(
                             agent_message.collection_ids,
-                            agent_message.web_search_enabled or False
+                            agent_message.web_search_enabled or False,
+                            search_results
                         ), 
                         server_names=["aperag"],
                     )
@@ -870,8 +1150,13 @@ Web search is not available for this session. Rely entirely on the knowledge col
                 yield self._format_error(f"Error in agent execution: {str(e)}")
                 return
             
-            # Extract tool call results from history and format as references
-            tool_references = self._extract_tool_call_references(memory)
+            # Generate references - either from tool calls or direct search results
+            if search_results:
+                # Use direct search results as references
+                tool_references = self._format_direct_search_references(search_results)
+            else:
+                # Extract tool call results from history and format as references
+                tool_references = self._extract_tool_call_references(memory)
             
             # Store messages in history
             await add_human_message(history, agent_message.query, "")
@@ -883,6 +1168,7 @@ Web search is not available for this session. Rely entirely on the knowledge col
             yield self._format_stream_end(msg_id, references=tool_references, urls=urls)
                 
         except Exception as e:
+            traceback.print_exc()
             logger.error(f"Error in agent message processing: {e}")
             yield self._format_error(f"Error processing agent message: {str(e)}")
 
