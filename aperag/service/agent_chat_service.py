@@ -785,7 +785,6 @@ Please provide a thorough, well-researched answer that leverages all appropriate
     async def handle_websocket_agent_chat(self, websocket: WebSocket, user: str, bot_id: str, chat_id: str):
         """Handle WebSocket connections for agent-type bot chats"""
         try:
-            memory = SimpleMemory()
             while True:
                 # Receive message from WebSocket
                 data = await websocket.receive_text()
@@ -800,6 +799,9 @@ Please provide a thorough, well-researched answer that leverages all appropriate
                     continue
 
                 try:
+                    # Create fresh SimpleMemory for each conversation to prevent tool call format conflicts
+                    memory = SimpleMemory()
+
                     agent_message = view_models.AgentMessage(
                         query=query,
                         collection_ids=message_data.get("collection_ids"),
