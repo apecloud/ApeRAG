@@ -137,3 +137,5 @@ paths:
     $ref: './paths/web.yaml#/webSearch'
   /web/read:
     $ref: './paths/web.yaml#/webRead'
+  /agent/message:
+    $ref: './paths/agent.yaml'

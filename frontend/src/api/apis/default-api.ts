@@ -22,6 +22,10 @@ import { DUMMY_BASE_URL, assertParamExists, setApiKeyToObject, setBasicAuthToObj
 // @ts-ignore
 import { BASE_PATH, COLLECTION_FORMATS, type RequestArgs, BaseAPI, RequiredError, operationServerMap } from '../base';
 // @ts-ignore
+import type { AgentMessage } from '../models';
+// @ts-ignore
+import type { AgentMessagePost200Response } from '../models';
+// @ts-ignore
 import type { ApiKey } from '../models';
 // @ts-ignore
 import type { ApiKeyCreate } from '../models';
@@ -125,6 +129,42 @@ import type { WorkflowDefinition } from '../models';
  */
 export const DefaultApiAxiosParamCreator = function (configuration?: Configuration) {
     return {
+        /**
+         * This endpoint is for documentation and model generation only. Actual communication should use WebSocket or SSE. 
+         * @summary (Doc Only) Agent message format for WebSocket/SSE
+         * @param {AgentMessage} agentMessage 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        agentMessagePost: async (agentMessage: AgentMessage, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'agentMessage' is not null or undefined
+            assertParamExists('agentMessagePost', 'agentMessage', agentMessage)
+            const localVarPath = `/agent/message`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(agentMessage, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
         /**
          * Delete API key
          * @summary Delete API key
@@ -2294,6 +2334,19 @@ export const DefaultApiFp = function(configuration?: Configuration) {
     const localVarAxiosParamCreator = DefaultApiAxiosParamCreator(configuration)
     return {
         /**
+         * This endpoint is for documentation and model generation only. Actual communication should use WebSocket or SSE. 
+         * @summary (Doc Only) Agent message format for WebSocket/SSE
+         * @param {AgentMessage} agentMessage 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async agentMessagePost(agentMessage: AgentMessage, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<AgentMessagePost200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.agentMessagePost(agentMessage, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.agentMessagePost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Delete API key
          * @summary Delete API key
          * @param {string} apikeyId 
@@ -3047,6 +3100,16 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
     const localVarFp = DefaultApiFp(configuration)
     return {
         /**
+         * This endpoint is for documentation and model generation only. Actual communication should use WebSocket or SSE. 
+         * @summary (Doc Only) Agent message format for WebSocket/SSE
+         * @param {DefaultApiAgentMessagePostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        agentMessagePost(requestParameters: DefaultApiAgentMessagePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<AgentMessagePost200Response> {
+            return localVarFp.agentMessagePost(requestParameters.agentMessage, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Delete API key
          * @summary Delete API key
          * @param {DefaultApiApikeysApikeyIdDeleteRequest} requestParameters Request parameters.
@@ -3598,6 +3661,16 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
  */
 export interface DefaultApiInterface {
     /**
+     * This endpoint is for documentation and model generation only. Actual communication should use WebSocket or SSE. 
+     * @summary (Doc Only) Agent message format for WebSocket/SSE
+     * @param {DefaultApiAgentMessagePostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    agentMessagePost(requestParameters: DefaultApiAgentMessagePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<AgentMessagePost200Response>;
+
+    /**
      * Delete API key
      * @summary Delete API key
      * @param {DefaultApiApikeysApikeyIdDeleteRequest} requestParameters Request parameters.
@@ -4139,6 +4212,20 @@ export interface DefaultApiInterface {
      */
     usersUserIdDelete(requestParameters: DefaultApiUsersUserIdDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
 
+}
+
+/**
+ * Request parameters for agentMessagePost operation in DefaultApi.
+ * @export
+ * @interface DefaultApiAgentMessagePostRequest
+ */
+export interface DefaultApiAgentMessagePostRequest {
+    /**
+     * 
+     * @type {AgentMessage}
+     * @memberof DefaultApiAgentMessagePost
+     */
+    readonly agentMessage: AgentMessage
 }
 
 /**
@@ -5058,6 +5145,18 @@ export interface DefaultApiUsersUserIdDeleteRequest {
  * @extends {BaseAPI}
  */
 export class DefaultApi extends BaseAPI implements DefaultApiInterface {
+    /**
+     * This endpoint is for documentation and model generation only. Actual communication should use WebSocket or SSE. 
+     * @summary (Doc Only) Agent message format for WebSocket/SSE
+     * @param {DefaultApiAgentMessagePostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public agentMessagePost(requestParameters: DefaultApiAgentMessagePostRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).agentMessagePost(requestParameters.agentMessage, options).then((request) => request(this.axios, this.basePath));
+    }
+
     /**
      * Delete API key
      * @summary Delete API key
