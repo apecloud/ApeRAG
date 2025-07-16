@@ -273,42 +273,196 @@ Ready to assist with your research and knowledge discovery needs in any language
 """
 
 
-class ToolCallListener(EventListener):
-    """工具调用监听器，用于监听和记录工具调用事件"""
+class UniversalEventListener(EventListener):
+    """通用事件监听器，支持多种事件类型的监听和处理"""
     
     def __init__(self):
-        self.tool_calls = []
-
+        self.event_queue = []  # 存储处理后的事件信息
+        
     async def handle_event(self, event: Event):
-        """处理工具调用事件"""
+        """处理各种类型的事件"""
         try:
-            print(event)
-            # Early return if not a tool call event
-            if not event.message or event.message != 'Requesting tool call':
+            if not event.message:
                 return
                 
-            # Safely access nested data
+            # 根据消息类型分发到不同的处理函数
+            if event.message == 'send_request: request=':
+                await self._handle_tool_request(event)
+            elif event.message == 'send_request: response=':
+                await self._handle_tool_response(event)
+            else:
+                await self._handle_generic_event(event)
+                
+        except Exception as e:
+            logger.error(f"Error in universal event listener: {e}")
+    
+    async def _handle_tool_request(self, event: Event):
+        """处理工具调用请求事件"""
+        try:
             if not event.data or not isinstance(event.data, dict):
-                logger.warning("Tool call event missing or invalid data field")
                 return
                 
             data_field = event.data.get("data")
             if not data_field or not isinstance(data_field, dict):
-                logger.warning("Tool call event missing or invalid data.data field")
                 return
                 
-            tool_name = data_field.get("tool_name")
-            if not tool_name:
-                logger.warning("Tool call event missing tool_name, skipping")
+            method = data_field.get("method", "")
+            params = data_field.get("params", {})
+            
+            if method == "tools/call" and params:
+                tool_name = params.get("name", "unknown")
+                tool_args = params.get("arguments", {})
+                
+                event_info = {
+                    "type": "tool_request",
+                    "timestamp": event.timestamp,
+                    "tool_name": tool_name,
+                    "arguments": tool_args,
+                    "display_text": f"🔧 调用工具: {tool_name}",
+                    "details": self._format_tool_arguments(tool_name, tool_args)
+                }
+                
+                self.event_queue.append(event_info)
+                logger.debug(f"Tool request captured: {tool_name}")
+                
+        except Exception as e:
+            logger.error(f"Error handling tool request: {e}")
+    
+    async def _handle_tool_response(self, event: Event):
+        """处理工具调用响应事件"""
+        try:
+            if not event.data or not isinstance(event.data, dict):
                 return
                 
-            # Record the tool call
-            tool_call_info = f"🔧 Calling tool: {tool_name}"
-            self.tool_calls.append(tool_call_info)
-            logger.debug(f"Tool call detected: {tool_name}")
+            data_field = event.data.get("data")
+            if not data_field or not isinstance(data_field, dict):
+                return
+                
+            # 解析响应内容
+            content = data_field.get("content", [])
+            structured_content = data_field.get("structuredContent")
+            is_error = data_field.get("isError", False)
+            
+            # 根据结构化内容判断接口类型
+            interface_type = self._detect_interface_type(structured_content)
+            
+            event_info = {
+                "type": "tool_response",
+                "timestamp": event.timestamp,
+                "interface_type": interface_type,
+                "is_error": is_error,
+                "display_text": f"✅ 工具响应: {interface_type}",
+                "summary": self._format_tool_response(interface_type, structured_content, is_error)
+            }
+            
+            self.event_queue.append(event_info)
+            logger.debug(f"Tool response captured: {interface_type}")
             
         except Exception as e:
-            logger.error(f"Error in tool call listener: {e}")
+            logger.error(f"Error handling tool response: {e}")
+    
+    async def _handle_generic_event(self, event: Event):
+        """处理其他通用事件"""
+        # 可以根据需要扩展处理其他类型的事件
+        pass
+    
+    def _detect_interface_type(self, structured_content):
+        """根据响应内容检测接口类型"""
+        if not structured_content:
+            return "unknown"
+            
+        # 检测 list_collections 接口
+        if isinstance(structured_content, dict) and "items" in structured_content:
+            items = structured_content["items"]
+            if isinstance(items, list) and len(items) > 0:
+                first_item = items[0]
+                if isinstance(first_item, dict) and "title" in first_item and "config" in first_item:
+                    return "list_collections"
+        
+        # 检测 search_collection 接口
+        if isinstance(structured_content, dict) and "query" in structured_content and "items" in structured_content:
+            return "search_collection"
+        
+        # 检测 web_search 接口
+        if isinstance(structured_content, dict) and "results" in structured_content:
+            results = structured_content["results"]
+            if isinstance(results, list) and len(results) > 0:
+                first_result = results[0]
+                if isinstance(first_result, dict) and "url" in first_result and "snippet" in first_result:
+                    return "web_search"
+                elif isinstance(first_result, dict) and "content" in first_result:
+                    return "web_read"
+        
+        return "unknown"
+    
+    def _format_tool_arguments(self, tool_name: str, arguments: dict) -> str:
+        """格式化工具参数显示"""
+        if tool_name == "list_collections":
+            return "获取所有集合列表"
+        elif tool_name == "search_collection":
+            collection_id = arguments.get("collection_id", "unknown")
+            query = arguments.get("query", "")
+            use_vector = arguments.get("use_vector_index", True)
+            use_graph = arguments.get("use_graph_index", True)
+            use_fulltext = arguments.get("use_fulltext_index", False)
+            topk = arguments.get("topk", 5)
+            
+            search_types = []
+            if use_vector:
+                search_types.append("向量搜索")
+            if use_graph:
+                search_types.append("图搜索")  
+            if use_fulltext:
+                search_types.append("全文搜索")
+                
+            return f"在集合 '{collection_id}' 中搜索 '{query}'，使用 {'/'.join(search_types)}，返回 {topk} 条结果"
+        elif tool_name == "web_search":
+            query = arguments.get("query", "")
+            max_results = arguments.get("max_results", 5)
+            search_engine = arguments.get("search_engine", "duckduckgo")
+            return f"使用 {search_engine} 搜索 '{query}'，返回 {max_results} 条结果"
+        elif tool_name == "web_read":
+            url_list = arguments.get("url_list", [])
+            return f"读取 {len(url_list)} 个网页内容"
+        else:
+            return f"参数: {json.dumps(arguments, ensure_ascii=False)}"
+    
+    def _format_tool_response(self, interface_type: str, content, is_error: bool) -> str:
+        """格式化工具响应摘要"""
+        if is_error:
+            return "❌ 调用失败"
+            
+        if interface_type == "list_collections":
+            if isinstance(content, dict) and "items" in content:
+                count = len(content["items"])
+                return f"找到 {count} 个集合"
+        elif interface_type == "search_collection":
+            if isinstance(content, dict) and "items" in content:
+                count = len(content["items"])
+                query = content.get("query", "")
+                return f"搜索 '{query}' 找到 {count} 条结果"
+        elif interface_type == "web_search":
+            if isinstance(content, dict) and "results" in content:
+                count = len(content["results"])
+                return f"网页搜索找到 {count} 条结果"
+        elif interface_type == "web_read":
+            if isinstance(content, dict) and "results" in content:
+                count = len(content["results"])
+                return f"成功读取 {count} 个网页"
+                
+        return "✅ 调用成功"
+    
+    def get_recent_events(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """获取最近的事件"""
+        return self.event_queue[-limit:] if self.event_queue else []
+    
+    def clear_events(self):
+        """清空事件队列"""
+        self.event_queue.clear()
+    
+    def get_display_messages(self) -> List[str]:
+        """获取用于前端显示的消息列表"""
+        return [event.get("display_text", "") for event in self.event_queue if event.get("display_text")]
 
 
 class AgentChatService:
@@ -921,12 +1075,12 @@ Please provide a thorough, well-researched answer that leverages all appropriate
                         return
 
                     async with agent:
-                        # Create tool call listener
-                        tool_listener = ToolCallListener()
+                        # Create universal event listener
+                        event_listener = UniversalEventListener()
                         
                         # Register the listener with AsyncEventBus
                         event_bus = AsyncEventBus.get()
-                        event_bus.add_listener("tool_call_monitor", tool_listener)
+                        event_bus.add_listener("universal_event_monitor", event_listener)
                         
                         try:
                             # Attach LLM to agent
@@ -943,21 +1097,26 @@ Please provide a thorough, well-researched answer that leverages all appropriate
                             # Build comprehensive prompt with context and pre-search results
                             comprehensive_prompt = self._build_llm_query_prompt(agent_message=agent_message, user=user)
 
-                            # Start generate_str in background and monitor tool calls
+                            # Start generate_str in background and monitor events
                             generate_task = asyncio.create_task(
                                 llm.generate_str(comprehensive_prompt, request_params)
                             )
                             
-                            # Monitor tool calls while generate_str is running
-                            sent_count = 0
+                            # Monitor events while generate_str is running
+                            sent_event_count = 0
                             while not generate_task.done():
-                                # Check for new tool calls from event listener
-                                current_count = len(tool_listener.tool_calls)
-                                if current_count > sent_count:
-                                    # Send new tool calls immediately
-                                    for i in range(sent_count, current_count):
-                                        yield self._format_tool_call_content(msg_id, tool_listener.tool_calls[i])
-                                    sent_count = current_count
+                                # Check for new events from event listener
+                                recent_events = event_listener.get_recent_events()
+                                current_event_count = len(recent_events)
+                                
+                                if current_event_count > sent_event_count:
+                                    # Send new events immediately
+                                    for i in range(sent_event_count, current_event_count):
+                                        event_info = recent_events[i]
+                                        display_text = event_info.get("display_text", "")
+                                        if display_text:
+                                            yield self._format_tool_call_content(msg_id, display_text)
+                                    sent_event_count = current_event_count
                                 
                                 # Small delay to avoid busy waiting
                                 await asyncio.sleep(0.05)
@@ -966,10 +1125,14 @@ Please provide a thorough, well-researched answer that leverages all appropriate
                             response = await generate_task
                             full_content = response if response else "No response generated"
 
-                            # Send any remaining tool calls that might have been missed
-                            if len(tool_listener.tool_calls) > sent_count:
-                                for i in range(sent_count, len(tool_listener.tool_calls)):
-                                    yield self._format_tool_call_content(msg_id, tool_listener.tool_calls[i])
+                            # Send any remaining events that might have been missed
+                            final_events = event_listener.get_recent_events()
+                            if len(final_events) > sent_event_count:
+                                for i in range(sent_event_count, len(final_events)):
+                                    event_info = final_events[i]
+                                    display_text = event_info.get("display_text", "")
+                                    if display_text:
+                                        yield self._format_tool_call_content(msg_id, display_text)
 
                             # Stream the response content
                             yield self._format_stream_content(msg_id, full_content)
@@ -977,7 +1140,7 @@ Please provide a thorough, well-researched answer that leverages all appropriate
                             
                         finally:
                             # Clean up: remove the listener
-                            event_bus.remove_listener("tool_call_monitor")
+                            event_bus.remove_listener("universal_event_monitor")
 
             except Exception as e:
                 logger.error(f"Error in MCP agent execution: {e}")
