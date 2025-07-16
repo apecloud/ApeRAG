@@ -16,8 +16,8 @@ import json
 import logging
 import os
 import traceback
-import uuid
 import asyncio
+import uuid
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 from fastapi import WebSocket
@@ -33,8 +33,13 @@ from aperag.flow.runners.llm import add_ai_message, add_human_message
 
 # Import MCP server for direct collection search access
 from aperag.schema import view_models
+from aperag.service.agent_chat_utils import (
+    format_stream_start, format_stream_content, format_tool_call_content,
+    format_stream_end, format_error, format_tool_arguments, 
+    format_tool_response_summary, detect_interface_type,
+    format_tool_request_display, format_tool_response_display
+)
 from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
-from aperag.utils.utils import now_unix_milliseconds
 from mcp_agent.logging.listeners import EventListener
 from mcp_agent.logging.events import Event
 from mcp_agent.logging.transport import AsyncEventBus
@@ -276,8 +281,9 @@ Ready to assist with your research and knowledge discovery needs in any language
 class UniversalEventListener(EventListener):
     """通用事件监听器，支持多种事件类型的监听和处理"""
     
-    def __init__(self):
-        self.event_queue = []  # 存储处理后的事件信息
+    def __init__(self, msg_id: str):
+        self.msg_id = msg_id
+        self.formatted_messages = []  # 存储格式化好的消息，可直接yield
         
     async def handle_event(self, event: Event):
         """处理各种类型的事件"""
@@ -313,16 +319,13 @@ class UniversalEventListener(EventListener):
                 tool_name = params.get("name", "unknown")
                 tool_args = params.get("arguments", {})
                 
-                event_info = {
-                    "type": "tool_request",
-                    "timestamp": event.timestamp,
-                    "tool_name": tool_name,
-                    "arguments": tool_args,
-                    "display_text": f"🔧 调用工具: {tool_name}",
-                    "details": self._format_tool_arguments(tool_name, tool_args)
-                }
+                # 使用工具函数格式化显示文本
+                display_text = format_tool_request_display(tool_name, tool_args)
                 
-                self.event_queue.append(event_info)
+                # 使用工具函数创建格式化消息，直接可以yield
+                formatted_message = format_tool_call_content(self.msg_id, display_text)
+                self.formatted_messages.append(formatted_message)
+                
                 logger.debug(f"Tool request captured: {tool_name}")
                 
         except Exception as e:
@@ -339,130 +342,40 @@ class UniversalEventListener(EventListener):
                 return
                 
             # 解析响应内容
-            content = data_field.get("content", [])
             structured_content = data_field.get("structuredContent")
             is_error = data_field.get("isError", False)
             
-            # 根据结构化内容判断接口类型
-            interface_type = self._detect_interface_type(structured_content)
+            # 使用工具函数检测接口类型
+            interface_type = detect_interface_type(structured_content)
             
-            event_info = {
-                "type": "tool_response",
-                "timestamp": event.timestamp,
-                "interface_type": interface_type,
-                "is_error": is_error,
-                "display_text": f"✅ 工具响应: {interface_type}",
-                "summary": self._format_tool_response(interface_type, structured_content, is_error)
-            }
+            # 使用工具函数格式化显示文本
+            display_text = format_tool_response_display(interface_type, structured_content, is_error)
             
-            self.event_queue.append(event_info)
+            # 使用工具函数创建格式化消息，直接可以yield
+            formatted_message = format_tool_call_content(self.msg_id, display_text)
+            self.formatted_messages.append(formatted_message)
+            
             logger.debug(f"Tool response captured: {interface_type}")
             
         except Exception as e:
             logger.error(f"Error handling tool response: {e}")
-    
+      
     async def _handle_generic_event(self, event: Event):
         """处理其他通用事件"""
         # 可以根据需要扩展处理其他类型的事件
         pass
     
-    def _detect_interface_type(self, structured_content):
-        """根据响应内容检测接口类型"""
-        if not structured_content:
-            return "unknown"
-            
-        # 检测 list_collections 接口
-        if isinstance(structured_content, dict) and "items" in structured_content:
-            items = structured_content["items"]
-            if isinstance(items, list) and len(items) > 0:
-                first_item = items[0]
-                if isinstance(first_item, dict) and "title" in first_item and "config" in first_item:
-                    return "list_collections"
-        
-        # 检测 search_collection 接口
-        if isinstance(structured_content, dict) and "query" in structured_content and "items" in structured_content:
-            return "search_collection"
-        
-        # 检测 web_search 接口
-        if isinstance(structured_content, dict) and "results" in structured_content:
-            results = structured_content["results"]
-            if isinstance(results, list) and len(results) > 0:
-                first_result = results[0]
-                if isinstance(first_result, dict) and "url" in first_result and "snippet" in first_result:
-                    return "web_search"
-                elif isinstance(first_result, dict) and "content" in first_result:
-                    return "web_read"
-        
-        return "unknown"
+    def get_new_messages(self, last_count: int = 0) -> List[Dict[str, Any]]:
+        """获取新的格式化消息"""
+        return self.formatted_messages[last_count:]
     
-    def _format_tool_arguments(self, tool_name: str, arguments: dict) -> str:
-        """格式化工具参数显示"""
-        if tool_name == "list_collections":
-            return "获取所有集合列表"
-        elif tool_name == "search_collection":
-            collection_id = arguments.get("collection_id", "unknown")
-            query = arguments.get("query", "")
-            use_vector = arguments.get("use_vector_index", True)
-            use_graph = arguments.get("use_graph_index", True)
-            use_fulltext = arguments.get("use_fulltext_index", False)
-            topk = arguments.get("topk", 5)
-            
-            search_types = []
-            if use_vector:
-                search_types.append("向量搜索")
-            if use_graph:
-                search_types.append("图搜索")  
-            if use_fulltext:
-                search_types.append("全文搜索")
-                
-            return f"在集合 '{collection_id}' 中搜索 '{query}'，使用 {'/'.join(search_types)}，返回 {topk} 条结果"
-        elif tool_name == "web_search":
-            query = arguments.get("query", "")
-            max_results = arguments.get("max_results", 5)
-            search_engine = arguments.get("search_engine", "duckduckgo")
-            return f"使用 {search_engine} 搜索 '{query}'，返回 {max_results} 条结果"
-        elif tool_name == "web_read":
-            url_list = arguments.get("url_list", [])
-            return f"读取 {len(url_list)} 个网页内容"
-        else:
-            return f"参数: {json.dumps(arguments, ensure_ascii=False)}"
+    def get_message_count(self) -> int:
+        """获取当前消息总数"""
+        return len(self.formatted_messages)
     
-    def _format_tool_response(self, interface_type: str, content, is_error: bool) -> str:
-        """格式化工具响应摘要"""
-        if is_error:
-            return "❌ 调用失败"
-            
-        if interface_type == "list_collections":
-            if isinstance(content, dict) and "items" in content:
-                count = len(content["items"])
-                return f"找到 {count} 个集合"
-        elif interface_type == "search_collection":
-            if isinstance(content, dict) and "items" in content:
-                count = len(content["items"])
-                query = content.get("query", "")
-                return f"搜索 '{query}' 找到 {count} 条结果"
-        elif interface_type == "web_search":
-            if isinstance(content, dict) and "results" in content:
-                count = len(content["results"])
-                return f"网页搜索找到 {count} 条结果"
-        elif interface_type == "web_read":
-            if isinstance(content, dict) and "results" in content:
-                count = len(content["results"])
-                return f"成功读取 {count} 个网页"
-                
-        return "✅ 调用成功"
-    
-    def get_recent_events(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """获取最近的事件"""
-        return self.event_queue[-limit:] if self.event_queue else []
-    
-    def clear_events(self):
-        """清空事件队列"""
-        self.event_queue.clear()
-    
-    def get_display_messages(self) -> List[str]:
-        """获取用于前端显示的消息列表"""
-        return [event.get("display_text", "") for event in self.event_queue if event.get("display_text")]
+    def clear_messages(self):
+        """清空消息队列"""
+        self.formatted_messages.clear()
 
 
 class AgentChatService:
@@ -992,7 +905,7 @@ Please provide a thorough, well-researched answer that leverages all appropriate
                 message_id = str(uuid.uuid4())
                 query = message_data.get("query", "")
                 if not query or not query.strip():
-                    error_response = self._format_error("Invalid message format")
+                    error_response = format_error("Invalid message format")
                     await websocket.send_text(json.dumps(error_response))
                     continue
 
@@ -1014,7 +927,7 @@ Please provide a thorough, well-researched answer that leverages all appropriate
 
                 except Exception as e:
                     logger.error(f"Error processing agent websocket message: {e}")
-                    error_response = self._format_error(str(e))
+                    error_response = format_error(str(e))
                     await websocket.send_text(json.dumps(error_response))
 
         except Exception as e:
@@ -1047,11 +960,11 @@ Please provide a thorough, well-researched answer that leverages all appropriate
             mcp_app = self._create_mcp_app()
 
             if not mcp_app:
-                yield self._format_error("Failed to initialize agent")
+                yield format_error("Failed to initialize agent")
                 return
 
             # Yield start message
-            yield self._format_stream_start(msg_id)
+            yield format_stream_start(msg_id)
 
             # Get chat history for context
             history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
@@ -1071,12 +984,12 @@ Please provide a thorough, well-researched answer that leverages all appropriate
 
                     # Verify server connection
                     if "aperag" not in running_app.server_registry.registry:
-                        yield self._format_error("ApeRAG MCP Server connection failed")
+                        yield format_error("ApeRAG MCP Server connection failed")
                         return
 
                     async with agent:
-                        # Create universal event listener
-                        event_listener = UniversalEventListener()
+                        # Create universal event listener with msg_id
+                        event_listener = UniversalEventListener(msg_id)
                         
                         # Register the listener with AsyncEventBus
                         event_bus = AsyncEventBus.get()
@@ -1103,20 +1016,17 @@ Please provide a thorough, well-researched answer that leverages all appropriate
                             )
                             
                             # Monitor events while generate_str is running
-                            sent_event_count = 0
+                            sent_message_count = 0
                             while not generate_task.done():
-                                # Check for new events from event listener
-                                recent_events = event_listener.get_recent_events()
-                                current_event_count = len(recent_events)
+                                # Check for new formatted messages from event listener
+                                current_message_count = event_listener.get_message_count()
                                 
-                                if current_event_count > sent_event_count:
-                                    # Send new events immediately
-                                    for i in range(sent_event_count, current_event_count):
-                                        event_info = recent_events[i]
-                                        display_text = event_info.get("display_text", "")
-                                        if display_text:
-                                            yield self._format_tool_call_content(msg_id, display_text)
-                                    sent_event_count = current_event_count
+                                if current_message_count > sent_message_count:
+                                    # Get and yield new messages directly
+                                    new_messages = event_listener.get_new_messages(sent_message_count)
+                                    for message in new_messages:
+                                        yield message
+                                    sent_message_count = current_message_count
                                 
                                 # Small delay to avoid busy waiting
                                 await asyncio.sleep(0.05)
@@ -1125,17 +1035,15 @@ Please provide a thorough, well-researched answer that leverages all appropriate
                             response = await generate_task
                             full_content = response if response else "No response generated"
 
-                            # Send any remaining events that might have been missed
-                            final_events = event_listener.get_recent_events()
-                            if len(final_events) > sent_event_count:
-                                for i in range(sent_event_count, len(final_events)):
-                                    event_info = final_events[i]
-                                    display_text = event_info.get("display_text", "")
-                                    if display_text:
-                                        yield self._format_tool_call_content(msg_id, display_text)
+                            # Send any remaining messages that might have been missed
+                            final_message_count = event_listener.get_message_count()
+                            if final_message_count > sent_message_count:
+                                remaining_messages = event_listener.get_new_messages(sent_message_count)
+                                for message in remaining_messages:
+                                    yield message
 
-                            # Stream the response content
-                            yield self._format_stream_content(msg_id, full_content)
+                            # Stream the response content using utils function
+                            yield format_stream_content(msg_id, full_content)
                             memory = llm.history
                             
                         finally:
@@ -1144,7 +1052,7 @@ Please provide a thorough, well-researched answer that leverages all appropriate
 
             except Exception as e:
                 logger.error(f"Error in MCP agent execution: {e}")
-                yield self._format_error(f"Error in agent execution: {str(e)}")
+                yield format_error(f"Error in agent execution: {str(e)}")
                 return
 
             # Generate references - either from tool calls or direct search results
@@ -1158,60 +1066,11 @@ Please provide a thorough, well-researched answer that leverages all appropriate
             # Prepare references and URLs
             urls = []
 
-            yield self._format_stream_end(msg_id, references=tool_references, urls=urls)
+            yield format_stream_end(msg_id, references=tool_references, urls=urls)
 
         except Exception as e:
             traceback.print_exc()
             logger.error(f"Error in agent message processing: {e}")
-            yield self._format_error(f"Error processing agent message: {str(e)}")
+            yield format_error(f"Error processing agent message: {str(e)}")
 
-    # Helper methods for response formatting
-    def _format_stream_start(self, msg_id: str) -> Dict[str, Any]:
-        """Format the start event for streaming"""
-        return {
-            "type": "start",
-            "id": msg_id,
-            "timestamp": now_unix_milliseconds(),
-        }
 
-    def _format_stream_content(self, msg_id: str, content: str) -> Dict[str, Any]:
-        """Format a content chunk for streaming"""
-        return {
-            "type": "message",
-            "id": msg_id,
-            "data": content,
-            "timestamp": now_unix_milliseconds(),
-        }
-
-    def _format_tool_call_content(self, msg_id: str, content: str) -> Dict[str, Any]:
-        """Format a content chunk for streaming"""
-        return {
-            "type": "message",
-            "id": msg_id,
-            "data": f"<tool_call>{content}</tool_call>\n\n",
-            "timestamp": now_unix_milliseconds(),
-        }
-
-    def _format_stream_end(self, msg_id: str, references: List[str] = None, urls: List[str] = None) -> Dict[str, Any]:
-        """Format the end event for streaming"""
-        if references is None:
-            references = []
-        if urls is None:
-            urls = []
-
-        return {
-            "type": "stop",
-            "id": msg_id,
-            "data": references,
-            "urls": urls,
-            "timestamp": now_unix_milliseconds(),
-        }
-
-    def _format_error(self, error: str) -> Dict[str, Any]:
-        """Format an error response"""
-        return {
-            "type": "error",
-            "id": str(uuid.uuid4()),
-            "data": error,
-            "timestamp": now_unix_milliseconds(),
-        }
