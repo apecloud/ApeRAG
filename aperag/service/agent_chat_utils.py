@@ -37,16 +37,6 @@ def format_stream_content(msg_id: str, content: str) -> Dict[str, Any]:
     }
 
 
-def format_tool_call_content(msg_id: str, content: str) -> Dict[str, Any]:
-    """格式化工具调用内容事件"""
-    return {
-        "type": "message",
-        "id": msg_id,
-        "data": f"<tool_call>{content}</tool_call>\n\n",
-        "timestamp": now_unix_milliseconds(),
-    }
-
-
 def format_stream_end(msg_id: str, references: List[str] = None, urls: List[str] = None) -> Dict[str, Any]:
     """格式化流式结束事件"""
     if references is None:
@@ -83,15 +73,21 @@ def format_thinking(msg_id: str, content: str) -> Dict[str, Any]:
     }
 
 
-def format_tool_call_start(msg_id: str, data: str, tool_name: str, arguments: dict) -> Dict[str, Any]:
-    """格式化工具调用开始事件"""
-    if data is None:
-        data = format_tool_request_display(tool_name, arguments)
-    
+def format_tool_call_content(msg_id: str, content: str) -> Dict[str, Any]:
+    """格式化工具调用内容事件"""
     return {
-        "type": "tool_call_start",
+        "type": "message",
         "id": msg_id,
-        "data": data,
+        "data": f"<tool_call>{content}</tool_call>\n\n",
+        "timestamp": now_unix_milliseconds(),
+    }
+
+
+def format_tool_call_start(msg_id: str, data: str, tool_name: str, arguments: dict) -> Dict[str, Any]:
+    return {
+        "type": "message", # todo: change to tool_call_start
+        "id": msg_id,
+        "data": f"<tool_call_start>{data}</tool_call_start>\n\n", # todo: remove format
         "tool_name": tool_name,
         "arguments": arguments,
         "timestamp": now_unix_milliseconds(),
@@ -99,20 +95,17 @@ def format_tool_call_start(msg_id: str, data: str, tool_name: str, arguments: di
 
 
 def format_tool_call_end(msg_id: str, data: str, tool_name: str, result: Any) -> Dict[str, Any]:
-    """格式化工具调用结束事件"""
-    if data is None:
-        # 检测接口类型并格式化显示文本
-        interface_type = detect_interface_type(result)
-        data = format_tool_response_display(interface_type, result, False)
-    
     return {
-        "type": "tool_call_end",
+        "type": "message", # todo: change to tool_call_end
         "id": msg_id,
-        "data": data,
+        "data": f"<tool_call_end>{data}</tool_call_end>\n\n", # todo: remove format
         "tool_name": tool_name,
         "result": result,
         "timestamp": now_unix_milliseconds(),
     }
+
+
+##########################################################################################
 
 
 def format_tool_arguments(tool_name: str, arguments: dict) -> str:

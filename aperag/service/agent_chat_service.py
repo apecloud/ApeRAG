@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import json
 import logging
 import os
 import traceback
-import asyncio
 import uuid
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
@@ -24,25 +24,22 @@ from fastapi import WebSocket
 from mcp_agent.agents.agent import Agent
 from mcp_agent.app import MCPApp
 from mcp_agent.config import LoggerSettings, MCPServerSettings, MCPSettings, OpenAISettings, Settings
+from mcp_agent.logging.events import Event
+from mcp_agent.logging.listeners import EventListener
+from mcp_agent.logging.transport import AsyncEventBus
 from mcp_agent.workflows.llm.augmented_llm import RequestParams, SimpleMemory
 from mcp_agent.workflows.llm.augmented_llm_openai import OpenAIAugmentedLLM
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.flow.runners.llm import add_ai_message, add_human_message
-
 # Import MCP server for direct collection search access
 from aperag.schema import view_models
 from aperag.service.agent_chat_utils import (
-    format_stream_start, format_stream_content, format_tool_call_content,
-    format_stream_end, format_error, format_tool_arguments, 
-    format_tool_response_summary, detect_interface_type,
-    format_tool_request_display, format_tool_response_display
+    format_stream_start, format_stream_content, format_stream_end, format_error, detect_interface_type,
+    format_tool_request_display, format_tool_response_display, format_tool_call_start, format_tool_call_end
 )
 from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
-from mcp_agent.logging.listeners import EventListener
-from mcp_agent.logging.events import Event
-from mcp_agent.logging.transport import AsyncEventBus
 
 logger = logging.getLogger(__name__)
 
@@ -323,7 +320,7 @@ class UniversalEventListener(EventListener):
                 display_text = format_tool_request_display(tool_name, tool_args)
                 
                 # 使用工具函数创建格式化消息，直接可以yield
-                formatted_message = format_tool_call_content(self.msg_id, display_text)
+                formatted_message = format_tool_call_start(self.msg_id, display_text, tool_name, tool_args)
                 self.formatted_messages.append(formatted_message)
                 
                 logger.debug(f"Tool request captured: {tool_name}")
@@ -352,7 +349,7 @@ class UniversalEventListener(EventListener):
             display_text = format_tool_response_display(interface_type, structured_content, is_error)
             
             # 使用工具函数创建格式化消息，直接可以yield
-            formatted_message = format_tool_call_content(self.msg_id, display_text)
+            formatted_message = format_tool_call_end(self.msg_id, display_text, interface_type, structured_content)
             self.formatted_messages.append(formatted_message)
             
             logger.debug(f"Tool response captured: {interface_type}")
