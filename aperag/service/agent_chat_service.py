@@ -284,7 +284,7 @@ class UniversalEventListener(EventListener):
     def __init__(self, msg_id: str):
         self.msg_id = msg_id
         self.formatted_messages = []  # 存储格式化好的消息，可直接yield
-        
+
     async def handle_event(self, event: Event):
         """处理各种类型的事件"""
         try:

@@ -73,6 +73,48 @@ def format_error(error: str) -> Dict[str, Any]:
     }
 
 
+def format_thinking(msg_id: str, content: str) -> Dict[str, Any]:
+    """格式化思考步骤事件"""
+    return {
+        "type": "thinking",
+        "id": msg_id,
+        "data": content,
+        "timestamp": now_unix_milliseconds(),
+    }
+
+
+def format_tool_call_start(msg_id: str, data: str, tool_name: str, arguments: dict) -> Dict[str, Any]:
+    """格式化工具调用开始事件"""
+    if data is None:
+        data = format_tool_request_display(tool_name, arguments)
+    
+    return {
+        "type": "tool_call_start",
+        "id": msg_id,
+        "data": data,
+        "tool_name": tool_name,
+        "arguments": arguments,
+        "timestamp": now_unix_milliseconds(),
+    }
+
+
+def format_tool_call_end(msg_id: str, data: str, tool_name: str, result: Any) -> Dict[str, Any]:
+    """格式化工具调用结束事件"""
+    if data is None:
+        # 检测接口类型并格式化显示文本
+        interface_type = detect_interface_type(result)
+        data = format_tool_response_display(interface_type, result, False)
+    
+    return {
+        "type": "tool_call_end",
+        "id": msg_id,
+        "data": data,
+        "tool_name": tool_name,
+        "result": result,
+        "timestamp": now_unix_milliseconds(),
+    }
+
+
 def format_tool_arguments(tool_name: str, arguments: dict) -> str:
     """格式化工具参数显示"""
     if tool_name == "list_collections":
