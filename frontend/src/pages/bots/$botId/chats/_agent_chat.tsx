@@ -103,7 +103,7 @@ interface AgentChatProps {
   loading: boolean;
   onSubmit: (message: {
     query: string;
-    collection_ids: string[];
+    collections: Collection[];
     model_name: string;
     web_search_enabled: boolean;
   }) => void;
@@ -171,7 +171,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
         const completionModels = allModels.filter((model: any) => model.api === 'completion');
         setModels(completionModels);
         if (completionModels.length > 0) {
-          setSelectedModel(completionModels[0].name || 'gpt-4');
+          setSelectedModel(completionModels[0].model || 'google/gemini-2.5-flash');
         }
       } catch (error) {
         message.error('Failed to load models');
@@ -206,9 +206,13 @@ export const AgentChat: React.FC<AgentChatProps> = ({
   const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
 
+    const selectedCollectionObjs = collections.filter(
+      c => typeof c.id === 'string' && selectedCollections.includes(c.id as string)
+    );
+
     const agentMessage = {
       query: inputValue,
-      collection_ids: selectedCollections,
+      collections: selectedCollectionObjs,
       model_name: selectedModel,
       web_search_enabled: webSearchEnabled,
     };
@@ -438,7 +442,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
             >
               {(models as any[]).map((model) => (
                 <Select.Option key={model['name'] || model['model']} value={model['name'] || model['model']} style={{ maxWidth: 400, overflow: 'visible', textOverflow: 'clip', whiteSpace: 'normal', wordBreak: 'break-all' }}>
-                  {model['name'] || model['model']}
+                  {model['model']}
                 </Select.Option>
               ))}
             </Select>
