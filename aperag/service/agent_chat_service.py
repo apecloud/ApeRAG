@@ -798,8 +798,18 @@ class AgentChatService:
         available collections, and web search status.
         """
         # Determine collection context
-        if agent_message.collection_ids:
-            collection_context = ", ".join([f"'{cid}'" for cid in agent_message.collection_ids])
+        if agent_message.collections:
+            collection_context = ", ".join(
+                [
+                    " ".join(
+                        [
+                            f"collection_title={c.title}" if getattr(c, "title", None) else "",
+                            f"collection_id={c.id}" if getattr(c, "id", None) else "",
+                        ]
+                    ).strip()
+                    for c in agent_message.collections
+                ]
+            )
             collection_instruction = (
                 "PRIORITY: Search these collections first, then decide if additional sources are needed"
             )
@@ -920,7 +930,7 @@ Please provide a thorough, well-researched answer that leverages all appropriate
 
                     agent_message = view_models.AgentMessage(
                         query=query,
-                        collection_ids=message_data.get("collection_ids"),
+                        collections=message_data.get("collections"),
                         model_name=message_data.get("model_name"),
                         web_search_enabled=message_data.get("web_search_enabled", False),
                     )
@@ -954,10 +964,14 @@ Please provide a thorough, well-researched answer that leverages all appropriate
         """
         try:
             # Validate collections if specified
-            if agent_message.collection_ids:
-                for collection_id in agent_message.collection_ids:
-                    collection = await self.db_ops.query_collection(user, collection_id)
-                    if not collection:
+            if agent_message.collections:
+                for collection in agent_message.collections:
+                    collection_id = collection.id
+                    if not collection_id:
+                        yield self._format_error("Collection object missing 'id' field")
+                        return
+                    db_collection = await self.db_ops.query_collection(user, collection_id)
+                    if not db_collection:
                         yield self._format_error(f"Collection {collection_id} not found")
                         return
 
