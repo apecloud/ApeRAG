@@ -6,9 +6,16 @@ AgentMessage:
       type: string
       description: User query
       example: Tell me about ApeRAG features
-    collection:
-      $ref: './collection.yaml#/collection'
-      description: The collection object to search in
+    collections:
+      type: array
+      items:
+        $ref: './collection.yaml#/collection'
+      description: List of collection objects to search in
+      example:
+        - id: col_123
+          title: Example Collection
+        - id: col_456
+          title: Another Collection
     model_name:
       type: string
       nullable: true
@@ -21,4 +28,4 @@ AgentMessage:
       default: false
   required:
     - query
-    - collection 
+    - collections 

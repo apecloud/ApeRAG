@@ -30,11 +30,11 @@ export interface AgentMessage {
      */
     'query': string;
     /**
-     * The collection object to search in
-     * @type {Collection}
+     * List of collection objects to search in
+     * @type {Array<Collection>}
      * @memberof AgentMessage
      */
-    'collection': Collection;
+    'collections': Array<Collection>;
     /**
      * LLM model to use for response generation
      * @type {string}
