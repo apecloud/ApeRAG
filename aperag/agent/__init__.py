@@ -29,6 +29,7 @@ from .tool_formatters import (
     format_tool_request_display,
     format_tool_response_display,
 )
+from .tool_reference_extractor import extract_tool_call_references
 
 __all__ = [
     "UniversalEventListener",
@@ -44,4 +45,6 @@ __all__ = [
     "format_tool_call_start",
     "format_tool_request_display",
     "format_tool_response_display",
+    # Tool reference extractor
+    "extract_tool_call_references",
 ]
