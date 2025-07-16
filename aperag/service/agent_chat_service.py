@@ -274,7 +274,7 @@ Ready to assist with your research and knowledge discovery needs in any language
 
 
 class ToolCallListener(EventListener):
-    """简单的工具调用监听器"""
+    """工具调用监听器，用于监听和记录工具调用事件"""
     
     def __init__(self):
         self.tool_calls = []
@@ -282,11 +282,31 @@ class ToolCallListener(EventListener):
     async def handle_event(self, event: Event):
         """处理工具调用事件"""
         try:
-            if event.message is not None and event.message == 'Requesting tool call':
-                tool_name = event.data.get("tool_name", "unknown_tool")
-                tool_call_info = f"🔧 Calling tool: {tool_name}"
-                self.tool_calls.append(tool_call_info)
-                logger.debug(f"Tool call detected: {tool_name}")
+            print(event)
+            # Early return if not a tool call event
+            if not event.message or event.message != 'Requesting tool call':
+                return
+                
+            # Safely access nested data
+            if not event.data or not isinstance(event.data, dict):
+                logger.warning("Tool call event missing or invalid data field")
+                return
+                
+            data_field = event.data.get("data")
+            if not data_field or not isinstance(data_field, dict):
+                logger.warning("Tool call event missing or invalid data.data field")
+                return
+                
+            tool_name = data_field.get("tool_name")
+            if not tool_name:
+                logger.warning("Tool call event missing tool_name, skipping")
+                return
+                
+            # Record the tool call
+            tool_call_info = f"🔧 Calling tool: {tool_name}"
+            self.tool_calls.append(tool_call_info)
+            logger.debug(f"Tool call detected: {tool_name}")
+            
         except Exception as e:
             logger.error(f"Error in tool call listener: {e}")
 
@@ -1005,7 +1025,7 @@ Please provide a thorough, well-researched answer that leverages all appropriate
         return {
             "type": "message",
             "id": msg_id,
-            "data": f"<tool_call>{content}</tool_call>\n",
+            "data": f"<tool_call>{content}</tool_call>\n\n",
             "timestamp": now_unix_milliseconds(),
         }
 
