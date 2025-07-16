@@ -48,4 +48,8 @@ export const collection = {
   'collection.mineru_api_token.test.error': 'Test request failed',
   'collection.mineru_api_token.test.fetch_error': 'Network request error',
   'collection.mineru_api_token.test.btn': 'Check Token',
+  'collection.merge_suggestion.status.PENDING': 'Pending',
+  'collection.merge_suggestion.status.ACCEPTED': 'Accepted',
+  'collection.merge_suggestion.status.REJECTED': 'Rejected',
+  'collection.merge_suggestion.status.EXPIRED': 'Expired',
 };

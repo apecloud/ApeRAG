@@ -22,6 +22,7 @@ import {
   Loading3QuartersOutlined,
 } from '@ant-design/icons';
 import ForceGraph2D from 'react-force-graph-2d';
+import { MergeSuggestion } from './MergeSuggestion';
 import { NodeDetail } from './NodeDetail';
 
 const color = d3.scaleOrdinal(d3.schemeCategory10);
@@ -42,6 +43,9 @@ export default () => {
   }>();
   const [mergeSuggestion, setMergeSuggestion] =
     useState<MergeSuggestionsResponse>();
+  const [mergeSuggestionOpen, setMergeSuggestionOpen] =
+    useState<boolean>(false);
+
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
   const [allEntities, setAllEntities] = useState<{
@@ -93,14 +97,11 @@ export default () => {
     [],
   );
 
-  const getData = useCallback(async () => {
+  const getGraphData = useCallback(async () => {
     if (!params.collectionId) return;
     setLoading(true);
-    const [graphRes, suggestionRes] = await Promise.all([
+    const [graphRes] = await Promise.all([
       graphApi.collectionsCollectionIdGraphsGet({
-        collectionId: params.collectionId,
-      }),
-      graphApi.collectionsCollectionIdGraphsMergeSuggestionsPost({
         collectionId: params.collectionId,
       }),
     ]);
@@ -120,11 +121,20 @@ export default () => {
     const links = graphRes.data.edges || [];
 
     setGraphData({ nodes, links });
-    setMergeSuggestion(suggestionRes.data);
+
     setAllEntities(_.groupBy(nodes, (n) => n.properties.entity_type));
 
     setLoading(false);
-  }, [params.collectionId, graphData]);
+  }, [params.collectionId]);
+
+  const getMergeSuggestions = useCallback(async () => {
+    if (!params.collectionId) return;
+    const suggestionRes =
+      await graphApi.collectionsCollectionIdGraphsMergeSuggestionsPost({
+        collectionId: params.collectionId,
+      });
+    setMergeSuggestion(suggestionRes.data);
+  }, [params.collectionId]);
 
   const handleCloseDetail = useCallback(() => {
     setActiveNode(undefined);
@@ -192,7 +202,8 @@ export default () => {
   }, [activeNode]);
 
   useEffect(() => {
-    getData();
+    getGraphData();
+    getMergeSuggestions();
     graphRef.current
       .d3Force(
         'link',
@@ -221,6 +232,7 @@ export default () => {
         right: 0,
         bottom: 0,
         zIndex: 1001,
+        overflow: 'hidden',
       }}
       styles={{
         header: {
@@ -241,29 +253,39 @@ export default () => {
           showSearch
           allowClear
           value={activeNode?.id}
-          options={graphData?.nodes.map((nod) => ({
-            label: nod.id,
-            value: nod.id,
-          }))}
+          options={_.map(allEntities, (nods, cate) => {
+            return {
+              label: (
+                <Typography style={{ color: color(cate) }}>{cate}</Typography>
+              ),
+              options: nods.map((n) => ({
+                label: n.id,
+                value: n.id,
+              })),
+            };
+          })}
           placeholder="Search"
           style={{ width: 200 }}
         />
       }
       extra={
         <Space split={<Divider type="vertical" />}>
-          {mergeSuggestion?.pending_count && (
-            <div>
-              <Typography.Text type="secondary">
-                共有 {mergeSuggestion?.pending_count || 0} 条节点合并建议
-              </Typography.Text>
-              &nbsp;
-              <a href="javascript:void(0)">立即处理</a>
-            </div>
-          )}
+          <div>
+            <Typography.Text type="secondary">
+              共有{mergeSuggestion?.pending_count || 0}条节点合并建议
+            </Typography.Text>
+            &nbsp;
+            <Typography.Link onClick={() => setMergeSuggestionOpen(true)}>
+              查看
+            </Typography.Link>
+          </div>
           <Button
             type="text"
             loading={loading}
-            onClick={getData}
+            onClick={() => {
+              getGraphData();
+              getMergeSuggestions();
+            }}
             icon={<Loading3QuartersOutlined />}
           />
           <Button
@@ -436,7 +458,26 @@ export default () => {
           }}
         />
       </div>
-      <NodeDetail node={activeNode} onClose={handleCloseDetail} />
+      <NodeDetail
+        open={!mergeSuggestionOpen && Boolean(activeNode)}
+        node={activeNode}
+        onClose={handleCloseDetail}
+      />
+      {mergeSuggestion && (
+        <MergeSuggestion
+          dataSource={mergeSuggestion}
+          open={mergeSuggestionOpen}
+          onRefresh={getMergeSuggestions}
+          onClose={() => {
+            setActiveNode(undefined);
+            setMergeSuggestionOpen(false);
+          }}
+          onSelectNode={(id: string) => {
+            const n = graphData?.nodes.find((nod) => nod.id === id);
+            if (n) setActiveNode(n);
+          }}
+        />
+      )}
     </Card>
   );
 };

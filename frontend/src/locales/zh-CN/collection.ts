@@ -44,6 +44,10 @@ export const collection = {
   'collection.mineru_api_token.test.error': '测试请求失败',
   'collection.mineru_api_token.test.fetch_error': '网络请求错误',
   'collection.mineru_api_token.test.btn': '检查 Token',
+  'collection.merge_suggestion.status.PENDING': '待处理',
+  'collection.merge_suggestion.status.ACCEPTED': '已接受',
+  'collection.merge_suggestion.status.REJECTED': '已回绝',
+  'collection.merge_suggestion.status.EXPIRED': '已过期',
 };
 
 export default {
