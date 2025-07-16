@@ -145,13 +145,13 @@
   margin-bottom: 0;
 
   .messageContent {
-    background: #f7f7f8;
-    color: #6b7280;
+    background: var(--ape-control-item-bg-active);
+    color: var(--ape-color-text-secondary);
     border-radius: 20px;
     padding: 16px 20px;
     display: flex;
     align-items: center;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 5%);
+    box-shadow: var(--ape-box-shadow-secondary);
     font-size: 15px;
   }
 }
@@ -160,17 +160,17 @@
   max-width: 640px;
   margin: 0 auto;
   width: 100%;
-  background: white;
+  background: var(--ape-color-bg-container);
   border-radius: 24px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--ape-color-border-secondary);
   padding: 12px;
   margin-bottom: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 4%);
+  box-shadow: var(--ape-box-shadow-secondary);
   transition: all 0.2s ease;
 
   &:focus-within {
-    border-color: #10a37f;
-    box-shadow: 0 4px 12px rgba(16, 163, 127, 10%);
+    border-color: var(--ape-color-primary);
+    box-shadow: var(--ape-box-shadow-tertiary);
   }
 }
 
@@ -181,9 +181,9 @@
   .collectionTag {
     border-radius: 12px;
     padding: 2px 8px;
-    background: #f0f9ff;
-    border: 1px solid #bae6fd;
-    color: #0369a1;
+    background: var(--ape-color-primary-bg-hover);
+    border: 1px solid var(--ape-color-primary-border-hover);
+    color: var(--ape-color-primary);
     font-size: 12px;
     font-weight: 500;
 
@@ -209,7 +209,7 @@
   resize: none;
   font-size: 14px;
   line-height: 1.5;
-  color: #374151;
+  color: var(--ape-color-text);
   background: transparent;
   padding-right: 40px;
 
@@ -217,7 +217,7 @@
     padding: 12px 40px 12px 0;
 
     &::placeholder {
-      color: #9ca3af;
+      color: var(--ape-color-text-placeholder);
       font-weight: 400;
     }
 
@@ -234,8 +234,8 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: #10a37f;
-  color: white;
+  background: var(--ape-color-primary);
+  color: var(--ape-color-white);
   border: none;
   display: flex;
   align-items: center;
@@ -243,7 +243,7 @@
   transition: all 0.2s ease;
 
   &:hover {
-    background: #059669;
+    background: var(--ape-color-primary-hover);
     transform: scale(1.05);
   }
 
@@ -274,19 +274,19 @@
     align-items: center;
     justify-content: center;
     font-size: 13px;
-    color: #6b7280;
+    color: var(--ape-color-text-secondary);
     transition: all 0.2s ease;
     border: none;
     background: transparent;
 
     &:hover {
-      background: #f3f4f6;
-      color: #374151;
+      background: var(--ape-control-item-bg-active);
+      color: var(--ape-color-text);
     }
 
     &.toolButtonActive {
-      background: #ecfdf5;
-      color: #10a37f;
+      background: var(--ape-color-primary-bg-hover);
+      color: var(--ape-color-primary);
     }
   }
 }
@@ -306,7 +306,7 @@
       border-radius: 8px !important;
 
       .ant-select-selection-item {
-        color: #6b7280;
+        color: var(--ape-color-text-secondary);
         font-size: 13px;
         padding: 0 !important;
         line-height: 24px !important;
@@ -314,7 +314,11 @@
     }
 
     &:hover .ant-select-selector {
-      background: #f3f4f6 !important;
+      background: var(--ape-control-item-bg-active) !important;
+      
+      .ant-select-selection-item {
+        color: var(--ape-color-text);
+      }
     }
   }
 }

@@ -297,9 +297,10 @@ export const AgentChat: React.FC<AgentChatProps> = ({
       <div
         className="input-bar"
         style={{
-          background: '#fff',
+          background: token.colorBgContainer,
           borderRadius: 24,
-          boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+          boxShadow: token.boxShadowSecondary,
+          border: `1px solid ${token.colorBorderSecondary}`,
           padding: '12px 16px 8px 16px',
           margin: '12px 0 0 0',
           minHeight: 0,
@@ -344,19 +345,28 @@ export const AgentChat: React.FC<AgentChatProps> = ({
                   minWidth: 36,
                   maxWidth: 120,
                   borderRadius: '50%',
-                  background: 'none',
+                  background: 'transparent',
                   border: 'none',
                   boxShadow: 'none',
+                  color: token.colorTextSecondary,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  transition: 'background 0.2s',
+                  transition: 'all 0.2s',
                   overflow: 'visible',
                   textOverflow: 'clip',
                   whiteSpace: 'normal',
                   padding: '0 8px',
                 }}
                 className="input-bar-btn"
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = token.controlItemBgActive;
+                  e.currentTarget.style.color = token.colorText;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = token.colorTextSecondary;
+                }}
               />
             </Dropdown>
             {/* Web Search 开关 */}
@@ -368,15 +378,30 @@ export const AgentChat: React.FC<AgentChatProps> = ({
                 height: 36,
                 minWidth: 36,
                 borderRadius: '50%',
-                background: 'none',
                 border: 'none',
                 boxShadow: 'none',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                transition: 'background 0.2s',
+                transition: 'all 0.2s',
+                ...(webSearchEnabled ? {} : { 
+                  background: 'transparent',
+                  color: token.colorTextSecondary 
+                }),
               }}
               className="input-bar-btn"
+              onMouseEnter={(e) => {
+                if (!webSearchEnabled) {
+                  e.currentTarget.style.background = token.controlItemBgActive;
+                  e.currentTarget.style.color = token.colorText;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!webSearchEnabled) {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = token.colorTextSecondary;
+                }
+              }}
             />
           </div>
           {/* 右侧：模型选择、发送按钮 */}
@@ -388,8 +413,27 @@ export const AgentChat: React.FC<AgentChatProps> = ({
               onChange={setSelectedModel}
               loading={modelsLoading}
               placeholder="Model"
-              style={{ minWidth: 120, maxWidth: 400, height: 36, borderRadius: 18, background: '#f7f7f8', border: 'none', outline: 'none', overflow: 'visible', textOverflow: 'clip', whiteSpace: 'normal' }}
-              dropdownStyle={{ minWidth: 120, maxWidth: 400, overflow: 'visible', whiteSpace: 'normal' }}
+              style={{ 
+                minWidth: 120, 
+                maxWidth: 400, 
+                height: 36, 
+                borderRadius: 18, 
+                background: token.controlItemBgActive, 
+                border: `1px solid ${token.colorBorderSecondary}`, 
+                color: token.colorText,
+                outline: 'none', 
+                overflow: 'visible', 
+                textOverflow: 'clip', 
+                whiteSpace: 'normal' 
+              }}
+              dropdownStyle={{ 
+                minWidth: 120, 
+                maxWidth: 400, 
+                overflow: 'visible', 
+                whiteSpace: 'normal',
+                background: token.colorBgElevated,
+                border: `1px solid ${token.colorBorderSecondary}`,
+              }}
               bordered={false}
             >
               {(models as any[]).map((model) => (
