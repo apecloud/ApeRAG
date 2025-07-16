@@ -93,12 +93,11 @@ def format_tool_arguments(tool_name: str, arguments: dict) -> str:
         if use_fulltext:
             search_types.append("全文搜索")
             
-        return f"在集合 '{collection_id}' 中搜索 '{query}'，使用 {'/'.join(search_types)}，返回 {topk} 条结果"
+        return f"在知识库中搜索「{query}」，使用 {'/'.join(search_types)}，返回 {topk} 条结果"
     elif tool_name == "web_search":
         query = arguments.get("query", "")
         max_results = arguments.get("max_results", 5)
-        search_engine = arguments.get("search_engine", "duckduckgo")
-        return f"使用 {search_engine} 搜索 '{query}'，返回 {max_results} 条结果"
+        return f"搜索「{query}」，返回 {max_results} 条结果"
     elif tool_name == "web_read":
         url_list = arguments.get("url_list", [])
         return f"读取 {len(url_list)} 个网页内容"
@@ -137,27 +136,40 @@ def detect_interface_type(structured_content):
     if not structured_content:
         return "unknown"
         
+    if not isinstance(structured_content, dict):
+        return "unknown"
+    
+    # 检测 search_collection 接口 - 优先检测，因为它有明确的query字段
+    if "query" in structured_content and "items" in structured_content:
+        return "search_collection"
+    
     # 检测 list_collections 接口
-    if isinstance(structured_content, dict) and "items" in structured_content:
+    if "items" in structured_content:
         items = structured_content["items"]
         if isinstance(items, list) and len(items) > 0:
             first_item = items[0]
             if isinstance(first_item, dict) and "title" in first_item and "config" in first_item:
                 return "list_collections"
     
-    # 检测 search_collection 接口
-    if isinstance(structured_content, dict) and "query" in structured_content and "items" in structured_content:
-        return "search_collection"
-    
-    # 检测 web_search 接口
-    if isinstance(structured_content, dict) and "results" in structured_content:
+    # 检测 web_search 和 web_read 接口
+    if "results" in structured_content:
         results = structured_content["results"]
-        if isinstance(results, list) and len(results) > 0:
+        if isinstance(results, list):
+            # 即使results为空也认为是web_search/web_read
+            if len(results) == 0:
+                return "web_search"  # 默认为web_search
+            
             first_result = results[0]
-            if isinstance(first_result, dict) and "url" in first_result and "snippet" in first_result:
-                return "web_search"
-            elif isinstance(first_result, dict) and "content" in first_result:
-                return "web_read"
+            if isinstance(first_result, dict):
+                # 检测web_read: 有content字段
+                if "content" in first_result:
+                    return "web_read"
+                # 检测web_search: 有url字段（snippet可选）
+                elif "url" in first_result:
+                    return "web_search"
+                # 宽松检测：只要有results数组就认为是web_search
+                else:
+                    return "web_search"
     
     return "unknown"
 
@@ -165,10 +177,31 @@ def detect_interface_type(structured_content):
 def format_tool_request_display(tool_name: str, arguments: dict) -> str:
     """格式化工具请求的显示文本"""
     details = format_tool_arguments(tool_name, arguments)
-    return f"🔧 调用工具: {tool_name}\n{details}"
+    
+    # 友好的工具名显示
+    tool_names = {
+        "list_collections": "获取集合列表",
+        "search_collection": "搜索集合", 
+        "web_search": "网页搜索",
+        "web_read": "读取网页"
+    }
+    
+    display_name = tool_names.get(tool_name, tool_name)
+    return f"🔧 {display_name}\n{details}"
 
 
 def format_tool_response_display(interface_type: str, content, is_error: bool) -> str:
     """格式化工具响应的显示文本"""
     summary = format_tool_response_summary(interface_type, content, is_error)
-    return f"✅ 工具响应: {interface_type}\n{summary}" 
+    
+    # 友好的接口类型显示
+    interface_names = {
+        "list_collections": "获取集合列表",
+        "search_collection": "搜索集合",
+        "web_search": "网页搜索", 
+        "web_read": "读取网页",
+        "unknown": "工具调用"
+    }
+    
+    display_name = interface_names.get(interface_type, interface_type)
+    return f"✅ {display_name}\n{summary}" 

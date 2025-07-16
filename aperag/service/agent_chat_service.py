@@ -359,7 +359,8 @@ class UniversalEventListener(EventListener):
             
         except Exception as e:
             logger.error(f"Error handling tool response: {e}")
-      
+    
+          
     async def _handle_generic_event(self, event: Event):
         """处理其他通用事件"""
         # 可以根据需要扩展处理其他类型的事件
