@@ -12,66 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Tool call formatters for agent events."""
+
 import json
-import uuid
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from aperag.utils.utils import now_unix_milliseconds
-
-
-def format_stream_start(msg_id: str) -> Dict[str, Any]:
-    """格式化流式开始事件"""
-    return {
-        "type": "start",
-        "id": msg_id,
-        "timestamp": now_unix_milliseconds(),
-    }
-
-
-def format_stream_content(msg_id: str, content: str) -> Dict[str, Any]:
-    """格式化流式内容事件"""
-    return {
-        "type": "message",
-        "id": msg_id,
-        "data": content,
-        "timestamp": now_unix_milliseconds(),
-    }
-
-
-def format_stream_end(msg_id: str, references: List[str] = None, urls: List[str] = None) -> Dict[str, Any]:
-    """格式化流式结束事件"""
-    if references is None:
-        references = []
-    if urls is None:
-        urls = []
-
-    return {
-        "type": "stop",
-        "id": msg_id,
-        "data": references,
-        "urls": urls,
-        "timestamp": now_unix_milliseconds(),
-    }
-
-
-def format_error(error: str) -> Dict[str, Any]:
-    """格式化错误响应"""
-    return {
-        "type": "error",
-        "id": str(uuid.uuid4()),
-        "data": error,
-        "timestamp": now_unix_milliseconds(),
-    }
-
-
-def format_thinking(msg_id: str, content: str) -> Dict[str, Any]:
-    """格式化思考步骤事件"""
-    return {
-        "type": "thinking",
-        "id": msg_id,
-        "data": content,
-        "timestamp": now_unix_milliseconds(),
-    }
 
 
 def format_tool_call_content(msg_id: str, content: str) -> Dict[str, Any]:
@@ -104,9 +50,6 @@ def format_tool_call_end(msg_id: str, data: str, tool_name: str, result: Any) ->
         "result": result,
         "timestamp": now_unix_milliseconds(),
     }
-
-
-##########################################################################################
 
 
 def format_tool_arguments(tool_name: str, arguments: dict) -> str:

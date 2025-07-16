@@ -24,29 +24,23 @@ from fastapi import WebSocket
 from mcp_agent.agents.agent import Agent
 from mcp_agent.app import MCPApp
 from mcp_agent.config import LoggerSettings, MCPServerSettings, MCPSettings, OpenAISettings, Settings
-from mcp_agent.logging.events import Event
-from mcp_agent.logging.listeners import EventListener
 from mcp_agent.logging.transport import AsyncEventBus
 from mcp_agent.workflows.llm.augmented_llm import RequestParams, SimpleMemory
 from mcp_agent.workflows.llm.augmented_llm_openai import OpenAIAugmentedLLM
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from aperag.agent import (
+    UniversalEventListener,
+    format_error,
+    format_stream_content,
+    format_stream_end,
+    format_stream_start,
+)
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.flow.runners.llm import add_ai_message, add_human_message
 
 # Import MCP server for direct collection search access
 from aperag.schema import view_models
-from aperag.service.agent_chat_utils import (
-    detect_interface_type,
-    format_error,
-    format_stream_content,
-    format_stream_end,
-    format_stream_start,
-    format_tool_call_end,
-    format_tool_call_start,
-    format_tool_request_display,
-    format_tool_response_display,
-)
 from aperag.service.prompt_template_service import get_agent_system_prompt
 from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
 
@@ -63,106 +57,6 @@ if not os.getenv("OPENAI_BASE_URL"):
     os.environ["OPENAI_BASE_URL"] = "https://openrouter.ai/api/v1"
 if not os.getenv("DEFAULT_MODEL"):
     os.environ["DEFAULT_MODEL"] = "gpt-4o-mini"
-
-
-class UniversalEventListener(EventListener):
-    """通用事件监听器，支持多种事件类型的监听和处理"""
-
-    def __init__(self, msg_id: str):
-        self.msg_id = msg_id
-        self.formatted_messages = []  # 存储格式化好的消息，可直接yield
-
-    async def handle_event(self, event: Event):
-        """处理各种类型的事件"""
-        try:
-            if not event.message:
-                return
-
-            # 根据消息类型分发到不同的处理函数
-            if event.message == "send_request: request=":
-                await self._handle_tool_request(event)
-            elif event.message == "send_request: response=":
-                await self._handle_tool_response(event)
-            else:
-                await self._handle_generic_event(event)
-
-        except Exception as e:
-            logger.error(f"Error in universal event listener: {e}")
-
-    async def _handle_tool_request(self, event: Event):
-        """处理工具调用请求事件"""
-        try:
-            if not event.data or not isinstance(event.data, dict):
-                return
-
-            data_field = event.data.get("data")
-            if not data_field or not isinstance(data_field, dict):
-                return
-
-            method = data_field.get("method", "")
-            params = data_field.get("params", {})
-
-            if method == "tools/call" and params:
-                tool_name = params.get("name", "unknown")
-                tool_args = params.get("arguments", {})
-
-                # 使用工具函数格式化显示文本
-                display_text = format_tool_request_display(tool_name, tool_args)
-
-                # 使用工具函数创建格式化消息，直接可以yield
-                formatted_message = format_tool_call_start(self.msg_id, display_text, tool_name, tool_args)
-                self.formatted_messages.append(formatted_message)
-
-                logger.debug(f"Tool request captured: {tool_name}")
-
-        except Exception as e:
-            logger.error(f"Error handling tool request: {e}")
-
-    async def _handle_tool_response(self, event: Event):
-        """处理工具调用响应事件"""
-        try:
-            if not event.data or not isinstance(event.data, dict):
-                return
-
-            data_field = event.data.get("data")
-            if not data_field or not isinstance(data_field, dict):
-                return
-
-            # 解析响应内容
-            structured_content = data_field.get("structuredContent")
-            is_error = data_field.get("isError", False)
-
-            # 使用工具函数检测接口类型
-            interface_type = detect_interface_type(structured_content)
-
-            # 使用工具函数格式化显示文本
-            display_text = format_tool_response_display(interface_type, structured_content, is_error)
-
-            # 使用工具函数创建格式化消息，直接可以yield
-            formatted_message = format_tool_call_end(self.msg_id, display_text, interface_type, structured_content)
-            self.formatted_messages.append(formatted_message)
-
-            logger.debug(f"Tool response captured: {interface_type}")
-
-        except Exception as e:
-            logger.error(f"Error handling tool response: {e}")
-
-    async def _handle_generic_event(self, event: Event):
-        """处理其他通用事件"""
-        # 可以根据需要扩展处理其他类型的事件
-        pass
-
-    def get_new_messages(self, last_count: int = 0) -> List[Dict[str, Any]]:
-        """获取新的格式化消息"""
-        return self.formatted_messages[last_count:]
-
-    def get_message_count(self) -> int:
-        """获取当前消息总数"""
-        return len(self.formatted_messages)
-
-    def clear_messages(self):
-        """清空消息队列"""
-        self.formatted_messages.clear()
 
 
 class AgentChatService:
