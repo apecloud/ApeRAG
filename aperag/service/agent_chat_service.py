@@ -42,7 +42,7 @@ from aperag.flow.runners.llm import add_ai_message, add_human_message
 
 # Import MCP server for direct collection search access
 from aperag.schema import view_models
-from aperag.service.prompt_template_service import get_agent_system_prompt
+from aperag.service.prompt_template_service import build_agent_query_prompt, get_agent_system_prompt
 from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
 
 logger = logging.getLogger(__name__)
@@ -88,64 +88,6 @@ class AgentChatService:
             "openai_api_key": os.getenv("OPENAI_API_KEY", "sk-test"),
             "default_model": model_name or os.getenv("DEFAULT_MODEL", "gpt-4o-mini"),
         }
-
-    def _build_llm_query_prompt(self, agent_message: view_models.AgentMessage, user: str) -> str:
-        """
-        Build a comprehensive prompt for LLM that includes context about user preferences,
-        available collections, and web search status.
-        """
-        # Determine collection context
-        if agent_message.collections:
-            collection_context = ", ".join(
-                [
-                    " ".join(
-                        [
-                            f"collection_title={c.title}" if getattr(c, "title", None) else "",
-                            f"collection_id={c.id}" if getattr(c, "id", None) else "",
-                        ]
-                    ).strip()
-                    for c in agent_message.collections
-                ]
-            )
-            collection_instruction = (
-                "PRIORITY: Search these collections first, then decide if additional sources are needed"
-            )
-        else:
-            collection_context = "None specified by user"
-            collection_instruction = "discover and select relevant collections automatically"
-
-        # Determine web search context
-        web_status = "enabled" if agent_message.web_search_enabled else "disabled"
-        if agent_message.web_search_enabled:
-            web_instruction = "Use web search strategically for current information, verification, or gap-filling"
-        else:
-            web_instruction = "Rely entirely on knowledge collections; inform user if web search would be helpful"
-
-        # Use template for cleaner formatting
-        prompt_template = """**User Query**: {query}
-
-**Session Context**:
-- **User-Specified Collections**: {collection_context} ({collection_instruction})
-- **Web Search**: {web_status} ({web_instruction})
-
-**Research Instructions**:
-1. **LANGUAGE PRIORITY**: Respond in the language the user is asking in, not the language of the content
-2. If user specified collections (@mentions), search those first (REQUIRED)  
-3. Use appropriate search keywords in multiple languages when beneficial
-4. Assess result quality and decide if additional collections are needed
-5. Use web search strategically if enabled and relevant
-6. Provide comprehensive, well-structured response with clear source attribution
-7. Distinguish between user-specified and additional sources in your response
-
-Please provide a thorough, well-researched answer that leverages all appropriate search tools based on the context above."""
-
-        return prompt_template.format(
-            query=agent_message.query,
-            collection_context=collection_context,
-            collection_instruction=collection_instruction,
-            web_status=web_status,
-            web_instruction=web_instruction,
-        )
 
     def _create_mcp_settings(
         self,
@@ -324,7 +266,7 @@ Please provide a thorough, well-researched answer that leverages all appropriate
                             llm.history = memory
 
                             # Build comprehensive prompt with context and pre-search results
-                            comprehensive_prompt = self._build_llm_query_prompt(agent_message=agent_message, user=user)
+                            comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
 
                             # Start generate_str in background and monitor events
                             generate_task = asyncio.create_task(llm.generate_str(comprehensive_prompt, request_params))

@@ -251,7 +251,7 @@ APERAG_AGENT_INSTRUCTION_ZH = """
 2. **多源整合** - 充分利用知识库和网络资源
 3. **全面探索** - 不要停留在第一个结果；从多个角度探索
 4. **质量综合** - 提供结构良好、准确且可操作的信息
-5. **语言智能** - 用用户期望的语言回应，而不仅仅是内容的主导语言
+5. **语言智能** - 使用用户期望的语言回应，而不仅仅是内容的主导语言
 
 您的主要目标是遵循用户的指示，在返回给用户之前尽力解决他们的信息需求。
 
@@ -495,3 +495,113 @@ def list_prompt_templates(language: str) -> view_models.PromptTemplateList:
             )
         )
     return view_models.PromptTemplateList(items=response)
+
+
+def build_agent_query_prompt(agent_message: view_models.AgentMessage, user: str, language: str = "en-US") -> str:
+    """
+    Build a comprehensive prompt for LLM that includes context about user preferences,
+    available collections, and web search status.
+
+    Args:
+        agent_message: The agent message containing query and configuration
+        user: The user identifier
+        language: Language code ("en-US" for English, "zh-CN" for Chinese)
+
+    Returns:
+        The formatted prompt string in the specified language
+    """
+    # Determine collection context
+    if agent_message.collections:
+        if language == "zh-CN":
+            collection_context = ", ".join(
+                [
+                    " ".join(
+                        [
+                            f"知识库标题={c.title}" if getattr(c, "title", None) else "",
+                            f"知识库ID={c.id}" if getattr(c, "id", None) else "",
+                        ]
+                    ).strip()
+                    for c in agent_message.collections
+                ]
+            )
+            collection_instruction = "优先级：首先搜索这些知识库，然后决定是否需要额外来源"
+        else:
+            collection_context = ", ".join(
+                [
+                    " ".join(
+                        [
+                            f"collection_title={c.title}" if getattr(c, "title", None) else "",
+                            f"collection_id={c.id}" if getattr(c, "id", None) else "",
+                        ]
+                    ).strip()
+                    for c in agent_message.collections
+                ]
+            )
+            collection_instruction = (
+                "PRIORITY: Search these collections first, then decide if additional sources are needed"
+            )
+    else:
+        if language == "zh-CN":
+            collection_context = "用户未指定"
+            collection_instruction = "自动发现并选择相关的知识库"
+        else:
+            collection_context = "None specified by user"
+            collection_instruction = "discover and select relevant collections automatically"
+
+    # Determine web search context
+    if language == "zh-CN":
+        web_status = "已启用" if agent_message.web_search_enabled else "已禁用"
+        if agent_message.web_search_enabled:
+            web_instruction = "战略性地使用网络搜索获取当前信息、验证或填补空白"
+        else:
+            web_instruction = "完全依赖知识库；如果网络搜索有帮助请告知用户"
+    else:
+        web_status = "enabled" if agent_message.web_search_enabled else "disabled"
+        if agent_message.web_search_enabled:
+            web_instruction = "Use web search strategically for current information, verification, or gap-filling"
+        else:
+            web_instruction = "Rely entirely on knowledge collections; inform user if web search would be helpful"
+
+    # Use language-specific template
+    if language == "zh-CN":
+        prompt_template = """**用户查询**: {query}
+
+**会话上下文**:
+- **用户指定的知识库**: {collection_context} ({collection_instruction})
+- **网络搜索**: {web_status} ({web_instruction})
+
+**研究指导**:
+1. **语言优先级**: 使用用户提问的语言回应，而不是内容的语言
+2. 如果用户指定了知识库（@提及），首先搜索这些（必需）
+3. 在有益时使用多种语言的适当搜索关键词
+4. 评估结果质量并决定是否需要额外的知识库
+5. 如果启用且相关，战略性地使用网络搜索
+6. 提供全面、结构良好的回应，并清楚标注来源
+7. 在回应中区分用户指定和额外的来源
+
+请提供一个彻底、经过充分研究的答案，基于以上上下文充分利用所有适当的搜索工具。"""
+    else:
+        prompt_template = """**User Query**: {query}
+
+**Session Context**:
+- **User-Specified Collections**: {collection_context} ({collection_instruction})
+- **Web Search**: {web_status} ({web_instruction})
+
+**Research Instructions**:
+1. **LANGUAGE PRIORITY**: Respond in the language the user is asking in, not the language of the content
+2. If user specified collections (@mentions), search those first (REQUIRED)  
+3. Use appropriate search keywords in multiple languages when beneficial
+4. Assess result quality and decide if additional collections are needed
+5. Use web search strategically if enabled and relevant
+6. Provide comprehensive, well-structured response with clear source attribution
+7. Distinguish between user-specified and additional sources in your response
+
+Please provide a thorough, well-researched answer that leverages all appropriate search tools based on the context above."""
+
+    return prompt_template.format(
+        query=agent_message.query,
+        collection_context=collection_context,
+        collection_instruction=collection_instruction,
+        web_status=web_status,
+        web_instruction=web_instruction,
+    )
