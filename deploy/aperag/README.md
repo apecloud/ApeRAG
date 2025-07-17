@@ -17,8 +17,8 @@ helm install aperag ./deploy/aperag
 
 # Or with custom values
 helm install aperag ./deploy/aperag \
-  --set image.tag=v0.5.0-alpha.41 \
-  --set frontend.image.tag=v0.5.0-alpha.41
+  --set image.tag=v0.0.0-nightly \
+  --set frontend.image.tag=v0.0.0-nightly
 ```
 
 ## Environment Variables
