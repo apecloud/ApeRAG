@@ -143,10 +143,10 @@ class CollectionSummaryCallbacks:
     """Callbacks for collection summary task completion"""
 
     @staticmethod
-    async def on_summary_generated(summary_id: str, summary_content: str, target_version: int):
+    def on_summary_generated(summary_id: str, summary_content: str, target_version: int):
         """Called when summary generation succeeds"""
         try:
-            async for session in get_async_session():
+            for session in get_sync_session():
                 update_stmt = (
                     update(CollectionSummary)
                     .where(
@@ -164,22 +164,22 @@ class CollectionSummaryCallbacks:
                         gmt_updated=utc_now(),
                     )
                 )
-                result = await session.execute(update_stmt)
+                result = session.execute(update_stmt)
                 if result.rowcount > 0:
-                    await session.commit()
+                    session.commit()
                     logger.info(f"Collection summary generation completed for {summary_id} (v{target_version})")
                 else:
-                    await session.rollback()
+                    session.rollback()
                     logger.warning(f"Summary completion callback ignored for {summary_id} (v{target_version}) - not in expected state")
 
         except Exception as e:
             logger.error(f"Failed to update collection summary completion for {summary_id}: {e}")
 
     @staticmethod
-    async def on_summary_failed(summary_id: str, error_message: str, target_version: int):
+    def on_summary_failed(summary_id: str, error_message: str, target_version: int):
         """Called when summary generation fails"""
         try:
-            async for session in get_async_session():
+            for session in get_sync_session():
                 update_stmt = (
                     update(CollectionSummary)
                     .where(
@@ -195,12 +195,12 @@ class CollectionSummaryCallbacks:
                         gmt_updated=utc_now(),
                     )
                 )
-                result = await session.execute(update_stmt)
+                result = session.execute(update_stmt)
                 if result.rowcount > 0:
-                    await session.commit()
+                    session.commit()
                     logger.error(f"Collection summary generation failed for {summary_id} (v{target_version}): {error_message}")
                 else:
-                    await session.rollback()
+                    session.rollback()
                     logger.warning(f"Summary failure callback ignored for {summary_id} (v{target_version}) - not in expected state")
         except Exception as e:
             logger.error(f"Failed to update collection summary failure for {summary_id}: {e}")
@@ -280,7 +280,7 @@ class CollectionSummaryService:
 
             if not collection:
                 logger.error(f"Collection {collection_id} not found during summary generation")
-                await CollectionSummaryCallbacks.on_summary_failed(summary_id, "Collection not found", target_version)
+                CollectionSummaryCallbacks.on_summary_failed(summary_id, "Collection not found", target_version)
                 return
             
             if not summary:
@@ -298,26 +298,26 @@ class CollectionSummaryService:
 
             if not completion_service:
                 logger.warning(f"No completion service available for collection {collection_id}")
-                await CollectionSummaryCallbacks.on_summary_failed(summary_id, "No completion service available", target_version)
+                CollectionSummaryCallbacks.on_summary_failed(summary_id, "No completion service available", target_version)
                 return
 
             document_summaries = await self._get_all_document_summaries(collection_id)
 
             if not document_summaries:
                 logger.info(f"No document summaries found for collection {collection_id}")
-                await CollectionSummaryCallbacks.on_summary_generated(summary_id, "", target_version) # TODO: should we return empty string?
+                CollectionSummaryCallbacks.on_summary_generated(summary_id, "", target_version) # TODO: should we return empty string?
                 return
 
             collection_summary_text = await self._reduce_document_summaries(
                 completion_service, document_summaries, collection.title
             )
 
-            await CollectionSummaryCallbacks.on_summary_generated(summary_id, collection_summary_text, target_version)
+            CollectionSummaryCallbacks.on_summary_generated(summary_id, collection_summary_text, target_version)
             logger.info(f"Collection summary generated successfully for summary {summary_id} (v{target_version})")
 
         except Exception as e:
             logger.error(f"Error generating collection summary for {summary_id}: {e}", exc_info=True)
-            await CollectionSummaryCallbacks.on_summary_failed(summary_id, str(e), target_version)
+            CollectionSummaryCallbacks.on_summary_failed(summary_id, str(e), target_version)
 
     async def _get_all_document_summaries(self, collection_id: str) -> List[Dict[str, Any]]:
         """Get all document summaries for the collection (Map phase)"""
