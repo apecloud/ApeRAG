@@ -21,6 +21,7 @@ import {
   message,
   Tag,
   Spin,
+  Tooltip,
 } from 'antd';
 import _ from 'lodash';
 import { useEffect, useState } from 'react';
@@ -34,6 +35,7 @@ import DocumentLocalFormItems from './DocumentLocalFormItems';
 import moment from 'moment';
 import { toast } from 'react-toastify';
 import { api } from '@/services';
+import { QuestionCircleOutlined } from '@ant-design/icons';
 
 type Props = {
   action: 'add' | 'edit';
@@ -288,7 +290,21 @@ export default ({ onSubmit, action, values, form }: Props) => {
         </Form.Item>
         <Form.Item
           name="description"
-          label={formatMessage({ id: 'text.description' })}
+          label={
+            <span>
+              {formatMessage({ id: 'text.description' })}
+              <Tooltip
+                title={
+                  <div style={{ maxWidth: 400, whiteSpace: 'pre-line' }}>
+                    {formatMessage({ id: 'collection.description.tips' })}
+                  </div>
+                }
+                overlayStyle={{ maxWidth: 400 }}
+              >
+                <QuestionCircleOutlined style={{ marginLeft: 6, color: 'var(--ant-color-text-secondary)' }} />
+              </Tooltip>
+            </span>
+          }
         >
           <Input.TextArea maxLength={300} rows={3} readOnly={enableSummary} />
         </Form.Item>
@@ -359,7 +375,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
             }}
           >
             <Form.Item
-              label={formatMessage({ id: 'collection.enable_summary' })}
+              label={formatMessage({ id: 'collection.enable_auto_summary' })}
               valuePropName="checked"
               name={configEnableSummaryKey}
             >
@@ -368,7 +384,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
           </Col>
         </Row>
 
-        {enableKnowledgeGraph ? (
+        {(enableKnowledgeGraph || enableSummary) ? (
           <>
             <Form.Item
               label={formatMessage({

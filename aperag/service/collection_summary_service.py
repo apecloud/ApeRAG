@@ -244,7 +244,7 @@ class CollectionSummaryService:
                 else:
                     # If summary does not exist, create a new one
                     summary = CollectionSummary(collection_id=collection_id, status=CollectionSummaryStatus.PENDING)
-                    await session.add(summary)
+                    session.add(summary)
                     logger.info(f"Created new CollectionSummary for collection {collection_id}")
                 await session.commit()
                 return True
@@ -387,7 +387,7 @@ Please create a concise but comprehensive summary of the entire collection that:
 Collection Summary:"""
 
         try:
-            response = await completion_service.acomplete(prompt)
+            response = await completion_service.complete(prompt)
             return response.text.strip()
         except Exception as e:
             logger.error(f"Error generating collection summary: {e}")
