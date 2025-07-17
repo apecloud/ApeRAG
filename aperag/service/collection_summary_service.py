@@ -383,8 +383,8 @@ Please create a concise but comprehensive summary of the entire collection that:
 Collection Summary:"""
 
         try:
-            response = await completion_service.complete(prompt)
-            return response.text.strip()
+            response = completion_service.generate(history=[], prompt=prompt)
+            return response.strip()
         except Exception as e:
             logger.error(f"Error generating collection summary: {e}")
             raise

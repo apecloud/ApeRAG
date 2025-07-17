@@ -88,6 +88,9 @@ class CollectionService:
             config=config_str,
         )
 
+        if collection.config.enable_summary:
+            await collection_summary_service.trigger_collection_summary_generation(instance)
+
         # Initialize collection based on type
         document_user_quota = await self.db_ops.query_user_quota(user, QuotaType.MAX_DOCUMENT_COUNT)
         collection_init_task.delay(instance.id, document_user_quota)
@@ -135,9 +138,6 @@ class CollectionService:
         # Direct call to repository method, which handles its own transaction
         config_str = dumpCollectionConfig(collection.config)
 
-        if collection.config.enable_summary:
-            await collection_summary_service.trigger_collection_summary_generation(instance)
-
         updated_instance = await self.db_ops.update_collection_by_id(
             user=user,
             collection_id=collection_id,
@@ -145,6 +145,8 @@ class CollectionService:
             description=collection.description,
             config=config_str,
         )
+
+        await collection_summary_service.trigger_collection_summary_generation(updated_instance)
 
         if not updated_instance:
             raise CollectionNotFoundException(collection_id)

@@ -89,10 +89,8 @@ async def update_collection_view(
     collection: view_models.CollectionUpdate,
     user: User = Depends(current_user),
 ) -> view_models.Collection:
-    collection = await collection_service.update_collection(str(user.id), collection_id, collection)
-    # trigger summary generation
-    await collection_summary_service.trigger_collection_summary_generation(collection_id)
-    return collection
+    instance = await collection_service.update_collection(str(user.id), collection_id, collection)
+    return instance
 
 
 @router.delete("/collections/{collection_id}", tags=["collections"])
