@@ -432,7 +432,7 @@ def create_gemini_config():
     
     # Define tag rules
     completion_tag_rules = {
-        'recommend': ['gemini/gemini-2.0-flash', 'gemini/gemini-2.5-flash-preview-05-20', 'gemini/gemini-2.5-pro-preview-06-05']
+        'recommend': ['*']
     }
     embedding_tag_rules = {
         'recommend': ['*']  # All embedding models get recommend tag
@@ -565,7 +565,7 @@ def create_alibabacloud_config():
     
     # Define tag rules
     completion_tag_rules = {
-        'recommend': ['deepseek-r1-distill-qwen-32b', 'qwen-max']
+        'recommend': ['qwen-max']
     }
     embedding_tag_rules = {
         'recommend': ['*'],  # All embedding models get recommend tag
@@ -801,27 +801,20 @@ def create_openrouter_config():
     completion_tag_rules = {
         'free': [':free'],  # Models ending with :free
         'recommend': [
-            'anthropic/claude-3.7-sonnet',
-            'anthropic/claude-sonnet-4',
-            'deepseek/deepseek-chat-v3-0324:free',
-            'deepseek/deepseek-r1:free',
-            'deepseek/deepseek-r1-distill-qwen-32b:free',
-            'google/gemini-2.0-flash-exp:free',
-            'google/gemini-2.5-flash-lite-preview-06-17',
             'google/gemini-2.5-flash',
             'google/gemini-2.5-pro',
             'openai/gpt-4o',
             'openai/gpt-4o-mini',
+            'anthropic/claude-sonnet-4',
+            'deepseek/deepseek-chat',
+            'deepseek/deepseek-r1',
             'openai/o3',
-            'openai/o3-mini',
             'openai/o4-mini',
-            'qwen/qwen-max',
-            'qwen/qwen-plus',
             'x-ai/grok-3-beta',
             'x-ai/grok-3-mini-beta'
         ],
         'default_for_indexing': ['google/gemini-2.5-flash'],
-        'default_for_generation': ['google/gemini-2.5-flash'],
+        'default_for_generation': ['google/gemini-2.5-pro'],
     }
     embedding_tag_rules = {
         'recommend': ['*']  # All embedding models get recommend tag
