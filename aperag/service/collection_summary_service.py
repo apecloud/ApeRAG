@@ -12,148 +12,312 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import select, update
+from sqlalchemy import select, update, and_
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session, joinedload
 
-from aperag.db.models import Collection, CollectionStatus, DocumentIndex, DocumentIndexStatus, DocumentIndexType
+from aperag.config import get_async_session, get_sync_session
+from aperag.db.models import (
+    Collection,
+    CollectionSummary,
+    CollectionSummaryStatus,
+    Document,
+    DocumentIndex,
+    DocumentIndexStatus,
+    DocumentIndexType,
+)
 from aperag.db.ops import async_db_ops
 from aperag.index.summary_index import SummaryIndexer
 from aperag.llm.completion.base_completion import get_collection_completion_service_sync
 from aperag.schema.utils import parseCollectionConfig
+from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
 
 
+class CollectionSummaryReconciler:
+    """Reconciler for collection summaries using reconcile pattern"""
+
+    def __init__(self, scheduler_type: str = "celery"):
+        self.scheduler_type = scheduler_type
+
+    def reconcile_all(self):
+        """
+        Main reconciliation loop - scan collections and reconcile summary differences
+        """
+        for session in get_sync_session():
+            summaries_to_reconcile = self._get_summaries_needing_reconciliation(session)
+            logger.info(f"Found {len(summaries_to_reconcile)} collection summaries need reconciliation")
+
+            successful_reconciliations = 0
+            failed_reconciliations = 0
+            for summary in summaries_to_reconcile:
+                try:
+                    self._reconcile_single_summary(session, summary)
+                    successful_reconciliations += 1
+                except Exception as e:
+                    failed_reconciliations += 1
+                    logger.error(f"Failed to reconcile collection summary {summary.id}: {e}", exc_info=True)
+
+            if successful_reconciliations > 0 or failed_reconciliations > 0:
+                logger.info(
+                    f"Summary reconciliation completed: {successful_reconciliations} successful, {failed_reconciliations} failed"
+                )
+
+    def _get_summaries_needing_reconciliation(self, session: Session) -> List[CollectionSummary]:
+        """
+        Get all collection summaries that need reconciliation
+        """
+        stmt = select(CollectionSummary).where(
+            and_(
+                CollectionSummary.version != CollectionSummary.observed_version,
+                CollectionSummary.status == CollectionSummaryStatus.PENDING,
+            )
+        )
+        result = session.execute(stmt)
+        return result.scalars().all()
+
+    def _reconcile_single_summary(self, session: Session, summary: CollectionSummary):
+        """
+        Reconcile summary generation for a single collection summary
+        """
+        claimed = self._claim_summary_for_processing(session, summary.id, summary.version)
+
+        if claimed:
+            self._schedule_summary_generation(summary.id, summary.collection_id, summary.version)
+            session.commit()
+        else:
+            logger.debug(f"Skipping summary {summary.id} - could not be claimed (likely already processing or version mismatch)")
+
+    def _claim_summary_for_processing(self, session: Session, summary_id: str, version: int) -> bool:
+        """Atomically claim a summary for processing by updating its state and observed_version"""
+        try:
+            update_stmt = (
+                update(CollectionSummary)
+                .where(
+                    and_(
+                        CollectionSummary.id == summary_id,
+                        CollectionSummary.status == CollectionSummaryStatus.PENDING,
+                        CollectionSummary.version == version,
+                    )
+                )
+                .values(
+                    status=CollectionSummaryStatus.GENERATING,
+                    gmt_last_reconciled=utc_now(),
+                    gmt_updated=utc_now(),
+                )
+            )
+            result = session.execute(update_stmt)
+            if result.rowcount > 0:
+                logger.debug(f"Claimed summary {summary_id} (v{version}) for processing")
+                session.flush()
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Failed to claim summary {summary_id}: {e}")
+            session.rollback()
+            return False
+
+    def _schedule_summary_generation(self, summary_id: str, collection_id: str, target_version: int):
+        """
+        Schedule summary generation task
+        """
+        try:
+            from config.celery_tasks import collection_summary_task
+
+            task_result = collection_summary_task.delay(summary_id, collection_id, target_version)
+            logger.info(
+                f"Collection summary generation task scheduled for summary {summary_id} "
+                f"(collection: {collection_id}, version: {target_version}), task ID: {task_result.id}"
+            )
+        except Exception as e:
+            logger.error(f"Failed to schedule summary generation for {summary_id}: {e}")
+            raise
+
+
+class CollectionSummaryCallbacks:
+    """Callbacks for collection summary task completion"""
+
+    @staticmethod
+    async def on_summary_generated(summary_id: str, summary_content: str, target_version: int):
+        """Called when summary generation succeeds"""
+        try:
+            async for session in get_async_session():
+                update_stmt = (
+                    update(CollectionSummary)
+                    .where(
+                        and_(
+                            CollectionSummary.id == summary_id,
+                            CollectionSummary.status == CollectionSummaryStatus.GENERATING,
+                            CollectionSummary.version == target_version,
+                        )
+                    )
+                    .values(
+                        status=CollectionSummaryStatus.COMPLETE,
+                        summary=summary_content,
+                        error_message=None,
+                        observed_version=target_version,
+                        gmt_updated=utc_now(),
+                    )
+                )
+                result = await session.execute(update_stmt)
+                if result.rowcount > 0:
+                    await session.commit()
+                    logger.info(f"Collection summary generation completed for {summary_id} (v{target_version})")
+                else:
+                    await session.rollback()
+                    logger.warning(f"Summary completion callback ignored for {summary_id} (v{target_version}) - not in expected state")
+
+        except Exception as e:
+            logger.error(f"Failed to update collection summary completion for {summary_id}: {e}")
+
+    @staticmethod
+    async def on_summary_failed(summary_id: str, error_message: str, target_version: int):
+        """Called when summary generation fails"""
+        try:
+            async for session in get_async_session():
+                update_stmt = (
+                    update(CollectionSummary)
+                    .where(
+                        and_(
+                            CollectionSummary.id == summary_id,
+                            CollectionSummary.status == CollectionSummaryStatus.GENERATING,
+                            CollectionSummary.version == target_version,
+                        )
+                    )
+                    .values(
+                        status=CollectionSummaryStatus.FAILED,
+                        error_message=error_message,
+                        gmt_updated=utc_now(),
+                    )
+                )
+                result = await session.execute(update_stmt)
+                if result.rowcount > 0:
+                    await session.commit()
+                    logger.error(f"Collection summary generation failed for {summary_id} (v{target_version}): {error_message}")
+                else:
+                    await session.rollback()
+                    logger.warning(f"Summary failure callback ignored for {summary_id} (v{target_version}) - not in expected state")
+        except Exception as e:
+            logger.error(f"Failed to update collection summary failure for {summary_id}: {e}")
+
+
 class CollectionSummaryService:
-    """Service for managing collection summaries using map-reduce strategy"""
+    """Service for managing collection summaries using reconcile strategy"""
 
     def __init__(self):
         self.summary_indexer = SummaryIndexer()
 
-    async def get_collection_with_summary(self, session: AsyncSession, collection_id: str) -> Optional[Collection]:
-        """Get collection including its summary field"""
+    async def trigger_collection_summary_generation(self, collection_id: str) -> bool:
+        """
+        Trigger collection summary generation based on collection config.
+        If enable_summary is true, create/update CollectionSummary.
+        If enable_summary is false, delete CollectionSummary.
+        The reconciler will pick it up and schedule the actual task.
+
+        Returns:
+            bool: True if task was triggered or state changed, False otherwise.
+        """
+        async for session in get_async_session():
+            collection = await session.get(Collection, collection_id)
+            if not collection:
+                raise ValueError(f"Collection {collection_id} not found")
+
+            config = parseCollectionConfig(collection.config)
+
+            summary = await self._get_summary_by_collection_id(session, collection_id)
+
+            if config.enable_summary:
+                if summary:
+                    # If summary exists, update its version to trigger reconciliation
+                    if summary.status != CollectionSummaryStatus.GENERATING:
+                        summary.update_version()
+                        summary.status = CollectionSummaryStatus.PENDING # Reset status
+                        logger.info(f"Triggered re-generation for CollectionSummary of collection {collection_id}")
+                    else:
+                        logger.info(f"CollectionSummary for {collection_id} is already being processed.")
+                        return False
+                else:
+                    # If summary does not exist, create a new one
+                    summary = CollectionSummary(collection_id=collection_id, status=CollectionSummaryStatus.PENDING)
+                    await session.add(summary)
+                    logger.info(f"Created new CollectionSummary for collection {collection_id}")
+                await session.commit()
+                return True
+            else:
+                # If summary is disabled, delete the summary object
+                if summary:
+                    await session.delete(summary)
+                    await session.commit()
+                    logger.info(f"Deleted CollectionSummary for collection {collection_id} as summary is disabled.")
+                    return True
+                return False
+
+    async def _get_summary_by_collection_id(self, session: AsyncSession, collection_id: str) -> Optional[CollectionSummary]:
         result = await session.execute(
-            select(Collection).where(Collection.id == collection_id, Collection.gmt_deleted.is_(None))
+            select(CollectionSummary).where(CollectionSummary.collection_id == collection_id)
         )
         return result.scalar_one_or_none()
 
-    async def trigger_collection_summary_generation(self, collection_id: str) -> bool:
-        """
-        Trigger collection summary generation as background task with mutex
-
-        Returns:
-            bool: True if task was triggered, False if already running
-        """
-        # Check current collection status
-
-        async def _get_collection(session: AsyncSession):
-            result = await session.execute(
-                select(Collection).where(Collection.id == collection_id, Collection.gmt_deleted.is_(None))
-            )
-            return result.scalar_one_or_none()
-
-        collection = await async_db_ops._execute_query(_get_collection)
-
-        if not collection:
-            raise ValueError(f"Collection {collection_id} not found")
-
-        # Check if summary is enabled in collection config
-        config = parseCollectionConfig(collection.config)
-        if not config.enable_summary:
-            logger.info(f"Collection {collection_id} has summary disabled in configuration")
-            return False
-
-        # Check if summary generation is already in progress
-        if collection.status == CollectionStatus.SUMMARY_GENERATING:
-            logger.info(f"Collection {collection_id} summary generation already in progress")
-            return False
-
-        # Set status to SUMMARY_GENERATING for mutex
-        async def _update_collection_status(session: AsyncSession):
-            await session.execute(
-                update(Collection).where(Collection.id == collection_id).values(status=CollectionStatus.SUMMARY_GENERATING)
-            )
-
-        await async_db_ops.execute_with_transaction(_update_collection_status)
-
-        # Import and trigger async task
-        try:
-            # Schedule background task (non-blocking)
-            asyncio.create_task(self._generate_collection_summary_task(collection_id))
-            logger.info(f"Collection summary generation task triggered for {collection_id}")
-            return True
-        except Exception as e:
-            # Rollback status on error
-            async def _rollback_collection_status(session: AsyncSession):
-                await session.execute(
-                    update(Collection).where(Collection.id == collection_id).values(status=CollectionStatus.ACTIVE)
-                )
-
-            await async_db_ops.execute_with_transaction(_rollback_collection_status)
-            logger.error(f"Failed to trigger collection summary generation for {collection_id}: {e}")
-            raise
-
-    async def _generate_collection_summary_task(self, collection_id: str):
+    async def generate_collection_summary_task(self, summary_id: str, collection_id: str, target_version: int):
         """Background task to generate collection summary using map-reduce strategy"""
         try:
-            logger.info(f"Starting collection summary generation for {collection_id}")
+            logger.info(f"Starting collection summary generation for summary {summary_id} (collection: {collection_id}, v{target_version})")
 
             # Get collection
-            async def _get_collection(session: AsyncSession):
-                result = await session.execute(
+            async for session in get_async_session():
+                collection_result = await session.execute(
                     select(Collection).where(Collection.id == collection_id, Collection.gmt_deleted.is_(None))
                 )
-                return result.scalar_one_or_none()
-
-            collection = await async_db_ops._execute_query(_get_collection)
+                collection = collection_result.scalar_one_or_none()
+                
+                summary_result = await session.execute(select(CollectionSummary).where(CollectionSummary.id == summary_id))
+                summary = summary_result.scalar_one_or_none()
 
             if not collection:
                 logger.error(f"Collection {collection_id} not found during summary generation")
+                await CollectionSummaryCallbacks.on_summary_failed(summary_id, "Collection not found", target_version)
+                return
+            
+            if not summary:
+                logger.error(f"CollectionSummary {summary_id} not found during summary generation")
                 return
 
-            # Get collection configuration
-            config = parseCollectionConfig(collection.config)
-            completion_service = get_collection_completion_service_sync(config)
+            if summary.status != CollectionSummaryStatus.GENERATING or summary.version != target_version:
+                logger.warning(
+                    f"CollectionSummary {summary_id} status/version mismatch, skipping generation. "
+                    f"Status: {summary.status}, Version: {summary.version}, Target: {target_version}"
+                )
+                return
+
+            completion_service = get_collection_completion_service_sync(collection)
 
             if not completion_service:
                 logger.warning(f"No completion service available for collection {collection_id}")
-                await self._update_collection_status(collection_id, CollectionStatus.ACTIVE)
+                await CollectionSummaryCallbacks.on_summary_failed(summary_id, "No completion service available", target_version)
                 return
 
-            # Step 1: Get all document summaries (Map phase)
             document_summaries = await self._get_all_document_summaries(collection_id)
 
             if not document_summaries:
                 logger.info(f"No document summaries found for collection {collection_id}")
-                await self._update_collection_status(collection_id, CollectionStatus.ACTIVE)
+                await CollectionSummaryCallbacks.on_summary_generated(summary_id, "", target_version) # TODO: should we return empty string?
                 return
 
-            # Step 2: Generate collection summary using map-reduce (Reduce phase)
-            collection_summary = await self._reduce_document_summaries(
+            collection_summary_text = await self._reduce_document_summaries(
                 completion_service, document_summaries, collection.title
             )
 
-            # Step 3: Update collection with generated summary
-            async def _update_collection_summary(session: AsyncSession):
-                await session.execute(
-                    update(Collection)
-                    .where(Collection.id == collection_id)
-                    .values(summary=collection_summary, status=CollectionStatus.ACTIVE)
-                )
-
-            await async_db_ops.execute_with_transaction(_update_collection_summary)
-
-            logger.info(f"Collection summary generated successfully for {collection_id}")
+            await CollectionSummaryCallbacks.on_summary_generated(summary_id, collection_summary_text, target_version)
+            logger.info(f"Collection summary generated successfully for summary {summary_id} (v{target_version})")
 
         except Exception as e:
-            logger.error(f"Error generating collection summary for {collection_id}: {e}")
-            # Reset status on error
-            await self._update_collection_status(collection_id, CollectionStatus.ACTIVE)
+            logger.error(f"Error generating collection summary for {summary_id}: {e}", exc_info=True)
+            await CollectionSummaryCallbacks.on_summary_failed(summary_id, str(e), target_version)
 
     async def _get_all_document_summaries(self, collection_id: str) -> List[Dict[str, Any]]:
         """Get all document summaries for the collection (Map phase)"""
@@ -203,16 +367,6 @@ class CollectionSummaryService:
     async def _reduce_document_summaries(
         self, completion_service, document_summaries: List[Dict[str, Any]], collection_title: str
     ) -> str:
-        """Reduce multiple document summaries into a single collection summary (Reduce phase)"""
-        # If we have many summaries, we might need to do hierarchical reduction
-        if len(document_summaries) > 20:
-            return await self._hierarchical_reduce(completion_service, document_summaries, collection_title)
-        else:
-            return await self._simple_reduce(completion_service, document_summaries, collection_title)
-
-    async def _simple_reduce(
-        self, completion_service, document_summaries: List[Dict[str, Any]], collection_title: str
-    ) -> str:
         """Simple reduction for small number of documents"""
         summaries_text = "\n\n".join(
             [f"Document {i + 1}: {doc['summary']}" for i, doc in enumerate(document_summaries)]
@@ -257,12 +411,8 @@ Collection Summary:"""
         # Reduce intermediate summaries
         return await self._simple_reduce(completion_service, intermediate_summaries, collection_title)
 
-    async def _update_collection_status(self, collection_id: str, status: CollectionStatus):
-        """Helper method to update collection status"""
-        async def _update_collection_status(session: AsyncSession):
-            await session.execute(update(Collection).where(Collection.id == collection_id).values(status=status))
-        await async_db_ops.execute_with_transaction(_update_collection_status)
 
-
-# Global service instance
+# Global service instances
+collection_summary_reconciler = CollectionSummaryReconciler()
+collection_summary_callbacks = CollectionSummaryCallbacks()
 collection_summary_service = CollectionSummaryService()

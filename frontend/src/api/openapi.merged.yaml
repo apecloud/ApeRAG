@@ -3429,9 +3429,6 @@ components:
           type: string
         description:
           type: string
-        summary:
-          type: string
-          description: LLM-generated summary of the collection
         config:
           $ref: '#/components/schemas/collectionConfig'
         source:
@@ -3442,7 +3439,6 @@ components:
             - ACTIVE
             - INACTIVE
             - DELETED
-            - SUMMARY_GENERATING
         created:
           type: string
           format: date-time

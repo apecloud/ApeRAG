@@ -19,6 +19,8 @@ import {
   Switch,
   Typography,
   message,
+  Tag,
+  Spin,
 } from 'antd';
 import _ from 'lodash';
 import { useEffect, useState } from 'react';
@@ -29,6 +31,9 @@ import DocumentFeishuFormItems from './DocumentFeishuFormItems';
 import DocumentFtpFormItems from './DocumentFtpFormItems';
 import DocumentGithubFormItems from './DocumentGithubFormItems';
 import DocumentLocalFormItems from './DocumentLocalFormItems';
+import moment from 'moment';
+import { toast } from 'react-toastify';
+import { api } from '@/services';
 
 type Props = {
   action: 'add' | 'edit';
@@ -72,6 +77,8 @@ const configParserMineruApiTokenKey = ['config', 'parser', 'mineru_api_token'];
 
 export default ({ onSubmit, action, values, form }: Props) => {
   const { formatMessage } = useIntl();
+  const { collection, getCollection } = useModel('collection');
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
   const {
     availableModels,
@@ -283,7 +290,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
           name="description"
           label={formatMessage({ id: 'text.description' })}
         >
-          <Input.TextArea maxLength={300} rows={3} />
+          <Input.TextArea maxLength={300} rows={3} readOnly={enableSummary} />
         </Form.Item>
 
         <Row gutter={24}>

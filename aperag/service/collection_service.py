@@ -17,7 +17,7 @@ from typing import Optional
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.config import settings
+from aperag.config import get_async_session, settings
 from aperag.db import models as db_models
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.exceptions import QuotaExceededException, ValidationException
@@ -31,6 +31,7 @@ from aperag.schema.view_models import (
     SearchResultItem,
     SearchResultList,
 )
+from aperag.service.collection_summary_service import collection_summary_service
 from aperag.utils.constant import QuotaType
 from aperag.views.utils import validate_source_connect_config
 from config.celery_tasks import collection_delete_task, collection_init_task
@@ -46,13 +47,12 @@ class CollectionService:
         else:
             self.db_ops = AsyncDatabaseOps(session)  # Create custom instance for transaction control
 
-    def build_collection_response(self, instance: db_models.Collection) -> view_models.Collection:
+    async def build_collection_response(self, instance: db_models.Collection) -> view_models.Collection:
         """Build Collection response object for API return."""
         return Collection(
             id=instance.id,
             title=instance.title,
-            description=instance.description,
-            summary=getattr(instance, "summary", None),  # Include LLM-generated summary
+            description=await self.get_effective_description(instance),
             type=instance.type,
             status=getattr(instance, "status", None),
             config=parseCollectionConfig(instance.config),
@@ -92,13 +92,13 @@ class CollectionService:
         document_user_quota = await self.db_ops.query_user_quota(user, QuotaType.MAX_DOCUMENT_COUNT)
         collection_init_task.delay(instance.id, document_user_quota)
 
-        return self.build_collection_response(instance)
+        return await self.build_collection_response(instance)
 
     async def list_collections(self, user: str) -> view_models.CollectionList:
         collections = await self.db_ops.query_collections([user])
         response = []
         for collection in collections:
-            response.append(self.build_collection_response(collection))
+            response.append(await self.build_collection_response(collection))
         return view_models.CollectionList(items=response)
 
     async def get_collection(self, user: str, collection_id: str) -> view_models.Collection:
@@ -107,7 +107,20 @@ class CollectionService:
         collection = await self.db_ops.query_collection(user, collection_id)
         if collection is None:
             raise CollectionNotFoundException(collection_id)
-        return self.build_collection_response(collection)
+        return await self.build_collection_response(collection)
+
+    async def get_effective_description(self, collection: db_models.Collection) -> str:
+        """
+        Get the effective description for a collection.
+        Returns the summary if enabled and complete, otherwise returns the original description.
+        """
+        config = parseCollectionConfig(collection.config)
+        if config.enable_summary:
+            async for session in get_async_session():
+                summary = await collection_summary_service._get_summary_by_collection_id(session, collection.id)
+                if summary and summary.status == db_models.CollectionSummaryStatus.COMPLETE and summary.summary:
+                    return summary.summary
+        return collection.description
 
     async def update_collection(
         self, user: str, collection_id: str, collection: view_models.CollectionUpdate
@@ -133,7 +146,7 @@ class CollectionService:
         if not updated_instance:
             raise CollectionNotFoundException(collection_id)
 
-        return self.build_collection_response(updated_instance)
+        return await self.build_collection_response(updated_instance)
 
     async def delete_collection(self, user: str, collection_id: str) -> Optional[view_models.Collection]:
         """Delete collection by ID (idempotent operation)
@@ -151,7 +164,7 @@ class CollectionService:
         if deleted_instance:
             # Clean up related resources
             collection_delete_task.delay(collection_id)
-            return self.build_collection_response(deleted_instance)
+            return await self.build_collection_response(deleted_instance)
 
         return None
 

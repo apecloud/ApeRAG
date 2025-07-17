@@ -62,7 +62,13 @@ class CollectionStatus(str, Enum):
     INACTIVE = "INACTIVE"
     ACTIVE = "ACTIVE"
     DELETED = "DELETED"
-    SUMMARY_GENERATING = "SUMMARY_GENERATING"  # Currently generating collection summary
+
+
+class CollectionSummaryStatus(str, Enum):
+    PENDING = "PENDING"
+    GENERATING = "GENERATING"
+    COMPLETE = "COMPLETE"
+    FAILED = "FAILED"
 
 
 class CollectionType(str, Enum):
@@ -171,7 +177,6 @@ class Collection(Base):
     id = Column(String(24), primary_key=True, default=lambda: "col" + random_id())
     title = Column(String(256), nullable=False)
     description = Column(Text, nullable=True)  # User-provided description
-    summary = Column(Text, nullable=True)  # LLM-generated summary
     user = Column(String(256), nullable=False, index=True)  # Add index for frequent queries
     status = Column(EnumColumn(CollectionStatus), nullable=False, index=True)  # Add index for status queries
     type = Column(EnumColumn(CollectionType), nullable=False)
@@ -196,6 +201,35 @@ class Collection(Base):
                 if bot:
                     bots.append(bot)
             return bots
+
+class CollectionSummary(Base):
+    __tablename__ = "collection_summary"
+    __table_args__ = (UniqueConstraint("collection_id", name="uq_collection_summary"),)
+
+    id = Column(String(24), primary_key=True, default=lambda: "cs" + random_id())
+    collection_id = Column(String(24), nullable=False, index=True)
+
+    # Reconciliation fields
+    status = Column(EnumColumn(CollectionSummaryStatus), nullable=False, default=CollectionSummaryStatus.PENDING, index=True)
+    version = Column(Integer, nullable=False, default=1)
+    observed_version = Column(Integer, nullable=False, default=0)
+    
+    # Summary content and metadata
+    summary = Column(Text, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    # Timestamps
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_last_reconciled = Column(DateTime(timezone=True), nullable=True)
+
+    def __repr__(self):
+        return f"<CollectionSummary(id={self.id}, collection_id={self.collection_id}, status={self.status}, version={self.version})>"
+
+    def update_version(self):
+        """Update the version to trigger reconciliation"""
+        self.version += 1
+        self.gmt_updated = utc_now()
 
 
 class Document(Base):

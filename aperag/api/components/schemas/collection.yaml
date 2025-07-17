@@ -274,9 +274,6 @@ collection:
       type: string
     description:
       type: string
-    summary:
-      type: string
-      description: LLM-generated summary of the collection
     config:
       $ref: '#/collectionConfig'
     source:
@@ -287,7 +284,6 @@ collection:
         - ACTIVE
         - INACTIVE
         - DELETED
-        - SUMMARY_GENERATING
     created:
       type: string
       format: date-time
