@@ -31,7 +31,7 @@ git clone https://github.com/apecloud/ApeRAG.git
 cd ApeRAG
 cp envs/env.template .env
 cp frontend/deploy/env.local.template frontend/.env
-docker compose up -d
+docker-compose up -d --pull always
 ```
 
 运行后，您可以在浏览器中访问 ApeRAG：
