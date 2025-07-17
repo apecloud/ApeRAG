@@ -255,7 +255,7 @@ export default () => {
       setEditingModel(model);
       modelForm.setFieldsValue({
         ...model,
-        tags: model.tags || [],
+        tags: model.tags?.filter((tag) => tag !== '__autogen__') || [],
       });
       setModalView('edit');
     },
@@ -400,8 +400,8 @@ export default () => {
   );
 
   // Provider table columns
-  const providerColumns: any[] = useMemo(() => {
-    const baseColumns = [
+  const providerColumns: TableProps<LlmProvider>['columns'] = useMemo(() => {
+    const baseColumns: TableProps<LlmProvider>['columns'] = [
       {
         title: formatMessage({ id: 'model.provider.name' }),
         dataIndex: 'label',
@@ -432,7 +432,7 @@ export default () => {
         title: formatMessage({ id: 'common.status' }),
         key: 'status',
         dataIndex: '', // Add empty dataIndex to satisfy type requirement
-        render: (_, record) => {
+        render: (_, record: LlmProvider) => {
           const enabled = isProviderEnabled(record);
           return (
             <Tag color={enabled ? 'green' : 'default'}>
@@ -487,7 +487,7 @@ export default () => {
         title: formatMessage({ id: 'common.actions' }),
         dataIndex: 'action',
         key: 'action',
-        render: (text: string, record: any) => (
+        render: (_, record: LlmProvider) => (
           <Space size="middle">
             <Tooltip title={formatMessage({ id: 'model.provider.manage' })}>
               <Button
@@ -567,13 +567,19 @@ export default () => {
       dataIndex: 'tags',
       key: 'tags',
       render: (tags: string[]) => (
-        <Space wrap>{tags?.map((tag) => <Tag key={tag}>{tag}</Tag>)}</Space>
+        <Space wrap>
+          {tags
+            ?.filter((tag) => tag !== '__autogen__')
+            .map((tag) => (
+              <Tag key={tag}>{tag}</Tag>
+            ))}
+        </Space>
       ),
     },
     {
       title: formatMessage({ id: 'model.field.action' }),
       key: 'action',
-      render: (_, record) => (
+      render: (_, record: LlmProviderModel) => (
         <Space>
           <Tooltip title={formatMessage({ id: 'action.edit' })}>
             <Button

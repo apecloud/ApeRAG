@@ -130,6 +130,7 @@ def generate_model_upserts(provider_name: str, api_type: str, models: List[Dict[
 
         # Use tags from model specification
         tags = model.get('tags', [])
+        tags.append('__autogen__')
         tags_sql = format_json_array(tags)
 
         upsert = f"""INSERT INTO llm_provider_models (
