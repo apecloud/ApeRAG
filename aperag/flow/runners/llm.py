@@ -161,6 +161,21 @@ async def calculate_model_token_limits(
     return max_allowed_input, reserved_output_tokens
 
 
+async def is_vision_model(
+    model_service_provider: str,
+    model_name: str,
+) -> bool:
+    try:
+        model_config = await async_db_ops.query_llm_provider_model(
+            provider_name=model_service_provider, api=APIType.COMPLETION.value, model=model_name
+        )
+        if model_config:
+            return model_config.has_tag("vision")
+        return False
+    except Exception:
+        return False
+
+
 # Database operations interface
 class LLMRepository:
     """Repository interface for LLM database operations"""
@@ -207,6 +222,8 @@ class LLMService:
             model_name=model_name,
         )
 
+        vision_model = await is_vision_model(model_service_provider, model_name)
+
         # Build context and references from documents
         max_input_chars = max_input_tokens * TOKEN_TO_CHAR_RATIO
         context = ""
@@ -227,11 +244,14 @@ class LLMService:
                 f"input limit of {max_input_chars} characters"
             )
 
-        cs = CompletionService(custom_llm_provider, model_name, base_url, api_key, temperature, max_output_tokens)
+        # TODO: When image retrieval is supported, images should be separated from docs to construct the 'images' parameter.
+        images = []
+
+        cs = CompletionService(custom_llm_provider, model_name, base_url, api_key, temperature, max_output_tokens, vision=vision_model)
 
         async def async_generator():
             response = ""
-            async for chunk in cs.agenerate_stream([], prompt, False):
+            async for chunk in cs.agenerate_stream([], prompt, images, False):
                 if not chunk:
                     continue
                 yield chunk

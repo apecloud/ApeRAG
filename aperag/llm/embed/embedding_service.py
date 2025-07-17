@@ -248,7 +248,7 @@ class EmbeddingService:
         }
 
         try:
-            response = requests.post(api_url, headers=headers, json=payload, timeout=120)
+            response = requests.post(api_url, headers=headers, json=payload, timeout=180)
             response.raise_for_status()
             response_json = response.json()
 

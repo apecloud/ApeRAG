@@ -205,7 +205,7 @@ def test_completion_cache():
         start_time = time.time()
 
         completion_service = create_completion_service()
-        result.first_response = completion_service.generate(history=None, prompt=TEST_QUERY, memory=False)
+        result.first_response = completion_service.generate(history=None, prompt=TEST_QUERY, images=[], memory=False)
 
         result.first_call_time = time.time() - start_time
 
@@ -221,7 +221,7 @@ def test_completion_cache():
         start_time = time.time()
 
         completion_service = create_completion_service()
-        result.second_response = completion_service.generate(history=None, prompt=TEST_QUERY, memory=False)
+        result.second_response = completion_service.generate(history=None, prompt=TEST_QUERY, images=[], memory=False)
 
         result.second_call_time = time.time() - start_time
 

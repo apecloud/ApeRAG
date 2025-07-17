@@ -18,6 +18,7 @@ import logging
 from threading import Lock
 
 from aperag.config import settings
+from aperag.db.models import APIType
 from aperag.db.ops import db_ops
 from aperag.llm.embed.embedding_service import EmbeddingService
 from aperag.llm.llm_error_types import (
@@ -189,7 +190,7 @@ def get_collection_embedding_service_sync(collection) -> tuple[EmbeddingService,
 
     try:
         multimodal = False
-        model = db_ops.query_llm_provider_model(embedding_msp, "embedding", embedding_model_name)
+        model = db_ops.query_llm_provider_model(embedding_msp, APIType.EMBEDDING.value, embedding_model_name)
         if model:
             multimodal = model.has_tag("multimodal")
     except Exception:
