@@ -15,6 +15,7 @@
 import logging
 from typing import Any, Dict, List
 
+from aperag.concurrent_control import get_or_create_lock, lock_context
 from aperag.db.models import MergeSuggestionStatus
 from aperag.db.ops import async_db_ops
 from aperag.exceptions import CollectionNotFoundException
@@ -160,49 +161,73 @@ class GraphService:
         """Get cached suggestions or generate new ones"""
         await self._get_and_validate_collection(user_id, collection_id)
 
-        # Check cache first
-        if not force_refresh:
-            cached_suggestions = await self.db_ops.get_valid_suggestions(collection_id)
-            if cached_suggestions:
-                logger.info(f"Found {len(cached_suggestions)} cached suggestions for collection {collection_id}")
-                return self._format_suggestions_response(cached_suggestions, from_cache=True)
+        # Use collection-specific lock to prevent concurrent generation for the same collection
+        lock_name = f"merge_suggestions_{collection_id}"
+        lock = get_or_create_lock(lock_name)
 
-        # Generate new suggestions
-        logger.info(f"Generating new merge suggestions for collection {collection_id}")
-        llm_result = await self.generate_merge_suggestions(
-            user_id, collection_id, max_suggestions, max_concurrent_llm_calls
-        )
+        try:
+            async with lock_context(lock, timeout=120.0):  # 120 seconds timeout
+                logger.info(f"Acquired lock '{lock_name}' for merge suggestions generation")
 
-        # Prepare suggestion data
-        suggestion_data = [
-            {
-                "collection_id": collection_id,
-                "entity_ids": [entity["entity_id"] for entity in suggestion["entities"]],
-                "confidence_score": suggestion["confidence_score"],
-                "merge_reason": suggestion["merge_reason"],
-                "suggested_target_entity": suggestion["suggested_target_entity"],
-            }
-            for suggestion in llm_result.get("suggestions", [])
-        ]
+                # Check cache first (double-check pattern after acquiring lock)
+                if not force_refresh:
+                    cached_suggestions = await self.db_ops.get_valid_suggestions(collection_id)
+                    if cached_suggestions:
+                        logger.info(
+                            f"Found {len(cached_suggestions)} cached suggestions for collection {collection_id}"
+                        )
+                        return self._format_suggestions_response(cached_suggestions, from_cache=True)
 
-        if suggestion_data:
-            # If force_refresh=true, delete all existing suggestions before storing new ones
-            if force_refresh:
-                deleted_count = await self.db_ops.delete_all_suggestions_for_collection(collection_id)
-                logger.info(
-                    f"Deleted {deleted_count} existing suggestions for collection {collection_id} (force_refresh=true)"
+                # Generate new suggestions
+                logger.info(f"Generating new merge suggestions for collection {collection_id}")
+                llm_result = await self.generate_merge_suggestions(
+                    user_id, collection_id, max_suggestions, max_concurrent_llm_calls
                 )
 
-            # Store new suggestions
-            stored_suggestions = await self.db_ops.batch_create_suggestions(suggestion_data)
-            logger.info(f"Stored {len(stored_suggestions)} new suggestions for collection {collection_id}")
-            # Extract metadata from llm_result, excluding 'suggestions' to avoid parameter conflict
-            llm_metadata = {k: v for k, v in llm_result.items() if k != "suggestions"}
-            return self._format_suggestions_response(stored_suggestions, from_cache=False, **llm_metadata)
+                # Prepare suggestion data
+                suggestion_data = [
+                    {
+                        "collection_id": collection_id,
+                        "entity_ids": [entity["entity_id"] for entity in suggestion["entities"]],
+                        "confidence_score": suggestion["confidence_score"],
+                        "merge_reason": suggestion["merge_reason"],
+                        "suggested_target_entity": suggestion["suggested_target_entity"],
+                    }
+                    for suggestion in llm_result.get("suggestions", [])
+                ]
 
-        # Extract metadata from llm_result, excluding 'suggestions' to avoid parameter conflict
-        llm_metadata = {k: v for k, v in llm_result.items() if k != "suggestions"}
-        return self._format_suggestions_response([], from_cache=False, **llm_metadata)
+                if suggestion_data:
+                    # Always delete existing suggestions before storing new ones to prevent duplicates
+                    # This fixes the concurrent issue where multiple requests create different batches
+                    deleted_count = await self.db_ops.delete_all_suggestions_for_collection(collection_id)
+                    if deleted_count > 0:
+                        logger.info(
+                            f"Deleted {deleted_count} existing suggestions for collection {collection_id} "
+                            f"(force_refresh={force_refresh})"
+                        )
+
+                    # Store new suggestions
+                    stored_suggestions = await self.db_ops.batch_create_suggestions(suggestion_data)
+                    logger.info(f"Stored {len(stored_suggestions)} new suggestions for collection {collection_id}")
+                    # Extract metadata from llm_result, excluding 'suggestions' to avoid parameter conflict
+                    llm_metadata = {k: v for k, v in llm_result.items() if k != "suggestions"}
+                    return self._format_suggestions_response(stored_suggestions, from_cache=False, **llm_metadata)
+
+                # Extract metadata from llm_result, excluding 'suggestions' to avoid parameter conflict
+                llm_metadata = {k: v for k, v in llm_result.items() if k != "suggestions"}
+                return self._format_suggestions_response([], from_cache=False, **llm_metadata)
+
+        except TimeoutError:
+            logger.warning(f"Failed to acquire lock '{lock_name}' within timeout, falling back to cache")
+            # Fallback: return cached suggestions if available
+            cached_suggestions = await self.db_ops.get_valid_suggestions(collection_id)
+            if cached_suggestions:
+                logger.info(f"Returning {len(cached_suggestions)} cached suggestions due to lock timeout")
+                return self._format_suggestions_response(cached_suggestions, from_cache=True)
+            else:
+                # No cache available, return empty result
+                logger.warning(f"No cached suggestions available for collection {collection_id}")
+                return self._format_suggestions_response([], from_cache=False)
 
     def _format_suggestions_response(self, suggestions: List, from_cache: bool = False, **kwargs) -> dict[str, Any]:
         """Format suggestions response with statistics"""
