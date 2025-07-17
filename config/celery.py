@@ -50,7 +50,7 @@ app.conf.beat_schedule = {
     },
     'reconcile-collection-summaries': {
         'task': 'config.celery_tasks.reconcile_collection_summaries_task',
-        'schedule': 60.0,  # Run every 10 minutes
+        'schedule': 60.0,  # Run every 1 minute
     },
 }
 

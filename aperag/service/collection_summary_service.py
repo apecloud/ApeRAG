@@ -212,7 +212,7 @@ class CollectionSummaryService:
     def __init__(self):
         self.summary_indexer = SummaryIndexer()
 
-    async def trigger_collection_summary_generation(self, collection_id: str) -> bool:
+    async def trigger_collection_summary_generation(self, collection: Collection) -> bool:
         """
         Trigger collection summary generation based on collection config.
         If enable_summary is true, create/update CollectionSummary.
@@ -223,13 +223,9 @@ class CollectionSummaryService:
             bool: True if task was triggered or state changed, False otherwise.
         """
         async for session in get_async_session():
-            collection = await session.get(Collection, collection_id)
-            if not collection:
-                raise ValueError(f"Collection {collection_id} not found")
-
             config = parseCollectionConfig(collection.config)
 
-            summary = await self._get_summary_by_collection_id(session, collection_id)
+            summary = await self._get_summary_by_collection_id(session, collection.id)
 
             if config.enable_summary:
                 if summary:
@@ -237,15 +233,15 @@ class CollectionSummaryService:
                     if summary.status != CollectionSummaryStatus.GENERATING:
                         summary.update_version()
                         summary.status = CollectionSummaryStatus.PENDING # Reset status
-                        logger.info(f"Triggered re-generation for CollectionSummary of collection {collection_id}")
+                        logger.info(f"Triggered re-generation for CollectionSummary of collection {collection.id}")
                     else:
-                        logger.info(f"CollectionSummary for {collection_id} is already being processed.")
+                        logger.info(f"CollectionSummary for {collection.id} is already being processed.")
                         return False
                 else:
                     # If summary does not exist, create a new one
-                    summary = CollectionSummary(collection_id=collection_id, status=CollectionSummaryStatus.PENDING)
+                    summary = CollectionSummary(collection_id=collection.id, status=CollectionSummaryStatus.PENDING)
                     session.add(summary)
-                    logger.info(f"Created new CollectionSummary for collection {collection_id}")
+                    logger.info(f"Created new CollectionSummary for collection {collection.id}")
                 await session.commit()
                 return True
             else:
@@ -253,7 +249,7 @@ class CollectionSummaryService:
                 if summary:
                     await session.delete(summary)
                     await session.commit()
-                    logger.info(f"Deleted CollectionSummary for collection {collection_id} as summary is disabled.")
+                    logger.info(f"Deleted CollectionSummary for collection {collection.id} as summary is disabled.")
                     return True
                 return False
 

@@ -135,6 +135,9 @@ class CollectionService:
         # Direct call to repository method, which handles its own transaction
         config_str = dumpCollectionConfig(collection.config)
 
+        if collection.config.enable_summary:
+            await collection_summary_service.trigger_collection_summary_generation(instance)
+
         updated_instance = await self.db_ops.update_collection_by_id(
             user=user,
             collection_id=collection_id,

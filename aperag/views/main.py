@@ -117,7 +117,7 @@ async def generate_collection_summary_view(
         raise HTTPException(status_code=404, detail="Collection not found")
 
     # Trigger async summary generation
-    task_triggered = await collection_summary_service.trigger_collection_summary_generation(collection_id)
+    task_triggered = await collection_summary_service.trigger_collection_summary_generation(collection)
 
     if task_triggered:
         return {
