@@ -22,6 +22,7 @@ import {
   Tag,
   Spin,
   Tooltip,
+  theme,
 } from 'antd';
 import _ from 'lodash';
 import { useEffect, useState } from 'react';
@@ -81,6 +82,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
   const { formatMessage } = useIntl();
   const { collection, getCollection } = useModel('collection');
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const { token } = theme.useToken();
 
   const {
     availableModels,
@@ -295,18 +297,40 @@ export default ({ onSubmit, action, values, form }: Props) => {
               {formatMessage({ id: 'text.description' })}
               <Tooltip
                 title={
-                  <div style={{ maxWidth: 400, whiteSpace: 'pre-line' }}>
+                  <div style={{
+                    maxWidth: 400,
+                    whiteSpace: 'pre-line',
+                    color: '#fff',
+                    fontSize: token.fontSize
+                  }}>
                     {formatMessage({ id: 'collection.description.tips' })}
                   </div>
                 }
-                overlayStyle={{ maxWidth: 400 }}
+                overlayStyle={{
+                  maxWidth: 400
+                }}
+                overlayInnerStyle={{
+                  backgroundColor: token.colorBgSpotlight,
+                  color: '#fff',
+                  borderRadius: token.borderRadius,
+                  padding: '8px 12px'
+                }}
               >
-                <QuestionCircleOutlined style={{ marginLeft: 6, color: 'var(--ant-color-text-secondary)' }} />
+                <QuestionCircleOutlined style={{ marginLeft: 6, color: token.colorTextSecondary }} />
               </Tooltip>
             </span>
           }
         >
-          <Input.TextArea maxLength={300} rows={3} readOnly={enableSummary} />
+          <Input.TextArea
+            maxLength={300}
+            rows={3}
+            readOnly={enableSummary}
+            style={{
+              color: token.colorText,
+              backgroundColor: token.colorBgContainer,
+              cursor: enableSummary ? 'default' : 'text'
+            }}
+          />
         </Form.Item>
 
         <Row gutter={24}>

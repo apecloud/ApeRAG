@@ -6,7 +6,6 @@ const BASIC_TOKENS: Partial<AliasToken> = {
   borderRadius: 4,
   colorPrimary: '#0173E6', // '#7C49FF',
   fontWeightStrong: 400,
-  colorBgSpotlight: '#262626', // tooltip bg
 };
 
 // dark mode token
@@ -15,6 +14,7 @@ const DARK_TOKENS: Partial<AliasToken> = {
   colorBgContainer: '#131719',
   colorBgElevated: '#131719', // dropdown背景
   colorBgContainerDisabled: '#232526', // input disabled
+  colorBgSpotlight: 'rgba(0, 0, 0, 0.85)', // tooltip bg for dark mode
 
   controlItemBgActive: '#1C2022',
 
@@ -32,6 +32,7 @@ const LIGHT_TOKENS: Partial<AliasToken> = {
   colorBgLayout: '#F7F7F9',
   colorBgContainer: '#FFF',
   colorBgElevated: '#FFF',
+  colorBgSpotlight: 'rgba(0, 0, 0, 0.85)', // tooltip bg for light mode
   controlItemBgActive: '#E8E8EA',
   colorBorder: '#CAD0D8', // input border
   colorBorderSecondary: '#E7EAEE', // card border
