@@ -3,16 +3,12 @@ import {
   Feedback,
   Collection,
 } from '@/api';
-import { ApeMarkdown } from '@/components';
-import { TypingAnimate } from '@/components/typing-animate';
-import { MODEL_PROVIDER_ICON } from '@/constants';
 import { api } from '@/services';
 import {
   SendOutlined,
   SearchOutlined,
   CloseOutlined,
   RobotOutlined,
-  UserOutlined,
 } from '@ant-design/icons';
 import { ReadyState } from 'ahooks/lib/useWebSocket';
 import {
@@ -23,22 +19,14 @@ import {
   Tag,
   Dropdown,
   Checkbox,
-  List,
-  Avatar,
   Typography,
-  Switch,
   message,
-  Spin,
-  Card,
-  Tooltip,
   GlobalToken,
   theme,
 } from 'antd';
 import styled from '@emotion/styled';
-import { css } from '@emotion/react';
 import _ from 'lodash';
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { useModel } from 'umi';
+import { useState, useRef, useEffect } from 'react';
 import { ChatMessageItem } from './_chat_message';
 
 const { Text } = Typography;
@@ -104,7 +92,11 @@ interface AgentChatProps {
   onSubmit: (message: {
     query: string;
     collections: Collection[];
-    model_name: string;
+    completion: {
+      model: string;
+      model_service_provider?: string;
+      custom_llm_provider?: string;
+    };
     web_search_enabled: boolean;
   }) => void;
   onCancel: () => void;
@@ -127,13 +119,13 @@ export const AgentChat: React.FC<AgentChatProps> = ({
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [searchKeyword, setSearchKeyword] = useState('');
-  
+
   // Get collections and models from API
   const [collections, setCollections] = useState<Collection[]>([]);
   const [models, setModels] = useState<any[]>([]);
   const [collectionsLoading, setCollectionsLoading] = useState(false);
   const [modelsLoading, setModelsLoading] = useState(false);
-  
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -152,11 +144,12 @@ export const AgentChat: React.FC<AgentChatProps> = ({
         const res = await api.collectionsGet();
         setCollections(res.data.items || []);
       } catch (error) {
+        console.error('Failed to load collections:', error);
         message.error('Failed to load collections');
       }
       setCollectionsLoading(false);
     };
-    
+
     loadCollections();
   }, []);
 
@@ -165,20 +158,38 @@ export const AgentChat: React.FC<AgentChatProps> = ({
     const loadModels = async () => {
       setModelsLoading(true);
       try {
-        const res = await api.llmProviderModelsGet();
-        const allModels = res.data.items || [];
-        // Filter for completion models
-        const completionModels = allModels.filter((model: any) => model.api === 'completion');
+        // Use availableModelsPost API which returns only models with recommend tag from providers with API keys
+        const res = await api.availableModelsPost({});
+
+        const providers = res.data.items || [];
+
+        // Extract completion models from all providers
+        const completionModels: any[] = [];
+        providers.forEach((provider: any) => {
+          if (provider.completion && Array.isArray(provider.completion)) {
+            provider.completion.forEach((model: any) => {
+              completionModels.push({
+                ...model,
+                provider_name: provider.name,
+                provider_label: provider.label,
+              });
+            });
+          }
+        });
+
         setModels(completionModels);
+
         if (completionModels.length > 0) {
-          setSelectedModel(completionModels[0].model || 'google/gemini-2.5-flash');
+          const defaultModel = completionModels[0].model || 'gpt-4o-mini';
+          setSelectedModel(defaultModel);
         }
       } catch (error) {
+        console.error('Failed to load models:', error);
         message.error('Failed to load models');
       }
       setModelsLoading(false);
     };
-    
+
     loadModels();
   }, []);
 
@@ -210,10 +221,17 @@ export const AgentChat: React.FC<AgentChatProps> = ({
       c => typeof c.id === 'string' && selectedCollections.includes(c.id as string)
     );
 
+    // Find the selected model details
+    const selectedModelObj = models.find((model: any) => model.model === selectedModel);
+
     const agentMessage = {
       query: inputValue,
       collections: selectedCollectionObjs,
-      model_name: selectedModel,
+      completion: {
+        model: selectedModel,
+        model_service_provider: selectedModelObj?.provider_name,
+        custom_llm_provider: selectedModelObj?.custom_llm_provider,
+      },
       web_search_enabled: webSearchEnabled,
     };
 
@@ -388,9 +406,9 @@ export const AgentChat: React.FC<AgentChatProps> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 transition: 'all 0.2s',
-                ...(webSearchEnabled ? {} : { 
+                ...(webSearchEnabled ? {} : {
                   background: 'transparent',
-                  color: token.colorTextSecondary 
+                  color: token.colorTextSecondary
                 }),
               }}
               className="input-bar-btn"
@@ -417,23 +435,23 @@ export const AgentChat: React.FC<AgentChatProps> = ({
               onChange={setSelectedModel}
               loading={modelsLoading}
               placeholder="Model"
-              style={{ 
-                minWidth: 120, 
-                maxWidth: 400, 
-                height: 36, 
-                borderRadius: 18, 
-                background: token.controlItemBgActive, 
-                border: `1px solid ${token.colorBorderSecondary}`, 
+              style={{
+                minWidth: 120,
+                maxWidth: 400,
+                height: 36,
+                borderRadius: 18,
+                background: token.controlItemBgActive,
+                border: `1px solid ${token.colorBorderSecondary}`,
                 color: token.colorText,
-                outline: 'none', 
-                overflow: 'visible', 
-                textOverflow: 'clip', 
-                whiteSpace: 'normal' 
+                outline: 'none',
+                overflow: 'visible',
+                textOverflow: 'clip',
+                whiteSpace: 'normal'
               }}
-              dropdownStyle={{ 
-                minWidth: 120, 
-                maxWidth: 400, 
-                overflow: 'visible', 
+              dropdownStyle={{
+                minWidth: 120,
+                maxWidth: 400,
+                overflow: 'visible',
                 whiteSpace: 'normal',
                 background: token.colorBgElevated,
                 border: `1px solid ${token.colorBorderSecondary}`,

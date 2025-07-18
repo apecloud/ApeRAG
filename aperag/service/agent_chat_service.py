@@ -93,10 +93,15 @@ class AgentChatService:
                     # Create fresh SimpleMemory for each conversation to prevent tool call format conflicts
                     memory = SimpleMemory()
 
+                    # Create ModelSpec from completion data
+                    completion_spec = None
+                    if message_data.get("completion"):
+                        completion_spec = view_models.ModelSpec(**message_data["completion"])
+
                     agent_message = view_models.AgentMessage(
                         query=query,
                         collections=message_data.get("collections"),
-                        model_name=message_data.get("model_name"),
+                        completion=completion_spec,
                         web_search_enabled=message_data.get("web_search_enabled", False),
                     )
                     # Process the agent message and stream responses

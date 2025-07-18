@@ -12,15 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 from typing import Optional
 
-from mcp_agent import MCPApp, MCPSettings
-from mcp_agent.llm import AperagAPISettings, OpenAISettings
+from mcp_agent.app import MCPApp
+from mcp_agent.config import LoggerSettings, MCPServerSettings, MCPSettings, OpenAISettings, Settings
 
 from aperag.db.ops import AsyncDatabaseOps
 from aperag.schema.view_models import ModelSpec
-from aperag.utils.logger import logger
+
+logger = logging.getLogger(__name__)
 
 
 class MCPAppFactory:
@@ -45,22 +47,36 @@ class MCPAppFactory:
         aperag_url = aperag_url or os.getenv("APERAG_URL", "http://localhost:8000/mcp/")
 
         try:
-            # Create ApeRAG API settings
-            aperag_settings = AperagAPISettings(api_key=aperag_api_key, base_url=aperag_url)
-
-            # Create OpenAI settings
-            openai_settings = OpenAISettings(
-                api_key=api_key,
-                base_url=base_url,
-                default_model=model,
-                temperature=0.7,
-                max_tokens=2000,
+            # Create settings using the new API structure
+            settings = Settings(
+                execution_engine="asyncio",
+                logger=LoggerSettings(type="console", level="info"),
+                mcp=MCPSettings(
+                    servers={
+                        "aperag": MCPServerSettings(
+                            transport="streamable_http",
+                            url=aperag_url,
+                            headers={
+                                "Authorization": f"Bearer {aperag_api_key}",
+                                "Content-Type": "application/json",
+                            },
+                            http_timeout_seconds=30,
+                            read_timeout_seconds=120,
+                            description="ApeRAG knowledge base server",
+                            env={"APERAG_API_KEY": aperag_api_key},
+                        )
+                    }
+                ),
+                openai=OpenAISettings(
+                    api_key=api_key,
+                    base_url=base_url,
+                    default_model=model,
+                    temperature=0.7,
+                    max_tokens=2000,
+                ),
             )
 
-            # Create MCP settings
-            mcp_settings = MCPSettings(aperag_api=aperag_settings)
-
-            return MCPApp(name="aperag_agent", settings=mcp_settings, llm_settings=openai_settings)
+            return MCPApp(name="aperag_agent", settings=settings)
 
         except Exception as e:
             logger.error(f"Failed to create MCPApp: {e}")
