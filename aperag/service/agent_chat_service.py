@@ -15,7 +15,6 @@
 import asyncio
 import json
 import logging
-import os
 import uuid
 from typing import Any, AsyncGenerator, Dict
 
@@ -47,22 +46,11 @@ from aperag.flow.runners.llm import add_ai_message, add_human_message
 
 # Import MCP server for direct collection search access
 from aperag.schema import view_models
+from aperag.service.collection_service import collection_service
 from aperag.service.prompt_template_service import build_agent_query_prompt, get_agent_system_prompt
 from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
 
 logger = logging.getLogger(__name__)
-
-# Only set default values if environment variables are not already set
-if not os.getenv("APERAG_API_KEY"):
-    os.environ["APERAG_API_KEY"] = "sk-test"
-if not os.getenv("OPENAI_API_KEY"):
-    os.environ["OPENAI_API_KEY"] = "sk-test"
-if not os.getenv("APERAG_URL"):
-    os.environ["APERAG_URL"] = "http://localhost:8000/mcp/"
-if not os.getenv("OPENAI_BASE_URL"):
-    os.environ["OPENAI_BASE_URL"] = "https://openrouter.ai/api/v1"
-if not os.getenv("DEFAULT_MODEL"):
-    os.environ["DEFAULT_MODEL"] = "gpt-4o-mini"
 
 
 class AgentChatService:
@@ -157,21 +145,14 @@ class AgentChatService:
         This method creates a dynamic MCPApp instance based on the message parameters
         and uses it to generate intelligent responses.
         """
-        # Validate collections if specified
+        # Validate collections if specified - use batch validation for efficiency
         if agent_message.collections:
-            for collection in agent_message.collections:
-                collection_id = collection.id
-                if not collection_id:
-                    yield format_error("Collection object missing 'id' field")
-                    return
-                try:
-                    db_collection = await self.db_ops.query_collection(user, collection_id)
-                    if not db_collection:
-                        yield format_error(f"Collection {collection_id} not found")
-                        return
-                except Exception as e:
-                    yield format_error(f"Failed to validate collection {collection_id}: {str(e)}")
-                    return
+            is_valid, error_message = await collection_service.validate_collections_batch(
+                user, agent_message.collections
+            )
+            if not is_valid:
+                yield format_error(error_message)
+                return
 
         # Create dynamic agent app from ModelSpec
         if not agent_message.completion:
