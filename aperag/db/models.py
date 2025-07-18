@@ -176,7 +176,7 @@ class Collection(Base):
 
     id = Column(String(24), primary_key=True, default=lambda: "col" + random_id())
     title = Column(String(256), nullable=False)
-    description = Column(Text, nullable=True)  # User-provided description
+    description = Column(Text, nullable=True)
     user = Column(String(256), nullable=False, index=True)  # Add index for frequent queries
     status = Column(EnumColumn(CollectionStatus), nullable=False, index=True)  # Add index for status queries
     type = Column(EnumColumn(CollectionType), nullable=False)

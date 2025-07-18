@@ -271,11 +271,13 @@ class DocumentService:
                     index_types = [
                         db_models.DocumentIndexType.VECTOR,
                         db_models.DocumentIndexType.FULLTEXT,
-                        db_models.DocumentIndexType.SUMMARY,
                     ]
                     collection_config = json.loads(collection.config)
                     if collection_config.get("enable_knowledge_graph", False):
                         index_types.append(db_models.DocumentIndexType.GRAPH)
+                    
+                    if collection_config.get("enable_summary", False):
+                        index_types.append(db_models.DocumentIndexType.SUMMARY)
 
                     # Use index manager to create indexes with new status model
                     await document_index_manager.create_or_update_document_indexes(

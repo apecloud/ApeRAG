@@ -37,6 +37,8 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_collection_summary_collection_id'), 'collection_summary', ['collection_id'], unique=False)
     op.create_index(op.f('ix_collection_summary_status'), 'collection_summary', ['status'], unique=False)
+    op.execute(sa.text("ALTER TYPE documentindextype ADD VALUE 'SUMMARY'"))
+
     # ### end Alembic commands ###
 
 

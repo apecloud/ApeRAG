@@ -38,7 +38,7 @@ class DocumentIndexManager:
             index_types: List of index types to create (defaults to all)
         """
         if index_types is None:
-            index_types = [DocumentIndexType.VECTOR, DocumentIndexType.FULLTEXT, DocumentIndexType.GRAPH]
+            index_types = [DocumentIndexType.VECTOR, DocumentIndexType.FULLTEXT, DocumentIndexType.GRAPH, DocumentIndexType.SUMMARY]
 
         for index_type in index_types:
             # Check if index already exists

@@ -217,13 +217,13 @@ class SummaryIndexer(BaseIndexer):
 
             # Create appropriate prompt based on whether it's a chunk or full document
             if is_chunk:
-                prompt = f"""Please provide a concise summary of the following text chunk. Focus on the key points and main ideas:
+                prompt = f"""Summarize this text chunk in 1-2 sentences, focusing only on the most important points:
 
 {text}
 
 Summary:"""
             else:
-                prompt = f"""Please provide a comprehensive summary of the following document. Include the main themes, key points, and important details:
+                prompt = f"""Provide a brief summary of this document in 2-3 sentences. Focus on the main topic and key insights only:
 
 {text}
 
@@ -249,11 +249,11 @@ Summary:"""
             str: Final document summary
         """
         try:
-            prompt = f"""The following are summaries of different sections of a document. Please create a comprehensive final summary that captures the main themes, key points, and important details from all sections:
+            prompt = f"""Combine these section summaries into a concise final summary in 3-4 sentences. Focus on the main topic and most important insights:
 
 {combined_summaries}
 
-Please provide a well-structured final summary:"""
+Final summary:"""
 
             # Generate final summary
             final_summary = completion_service.generate(history=[], prompt=prompt)
