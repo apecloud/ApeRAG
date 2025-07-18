@@ -16,6 +16,9 @@
 // May contain unused imports in some cases
 // @ts-ignore
 import type { Collection } from './collection';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { ModelSpec } from './model-spec';
 
 /**
  * Message format for agent-type bots with additional capabilities
@@ -36,11 +39,11 @@ export interface AgentMessage {
      */
     'collections': Array<Collection>;
     /**
-     * LLM model to use for response generation
-     * @type {string}
+     * Model specification for completion including provider and model details
+     * @type {ModelSpec}
      * @memberof AgentMessage
      */
-    'model_name'?: string;
+    'completion'?: ModelSpec;
     /**
      * Whether to enable web search
      * @type {boolean}

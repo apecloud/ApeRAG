@@ -194,3 +194,8 @@ markers = [
 
 [tool.setuptools]
 packages = ["aperag", "config"]
+
+[dependency-groups]
+dev = [
+    "datamodel-code-generator>=0.30.0",
+]

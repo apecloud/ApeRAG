@@ -15,6 +15,7 @@
 """Agent module for MCP-based intelligent conversation."""
 
 from .event_listener import UniversalEventListener
+from .mcp_app_factory import MCPAppFactory
 from .stream_formatters import (
     format_error,
     format_stream_content,
@@ -33,6 +34,8 @@ from .tool_reference_extractor import extract_tool_call_references
 
 __all__ = [
     "UniversalEventListener",
+    # MCP App Factory
+    "MCPAppFactory",
     # Stream formatters
     "format_error",
     "format_stream_content",

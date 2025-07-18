@@ -361,6 +361,11 @@ test = [
     { name = "tabulate" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "datamodel-code-generator" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "aioboto3", specifier = ">=15.0.0" },
@@ -455,6 +460,9 @@ requires-dist = [
     { name = "whitenoise", specifier = ">=6.5.0,<7.0.0" },
 ]
 provides-extras = ["all", "lightrag-dev", "evaluation", "model", "dev", "test"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "datamodel-code-generator", specifier = ">=0.30.0" }]
 
 [[package]]
 name = "appdirs"

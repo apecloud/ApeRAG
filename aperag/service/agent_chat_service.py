@@ -18,18 +18,17 @@ import logging
 import os
 import traceback
 import uuid
-from typing import Any, AsyncGenerator, Dict, Optional
+from typing import Any, AsyncGenerator, Dict
 
 from fastapi import WebSocket
 from mcp_agent.agents.agent import Agent
-from mcp_agent.app import MCPApp
-from mcp_agent.config import LoggerSettings, MCPServerSettings, MCPSettings, OpenAISettings, Settings
 from mcp_agent.logging.transport import AsyncEventBus
 from mcp_agent.workflows.llm.augmented_llm import RequestParams, SimpleMemory
 from mcp_agent.workflows.llm.augmented_llm_openai import OpenAIAugmentedLLM
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.agent import (
+    MCPAppFactory,
     UniversalEventListener,
     extract_tool_call_references,
     format_error,
@@ -73,79 +72,6 @@ class AgentChatService:
             self.db_ops = async_db_ops
         else:
             self.db_ops = AsyncDatabaseOps(session)
-
-    def _get_aperag_api_settings(self) -> Dict[str, str]:
-        """Get ApeRAG API settings for MCP connection"""
-        return {
-            "aperag_api_key": os.getenv("APERAG_API_KEY", "sk-test"),
-            "aperag_url": os.getenv("APERAG_URL", "http://localhost:8000/mcp/"),
-        }
-
-    def _get_openai_settings(self, model_name: Optional[str] = None) -> Dict[str, str]:
-        """Get OpenAI settings for LLM calls"""
-        return {
-            "openai_base_url": os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1"),
-            "openai_api_key": os.getenv("OPENAI_API_KEY", "sk-test"),
-            "default_model": model_name or os.getenv("DEFAULT_MODEL", "gpt-4o-mini"),
-        }
-
-    def _create_mcp_settings(
-        self,
-        model_name: Optional[str] = None,
-    ) -> Optional[Settings]:
-        """Create MCP settings dynamically based on agent message parameters"""
-        if not MCPApp:
-            logger.error("MCP components not available")
-            return None
-
-        aperag_settings = self._get_aperag_api_settings()
-        openai_settings = self._get_openai_settings(model_name)
-
-        try:
-            return Settings(
-                execution_engine="asyncio",
-                logger=LoggerSettings(type="console", level="info"),
-                mcp=MCPSettings(
-                    servers={
-                        "aperag": MCPServerSettings(
-                            transport="streamable_http",
-                            url=aperag_settings["aperag_url"],
-                            headers={
-                                "Authorization": f"Bearer {aperag_settings['aperag_api_key']}",
-                                "Content-Type": "application/json",
-                            },
-                            http_timeout_seconds=30,
-                            read_timeout_seconds=120,
-                            description="ApeRAG knowledge base server",
-                            env={"APERAG_API_KEY": aperag_settings["aperag_api_key"]},
-                        )
-                    }
-                ),
-                openai=OpenAISettings(
-                    api_key=openai_settings["openai_api_key"],
-                    base_url=openai_settings["openai_base_url"],
-                    default_model=openai_settings["default_model"],
-                    temperature=0.7,
-                    max_tokens=2000,
-                ),
-            )
-        except Exception as e:
-            logger.error(f"Failed to create MCP settings: {e}")
-            return None
-
-    def _create_mcp_app(
-        self,
-    ) -> Optional[MCPApp]:
-        """Create MCPApp instance dynamically based on agent parameters"""
-        settings = self._create_mcp_settings()
-        if not settings:
-            return None
-
-        try:
-            return MCPApp(name="aperag_agent", settings=settings)
-        except Exception as e:
-            logger.error(f"Failed to create MCPApp: {e}")
-            return None
 
     async def handle_websocket_agent_chat(self, websocket: WebSocket, user: str, bot_id: str, chat_id: str):
         """Handle WebSocket connections for agent-type bot chats"""
@@ -214,8 +140,14 @@ class AgentChatService:
                         yield self._format_error(f"Collection {collection_id} not found")
                         return
 
-            # Create dynamic agent app
-            mcp_app = self._create_mcp_app()
+            # Create dynamic agent app from ModelSpec
+            if not agent_message.completion:
+                yield format_error("ModelSpec is required in completion field")
+                return
+
+            mcp_app = await MCPAppFactory.create_mcp_app_from_model_spec(
+                model_spec=agent_message.completion, user_id=user
+            )
 
             if not mcp_app:
                 yield format_error("Failed to initialize agent")

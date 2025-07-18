@@ -16,11 +16,10 @@ AgentMessage:
           title: Example Collection
         - id: col_456
           title: Another Collection
-    model_name:
-      type: string
+    completion:
+      $ref: './model.yaml#/modelSpec'
       nullable: true
-      description: LLM model to use for response generation
-      example: gpt-4o-mini
+      description: Model specification for completion including provider and model details
     web_search_enabled:
       type: boolean
       description: Whether to enable web search
