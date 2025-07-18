@@ -29,7 +29,16 @@ from aperag.agent import (
     MCPAppFactory,
     UniversalEventListener,
     extract_tool_call_references,
-    format_error,
+    format_agent_execution_error,
+    format_agent_initialization_error,
+    format_agent_setup_error,
+    format_invalid_json_error,
+    format_invalid_model_spec_error,
+    format_llm_generation_error,
+    format_mcp_connection_error,
+    format_model_spec_required_error,
+    format_processing_error,
+    format_query_required_error,
     format_stream_content,
     format_stream_end,
     format_stream_start,
@@ -46,7 +55,6 @@ from aperag.flow.runners.llm import add_ai_message, add_human_message
 
 # Import MCP server for direct collection search access
 from aperag.schema import view_models
-from aperag.service.collection_service import collection_service
 from aperag.service.prompt_template_service import build_agent_query_prompt, get_agent_system_prompt
 from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
 
@@ -79,15 +87,18 @@ class AgentChatService:
                 try:
                     message_data = safe_json_parse(data, "websocket_message")
                 except Exception as e:
-                    error_response = format_error(f"Invalid JSON format: {str(e)}")
+                    # Default to en-US for parsing errors since we don't have language info yet
+                    error_response = format_invalid_json_error(str(e), "en-US")
                     await websocket.send_text(json.dumps(error_response))
                     continue
 
                 # Generate message ID
                 message_id = str(uuid.uuid4())
                 query = message_data.get("query", "")
+                language = message_data.get("language", "en-US")  # Get language preference
+                
                 if not query or not query.strip():
-                    error_response = format_error("Query is required and cannot be empty")
+                    error_response = format_query_required_error(language)
                     await websocket.send_text(json.dumps(error_response))
                     continue
 
@@ -101,7 +112,7 @@ class AgentChatService:
                         try:
                             completion_spec = view_models.ModelSpec(**message_data["completion"])
                         except Exception as e:
-                            error_response = format_error(f"Invalid ModelSpec format: {str(e)}")
+                            error_response = format_invalid_model_spec_error(str(e), language)
                             await websocket.send_text(json.dumps(error_response))
                             continue
 
@@ -110,6 +121,7 @@ class AgentChatService:
                         collections=message_data.get("collections"),
                         completion=completion_spec,
                         web_search_enabled=message_data.get("web_search_enabled", False),
+                        language=language,  # Include language in agent message
                     )
 
                     # Process the agent message and stream responses
@@ -120,11 +132,11 @@ class AgentChatService:
 
                 except (AgentConfigurationError, MCPAppInitializationError, MCPConnectionError) as e:
                     logger.error(f"Agent configuration error in websocket: {e}")
-                    error_response = format_error(f"Agent setup failed: {str(e)}")
+                    error_response = format_agent_setup_error(str(e), language)
                     await websocket.send_text(json.dumps(error_response))
                 except Exception as e:
                     logger.error(f"Unexpected error processing agent websocket message: {e}")
-                    error_response = format_error(f"Processing error: {str(e)}")
+                    error_response = format_processing_error(str(e), language)
                     await websocket.send_text(json.dumps(error_response))
 
         except Exception as e:
@@ -145,18 +157,12 @@ class AgentChatService:
         This method creates a dynamic MCPApp instance based on the message parameters
         and uses it to generate intelligent responses.
         """
-        # Validate collections if specified - use batch validation for efficiency
-        if agent_message.collections:
-            is_valid, error_message = await collection_service.validate_collections_batch(
-                user, agent_message.collections
-            )
-            if not is_valid:
-                yield format_error(error_message)
-                return
-
+        # Get language preference from agent message
+        language = getattr(agent_message, 'language', 'en-US')
+        
         # Create dynamic agent app from ModelSpec
         if not agent_message.completion:
-            yield format_error("ModelSpec is required in completion field")
+            yield format_model_spec_required_error(language)
             return
 
         try:
@@ -165,11 +171,11 @@ class AgentChatService:
             )
         except (AgentConfigurationError, MCPAppInitializationError, MCPConnectionError) as e:
             logger.error(f"Failed to create MCP app: {e}")
-            yield format_error(f"Agent setup failed: {str(e)}")
+            yield format_agent_setup_error(str(e), language)
             return
         except Exception as e:
             logger.error(f"Unexpected error creating MCP app: {e}")
-            yield format_error(f"Failed to initialize agent: {str(e)}")
+            yield format_agent_initialization_error(str(e), language)
             return
 
         # Yield start message
@@ -193,7 +199,7 @@ class AgentChatService:
 
                 # Verify server connection
                 if "aperag" not in running_app.server_registry.registry:
-                    yield format_error("ApeRAG MCP Server connection failed")
+                    yield format_mcp_connection_error(language)
                     return
 
                 async with agent:
@@ -255,7 +261,7 @@ class AgentChatService:
 
                     except Exception as e:
                         logger.error(f"Error in LLM generation: {e}")
-                        yield format_error(f"Error in LLM generation: {str(e)}")
+                        yield format_llm_generation_error(str(e), language)
                         return
                     finally:
                         # Clean up: remove the listener
@@ -266,7 +272,7 @@ class AgentChatService:
 
         except Exception as e:
             logger.error(f"Error in MCP agent execution: {e}")
-            yield format_error(f"Error in agent execution: {str(e)}")
+            yield format_agent_execution_error(str(e), language)
             return
 
         # Generate references - either from tool calls or direct search results

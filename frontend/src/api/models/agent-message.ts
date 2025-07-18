@@ -50,5 +50,28 @@ export interface AgentMessage {
      * @memberof AgentMessage
      */
     'web_search_enabled'?: boolean;
+    /**
+     * Language preference for the response
+     * @type {string}
+     * @memberof AgentMessage
+     */
+    'language'?: AgentMessageLanguageEnum;
 }
+
+export const AgentMessageLanguageEnum = {
+    en_US: 'en-US',
+    zh_CN: 'zh-CN',
+    zh_TW: 'zh-TW',
+    ja_JP: 'ja-JP',
+    ko_KR: 'ko-KR',
+    fr_FR: 'fr-FR',
+    de_DE: 'de-DE',
+    es_ES: 'es-ES',
+    it_IT: 'it-IT',
+    pt_BR: 'pt-BR',
+    ru_RU: 'ru-RU'
+} as const;
+
+export type AgentMessageLanguageEnum = typeof AgentMessageLanguageEnum[keyof typeof AgentMessageLanguageEnum];
+
 

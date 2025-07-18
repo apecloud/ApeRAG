@@ -5324,6 +5324,23 @@ components:
           description: Whether to enable web search
           example: true
           default: false
+        language:
+          type: string
+          description: Language preference for the response
+          example: en-US
+          default: en-US
+          enum:
+            - en-US
+            - zh-CN
+            - zh-TW
+            - ja-JP
+            - ko-KR
+            - fr-FR
+            - de-DE
+            - es-ES
+            - it-IT
+            - pt-BR
+            - ru-RU
       required:
         - query
         - collections
