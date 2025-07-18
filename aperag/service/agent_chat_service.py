@@ -32,7 +32,6 @@ from aperag.agent import (
     format_invalid_json_error,
     format_invalid_model_spec_error,
     format_llm_generation_error,
-    format_mcp_connection_error,
     format_model_spec_required_error,
     format_processing_error,
     format_query_required_error,
@@ -207,11 +206,6 @@ class AgentChatService:
         try:
             # Get provider session - super simple!
             session = await self._get_provider_session(agent_message, user)
-
-            # Verify server connection
-            if "aperag" not in session.agent_app.server_registry.registry:
-                yield format_mcp_connection_error(language)
-                return
 
             # Get fresh LLM instance for this specific model and conversation
             llm = await session.get_llm(agent_message.completion.model)
