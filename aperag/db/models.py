@@ -32,7 +32,6 @@ from sqlalchemy import (
     UniqueConstraint,
     select,
 )
-from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.ext.declarative import declarative_base
 
 from aperag.utils.utils import utc_now
@@ -47,14 +46,21 @@ def random_id():
     return "".join(random.sample(uuid.uuid4().hex, 16))
 
 
-# Helper function for creating enum columns that store values instead of names
+# Helper function for creating enum columns that store values as varchar instead of database enum
 def EnumColumn(enum_class, **kwargs):
-    """Create an Enum column that stores enum values instead of names"""
-    # Extract enum values to create the enum column
-    enum_values = [e.value for e in enum_class]
-    # Use the enum class name for the constraint name
-    kwargs.setdefault("name", enum_class.__name__.lower())
-    return SQLEnum(*enum_values, **kwargs)
+    """Create a String column for enum values to avoid database enum constraints"""
+    # Remove enum-specific kwargs that don't apply to String columns
+    kwargs.pop("name", None)
+
+    # Determine the maximum length needed for enum values
+    max_length = max(len(e.value) for e in enum_class) if enum_class else 50
+    # Add some buffer for future enum values
+    max_length = max(max_length + 20, 50)
+
+    # Set default length if not specified
+    kwargs.setdefault("length", max_length)
+
+    return String(**kwargs)
 
 
 # Enums for choices
