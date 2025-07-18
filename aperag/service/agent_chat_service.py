@@ -15,6 +15,7 @@
 import asyncio
 import json
 import logging
+import os
 import uuid
 from typing import Any, AsyncGenerator, Dict
 
@@ -75,6 +76,54 @@ class AgentChatService:
         else:
             self.db_ops = AsyncDatabaseOps(session)
 
+    async def _create_mcp_app(self, model_spec: view_models.ModelSpec, user_id: str, language: str) -> tuple:
+        """
+        Create MCP app with database lookup. Returns (mcp_app, error_response).
+        If error_response is not None, mcp_app is None and error should be yielded.
+        """
+        # Validate ModelSpec
+        if not model_spec or not model_spec.model:
+            return None, format_model_spec_required_error(language)
+
+        try:
+            # Set defaults for aperag parameters
+            aperag_api_key = os.getenv("APERAG_API_KEY", "sk-test")
+            aperag_url = os.getenv("APERAG_URL", "http://localhost:8000/mcp/")
+
+            # Query provider details and API key from database
+            provider_info = await self.db_ops.query_llm_provider_by_name(model_spec.model_service_provider)
+            if not provider_info:
+                error_msg = f"Provider '{model_spec.model_service_provider}' not found in database"
+                logger.error(error_msg)
+                return None, format_agent_setup_error(error_msg, language)
+
+            api_key = await self.db_ops.query_provider_api_key(
+                model_spec.model_service_provider, user_id=user_id, need_public=True
+            )
+            if not api_key:
+                error_msg = f"No API key available for provider '{model_spec.model_service_provider}'"
+                logger.error(error_msg)
+                return None, format_agent_setup_error(error_msg, language)
+
+            # Create MCP app using the core factory method
+            mcp_app = MCPAppFactory.create_mcp_app(
+                model=model_spec.model,
+                llm_provider_name=provider_info.name,
+                base_url=provider_info.base_url,
+                api_key=api_key,
+                aperag_api_key=aperag_api_key,
+                aperag_url=aperag_url,
+            )
+
+            return mcp_app, None
+
+        except (AgentConfigurationError, MCPAppInitializationError, MCPConnectionError) as e:
+            logger.error(f"Failed to create MCP app: {e}")
+            return None, format_agent_setup_error(str(e), language)
+        except Exception as e:
+            logger.error(f"Unexpected error creating MCP app: {e}")
+            return None, format_agent_initialization_error(str(e), language)
+
     @handle_agent_error("websocket_agent_chat", reraise=False)
     async def handle_websocket_agent_chat(self, websocket: WebSocket, user: str, bot_id: str, chat_id: str):
         """Handle WebSocket connections for agent-type bot chats"""
@@ -96,7 +145,7 @@ class AgentChatService:
                 message_id = str(uuid.uuid4())
                 query = message_data.get("query", "")
                 language = message_data.get("language", "en-US")  # Get language preference
-                
+
                 if not query or not query.strip():
                     error_response = format_query_required_error(language)
                     await websocket.send_text(json.dumps(error_response))
@@ -158,24 +207,12 @@ class AgentChatService:
         and uses it to generate intelligent responses.
         """
         # Get language preference from agent message
-        language = getattr(agent_message, 'language', 'en-US')
-        
-        # Create dynamic agent app from ModelSpec
-        if not agent_message.completion:
-            yield format_model_spec_required_error(language)
-            return
+        language = agent_message.language if agent_message.language else "en-US"
 
-        try:
-            mcp_app = await MCPAppFactory.create_mcp_app_from_model_spec(
-                model_spec=agent_message.completion, user_id=user
-            )
-        except (AgentConfigurationError, MCPAppInitializationError, MCPConnectionError) as e:
-            logger.error(f"Failed to create MCP app: {e}")
-            yield format_agent_setup_error(str(e), language)
-            return
-        except Exception as e:
-            logger.error(f"Unexpected error creating MCP app: {e}")
-            yield format_agent_initialization_error(str(e), language)
+        # Create MCP app with database lookup
+        mcp_app, error_response = await self._create_mcp_app(agent_message.completion, user, language)
+        if error_response:
+            yield error_response
             return
 
         # Yield start message

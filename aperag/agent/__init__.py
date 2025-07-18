@@ -55,6 +55,7 @@ from .i18n_formatter import (
 )
 from .mcp_app_factory import MCPAppFactory
 from .stream_formatters import (
+    format_error,
     format_stream_content,
     format_stream_end,
     format_stream_start,
@@ -110,4 +111,20 @@ __all__ = [
     "tool_execution_failed",
     "agent_config_invalid",
     "agent_timeout",
+    # I18n error formatters
+    "I18nErrorFormatter",
+    "format_agent_execution_error",
+    "format_agent_initialization_error",
+    "format_agent_setup_error",
+    "format_bot_flow_config_not_found_error",
+    "format_bot_id_required_error",
+    "format_bot_not_found_error",
+    "format_invalid_json_error",
+    "format_invalid_model_spec_error",
+    "format_llm_generation_error",
+    "format_mcp_connection_error",
+    "format_model_spec_required_error",
+    "format_no_output_node_error",
+    "format_processing_error",
+    "format_query_required_error",
 ]
