@@ -43,7 +43,7 @@ class ProviderSession:
 
         # MCP resources - created once per provider
         self.mcp_app = None
-        self.agent_app = None
+        self.mcp_running_app = None
         self.agent = None
 
         # Simple state flags
@@ -68,7 +68,7 @@ class ProviderSession:
             )
 
             # Start MCP app
-            self.agent_app = await self.mcp_app.run().__aenter__()
+            self.mcp_running_app = await self.mcp_app.run().__aenter__()
 
             # Create reusable agent
             self.agent = Agent(
@@ -120,12 +120,12 @@ class ProviderSession:
                 logger.warning(f"Agent cleanup error: {e}")
             self.agent = None
 
-        if self.agent_app:
+        if self.mcp_running_app:
             try:
-                await self.agent_app.__aexit__(None, None, None)
+                await self.mcp_running_app.__aexit__(None, None, None)
             except Exception as e:
                 logger.warning(f"Agent app cleanup error: {e}")
-            self.agent_app = None
+            self.mcp_running_app = None
 
         self.mcp_app = None
         self._ready = False
