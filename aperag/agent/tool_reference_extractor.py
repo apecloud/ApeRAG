@@ -18,9 +18,17 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
+from .exceptions import (
+    JSONParsingError,
+    ToolReferenceExtractionError,
+    handle_agent_error,
+    safe_json_parse,
+)
+
 logger = logging.getLogger(__name__)
 
 
+@handle_agent_error("tool_call_reference_extraction", default_return=[], reraise=False)
 def extract_tool_call_references(memory) -> List[Dict[str, Any]]:
     """
     Extract tool call results from MCP agent history and format as references.
@@ -33,14 +41,17 @@ def extract_tool_call_references(memory) -> List[Dict[str, Any]]:
     """
     references = []
 
-    try:
-        # Get history from memory
-        history_messages = memory.get() if hasattr(memory, "get") else []
+    # Get history from memory
+    history_messages = memory.get() if hasattr(memory, "get") else []
+    if not history_messages:
+        logger.debug("No history messages found in memory")
+        return references
 
-        for message in history_messages:
-            # Check if message has tool calls (message is a dict)
-            if isinstance(message, dict) and message.get("role") == "assistant" and message.get("tool_calls"):
-                for tool_call in message["tool_calls"]:
+    for message in history_messages:
+        # Check if message has tool calls (message is a dict)
+        if isinstance(message, dict) and message.get("role") == "assistant" and message.get("tool_calls"):
+            for tool_call in message["tool_calls"]:
+                try:
                     # Debug: log the actual structure
                     logger.debug(f"Tool call structure: {tool_call}, type: {type(tool_call)}")
 
@@ -77,10 +88,15 @@ def extract_tool_call_references(memory) -> List[Dict[str, Any]]:
                         f"Extracted tool_name: {tool_name}, tool_args: {tool_args}, tool_call_id: {tool_call_id}"
                     )
 
-                    # Parse tool arguments
+                    # Parse tool arguments using safe parsing
                     try:
-                        args_dict = json.loads(tool_args) if isinstance(tool_args, str) else tool_args
-                    except json.JSONDecodeError:
+                        args_dict = (
+                            safe_json_parse(tool_args, f"tool_args_{tool_name}")
+                            if isinstance(tool_args, str)
+                            else tool_args
+                        )
+                    except JSONParsingError:
+                        logger.warning(f"Failed to parse tool arguments for {tool_name}, using raw args")
                         args_dict = {"raw_args": tool_args}
 
                     # Find corresponding tool result message
@@ -88,30 +104,30 @@ def extract_tool_call_references(memory) -> List[Dict[str, Any]]:
 
                     if tool_result:
                         # Format reference based on tool type
-                        if tool_name == "aperag_search_collection":
-                            ref = _format_search_reference(tool_result, args_dict)
-                            if ref:
-                                references.append(ref)
-                        elif tool_name == "aperag_list_collections":
-                            ref = _format_list_reference(tool_result, args_dict)
-                            if ref:
-                                references.append(ref)
-                        elif tool_name == "aperag_web_search":
-                            ref = _format_web_search_reference(tool_result, args_dict)
-                            if ref:
-                                references.append(ref)
-                        elif tool_name == "aperag_web_read":
-                            ref = _format_web_read_reference(tool_result, args_dict)
-                            if ref:
-                                references.append(ref)
-                        else:
-                            # Generic tool result reference
-                            ref = _format_generic_reference(tool_name, tool_result, args_dict)
+                        ref = None
+                        try:
+                            if tool_name == "aperag_search_collection":
+                                ref = _format_search_reference(tool_result, args_dict)
+                            elif tool_name == "aperag_list_collections":
+                                ref = _format_list_reference(tool_result, args_dict)
+                            elif tool_name == "aperag_web_search":
+                                ref = _format_web_search_reference(tool_result, args_dict)
+                            elif tool_name == "aperag_web_read":
+                                ref = _format_web_read_reference(tool_result, args_dict)
+                            else:
+                                # Generic tool result reference
+                                ref = _format_generic_reference(tool_name, tool_result, args_dict)
+
                             if ref:
                                 references.append(ref)
 
-    except Exception as e:
-        logger.error(f"Error extracting tool call references: {e}")
+                        except (JSONParsingError, ToolReferenceExtractionError) as e:
+                            logger.warning(f"Failed to format reference for tool {tool_name}: {e}")
+                            continue
+
+                except Exception as e:
+                    logger.warning(f"Error processing individual tool call: {e}")
+                    continue
 
     return references
 

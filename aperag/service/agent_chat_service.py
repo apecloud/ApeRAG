@@ -16,7 +16,6 @@ import asyncio
 import json
 import logging
 import os
-import traceback
 import uuid
 from typing import Any, AsyncGenerator, Dict
 
@@ -35,6 +34,13 @@ from aperag.agent import (
     format_stream_content,
     format_stream_end,
     format_stream_start,
+)
+from aperag.agent.exceptions import (
+    AgentConfigurationError,
+    MCPAppInitializationError,
+    MCPConnectionError,
+    handle_agent_error,
+    safe_json_parse,
 )
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.flow.runners.llm import add_ai_message, add_human_message
@@ -73,19 +79,27 @@ class AgentChatService:
         else:
             self.db_ops = AsyncDatabaseOps(session)
 
+    @handle_agent_error("websocket_agent_chat", reraise=False)
     async def handle_websocket_agent_chat(self, websocket: WebSocket, user: str, bot_id: str, chat_id: str):
         """Handle WebSocket connections for agent-type bot chats"""
         try:
             while True:
                 # Receive message from WebSocket
                 data = await websocket.receive_text()
-                message_data = json.loads(data)
+
+                # Safe JSON parsing
+                try:
+                    message_data = safe_json_parse(data, "websocket_message")
+                except Exception as e:
+                    error_response = format_error(f"Invalid JSON format: {str(e)}")
+                    await websocket.send_text(json.dumps(error_response))
+                    continue
 
                 # Generate message ID
                 message_id = str(uuid.uuid4())
                 query = message_data.get("query", "")
                 if not query or not query.strip():
-                    error_response = format_error("Invalid message format")
+                    error_response = format_error("Query is required and cannot be empty")
                     await websocket.send_text(json.dumps(error_response))
                     continue
 
@@ -96,7 +110,12 @@ class AgentChatService:
                     # Create ModelSpec from completion data
                     completion_spec = None
                     if message_data.get("completion"):
-                        completion_spec = view_models.ModelSpec(**message_data["completion"])
+                        try:
+                            completion_spec = view_models.ModelSpec(**message_data["completion"])
+                        except Exception as e:
+                            error_response = format_error(f"Invalid ModelSpec format: {str(e)}")
+                            await websocket.send_text(json.dumps(error_response))
+                            continue
 
                     agent_message = view_models.AgentMessage(
                         query=query,
@@ -104,20 +123,26 @@ class AgentChatService:
                         completion=completion_spec,
                         web_search_enabled=message_data.get("web_search_enabled", False),
                     )
+
                     # Process the agent message and stream responses
                     async for response_chunk in self.process_agent_message(
                         agent_message, user, chat_id, message_id, memory
                     ):
                         await websocket.send_text(json.dumps(response_chunk))
 
+                except (AgentConfigurationError, MCPAppInitializationError, MCPConnectionError) as e:
+                    logger.error(f"Agent configuration error in websocket: {e}")
+                    error_response = format_error(f"Agent setup failed: {str(e)}")
+                    await websocket.send_text(json.dumps(error_response))
                 except Exception as e:
-                    logger.error(f"Error processing agent websocket message: {e}")
-                    error_response = format_error(str(e))
+                    logger.error(f"Unexpected error processing agent websocket message: {e}")
+                    error_response = format_error(f"Processing error: {str(e)}")
                     await websocket.send_text(json.dumps(error_response))
 
         except Exception as e:
-            logger.error(f"WebSocket error in agent chat: {e}")
+            logger.error(f"WebSocket connection error in agent chat: {e}")
 
+    @handle_agent_error("agent_message_processing", reraise=False)
     async def process_agent_message(
         self,
         agent_message: view_models.AgentMessage,
@@ -132,136 +157,149 @@ class AgentChatService:
         This method creates a dynamic MCPApp instance based on the message parameters
         and uses it to generate intelligent responses.
         """
-        try:
-            # Validate collections if specified
-            if agent_message.collections:
-                for collection in agent_message.collections:
-                    collection_id = collection.id
-                    if not collection_id:
-                        yield self._format_error("Collection object missing 'id' field")
-                        return
+        # Validate collections if specified
+        if agent_message.collections:
+            for collection in agent_message.collections:
+                collection_id = collection.id
+                if not collection_id:
+                    yield format_error("Collection object missing 'id' field")
+                    return
+                try:
                     db_collection = await self.db_ops.query_collection(user, collection_id)
                     if not db_collection:
-                        yield self._format_error(f"Collection {collection_id} not found")
+                        yield format_error(f"Collection {collection_id} not found")
                         return
+                except Exception as e:
+                    yield format_error(f"Failed to validate collection {collection_id}: {str(e)}")
+                    return
 
-            # Create dynamic agent app from ModelSpec
-            if not agent_message.completion:
-                yield format_error("ModelSpec is required in completion field")
-                return
+        # Create dynamic agent app from ModelSpec
+        if not agent_message.completion:
+            yield format_error("ModelSpec is required in completion field")
+            return
 
+        try:
             mcp_app = await MCPAppFactory.create_mcp_app_from_model_spec(
                 model_spec=agent_message.completion, user_id=user
             )
+        except (AgentConfigurationError, MCPAppInitializationError, MCPConnectionError) as e:
+            logger.error(f"Failed to create MCP app: {e}")
+            yield format_error(f"Agent setup failed: {str(e)}")
+            return
+        except Exception as e:
+            logger.error(f"Unexpected error creating MCP app: {e}")
+            yield format_error(f"Failed to initialize agent: {str(e)}")
+            return
 
-            if not mcp_app:
-                yield format_error("Failed to initialize agent")
-                return
+        # Yield start message
+        yield format_stream_start(msg_id)
 
-            # Yield start message
-            yield format_stream_start(msg_id)
+        # Get chat history for context
+        history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
 
-            # Get chat history for context
-            history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
+        # Use agent app for intelligent conversation
+        # This integrates with the MCP system for dynamic tool usage
+        full_content = ""
 
-            # Use agent app for intelligent conversation
-            # This integrates with the MCP system for dynamic tool usage
-            full_content = ""
+        try:
+            async with mcp_app.run() as running_app:
+                # Create agent with instruction and server names
+                agent = Agent(
+                    name="aperag_assistant",
+                    instruction=get_agent_system_prompt(),
+                    server_names=["aperag"],
+                )
 
-            try:
-                async with mcp_app.run() as running_app:
-                    # Create agent with instruction and server names
-                    agent = Agent(
-                        name="aperag_assistant",
-                        instruction=get_agent_system_prompt(),
-                        server_names=["aperag"],
-                    )
+                # Verify server connection
+                if "aperag" not in running_app.server_registry.registry:
+                    yield format_error("ApeRAG MCP Server connection failed")
+                    return
 
-                    # Verify server connection
-                    if "aperag" not in running_app.server_registry.registry:
-                        yield format_error("ApeRAG MCP Server connection failed")
-                        return
+                async with agent:
+                    # Create universal event listener with msg_id
+                    event_listener = UniversalEventListener(msg_id)
 
-                    async with agent:
-                        # Create universal event listener with msg_id
-                        event_listener = UniversalEventListener(msg_id)
+                    # Register the listener with AsyncEventBus
+                    event_bus = AsyncEventBus.get()
+                    event_bus.add_listener("universal_event_monitor", event_listener)
 
-                        # Register the listener with AsyncEventBus
-                        event_bus = AsyncEventBus.get()
-                        event_bus.add_listener("universal_event_monitor", event_listener)
+                    try:
+                        # Attach LLM to agent
+                        llm = await agent.attach_llm(OpenAIAugmentedLLM)
 
-                        try:
-                            # Attach LLM to agent
-                            llm = await agent.attach_llm(OpenAIAugmentedLLM)
+                        request_params = RequestParams(
+                            max_iterations=10,
+                            parallel_tool_calls=True,
+                            model="google/gemini-2.5-flash",
+                        )
 
-                            request_params = RequestParams(
-                                max_iterations=10,
-                                parallel_tool_calls=True,
-                                model="google/gemini-2.5-flash",
-                            )
+                        llm.history = memory
 
-                            llm.history = memory
+                        # Build comprehensive prompt with context and pre-search results
+                        comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
 
-                            # Build comprehensive prompt with context and pre-search results
-                            comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
+                        # Start generate_str in background and monitor events
+                        generate_task = asyncio.create_task(llm.generate_str(comprehensive_prompt, request_params))
 
-                            # Start generate_str in background and monitor events
-                            generate_task = asyncio.create_task(llm.generate_str(comprehensive_prompt, request_params))
+                        # Monitor events while generate_str is running
+                        sent_message_count = 0
+                        while not generate_task.done():
+                            # Check for new formatted messages from event listener
+                            current_message_count = event_listener.get_message_count()
 
-                            # Monitor events while generate_str is running
-                            sent_message_count = 0
-                            while not generate_task.done():
-                                # Check for new formatted messages from event listener
-                                current_message_count = event_listener.get_message_count()
-
-                                if current_message_count > sent_message_count:
-                                    # Get and yield new messages directly
-                                    new_messages = event_listener.get_new_messages(sent_message_count)
-                                    for message in new_messages:
-                                        yield message
-                                    sent_message_count = current_message_count
-
-                                # Small delay to avoid busy waiting
-                                await asyncio.sleep(0.05)
-
-                            # Get the final response
-                            response = await generate_task
-                            full_content = response if response else "No response generated"
-
-                            # Send any remaining messages that might have been missed
-                            final_message_count = event_listener.get_message_count()
-                            if final_message_count > sent_message_count:
-                                remaining_messages = event_listener.get_new_messages(sent_message_count)
-                                for message in remaining_messages:
+                            if current_message_count > sent_message_count:
+                                # Get and yield new messages directly
+                                new_messages = event_listener.get_new_messages(sent_message_count)
+                                for message in new_messages:
                                     yield message
+                                sent_message_count = current_message_count
 
-                            # Stream the response content using utils function
-                            yield format_stream_content(msg_id, full_content)
-                            memory = llm.history
+                            # Small delay to avoid busy waiting
+                            await asyncio.sleep(0.05)
 
-                        finally:
-                            # Clean up: remove the listener
+                        # Get the final response
+                        response = await generate_task
+                        full_content = response if response else "No response generated"
+
+                        # Send any remaining messages that might have been missed
+                        final_message_count = event_listener.get_message_count()
+                        if final_message_count > sent_message_count:
+                            remaining_messages = event_listener.get_new_messages(sent_message_count)
+                            for message in remaining_messages:
+                                yield message
+
+                        # Stream the response content using utils function
+                        yield format_stream_content(msg_id, full_content)
+                        memory = llm.history
+
+                    except Exception as e:
+                        logger.error(f"Error in LLM generation: {e}")
+                        yield format_error(f"Error in LLM generation: {str(e)}")
+                        return
+                    finally:
+                        # Clean up: remove the listener
+                        try:
                             event_bus.remove_listener("universal_event_monitor")
-
-            except Exception as e:
-                logger.error(f"Error in MCP agent execution: {e}")
-                yield format_error(f"Error in agent execution: {str(e)}")
-                return
-
-            # Generate references - either from tool calls or direct search results
-            # Extract tool call results from history and format as references
-            tool_references = extract_tool_call_references(memory)
-
-            # Store messages in history
-            await add_human_message(history, agent_message.query, "")
-            await add_ai_message(history, agent_message.query, "", full_content, tool_references, [])
-
-            # Prepare references and URLs
-            urls = []
-
-            yield format_stream_end(msg_id, references=tool_references, urls=urls)
+                        except Exception as e:
+                            logger.warning(f"Failed to remove event listener: {e}")
 
         except Exception as e:
-            traceback.print_exc()
-            logger.error(f"Error in agent message processing: {e}")
-            yield format_error(f"Error processing agent message: {str(e)}")
+            logger.error(f"Error in MCP agent execution: {e}")
+            yield format_error(f"Error in agent execution: {str(e)}")
+            return
+
+        # Generate references - either from tool calls or direct search results
+        # Extract tool call results from history and format as references
+        tool_references = extract_tool_call_references(memory)
+
+        # Store messages in history
+        try:
+            await add_human_message(history, agent_message.query, "")
+            await add_ai_message(history, agent_message.query, "", full_content, tool_references, [])
+        except Exception as e:
+            logger.warning(f"Failed to store chat history: {e}")
+
+        # Prepare references and URLs
+        urls = []
+
+        yield format_stream_end(msg_id, references=tool_references, urls=urls)

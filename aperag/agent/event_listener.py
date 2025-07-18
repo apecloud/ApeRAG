@@ -20,6 +20,7 @@ from typing import Any, Dict, List
 from mcp_agent.logging.events import Event
 from mcp_agent.logging.listeners import EventListener
 
+from .exceptions import EventListenerError, handle_agent_error
 from .tool_formatters import (
     detect_interface_type,
     format_tool_call_end,
@@ -38,80 +39,79 @@ class UniversalEventListener(EventListener):
         self.msg_id = msg_id
         self.formatted_messages = []  # 存储格式化好的消息，可直接yield
 
+    @handle_agent_error("event_handling", reraise=False)
     async def handle_event(self, event: Event):
         """处理各种类型的事件"""
-        try:
-            if not event.message:
-                return
+        if not event.message:
+            return
 
-            # 根据消息类型分发到不同的处理函数
-            if event.message == "send_request: request=":
-                await self._handle_tool_request(event)
-            elif event.message == "send_request: response=":
-                await self._handle_tool_response(event)
-            else:
-                await self._handle_generic_event(event)
+        # 根据消息类型分发到不同的处理函数
+        if event.message == "send_request: request=":
+            await self._handle_tool_request(event)
+        elif event.message == "send_request: response=":
+            await self._handle_tool_response(event)
+        else:
+            await self._handle_generic_event(event)
 
-        except Exception as e:
-            logger.error(f"Error in universal event listener: {e}")
-
+    @handle_agent_error("tool_request_handling", reraise=False)
     async def _handle_tool_request(self, event: Event):
         """处理工具调用请求事件"""
-        try:
-            if not event.data or not isinstance(event.data, dict):
-                return
+        if not event.data or not isinstance(event.data, dict):
+            raise EventListenerError(
+                "tool_request", "Invalid event data structure", event_data={"has_data": bool(event.data)}
+            )
 
-            data_field = event.data.get("data")
-            if not data_field or not isinstance(data_field, dict):
-                return
+        data_field = event.data.get("data")
+        if not data_field or not isinstance(data_field, dict):
+            raise EventListenerError(
+                "tool_request", "Missing or invalid data field", event_data={"data_type": type(data_field).__name__}
+            )
 
-            method = data_field.get("method", "")
-            params = data_field.get("params", {})
+        method = data_field.get("method", "")
+        params = data_field.get("params", {})
 
-            if method == "tools/call" and params:
-                tool_name = params.get("name", "unknown")
-                tool_args = params.get("arguments", {})
-
-                # 使用工具函数格式化显示文本
-                display_text = format_tool_request_display(tool_name, tool_args)
-
-                # 使用工具函数创建格式化消息，直接可以yield
-                formatted_message = format_tool_call_start(self.msg_id, display_text, tool_name, tool_args)
-                self.formatted_messages.append(formatted_message)
-
-                logger.debug(f"Tool request captured: {tool_name}")
-
-        except Exception as e:
-            logger.error(f"Error handling tool request: {e}")
-
-    async def _handle_tool_response(self, event: Event):
-        """处理工具调用响应事件"""
-        try:
-            if not event.data or not isinstance(event.data, dict):
-                return
-
-            data_field = event.data.get("data")
-            if not data_field or not isinstance(data_field, dict):
-                return
-
-            # 解析响应内容
-            structured_content = data_field.get("structuredContent")
-            is_error = data_field.get("isError", False)
-
-            # 使用工具函数检测接口类型
-            interface_type = detect_interface_type(structured_content)
+        if method == "tools/call" and params:
+            tool_name = params.get("name", "unknown")
+            tool_args = params.get("arguments", {})
 
             # 使用工具函数格式化显示文本
-            display_text = format_tool_response_display(interface_type, structured_content, is_error)
+            display_text = format_tool_request_display(tool_name, tool_args)
 
             # 使用工具函数创建格式化消息，直接可以yield
-            formatted_message = format_tool_call_end(self.msg_id, display_text, interface_type, structured_content)
+            formatted_message = format_tool_call_start(self.msg_id, display_text, tool_name, tool_args)
             self.formatted_messages.append(formatted_message)
 
-            logger.debug(f"Tool response captured: {interface_type}")
+            logger.debug(f"Tool request captured: {tool_name}")
 
-        except Exception as e:
-            logger.error(f"Error handling tool response: {e}")
+    @handle_agent_error("tool_response_handling", reraise=False)
+    async def _handle_tool_response(self, event: Event):
+        """处理工具调用响应事件"""
+        if not event.data or not isinstance(event.data, dict):
+            raise EventListenerError(
+                "tool_response", "Invalid event data structure", event_data={"has_data": bool(event.data)}
+            )
+
+        data_field = event.data.get("data")
+        if not data_field or not isinstance(data_field, dict):
+            raise EventListenerError(
+                "tool_response", "Missing or invalid data field", event_data={"data_type": type(data_field).__name__}
+            )
+
+        # 解析响应内容
+        structured_content = data_field.get("structuredContent")
+        is_error = data_field.get("isError", False)
+
+        # 使用工具函数检测接口类型
+        interface_type = detect_interface_type(structured_content)
+
+        # 使用工具函数格式化显示文本
+        display_text = format_tool_response_display(interface_type, structured_content, is_error)
+
+        # 使用工具函数创建格式化消息，直接可以yield
+        formatted_message = format_tool_call_end(self.msg_id, display_text, interface_type, structured_content)
+        self.formatted_messages.append(formatted_message)
+
+        logger.debug(f"Tool response captured: {interface_type}")
 
     async def _handle_generic_event(self, event: Event):
         """处理其他通用事件"""

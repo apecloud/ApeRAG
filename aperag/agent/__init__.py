@@ -15,6 +15,27 @@
 """Agent module for MCP-based intelligent conversation."""
 
 from .event_listener import UniversalEventListener
+from .exceptions import (
+    AgentConfigError,
+    AgentError,
+    AgentTimeoutError,
+    EventListenerError,
+    JSONParsingError,
+    MCPAppInitializationError,
+    MCPConnectionError,
+    StreamFormattingError,
+    ToolExecutionError,
+    ToolReferenceExtractionError,
+    agent_config_invalid,
+    agent_timeout,
+    extract_tool_result_data,
+    handle_agent_error,
+    mcp_connection_failed,
+    mcp_init_failed,
+    safe_json_parse,
+    tool_execution_failed,
+    with_retry,
+)
 from .mcp_app_factory import MCPAppFactory
 from .stream_formatters import (
     format_error,
@@ -33,6 +54,7 @@ from .tool_formatters import (
 from .tool_reference_extractor import extract_tool_call_references
 
 __all__ = [
+    # Event listener
     "UniversalEventListener",
     # MCP App Factory
     "MCPAppFactory",
@@ -50,4 +72,26 @@ __all__ = [
     "format_tool_response_display",
     # Tool reference extractor
     "extract_tool_call_references",
+    # Exception classes
+    "AgentError",
+    "MCPConnectionError",
+    "MCPAppInitializationError",
+    "ToolExecutionError",
+    "EventListenerError",
+    "StreamFormattingError",
+    "AgentConfigError",
+    "ToolReferenceExtractionError",
+    "JSONParsingError",
+    "AgentTimeoutError",
+    # Exception utilities
+    "safe_json_parse",
+    "extract_tool_result_data",
+    "with_retry",
+    "handle_agent_error",
+    # Convenience functions
+    "mcp_connection_failed",
+    "mcp_init_failed",
+    "tool_execution_failed",
+    "agent_config_invalid",
+    "agent_timeout",
 ]
