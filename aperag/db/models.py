@@ -53,7 +53,7 @@ def EnumColumn(enum_class, **kwargs):
     kwargs.pop("name", None)
 
     # Determine the maximum length needed for enum values
-    max_length = max(len(e.value) for e in enum_class) if enum_class else 50
+    max_length = max(len(e.value) for e in enum_class) if enum_class and len(enum_class) > 0 else 50
     # Add some buffer for future enum values
     max_length = max(max_length + 20, 50)
 
