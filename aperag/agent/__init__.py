@@ -14,6 +14,9 @@
 
 """Agent module for MCP-based intelligent conversation."""
 
+# Use simple session management instead of complex singleton patterns
+from .agent_session_manager import get_or_create_session, get_stats
+from .agent_session_manager_lifecycle import agent_session_manager_lifespan
 from .event_listener import UniversalEventListener
 from .exceptions import (
     AgentConfigError,
@@ -73,6 +76,11 @@ from .tool_reference_extractor import extract_tool_call_references
 __all__ = [
     # Event listener
     "UniversalEventListener",
+    # Simple session management
+    "get_or_create_session",
+    "get_stats",
+    # Agent session manager lifecycle management
+    "agent_session_manager_lifespan",
     # MCP App Factory
     "MCPAppFactory",
     # Stream formatters
