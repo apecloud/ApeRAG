@@ -187,14 +187,3 @@ def format_bot_flow_config_not_found_error(language: str = "en-US") -> Dict[str,
 def format_no_output_node_error(language: str = "en-US") -> Dict[str, Any]:
     """Format no output node found error with i18n support."""
     return I18nErrorFormatter.format_error("no_output_node_found", language)
-
-
-# Legacy compatibility function - maintains backward compatibility
-def format_error(error: str, language: str = "en-US") -> Dict[str, Any]:
-    """
-    Legacy format_error function with i18n support.
-    
-    This function maintains backward compatibility while adding i18n support.
-    For new code, prefer using specific error formatting functions above.
-    """
-    return I18nErrorFormatter.format_error("unknown_error", language, error=error)

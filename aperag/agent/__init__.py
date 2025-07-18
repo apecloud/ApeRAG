@@ -44,7 +44,6 @@ from .i18n_formatter import (
     format_bot_flow_config_not_found_error,
     format_bot_id_required_error,
     format_bot_not_found_error,
-    format_error,  # Legacy compatibility
     format_invalid_json_error,
     format_invalid_model_spec_error,
     format_llm_generation_error,
