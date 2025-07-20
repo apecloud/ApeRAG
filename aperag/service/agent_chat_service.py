@@ -25,6 +25,8 @@ from mcp_agent.workflows.llm.augmented_llm import RequestParams, SimpleMemory
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.agent import (
+    AgentMemoryManager,
+    AgentHistoryManager,
     AgentMessageQueue,
     UniversalEventListener,
     agent_session_manager,
@@ -98,6 +100,10 @@ class AgentChatService:
             self.db_ops = async_db_ops
         else:
             self.db_ops = AsyncDatabaseOps(session)
+        
+        # Initialize memory and history managers
+        self.agent_memory_manager = AgentMemoryManager()
+        self.agent_history_manager = AgentHistoryManager()
 
     def _parse_websocket_message(self, raw_data: str) -> Tuple[
         Optional[view_models.AgentMessage], Optional[AgentErrorResponse]]:
@@ -158,14 +164,12 @@ class AgentChatService:
                 try:
                     # Create message queue for this conversation
                     message_queue = AgentMessageQueue()
-                    
-                    # Create fresh SimpleMemory for each conversation
-                    memory = SimpleMemory()
 
                     # Start background task to process agent message
+                    # Memory creation delegated to memory manager
                     process_task = asyncio.create_task(
                         self.process_agent_message(
-                            agent_message, user, chat_id, message_id, memory, message_queue
+                            agent_message, user, chat_id, message_id, message_queue
                         )
                     )
 
@@ -244,14 +248,14 @@ class AgentChatService:
             user: str,
             chat_id: str,
             msg_id: str,
-            memory: SimpleMemory,
             message_queue: AgentMessageQueue,
     ) -> Dict:
         """
-        Process an agent message using message queue architecture.
+        Process an agent message using message queue architecture with 
+        dedicated memory and history managers.
 
-        This method focuses purely on business logic and sends all messages
-        to the queue instead of yielding them directly.
+        This method focuses purely on business logic and delegates memory
+        and history management to specialized components.
         """
         # Get language preference from agent message
         language = agent_message.language if agent_message.language else "en-US"
@@ -265,8 +269,8 @@ class AgentChatService:
             # Send start message
             await message_queue.put(format_stream_start(msg_id))
 
-            # Get chat history for context
-            history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
+            # Delegate memory creation to memory manager
+            memory = await self.agent_memory_manager.create_session_memory(chat_id)
 
             # Get chat session
             session = await self._get_agent_session(agent_message, user, chat_id)
@@ -291,8 +295,8 @@ class AgentChatService:
                     model=agent_message.completion.model,  # Use the specific model
                 )
 
-                # Set memory for this conversation (clean state)
-                llm.history = memory
+                # Delegate memory setup to memory manager
+                await self.agent_memory_manager.prepare_llm_memory(llm, memory)
 
                 # Build comprehensive prompt with context and pre-search results
                 comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
@@ -303,7 +307,9 @@ class AgentChatService:
 
                 # Send the response content
                 await message_queue.put(format_stream_content(msg_id, full_content))
-                memory = llm.history
+                
+                # Extract updated memory from LLM using memory manager
+                updated_memory = await self.agent_memory_manager.extract_updated_memory(llm)
 
             except Exception as e:
                 logger.error(f"Error in LLM generation: {e}")
@@ -317,15 +323,22 @@ class AgentChatService:
                     logger.warning(f"Failed to remove event listener: {e}")
 
             # Generate references - either from tool calls or direct search results
-            # Extract tool call results from history and format as references
-            tool_references = extract_tool_call_references(memory)
+            # Extract tool call results from updated memory and format as references
+            tool_references = extract_tool_call_references(updated_memory)
 
-            # Store messages in history
-            try:
-                await add_human_message(history, agent_message.query, "")
-                await add_ai_message(history, agent_message.query, "", full_content, tool_references, [])
-            except Exception as e:
-                logger.warning(f"Failed to store chat history: {e}")
+            # Create history instance and delegate history storage to history manager
+            from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
+            history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
+            
+            history_saved = await self.agent_history_manager.save_conversation_turn(
+                history=history,
+                user_query=agent_message.query,
+                ai_response=full_content,
+                tool_references=tool_references
+            )
+            
+            if not history_saved:
+                logger.warning(f"Failed to save conversation history for chat: {chat_id}")
 
             # Prepare references and URLs
             urls = []

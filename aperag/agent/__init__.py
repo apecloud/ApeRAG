@@ -85,12 +85,17 @@ from .tool_formatters import (
     format_tool_response_display,
 )
 from .tool_reference_extractor import extract_tool_call_references
+from .agent_memory_manager import AgentMemoryManager
+from .agent_history_manager import AgentHistoryManager
 
 __all__ = [
     # Event listener
     "UniversalEventListener",
     # Message queue
     "AgentMessageQueue",
+    # Memory and history managers
+    "AgentMemoryManager", 
+    "AgentHistoryManager",
     # Simple session management
     "get_or_create_session",
     "get_stats",
