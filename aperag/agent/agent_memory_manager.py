@@ -49,7 +49,7 @@ class AgentMemoryManager:
         This method:
         1. Retrieves recent messages from history
         2. Applies context window limit (default: 4 recent turns)
-        3. Converts to SimpleMemory format
+        3. Converts to SimpleMemory format with proper message types
         4. Returns memory ready for LLM use
         
         Args:
@@ -59,6 +59,8 @@ class AgentMemoryManager:
         Returns:
             SimpleMemory: Memory populated with recent conversation context
         """
+        from langchain_core.messages.utils import convert_to_openai_messages
+        
         logger.debug(f"Creating memory from history with context_limit: {context_limit}")
         
         # Create fresh memory instance
@@ -78,13 +80,21 @@ class AgentMemoryManager:
             
             logger.debug(f"Retrieved {len(recent_messages)} recent messages from history")
             
-            # Convert history messages to SimpleMemory format
-            for msg in recent_messages:
-                if hasattr(msg, 'type') and hasattr(msg, 'content'):
-                    # Use the correct API for SimpleMemory - append method
-                    memory.append(msg)
+            # Use LangChain's official utility to convert messages to OpenAI format
+            openai_messages = convert_to_openai_messages(recent_messages)
+            
+            # Add converted messages to memory
+            for openai_msg in openai_messages:
+                memory.append(openai_msg)
                         
-            logger.debug(f"Successfully created memory with {len(recent_messages)} message(s)")
+            logger.debug(f"Successfully created memory with {len(memory.history)} message(s)")
+            
+            # Debug log to verify message formats
+            for i, msg in enumerate(memory.history):
+                msg_type = type(msg).__name__
+                role = msg.get('role', 'unknown') if isinstance(msg, dict) else 'not_dict'
+                logger.debug(f"Memory message [{i}]: {msg_type}, role: {role}")
+            
             return memory
             
         except Exception as e:
