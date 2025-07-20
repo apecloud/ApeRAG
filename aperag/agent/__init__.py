@@ -18,6 +18,7 @@
 from .agent_session_manager import get_or_create_session, get_stats
 from .agent_session_manager_lifecycle import agent_session_manager_lifespan
 from .event_listener import UniversalEventListener
+from .message_queue import AgentMessageQueue
 from .exceptions import (
     AgentConfigError,
     AgentError,
@@ -88,6 +89,8 @@ from .tool_reference_extractor import extract_tool_call_references
 __all__ = [
     # Event listener
     "UniversalEventListener",
+    # Message queue
+    "AgentMessageQueue",
     # Simple session management
     "get_or_create_session",
     "get_stats",

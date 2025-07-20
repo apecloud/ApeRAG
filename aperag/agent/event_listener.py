@@ -15,12 +15,13 @@
 """Universal event listener for MCP agent events."""
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, Optional
 
 from mcp_agent.logging.events import Event
 from mcp_agent.logging.listeners import EventListener
 
 from .exceptions import EventListenerError, handle_agent_error
+from .message_queue import AgentMessageQueue
 from .tool_formatters import (
     detect_interface_type,
     format_tool_call_end,
@@ -35,9 +36,9 @@ logger = logging.getLogger(__name__)
 class UniversalEventListener(EventListener):
     """通用事件监听器，支持多种事件类型的监听和处理"""
 
-    def __init__(self, msg_id: str):
+    def __init__(self, msg_id: str, message_queue: AgentMessageQueue):
         self.msg_id = msg_id
-        self.formatted_messages = []  # 存储格式化好的消息，可直接yield
+        self.message_queue = message_queue
 
     @handle_agent_error("event_handling", reraise=False)
     async def handle_event(self, event: Event):
@@ -77,9 +78,9 @@ class UniversalEventListener(EventListener):
             # 使用工具函数格式化显示文本
             display_text = format_tool_request_display(tool_name, tool_args)
 
-            # 使用工具函数创建格式化消息，直接可以yield
+            # 使用工具函数创建格式化消息，发送到队列
             formatted_message = format_tool_call_start(self.msg_id, display_text, tool_name, tool_args)
-            self.formatted_messages.append(formatted_message)
+            await self.message_queue.put(formatted_message)
 
             logger.debug(f"Tool request captured: {tool_name}")
 
@@ -107,9 +108,9 @@ class UniversalEventListener(EventListener):
         # 使用工具函数格式化显示文本
         display_text = format_tool_response_display(interface_type, structured_content, is_error)
 
-        # 使用工具函数创建格式化消息，直接可以yield
+        # 使用工具函数创建格式化消息，发送到队列
         formatted_message = format_tool_call_end(self.msg_id, display_text, interface_type, structured_content)
-        self.formatted_messages.append(formatted_message)
+        await self.message_queue.put(formatted_message)
 
         logger.debug(f"Tool response captured: {interface_type}")
 
@@ -118,14 +119,18 @@ class UniversalEventListener(EventListener):
         # 可以根据需要扩展处理其他类型的事件
         pass
 
-    def get_new_messages(self, last_count: int = 0) -> List[Dict[str, Any]]:
-        """获取新的格式化消息"""
-        return self.formatted_messages[last_count:]
+    # Deprecated methods - kept for backward compatibility during transition
+    def get_new_messages(self, last_count: int = 0):
+        """Deprecated: Use message queue instead"""
+        logger.warning("get_new_messages is deprecated, use message queue instead")
+        return []
 
     def get_message_count(self) -> int:
-        """获取当前消息总数"""
-        return len(self.formatted_messages)
+        """Deprecated: Use message queue instead"""
+        logger.warning("get_message_count is deprecated, use message queue instead")
+        return 0
 
     def clear_messages(self):
-        """清空消息队列"""
-        self.formatted_messages.clear()
+        """Deprecated: Use message queue instead"""
+        logger.warning("clear_messages is deprecated, use message queue instead")
+        pass

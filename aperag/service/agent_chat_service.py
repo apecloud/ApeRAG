@@ -17,7 +17,7 @@ import json
 import logging
 import os
 import uuid
-from typing import AsyncGenerator, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 from fastapi import WebSocket
 from mcp_agent.logging.transport import AsyncEventBus
@@ -25,6 +25,7 @@ from mcp_agent.workflows.llm.augmented_llm import RequestParams, SimpleMemory
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.agent import (
+    AgentMessageQueue,
     UniversalEventListener,
     agent_session_manager,
     extract_tool_call_references,
@@ -52,8 +53,6 @@ from aperag.agent.exceptions import (
 from aperag.agent.response_types import AgentErrorResponse, AgentResponse
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.flow.runners.llm import add_ai_message, add_human_message
-
-# Import MCP server for direct collection search access
 from aperag.schema import view_models
 from aperag.service.prompt_template_service import build_agent_query_prompt, get_agent_system_prompt
 from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
@@ -90,6 +89,8 @@ class AgentChatService:
 
     This service uses AgentSessionManager for efficient session lifecycle management,
     including collection selection, model choice, and web search capabilities.
+    
+    Refactored to use message queue for clean separation of concerns.
     """
 
     def __init__(self, session: AsyncSession = None):
@@ -139,7 +140,7 @@ class AgentChatService:
 
     @handle_agent_error("websocket_agent_chat", reraise=False)
     async def handle_websocket_agent_chat(self, websocket: WebSocket, user: str, bot_id: str, chat_id: str):
-        """Handle WebSocket connections for agent-type bot chats"""
+        """Handle WebSocket connections for agent-type bot chats with message queue architecture"""
         try:
             while True:
                 # Receive message from WebSocket
@@ -155,14 +156,33 @@ class AgentChatService:
                 message_id = str(uuid.uuid4())
 
                 try:
-                    # Create fresh SimpleMemory for each conversation to prevent tool call format conflicts
+                    # Create message queue for this conversation
+                    message_queue = AgentMessageQueue()
+                    
+                    # Create fresh SimpleMemory for each conversation
                     memory = SimpleMemory()
 
-                    # Process the agent message and stream responses
-                    async for response_chunk in self.process_agent_message(
-                            agent_message, user, chat_id, message_id, memory
-                    ):
-                        await websocket.send_text(json.dumps(response_chunk))
+                    # Start background task to process agent message
+                    process_task = asyncio.create_task(
+                        self.process_agent_message(
+                            agent_message, user, chat_id, message_id, memory, message_queue
+                        )
+                    )
+
+                    # Main loop: consume messages from queue and send to WebSocket
+                    while True:
+                        # Get message from queue (blocks until message is available)
+                        message = await message_queue.get()
+                        
+                        # None message signals end of stream
+                        if message is None:
+                            break
+                            
+                        # Send message to WebSocket
+                        await websocket.send_text(json.dumps(message))
+
+                    # Wait for processing task to complete
+                    await process_task
 
                 except (AgentConfigurationError, MCPAppInitializationError, MCPConnectionError) as e:
                     logger.error(f"Agent configuration error in websocket: {e}")
@@ -224,30 +244,31 @@ class AgentChatService:
             user: str,
             chat_id: str,
             msg_id: str,
-            memory,
-    ) -> AsyncGenerator[AgentResponse, None]:
+            memory: SimpleMemory,
+            message_queue: AgentMessageQueue,
+    ) -> Dict:
         """
-        Process an agent message using session management for optimized resource reuse.
+        Process an agent message using message queue architecture.
 
-        This method uses AgentSessionManager to reuse existing MCPApp instances
-        and provides efficient session lifecycle management.
+        This method focuses purely on business logic and sends all messages
+        to the queue instead of yielding them directly.
         """
         # Get language preference from agent message
         language = agent_message.language if agent_message.language else "en-US"
 
-        # Validate ModelSpec
-        if not agent_message.completion or not agent_message.completion.model:
-            yield format_model_spec_required_error(language)
-            return
-
-        # Yield start message
-        yield format_stream_start(msg_id)
-
-        # Get chat history for context
-        history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
-
         try:
-            # Get chat session - super simple!
+            # Validate ModelSpec
+            if not agent_message.completion or not agent_message.completion.model:
+                await message_queue.put(format_model_spec_required_error(language))
+                return {"status": "error", "message": "Model spec required"}
+
+            # Send start message
+            await message_queue.put(format_stream_start(msg_id))
+
+            # Get chat history for context
+            history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
+
+            # Get chat session
             session = await self._get_agent_session(agent_message, user, chat_id)
 
             # Get fresh LLM instance for this specific model and conversation
@@ -256,8 +277,8 @@ class AgentChatService:
             # Process message with session
             full_content = ""
 
-            # Create universal event listener with msg_id
-            event_listener = UniversalEventListener(msg_id)
+            # Create universal event listener with message queue
+            event_listener = UniversalEventListener(msg_id, message_queue)
 
             # Register the listener with AsyncEventBus
             event_bus = AsyncEventBus.get()
@@ -276,44 +297,18 @@ class AgentChatService:
                 # Build comprehensive prompt with context and pre-search results
                 comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
 
-                # Start generate_str in background and monitor events
-                generate_task = asyncio.create_task(llm.generate_str(comprehensive_prompt, request_params))
-
-                # Monitor events while generate_str is running
-                sent_message_count = 0
-                while not generate_task.done():
-                    # Check for new formatted messages from event listener
-                    current_message_count = event_listener.get_message_count()
-
-                    if current_message_count > sent_message_count:
-                        # Get and yield new messages directly
-                        new_messages = event_listener.get_new_messages(sent_message_count)
-                        for message in new_messages:
-                            yield message
-                        sent_message_count = current_message_count
-
-                    # Small delay to avoid busy waiting
-                    await asyncio.sleep(0.05)
-
-                # Get the final response
-                response = await generate_task
+                # Generate response
+                response = await llm.generate_str(comprehensive_prompt, request_params)
                 full_content = response if response else "No response generated"
 
-                # Send any remaining messages that might have been missed
-                final_message_count = event_listener.get_message_count()
-                if final_message_count > sent_message_count:
-                    remaining_messages = event_listener.get_new_messages(sent_message_count)
-                    for message in remaining_messages:
-                        yield message
-
-                # Stream the response content using utils function
-                yield format_stream_content(msg_id, full_content)
+                # Send the response content
+                await message_queue.put(format_stream_content(msg_id, full_content))
                 memory = llm.history
 
             except Exception as e:
                 logger.error(f"Error in LLM generation: {e}")
-                yield format_llm_generation_error(str(e), language)
-                return
+                await message_queue.put(format_llm_generation_error(str(e), language))
+                return {"status": "error", "message": str(e)}
             finally:
                 # Clean up: remove the listener
                 try:
@@ -321,27 +316,33 @@ class AgentChatService:
                 except Exception as e:
                     logger.warning(f"Failed to remove event listener: {e}")
 
+            # Generate references - either from tool calls or direct search results
+            # Extract tool call results from history and format as references
+            tool_references = extract_tool_call_references(memory)
+
+            # Store messages in history
+            try:
+                await add_human_message(history, agent_message.query, "")
+                await add_ai_message(history, agent_message.query, "", full_content, tool_references, [])
+            except Exception as e:
+                logger.warning(f"Failed to store chat history: {e}")
+
+            # Prepare references and URLs
+            urls = []
+
+            # Send end message
+            await message_queue.put(format_stream_end(msg_id, references=tool_references, urls=urls))
+
+            return {"status": "success", "content": full_content, "references": tool_references}
+
         except AgentConfigurationError as e:
             logger.error(f"Agent configuration error: {e}")
-            yield format_agent_setup_error(str(e), language)
-            return
+            await message_queue.put(format_agent_setup_error(str(e), language))
+            return {"status": "error", "message": str(e)}
         except Exception as e:
             logger.error(f"Error in agent session processing: {e}")
-            yield format_agent_execution_error(str(e), language)
-            return
-
-        # Generate references - either from tool calls or direct search results
-        # Extract tool call results from history and format as references
-        tool_references = extract_tool_call_references(memory)
-
-        # Store messages in history
-        try:
-            await add_human_message(history, agent_message.query, "")
-            await add_ai_message(history, agent_message.query, "", full_content, tool_references, [])
-        except Exception as e:
-            logger.warning(f"Failed to store chat history: {e}")
-
-        # Prepare references and URLs
-        urls = []
-
-        yield format_stream_end(msg_id, references=tool_references, urls=urls)
+            await message_queue.put(format_agent_execution_error(str(e), language))
+            return {"status": "error", "message": str(e)}
+        finally:
+            # Always close the queue to signal end of stream
+            await message_queue.close()
