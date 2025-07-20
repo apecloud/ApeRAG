@@ -102,8 +102,8 @@ class AgentChatService:
             self.db_ops = AsyncDatabaseOps(session)
         
         # Initialize memory and history managers
-        self.agent_memory_manager = AgentMemoryManager()
-        self.agent_history_manager = AgentHistoryManager()
+        self.memory_manager = AgentMemoryManager()
+        self.history_manager = AgentHistoryManager()
 
     def _parse_websocket_message(self, raw_data: str) -> Tuple[
         Optional[view_models.AgentMessage], Optional[AgentErrorResponse]]:
@@ -185,8 +185,23 @@ class AgentChatService:
                         # Send message to WebSocket
                         await websocket.send_text(json.dumps(message))
 
-                    # Wait for processing task to complete
-                    await process_task
+                    # Wait for processing task to complete and get the result
+                    process_result = await process_task
+                    
+                    # Handle history saving at WebSocket layer (better separation of concerns)
+                    if process_result.get("status") == "success":
+                        # Create history instance and save conversation turn
+                        history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
+                        
+                        history_saved = await self.history_manager.save_conversation_turn(
+                            history=history,
+                            user_query=process_result.get("query", agent_message.query),
+                            ai_response=process_result.get("content", ""),
+                            tool_references=process_result.get("references", [])
+                        )
+                        
+                        if not history_saved:
+                            logger.warning(f"Failed to save conversation history for chat: {chat_id}")
 
                 except (AgentConfigurationError, MCPAppInitializationError, MCPConnectionError) as e:
                     logger.error(f"Agent configuration error in websocket: {e}")
@@ -251,11 +266,10 @@ class AgentChatService:
             message_queue: AgentMessageQueue,
     ) -> Dict:
         """
-        Process an agent message using message queue architecture with 
-        dedicated memory and history managers.
-
-        This method focuses purely on business logic and delegates memory
-        and history management to specialized components.
+        Process an agent message and generate AI response.
+        
+        This method focuses purely on AI response generation and puts results in message queue.
+        History management is handled at the WebSocket layer for better separation of concerns.
         """
         # Get language preference from agent message
         language = agent_message.language if agent_message.language else "en-US"
@@ -270,7 +284,7 @@ class AgentChatService:
             await message_queue.put(format_stream_start(msg_id))
 
             # Delegate memory creation to memory manager
-            memory = await self.agent_memory_manager.create_session_memory(chat_id)
+            memory = await self.memory_manager.create_session_memory(chat_id)
 
             # Get chat session
             session = await self._get_agent_session(agent_message, user, chat_id)
@@ -296,7 +310,7 @@ class AgentChatService:
                 )
 
                 # Delegate memory setup to memory manager
-                await self.agent_memory_manager.prepare_llm_memory(llm, memory)
+                await self.memory_manager.prepare_llm_memory(llm, memory)
 
                 # Build comprehensive prompt with context and pre-search results
                 comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
@@ -309,7 +323,7 @@ class AgentChatService:
                 await message_queue.put(format_stream_content(msg_id, full_content))
                 
                 # Extract updated memory from LLM using memory manager
-                updated_memory = await self.agent_memory_manager.extract_updated_memory(llm)
+                updated_memory = await self.memory_manager.extract_updated_memory(llm)
 
             except Exception as e:
                 logger.error(f"Error in LLM generation: {e}")
@@ -326,27 +340,18 @@ class AgentChatService:
             # Extract tool call results from updated memory and format as references
             tool_references = extract_tool_call_references(updated_memory)
 
-            # Create history instance and delegate history storage to history manager
-            from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
-            history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
-            
-            history_saved = await self.agent_history_manager.save_conversation_turn(
-                history=history,
-                user_query=agent_message.query,
-                ai_response=full_content,
-                tool_references=tool_references
-            )
-            
-            if not history_saved:
-                logger.warning(f"Failed to save conversation history for chat: {chat_id}")
-
             # Prepare references and URLs
             urls = []
 
             # Send end message
             await message_queue.put(format_stream_end(msg_id, references=tool_references, urls=urls))
 
-            return {"status": "success", "content": full_content, "references": tool_references}
+            return {
+                "status": "success", 
+                "content": full_content, 
+                "references": tool_references,
+                "query": agent_message.query  # Return query for history saving
+            }
 
         except AgentConfigurationError as e:
             logger.error(f"Agent configuration error: {e}")
