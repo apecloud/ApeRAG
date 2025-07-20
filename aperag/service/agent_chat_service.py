@@ -102,8 +102,8 @@ class AgentChatService:
             self.db_ops = AsyncDatabaseOps(session)
         
         # Initialize memory and history managers
-        self.memory_manager = AgentMemoryManager()
-        self.history_manager = AgentHistoryManager()
+        self.agent_memory_manager = AgentMemoryManager()
+        self.agent_history_manager = AgentHistoryManager()
 
     def _parse_websocket_message(self, raw_data: str) -> Tuple[
         Optional[view_models.AgentMessage], Optional[AgentErrorResponse]]:
@@ -196,7 +196,7 @@ class AgentChatService:
                         # Create history instance and save conversation turn
                         history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
                         
-                        history_saved = await self.history_manager.save_conversation_turn(
+                        history_saved = await self.agent_history_manager.save_conversation_turn(
                             history=history,
                             user_query=process_result.get("query", agent_message.query),
                             ai_response=process_result.get("content", ""),
@@ -311,7 +311,7 @@ class AgentChatService:
             await message_queue.put(format_stream_start(msg_id))
 
             # Delegate memory creation to memory manager
-            memory = await self.memory_manager.create_session_memory(chat_id)
+            memory = await self.agent_memory_manager.create_session_memory(chat_id)
 
             # Get chat session
             session = await self._get_agent_session(agent_message, user, chat_id)
@@ -337,7 +337,7 @@ class AgentChatService:
                 )
 
                 # Delegate memory setup to memory manager
-                await self.memory_manager.prepare_llm_memory(llm, memory)
+                await self.agent_memory_manager.prepare_llm_memory(llm, memory)
 
                 # Build comprehensive prompt with context and pre-search results
                 comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
@@ -350,7 +350,7 @@ class AgentChatService:
                 await message_queue.put(format_stream_content(msg_id, full_content))
                 
                 # Extract updated memory from LLM using memory manager
-                updated_memory = await self.memory_manager.extract_updated_memory(llm)
+                updated_memory = await self.agent_memory_manager.extract_updated_memory(llm)
 
             except Exception as e:
                 logger.error(f"Error in LLM generation: {e}")
