@@ -192,8 +192,8 @@ class AgentChatService:
                     
                     # Handle history saving at WebSocket layer (better separation of concerns)
                     if process_result.get("status") == "success":
-                        # Create history instance and save conversation turn
-                        history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
+                        # Get history instance through history manager
+                        history = await self.history_manager.get_chat_history(chat_id)
                         
                         history_saved = await self.history_manager.save_conversation_turn(
                             history=history,
@@ -309,8 +309,8 @@ class AgentChatService:
             # Send start message
             await message_queue.put(format_stream_start(msg_id))
 
-            # Create history instance to load conversation context
-            history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
+            # Get chat history through history manager (proper separation of concerns)
+            history = await self.history_manager.get_chat_history(chat_id)
             
             # Create memory from chat history using pure function approach (context_limit=4)
             memory = await self.memory_manager.create_memory_from_history(history, context_limit=4)
