@@ -61,18 +61,14 @@ from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
 logger = logging.getLogger(__name__)
 
 
-def get_language_from_data(data: str) -> str:
-    """尽力提取语言，失败就返回英语，不死磕"""
-    try:
-        parsed = safe_json_parse(data, "language_detection")
-        return parsed.get("language", "en-US")
-    except:
-        return "en-US"
-
-
 def format_websocket_error(error: Exception, data: str) -> AgentErrorResponse:
     """格式化WebSocket错误响应 - 简单直接"""
-    language = get_language_from_data(data)
+    # 尽力提取语言，失败就返回英语，不死磕
+    try:
+        parsed = safe_json_parse(data, "language_detection")
+        language = parsed.get("language", "en-US")
+    except:
+        language = "en-US"
 
     if isinstance(error, JSONParsingError):
         return format_invalid_json_error(str(error), language)
@@ -180,7 +176,7 @@ class AgentChatService:
         except Exception as e:
             logger.error(f"WebSocket connection error in agent chat: {e}")
 
-    async def _get_provider_session(self, agent_message: view_models.AgentMessage, user: str, chat_id: str):
+    async def _get_agent_session(self, agent_message: view_models.AgentMessage, user: str, chat_id: str):
         """Get or create chat session using AgentConfig."""
         # Query provider details and API key from database
         provider_info = await self.db_ops.query_llm_provider_by_name(agent_message.completion.model_service_provider)
@@ -252,7 +248,7 @@ class AgentChatService:
 
         try:
             # Get chat session - super simple!
-            session = await self._get_provider_session(agent_message, user, chat_id)
+            session = await self._get_agent_session(agent_message, user, chat_id)
 
             # Get fresh LLM instance for this specific model and conversation
             llm = await session.get_llm(agent_message.completion.model)
