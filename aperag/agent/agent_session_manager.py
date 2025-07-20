@@ -29,22 +29,24 @@ from aperag.agent.mcp_app_factory import MCPAppFactory
 logger = logging.getLogger(__name__)
 
 
-class ProviderSession:
+class ChatSession:
     """
-    Ultra-simple session per user+provider combination.
+    Chat session per user+chat+provider combination.
 
-    Key insight: Same provider (OpenAI, Anthropic) can serve multiple models.
-    We create MCPApp per provider, specify model at runtime.
+    Key insight: Each chat session maintains its own MCPApp, Agent, and LLM instances
+    to preserve conversation state and memory. Same provider can serve multiple models,
+    but each chat has its own isolated session.
     """
 
     def __init__(self, config: AgentConfig):
         self.config = config
         self.last_used = time.time()
 
-        # MCP resources - created once per provider
+        # MCP resources - created once per chat session
         self.mcp_app = None
         self.mcp_running_app = None
         self.agent = None
+        self.llm = None  # Cache LLM instance for this chat
 
         # Simple state flags
         self._ready = False
@@ -70,17 +72,20 @@ class ProviderSession:
             # Start MCP app
             self.mcp_running_app = await self.mcp_app.run().__aenter__()
 
-            # Create reusable agent
+            # Create reusable agent for this chat session
             self.agent = Agent(
-                name=f"aperag_agent_{self.config.user_id}_{self.config.provider_name}",
+                name=f"aperag_agent_{self.config.user_id}_{self.config.chat_id}_{self.config.provider_name}",
                 instruction=self.config.instruction,
                 server_names=self.config.server_names,
             )
 
             await self.agent.__aenter__()
+
+            # Create and cache LLM instance for this chat session
+            self.llm = await self.agent.attach_llm(OpenAIAugmentedLLM)
             self._ready = True
 
-            logger.info(f"Provider session {self.config.get_session_key()} ready")
+            logger.info(f"Chat session {self.config.get_session_key()} ready")
 
         except Exception as e:
             logger.error(f"Failed to initialize session {self.config.get_session_key()}: {e}")
@@ -88,18 +93,13 @@ class ProviderSession:
             raise AgentConfigurationError(f"Session init failed: {e}")
 
     async def get_llm(self, model: str) -> OpenAIAugmentedLLM:
-        """Get LLM for specific model. Creates new LLM each time for clean state."""
+        """Get cached LLM instance for this chat session."""
         if not self._ready:
             raise AgentConfigurationError("Session not ready")
 
-        # Create fresh LLM with specified model
-        # This ensures clean memory state for each conversation
-        llm = await self.agent.attach_llm(OpenAIAugmentedLLM)
-
-        # Update model in the LLM config if needed
-        # (The model will be specified in RequestParams anyway)
-
-        return llm
+        # Return the cached LLM instance
+        # This preserves conversation state and memory for the chat session
+        return self.llm
 
     def touch(self):
         """Update last used time."""
@@ -111,7 +111,10 @@ class ProviderSession:
 
     async def _cleanup(self):
         """Clean up all resources."""
-        logger.info(f"Cleaning up session {self.config.get_session_key()}")
+        logger.info(f"Cleaning up chat session {self.config.get_session_key()}")
+
+        # LLM cleanup is handled by agent cleanup
+        self.llm = None
 
         if self.agent:
             try:
@@ -124,7 +127,7 @@ class ProviderSession:
             try:
                 await self.mcp_running_app.__aexit__(None, None, None)
             except Exception as e:
-                logger.warning(f"Agent app cleanup error: {e}")
+                logger.warning(f"MCP app cleanup error: {e}")
             self.mcp_running_app = None
 
         self.mcp_app = None
@@ -132,18 +135,18 @@ class ProviderSession:
 
 
 # Simple global state - no complex singleton patterns
-_provider_sessions: Dict[str, ProviderSession] = {}
+_chat_sessions: Dict[str, ChatSession] = {}
 _cleanup_task: Optional[asyncio.Task] = None
 
 
-def generate_session_key(user_id: str, provider_name: str) -> str:
-    """Generate session key based on user and provider only."""
-    return f"{user_id}:{provider_name}"
+def generate_session_key(user_id: str, chat_id: str, provider_name: str) -> str:
+    """Generate session key based on user, chat, and provider."""
+    return f"{user_id}:{chat_id}:{provider_name}"
 
 
-async def get_or_create_session(config: AgentConfig) -> ProviderSession:
+async def get_or_create_session(config: AgentConfig) -> ChatSession:
     """
-    Get or create provider session using AgentConfig. Super simple - no complex locking.
+    Get or create chat session using AgentConfig. Super simple - no complex locking.
 
     We accept some minor race conditions for simplicity. Worst case:
     we create an extra session that gets cleaned up later.
@@ -151,7 +154,7 @@ async def get_or_create_session(config: AgentConfig) -> ProviderSession:
     session_key = config.get_session_key()
 
     # Quick check if session exists and is ready
-    session = _provider_sessions.get(session_key)
+    session = _chat_sessions.get(session_key)
     if session and session._ready and not session.is_expired():
         session.touch()
         return session
@@ -164,32 +167,32 @@ async def get_or_create_session(config: AgentConfig) -> ProviderSession:
             logger.warning(f"Error cleaning up old session: {e}")
 
     # Create fresh session with config
-    session = ProviderSession(config)
+    session = ChatSession(config)
     await session.initialize()
 
     # Store in global dict
-    _provider_sessions[session_key] = session
-    logger.info(f"Created new provider session: {session_key}")
+    _chat_sessions[session_key] = session
+    logger.info(f"Created new chat session: {session_key}")
 
     return session
 
 
 async def cleanup_expired_sessions():
-    """Simple cleanup - remove expired sessions."""
+    """Simple cleanup - remove expired chat sessions."""
     expired_keys = []
 
-    for key, session in _provider_sessions.items():
+    for key, session in _chat_sessions.items():
         if session.is_expired():
             expired_keys.append(key)
 
     for key in expired_keys:
-        session = _provider_sessions.pop(key, None)
+        session = _chat_sessions.pop(key, None)
         if session:
             try:
                 await session._cleanup()
-                logger.info(f"Cleaned up expired session: {key}")
+                logger.info(f"Cleaned up expired chat session: {key}")
             except Exception as e:
-                logger.error(f"Error cleaning session {key}: {e}")
+                logger.error(f"Error cleaning chat session {key}: {e}")
 
 
 async def _cleanup_loop():
@@ -213,7 +216,7 @@ async def start_cleanup():
 
 
 async def shutdown_all():
-    """Shutdown all sessions and cleanup task."""
+    """Shutdown all chat sessions and cleanup task."""
     global _cleanup_task
 
     # Stop cleanup task
@@ -225,9 +228,9 @@ async def shutdown_all():
             pass
         _cleanup_task = None
 
-    # Clean up all sessions
-    sessions = list(_provider_sessions.values())
-    _provider_sessions.clear()
+    # Clean up all chat sessions
+    sessions = list(_chat_sessions.values())
+    _chat_sessions.clear()
 
     for session in sessions:
         try:
@@ -235,13 +238,13 @@ async def shutdown_all():
         except Exception as e:
             logger.error(f"Error during shutdown cleanup: {e}")
 
-    logger.info("All sessions cleaned up")
+    logger.info("All chat sessions cleaned up")
 
 
 def get_stats() -> Dict:
     """Get simple stats."""
     return {
-        "total_sessions": len(_provider_sessions),
-        "active_sessions": sum(1 for s in _provider_sessions.values() if s._ready),
-        "expired_sessions": sum(1 for s in _provider_sessions.values() if s.is_expired()),
+        "total_sessions": len(_chat_sessions),
+        "active_sessions": sum(1 for s in _chat_sessions.values() if s._ready),
+        "expired_sessions": sum(1 for s in _chat_sessions.values() if s.is_expired()),
     }

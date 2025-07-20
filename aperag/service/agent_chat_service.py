@@ -139,8 +139,8 @@ class AgentChatService:
         except Exception as e:
             logger.error(f"WebSocket connection error in agent chat: {e}")
 
-    async def _get_provider_session(self, agent_message: view_models.AgentMessage, user: str):
-        """Get or create provider session using AgentConfig."""
+    async def _get_provider_session(self, agent_message: view_models.AgentMessage, user: str, chat_id: str):
+        """Get or create chat session using AgentConfig."""
         # Query provider details and API key from database
         provider_info = await self.db_ops.query_llm_provider_by_name(agent_message.completion.model_service_provider)
         if not provider_info:
@@ -156,9 +156,10 @@ class AgentChatService:
             logger.error(error_msg)
             raise AgentConfigurationError(error_msg)
 
-        # Create AgentConfig with all needed parameters
+        # Create AgentConfig with all needed parameters including chat_id
         config = AgentConfig(
             user_id=user,
+            chat_id=chat_id,
             provider_name=agent_message.completion.model_service_provider,
             api_key=api_key,
             base_url=provider_info.base_url,
@@ -169,7 +170,7 @@ class AgentChatService:
             # server_names will default to ["aperag"]
         )
 
-        # Get or create provider session using config
+        # Get or create chat session using config
         session = await agent_session_manager.get_or_create_session(config)
 
         return session
@@ -204,8 +205,8 @@ class AgentChatService:
         history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
 
         try:
-            # Get provider session - super simple!
-            session = await self._get_provider_session(agent_message, user)
+            # Get chat session - super simple!
+            session = await self._get_provider_session(agent_message, user, chat_id)
 
             # Get fresh LLM instance for this specific model and conversation
             llm = await session.get_llm(agent_message.completion.model)

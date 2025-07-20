@@ -30,6 +30,7 @@ class AgentConfig:
 
     # Basic agent info
     user_id: str
+    chat_id: str
     provider_name: str
     api_key: str
     base_url: str
@@ -57,13 +58,14 @@ class AgentConfig:
             self.aperag_url = os.getenv("APERAG_URL", "http://localhost:8000/mcp/")
 
     def get_session_key(self) -> str:
-        """Generate session key based on user and provider."""
-        return f"{self.user_id}:{self.provider_name}"
+        """Generate session key based on user, chat, and provider."""
+        return f"{self.user_id}:{self.chat_id}:{self.provider_name}"
 
     @classmethod
     def create_from_agent_message(
         cls,
         user_id: str,
+        chat_id: str,
         provider_name: str,
         api_key: str,
         base_url: str,
@@ -74,6 +76,7 @@ class AgentConfig:
         """Create config from agent message parameters."""
         return cls(
             user_id=user_id,
+            chat_id=chat_id,
             provider_name=provider_name,
             api_key=api_key,
             base_url=base_url,
