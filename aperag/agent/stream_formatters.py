@@ -19,57 +19,65 @@ from typing import Any, Dict, List
 
 from aperag.utils.utils import now_unix_milliseconds
 
+from .response_types import (
+    AgentErrorResponse,
+    AgentMessageResponse,
+    AgentStartResponse,
+    AgentStopResponse,
+    AgentThinkingResponse,
+)
 
-def format_stream_start(msg_id: str) -> Dict[str, Any]:
+
+def format_stream_start(msg_id: str) -> AgentStartResponse:
     """格式化流式开始事件"""
-    return {
-        "type": "start",
-        "id": msg_id,
-        "timestamp": now_unix_milliseconds(),
-    }
+    return AgentStartResponse(
+        type="start",
+        id=msg_id,
+        timestamp=now_unix_milliseconds(),
+    )
 
 
-def format_stream_content(msg_id: str, content: str) -> Dict[str, Any]:
+def format_stream_content(msg_id: str, content: str) -> AgentMessageResponse:
     """格式化流式内容事件"""
-    return {
-        "type": "message",
-        "id": msg_id,
-        "data": content,
-        "timestamp": now_unix_milliseconds(),
-    }
+    return AgentMessageResponse(
+        type="message",
+        id=msg_id,
+        data=content,
+        timestamp=now_unix_milliseconds(),
+    )
 
 
-def format_stream_end(msg_id: str, references: List[str] = None, urls: List[str] = None) -> Dict[str, Any]:
+def format_stream_end(msg_id: str, references: List[Dict[str, Any]] = None, urls: List[str] = None) -> AgentStopResponse:
     """格式化流式结束事件"""
     if references is None:
         references = []
     if urls is None:
         urls = []
 
-    return {
-        "type": "stop",
-        "id": msg_id,
-        "data": references,
-        "urls": urls,
-        "timestamp": now_unix_milliseconds(),
-    }
+    return AgentStopResponse(
+        type="stop",
+        id=msg_id,
+        data=references,
+        urls=urls,
+        timestamp=now_unix_milliseconds(),
+    )
 
 
-def format_error(error: str) -> Dict[str, Any]:
+def format_error(error: str) -> AgentErrorResponse:
     """格式化错误响应"""
-    return {
-        "type": "error",
-        "id": str(uuid.uuid4()),
-        "data": error,
-        "timestamp": now_unix_milliseconds(),
-    }
+    return AgentErrorResponse(
+        type="error",
+        id=str(uuid.uuid4()),
+        data=error,
+        timestamp=now_unix_milliseconds(),
+    )
 
 
-def format_thinking(msg_id: str, content: str) -> Dict[str, Any]:
+def format_thinking(msg_id: str, content: str) -> AgentThinkingResponse:
     """格式化思考步骤事件"""
-    return {
-        "type": "thinking",
-        "id": msg_id,
-        "data": content,
-        "timestamp": now_unix_milliseconds(),
-    }
+    return AgentThinkingResponse(
+        type="thinking",
+        id=msg_id,
+        data=content,
+        timestamp=now_unix_milliseconds(),
+    )

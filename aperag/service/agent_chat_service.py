@@ -17,7 +17,7 @@ import json
 import logging
 import os
 import uuid
-from typing import Any, AsyncGenerator, Dict
+from typing import AsyncGenerator, Optional, Tuple
 
 from fastapi import WebSocket
 from mcp_agent.logging.transport import AsyncEventBus
@@ -43,11 +43,13 @@ from aperag.agent import (
 from aperag.agent.agent_config import AgentConfig
 from aperag.agent.exceptions import (
     AgentConfigurationError,
+    JSONParsingError,
     MCPAppInitializationError,
     MCPConnectionError,
     handle_agent_error,
     safe_json_parse,
 )
+from aperag.agent.response_types import AgentErrorResponse, AgentResponse
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.flow.runners.llm import add_ai_message, add_human_message
 
@@ -57,6 +59,33 @@ from aperag.service.prompt_template_service import build_agent_query_prompt, get
 from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
 
 logger = logging.getLogger(__name__)
+
+
+def get_language_from_data(data: str) -> str:
+    """尽力提取语言，失败就返回英语，不死磕"""
+    try:
+        parsed = safe_json_parse(data, "language_detection")
+        return parsed.get("language", "en-US")
+    except:
+        return "en-US"
+
+
+def format_websocket_error(error: Exception, data: str) -> AgentErrorResponse:
+    """格式化WebSocket错误响应 - 简单直接"""
+    language = get_language_from_data(data)
+
+    if isinstance(error, JSONParsingError):
+        return format_invalid_json_error(str(error), language)
+
+    if isinstance(error, AgentConfigurationError):
+        error_msg = str(error).lower()
+        if "query" in error_msg:
+            return format_query_required_error(language)
+        if "completion" in error_msg or "modelspec" in error_msg:
+            return format_invalid_model_spec_error(str(error), language)
+
+    # 默认处理
+    return format_processing_error(str(error), language)
 
 
 class AgentChatService:
@@ -73,6 +102,45 @@ class AgentChatService:
         else:
             self.db_ops = AsyncDatabaseOps(session)
 
+    def _parse_websocket_message(self, raw_data: str) -> Tuple[
+        Optional[view_models.AgentMessage], Optional[AgentErrorResponse]]:
+        """
+        Parse WebSocket message using Go-style error handling.
+        
+        Args:
+            raw_data: Raw JSON string from WebSocket
+            
+        Returns:
+            Tuple of (agent_message, error_response):
+            - If successful: (agent_message, None)
+            - If failed: (None, error_response_dict)
+        """
+        try:
+            # Step 1: Safe JSON parsing using agent module utilities
+            message_data = safe_json_parse(raw_data, "websocket_message")
+
+            # Step 2: Validate required query field early
+            query = message_data.get("query", "").strip()
+            if not query:
+                from aperag.agent.exceptions import agent_config_invalid
+                error = agent_config_invalid("query", "Query is required and cannot be empty")
+                error_response = format_websocket_error(error, raw_data)
+                return None, error_response
+
+            # Step 3: Parse and validate AgentMessage using Pydantic
+            agent_message = view_models.AgentMessage(**message_data)
+            return agent_message, None
+
+        except (JSONParsingError, AgentConfigurationError) as e:
+            error_response = format_websocket_error(e, raw_data)
+            return None, error_response
+        except Exception as e:
+            # Handle unexpected errors
+            from aperag.agent.exceptions import agent_config_invalid
+            config_error = agent_config_invalid("agent_message", f"Unexpected error: {str(e)}")
+            error_response = format_websocket_error(config_error, raw_data)
+            return None, error_response
+
     @handle_agent_error("websocket_agent_chat", reraise=False)
     async def handle_websocket_agent_chat(self, websocket: WebSocket, user: str, bot_id: str, chat_id: str):
         """Handle WebSocket connections for agent-type bot chats"""
@@ -81,60 +149,32 @@ class AgentChatService:
                 # Receive message from WebSocket
                 data = await websocket.receive_text()
 
-                # Safe JSON parsing
-                try:
-                    message_data = safe_json_parse(data, "websocket_message")
-                except Exception as e:
-                    # Default to en-US for parsing errors since we don't have language info yet
-                    error_response = format_invalid_json_error(str(e), "en-US")
+                # Parse WebSocket message using Go-style error handling
+                agent_message, error_response = self._parse_websocket_message(data)
+                if error_response:
                     await websocket.send_text(json.dumps(error_response))
                     continue
 
                 # Generate message ID
                 message_id = str(uuid.uuid4())
-                query = message_data.get("query", "")
-                language = message_data.get("language", "en-US")  # Get language preference
-
-                if not query or not query.strip():
-                    error_response = format_query_required_error(language)
-                    await websocket.send_text(json.dumps(error_response))
-                    continue
 
                 try:
                     # Create fresh SimpleMemory for each conversation to prevent tool call format conflicts
                     memory = SimpleMemory()
 
-                    # Create ModelSpec from completion data
-                    completion_spec = None
-                    if message_data.get("completion"):
-                        try:
-                            completion_spec = view_models.ModelSpec(**message_data["completion"])
-                        except Exception as e:
-                            error_response = format_invalid_model_spec_error(str(e), language)
-                            await websocket.send_text(json.dumps(error_response))
-                            continue
-
-                    agent_message = view_models.AgentMessage(
-                        query=query,
-                        collections=message_data.get("collections"),
-                        completion=completion_spec,
-                        web_search_enabled=message_data.get("web_search_enabled", False),
-                        language=language,  # Include language in agent message
-                    )
-
                     # Process the agent message and stream responses
                     async for response_chunk in self.process_agent_message(
-                        agent_message, user, chat_id, message_id, memory
+                            agent_message, user, chat_id, message_id, memory
                     ):
                         await websocket.send_text(json.dumps(response_chunk))
 
                 except (AgentConfigurationError, MCPAppInitializationError, MCPConnectionError) as e:
                     logger.error(f"Agent configuration error in websocket: {e}")
-                    error_response = format_agent_setup_error(str(e), language)
+                    error_response = format_agent_setup_error(str(e), agent_message.language or "en-US")
                     await websocket.send_text(json.dumps(error_response))
                 except Exception as e:
                     logger.error(f"Unexpected error processing agent websocket message: {e}")
-                    error_response = format_processing_error(str(e), language)
+                    error_response = format_processing_error(str(e), agent_message.language or "en-US")
                     await websocket.send_text(json.dumps(error_response))
 
         except Exception as e:
@@ -183,13 +223,13 @@ class AgentChatService:
 
     @handle_agent_error("agent_message_processing", reraise=False)
     async def process_agent_message(
-        self,
-        agent_message: view_models.AgentMessage,
-        user: str,
-        chat_id: str,
-        msg_id: str,
-        memory,
-    ) -> AsyncGenerator[Dict[str, Any], None]:
+            self,
+            agent_message: view_models.AgentMessage,
+            user: str,
+            chat_id: str,
+            msg_id: str,
+            memory,
+    ) -> AsyncGenerator[AgentResponse, None]:
         """
         Process an agent message using session management for optimized resource reuse.
 

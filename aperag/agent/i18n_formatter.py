@@ -15,9 +15,10 @@
 """Internationalized error message formatter for agent chat."""
 
 import uuid
-from typing import Any, Dict
 
 from aperag.utils.utils import now_unix_milliseconds
+
+from .response_types import AgentErrorResponse
 
 # Error message translations
 ERROR_MESSAGES = {
@@ -96,7 +97,7 @@ class I18nErrorFormatter:
             return message_template
 
     @staticmethod
-    def format_error(error_key: str, language: str = "en-US", **kwargs) -> Dict[str, Any]:
+    def format_error(error_key: str, language: str = "en-US", **kwargs) -> AgentErrorResponse:
         """
         Format an internationalized error response.
 
@@ -110,80 +111,80 @@ class I18nErrorFormatter:
         """
         error_message = I18nErrorFormatter.get_error_message(error_key, language, **kwargs)
 
-        return {
-            "type": "error",
-            "id": str(uuid.uuid4()),
-            "data": error_message,
-            "timestamp": now_unix_milliseconds(),
-        }
+        return AgentErrorResponse(
+            type="error",
+            id=str(uuid.uuid4()),
+            data=error_message,
+            timestamp=now_unix_milliseconds(),
+        )
 
 
 # Convenience functions for common error types
-def format_invalid_json_error(error: str, language: str = "en-US") -> Dict[str, Any]:
+def format_invalid_json_error(error: str, language: str = "en-US") -> AgentErrorResponse:
     """Format invalid JSON error with i18n support."""
     return I18nErrorFormatter.format_error("invalid_json_format", language, error=error)
 
 
-def format_query_required_error(language: str = "en-US") -> Dict[str, Any]:
+def format_query_required_error(language: str = "en-US") -> AgentErrorResponse:
     """Format query required error with i18n support."""
     return I18nErrorFormatter.format_error("query_required", language)
 
 
-def format_invalid_model_spec_error(error: str, language: str = "en-US") -> Dict[str, Any]:
+def format_invalid_model_spec_error(error: str, language: str = "en-US") -> AgentErrorResponse:
     """Format invalid model spec error with i18n support."""
     return I18nErrorFormatter.format_error("invalid_model_spec", language, error=error)
 
 
-def format_agent_setup_error(error: str, language: str = "en-US") -> Dict[str, Any]:
+def format_agent_setup_error(error: str, language: str = "en-US") -> AgentErrorResponse:
     """Format agent setup error with i18n support."""
     return I18nErrorFormatter.format_error("agent_setup_failed", language, error=error)
 
 
-def format_processing_error(error: str, language: str = "en-US") -> Dict[str, Any]:
+def format_processing_error(error: str, language: str = "en-US") -> AgentErrorResponse:
     """Format processing error with i18n support."""
     return I18nErrorFormatter.format_error("processing_error", language, error=error)
 
 
-def format_model_spec_required_error(language: str = "en-US") -> Dict[str, Any]:
+def format_model_spec_required_error(language: str = "en-US") -> AgentErrorResponse:
     """Format model spec required error with i18n support."""
     return I18nErrorFormatter.format_error("model_spec_required", language)
 
 
-def format_agent_initialization_error(error: str, language: str = "en-US") -> Dict[str, Any]:
+def format_agent_initialization_error(error: str, language: str = "en-US") -> AgentErrorResponse:
     """Format agent initialization error with i18n support."""
     return I18nErrorFormatter.format_error("agent_initialization_failed", language, error=error)
 
 
-def format_mcp_connection_error(language: str = "en-US") -> Dict[str, Any]:
+def format_mcp_connection_error(language: str = "en-US") -> AgentErrorResponse:
     """Format MCP server connection error with i18n support."""
     return I18nErrorFormatter.format_error("mcp_server_connection_failed", language)
 
 
-def format_llm_generation_error(error: str, language: str = "en-US") -> Dict[str, Any]:
+def format_llm_generation_error(error: str, language: str = "en-US") -> AgentErrorResponse:
     """Format LLM generation error with i18n support."""
     return I18nErrorFormatter.format_error("llm_generation_error", language, error=error)
 
 
-def format_agent_execution_error(error: str, language: str = "en-US") -> Dict[str, Any]:
+def format_agent_execution_error(error: str, language: str = "en-US") -> AgentErrorResponse:
     """Format agent execution error with i18n support."""
     return I18nErrorFormatter.format_error("agent_execution_error", language, error=error)
 
 
-def format_bot_id_required_error(language: str = "en-US") -> Dict[str, Any]:
+def format_bot_id_required_error(language: str = "en-US") -> AgentErrorResponse:
     """Format bot ID required error with i18n support."""
     return I18nErrorFormatter.format_error("bot_id_required", language)
 
 
-def format_bot_not_found_error(language: str = "en-US") -> Dict[str, Any]:
+def format_bot_not_found_error(language: str = "en-US") -> AgentErrorResponse:
     """Format bot not found error with i18n support."""
     return I18nErrorFormatter.format_error("bot_not_found", language)
 
 
-def format_bot_flow_config_not_found_error(language: str = "en-US") -> Dict[str, Any]:
+def format_bot_flow_config_not_found_error(language: str = "en-US") -> AgentErrorResponse:
     """Format bot flow config not found error with i18n support."""
     return I18nErrorFormatter.format_error("bot_flow_config_not_found", language)
 
 
-def format_no_output_node_error(language: str = "en-US") -> Dict[str, Any]:
+def format_no_output_node_error(language: str = "en-US") -> AgentErrorResponse:
     """Format no output node found error with i18n support."""
     return I18nErrorFormatter.format_error("no_output_node_found", language)
