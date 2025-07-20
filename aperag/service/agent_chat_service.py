@@ -309,20 +309,14 @@ class AgentChatService:
             # Send start message
             await message_queue.put(format_stream_start(msg_id))
 
-            # Get chat history through history manager (proper separation of concerns)
-            history = await self.history_manager.get_chat_history(chat_id)
-            
             # Create memory from chat history using pure function approach (context_limit=4)
+            history = await self.history_manager.get_chat_history(chat_id)
             memory = await self.memory_manager.create_memory_from_history(history, context_limit=4)
-            
-            # Prepare memory for LLM use
-            prepared_memory = self.memory_manager.prepare_memory_for_llm(memory)
 
             # Get chat session
             session = await self._get_agent_session(agent_message, user, chat_id)
-
-            # Get fresh LLM instance for this specific model and conversation
             llm = await session.get_llm(agent_message.completion.model)
+            llm.history = memory
 
             # Process message with session
             full_content = ""
@@ -336,13 +330,14 @@ class AgentChatService:
 
             try:
                 request_params = RequestParams(
+                    maxTokens=4096,
+                    model=agent_message.completion.model,
+                    use_history=True,
                     max_iterations=10,
                     parallel_tool_calls=True,
-                    model=agent_message.completion.model,  # Use the specific model
+                    temperature=0.7,
+                    user=user,
                 )
-
-                # Set LLM memory directly (pure function approach)
-                llm.history = prepared_memory
 
                 # Build comprehensive prompt with context and pre-search results
                 comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
@@ -353,7 +348,7 @@ class AgentChatService:
 
                 # Send the response content
                 await message_queue.put(format_stream_content(msg_id, full_content))
-                
+
                 # Extract updated memory from LLM using pure function
                 updated_memory = self.memory_manager.extract_memory_from_llm(llm)
 
@@ -380,10 +375,10 @@ class AgentChatService:
 
             # Close queue after successful completion and all messages sent
             await message_queue.close()
-            
+
             return {
-                "status": "success", 
-                "content": full_content, 
+                "status": "success",
+                "content": full_content,
                 "references": tool_references,
                 "query": agent_message.query  # Return query for history saving
             }
