@@ -33,7 +33,7 @@ class MCPAppFactory:
         base_url: str,
         api_key: str,
         aperag_api_key: str,
-        aperag_url: str,
+        aperag_mcp_url: str,
         # Configurable LLM parameters
         temperature: float = 0.7,
         max_tokens: int = 60000,
@@ -46,7 +46,7 @@ class MCPAppFactory:
             "base_url": base_url,
             "api_key": api_key,
             "aperag_api_key": aperag_api_key,
-            "aperag_url": aperag_url,
+            "aperag_mcp_url": aperag_mcp_url,
         }
 
         for param_name, value in required_params.items():
@@ -61,7 +61,7 @@ class MCPAppFactory:
                     servers={
                         "aperag": MCPServerSettings(
                             transport="streamable_http",
-                            url=aperag_url,
+                            url=aperag_mcp_url,
                             headers={
                                 "Authorization": f"Bearer {aperag_api_key}",
                                 "Content-Type": "application/json",
@@ -98,7 +98,7 @@ class MCPAppFactory:
             base_url=config.base_url,
             api_key=config.api_key,
             aperag_api_key=config.aperag_api_key,
-            aperag_url=config.aperag_url,
+            aperag_mcp_url=config.aperag_mcp_url,
             temperature=config.temperature,
             max_tokens=config.max_tokens,
         )

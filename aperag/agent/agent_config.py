@@ -41,7 +41,7 @@ class AgentConfig:
 
     # MCP configuration
     aperag_api_key: str = None
-    aperag_url: str = None
+    aperag_mcp_url: str = None
 
     # Agent behavior configuration
     language: str = "en-US"

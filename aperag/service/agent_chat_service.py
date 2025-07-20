@@ -169,8 +169,8 @@ class AgentChatService:
             instruction=get_agent_system_prompt(language=agent_message.language),
             server_names=["aperag"],
             aperag_api_key=os.getenv("APERAG_API_KEY", "sk-test"),  # todo delete me, use user's aperag api key
-            aperag_url=os.getenv(
-                "APERAG_URL", "http://localhost:8000/mcp/"
+            aperag_mcp_url=os.getenv(
+                "APERAG_MCP_URL", "http://localhost:8000/mcp/"
             ),  # todo delete me, use user's aperag api key
             temperature=0.7,
             max_tokens=60000,
