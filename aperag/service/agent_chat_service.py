@@ -21,12 +21,12 @@ from typing import Dict, Optional, Tuple
 
 from fastapi import WebSocket
 from mcp_agent.logging.transport import AsyncEventBus
-from mcp_agent.workflows.llm.augmented_llm import RequestParams, SimpleMemory
+from mcp_agent.workflows.llm.augmented_llm import RequestParams
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.agent import (
-    AgentMemoryManager,
     AgentHistoryManager,
+    AgentMemoryManager,
     AgentMessageQueue,
     UniversalEventListener,
     agent_session_manager,
@@ -52,9 +52,8 @@ from aperag.agent.exceptions import (
     handle_agent_error,
     safe_json_parse,
 )
-from aperag.agent.response_types import AgentErrorResponse, AgentResponse
+from aperag.agent.response_types import AgentErrorResponse
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
-from aperag.flow.runners.llm import add_ai_message, add_human_message
 from aperag.schema import view_models
 from aperag.service.prompt_template_service import build_agent_query_prompt, get_agent_system_prompt
 from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
@@ -102,8 +101,8 @@ class AgentChatService:
             self.db_ops = AsyncDatabaseOps(session)
         
         # Initialize memory and history managers
-        self.agent_memory_manager = AgentMemoryManager()
-        self.agent_history_manager = AgentHistoryManager()
+        self.memory_manager = AgentMemoryManager()
+        self.history_manager = AgentHistoryManager()
 
     def _parse_websocket_message(self, raw_data: str) -> Tuple[
         Optional[view_models.AgentMessage], Optional[AgentErrorResponse]]:
@@ -196,7 +195,7 @@ class AgentChatService:
                         # Create history instance and save conversation turn
                         history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
                         
-                        history_saved = await self.agent_history_manager.save_conversation_turn(
+                        history_saved = await self.history_manager.save_conversation_turn(
                             history=history,
                             user_query=process_result.get("query", agent_message.query),
                             ai_response=process_result.get("content", ""),
@@ -310,8 +309,14 @@ class AgentChatService:
             # Send start message
             await message_queue.put(format_stream_start(msg_id))
 
-            # Delegate memory creation to memory manager
-            memory = await self.agent_memory_manager.create_session_memory(chat_id)
+            # Create history instance to load conversation context
+            history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
+            
+            # Create memory from chat history using pure function approach (context_limit=4)
+            memory = await self.memory_manager.create_memory_from_history(history, context_limit=4)
+            
+            # Prepare memory for LLM use
+            prepared_memory = self.memory_manager.prepare_memory_for_llm(memory)
 
             # Get chat session
             session = await self._get_agent_session(agent_message, user, chat_id)
@@ -336,8 +341,8 @@ class AgentChatService:
                     model=agent_message.completion.model,  # Use the specific model
                 )
 
-                # Delegate memory setup to memory manager
-                await self.agent_memory_manager.prepare_llm_memory(llm, memory)
+                # Set LLM memory directly (pure function approach)
+                llm.history = prepared_memory
 
                 # Build comprehensive prompt with context and pre-search results
                 comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
@@ -349,8 +354,8 @@ class AgentChatService:
                 # Send the response content
                 await message_queue.put(format_stream_content(msg_id, full_content))
                 
-                # Extract updated memory from LLM using memory manager
-                updated_memory = await self.agent_memory_manager.extract_updated_memory(llm)
+                # Extract updated memory from LLM using pure function
+                updated_memory = self.memory_manager.extract_memory_from_llm(llm)
 
             except Exception as e:
                 logger.error(f"Error in LLM generation: {e}")

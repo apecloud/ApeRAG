@@ -15,10 +15,11 @@
 """Agent module for MCP-based intelligent conversation."""
 
 # Use simple session management instead of complex singleton patterns
+from .agent_history_manager import AgentHistoryManager
+from .agent_memory_manager import AgentMemoryManager
 from .agent_session_manager import get_or_create_session, get_stats
 from .agent_session_manager_lifecycle import agent_session_manager_lifespan
 from .event_listener import UniversalEventListener
-from .message_queue import AgentMessageQueue
 from .exceptions import (
     AgentConfigError,
     AgentError,
@@ -58,6 +59,7 @@ from .i18n_formatter import (
     format_query_required_error,
 )
 from .mcp_app_factory import MCPAppFactory
+from .message_queue import AgentMessageQueue
 from .response_types import (
     AgentChatResponse,
     AgentErrorResponse,
@@ -85,8 +87,6 @@ from .tool_formatters import (
     format_tool_response_display,
 )
 from .tool_reference_extractor import extract_tool_call_references
-from .agent_memory_manager import AgentMemoryManager
-from .agent_history_manager import AgentHistoryManager
 
 __all__ = [
     # Event listener

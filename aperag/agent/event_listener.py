@@ -15,7 +15,6 @@
 """Universal event listener for MCP agent events."""
 
 import logging
-from typing import Any, Dict, Optional
 
 from mcp_agent.logging.events import Event
 from mcp_agent.logging.listeners import EventListener
