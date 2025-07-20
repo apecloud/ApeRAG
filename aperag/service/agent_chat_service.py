@@ -166,27 +166,30 @@ class AgentChatService:
                     message_queue = AgentMessageQueue()
 
                     # Start background task to process agent message
-                    # Memory creation delegated to memory manager
                     process_task = asyncio.create_task(
                         self.process_agent_message(
                             agent_message, user, chat_id, message_id, message_queue
                         )
                     )
 
-                    # Main loop: consume messages from queue and send to WebSocket
-                    while True:
-                        # Get message from queue (blocks until message is available)
-                        message = await message_queue.get()
-                        
-                        # None message signals end of stream
-                        if message is None:
-                            break
-                            
-                        # Send message to WebSocket
-                        await websocket.send_text(json.dumps(message))
-
-                    # Wait for processing task to complete and get the result
-                    process_result = await process_task
+                    # Start message consumer task 
+                    consumer_task = asyncio.create_task(
+                        self._consume_messages_from_queue(message_queue, websocket)
+                    )
+                    
+                    # Use asyncio.gather to handle both tasks concurrently and properly
+                    # This ensures no race condition between message production and consumption
+                    results = await asyncio.gather(process_task, consumer_task, return_exceptions=True)
+                    process_result, consumer_result = results
+                    
+                    # Check for exceptions in either task
+                    if isinstance(process_result, Exception):
+                        logger.error(f"Process task failed: {process_result}")
+                        raise process_result
+                    
+                    if isinstance(consumer_result, Exception):
+                        logger.error(f"Consumer task failed: {consumer_result}")
+                        raise consumer_result
                     
                     # Handle history saving at WebSocket layer (better separation of concerns)
                     if process_result.get("status") == "success":
@@ -214,6 +217,30 @@ class AgentChatService:
 
         except Exception as e:
             logger.error(f"WebSocket connection error in agent chat: {e}")
+
+    async def _consume_messages_from_queue(self, message_queue: AgentMessageQueue, websocket: WebSocket) -> None:
+        """
+        Consume messages from queue and send to WebSocket.
+        
+        This method runs as a separate task to avoid race conditions.
+        """
+        try:
+            while True:
+                # Get message from queue (blocks until message is available)
+                message = await message_queue.get()
+                
+                # None message signals end of stream
+                if message is None:
+                    logger.debug("Received end-of-stream signal from message queue")
+                    break
+                    
+                # Send message to WebSocket
+                await websocket.send_text(json.dumps(message))
+                logger.debug(f"Sent message to WebSocket: {message.get('type', 'unknown')}")
+                
+        except Exception as e:
+            logger.error(f"Error in message consumer: {e}")
+            raise
 
     async def _get_agent_session(self, agent_message: view_models.AgentMessage, user: str, chat_id: str):
         """Get or create chat session using AgentConfig."""
@@ -346,6 +373,9 @@ class AgentChatService:
             # Send end message
             await message_queue.put(format_stream_end(msg_id, references=tool_references, urls=urls))
 
+            # Close queue after successful completion and all messages sent
+            await message_queue.close()
+            
             return {
                 "status": "success", 
                 "content": full_content, 
@@ -356,11 +386,12 @@ class AgentChatService:
         except AgentConfigurationError as e:
             logger.error(f"Agent configuration error: {e}")
             await message_queue.put(format_agent_setup_error(str(e), language))
+            # Close queue after error message sent
+            await message_queue.close()
             return {"status": "error", "message": str(e)}
         except Exception as e:
             logger.error(f"Error in agent session processing: {e}")
             await message_queue.put(format_agent_execution_error(str(e), language))
-            return {"status": "error", "message": str(e)}
-        finally:
-            # Always close the queue to signal end of stream
+            # Close queue after error message sent
             await message_queue.close()
+            return {"status": "error", "message": str(e)}
