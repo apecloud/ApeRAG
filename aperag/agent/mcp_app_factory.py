@@ -17,6 +17,7 @@ import logging
 from mcp_agent.app import MCPApp
 from mcp_agent.config import LoggerSettings, MCPServerSettings, MCPSettings, OpenAISettings, Settings
 
+from .agent_config import AgentConfig
 from .exceptions import agent_config_invalid, mcp_init_failed
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,9 @@ class MCPAppFactory:
         api_key: str,
         aperag_api_key: str,
         aperag_url: str,
+        # Configurable LLM parameters
+        temperature: float = 0.7,
+        max_tokens: int = 60000,
     ) -> MCPApp:
         """Create MCPApp instance with the specified parameters."""
         # Validate required parameters
@@ -72,8 +76,8 @@ class MCPAppFactory:
                     api_key=api_key,
                     base_url=base_url,
                     default_model=model,
-                    temperature=0.7,
-                    max_tokens=60000,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
                 ),
             )
 
@@ -84,3 +88,17 @@ class MCPAppFactory:
         except Exception as e:
             logger.error(f"Failed to create MCP app: {e}")
             raise mcp_init_failed(f"MCP app creation failed: {str(e)}")
+
+    @staticmethod
+    def create_mcp_app_from_config(config: AgentConfig) -> MCPApp:
+        """Create MCPApp instance using AgentConfig object."""
+        return MCPAppFactory.create_mcp_app(
+            model=config.default_model,
+            llm_provider_name=config.provider_name,
+            base_url=config.base_url,
+            api_key=config.api_key,
+            aperag_api_key=config.aperag_api_key,
+            aperag_url=config.aperag_url,
+            temperature=config.temperature,
+            max_tokens=config.max_tokens,
+        )

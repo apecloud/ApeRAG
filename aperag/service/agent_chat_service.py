@@ -15,6 +15,7 @@
 import asyncio
 import json
 import logging
+import os
 import uuid
 from typing import Any, AsyncGenerator, Dict
 
@@ -166,8 +167,13 @@ class AgentChatService:
             default_model=agent_message.completion.model,
             language=agent_message.language if agent_message.language else "en-US",
             instruction=get_agent_system_prompt(language=agent_message.language),
-            # aperag_api_key and aperag_url will be set by __post_init__
-            # server_names will default to ["aperag"]
+            server_names=["aperag"],
+            aperag_api_key=os.getenv("APERAG_API_KEY", "sk-test"),  # todo delete me, use user's aperag api key
+            aperag_url=os.getenv(
+                "APERAG_URL", "http://localhost:8000/mcp/"
+            ),  # todo delete me, use user's aperag api key
+            temperature=0.7,
+            max_tokens=60000,
         )
 
         # Get or create chat session using config

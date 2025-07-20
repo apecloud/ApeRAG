@@ -60,14 +60,7 @@ class ChatSession:
             logger.info(f"Initializing provider session {self.config.get_session_key()}")
 
             # Create MCP app for this provider using config
-            self.mcp_app = MCPAppFactory.create_mcp_app(
-                model=self.config.default_model,  # Default model, can override later
-                llm_provider_name=self.config.provider_name,
-                base_url=self.config.base_url,
-                api_key=self.config.api_key,
-                aperag_api_key=self.config.aperag_api_key,
-                aperag_url=self.config.aperag_url,
-            )
+            self.mcp_app = MCPAppFactory.create_mcp_app_from_config(self.config)
 
             # Start MCP app
             self.mcp_running_app = await self.mcp_app.run().__aenter__()

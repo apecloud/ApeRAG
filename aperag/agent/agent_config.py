@@ -14,7 +14,6 @@
 
 """Agent configuration management for session creation."""
 
-import os
 from dataclasses import dataclass
 from typing import List
 
@@ -31,56 +30,24 @@ class AgentConfig:
     # Basic agent info
     user_id: str
     chat_id: str
+
+    # LLM Settings
     provider_name: str
     api_key: str
     base_url: str
     default_model: str
+    temperature: float = 0.7
+    max_tokens: int = 60000
+
+    # MCP configuration
+    aperag_api_key: str = None
+    aperag_url: str = None
 
     # Agent behavior configuration
     language: str = "en-US"
     instruction: str = ""
     server_names: List[str] = None
 
-    # MCP configuration
-    aperag_api_key: str = None
-    aperag_url: str = None
-
-    def __post_init__(self):
-        """Set defaults for optional parameters."""
-        if self.server_names is None:
-            self.server_names = ["aperag"]
-
-        # todo delete os.getenv
-        if self.aperag_api_key is None:
-            self.aperag_api_key = os.getenv("APERAG_API_KEY", "sk-test")
-
-        if self.aperag_url is None:
-            self.aperag_url = os.getenv("APERAG_URL", "http://localhost:8000/mcp/")
-
     def get_session_key(self) -> str:
         """Generate session key based on user, chat, and provider."""
         return f"{self.user_id}:{self.chat_id}:{self.provider_name}"
-
-    @classmethod
-    def create_from_agent_message(
-        cls,
-        user_id: str,
-        chat_id: str,
-        provider_name: str,
-        api_key: str,
-        base_url: str,
-        default_model: str,
-        language: str = "en-US",
-        **kwargs,
-    ) -> "AgentConfig":
-        """Create config from agent message parameters."""
-        return cls(
-            user_id=user_id,
-            chat_id=chat_id,
-            provider_name=provider_name,
-            api_key=api_key,
-            base_url=base_url,
-            default_model=default_model,
-            language=language,
-            **kwargs,
-        )
