@@ -146,67 +146,61 @@ class AgentChatService:
     @handle_agent_error("websocket_agent_chat", reraise=False)
     async def handle_websocket_agent_chat(self, websocket: WebSocket, user: str, bot_id: str, chat_id: str):
         """Handle WebSocket connections for agent-type bot chats with message queue architecture"""
-        try:
-            while True:
-                # Receive message from WebSocket
-                data = await websocket.receive_text()
+        while True:
+            # Receive message from WebSocket
+            data = await websocket.receive_text()
 
-                # Parse WebSocket message using Go-style error handling
-                agent_message, error_response = self._parse_websocket_message(data)
-                if error_response:
+            # Parse WebSocket message using Go-style error handling
+            agent_message, error_response = self._parse_websocket_message(data)
+            if error_response:
+                await websocket.send_text(json.dumps(error_response))
+                continue
+
+            # Generate message ID
+            message_id = str(uuid.uuid4())
+
+            try:
+                # Create message queue for this conversation
+                message_queue = AgentMessageQueue()
+
+                # Start background task to process agent message
+                process_task = asyncio.create_task(
+                    self.process_agent_message(agent_message, user, chat_id, message_id, message_queue)
+                )
+
+                # Start message consumer task
+                consumer_task = asyncio.create_task(self._consume_messages_from_queue(message_queue, websocket))
+
+                # Use asyncio.gather to handle both tasks concurrently and properly
+                # This ensures no race condition between message production and consumption
+                results = await asyncio.gather(process_task, consumer_task, return_exceptions=True)
+                process_result, consumer_result = results
+
+                # Handle process_task exceptions with unified error formatting
+                if isinstance(process_result, Exception):
+                    logger.error(f"Process task failed: {process_result}")
+                    error_response = self._format_exception_to_error_response(
+                        process_result, agent_message.language or "en-US"
+                    )
                     await websocket.send_text(json.dumps(error_response))
                     continue
 
-                # Generate message ID
-                message_id = str(uuid.uuid4())
-
-                try:
-                    # Create message queue for this conversation
-                    message_queue = AgentMessageQueue()
-
-                    # Start background task to process agent message
-                    process_task = asyncio.create_task(
-                        self.process_agent_message(agent_message, user, chat_id, message_id, message_queue)
-                    )
-
-                    # Start message consumer task
-                    consumer_task = asyncio.create_task(self._consume_messages_from_queue(message_queue, websocket))
-
-                    # Use asyncio.gather to handle both tasks concurrently and properly
-                    # This ensures no race condition between message production and consumption
-                    results = await asyncio.gather(process_task, consumer_task, return_exceptions=True)
-                    process_result, consumer_result = results
-
-                    # Handle process_task exceptions with unified error formatting
-                    if isinstance(process_result, Exception):
-                        logger.error(f"Process task failed: {process_result}")
-                        error_response = self._format_exception_to_error_response(
-                            process_result, agent_message.language or "en-US"
-                        )
-                        await websocket.send_text(json.dumps(error_response))
-                        continue
-
-                    # Handle consumer_task exceptions
-                    if isinstance(consumer_result, Exception):
-                        logger.error(f"Consumer task failed: {consumer_result}")
-                        error_response = format_processing_error(
-                            str(consumer_result), agent_message.language or "en-US"
-                        )
-                        await websocket.send_text(json.dumps(error_response))
-                        continue
-
-                    # Handle history saving at WebSocket layer (better separation of concerns)
-                    # process_result now contains {query, content, references} on success
-                    await self._save_conversation_history(chat_id, process_result)
-
-                except Exception as e:
-                    # This catches any other unexpected errors not handled above
-                    logger.error(f"Unexpected error processing agent websocket message: {e}")
-                    error_response = format_processing_error(str(e), agent_message.language or "en-US")
+                # Handle consumer_task exceptions
+                if isinstance(consumer_result, Exception):
+                    logger.error(f"Consumer task failed: {consumer_result}")
+                    error_response = format_processing_error(str(consumer_result), agent_message.language or "en-US")
                     await websocket.send_text(json.dumps(error_response))
+                    continue
 
-        except Exception as e:
-            logger.error(f"WebSocket connection error in agent chat: {e}")
+                # Handle history saving at WebSocket layer (better separation of concerns)
+                # process_result now contains {query, content, references} on success
+                await self._save_conversation_history(chat_id, process_result)
+
+            except Exception as e:
+                # This catches any other unexpected errors not handled above
+                logger.error(f"Unexpected error processing agent websocket message: {e}")
+                error_response = format_processing_error(str(e), agent_message.language or "en-US")
+                await websocket.send_text(json.dumps(error_response))
 
     async def _consume_messages_from_queue(self, message_queue: AgentMessageQueue, websocket: WebSocket) -> None:
         """
