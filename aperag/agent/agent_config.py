@@ -15,7 +15,7 @@
 """Agent configuration management for session creation."""
 
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 
 @dataclass
@@ -30,6 +30,7 @@ class AgentConfig:
     # Basic agent info
     user_id: str
     chat_id: str
+    trace_id: Optional[str] = None
 
     # LLM Settings
     provider_name: str
