@@ -66,7 +66,7 @@ def format_websocket_error(error: Exception, data: str) -> AgentErrorResponse:
     try:
         parsed = safe_json_parse(data, "language_detection")
         language = parsed.get("language", "en-US")
-    except:
+    except Exception:
         language = "en-US"
 
     if isinstance(error, JSONParsingError):
@@ -89,7 +89,7 @@ class AgentChatService:
 
     This service uses AgentSessionManager for efficient session lifecycle management,
     including collection selection, model choice, and web search capabilities.
-    
+
     Refactored to use message queue for clean separation of concerns.
     """
 
@@ -98,19 +98,20 @@ class AgentChatService:
             self.db_ops = async_db_ops
         else:
             self.db_ops = AsyncDatabaseOps(session)
-        
+
         # Initialize memory and history managers
         self.memory_manager = AgentMemoryManager()
         self.history_manager = AgentHistoryManager()
 
-    def _parse_websocket_message(self, raw_data: str) -> Tuple[
-        Optional[view_models.AgentMessage], Optional[AgentErrorResponse]]:
+    def _parse_websocket_message(
+        self, raw_data: str
+    ) -> Tuple[Optional[view_models.AgentMessage], Optional[AgentErrorResponse]]:
         """
         Parse WebSocket message using Go-style error handling.
-        
+
         Args:
             raw_data: Raw JSON string from WebSocket
-            
+
         Returns:
             Tuple of (agent_message, error_response):
             - If successful: (agent_message, None)
@@ -124,6 +125,7 @@ class AgentChatService:
             query = message_data.get("query", "").strip()
             if not query:
                 from aperag.agent.exceptions import agent_config_invalid
+
                 error = agent_config_invalid("query", "Query is required and cannot be empty")
                 error_response = format_websocket_error(error, raw_data)
                 return None, error_response
@@ -138,6 +140,7 @@ class AgentChatService:
         except Exception as e:
             # Handle unexpected errors
             from aperag.agent.exceptions import agent_config_invalid
+
             config_error = agent_config_invalid("agent_message", f"Unexpected error: {str(e)}")
             error_response = format_websocket_error(config_error, raw_data)
             return None, error_response
@@ -165,42 +168,38 @@ class AgentChatService:
 
                     # Start background task to process agent message
                     process_task = asyncio.create_task(
-                        self.process_agent_message(
-                            agent_message, user, chat_id, message_id, message_queue
-                        )
+                        self.process_agent_message(agent_message, user, chat_id, message_id, message_queue)
                     )
 
-                    # Start message consumer task 
-                    consumer_task = asyncio.create_task(
-                        self._consume_messages_from_queue(message_queue, websocket)
-                    )
-                    
+                    # Start message consumer task
+                    consumer_task = asyncio.create_task(self._consume_messages_from_queue(message_queue, websocket))
+
                     # Use asyncio.gather to handle both tasks concurrently and properly
                     # This ensures no race condition between message production and consumption
                     results = await asyncio.gather(process_task, consumer_task, return_exceptions=True)
                     process_result, consumer_result = results
-                    
+
                     # Check for exceptions in either task
                     if isinstance(process_result, Exception):
                         logger.error(f"Process task failed: {process_result}")
                         raise process_result
-                    
+
                     if isinstance(consumer_result, Exception):
                         logger.error(f"Consumer task failed: {consumer_result}")
                         raise consumer_result
-                    
+
                     # Handle history saving at WebSocket layer (better separation of concerns)
                     if process_result.get("status") == "success":
                         # Get history instance through history manager
                         history = await self.history_manager.get_chat_history(chat_id)
-                        
+
                         history_saved = await self.history_manager.save_conversation_turn(
                             history=history,
                             user_query=process_result.get("query", agent_message.query),
                             ai_response=process_result.get("content", ""),
-                            tool_references=process_result.get("references", [])
+                            tool_references=process_result.get("references", []),
                         )
-                        
+
                         if not history_saved:
                             logger.warning(f"Failed to save conversation history for chat: {chat_id}")
 
@@ -219,23 +218,23 @@ class AgentChatService:
     async def _consume_messages_from_queue(self, message_queue: AgentMessageQueue, websocket: WebSocket) -> None:
         """
         Consume messages from queue and send to WebSocket.
-        
+
         This method runs as a separate task to avoid race conditions.
         """
         try:
             while True:
                 # Get message from queue (blocks until message is available)
                 message = await message_queue.get()
-                
+
                 # None message signals end of stream
                 if message is None:
                     logger.debug("Received end-of-stream signal from message queue")
                     break
-                    
+
                 # Send message to WebSocket
                 await websocket.send_text(json.dumps(message))
                 logger.debug(f"Sent message to WebSocket: {message.get('type', 'unknown')}")
-                
+
         except Exception as e:
             logger.error(f"Error in message consumer: {e}")
             raise
@@ -283,16 +282,16 @@ class AgentChatService:
 
     @handle_agent_error("agent_message_processing", reraise=False)
     async def process_agent_message(
-            self,
-            agent_message: view_models.AgentMessage,
-            user: str,
-            chat_id: str,
-            msg_id: str,
-            message_queue: AgentMessageQueue,
+        self,
+        agent_message: view_models.AgentMessage,
+        user: str,
+        chat_id: str,
+        msg_id: str,
+        message_queue: AgentMessageQueue,
     ) -> Dict:
         """
         Process an agent message and generate AI response.
-        
+
         This method focuses purely on AI response generation and puts results in message queue.
         History management is handled at the WebSocket layer for better separation of concerns.
         """
@@ -379,7 +378,7 @@ class AgentChatService:
                 "status": "success",
                 "content": full_content,
                 "references": tool_references,
-                "query": agent_message.query  # Return query for history saving
+                "query": agent_message.query,  # Return query for history saving
             }
 
         except AgentConfigurationError as e:

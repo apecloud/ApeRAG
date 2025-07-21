@@ -94,7 +94,7 @@ __all__ = [
     # Message queue
     "AgentMessageQueue",
     # Memory and history managers
-    "AgentMemoryManager", 
+    "AgentMemoryManager",
     "AgentHistoryManager",
     # Simple session management
     "get_or_create_session",
@@ -157,7 +157,7 @@ __all__ = [
     "format_query_required_error",
     # Response types
     "AgentResponse",
-    "AgentErrorResponse", 
+    "AgentErrorResponse",
     "AgentStartResponse",
     "AgentMessageResponse",
     "AgentStopResponse",
