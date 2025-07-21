@@ -64,6 +64,7 @@ class ChatSession:
 
             # Start MCP app
             self.mcp_running_app = await self.mcp_app.run().__aenter__()
+            self.mcp_running_app.context.session_id = self.config.chat_id
 
             # Create reusable agent for this chat session
             self.agent = Agent(
