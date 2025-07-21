@@ -17,7 +17,7 @@ import json
 import logging
 import os
 import uuid
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from fastapi import WebSocket
 from mcp_agent.logging.transport import AsyncEventBus
@@ -31,12 +31,10 @@ from aperag.agent import (
     UniversalEventListener,
     agent_session_manager,
     extract_tool_call_references,
-    format_agent_execution_error,
     format_agent_setup_error,
     format_invalid_json_error,
     format_invalid_model_spec_error,
-    format_llm_generation_error,
-    format_model_spec_required_error,
+    format_mcp_connection_error,
     format_processing_error,
     format_query_required_error,
     format_stream_content,
@@ -179,35 +177,30 @@ class AgentChatService:
                     results = await asyncio.gather(process_task, consumer_task, return_exceptions=True)
                     process_result, consumer_result = results
 
-                    # Check for exceptions in either task
+                    # Handle process_task exceptions with unified error formatting
                     if isinstance(process_result, Exception):
                         logger.error(f"Process task failed: {process_result}")
-                        raise process_result
+                        error_response = self._format_exception_to_error_response(
+                            process_result, agent_message.language or "en-US"
+                        )
+                        await websocket.send_text(json.dumps(error_response))
+                        continue
 
+                    # Handle consumer_task exceptions
                     if isinstance(consumer_result, Exception):
                         logger.error(f"Consumer task failed: {consumer_result}")
-                        raise consumer_result
+                        error_response = format_processing_error(
+                            str(consumer_result), agent_message.language or "en-US"
+                        )
+                        await websocket.send_text(json.dumps(error_response))
+                        continue
 
                     # Handle history saving at WebSocket layer (better separation of concerns)
-                    if process_result.get("status") == "success":
-                        # Get history instance through history manager
-                        history = await self.history_manager.get_chat_history(chat_id)
+                    # process_result now contains {query, content, references} on success
+                    await self._save_conversation_history(chat_id, process_result)
 
-                        history_saved = await self.history_manager.save_conversation_turn(
-                            history=history,
-                            user_query=process_result.get("query", agent_message.query),
-                            ai_response=process_result.get("content", ""),
-                            tool_references=process_result.get("references", []),
-                        )
-
-                        if not history_saved:
-                            logger.warning(f"Failed to save conversation history for chat: {chat_id}")
-
-                except (AgentConfigurationError, MCPAppInitializationError, MCPConnectionError) as e:
-                    logger.error(f"Agent configuration error in websocket: {e}")
-                    error_response = format_agent_setup_error(str(e), agent_message.language or "en-US")
-                    await websocket.send_text(json.dumps(error_response))
                 except Exception as e:
+                    # This catches any other unexpected errors not handled above
                     logger.error(f"Unexpected error processing agent websocket message: {e}")
                     error_response = format_processing_error(str(e), agent_message.language or "en-US")
                     await websocket.send_text(json.dumps(error_response))
@@ -280,7 +273,6 @@ class AgentChatService:
 
         return session
 
-    @handle_agent_error("agent_message_processing", reraise=False)
     async def process_agent_message(
         self,
         agent_message: view_models.AgentMessage,
@@ -288,108 +280,152 @@ class AgentChatService:
         chat_id: str,
         msg_id: str,
         message_queue: AgentMessageQueue,
-    ) -> Dict:
+    ) -> Dict[str, Any]:
         """
         Process an agent message and generate AI response.
 
-        This method focuses purely on AI response generation and puts results in message queue.
-        History management is handled at the WebSocket layer for better separation of concerns.
+        This method focuses purely on AI response generation and puts success messages in message queue.
+        All errors are raised as exceptions for unified handling at the WebSocket layer.
+
+        Returns:
+            Dictionary containing query, content, and references for history saving
+
+        Raises:
+            AgentConfigurationError: For configuration-related errors
+            MCPConnectionError: For MCP server connection issues
+            Exception: For other processing errors
         """
-        # Get language preference from agent message
-        language = agent_message.language if agent_message.language else "en-US"
+        # Validate ModelSpec early
+        if not agent_message.completion or not agent_message.completion.model:
+            raise AgentConfigurationError(
+                config_key="completion.model", reason="Model specification is required for AI response generation"
+            )
+
+        # Send start message
+        await message_queue.put(format_stream_start(msg_id))
+
+        # Create memory from chat history using pure function approach (context_limit=4)
+        history = await self.history_manager.get_chat_history(chat_id)
+        memory = await self.memory_manager.create_memory_from_history(history, context_limit=4)
+
+        # Get chat session
+        session = await self._get_agent_session(agent_message, user, chat_id)
+        llm = await session.get_llm(agent_message.completion.model)
+        llm.history = memory
+
+        # Process message with session
+        full_content = ""
+
+        # Create universal event listener with message queue
+        event_listener = UniversalEventListener(msg_id, message_queue)
+
+        # Register the listener with AsyncEventBus
+        event_bus = AsyncEventBus.get()
+        event_bus.add_listener("universal_event_monitor", event_listener)
 
         try:
-            # Validate ModelSpec
-            if not agent_message.completion or not agent_message.completion.model:
-                await message_queue.put(format_model_spec_required_error(language))
-                return {"status": "error", "message": "Model spec required"}
+            request_params = RequestParams(
+                maxTokens=8192,
+                model=agent_message.completion.model,
+                use_history=True,
+                max_iterations=10,
+                parallel_tool_calls=True,
+                temperature=0.7,
+                user=user,
+            )
 
-            # Send start message
-            await message_queue.put(format_stream_start(msg_id))
+            # Build comprehensive prompt with context and pre-search results
+            comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
 
-            # Create memory from chat history using pure function approach (context_limit=4)
-            history = await self.history_manager.get_chat_history(chat_id)
-            memory = await self.memory_manager.create_memory_from_history(history, context_limit=4)
+            # Generate response
+            response = await llm.generate_str(comprehensive_prompt, request_params)
+            full_content = response if response else "No response generated"
 
-            # Get chat session
-            session = await self._get_agent_session(agent_message, user, chat_id)
-            llm = await session.get_llm(agent_message.completion.model)
-            llm.history = memory
+            # Send the response content
+            await message_queue.put(format_stream_content(msg_id, full_content))
 
-            # Process message with session
-            full_content = ""
+            # Extract updated memory from LLM using pure function
+            updated_memory = self.memory_manager.extract_memory_from_llm(llm)
 
-            # Create universal event listener with message queue
-            event_listener = UniversalEventListener(msg_id, message_queue)
-
-            # Register the listener with AsyncEventBus
-            event_bus = AsyncEventBus.get()
-            event_bus.add_listener("universal_event_monitor", event_listener)
-
+        finally:
+            # Clean up: remove the listener
             try:
-                request_params = RequestParams(
-                    maxTokens=8192,
-                    model=agent_message.completion.model,
-                    use_history=True,
-                    max_iterations=10,
-                    parallel_tool_calls=True,
-                    temperature=0.7,
-                    user=user,
-                )
-
-                # Build comprehensive prompt with context and pre-search results
-                comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
-
-                # Generate response
-                response = await llm.generate_str(comprehensive_prompt, request_params)
-                full_content = response if response else "No response generated"
-
-                # Send the response content
-                await message_queue.put(format_stream_content(msg_id, full_content))
-
-                # Extract updated memory from LLM using pure function
-                updated_memory = self.memory_manager.extract_memory_from_llm(llm)
-
+                event_bus.remove_listener("universal_event_monitor")
             except Exception as e:
-                logger.error(f"Error in LLM generation: {e}")
-                await message_queue.put(format_llm_generation_error(str(e), language))
-                return {"status": "error", "message": str(e)}
-            finally:
-                # Clean up: remove the listener
-                try:
-                    event_bus.remove_listener("universal_event_monitor")
-                except Exception as e:
-                    logger.warning(f"Failed to remove event listener: {e}")
+                logger.warning(f"Failed to remove event listener: {e}")
 
-            # Generate references - either from tool calls or direct search results
-            # Extract tool call results from updated memory and format as references
-            tool_references = extract_tool_call_references(updated_memory)
+        # Generate references - either from tool calls or direct search results
+        # Extract tool call results from updated memory and format as references
+        tool_references = extract_tool_call_references(updated_memory)
 
-            # Prepare references and URLs
-            urls = []
+        # Prepare references and URLs
+        urls = []
 
-            # Send end message
-            await message_queue.put(format_stream_end(msg_id, references=tool_references, urls=urls))
+        # Send end message
+        await message_queue.put(format_stream_end(msg_id, references=tool_references, urls=urls))
 
-            # Close queue after successful completion and all messages sent
-            await message_queue.close()
+        # Close queue after successful completion and all messages sent
+        await message_queue.close()
 
-            return {
-                "status": "success",
-                "content": full_content,
-                "references": tool_references,
-                "query": agent_message.query,  # Return query for history saving
-            }
+        return {
+            "query": agent_message.query,
+            "content": full_content,
+            "references": tool_references,
+        }
 
-        except AgentConfigurationError as e:
-            logger.error(f"Agent configuration error: {e}")
-            await message_queue.put(format_agent_setup_error(str(e), language))
-            # Close queue after error message sent
-            await message_queue.close()
-            return {"status": "error", "message": str(e)}
+    def _format_exception_to_error_response(self, exception: Exception, language: str) -> AgentErrorResponse:
+        """
+        Convert exception to properly formatted error response using unified error handling.
+
+        Args:
+            exception: The exception to format
+            language: Language code for i18n error messages
+
+        Returns:
+            Formatted error response for WebSocket
+        """
+        # Use existing exception hierarchy and formatting utilities
+        if isinstance(exception, AgentConfigurationError):
+            # Check for specific configuration error types
+            error_msg = str(exception).lower()
+            if "model" in error_msg or "completion" in error_msg:
+                return format_invalid_model_spec_error(str(exception), language)
+            else:
+                return format_agent_setup_error(str(exception), language)
+
+        elif isinstance(exception, MCPConnectionError):
+            return format_mcp_connection_error(language)
+
+        elif isinstance(exception, MCPAppInitializationError):
+            return format_agent_setup_error(str(exception), language)
+
+        else:
+            # Handle unexpected errors with generic processing error
+            return format_processing_error(str(exception), language)
+
+    async def _save_conversation_history(self, chat_id: str, conversation_data: Dict[str, Any]) -> None:
+        """
+        Save conversation history from successful agent processing.
+
+        Args:
+            chat_id: Chat session ID
+            conversation_data: Dictionary containing query, content, and references
+        """
+        try:
+            # Get history instance through history manager
+            history = await self.history_manager.get_chat_history(chat_id)
+
+            # Save conversation turn with data from successful processing
+            history_saved = await self.history_manager.save_conversation_turn(
+                history=history,
+                user_query=conversation_data.get("query", ""),
+                ai_response=conversation_data.get("content", ""),
+                tool_references=conversation_data.get("references", []),
+            )
+
+            if not history_saved:
+                logger.warning(f"Failed to save conversation history for chat: {chat_id}")
+
         except Exception as e:
-            logger.error(f"Error in agent session processing: {e}")
-            await message_queue.put(format_agent_execution_error(str(e), language))
-            # Close queue after error message sent
-            await message_queue.close()
-            return {"status": "error", "message": str(e)}
+            # Don't let history saving errors break the flow
+            logger.error(f"Error saving conversation history for chat {chat_id}: {e}")
