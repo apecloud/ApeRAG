@@ -117,19 +117,3 @@ class UniversalEventListener(EventListener):
         """处理其他通用事件"""
         # 可以根据需要扩展处理其他类型的事件
         pass
-
-    # Deprecated methods - kept for backward compatibility during transition
-    def get_new_messages(self, last_count: int = 0):
-        """Deprecated: Use message queue instead"""
-        logger.warning("get_new_messages is deprecated, use message queue instead")
-        return []
-
-    def get_message_count(self) -> int:
-        """Deprecated: Use message queue instead"""
-        logger.warning("get_message_count is deprecated, use message queue instead")
-        return 0
-
-    def clear_messages(self):
-        """Deprecated: Use message queue instead"""
-        logger.warning("clear_messages is deprecated, use message queue instead")
-        pass

@@ -25,6 +25,7 @@ from .response_types import (
     AgentStartResponse,
     AgentStopResponse,
     AgentThinkingResponse,
+    AgentToolCallStartResponse,
 )
 
 
@@ -81,5 +82,17 @@ def format_thinking(msg_id: str, content: str) -> AgentThinkingResponse:
         type="thinking",
         id=msg_id,
         data=content,
+        timestamp=now_unix_milliseconds(),
+    )
+
+
+def format_stream_tool_call(msg_id: str, tool_name: str, arguments: Dict[str, Any]) -> AgentToolCallStartResponse:
+    """Formats a tool call start event for the stream."""
+    return AgentToolCallStartResponse(
+        type="tool_call_start",
+        id=msg_id,
+        data=f"Using tool: {tool_name}",  # Display text
+        tool_name=tool_name,
+        arguments=arguments,
         timestamp=now_unix_milliseconds(),
     )

@@ -20,7 +20,6 @@ import uuid
 from typing import Any, Dict, Optional, Tuple
 
 from fastapi import WebSocket
-from mcp_agent.logging.transport import AsyncEventBus
 from mcp_agent.workflows.llm.augmented_llm import RequestParams
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,7 +27,6 @@ from aperag.agent import (
     AgentHistoryManager,
     AgentMemoryManager,
     AgentMessageQueue,
-    UniversalEventListener,
     agent_session_manager,
     extract_tool_call_references,
     format_agent_setup_error,
@@ -50,6 +48,7 @@ from aperag.agent.exceptions import (
     handle_agent_error,
     safe_json_parse,
 )
+from aperag.agent.global_proxy_listener import global_proxy_listener
 from aperag.agent.response_types import AgentErrorResponse
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.schema import view_models
@@ -307,11 +306,15 @@ class AgentChatService:
                 config_key="completion.model", reason="Model specification is required for AI response generation"
             )
 
+        # Register a listener for this message_id with the global proxy.
+        # The proxy will handle the creation of the UniversalEventListener.
+        await global_proxy_listener.register_listener(msg_id, message_queue)
+
         try:
             # Send start message
             await message_queue.put(format_stream_start(msg_id))
 
-            # Create memory from chat history using pure function approach (context_limit=4)
+            # Create memory from chat history
             history = await self.history_manager.get_chat_history(chat_id)
             memory = await self.memory_manager.create_memory_from_history(history, context_limit=4)
 
@@ -323,52 +326,27 @@ class AgentChatService:
             # Process message with session
             full_content = ""
 
-            # Create universal event listener with message queue
-            event_listener = UniversalEventListener(msg_id, message_queue)
+            request_params = RequestParams(
+                maxTokens=8192,
+                model=agent_message.completion.model,
+                use_history=True,
+                max_iterations=10,
+                parallel_tool_calls=True,
+                temperature=0.7,
+                user=user,
+            )
 
-            # Register the listener with AsyncEventBus
-            event_bus = AsyncEventBus.get()
-            event_bus.add_listener("universal_event_monitor", event_listener)
+            comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
 
-            try:
-                request_params = RequestParams(
-                    maxTokens=8192,
-                    model=agent_message.completion.model,
-                    use_history=True,
-                    max_iterations=10,
-                    parallel_tool_calls=True,
-                    temperature=0.7,
-                    user=user,
-                )
+            response = await llm.generate_str(comprehensive_prompt, request_params)
+            full_content = response if response else "No response generated"
 
-                # Build comprehensive prompt with context and pre-search results
-                comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
+            await message_queue.put(format_stream_content(msg_id, full_content))
 
-                # Generate response
-                response = await llm.generate_str(comprehensive_prompt, request_params)
-                full_content = response if response else "No response generated"
-
-                # Send the response content
-                await message_queue.put(format_stream_content(msg_id, full_content))
-
-                # Extract updated memory from LLM using pure function
-                updated_memory = self.memory_manager.extract_memory_from_llm(llm)
-
-            finally:
-                # Clean up: remove the listener
-                try:
-                    event_bus.remove_listener("universal_event_monitor")
-                except Exception as e:
-                    logger.warning(f"Failed to remove event listener: {e}")
-
-            # Generate references - either from tool calls or direct search results
-            # Extract tool call results from updated memory and format as references
+            updated_memory = self.memory_manager.extract_memory_from_llm(llm)
             tool_references = extract_tool_call_references(updated_memory)
-
-            # Prepare references and URLs
             urls = []
 
-            # Send end message
             await message_queue.put(format_stream_end(msg_id, references=tool_references, urls=urls))
 
             add_trace_attributes(success=True, references_count=len(tool_references), response_length=len(full_content))
@@ -380,11 +358,14 @@ class AgentChatService:
             }
 
         finally:
-            # Ensure message queue is always closed, even if an exception occurs
+            # CRITICAL: Always unregister the temporary listener from the proxy
+            await global_proxy_listener.unregister_listener(msg_id)
+
+            # Ensure message queue is always closed
             try:
                 await message_queue.close()
             except Exception as e:
-                logger.warning(f"Failed to close message queue: {e}")
+                logger.warning(f"Failed to close message queue for {msg_id}: {e}")
 
     def _format_exception_to_error_response(self, exception: Exception, language: str) -> AgentErrorResponse:
         """
