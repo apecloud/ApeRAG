@@ -264,29 +264,31 @@ export const NavbarBot = () => {
               border: 'none',
             }}
           />
-          <Menu
-            onClick={({ key }) => history.push(key)}
-            mode="inline"
-            selectedKeys={[location.pathname]}
-            items={[
-              {
-                label: formatMessage({ id: 'action.settings' }),
-                key: `/bots/${botId}/settings`,
-                type: 'group',
-                children: [
-                  {
-                    label: formatMessage({ id: 'flow.settings' }),
-                    key: `/bots/${botId}/flow`,
-                  },
-                ],
-              },
-            ]}
-            style={{
-              padding: 0,
-              background: 'none',
-              border: 'none',
-            }}
-          />
+          {bot.type !== 'agent' && (
+            <Menu
+              onClick={({ key }) => history.push(key)}
+              mode="inline"
+              selectedKeys={[location.pathname]}
+              items={[
+                {
+                  label: formatMessage({ id: 'action.settings' }),
+                  key: `/bots/${botId}/settings`,
+                  type: 'group',
+                  children: [
+                    {
+                      label: formatMessage({ id: 'flow.settings' }),
+                      key: `/bots/${botId}/flow`,
+                    },
+                  ],
+                },
+              ]}
+              style={{
+                padding: 0,
+                background: 'none',
+                border: 'none',
+              }}
+            />
+          )}
         </NavbarBody>
       </Navbar>
 

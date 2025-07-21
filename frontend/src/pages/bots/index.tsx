@@ -68,8 +68,7 @@ export default () => {
         chatCreate: { title: '' },
       });
       setCreateVisible(false);
-      
-      // Route agent bots directly to chat, others to flow configuration
+
       if (values.type === 'agent') {
         history.push(`/bots/${botRes.data.id}/chats`);
       } else {

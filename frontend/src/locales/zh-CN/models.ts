@@ -2,7 +2,8 @@ export const model = {
   'model.name': '模型',
   'model.configuration': '模型配置',
   'model.configuration.description': '配置LLM提供商和模型',
-  'model.configuration.admin_only': '👤 管理员提示：只有全局共享且标记为 "recommend" 的模型才会对普通用户可见，用户私有的 provider/model 不受此限制。',
+  'model.configuration.admin_only':
+    '👤 管理员提示：只有全局共享且标记为 "recommend" 的模型才会对普通用户可见，用户私有的 provider/model 不受此限制。',
   'model.prompt_template': '提示模版',
   'model.provider.type': '共享范围',
   'model.provider.type.public': '全局共享',

@@ -2,7 +2,8 @@ export const model = {
   'model.name': 'Models',
   'model.configuration': 'Model Configuration',
   'model.configuration.description': 'Configure LLM providers and models',
-  'model.configuration.admin_only': '👤 Admin Notice: Only globally shared models with "recommend" tag are visible to regular users. Private user providers/models are not affected by this restriction.',
+  'model.configuration.admin_only':
+    '👤 Admin Notice: Only globally shared models with "recommend" tag are visible to regular users. Private user providers/models are not affected by this restriction.',
   'model.prompt_template': 'Prompt Template',
   'model.llm.tips': 'Large language chat model',
   'model.rerank.tips':
@@ -38,8 +39,10 @@ export const model = {
   'model.provider.status.disabled': 'Disabled',
   'model.provider.enable': 'Enable',
   'model.provider.disable': 'Disable',
-  'model.provider.enable.help': 'Enable to configure API key and use model services',
-  'model.provider.disable.help': 'Disable to remove API key and stop using model services',
+  'model.provider.enable.help':
+    'Enable to configure API key and use model services',
+  'model.provider.disable.help':
+    'Disable to remove API key and stop using model services',
 
   // Model related
   'model.management.title': '{provider} - Model Management',

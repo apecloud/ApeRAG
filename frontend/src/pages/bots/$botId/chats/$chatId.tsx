@@ -4,15 +4,14 @@ import { api } from '@/services';
 import { useWebSocket } from 'ahooks';
 import { ReadyState } from 'ahooks/lib/useWebSocket';
 import { Result, theme } from 'antd';
+import useApp from 'antd/es/app/useApp';
 import _ from 'lodash';
 import { useCallback, useEffect, useState } from 'react';
 import { animateScroll as scroll } from 'react-scroll';
 import { UndrawFirmware } from 'react-undraw-illustrations';
 import { FormattedMessage, useModel, useParams } from 'umi';
-import { ChatInput } from './_chat_input';
+import { ChatInput, ChatInputProps } from './_chat_input';
 import { ChatMessageItem } from './_chat_message';
-import { AgentChat } from './_agent_chat'; // Import agent chat component
-import useApp from 'antd/es/app/useApp';
 
 export default () => {
   const { chat, getChat, setChat, bot } = useModel('bot');
@@ -20,11 +19,9 @@ export default () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const { token } = theme.useToken();
-  const app = useApp()
-  
-  // Check if this is an agent bot
-  const isAgentBot = bot?.type === 'agent';
+  const app = useApp();
 
+  const isAgent = bot?.type === 'agent';
   const protocol = window.location.protocol === 'http:' ? 'ws://' : 'wss://';
   const host = window.location.host;
 
@@ -84,40 +81,25 @@ export default () => {
     },
   );
 
-  const onSubmit = useCallback(async (data: string) => {
-    const timestamp = new Date().getTime();
-    const msg: ChatMessage = {
-      type: 'message',
-      role: 'human',
-      data,
-      timestamp,
-    };
-    setMessages((msgs) => msgs?.concat(msg));
-    sendMessage(JSON.stringify(msg));
-  }, []);
+  const onSubmit: ChatInputProps['onSubmit'] = useCallback(
+    async (params) => {
+      const timestamp = new Date().getTime();
+      const msg: ChatMessage = {
+        type: 'message',
+        role: 'human',
+        data: params.query,
+        timestamp,
+      };
+      setMessages((msgs) => msgs?.concat(msg));
 
-  // Agent-specific message handler that includes agent parameters
-  const onAgentSubmit = useCallback(async (agentMessage: {
-    query: string;
-    collections: any[];
-    completion: {
-      model: string;
-      model_service_provider?: string;
-      custom_llm_provider?: string;
-    };
-    web_search_enabled: boolean;
-  }) => {
-    const timestamp = new Date().getTime();
-    const msg: ChatMessage = {
-      type: 'message',
-      role: 'human',
-      data: agentMessage.query,
-      timestamp,
-    };
-    setMessages((msgs) => msgs?.concat(msg));
-    // Send agent message format to backend
-    sendMessage(JSON.stringify(agentMessage));
-  }, []);
+      if (isAgent) {
+        sendMessage(JSON.stringify(params));
+      } else {
+        sendMessage(JSON.stringify(msg));
+      }
+    },
+    [isAgent],
+  );
 
   const handleCancel = useCallback(() => {
     disconnect();
@@ -127,7 +109,6 @@ export default () => {
 
   const onVote = async (item: ChatMessage, feedback: Feedback) => {
     if (!botId || !chatId || !item.id) return;
-
     const res = await api.botsBotIdChatsChatIdMessagesMessageIdPost({
       botId,
       chatId,
@@ -160,23 +141,6 @@ export default () => {
     scroll.scrollToBottom({ duration: 0 });
   }, [messages, chat]);
 
-  // Render agent interface for agent bots
-  if (isAgentBot) {
-    return (
-      <PageContainer style={{ paddingBottom: 140 }}>
-        <AgentChat
-          messages={messages}
-          loading={loading}
-          onSubmit={onAgentSubmit}
-          onCancel={handleCancel}
-          onVote={onVote}
-          readyState={readyState}
-        />
-      </PageContainer>
-    );
-  }
-
-  // Regular bot chat interface
   return (
     <PageContainer style={{ paddingBottom: 140 }}>
       {!_.isEmpty(chat) && _.isEmpty(messages) ? (

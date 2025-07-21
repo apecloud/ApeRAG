@@ -33,9 +33,9 @@ import GmailIcon from '@/assets/collection_source/gmail.png';
 import OutlookIcon from '@/assets/collection_source/outlook.png';
 import QQGmailIcon from '@/assets/collection_source/qq.png';
 
+import iconAgent from '@/assets/bots/agent.svg';
 import iconCommon from '@/assets/bots/common.svg';
 import iconKnowledge from '@/assets/bots/knowledge.svg';
-import iconAgent from '@/assets/bots/agent.svg';
 
 import {
   BotTypeEnum,
@@ -205,7 +205,6 @@ export const UI_DOCUMENT_STATUS: {
   COMPLETE: 'success',
   DELETED: 'default',
   DELETING: 'warning',
-  WARNING: 'warning',
 };
 
 export const UI_INDEX_STATUS: {

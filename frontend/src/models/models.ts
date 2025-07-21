@@ -1,4 +1,4 @@
-import { ModelConfig, ModelDefinition, PromptTemplate } from '@/api';
+import { ModelConfig, ModelSpec, PromptTemplate } from '@/api';
 import { api } from '@/services';
 import { useState } from 'react';
 import { useModel } from 'umi';
@@ -70,7 +70,7 @@ export default () => {
   const getProviderByModelName = (
     name: string = '',
     type: 'embedding' | 'completion' | 'rerank',
-  ): { provider?: ModelConfig; model?: ModelDefinition } => {
+  ): { provider?: ModelConfig; model?: ModelSpec } => {
     let provider;
     let model;
     availableModels.forEach((p) => {
