@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class AgentMessageQueue:
     """
     Async message queue for agent chat communication.
-    
+
     Acts like Go channels - producers put messages, consumers get messages.
     Supports graceful shutdown and end-of-stream signaling.
     """
@@ -38,7 +38,7 @@ class AgentMessageQueue:
         if self._closed:
             logger.warning("Attempted to put message into closed queue")
             return
-        
+
         await self.queue.put(message)
         logger.debug(f"Message queued: {message.get('type', 'unknown')}")
 

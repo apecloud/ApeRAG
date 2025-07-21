@@ -47,7 +47,9 @@ def format_stream_content(msg_id: str, content: str) -> AgentMessageResponse:
     )
 
 
-def format_stream_end(msg_id: str, references: List[Dict[str, Any]] = None, urls: List[str] = None) -> AgentStopResponse:
+def format_stream_end(
+    msg_id: str, references: List[Dict[str, Any]] = None, urls: List[str] = None
+) -> AgentStopResponse:
     """格式化流式结束事件"""
     if references is None:
         references = []
