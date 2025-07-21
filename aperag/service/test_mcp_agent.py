@@ -44,8 +44,8 @@ if not os.getenv("APERAG_API_KEY"):
     os.environ["APERAG_API_KEY"] = "sk-test"
 if not os.getenv("OPENAI_API_KEY"):
     os.environ["OPENAI_API_KEY"] = "sk-test"
-if not os.getenv("APERAG_URL"):
-    os.environ["APERAG_URL"] = "http://localhost:8000/mcp/"
+if not os.getenv("APERAG_MCP_URL"):
+    os.environ["APERAG_MCP_URL"] = "http://localhost:8000/mcp/"
 if not os.getenv("OPENAI_BASE_URL"):
     os.environ["OPENAI_BASE_URL"] = "https://openrouter.ai/api/v1"
 if not os.getenv("DEFAULT_MODEL"):
@@ -64,7 +64,7 @@ def create_mcp_app() -> MCPApp:
             servers={
                 "aperag": MCPServerSettings(
                     transport="streamable_http",
-                    url=os.getenv("APERAG_URL", "http://localhost:8000/mcp/"),
+                    url=os.getenv("APERAG_MCP_URL", "http://localhost:8000/mcp/"),
                     headers={
                         "Authorization": f"Bearer {os.getenv('APERAG_API_KEY', 'sk-test')}",
                         "Content-Type": "application/json",

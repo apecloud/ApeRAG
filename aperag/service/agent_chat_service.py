@@ -16,56 +16,81 @@ import asyncio
 import json
 import logging
 import os
-import traceback
 import uuid
-from typing import Any, AsyncGenerator, Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from fastapi import WebSocket
-from mcp_agent.agents.agent import Agent
-from mcp_agent.app import MCPApp
-from mcp_agent.config import LoggerSettings, MCPServerSettings, MCPSettings, OpenAISettings, Settings
 from mcp_agent.logging.transport import AsyncEventBus
-from mcp_agent.workflows.llm.augmented_llm import RequestParams, SimpleMemory
-from mcp_agent.workflows.llm.augmented_llm_openai import OpenAIAugmentedLLM
+from mcp_agent.workflows.llm.augmented_llm import RequestParams
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.agent import (
+    AgentHistoryManager,
+    AgentMemoryManager,
+    AgentMessageQueue,
     UniversalEventListener,
+    agent_session_manager,
     extract_tool_call_references,
-    format_error,
+    format_agent_execution_error,
+    format_agent_setup_error,
+    format_invalid_json_error,
+    format_invalid_model_spec_error,
+    format_llm_generation_error,
+    format_model_spec_required_error,
+    format_processing_error,
+    format_query_required_error,
     format_stream_content,
     format_stream_end,
     format_stream_start,
 )
+from aperag.agent.agent_config import AgentConfig
+from aperag.agent.exceptions import (
+    AgentConfigurationError,
+    JSONParsingError,
+    MCPAppInitializationError,
+    MCPConnectionError,
+    handle_agent_error,
+    safe_json_parse,
+)
+from aperag.agent.response_types import AgentErrorResponse
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
-from aperag.flow.runners.llm import add_ai_message, add_human_message
-
-# Import MCP server for direct collection search access
 from aperag.schema import view_models
 from aperag.service.prompt_template_service import build_agent_query_prompt, get_agent_system_prompt
-from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
 
 logger = logging.getLogger(__name__)
 
-# Only set default values if environment variables are not already set
-if not os.getenv("APERAG_API_KEY"):
-    os.environ["APERAG_API_KEY"] = "sk-test"
-if not os.getenv("OPENAI_API_KEY"):
-    os.environ["OPENAI_API_KEY"] = "sk-test"
-if not os.getenv("APERAG_URL"):
-    os.environ["APERAG_URL"] = "http://localhost:8000/mcp/"
-if not os.getenv("OPENAI_BASE_URL"):
-    os.environ["OPENAI_BASE_URL"] = "https://openrouter.ai/api/v1"
-if not os.getenv("DEFAULT_MODEL"):
-    os.environ["DEFAULT_MODEL"] = "gpt-4o-mini"
+
+def format_websocket_error(error: Exception, data: str) -> AgentErrorResponse:
+    """格式化WebSocket错误响应 - 简单直接"""
+    # 尽力提取语言，失败就返回英语，不死磕
+    try:
+        parsed = safe_json_parse(data, "language_detection")
+        language = parsed.get("language", "en-US")
+    except:
+        language = "en-US"
+
+    if isinstance(error, JSONParsingError):
+        return format_invalid_json_error(str(error), language)
+
+    if isinstance(error, AgentConfigurationError):
+        error_msg = str(error).lower()
+        if "query" in error_msg:
+            return format_query_required_error(language)
+        if "completion" in error_msg or "modelspec" in error_msg:
+            return format_invalid_model_spec_error(str(error), language)
+
+    # 默认处理
+    return format_processing_error(str(error), language)
 
 
 class AgentChatService:
     """
     Chat service specifically for agent-type bots that uses MCPApp for intelligent conversation.
 
-    This service dynamically constructs MCPApp instances based on agent message parameters,
+    This service uses AgentSessionManager for efficient session lifecycle management,
     including collection selection, model choice, and web search capabilities.
+    
+    Refactored to use message queue for clean separation of concerns.
     """
 
     def __init__(self, session: AsyncSession = None):
@@ -73,258 +98,299 @@ class AgentChatService:
             self.db_ops = async_db_ops
         else:
             self.db_ops = AsyncDatabaseOps(session)
+        
+        # Initialize memory and history managers
+        self.memory_manager = AgentMemoryManager()
+        self.history_manager = AgentHistoryManager()
 
-    def _get_aperag_api_settings(self) -> Dict[str, str]:
-        """Get ApeRAG API settings for MCP connection"""
-        return {
-            "aperag_api_key": os.getenv("APERAG_API_KEY", "sk-test"),
-            "aperag_url": os.getenv("APERAG_URL", "http://localhost:8000/mcp/"),
-        }
-
-    def _get_openai_settings(self, model_name: Optional[str] = None) -> Dict[str, str]:
-        """Get OpenAI settings for LLM calls"""
-        return {
-            "openai_base_url": os.getenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1"),
-            "openai_api_key": os.getenv("OPENAI_API_KEY", "sk-test"),
-            "default_model": model_name or os.getenv("DEFAULT_MODEL", "gpt-4o-mini"),
-        }
-
-    def _create_mcp_settings(
-        self,
-        model_name: Optional[str] = None,
-    ) -> Optional[Settings]:
-        """Create MCP settings dynamically based on agent message parameters"""
-        if not MCPApp:
-            logger.error("MCP components not available")
-            return None
-
-        aperag_settings = self._get_aperag_api_settings()
-        openai_settings = self._get_openai_settings(model_name)
-
+    def _parse_websocket_message(self, raw_data: str) -> Tuple[
+        Optional[view_models.AgentMessage], Optional[AgentErrorResponse]]:
+        """
+        Parse WebSocket message using Go-style error handling.
+        
+        Args:
+            raw_data: Raw JSON string from WebSocket
+            
+        Returns:
+            Tuple of (agent_message, error_response):
+            - If successful: (agent_message, None)
+            - If failed: (None, error_response_dict)
+        """
         try:
-            return Settings(
-                execution_engine="asyncio",
-                logger=LoggerSettings(type="console", level="info"),
-                mcp=MCPSettings(
-                    servers={
-                        "aperag": MCPServerSettings(
-                            transport="streamable_http",
-                            url=aperag_settings["aperag_url"],
-                            headers={
-                                "Authorization": f"Bearer {aperag_settings['aperag_api_key']}",
-                                "Content-Type": "application/json",
-                            },
-                            http_timeout_seconds=30,
-                            read_timeout_seconds=120,
-                            description="ApeRAG knowledge base server",
-                            env={"APERAG_API_KEY": aperag_settings["aperag_api_key"]},
-                        )
-                    }
-                ),
-                openai=OpenAISettings(
-                    api_key=openai_settings["openai_api_key"],
-                    base_url=openai_settings["openai_base_url"],
-                    default_model=openai_settings["default_model"],
-                    temperature=0.7,
-                    max_tokens=2000,
-                ),
-            )
+            # Step 1: Safe JSON parsing using agent module utilities
+            message_data = safe_json_parse(raw_data, "websocket_message")
+
+            # Step 2: Validate required query field early
+            query = message_data.get("query", "").strip()
+            if not query:
+                from aperag.agent.exceptions import agent_config_invalid
+                error = agent_config_invalid("query", "Query is required and cannot be empty")
+                error_response = format_websocket_error(error, raw_data)
+                return None, error_response
+
+            # Step 3: Parse and validate AgentMessage using Pydantic
+            agent_message = view_models.AgentMessage(**message_data)
+            return agent_message, None
+
+        except (JSONParsingError, AgentConfigurationError) as e:
+            error_response = format_websocket_error(e, raw_data)
+            return None, error_response
         except Exception as e:
-            logger.error(f"Failed to create MCP settings: {e}")
-            return None
+            # Handle unexpected errors
+            from aperag.agent.exceptions import agent_config_invalid
+            config_error = agent_config_invalid("agent_message", f"Unexpected error: {str(e)}")
+            error_response = format_websocket_error(config_error, raw_data)
+            return None, error_response
 
-    def _create_mcp_app(
-        self,
-    ) -> Optional[MCPApp]:
-        """Create MCPApp instance dynamically based on agent parameters"""
-        settings = self._create_mcp_settings()
-        if not settings:
-            return None
-
-        try:
-            return MCPApp(name="aperag_agent", settings=settings)
-        except Exception as e:
-            logger.error(f"Failed to create MCPApp: {e}")
-            return None
-
+    @handle_agent_error("websocket_agent_chat", reraise=False)
     async def handle_websocket_agent_chat(self, websocket: WebSocket, user: str, bot_id: str, chat_id: str):
-        """Handle WebSocket connections for agent-type bot chats"""
+        """Handle WebSocket connections for agent-type bot chats with message queue architecture"""
         try:
             while True:
                 # Receive message from WebSocket
                 data = await websocket.receive_text()
-                message_data = json.loads(data)
 
-                # Generate message ID
-                message_id = str(uuid.uuid4())
-                query = message_data.get("query", "")
-                if not query or not query.strip():
-                    error_response = format_error("Invalid message format")
+                # Parse WebSocket message using Go-style error handling
+                agent_message, error_response = self._parse_websocket_message(data)
+                if error_response:
                     await websocket.send_text(json.dumps(error_response))
                     continue
 
+                # Generate message ID
+                message_id = str(uuid.uuid4())
+
                 try:
-                    # Create fresh SimpleMemory for each conversation to prevent tool call format conflicts
-                    memory = SimpleMemory()
+                    # Create message queue for this conversation
+                    message_queue = AgentMessageQueue()
 
-                    agent_message = view_models.AgentMessage(
-                        query=query,
-                        collections=message_data.get("collections"),
-                        model_name=message_data.get("model_name"),
-                        web_search_enabled=message_data.get("web_search_enabled", False),
+                    # Start background task to process agent message
+                    process_task = asyncio.create_task(
+                        self.process_agent_message(
+                            agent_message, user, chat_id, message_id, message_queue
+                        )
                     )
-                    # Process the agent message and stream responses
-                    async for response_chunk in self.process_agent_message(
-                        agent_message, user, chat_id, message_id, memory
-                    ):
-                        await websocket.send_text(json.dumps(response_chunk))
 
+                    # Start message consumer task 
+                    consumer_task = asyncio.create_task(
+                        self._consume_messages_from_queue(message_queue, websocket)
+                    )
+                    
+                    # Use asyncio.gather to handle both tasks concurrently and properly
+                    # This ensures no race condition between message production and consumption
+                    results = await asyncio.gather(process_task, consumer_task, return_exceptions=True)
+                    process_result, consumer_result = results
+                    
+                    # Check for exceptions in either task
+                    if isinstance(process_result, Exception):
+                        logger.error(f"Process task failed: {process_result}")
+                        raise process_result
+                    
+                    if isinstance(consumer_result, Exception):
+                        logger.error(f"Consumer task failed: {consumer_result}")
+                        raise consumer_result
+                    
+                    # Handle history saving at WebSocket layer (better separation of concerns)
+                    if process_result.get("status") == "success":
+                        # Get history instance through history manager
+                        history = await self.history_manager.get_chat_history(chat_id)
+                        
+                        history_saved = await self.history_manager.save_conversation_turn(
+                            history=history,
+                            user_query=process_result.get("query", agent_message.query),
+                            ai_response=process_result.get("content", ""),
+                            tool_references=process_result.get("references", [])
+                        )
+                        
+                        if not history_saved:
+                            logger.warning(f"Failed to save conversation history for chat: {chat_id}")
+
+                except (AgentConfigurationError, MCPAppInitializationError, MCPConnectionError) as e:
+                    logger.error(f"Agent configuration error in websocket: {e}")
+                    error_response = format_agent_setup_error(str(e), agent_message.language or "en-US")
+                    await websocket.send_text(json.dumps(error_response))
                 except Exception as e:
-                    logger.error(f"Error processing agent websocket message: {e}")
-                    error_response = format_error(str(e))
+                    logger.error(f"Unexpected error processing agent websocket message: {e}")
+                    error_response = format_processing_error(str(e), agent_message.language or "en-US")
                     await websocket.send_text(json.dumps(error_response))
 
         except Exception as e:
-            logger.error(f"WebSocket error in agent chat: {e}")
+            logger.error(f"WebSocket connection error in agent chat: {e}")
 
-    async def process_agent_message(
-        self,
-        agent_message: view_models.AgentMessage,
-        user: str,
-        chat_id: str,
-        msg_id: str,
-        memory,
-    ) -> AsyncGenerator[Dict[str, Any], None]:
+    async def _consume_messages_from_queue(self, message_queue: AgentMessageQueue, websocket: WebSocket) -> None:
         """
-        Process an agent message and yield streaming responses.
-
-        This method creates a dynamic MCPApp instance based on the message parameters
-        and uses it to generate intelligent responses.
+        Consume messages from queue and send to WebSocket.
+        
+        This method runs as a separate task to avoid race conditions.
         """
         try:
-            # Validate collections if specified
-            if agent_message.collections:
-                for collection in agent_message.collections:
-                    collection_id = collection.id
-                    if not collection_id:
-                        yield self._format_error("Collection object missing 'id' field")
-                        return
-                    db_collection = await self.db_ops.query_collection(user, collection_id)
-                    if not db_collection:
-                        yield self._format_error(f"Collection {collection_id} not found")
-                        return
+            while True:
+                # Get message from queue (blocks until message is available)
+                message = await message_queue.get()
+                
+                # None message signals end of stream
+                if message is None:
+                    logger.debug("Received end-of-stream signal from message queue")
+                    break
+                    
+                # Send message to WebSocket
+                await websocket.send_text(json.dumps(message))
+                logger.debug(f"Sent message to WebSocket: {message.get('type', 'unknown')}")
+                
+        except Exception as e:
+            logger.error(f"Error in message consumer: {e}")
+            raise
 
-            # Create dynamic agent app
-            mcp_app = self._create_mcp_app()
+    async def _get_agent_session(self, agent_message: view_models.AgentMessage, user: str, chat_id: str):
+        """Get or create chat session using AgentConfig."""
+        # Query provider details and API key from database
+        provider_info = await self.db_ops.query_llm_provider_by_name(agent_message.completion.model_service_provider)
+        if not provider_info:
+            error_msg = f"Provider '{agent_message.completion.model_service_provider}' not found in database"
+            logger.error(error_msg)
+            raise AgentConfigurationError(error_msg)
 
-            if not mcp_app:
-                yield format_error("Failed to initialize agent")
-                return
+        api_key = await self.db_ops.query_provider_api_key(
+            agent_message.completion.model_service_provider, user_id=user, need_public=True
+        )
+        if not api_key:
+            error_msg = f"No API key available for provider '{agent_message.completion.model_service_provider}'"
+            logger.error(error_msg)
+            raise AgentConfigurationError(error_msg)
 
-            # Yield start message
-            yield format_stream_start(msg_id)
+        # Create AgentConfig with all needed parameters including chat_id
+        config = AgentConfig(
+            user_id=user,
+            chat_id=chat_id,
+            provider_name=agent_message.completion.model_service_provider,
+            api_key=api_key,
+            base_url=provider_info.base_url,
+            default_model=agent_message.completion.model,
+            language=agent_message.language if agent_message.language else "en-US",
+            instruction=get_agent_system_prompt(language=agent_message.language),
+            server_names=["aperag"],
+            aperag_api_key=os.getenv("APERAG_API_KEY", "sk-test"),  # todo delete me, use user's aperag api key
+            aperag_mcp_url=os.getenv(
+                "APERAG_MCP_URL", "http://localhost:8000/mcp/"
+            ),  # todo delete me, use user's aperag api key
+            temperature=0.7,
+            max_tokens=60000,
+        )
 
-            # Get chat history for context
-            history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
+        # Get or create chat session using config
+        session = await agent_session_manager.get_or_create_session(config)
 
-            # Use agent app for intelligent conversation
-            # This integrates with the MCP system for dynamic tool usage
+        return session
+
+    @handle_agent_error("agent_message_processing", reraise=False)
+    async def process_agent_message(
+            self,
+            agent_message: view_models.AgentMessage,
+            user: str,
+            chat_id: str,
+            msg_id: str,
+            message_queue: AgentMessageQueue,
+    ) -> Dict:
+        """
+        Process an agent message and generate AI response.
+        
+        This method focuses purely on AI response generation and puts results in message queue.
+        History management is handled at the WebSocket layer for better separation of concerns.
+        """
+        # Get language preference from agent message
+        language = agent_message.language if agent_message.language else "en-US"
+
+        try:
+            # Validate ModelSpec
+            if not agent_message.completion or not agent_message.completion.model:
+                await message_queue.put(format_model_spec_required_error(language))
+                return {"status": "error", "message": "Model spec required"}
+
+            # Send start message
+            await message_queue.put(format_stream_start(msg_id))
+
+            # Create memory from chat history using pure function approach (context_limit=4)
+            history = await self.history_manager.get_chat_history(chat_id)
+            memory = await self.memory_manager.create_memory_from_history(history, context_limit=4)
+
+            # Get chat session
+            session = await self._get_agent_session(agent_message, user, chat_id)
+            llm = await session.get_llm(agent_message.completion.model)
+            llm.history = memory
+
+            # Process message with session
             full_content = ""
 
+            # Create universal event listener with message queue
+            event_listener = UniversalEventListener(msg_id, message_queue)
+
+            # Register the listener with AsyncEventBus
+            event_bus = AsyncEventBus.get()
+            event_bus.add_listener("universal_event_monitor", event_listener)
+
             try:
-                async with mcp_app.run() as running_app:
-                    # Create agent with instruction and server names
-                    agent = Agent(
-                        name="aperag_assistant",
-                        instruction=get_agent_system_prompt(),
-                        server_names=["aperag"],
-                    )
+                request_params = RequestParams(
+                    maxTokens=4096,
+                    model=agent_message.completion.model,
+                    use_history=True,
+                    max_iterations=10,
+                    parallel_tool_calls=True,
+                    temperature=0.7,
+                    user=user,
+                )
 
-                    # Verify server connection
-                    if "aperag" not in running_app.server_registry.registry:
-                        yield format_error("ApeRAG MCP Server connection failed")
-                        return
+                # Build comprehensive prompt with context and pre-search results
+                comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
 
-                    async with agent:
-                        # Create universal event listener with msg_id
-                        event_listener = UniversalEventListener(msg_id)
+                # Generate response
+                response = await llm.generate_str(comprehensive_prompt, request_params)
+                full_content = response if response else "No response generated"
 
-                        # Register the listener with AsyncEventBus
-                        event_bus = AsyncEventBus.get()
-                        event_bus.add_listener("universal_event_monitor", event_listener)
+                # Send the response content
+                await message_queue.put(format_stream_content(msg_id, full_content))
 
-                        try:
-                            # Attach LLM to agent
-                            llm = await agent.attach_llm(OpenAIAugmentedLLM)
-
-                            request_params = RequestParams(
-                                max_iterations=10,
-                                parallel_tool_calls=True,
-                                model="google/gemini-2.5-flash",
-                            )
-
-                            llm.history = memory
-
-                            # Build comprehensive prompt with context and pre-search results
-                            comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
-
-                            # Start generate_str in background and monitor events
-                            generate_task = asyncio.create_task(llm.generate_str(comprehensive_prompt, request_params))
-
-                            # Monitor events while generate_str is running
-                            sent_message_count = 0
-                            while not generate_task.done():
-                                # Check for new formatted messages from event listener
-                                current_message_count = event_listener.get_message_count()
-
-                                if current_message_count > sent_message_count:
-                                    # Get and yield new messages directly
-                                    new_messages = event_listener.get_new_messages(sent_message_count)
-                                    for message in new_messages:
-                                        yield message
-                                    sent_message_count = current_message_count
-
-                                # Small delay to avoid busy waiting
-                                await asyncio.sleep(0.05)
-
-                            # Get the final response
-                            response = await generate_task
-                            full_content = response if response else "No response generated"
-
-                            # Send any remaining messages that might have been missed
-                            final_message_count = event_listener.get_message_count()
-                            if final_message_count > sent_message_count:
-                                remaining_messages = event_listener.get_new_messages(sent_message_count)
-                                for message in remaining_messages:
-                                    yield message
-
-                            # Stream the response content using utils function
-                            yield format_stream_content(msg_id, full_content)
-                            memory = llm.history
-
-                        finally:
-                            # Clean up: remove the listener
-                            event_bus.remove_listener("universal_event_monitor")
+                # Extract updated memory from LLM using pure function
+                updated_memory = self.memory_manager.extract_memory_from_llm(llm)
 
             except Exception as e:
-                logger.error(f"Error in MCP agent execution: {e}")
-                yield format_error(f"Error in agent execution: {str(e)}")
-                return
+                logger.error(f"Error in LLM generation: {e}")
+                await message_queue.put(format_llm_generation_error(str(e), language))
+                return {"status": "error", "message": str(e)}
+            finally:
+                # Clean up: remove the listener
+                try:
+                    event_bus.remove_listener("universal_event_monitor")
+                except Exception as e:
+                    logger.warning(f"Failed to remove event listener: {e}")
 
             # Generate references - either from tool calls or direct search results
-            # Extract tool call results from history and format as references
-            tool_references = extract_tool_call_references(memory)
-
-            # Store messages in history
-            await add_human_message(history, agent_message.query, "")
-            await add_ai_message(history, agent_message.query, "", full_content, tool_references, [])
+            # Extract tool call results from updated memory and format as references
+            tool_references = extract_tool_call_references(updated_memory)
 
             # Prepare references and URLs
             urls = []
 
-            yield format_stream_end(msg_id, references=tool_references, urls=urls)
+            # Send end message
+            await message_queue.put(format_stream_end(msg_id, references=tool_references, urls=urls))
 
+            # Close queue after successful completion and all messages sent
+            await message_queue.close()
+
+            return {
+                "status": "success",
+                "content": full_content,
+                "references": tool_references,
+                "query": agent_message.query  # Return query for history saving
+            }
+
+        except AgentConfigurationError as e:
+            logger.error(f"Agent configuration error: {e}")
+            await message_queue.put(format_agent_setup_error(str(e), language))
+            # Close queue after error message sent
+            await message_queue.close()
+            return {"status": "error", "message": str(e)}
         except Exception as e:
-            traceback.print_exc()
-            logger.error(f"Error in agent message processing: {e}")
-            yield format_error(f"Error processing agent message: {str(e)}")
+            logger.error(f"Error in agent session processing: {e}")
+            await message_queue.put(format_agent_execution_error(str(e), language))
+            # Close queue after error message sent
+            await message_queue.close()
+            return {"status": "error", "message": str(e)}

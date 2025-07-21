@@ -24,7 +24,7 @@ export default () => {
   
   // Check if this is an agent bot
   const isAgentBot = bot?.type === 'agent';
-  
+
   const protocol = window.location.protocol === 'http:' ? 'ws://' : 'wss://';
   const host = window.location.host;
 
@@ -99,8 +99,12 @@ export default () => {
   // Agent-specific message handler that includes agent parameters
   const onAgentSubmit = useCallback(async (agentMessage: {
     query: string;
-    collection_ids: string[];
-    model_name: string;
+    collections: any[];
+    completion: {
+      model: string;
+      model_service_provider?: string;
+      custom_llm_provider?: string;
+    };
     web_search_enabled: boolean;
   }) => {
     const timestamp = new Date().getTime();

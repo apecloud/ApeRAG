@@ -16,6 +16,7 @@ import os
 
 from fastapi import FastAPI
 
+from aperag.agent.agent_session_manager_lifecycle import agent_session_manager_lifespan
 from aperag.exception_handlers import register_exception_handlers
 from aperag.llm.litellm_track import register_custom_llm_track
 from aperag.mcp import mcp_server
@@ -32,12 +33,23 @@ from aperag.views.web import router as web_router
 # Initialize MCP server integration with stateless HTTP to fix OpenAI tool call sequence issues
 mcp_app = mcp_server.http_app(path="/", stateless_http=True)
 
-# Create the main FastAPI app with MCP lifespan
+
+# Combined lifespan function for both MCP and Agent session management
+async def combined_lifespan(app: FastAPI):
+    """Combined lifespan manager for MCP and Agent sessions."""
+    # Start MCP server first
+    async with mcp_app.lifespan(app):
+        # Then start Agent session manager
+        async with agent_session_manager_lifespan(app):
+            yield
+
+
+# Create the main FastAPI app with combined lifespan
 app = FastAPI(
     title="ApeRAG API",
     description="Knowledge management and retrieval system",
     version="1.0.0",
-    lifespan=mcp_app.lifespan,  # CRITICAL: Pass MCP lifespan to FastAPI
+    lifespan=combined_lifespan,  # Combined lifecycle management
 )
 
 # Register global exception handlers
