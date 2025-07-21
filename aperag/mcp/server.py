@@ -95,7 +95,7 @@ async def search_collection(
 
         # Add search configurations for enabled types
         if use_vector_index:
-            search_data["vector_search"] = {"topk": topk, "similarity": 0.7}
+            search_data["vector_search"] = {"topk": topk, "similarity": 0.2}
 
         if use_fulltext_index:
             search_data["fulltext_search"] = {"topk": topk}
