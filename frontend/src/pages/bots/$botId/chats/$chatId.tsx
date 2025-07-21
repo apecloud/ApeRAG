@@ -12,6 +12,7 @@ import { FormattedMessage, useModel, useParams } from 'umi';
 import { ChatInput } from './_chat_input';
 import { ChatMessageItem } from './_chat_message';
 import { AgentChat } from './_agent_chat'; // Import agent chat component
+import useApp from 'antd/es/app/useApp';
 
 export default () => {
   const { chat, getChat, setChat, bot } = useModel('bot');
@@ -19,6 +20,7 @@ export default () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const { token } = theme.useToken();
+  const app = useApp()
   
   // Check if this is an agent bot
   const isAgentBot = bot?.type === 'agent';
@@ -71,6 +73,8 @@ export default () => {
             const last = msgs.findLast((m) => m.id === fragment.id);
             if (last) {
               last.data = fragment.data;
+            } else {
+              app.message.error(fragment.data);
             }
             return [...msgs];
           });
