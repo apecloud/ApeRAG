@@ -295,77 +295,82 @@ class AgentChatService:
                 config_key="completion.model", reason="Model specification is required for AI response generation"
             )
 
-        # Send start message
-        await message_queue.put(format_stream_start(msg_id))
-
-        # Create memory from chat history using pure function approach (context_limit=4)
-        history = await self.history_manager.get_chat_history(chat_id)
-        memory = await self.memory_manager.create_memory_from_history(history, context_limit=4)
-
-        # Get chat session
-        session = await self._get_agent_session(agent_message, user, chat_id)
-        llm = await session.get_llm(agent_message.completion.model)
-        llm.history = memory
-
-        # Process message with session
-        full_content = ""
-
-        # Create universal event listener with message queue
-        event_listener = UniversalEventListener(msg_id, message_queue)
-
-        # Register the listener with AsyncEventBus
-        event_bus = AsyncEventBus.get()
-        event_bus.add_listener("universal_event_monitor", event_listener)
-
         try:
-            request_params = RequestParams(
-                maxTokens=8192,
-                model=agent_message.completion.model,
-                use_history=True,
-                max_iterations=10,
-                parallel_tool_calls=True,
-                temperature=0.7,
-                user=user,
-            )
+            # Send start message
+            await message_queue.put(format_stream_start(msg_id))
 
-            # Build comprehensive prompt with context and pre-search results
-            comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
+            # Create memory from chat history using pure function approach (context_limit=4)
+            history = await self.history_manager.get_chat_history(chat_id)
+            memory = await self.memory_manager.create_memory_from_history(history, context_limit=4)
 
-            # Generate response
-            response = await llm.generate_str(comprehensive_prompt, request_params)
-            full_content = response if response else "No response generated"
+            # Get chat session
+            session = await self._get_agent_session(agent_message, user, chat_id)
+            llm = await session.get_llm(agent_message.completion.model)
+            llm.history = memory
 
-            # Send the response content
-            await message_queue.put(format_stream_content(msg_id, full_content))
+            # Process message with session
+            full_content = ""
 
-            # Extract updated memory from LLM using pure function
-            updated_memory = self.memory_manager.extract_memory_from_llm(llm)
+            # Create universal event listener with message queue
+            event_listener = UniversalEventListener(msg_id, message_queue)
+
+            # Register the listener with AsyncEventBus
+            event_bus = AsyncEventBus.get()
+            event_bus.add_listener("universal_event_monitor", event_listener)
+
+            try:
+                request_params = RequestParams(
+                    maxTokens=8192,
+                    model=agent_message.completion.model,
+                    use_history=True,
+                    max_iterations=10,
+                    parallel_tool_calls=True,
+                    temperature=0.7,
+                    user=user,
+                )
+
+                # Build comprehensive prompt with context and pre-search results
+                comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
+
+                # Generate response
+                response = await llm.generate_str(comprehensive_prompt, request_params)
+                full_content = response if response else "No response generated"
+
+                # Send the response content
+                await message_queue.put(format_stream_content(msg_id, full_content))
+
+                # Extract updated memory from LLM using pure function
+                updated_memory = self.memory_manager.extract_memory_from_llm(llm)
+
+            finally:
+                # Clean up: remove the listener
+                try:
+                    event_bus.remove_listener("universal_event_monitor")
+                except Exception as e:
+                    logger.warning(f"Failed to remove event listener: {e}")
+
+            # Generate references - either from tool calls or direct search results
+            # Extract tool call results from updated memory and format as references
+            tool_references = extract_tool_call_references(updated_memory)
+
+            # Prepare references and URLs
+            urls = []
+
+            # Send end message
+            await message_queue.put(format_stream_end(msg_id, references=tool_references, urls=urls))
+
+            return {
+                "query": agent_message.query,
+                "content": full_content,
+                "references": tool_references,
+            }
 
         finally:
-            # Clean up: remove the listener
+            # Ensure message queue is always closed, even if an exception occurs
             try:
-                event_bus.remove_listener("universal_event_monitor")
+                await message_queue.close()
             except Exception as e:
-                logger.warning(f"Failed to remove event listener: {e}")
-
-        # Generate references - either from tool calls or direct search results
-        # Extract tool call results from updated memory and format as references
-        tool_references = extract_tool_call_references(updated_memory)
-
-        # Prepare references and URLs
-        urls = []
-
-        # Send end message
-        await message_queue.put(format_stream_end(msg_id, references=tool_references, urls=urls))
-
-        # Close queue after successful completion and all messages sent
-        await message_queue.close()
-
-        return {
-            "query": agent_message.query,
-            "content": full_content,
-            "references": tool_references,
-        }
+                logger.warning(f"Failed to close message queue: {e}")
 
     def _format_exception_to_error_response(self, exception: Exception, language: str) -> AgentErrorResponse:
         """
