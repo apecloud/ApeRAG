@@ -289,8 +289,20 @@ class AgentChatService:
             MCPConnectionError: For MCP server connection issues
             Exception: For other processing errors
         """
+        from aperag.trace import add_trace_attributes
+
+        # Add key attributes to the current span (provided by decorator)
+        add_trace_attributes(
+            user_id=user,
+            chat_id=chat_id,
+            message_id=msg_id,
+            query=agent_message.query,
+            model=agent_message.completion.model if agent_message.completion else "unknown",
+        )
+
         # Validate ModelSpec early
         if not agent_message.completion or not agent_message.completion.model:
+            add_trace_attributes(error="Missing model specification")
             raise AgentConfigurationError(
                 config_key="completion.model", reason="Model specification is required for AI response generation"
             )
@@ -358,6 +370,8 @@ class AgentChatService:
 
             # Send end message
             await message_queue.put(format_stream_end(msg_id, references=tool_references, urls=urls))
+
+            add_trace_attributes(success=True, references_count=len(tool_references), response_length=len(full_content))
 
             return {
                 "query": agent_message.query,

@@ -81,6 +81,7 @@ class ChatSession:
             # Create and cache LLM instance for this chat session
             self.llm = await self.agent.attach_llm(OpenAIAugmentedLLM)
             from mcp_agent.logging.logger import get_logger
+
             self.llm.logger = get_logger(self.llm.name, session_id=self.llm.context.session_id)
             self._ready = True
 

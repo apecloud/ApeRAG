@@ -14,21 +14,33 @@
 
 import os
 
-from fastapi import FastAPI
+# Initialize OpenTelemetry FIRST - before any other imports
+from aperag.trace import init_tracing
 
-from aperag.agent.agent_session_manager_lifecycle import agent_session_manager_lifespan
-from aperag.exception_handlers import register_exception_handlers
-from aperag.llm.litellm_track import register_custom_llm_track
-from aperag.mcp import mcp_server
-from aperag.views.api_key import router as api_key_router
-from aperag.views.audit import router as audit_router
-from aperag.views.auth import router as auth_router
-from aperag.views.chat_completion import router as chat_completion_router
-from aperag.views.config import router as config_router
-from aperag.views.flow import router as flow_router
-from aperag.views.llm import router as llm_router
-from aperag.views.main import router as main_router
-from aperag.views.web import router as web_router
+init_tracing(
+    service_name="aperag",
+    service_version="1.0.0",
+    enable_console=True,  # Enable for debugging
+    enable_fastapi=True,
+    enable_sqlalchemy=True,
+    enable_mcp=True,
+)
+
+from fastapi import FastAPI  # noqa: E402
+
+from aperag.agent.agent_session_manager_lifecycle import agent_session_manager_lifespan  # noqa: E402
+from aperag.exception_handlers import register_exception_handlers  # noqa: E402
+from aperag.llm.litellm_track import register_custom_llm_track  # noqa: E402
+from aperag.mcp import mcp_server  # noqa: E402
+from aperag.views.api_key import router as api_key_router  # noqa: E402
+from aperag.views.audit import router as audit_router  # noqa: E402
+from aperag.views.auth import router as auth_router  # noqa: E402
+from aperag.views.chat_completion import router as chat_completion_router  # noqa: E402
+from aperag.views.config import router as config_router  # noqa: E402
+from aperag.views.flow import router as flow_router  # noqa: E402
+from aperag.views.llm import router as llm_router  # noqa: E402
+from aperag.views.main import router as main_router  # noqa: E402
+from aperag.views.web import router as web_router  # noqa: E402
 
 # Initialize MCP server integration with stateless HTTP to fix OpenAI tool call sequence issues
 mcp_app = mcp_server.http_app(path="/", stateless_http=True)
