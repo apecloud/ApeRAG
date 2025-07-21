@@ -328,7 +328,7 @@ class AgentChatService:
 
             try:
                 request_params = RequestParams(
-                    maxTokens=4096,
+                    maxTokens=8192,
                     model=agent_message.completion.model,
                     use_history=True,
                     max_iterations=10,
