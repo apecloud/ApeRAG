@@ -155,25 +155,20 @@ class AgentChatService:
                 await websocket.send_text(json.dumps(error_response))
                 continue
 
-            # Generate message ID
-            message_id = str(uuid.uuid4())
-
             try:
-                # Create message queue for this conversation
+                message_id = str(uuid.uuid4())
                 message_queue = AgentMessageQueue()
-
-                # Start background task to process agent message
+                # Message Producer: Start background task to process agent tool use message
+                await global_proxy_listener.register_listener(message_id, message_queue)
+                # Message Producer: Start background task to process agent generation message
                 process_task = asyncio.create_task(
                     self.process_agent_message(agent_message, user, chat_id, message_id, message_queue)
                 )
-
-                # Start message consumer task
+                # Message Consumer
                 consumer_task = asyncio.create_task(self._consume_messages_from_queue(message_queue, websocket))
-
-                # Use asyncio.gather to handle both tasks concurrently and properly
-                # This ensures no race condition between message production and consumption
-                results = await asyncio.gather(process_task, consumer_task, return_exceptions=True)
-                process_result, consumer_result = results
+                process_result, consumer_result = await asyncio.gather(
+                    process_task, consumer_task, return_exceptions=True
+                )
 
                 # Handle process_task exceptions with unified error formatting
                 if isinstance(process_result, Exception):
@@ -200,6 +195,8 @@ class AgentChatService:
                 logger.error(f"Unexpected error processing agent websocket message: {e}")
                 error_response = format_processing_error(str(e), agent_message.language or "en-US")
                 await websocket.send_text(json.dumps(error_response))
+            finally:
+                await global_proxy_listener.unregister_listener(message_id)
 
     async def _consume_messages_from_queue(self, message_queue: AgentMessageQueue, websocket: WebSocket) -> None:
         """
@@ -274,41 +271,11 @@ class AgentChatService:
         msg_id: str,
         message_queue: AgentMessageQueue,
     ) -> Dict[str, Any]:
-        """
-        Process an agent message and generate AI response.
-
-        This method focuses purely on AI response generation and puts success messages in message queue.
-        All errors are raised as exceptions for unified handling at the WebSocket layer.
-
-        Returns:
-            Dictionary containing query, content, and references for history saving
-
-        Raises:
-            AgentConfigurationError: For configuration-related errors
-            MCPConnectionError: For MCP server connection issues
-            Exception: For other processing errors
-        """
-        from aperag.trace import add_trace_attributes
-
-        # Add key attributes to the current span (provided by decorator)
-        add_trace_attributes(
-            user_id=user,
-            chat_id=chat_id,
-            message_id=msg_id,
-            query=agent_message.query,
-            model=agent_message.completion.model if agent_message.completion else "unknown",
-        )
-
         # Validate ModelSpec early
         if not agent_message.completion or not agent_message.completion.model:
-            add_trace_attributes(error="Missing model specification")
             raise AgentConfigurationError(
                 config_key="completion.model", reason="Model specification is required for AI response generation"
             )
-
-        # Register a listener for this message_id with the global proxy.
-        # The proxy will handle the creation of the UniversalEventListener.
-        await global_proxy_listener.register_listener(msg_id, message_queue)
 
         try:
             # Send start message
@@ -323,9 +290,8 @@ class AgentChatService:
             llm = await session.get_llm(agent_message.completion.model)
             llm.history = memory
 
-            # Process message with session
-            full_content = ""
-
+            # LLM generation
+            comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
             request_params = RequestParams(
                 maxTokens=8192,
                 model=agent_message.completion.model,
@@ -335,12 +301,10 @@ class AgentChatService:
                 temperature=0.7,
                 user=user,
             )
-
-            comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
-
             response = await llm.generate_str(comprehensive_prompt, request_params)
             full_content = response if response else "No response generated"
 
+            # Send content message
             await message_queue.put(format_stream_content(msg_id, full_content))
 
             updated_memory = self.memory_manager.extract_memory_from_llm(llm)
@@ -349,8 +313,6 @@ class AgentChatService:
 
             await message_queue.put(format_stream_end(msg_id, references=tool_references, urls=urls))
 
-            add_trace_attributes(success=True, references_count=len(tool_references), response_length=len(full_content))
-
             return {
                 "query": agent_message.query,
                 "content": full_content,
@@ -358,14 +320,7 @@ class AgentChatService:
             }
 
         finally:
-            # CRITICAL: Always unregister the temporary listener from the proxy
-            await global_proxy_listener.unregister_listener(msg_id)
-
-            # Ensure message queue is always closed
-            try:
-                await message_queue.close()
-            except Exception as e:
-                logger.warning(f"Failed to close message queue for {msg_id}: {e}")
+            await message_queue.close()
 
     def _format_exception_to_error_response(self, exception: Exception, language: str) -> AgentErrorResponse:
         """
