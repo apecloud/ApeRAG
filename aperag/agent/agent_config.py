@@ -30,7 +30,6 @@ class AgentConfig:
     # Basic agent info
     user_id: str
     chat_id: str
-    trace_id: Optional[str] = None
 
     # LLM Settings
     provider_name: str
