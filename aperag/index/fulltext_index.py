@@ -55,12 +55,12 @@ class FulltextIndexer(BaseIndexer):
 
     def create_index(self, document_id: int, content: str, doc_parts: List[Any], collection, **kwargs) -> IndexResult:
         """
-        Create fulltext index for document
+        Create fulltext index for document chunks
 
         Args:
             document_id: Document ID
-            content: Document content
-            doc_parts: Parsed document parts
+            content: Document content (not used, we use doc_parts instead)
+            doc_parts: Parsed document parts (chunks)
             collection: Collection object
             **kwargs: Additional parameters
 
@@ -68,12 +68,13 @@ class FulltextIndexer(BaseIndexer):
             IndexResult: Result of fulltext index creation
         """
         try:
-            # Only create fulltext index when there is content
-            if not content or not content.strip():
+            # Skip if no doc_parts
+            if not doc_parts:
+                logger.info(f"No doc_parts to index for document {document_id}")
                 return IndexResult(
                     success=True,
                     index_type=self.index_type,
-                    metadata={"message": "No content to index", "status": "skipped"},
+                    metadata={"message": "No doc_parts to index", "status": "skipped"},
                 )
 
             # Get document for name
@@ -81,17 +82,43 @@ class FulltextIndexer(BaseIndexer):
             if not document:
                 raise Exception(f"Document {document_id} not found")
 
-            # Insert into fulltext index
+            # Insert chunks into fulltext index
             index_name = generate_fulltext_index_name(collection.id)
-            self.insert_document(index_name, document_id, document.name, content)
+            chunk_count = 0
+            total_content_length = 0
 
-            logger.info(f"Fulltext index created for document {document_id}")
+            for chunk_idx, part in enumerate(doc_parts):
+                # Skip parts without content
+                if not hasattr(part, 'content') or not part.content or not part.content.strip():
+                    continue
+
+                chunk_id = f"{document_id}_{chunk_idx}"
+                chunk_content = part.content.strip()
+
+                # Extract metadata
+                chunk_metadata = {}
+                if hasattr(part, 'metadata') and part.metadata:
+                    chunk_metadata = part.metadata.copy()
+
+                # Add titles from metadata if available
+                titles = chunk_metadata.get('titles', [])
+                title_text = " > ".join(titles) if titles else ""
+
+                self.insert_chunk(index_name, chunk_id, document_id, document.name, chunk_content, title_text, chunk_metadata)
+                chunk_count += 1
+                total_content_length += len(chunk_content)
+
+            logger.info(f"Fulltext index created for document {document_id} with {chunk_count} chunks")
 
             return IndexResult(
                 success=True,
                 index_type=self.index_type,
-                data={"index_name": index_name, "document_name": document.name},
-                metadata={"content_length": len(content), "content_words": len(content.split()) if content else 0},
+                data={"index_name": index_name, "document_name": document.name, "chunk_count": chunk_count},
+                metadata={
+                    "total_content_length": total_content_length,
+                    "chunk_count": chunk_count,
+                    "avg_chunk_length": total_content_length // chunk_count if chunk_count > 0 else 0
+                },
             )
 
         except Exception as e:
@@ -102,12 +129,12 @@ class FulltextIndexer(BaseIndexer):
 
     def update_index(self, document_id: int, content: str, doc_parts: List[Any], collection, **kwargs) -> IndexResult:
         """
-        Update fulltext index for document
+        Update fulltext index for document chunks
 
         Args:
             document_id: Document ID
-            content: Document content
-            doc_parts: Parsed document parts
+            content: Document content (not used, we use doc_parts instead)
+            doc_parts: Parsed document parts (chunks)
             collection: Collection object
             **kwargs: Additional parameters
 
@@ -122,25 +149,49 @@ class FulltextIndexer(BaseIndexer):
 
             index_name = generate_fulltext_index_name(collection.id)
 
-            # Remove old index
+            # Remove old chunks for this document
             try:
-                self.remove_document(index_name, document_id)
-                logger.debug(f"Removed old fulltext index for document {document_id}")
+                self.remove_document_chunks(index_name, document_id)
+                logger.debug(f"Removed old fulltext chunks for document {document_id}")
             except Exception as e:
-                logger.warning(f"Failed to remove old fulltext index for document {document_id}: {str(e)}")
+                logger.warning(f"Failed to remove old fulltext chunks for document {document_id}: {str(e)}")
 
-            # Create new index if there is content
-            if content and content.strip():
-                self.insert_document(index_name, document_id, document.name, content)
-                logger.info(f"Fulltext index updated for document {document_id}")
+            # Create new chunks if there are doc_parts
+            if doc_parts:
+                chunk_count = 0
+                total_content_length = 0
+
+                for chunk_idx, part in enumerate(doc_parts):
+                    # Skip parts without content
+                    if not hasattr(part, 'content') or not part.content or not part.content.strip():
+                        continue
+
+                    chunk_id = f"{document_id}_{chunk_idx}"
+                    chunk_content = part.content.strip()
+
+                    # Extract metadata
+                    chunk_metadata = {}
+                    if hasattr(part, 'metadata') and part.metadata:
+                        chunk_metadata = part.metadata.copy()
+
+                    # Add titles from metadata if available
+                    titles = chunk_metadata.get('titles', [])
+                    title_text = " > ".join(titles) if titles else ""
+
+                    self.insert_chunk(index_name, chunk_id, document_id, document.name, chunk_content, title_text, chunk_metadata)
+                    chunk_count += 1
+                    total_content_length += len(chunk_content)
+
+                logger.info(f"Fulltext index updated for document {document_id} with {chunk_count} chunks")
 
                 return IndexResult(
                     success=True,
                     index_type=self.index_type,
-                    data={"index_name": index_name, "document_name": document.name},
+                    data={"index_name": index_name, "document_name": document.name, "chunk_count": chunk_count},
                     metadata={
-                        "content_length": len(content),
-                        "content_words": len(content.split()),
+                        "total_content_length": total_content_length,
+                        "chunk_count": chunk_count,
+                        "avg_chunk_length": total_content_length // chunk_count if chunk_count > 0 else 0,
                         "operation": "updated",
                     },
                 )
@@ -148,7 +199,7 @@ class FulltextIndexer(BaseIndexer):
                 return IndexResult(
                     success=True,
                     index_type=self.index_type,
-                    metadata={"message": "No content to index", "status": "skipped"},
+                    metadata={"message": "No doc_parts to index", "status": "skipped"},
                 )
 
         except Exception as e:
@@ -159,7 +210,7 @@ class FulltextIndexer(BaseIndexer):
 
     def delete_index(self, document_id: int, collection, **kwargs) -> IndexResult:
         """
-        Delete fulltext index for document
+        Delete fulltext index for document chunks
 
         Args:
             document_id: Document ID
@@ -171,15 +222,15 @@ class FulltextIndexer(BaseIndexer):
         """
         try:
             index_name = generate_fulltext_index_name(collection.id)
-            self.remove_document(index_name, document_id)
+            deleted_count = self.remove_document_chunks(index_name, document_id)
 
-            logger.info(f"Fulltext index deleted for document {document_id}")
+            logger.info(f"Fulltext index deleted for document {document_id}, removed {deleted_count} chunks")
 
             return IndexResult(
                 success=True,
                 index_type=self.index_type,
-                data={"index_name": index_name},
-                metadata={"operation": "deleted"},
+                data={"index_name": index_name, "deleted_chunks": deleted_count},
+                metadata={"operation": "deleted", "deleted_chunks": deleted_count},
             )
 
         except Exception as e:
@@ -197,6 +248,32 @@ class FulltextIndexer(BaseIndexer):
         else:
             logger.warning("index %s not exists", index)
 
+    def remove_document_chunks(self, index, doc_id):
+        """Remove all chunks for a specific document"""
+        if not self.es.indices.exists(index=index).body:
+            logger.warning("index %s not exists", index)
+            return 0
+
+        try:
+            # Query to find all chunks for this document
+            query = {
+                "query": {
+                    "term": {
+                        "document_id": doc_id
+                    }
+                }
+            }
+
+            # Use delete_by_query to remove all matching chunks
+            response = self.es.delete_by_query(index=index, body=query)
+            deleted_count = response.get('deleted', 0)
+            logger.info(f"Deleted {deleted_count} chunks for document {doc_id} from index {index}")
+            return deleted_count
+
+        except Exception as e:
+            logger.error(f"Failed to remove chunks for document {doc_id} from index {index}: {str(e)}")
+            return 0
+
     def insert_document(self, index, doc_id, doc_name, content):
         if self.es.indices.exists(index=index).body:
             doc = {
@@ -204,6 +281,21 @@ class FulltextIndexer(BaseIndexer):
                 "content": content,
             }
             self.es.index(index=index, id=f"{doc_id}", document=doc)
+        else:
+            logger.warning("index %s not exists", index)
+
+    def insert_chunk(self, index, chunk_id, doc_id, doc_name, content, title_text="", metadata=None):
+        """Insert a document chunk into the fulltext index"""
+        if self.es.indices.exists(index=index).body:
+            doc = {
+                "document_id": doc_id,
+                "chunk_id": chunk_id,
+                "name": doc_name,
+                "content": content,
+                "title": title_text,
+                "metadata": metadata or {}
+            }
+            self.es.index(index=index, id=chunk_id, document=doc)
         else:
             logger.warning("index %s not exists", index)
 
@@ -216,11 +308,15 @@ class FulltextIndexer(BaseIndexer):
             if not keywords:
                 return []
 
+            # Search in both content and title fields
             query = {
                 "bool": {
-                    "should": [{"match": {"content": keyword}} for keyword in keywords],
+                    "should": [
+                        {"match": {"content": keyword}} for keyword in keywords
+                    ] + [
+                        {"match": {"title": keyword}} for keyword in keywords
+                    ],
                     "minimum_should_match": "80%",
-                    # "minimum_should_match": "-1",
                 },
             }
             sort = [{"_score": {"order": "desc"}}]
@@ -228,13 +324,26 @@ class FulltextIndexer(BaseIndexer):
             hits = resp.body["hits"]
             result = []
             for hit in hits["hits"]:
+                source = hit["_source"]
+                metadata = {
+                    "source": source.get("name", ""),
+                    "document_id": source.get("document_id"),
+                    "chunk_id": source.get("chunk_id"),
+                }
+
+                # Add title if available
+                if source.get("title"):
+                    metadata["title"] = source["title"]
+
+                # Add chunk metadata if available
+                if source.get("metadata"):
+                    metadata.update(source["metadata"])
+
                 result.append(
                     DocumentWithScore(
-                        text=hit["_source"]["content"],
+                        text=source["content"],
                         score=hit["_score"],
-                        metadata={
-                            "source": hit["_source"]["name"],
-                        },
+                        metadata=metadata,
                     )
                 )
             return result
@@ -316,7 +425,14 @@ es = Elasticsearch(
 def create_index(index):
     if not es.indices.exists(index=index).body:
         mapping = {
-            "properties": {"content": {"type": "text", "analyzer": "ik_max_word", "search_analyzer": "ik_smart"}}
+            "properties": {
+                "content": {"type": "text", "analyzer": "ik_max_word", "search_analyzer": "ik_smart"},
+                "title": {"type": "text", "analyzer": "ik_max_word", "search_analyzer": "ik_smart"},
+                "document_id": {"type": "keyword"},
+                "chunk_id": {"type": "keyword"},
+                "name": {"type": "keyword"},
+                "metadata": {"type": "object", "enabled": False}  # Store metadata as-is without indexing
+            }
         }
         es.indices.create(index=index, body={"mappings": mapping})
     else:
