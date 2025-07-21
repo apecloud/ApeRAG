@@ -44,6 +44,7 @@ class ChatSession:
 
         # MCP resources - created once per chat session
         self.mcp_app = None
+        self.mcp_app_context_manager = None
         self.mcp_running_app = None
         self.agent = None
         self.llm = None  # Cache LLM instance for this chat
@@ -63,7 +64,9 @@ class ChatSession:
             self.mcp_app = MCPAppFactory.create_mcp_app_from_config(self.config)
 
             # Start MCP app
-            self.mcp_running_app = await self.mcp_app.run().__aenter__()
+            self.mcp_app_context_manager = self.mcp_app.run()
+            self.mcp_running_app = await self.mcp_app_context_manager.__aenter__()
+
             self.mcp_running_app.context.session_id = self.config.chat_id
 
             # Create reusable agent for this chat session
@@ -117,9 +120,9 @@ class ChatSession:
                 logger.warning(f"Agent cleanup error: {e}")
             self.agent = None
 
-        if self.mcp_running_app:
+        if self.mcp_app_context_manager:
             try:
-                await self.mcp_running_app.__aexit__(None, None, None)
+                await self.mcp_app_context_manager.__aexit__(None, None, None)
             except Exception as e:
                 logger.warning(f"MCP app cleanup error: {e}")
             self.mcp_running_app = None
