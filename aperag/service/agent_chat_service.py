@@ -21,6 +21,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from fastapi import WebSocket
 from mcp_agent.workflows.llm.augmented_llm import RequestParams
+from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.agent import (
@@ -158,8 +159,8 @@ class AgentChatService:
             try:
                 message_id = str(uuid.uuid4())
                 message_queue = AgentMessageQueue()
-                # Message Producer: Start background task to process agent tool use message
-                await global_proxy_listener.register_listener(message_id, message_queue)
+                trace_id = await self.register_message_queue(chat_id, message_id, message_queue)
+
                 # Message Producer: Start background task to process agent generation message
                 process_task = asyncio.create_task(
                     self.process_agent_message(agent_message, user, chat_id, message_id, message_queue)
@@ -196,7 +197,22 @@ class AgentChatService:
                 error_response = format_processing_error(str(e), agent_message.language or "en-US")
                 await websocket.send_text(json.dumps(error_response))
             finally:
-                await global_proxy_listener.unregister_listener(message_id)
+                await global_proxy_listener.unregister_listener(str(trace_id))
+
+    async def register_message_queue(self, chat_id, message_id, message_queue):
+        # Get the trace_id from the current span
+        trace_id = trace.get_current_span().get_span_context().trace_id
+        if not trace_id:
+            logger.error("Could not get trace_id from current span, event dispatching will fail.")
+        else:
+            # Register a listener for this request with the global proxy.
+            await global_proxy_listener.register_listener(
+                trace_id=str(trace_id),
+                chat_id=chat_id,
+                message_id=message_id,
+                queue=message_queue,
+            )
+        return trace_id
 
     async def _consume_messages_from_queue(self, message_queue: AgentMessageQueue, websocket: WebSocket) -> None:
         """
@@ -268,7 +284,7 @@ class AgentChatService:
         agent_message: view_models.AgentMessage,
         user: str,
         chat_id: str,
-        msg_id: str,
+        message_id: str,
         message_queue: AgentMessageQueue,
     ) -> Dict[str, Any]:
         # Validate ModelSpec early
@@ -279,7 +295,7 @@ class AgentChatService:
 
         try:
             # Send start message
-            await message_queue.put(format_stream_start(msg_id))
+            await message_queue.put(format_stream_start(message_id))
 
             # Create memory from chat history
             history = await self.history_manager.get_chat_history(chat_id)
@@ -290,7 +306,6 @@ class AgentChatService:
             llm = await session.get_llm(agent_message.completion.model)
             llm.history = memory
 
-            # LLM generation
             comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
             request_params = RequestParams(
                 maxTokens=8192,
@@ -304,14 +319,13 @@ class AgentChatService:
             response = await llm.generate_str(comprehensive_prompt, request_params)
             full_content = response if response else "No response generated"
 
-            # Send content message
-            await message_queue.put(format_stream_content(msg_id, full_content))
+            await message_queue.put(format_stream_content(message_id, full_content))
 
             updated_memory = self.memory_manager.extract_memory_from_llm(llm)
             tool_references = extract_tool_call_references(updated_memory)
             urls = []
 
-            await message_queue.put(format_stream_end(msg_id, references=tool_references, urls=urls))
+            await message_queue.put(format_stream_end(message_id, references=tool_references, urls=urls))
 
             return {
                 "query": agent_message.query,

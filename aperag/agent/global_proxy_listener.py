@@ -29,7 +29,8 @@ class GlobalProxyListener(EventListener):
     """
     A thread-safe, singleton proxy listener that is registered once and never removed.
     It solves the "dictionary changed size during iteration" race condition by
-    managing its own internal, locked collection of temporary UniversalEventListeners.
+    managing its own internal, locked collection of temporary UniversalEventListeners,
+    and uses the trace_id from the event to dispatch it to the correct listener.
     """
 
     _instance = None
@@ -54,37 +55,55 @@ class GlobalProxyListener(EventListener):
             self._initialized = True
             logger.info("GlobalProxyListener initialized and registered permanently.")
 
-    async def register_listener(self, message_id: str, queue: AgentMessageQueue):
+    async def register_listener(
+        self,
+        trace_id: str,
+        chat_id: str,
+        message_id: str,
+        queue: AgentMessageQueue,
+    ):
         """
-        Safely creates and registers a UniversalEventListener for a specific request.
+        Safely creates and registers a UniversalEventListener for a specific request,
+        keyed by its trace_id.
         """
-        listener = UniversalEventListener(message_id, queue)
+        listener = UniversalEventListener(
+            message_queue=queue,
+            trace_id=trace_id,
+            chat_id=chat_id,
+            message_id=message_id,
+        )
         async with self._lock:
-            self._request_listeners[message_id] = listener
-            logger.debug(f"Registered temporary listener for message_id: {message_id}")
+            self._request_listeners[trace_id] = listener
+            logger.debug(f"Registered temporary listener for trace_id: {trace_id}")
 
-    async def unregister_listener(self, message_id: str):
-        """Safely unregisters a temporary listener."""
+    async def unregister_listener(self, trace_id: str):
+        """Safely unregisters a temporary listener by its trace_id."""
         async with self._lock:
-            if message_id in self._request_listeners:
-                del self._request_listeners[message_id]
-                logger.debug(f"Unregistered temporary listener for message_id: {message_id}")
+            if trace_id in self._request_listeners:
+                del self._request_listeners[trace_id]
+                logger.debug(f"Unregistered temporary listener for trace_id: {trace_id}")
 
     async def handle_event(self, event: Event):
         """
-        Handles events from the main bus and safely forwards them to all
-        currently registered temporary listeners.
+        Handles an event from the main bus and forwards it to the specific
+        listener associated with the event's trace_id.
         """
-        if not self._request_listeners:
+        # Assuming the mcp-agent's OTel instrumentation adds trace_id to the event.
+        # This is a critical assumption for this pattern to work.
+        trace_id = getattr(event, "trace_id", None)
+        if not trace_id:
+            logger.warning("Received event without a trace_id. Cannot dispatch.")
             return
 
-        # Iterate over a copy of the values to avoid issues if the dict is
-        # changed by another coroutine. This is the most robust approach.
         async with self._lock:
-            listeners = list(self._request_listeners.values())
+            # Find the specific listener for this trace_id
+            listener = self._request_listeners.get(str(trace_id))
 
-        # Await all listener handlers concurrently
-        await asyncio.gather(*(listener.handle_event(event) for listener in listeners))
+        if listener:
+            # Dispatch the event only to the correct listener
+            await listener.handle_event(event)
+        else:
+            logger.warning(f"Received event for trace_id {trace_id} but no listener was registered.")
 
 
 # Create a single instance for the application to use

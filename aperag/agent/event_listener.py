@@ -35,9 +35,17 @@ logger = logging.getLogger(__name__)
 class UniversalEventListener(EventListener):
     """通用事件监听器，支持多种事件类型的监听和处理"""
 
-    def __init__(self, msg_id: str, message_queue: AgentMessageQueue):
-        self.msg_id = msg_id
+    def __init__(
+        self,
+        message_queue: AgentMessageQueue,
+        trace_id: str,
+        chat_id: str,
+        message_id: str,
+    ):
         self.message_queue = message_queue
+        self.trace_id = trace_id
+        self.chat_id = chat_id
+        self.message_id = message_id
 
     @handle_agent_error("event_handling", reraise=False)
     async def handle_event(self, event: Event):
@@ -78,10 +86,10 @@ class UniversalEventListener(EventListener):
             display_text = format_tool_request_display(tool_name, tool_args)
 
             # 使用工具函数创建格式化消息，发送到队列
-            formatted_message = format_tool_call_start(self.msg_id, display_text, tool_name, tool_args)
+            formatted_message = format_tool_call_start(self.message_id, display_text, tool_name, tool_args)
             await self.message_queue.put(formatted_message)
 
-            logger.debug(f"Tool request captured: {tool_name}")
+            logger.debug(f"Tool request captured for message {self.message_id}: {tool_name}")
 
     @handle_agent_error("tool_response_handling", reraise=False)
     async def _handle_tool_response(self, event: Event):
@@ -108,10 +116,10 @@ class UniversalEventListener(EventListener):
         display_text = format_tool_response_display(interface_type, structured_content, is_error)
 
         # 使用工具函数创建格式化消息，发送到队列
-        formatted_message = format_tool_call_end(self.msg_id, display_text, interface_type, structured_content)
+        formatted_message = format_tool_call_end(self.message_id, display_text, interface_type, structured_content)
         await self.message_queue.put(formatted_message)
 
-        logger.debug(f"Tool response captured: {interface_type}")
+        logger.debug(f"Tool response captured for message {self.message_id}: {interface_type}")
 
     async def _handle_generic_event(self, event: Event):
         """处理其他通用事件"""
