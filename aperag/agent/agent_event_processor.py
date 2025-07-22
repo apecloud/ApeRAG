@@ -24,7 +24,7 @@ from .agent_message_queue import AgentMessageQueue
 from .exceptions import EventListenerError, handle_agent_error
 from .tool_use_message_formatters import (
     ToolResultFormatter,
-    format_tool_call_end,
+    format_tool_use_result,
 )
 
 logger = logging.getLogger(__name__)
@@ -90,8 +90,8 @@ class AgentEventProcessor(EventListener):
 
         display_text = self.formatter.format_tool_response(interface_type, typed_result, structured_content, is_error)
 
-        formatted_message = format_tool_call_end(
-            self.message_id, display_text, interface_type, typed_result or structured_content
+        formatted_message = format_tool_use_result(
+            self.message_id, display_text + "\n\n", interface_type, typed_result or structured_content
         )
         await self.message_queue.put(formatted_message)
 

@@ -24,30 +24,13 @@ from .i18n import TOOL_USE_EVENT_MESSAGES
 from .response_types import AgentMessageResponse
 
 
-def format_tool_call_content(msg_id: str, content: str) -> AgentMessageResponse:
-    """Format tool call content event"""
-    return AgentMessageResponse(
-        type="message",
-        id=msg_id,
-        data=f"<tool_call>{content}</tool_call>\n\n",
-        timestamp=now_unix_milliseconds(),
-    )
-
-
-def format_tool_call_start(msg_id: str, data: str, tool_name: str, arguments: dict) -> AgentMessageResponse:
-    return AgentMessageResponse(
-        type="message",  # todo: change to tool_call_start
-        id=msg_id,
-        data=f"<tool_call_start>{data}</tool_call_start>\n\n",  # todo: remove format
-        timestamp=now_unix_milliseconds(),
-    )
-
-
-def format_tool_call_end(msg_id: str, data: str, tool_name: str, result: Any) -> AgentMessageResponse:
+def format_tool_use_result(msg_id: str, data: str, tool_name: str, result: Any) -> AgentMessageResponse:
     return AgentMessageResponse(
         type="message",  # todo: change to tool_call_end
         id=msg_id,
-        data=f"<tool_call_end>{data}</tool_call_end>\n\n",  # todo: remove format
+        data=data,
+        # tool_name=tool_name,
+        # result=result,
         timestamp=now_unix_milliseconds(),
     )
 
