@@ -57,8 +57,6 @@ class AgentEventProcessor(EventListener):
 
         if event.message == "send_request: response=":
             await self._handle_tool_response(event)
-        else:
-            await self._handle_generic_event(event)
 
     @handle_agent_error("tool_response_handling", reraise=False)
     async def _handle_tool_response(self, event: Event):
@@ -98,6 +96,3 @@ class AgentEventProcessor(EventListener):
         logger.debug(
             f"Tool response captured for message {self.message_id}: {interface_type} (typed: {typed_result is not None})"
         )
-
-    async def _handle_generic_event(self, event: Event):
-        pass

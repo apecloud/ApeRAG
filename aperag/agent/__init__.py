@@ -80,10 +80,8 @@ from .stream_formatters import (
 )
 from .tool_reference_extractor import extract_tool_call_references
 from .tool_use_message_formatters import (
-    detect_interface_type,
     format_tool_call_end,
     format_tool_call_start,
-    format_tool_request_display,
 )
 
 __all__ = [
@@ -108,11 +106,8 @@ __all__ = [
     "format_stream_start",
     "format_thinking",
     # Tool formatters
-    "detect_interface_type",
     "format_tool_call_end",
     "format_tool_call_start",
-    "format_tool_request_display",
-    "format_tool_use_response",
     # Tool reference extractor
     "extract_tool_call_references",
     # Exception classes

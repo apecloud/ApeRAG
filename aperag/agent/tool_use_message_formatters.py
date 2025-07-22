@@ -376,23 +376,3 @@ class ToolResultFormatter:
                     titles.append("...")
                 return titles
         return []
-
-
-# Legacy functions for backward compatibility
-def detect_interface_type(structured_content):
-    """Legacy function - detect interface type and return typed result"""
-    formatter = ToolResultFormatter()
-    interface_type, typed_result = formatter.detect_and_parse_result(structured_content)
-    return interface_type, typed_result
-
-
-def format_tool_request_display(tool_name: str, arguments: dict, language: str = "en-US") -> str:
-    """Legacy function - format tool request display"""
-    formatter = ToolResultFormatter(language)
-    return formatter.format_tool_request(tool_name, arguments)
-
-
-def format_tool_use_response(language: str, interface_type: str, typed_result: Any, is_error: bool) -> str:
-    """Legacy function - format tool response"""
-    formatter = ToolResultFormatter(language)
-    return formatter.format_tool_response(interface_type, typed_result, None, is_error)
