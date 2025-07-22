@@ -388,8 +388,6 @@ class LLMKeywordExtractor(KeywordExtractor):
                 model=settings.llm_keyword_extraction_model,
                 base_url=llm_provider.base_url,
                 api_key=api_key,
-                temperature=settings.llm_keyword_extraction_temperature,
-                max_tokens=settings.llm_keyword_extraction_max_tokens,
             )
 
         except Exception as e:

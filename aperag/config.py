@@ -139,8 +139,6 @@ class Config(BaseSettings):
     # LLM keyword extraction
     llm_keyword_extraction_provider: str = Field("", alias="LLM_KEYWORD_EXTRACTION_PROVIDER")
     llm_keyword_extraction_model: str = Field("", alias="LLM_KEYWORD_EXTRACTION_MODEL")
-    llm_keyword_extraction_temperature: float = Field(0.1, alias="LLM_KEYWORD_EXTRACTION_TEMPERATURE")
-    llm_keyword_extraction_max_tokens: int = Field(100, alias="LLM_KEYWORD_EXTRACTION_MAX_TOKENS")
 
     # Qianfan
     qianfan_api_key: str = Field("", alias="QIANFAN_API_KEY")
