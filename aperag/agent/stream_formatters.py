@@ -25,7 +25,7 @@ from .response_types import (
     AgentStartResponse,
     AgentStopResponse,
     AgentThinkingResponse,
-    AgentToolCallStartResponse,
+    AgentToolCallResultResponse,
 )
 
 
@@ -102,14 +102,13 @@ def format_thinking(msg_id: str, content: str) -> AgentThinkingResponse:
     )
 
 
-def format_stream_tool_call(msg_id: str, tool_name: str, arguments: Dict[str, Any]) -> AgentToolCallStartResponse:
-    """Format tool call start event - backward compatibility"""
-    return AgentToolCallStartResponse(
-        type="tool_call_start",
+def format_tool_call_result(msg_id: str, data: str, tool_name: str, result: Any) -> AgentMessageResponse:
+    return AgentToolCallResultResponse(
+        type="tool_call_result",
         id=msg_id,
-        data=f"Using tool: {tool_name}",  # Display text
+        data=data,
         tool_name=tool_name,
-        arguments=arguments,
+        result=result,
         timestamp=now_unix_milliseconds(),
     )
 

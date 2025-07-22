@@ -18,21 +18,8 @@ import json
 from typing import Any, Dict, Optional, Tuple
 
 from aperag.schema.view_models import CollectionList, SearchResult, WebReadResponse, WebSearchResponse
-from aperag.utils.utils import now_unix_milliseconds
 
 from .i18n import TOOL_USE_EVENT_MESSAGES
-from .response_types import AgentMessageResponse
-
-
-def format_tool_use_result(msg_id: str, data: str, tool_name: str, result: Any) -> AgentMessageResponse:
-    return AgentMessageResponse(
-        type="message",  # todo: change to tool_call_end
-        id=msg_id,
-        data=data,
-        # tool_name=tool_name,
-        # result=result,
-        timestamp=now_unix_milliseconds(),
-    )
 
 
 def get_i18n_messages(language: str) -> dict:

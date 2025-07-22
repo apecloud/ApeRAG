@@ -67,8 +67,7 @@ from .response_types import (
     AgentStartResponse,
     AgentStopResponse,
     AgentThinkingResponse,
-    AgentToolCallEndResponse,
-    AgentToolCallStartResponse,
+    AgentToolCallResultResponse,
     WebSocketResponse,
 )
 from .stream_formatters import (
@@ -79,9 +78,6 @@ from .stream_formatters import (
     format_thinking,
 )
 from .tool_reference_extractor import extract_tool_call_references
-from .tool_use_message_formatters import (
-    format_tool_use_result,
-)
 
 __all__ = [
     # Event listener
@@ -105,7 +101,6 @@ __all__ = [
     "format_stream_start",
     "format_thinking",
     # Tool formatters
-    "format_tool_use_result",
     # Tool reference extractor
     "extract_tool_call_references",
     # Exception classes
@@ -154,6 +149,5 @@ __all__ = [
     "AgentStartResponse",
     "AgentStopResponse",
     "AgentThinkingResponse",
-    "AgentToolCallStartResponse",
-    "AgentToolCallEndResponse",
+    "AgentToolCallResultResponse",
 ]

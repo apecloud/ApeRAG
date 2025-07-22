@@ -59,19 +59,10 @@ class AgentThinkingResponse(BaseAgentResponse):
     data: str
 
 
-class AgentToolCallStartResponse(BaseAgentResponse):
-    """Tool call start response."""
-
-    type: Literal["tool_call_start"]
-    data: str  # Display text
-    tool_name: str
-    arguments: Dict[str, Any]
-
-
-class AgentToolCallEndResponse(BaseAgentResponse):
+class AgentToolCallResultResponse(BaseAgentResponse):
     """Tool call end response."""
 
-    type: Literal["tool_call_end"]
+    type: Literal["tool_call_result"]
     data: str  # Display text
     tool_name: str
     result: Any
@@ -84,8 +75,7 @@ AgentResponse = Union[
     AgentStopResponse,
     AgentErrorResponse,
     AgentThinkingResponse,
-    AgentToolCallStartResponse,
-    AgentToolCallEndResponse,
+    AgentToolCallResultResponse,
 ]
 
 
