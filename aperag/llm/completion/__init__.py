@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from aperag.llm.completion.base_completion import get_collection_completion_service_sync
 from aperag.llm.completion.completion_service import CompletionService
 
-__all__ = ["CompletionService"]
+__all__ = ["CompletionService", "get_collection_completion_service_sync"]

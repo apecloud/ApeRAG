@@ -14,7 +14,7 @@ services:
     build:
       context: .
       dockerfile: ./Dockerfile
-    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.5.0-alpha.41}
+    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.0.0-nightly}
     container_name: aperag-api
     depends_on:
       redis:
@@ -26,7 +26,6 @@ services:
       es:
         condition: service_healthy
     volumes:
-      - .:/app:z
       - ~/.cache:/root/.cache
       - aperag-shared-data:/shared
     env_file:
@@ -48,7 +47,7 @@ services:
     build:
       context: ./frontend
       dockerfile: ./Dockerfile
-    image: ${REGISTRY:-docker.io}/apecloud/aperag-frontend:${VERSION:-v0.5.0-alpha.41}
+    image: ${REGISTRY:-docker.io}/apecloud/aperag-frontend:${VERSION:-v0.0.0-nightly}
     container_name: aperag-frontend
     depends_on:
       api:
@@ -62,7 +61,7 @@ services:
       - "3000:3000"
 
   celeryworker:
-    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.5.0-alpha.41}
+    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.0.0-nightly}
     build:
       context: .
       dockerfile: ./Dockerfile
@@ -77,7 +76,6 @@ services:
       es:
         condition: service_healthy
     volumes:
-      - .:/app:z
       - ~/.cache:/root/.cache
       - ./resources:/data/resources
       - aperag-shared-data:/shared
@@ -90,7 +88,7 @@ services:
     command: ["/app/scripts/entrypoint.sh", "/app/scripts/start-celery-worker.sh"]
 
   celerybeat:
-    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.5.0-alpha.41}
+    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.0.0-nightly}
     build:
       context: .
       dockerfile: ./Dockerfile
@@ -109,7 +107,7 @@ services:
 
   flower:
     <<: *api
-    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.5.0-alpha.41}
+    image: ${REGISTRY:-docker.io}/apecloud/aperag:${VERSION:-v0.0.0-nightly}
     build:
       context: .
       dockerfile: ./Dockerfile

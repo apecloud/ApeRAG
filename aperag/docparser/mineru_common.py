@@ -194,13 +194,16 @@ def _convert_image_para(image_dir: Path, para_block: dict[str, Any], metadata: d
     if len(text) == 0:
         return []
 
+    if not img_path:
+        return [TextPart(content=text, metadata=metadata)]
+
     img_data = None
     try:
         img_full_path = image_dir / img_path
         with open(img_full_path, "rb") as f:
             img_data = f.read()
     except Exception:
-        logger.exception(f"failed to read image {img_full_path}")
+        logger.exception(f"failed to read image {img_path}")
 
     if img_data is None:
         return [TextPart(content=text, metadata=metadata)]
@@ -228,13 +231,13 @@ def _convert_image_para(image_dir: Path, para_block: dict[str, Any], metadata: d
 def _convert_table_para(image_dir: Path, para_block: dict[str, Any], metadata: dict[str, Any]) -> list[Part]:
     img_path = None
     text = ""
+    table_format = None
     for block in para_block["blocks"]:
         if block["type"] == BlockType.TableBody:
             for line in block["lines"]:
                 for span in line["spans"]:
                     if span["type"] == ContentType.Table:
                         table_body = ""
-                        table_format = None
                         if span.get("latex", ""):
                             table_body = f"\n\n$\n {span['latex']}\n$\n\n"
                             table_format = "latex"
@@ -263,10 +266,11 @@ def _convert_table_para(image_dir: Path, para_block: dict[str, Any], metadata: d
             with open(img_full_path, "rb") as f:
                 img_data = f.read()
         except Exception:
-            logger.exception(f"failed to read image {img_full_path}")
+            logger.exception("failed to read image {img_path}")
 
     if img_data is None:
-        metadata["table_format"] = table_format
+        if table_format:
+            metadata["table_format"] = table_format
         return [TextPart(content=text, metadata=metadata)]
 
     asset_id = md5(img_data).hexdigest()

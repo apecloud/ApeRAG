@@ -32,7 +32,6 @@ from sqlalchemy import (
     UniqueConstraint,
     select,
 )
-from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.ext.declarative import declarative_base
 
 from aperag.utils.utils import utc_now
@@ -47,14 +46,21 @@ def random_id():
     return "".join(random.sample(uuid.uuid4().hex, 16))
 
 
-# Helper function for creating enum columns that store values instead of names
+# Helper function for creating enum columns that store values as varchar instead of database enum
 def EnumColumn(enum_class, **kwargs):
-    """Create an Enum column that stores enum values instead of names"""
-    # Extract enum values to create the enum column
-    enum_values = [e.value for e in enum_class]
-    # Use the enum class name for the constraint name
-    kwargs.setdefault("name", enum_class.__name__.lower())
-    return SQLEnum(*enum_values, **kwargs)
+    """Create a String column for enum values to avoid database enum constraints"""
+    # Remove enum-specific kwargs that don't apply to String columns
+    kwargs.pop("name", None)
+
+    # Determine the maximum length needed for enum values
+    max_length = max(len(e.value) for e in enum_class) if enum_class and len(enum_class) > 0 else 50
+    # Add some buffer for future enum values
+    max_length = max(max_length + 20, 50)
+
+    # Set default length if not specified
+    kwargs.setdefault("length", max_length)
+
+    return String(**kwargs)
 
 
 # Enums for choices
@@ -62,6 +68,13 @@ class CollectionStatus(str, Enum):
     INACTIVE = "INACTIVE"
     ACTIVE = "ACTIVE"
     DELETED = "DELETED"
+
+
+class CollectionSummaryStatus(str, Enum):
+    PENDING = "PENDING"
+    GENERATING = "GENERATING"
+    COMPLETE = "COMPLETE"
+    FAILED = "FAILED"
 
 
 class CollectionType(str, Enum):
@@ -82,6 +95,7 @@ class DocumentIndexType(str, Enum):
     VECTOR = "VECTOR"
     FULLTEXT = "FULLTEXT"
     GRAPH = "GRAPH"
+    SUMMARY = "SUMMARY"
 
 
 class DocumentIndexStatus(str, Enum):
@@ -194,6 +208,38 @@ class Collection(Base):
                 if bot:
                     bots.append(bot)
             return bots
+
+
+class CollectionSummary(Base):
+    __tablename__ = "collection_summary"
+    __table_args__ = (UniqueConstraint("collection_id", name="uq_collection_summary"),)
+
+    id = Column(String(24), primary_key=True, default=lambda: "cs" + random_id())
+    collection_id = Column(String(24), nullable=False, index=True)
+
+    # Reconciliation fields
+    status = Column(
+        EnumColumn(CollectionSummaryStatus), nullable=False, default=CollectionSummaryStatus.PENDING, index=True
+    )
+    version = Column(Integer, nullable=False, default=1)
+    observed_version = Column(Integer, nullable=False, default=0)
+
+    # Summary content and metadata
+    summary = Column(Text, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    # Timestamps
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_last_reconciled = Column(DateTime(timezone=True), nullable=True)
+
+    def __repr__(self):
+        return f"<CollectionSummary(id={self.id}, collection_id={self.collection_id}, status={self.status}, version={self.version})>"
+
+    def update_version(self):
+        """Update the version to trigger reconciliation"""
+        self.version += 1
+        self.gmt_updated = utc_now()
 
 
 class Document(Base):

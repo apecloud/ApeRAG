@@ -140,7 +140,7 @@ compose-logs:
 # Local development services
 .PHONY: run-backend run-frontend run-celery run-flower run-beat
 run-backend: migrate
-	uvicorn aperag.app:app --host 0.0.0.0 --reload --log-config scripts/uvicorn-log-config.yaml
+	uvicorn aperag.app:app --host 0.0.0.0 --log-config scripts/uvicorn-log-config.yaml
 
 run-celery:
 	celery -A config.celery worker -B -l INFO --pool=threads --concurrency=16

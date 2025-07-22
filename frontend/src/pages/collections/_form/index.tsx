@@ -19,6 +19,10 @@ import {
   Switch,
   Typography,
   message,
+  Tag,
+  Spin,
+  Tooltip,
+  theme,
 } from 'antd';
 import _ from 'lodash';
 import { useEffect, useState } from 'react';
@@ -29,6 +33,10 @@ import DocumentFeishuFormItems from './DocumentFeishuFormItems';
 import DocumentFtpFormItems from './DocumentFtpFormItems';
 import DocumentGithubFormItems from './DocumentGithubFormItems';
 import DocumentLocalFormItems from './DocumentLocalFormItems';
+import moment from 'moment';
+import { toast } from 'react-toastify';
+import { api } from '@/services';
+import { QuestionCircleOutlined } from '@ant-design/icons';
 
 type Props = {
   action: 'add' | 'edit';
@@ -52,6 +60,7 @@ const configEmbeddingCustomLlmProviderKey = [
 ];
 
 const configEnableKnowledgeGraphKey = ['config', 'enable_knowledge_graph'];
+const configEnableSummaryKey = ['config', 'enable_summary'];
 
 const configCompletionModelKey = ['config', 'completion', 'model'];
 const configCompletionModelServiceProviderKey = [
@@ -71,6 +80,9 @@ const configParserMineruApiTokenKey = ['config', 'parser', 'mineru_api_token'];
 
 export default ({ onSubmit, action, values, form }: Props) => {
   const { formatMessage } = useIntl();
+  const { collection, getCollection } = useModel('collection');
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const { token } = theme.useToken();
 
   const {
     availableModels,
@@ -96,6 +108,8 @@ export default ({ onSubmit, action, values, form }: Props) => {
     configEnableKnowledgeGraphKey,
     form,
   );
+
+  const enableSummary = Form.useWatch(configEnableSummaryKey, form);
 
   const useMineru = Form.useWatch(configParserUseMineruKey, form);
   const mineruApiToken = Form.useWatch(configParserMineruApiTokenKey, form);
@@ -278,9 +292,45 @@ export default ({ onSubmit, action, values, form }: Props) => {
         </Form.Item>
         <Form.Item
           name="description"
-          label={formatMessage({ id: 'text.description' })}
+          label={
+            <span>
+              {formatMessage({ id: 'text.description' })}
+              <Tooltip
+                title={
+                  <div style={{
+                    maxWidth: 400,
+                    whiteSpace: 'pre-line',
+                    color: '#fff',
+                    fontSize: token.fontSize
+                  }}>
+                    {formatMessage({ id: 'collection.description.tips' })}
+                  </div>
+                }
+                overlayStyle={{
+                  maxWidth: 400
+                }}
+                overlayInnerStyle={{
+                  backgroundColor: token.colorBgSpotlight,
+                  color: '#fff',
+                  borderRadius: token.borderRadius,
+                  padding: '8px 12px'
+                }}
+              >
+                <QuestionCircleOutlined style={{ marginLeft: 6, color: token.colorTextSecondary }} />
+              </Tooltip>
+            </span>
+          }
         >
-          <Input.TextArea maxLength={300} rows={3} />
+          <Input.TextArea
+            maxLength={300}
+            rows={3}
+            readOnly={enableSummary}
+            style={{
+              color: token.colorText,
+              backgroundColor: token.colorBgContainer,
+              cursor: enableSummary ? 'default' : 'text'
+            }}
+          />
         </Form.Item>
 
         <Row gutter={24}>
@@ -337,11 +387,32 @@ export default ({ onSubmit, action, values, form }: Props) => {
           </Col>
         </Row>
 
-        {enableKnowledgeGraph ? (
+        <Row gutter={24}>
+          <Col
+            {...{
+              xs: 24,
+              sm: 24,
+              md: 12,
+              lg: 12,
+              xl: 12,
+              xxl: 12,
+            }}
+          >
+            <Form.Item
+              label={formatMessage({ id: 'collection.enable_auto_summary' })}
+              valuePropName="checked"
+              name={configEnableSummaryKey}
+            >
+              <Switch />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        {(enableKnowledgeGraph || enableSummary) ? (
           <>
             <Form.Item
               label={formatMessage({
-                id: 'collection.lightrag_model',
+                id: 'collection.completion_model',
               })}
               name={configCompletionModelKey}
               required
@@ -349,7 +420,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
                 {
                   required: true,
                   message: formatMessage({
-                    id: 'collection.lightrag_model.required',
+                    id: 'collection.completion_model.required',
                   }),
                 },
               ]}

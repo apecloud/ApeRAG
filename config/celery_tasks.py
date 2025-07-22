@@ -709,6 +709,25 @@ def reconcile_indexes_task():
         raise
 
 
+@current_app.task
+def reconcile_collection_summaries_task():
+    """Periodic task to reconcile collection summary specs with statuses"""
+    try:
+        logger.info("Starting collection summary reconciliation")
+
+        # Import here to avoid circular dependencies
+        from aperag.service.collection_summary_service import collection_summary_reconciler
+
+        # Run reconciliation
+        collection_summary_reconciler.reconcile_all()
+
+        logger.info("Collection summary reconciliation completed")
+
+    except Exception as e:
+        logger.error(f"Collection summary reconciliation failed: {e}", exc_info=True)
+        raise
+
+
 @app.task(bind=True)
 def collection_delete_task(self, collection_id: str) -> Any:
     """
@@ -755,6 +774,40 @@ def collection_init_task(self, collection_id: str, document_user_quota: int) -> 
 
     except Exception as e:
         logger.error(f"Collection initialization failed for {collection_id}: {str(e)}")
+        raise self.retry(
+            exc=e,
+            countdown=TaskConfig.RETRY_COUNTDOWN_COLLECTION,
+            max_retries=TaskConfig.RETRY_MAX_RETRIES_COLLECTION,
+        )
+
+
+@app.task(bind=True)
+def collection_summary_task(self, summary_id: str, collection_id: str, target_version: int) -> Any:
+    """
+    Generate collection summary task entry point
+
+    Args:
+        summary_id: Summary ID to generate
+        collection_id: Collection ID to generate summary for
+    """
+    try:
+        from aperag.service.collection_summary_service import collection_summary_service
+        
+        # Run the async method synchronously in the celery task
+        import asyncio
+        asyncio.run(collection_summary_service.generate_collection_summary_task(summary_id, collection_id, target_version))
+        
+        logger.info(f"Collection summary task completed for {collection_id}")
+        return {"success": True, "collection_id": collection_id}
+
+    except Exception as e:
+        logger.error(f"Collection summary generation failed for {collection_id}: {str(e)}")
+        
+        # Mark as failed using callback if we've exhausted retries
+        if self.request.retries >= self.max_retries:
+            from aperag.service.collection_summary_service import collection_summary_callbacks
+            collection_summary_callbacks.on_summary_failed(collection_id, str(e))
+        
         raise self.retry(
             exc=e,
             countdown=TaskConfig.RETRY_COUNTDOWN_COLLECTION,

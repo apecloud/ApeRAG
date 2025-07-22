@@ -3,14 +3,15 @@ import { CloseOutlined } from '@ant-design/icons';
 import { Button, Card, theme } from 'antd';
 
 export const NodeDetail = ({
+  open,
   node,
   onClose,
 }: {
+  open: boolean;
   node?: GraphNode;
   onClose: () => void;
 }) => {
   const { token } = theme.useToken();
-  const width = 300;
 
   return (
     <Card
@@ -21,11 +22,11 @@ export const NodeDetail = ({
         </Button>
       }
       style={{
-        width,
+        width: '400px',
         backdropFilter: 'blur(50px)',
         background: token.colorBgContainer,
         position: 'absolute',
-        right: 0,
+        right: open ? 0 : '-400px',
         top: 0,
         bottom: 0,
         borderTop: `none`,
@@ -33,8 +34,8 @@ export const NodeDetail = ({
         borderBottom: `none`,
         display: 'flex',
         flexDirection: 'column',
-        transform: `translateX(${node ? 0 : 2 * width}px)`,
-        transition: `0.3s`,
+        transition: `0.2s`,
+        zIndex: 100,
       }}
       styles={{
         header: {},

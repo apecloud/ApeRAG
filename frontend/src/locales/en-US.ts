@@ -240,6 +240,7 @@ export default {
   'document.index.type.vector': 'Vector Index',
   'document.index.type.fulltext': 'Fulltext Index',
   'document.index.type.graph': 'Graph Index',
+  'document.index.type.summary': 'Summary Index',
   'document.index.rebuild': 'Rebuild Index',
   'document.index.rebuild.title': 'Rebuild Index',
   'document.index.rebuild.description': 'Select index types to rebuild',
@@ -368,4 +369,10 @@ export default {
 
   // API Key Management
   'api_key.title': 'API Key Management',
+  'document.summary.view': 'View Summary',
+  'document.summary.empty': 'No summary available',
+  'document.summary.loading': 'Loading summary...',
+  'document.summary.copy': 'Copy Summary',
+  'document.summary.copy.success': 'Summary copied to clipboard',
+  'document.summary.copy.failed': 'Failed to copy summary',
 };

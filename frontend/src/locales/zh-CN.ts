@@ -238,6 +238,7 @@ export default {
   'document.index.type.vector': '向量索引',
   'document.index.type.fulltext': '全文索引',
   'document.index.type.graph': '图索引',
+  'document.index.type.summary': '摘要索引',
   'document.index.rebuild': '重建索引',
   'document.index.rebuild.title': '重建索引',
   'document.index.rebuild.description': '选择要重建的索引类型',
@@ -359,4 +360,11 @@ export default {
 
   // API Key Management
   'api_key.title': 'API 密钥管理',
+
+  'document.summary.view': '查看摘要',
+  'document.summary.empty': '暂无摘要内容',
+  'document.summary.loading': '摘要加载中...',
+  'document.summary.copy': '复制摘要',
+  'document.summary.copy.success': '摘要已复制到剪贴板',
+  'document.summary.copy.failed': '复制摘要失败',
 };

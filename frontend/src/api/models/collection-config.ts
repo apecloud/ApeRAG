@@ -48,6 +48,12 @@ export interface CollectionConfig {
      */
     'enable_knowledge_graph'?: boolean;
     /**
+     * Whether to enable summary generation
+     * @type {boolean}
+     * @memberof CollectionConfig
+     */
+    'enable_summary'?: boolean;
+    /**
      * 
      * @type {ModelSpec}
      * @memberof CollectionConfig

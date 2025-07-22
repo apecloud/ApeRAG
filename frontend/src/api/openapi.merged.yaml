@@ -513,6 +513,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/collection'
+  /collections/{collection_id}/summary/generate:
+    post:
+      summary: Generate collection summary
+      description: Trigger collection summary generation as background task
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Collection summary generation started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  collection_id:
+                    type: string
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  status:
+                    type: string
+        '404':
+          description: Collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
   /collections/{collection_id}/documents:
     get:
       summary: List documents
@@ -3222,6 +3256,9 @@ components:
         enable_knowledge_graph:
           type: boolean
           description: Whether to enable knowledge graph
+        enable_summary:
+          type: boolean
+          description: Whether to enable summary generation
         embedding:
           $ref: '#/components/schemas/modelSpec'
         completion:
@@ -3512,6 +3549,16 @@ components:
             - DELETION_IN_PROGRESS
             - FAILED
             - SKIPPED
+        summary_index_status:
+          type: string
+          enum:
+            - PENDING
+            - CREATING
+            - ACTIVE
+            - DELETING
+            - DELETION_IN_PROGRESS
+            - FAILED
+            - SKIPPED
         vector_index_updated:
           type: string
           format: date-time
@@ -3524,6 +3571,13 @@ components:
           type: string
           format: date-time
           description: Graph index last updated time
+        summary_index_updated:
+          type: string
+          format: date-time
+          description: Summary index last updated time
+        summary:
+          type: string
+          description: Summary of the document
         config:
           type: string
         size:
@@ -3566,6 +3620,7 @@ components:
               - VECTOR
               - FULLTEXT
               - GRAPH
+              - SUMMARY
           description: Types of indexes to rebuild
           minItems: 1
       required:

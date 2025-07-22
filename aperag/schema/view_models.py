@@ -411,6 +411,9 @@ class CollectionConfig(BaseModel):
     enable_knowledge_graph: Optional[bool] = Field(
         None, description='Whether to enable knowledge graph'
     )
+    enable_summary: Optional[bool] = Field(
+        None, description='Whether to enable summary generation'
+    )
     embedding: Optional[ModelSpec] = None
     completion: Optional[ModelSpec] = None
     parser: Optional[ParserConfig] = None
@@ -589,6 +592,17 @@ class Document(BaseModel):
             'SKIPPED',
         ]
     ] = None
+    summary_index_status: Optional[
+        Literal[
+            'PENDING',
+            'CREATING',
+            'ACTIVE',
+            'DELETING',
+            'DELETION_IN_PROGRESS',
+            'FAILED',
+            'SKIPPED',
+        ]
+    ] = None
     vector_index_updated: Optional[datetime] = Field(
         None, description='Vector index last updated time'
     )
@@ -598,6 +612,10 @@ class Document(BaseModel):
     graph_index_updated: Optional[datetime] = Field(
         None, description='Graph index last updated time'
     )
+    summary_index_updated: Optional[datetime] = Field(
+        None, description='Summary index last updated time'
+    )
+    summary: Optional[str] = Field(None, description='Summary of the document')
     config: Optional[str] = None
     size: Optional[float] = None
     created: Optional[datetime] = None
@@ -621,7 +639,7 @@ class DocumentCreate(BaseModel):
 
 
 class RebuildIndexesRequest(BaseModel):
-    index_types: list[Literal['VECTOR', 'FULLTEXT', 'GRAPH']] = Field(
+    index_types: list[Literal['VECTOR', 'FULLTEXT', 'GRAPH', 'SUMMARY']] = Field(
         ..., description='Types of indexes to rebuild', min_items=1
     )
 
@@ -655,6 +673,9 @@ class VectorSearchParams(BaseModel):
 
 class FulltextSearchParams(BaseModel):
     topk: Optional[int] = Field(None, description='Top K results')
+    keywords: Optional[list[str]] = Field(
+        None, description='Custom keywords to use for fulltext search'
+    )
 
 
 class GraphSearchParams(BaseModel):

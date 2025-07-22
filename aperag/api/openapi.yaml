@@ -43,6 +43,8 @@ paths:
     $ref: './paths/collections.yaml#/collections'
   /collections/{collection_id}:
     $ref: './paths/collections.yaml#/collection'
+  /collections/{collection_id}/summary/generate:
+    $ref: './paths/collections.yaml#/summary_generate'
   /collections/{collection_id}/documents:
     $ref: './paths/collections.yaml#/documents'
   /collections/{collection_id}/documents/{document_id}:
