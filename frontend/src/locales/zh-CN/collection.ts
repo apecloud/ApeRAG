@@ -29,6 +29,7 @@ export const collection = {
   'collection.enable_knowledge_graph': '启用Graph RAG',
   'collection.enable_summary': '启用摘要',
   'collection.enable_auto_summary': '启用自动摘要',
+  'collection.enable_vision': '启用视觉索引',
   'collection.description.tips': '如果开启自动摘要，描述内容将变为只读，由后台 LLM 模型自动为每个文档生成摘要索引，并在此基础上生成集合描述，更加准确地反映知识库内容。',
   'collection.embedding_model': '嵌入模型',
   'collection.model_not_found': '请在设置 -> 模型服务商中设置API Key',
