@@ -3232,6 +3232,9 @@ components:
         enable_summary:
           type: boolean
           description: Whether to enable summary generation
+        enable_vision:
+          type: boolean
+          description: Whether to enable vision index
         embedding:
           $ref: '#/components/schemas/modelSpec'
         completion:
