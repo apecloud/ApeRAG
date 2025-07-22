@@ -1,7 +1,7 @@
 """empty message
 
 Revision ID: 694591d5df94
-Revises: add_index_audit_resource
+Revises: 56a24ace49af
 Create Date: 2025-07-11 12:33:38.799759
 
 """

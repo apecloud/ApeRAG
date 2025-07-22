@@ -160,6 +160,17 @@ class Config(BaseSettings):
     opik_api_key: str = Field("", alias="OPIK_API_KEY")
     opik_workspace: str = Field("", alias="OPIK_WORKSPACE")
 
+    # OpenTelemetry/Jaeger Tracing
+    otel_enabled: bool = Field(True, alias="OTEL_ENABLED")
+    otel_service_name: str = Field("aperag", alias="OTEL_SERVICE_NAME")
+    otel_service_version: str = Field("1.0.0", alias="OTEL_SERVICE_VERSION")
+    jaeger_enabled: bool = Field(False, alias="JAEGER_ENABLED")
+    jaeger_endpoint: Optional[str] = Field(None, alias="JAEGER_ENDPOINT")
+    otel_console_enabled: bool = Field(False, alias="OTEL_CONSOLE_ENABLED")
+    otel_fastapi_enabled: bool = Field(True, alias="OTEL_FASTAPI_ENABLED")
+    otel_sqlalchemy_enabled: bool = Field(True, alias="OTEL_SQLALCHEMY_ENABLED")
+    otel_mcp_enabled: bool = Field(True, alias="OTEL_MCP_ENABLED")
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Load model configs from file

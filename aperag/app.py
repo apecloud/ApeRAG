@@ -14,17 +14,22 @@
 
 import os
 
+from aperag.config import settings
+
 # Initialize OpenTelemetry FIRST - before any other imports
 from aperag.trace import init_tracing
 
-init_tracing(
-    service_name="aperag",
-    service_version="1.0.0",
-    enable_console=False,  # Disable console output to reduce noise
-    enable_fastapi=True,
-    enable_sqlalchemy=True,
-    enable_mcp=True,
-)
+# Initialize tracing with configuration
+if settings.otel_enabled:
+    init_tracing(
+        service_name=settings.otel_service_name,
+        service_version=settings.otel_service_version,
+        jaeger_endpoint=settings.jaeger_endpoint if settings.jaeger_enabled else None,
+        enable_console=settings.otel_console_enabled,
+        enable_fastapi=settings.otel_fastapi_enabled,
+        enable_sqlalchemy=settings.otel_sqlalchemy_enabled,
+        enable_mcp=settings.otel_mcp_enabled,
+    )
 
 from fastapi import FastAPI  # noqa: E402
 
