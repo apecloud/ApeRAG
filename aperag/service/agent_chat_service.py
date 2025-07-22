@@ -21,7 +21,6 @@ from typing import Any, Dict, Optional, Tuple
 
 from fastapi import WebSocket
 from mcp_agent.workflows.llm.augmented_llm import RequestParams
-from opentelemetry import trace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aperag.agent import (
@@ -201,7 +200,9 @@ class AgentChatService:
 
     async def register_message_queue(self, chat_id, message_id, message_queue):
         # Get the trace_id from the current span
-        trace_id = trace.get_current_span().get_span_context().trace_id
+        from aperag.trace.mcp_integration import get_current_trace_info
+
+        trace_id, _ = get_current_trace_info()
         if not trace_id:
             logger.error("Could not get trace_id from current span, event dispatching will fail.")
         else:
