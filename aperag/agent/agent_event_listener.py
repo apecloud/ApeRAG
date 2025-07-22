@@ -61,6 +61,7 @@ class AgentEventListener(EventListener):
         chat_id: str,
         message_id: str,
         queue: AgentMessageQueue,
+        language,
     ):
         """
         Safely creates and registers a AgentEventProcessor for a specific request,
@@ -71,6 +72,7 @@ class AgentEventListener(EventListener):
             trace_id=trace_id,
             chat_id=chat_id,
             message_id=message_id,
+            language=language,
         )
         async with self._lock:
             self._request_listeners[trace_id] = listener

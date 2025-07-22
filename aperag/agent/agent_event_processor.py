@@ -21,12 +21,10 @@ from mcp_agent.logging.listeners import EventListener
 
 from .agent_message_queue import AgentMessageQueue
 from .exceptions import EventListenerError, handle_agent_error
-from .tool_formatters import (
+from .tool_use_message_formatters import (
     detect_interface_type,
     format_tool_call_end,
-    format_tool_call_start,
-    format_tool_request_display,
-    format_tool_response_display,
+    format_tool_use_response,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,14 +37,17 @@ class AgentEventProcessor(EventListener):
         trace_id: str,
         chat_id: str,
         message_id: str,
+        language: str = "en-US",
     ):
         self.message_queue = message_queue
         self.trace_id = trace_id
         self.chat_id = chat_id
         self.message_id = message_id
+        self.language = language
 
     @handle_agent_error("event_handling", reraise=False)
     async def handle_event(self, event: Event):
+        print(event)
         if not event or not event.message:
             return
         if self.trace_id != event.trace_id:
@@ -55,41 +56,10 @@ class AgentEventProcessor(EventListener):
             )
             return
 
-        if event.message == "send_request: request=":
-            await self._handle_tool_request(event)
-        elif event.message == "send_request: response=":
+        if event.message == "send_request: response=":
             await self._handle_tool_response(event)
         else:
             await self._handle_generic_event(event)
-
-    @handle_agent_error("tool_request_handling", reraise=False)
-    async def _handle_tool_request(self, event: Event):
-        if not event.data or not isinstance(event.data, dict):
-            raise EventListenerError(
-                "tool_request", "Invalid event data structure", event_data={"has_data": bool(event.data)}
-            )
-
-        data_field = event.data.get("data")
-        if not data_field or not isinstance(data_field, dict):
-            raise EventListenerError(
-                "tool_request", "Missing or invalid data field", event_data={"data_type": type(data_field).__name__}
-            )
-
-        method = data_field.get("method", "")
-        params = data_field.get("params", {})
-
-        if method == "tools/call" and params:
-            tool_name = params.get("name", "unknown")
-            tool_args = params.get("arguments", {})
-
-            # 使用工具函数格式化显示文本
-            display_text = format_tool_request_display(tool_name, tool_args)
-
-            # 使用工具函数创建格式化消息，发送到队列
-            formatted_message = format_tool_call_start(self.message_id, display_text, tool_name, tool_args)
-            await self.message_queue.put(formatted_message)
-
-            logger.debug(f"Tool request captured for message {self.message_id}: {tool_name}")
 
     @handle_agent_error("tool_response_handling", reraise=False)
     async def _handle_tool_response(self, event: Event):
@@ -104,17 +74,15 @@ class AgentEventProcessor(EventListener):
                 "tool_response", "Missing or invalid data field", event_data={"data_type": type(data_field).__name__}
             )
 
-        # 解析响应内容
         structured_content = data_field.get("structuredContent")
         is_error = data_field.get("isError", False)
 
-        # 使用工具函数检测接口类型
-        interface_type = detect_interface_type(structured_content)
+        interface_type, result = detect_interface_type(structured_content)
+        if interface_type == "unknown" or result is None:
+            return
 
-        # 使用工具函数格式化显示文本
-        display_text = format_tool_response_display(interface_type, structured_content, is_error)
+        display_text = format_tool_use_response(self.language, interface_type, structured_content, is_error)
 
-        # 使用工具函数创建格式化消息，发送到队列
         formatted_message = format_tool_call_end(self.message_id, display_text, interface_type, structured_content)
         await self.message_queue.put(formatted_message)
 

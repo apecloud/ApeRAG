@@ -166,7 +166,7 @@ class AgentChatService:
         try:
             message_id = str(uuid.uuid4())
             message_queue = AgentMessageQueue()
-            trace_id = await self.register_message_queue(chat_id, message_id, message_queue)
+            trace_id = await self.register_message_queue(agent_message.language, chat_id, message_id, message_queue)
 
             # Message Producer: Start background task to process agent generation message
             process_task = asyncio.create_task(
@@ -205,7 +205,7 @@ class AgentChatService:
             if trace_id:
                 await agent_event_listener.unregister_listener(str(trace_id))
 
-    async def register_message_queue(self, chat_id, message_id, message_queue):
+    async def register_message_queue(self, language, chat_id, message_id, message_queue):
         # Get the trace_id from the current span
         from aperag.trace.mcp_integration import get_current_trace_info
 
@@ -219,6 +219,7 @@ class AgentChatService:
                 chat_id=chat_id,
                 message_id=message_id,
                 queue=message_queue,
+                language=language,
             )
         return trace_id
 

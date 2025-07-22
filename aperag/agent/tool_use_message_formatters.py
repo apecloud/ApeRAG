@@ -110,44 +110,48 @@ def format_tool_response_summary(interface_type: str, content, is_error: bool) -
 def detect_interface_type(structured_content):
     """根据响应内容检测接口类型"""
     if not structured_content:
-        return "unknown"
+        return "unknown", None
 
     if not isinstance(structured_content, dict):
-        return "unknown"
+        return "unknown", None
 
-    # 检测 search_collection 接口 - 优先检测，因为它有明确的query字段
-    if "query" in structured_content and "items" in structured_content:
-        return "search_collection"
+    try:
+        from aperag.schema.view_models import SearchResult
 
-    # 检测 list_collections 接口
-    if "items" in structured_content:
-        items = structured_content["items"]
-        if isinstance(items, list) and len(items) > 0:
-            first_item = items[0]
-            if isinstance(first_item, dict) and "title" in first_item and "config" in first_item:
-                return "list_collections"
+        result = SearchResult.model_validate(structured_content)
+        if result and isinstance(result, SearchResult):
+            return "search_collection", result
+    except Exception:
+        pass
 
-    # 检测 web_search 和 web_read 接口
-    if "results" in structured_content:
-        results = structured_content["results"]
-        if isinstance(results, list):
-            # 即使results为空也认为是web_search/web_read
-            if len(results) == 0:
-                return "web_search"  # 默认为web_search
+    try:
+        from aperag.schema.view_models import CollectionList
 
-            first_result = results[0]
-            if isinstance(first_result, dict):
-                # 检测web_read: 有content字段
-                if "content" in first_result:
-                    return "web_read"
-                # 检测web_search: 有url字段（snippet可选）
-                elif "url" in first_result:
-                    return "web_search"
-                # 宽松检测：只要有results数组就认为是web_search
-                else:
-                    return "web_search"
+        result = CollectionList.model_validate(structured_content)
+        if result and isinstance(result, CollectionList):
+            return "list_collections", result
+    except Exception:
+        pass
 
-    return "unknown"
+    try:
+        from aperag.schema.view_models import WebSearchResponse
+
+        result = WebSearchResponse.model_validate(structured_content)
+        if result and isinstance(result, WebSearchResponse):
+            return "web_search", result
+    except Exception:
+        pass
+
+    try:
+        from aperag.schema.view_models import WebReadResponse
+
+        result = WebReadResponse.model_validate(structured_content)
+        if result and isinstance(result, WebReadResponse):
+            return "web_read", result
+    except Exception:
+        pass
+
+    return "unknown", None
 
 
 def format_tool_request_display(tool_name: str, arguments: dict) -> str:
@@ -166,7 +170,7 @@ def format_tool_request_display(tool_name: str, arguments: dict) -> str:
     return f"🔧 {display_name}\n{details}"
 
 
-def format_tool_response_display(interface_type: str, content, is_error: bool) -> str:
+def format_tool_use_response(language: str, interface_type: str, content, is_error: bool) -> str:
     """格式化工具响应的显示文本"""
     summary = format_tool_response_summary(interface_type, content, is_error)
 

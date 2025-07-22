@@ -19,6 +19,7 @@ from typing import Any, Dict, List
 
 from aperag.utils.utils import now_unix_milliseconds
 
+from .i18n import ERROR_MESSAGES
 from .response_types import (
     AgentErrorResponse,
     AgentMessageResponse,
@@ -66,12 +67,37 @@ def format_stream_end(
     )
 
 
-def format_error(error: str) -> AgentErrorResponse:
-    """格式化错误响应"""
+def format_i18n_error(error_key: str, language: str = "en-US", **kwargs) -> AgentErrorResponse:
+    """
+    Format an internationalized error response.
+
+    Args:
+        error_key: The error message key
+        language: Language code (en-US, zh-CN)
+        **kwargs: Format parameters for the error message
+
+    Returns:
+        Formatted error response
+    """
+    # Fallback to en-US if language not supported
+    if language not in ERROR_MESSAGES:
+        language = "en-US"
+
+    # Get the message template
+    messages = ERROR_MESSAGES[language]
+    message_template = messages.get(error_key, messages.get("unknown_error", "Unknown error: {error}"))
+
+    # Format the message with provided parameters
+    try:
+        error_message = message_template.format(**kwargs)
+    except KeyError:
+        # If formatting fails, return the template with available info
+        error_message = message_template
+
     return AgentErrorResponse(
         type="error",
         id=str(uuid.uuid4()),
-        data=error,
+        data=error_message,
         timestamp=now_unix_milliseconds(),
     )
 
