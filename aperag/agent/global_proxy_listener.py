@@ -90,14 +90,16 @@ class GlobalProxyListener(EventListener):
         """
         # Assuming the mcp-agent's OTel instrumentation adds trace_id to the event.
         # This is a critical assumption for this pattern to work.
-        trace_id = getattr(event, "trace_id", None)
+        trace_id = event.trace_id
         if not trace_id:
             logger.warning("Received event without a trace_id. Cannot dispatch.")
             return
 
-        async with self._lock:
-            # Find the specific listener for this trace_id
-            listener = self._request_listeners.get(str(trace_id))
+        # async with self._lock:
+        #     # Find the specific listener for this trace_id
+        #     listener = self._request_listeners.get(str(trace_id))
+
+        listener = self._request_listeners.get(str(trace_id))
 
         if listener:
             # Dispatch the event only to the correct listener
