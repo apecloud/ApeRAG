@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Internationalization messages for agent events and tool usage."""
+
 # Tool use event message translations
 TOOL_USE_EVENT_MESSAGES = {
     "en-US": {
-        # Tool names
+        # Tool display names
         "tool_names": {
             "list_collections": "List Collections",
             "search_collection": "Search Collection",
@@ -23,41 +25,41 @@ TOOL_USE_EVENT_MESSAGES = {
             "web_read": "Read Web Pages",
             "unknown": "Tool Call",
         },
-        # Tool request descriptions
+        # Tool request descriptions (what the tool is doing)
         "requests": {
-            "list_collections": "Getting all collections list",
-            "search_collection": 'Searching in knowledge base for "{query}", using {search_types}, returning {topk} results',
-            "web_search": 'Searching "{query}" on the web, returning {max_results} results',
-            "web_read": "Reading {count} web pages content",
+            "list_collections": "Getting all available collections",
+            "search_collection": 'Searching for "{query}" using {search_types}, returning top {topk} results',
+            "web_search": 'Searching the web for "{query}", returning {max_results} results',
+            "web_read": "Reading content from {count} web pages",
         },
-        # Tool response summaries
+        # Tool response summaries (what the tool accomplished)
         "responses": {
-            "list_collections": {"success": "Found {count} collections", "error": "Failed to list collections"},
+            "list_collections": {"success": "Found {count} collections", "error": "Failed to retrieve collections"},
             "search_collection": {
                 "success": 'Found {count} results for "{query}"',
-                "searching": 'Searched collection for "{query}"',
-                "error": "Failed to search collection",
+                "searching": 'Searched for "{query}"',  # Used when 0 results but valid query
+                "error": "Search failed",
             },
-            "web_search": {"success": "Found {count} web search results", "error": "Web search failed"},
-            "web_read": {"success": "Successfully read {count} web pages", "error": "Failed to read web pages"},
-            "unknown": {"success": "Tool call completed", "error": "Tool call failed"},
+            "web_search": {"success": "Found {count} web results", "error": "Web search failed"},
+            "web_read": {"success": "Successfully read {count} pages", "error": "Failed to read web pages"},
+            "unknown": {"success": "Operation completed", "error": "Operation failed"},
         },
-        # Search type names
+        # Search type names for display
         "search_types": {
-            "vector_search": "Vector Search",
-            "graph_search": "Graph Search",
-            "fulltext_search": "Full-text Search",
+            "vector_search": "vector search",
+            "graph_search": "graph search",
+            "fulltext_search": "full-text search",
         },
-        # Detailed descriptions for specific tool results
+        # Detailed information for tool results
         "details": {
             "collections_found": "Collections: {collection_names}",
-            "search_results_detail": "{vector_count} vector, {graph_count} graph, {fulltext_count} fulltext results",
+            "search_results_detail": "{vector_count} vector, {graph_count} graph, {fulltext_count} full-text",
             "web_pages_read": "Pages: {page_titles}",
             "web_search_sources": "Sources: {domains}",
         },
     },
     "zh-CN": {
-        # Tool names
+        # Tool display names
         "tool_names": {
             "list_collections": "获取集合列表",
             "search_collection": "搜索集合",
@@ -65,38 +67,38 @@ TOOL_USE_EVENT_MESSAGES = {
             "web_read": "读取网页",
             "unknown": "工具调用",
         },
-        # Tool request descriptions
+        # Tool request descriptions (what the tool is doing)
         "requests": {
-            "list_collections": "获取所有集合列表",
-            "search_collection": "在知识库中搜索「{query}」，使用 {search_types}，返回 {topk} 条结果",
-            "web_search": "搜索「{query}」，返回 {max_results} 条结果",
-            "web_read": "读取 {count} 个网页内容",
+            "list_collections": "获取所有可用集合",
+            "search_collection": "使用{search_types}搜索「{query}」，返回前 {topk} 条结果",
+            "web_search": "在网上搜索「{query}」，返回 {max_results} 条结果",
+            "web_read": "读取 {count} 个网页的内容",
         },
-        # Tool response summaries
+        # Tool response summaries (what the tool accomplished)
         "responses": {
             "list_collections": {"success": "找到 {count} 个集合", "error": "获取集合失败"},
             "search_collection": {
-                "success": "搜索 '{query}' 找到 {count} 条结果",
-                "searching": "在集合中搜索「{query}」",
+                "success": "搜索「{query}」找到 {count} 条结果",
+                "searching": "已搜索「{query}」",  # Used when 0 results but valid query
                 "error": "搜索失败",
             },
             "web_search": {"success": "网页搜索找到 {count} 条结果", "error": "网页搜索失败"},
             "web_read": {"success": "成功读取 {count} 个网页", "error": "读取网页失败"},
-            "unknown": {"success": "工具调用成功", "error": "工具调用失败"},
+            "unknown": {"success": "操作完成", "error": "操作失败"},
         },
-        # Search type names
+        # Search type names for display
         "search_types": {"vector_search": "向量搜索", "graph_search": "图搜索", "fulltext_search": "全文搜索"},
-        # Detailed descriptions for specific tool results
+        # Detailed information for tool results
         "details": {
             "collections_found": "集合：{collection_names}",
-            "search_results_detail": "{vector_count} 个向量，{graph_count} 个图谱，{fulltext_count} 个全文结果",
+            "search_results_detail": "{vector_count} 个向量，{graph_count} 个图谱，{fulltext_count} 个全文",
             "web_pages_read": "页面：{page_titles}",
             "web_search_sources": "来源：{domains}",
         },
     },
 }
 
-# Error message translations
+# Error message translations for various agent errors
 ERROR_MESSAGES = {
     "en-US": {
         "invalid_json_format": "Invalid message format. Please try again or refresh the page.",

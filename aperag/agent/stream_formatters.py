@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Stream response formatters for agent chat."""
+"""Stream message formatters for agent responses."""
 
-import uuid
 from typing import Any, Dict, List
 
 from aperag.utils.utils import now_unix_milliseconds
@@ -30,8 +29,34 @@ from .response_types import (
 )
 
 
+def format_i18n_error(error_key: str, language: str = "en-US", **kwargs) -> AgentErrorResponse:
+    """Format internationalized error message."""
+    messages = ERROR_MESSAGES.get(language, ERROR_MESSAGES["en-US"])
+
+    if error_key in messages:
+        error_message = messages[error_key]
+        # If the message contains placeholders, format it with kwargs
+        if kwargs:
+            try:
+                error_message = error_message.format(**kwargs)
+            except KeyError:
+                # If formatting fails, just use the base message
+                pass
+    else:
+        # Fallback to unknown error if key doesn't exist
+        error_message = messages.get("unknown_error", "An error occurred")
+
+    return AgentErrorResponse(
+        type="error",
+        id="error",
+        data=error_message,
+        timestamp=now_unix_milliseconds(),
+    )
+
+
+# Backward compatibility functions
 def format_stream_start(msg_id: str) -> AgentStartResponse:
-    """格式化流式开始事件"""
+    """Format stream start event - backward compatibility"""
     return AgentStartResponse(
         type="start",
         id=msg_id,
@@ -40,7 +65,7 @@ def format_stream_start(msg_id: str) -> AgentStartResponse:
 
 
 def format_stream_content(msg_id: str, content: str) -> AgentMessageResponse:
-    """格式化流式内容事件"""
+    """Format stream content event - backward compatibility"""
     return AgentMessageResponse(
         type="message",
         id=msg_id,
@@ -52,7 +77,7 @@ def format_stream_content(msg_id: str, content: str) -> AgentMessageResponse:
 def format_stream_end(
     msg_id: str, references: List[Dict[str, Any]] = None, urls: List[str] = None
 ) -> AgentStopResponse:
-    """格式化流式结束事件"""
+    """Format stream end event - backward compatibility"""
     if references is None:
         references = []
     if urls is None:
@@ -67,43 +92,8 @@ def format_stream_end(
     )
 
 
-def format_i18n_error(error_key: str, language: str = "en-US", **kwargs) -> AgentErrorResponse:
-    """
-    Format an internationalized error response.
-
-    Args:
-        error_key: The error message key
-        language: Language code (en-US, zh-CN)
-        **kwargs: Format parameters for the error message
-
-    Returns:
-        Formatted error response
-    """
-    # Fallback to en-US if language not supported
-    if language not in ERROR_MESSAGES:
-        language = "en-US"
-
-    # Get the message template
-    messages = ERROR_MESSAGES[language]
-    message_template = messages.get(error_key, messages.get("unknown_error", "Unknown error: {error}"))
-
-    # Format the message with provided parameters
-    try:
-        error_message = message_template.format(**kwargs)
-    except KeyError:
-        # If formatting fails, return the template with available info
-        error_message = message_template
-
-    return AgentErrorResponse(
-        type="error",
-        id=str(uuid.uuid4()),
-        data=error_message,
-        timestamp=now_unix_milliseconds(),
-    )
-
-
 def format_thinking(msg_id: str, content: str) -> AgentThinkingResponse:
-    """格式化思考步骤事件"""
+    """Format thinking step event - backward compatibility"""
     return AgentThinkingResponse(
         type="thinking",
         id=msg_id,
@@ -113,7 +103,7 @@ def format_thinking(msg_id: str, content: str) -> AgentThinkingResponse:
 
 
 def format_stream_tool_call(msg_id: str, tool_name: str, arguments: Dict[str, Any]) -> AgentToolCallStartResponse:
-    """Formats a tool call start event for the stream."""
+    """Format tool call start event - backward compatibility"""
     return AgentToolCallStartResponse(
         type="tool_call_start",
         id=msg_id,
@@ -122,3 +112,44 @@ def format_stream_tool_call(msg_id: str, tool_name: str, arguments: Dict[str, An
         arguments=arguments,
         timestamp=now_unix_milliseconds(),
     )
+
+
+# New unified formatter functions
+def format_agent_start_message(trace_id: str, language: str = "en-US") -> Dict[str, Any]:
+    """Format agent start message."""
+    return {
+        "type": "start",
+        "id": trace_id,
+        "timestamp": now_unix_milliseconds(),
+    }
+
+
+def format_agent_stop_message(trace_id: str, references: list = None, urls: list = None) -> Dict[str, Any]:
+    """Format agent stop message with references."""
+    return {
+        "type": "stop",
+        "id": trace_id,
+        "data": references or [],
+        "urls": urls or [],
+        "timestamp": now_unix_milliseconds(),
+    }
+
+
+def format_agent_thinking_message(trace_id: str, thinking_content: str) -> Dict[str, Any]:
+    """Format agent thinking message."""
+    return {
+        "type": "thinking",
+        "id": trace_id,
+        "data": thinking_content,
+        "timestamp": now_unix_milliseconds(),
+    }
+
+
+def format_agent_message(trace_id: str, content: str) -> Dict[str, Any]:
+    """Format regular agent message."""
+    return {
+        "type": "message",
+        "id": trace_id,
+        "data": content,
+        "timestamp": now_unix_milliseconds(),
+    }
