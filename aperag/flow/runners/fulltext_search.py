@@ -32,6 +32,7 @@ class FulltextSearchInput(BaseModel):
     query: str = Field(..., description="User's question or query")
     top_k: int = Field(5, description="Number of top results to return")
     collection_ids: Optional[List[str]] = Field(default_factory=list, description="Collection IDs")
+    keywords: Optional[List[str]] = Field(default_factory=list, description="Custom keywords to use for fulltext search")
 
 
 class FulltextSearchOutput(BaseModel):
@@ -55,7 +56,7 @@ class FulltextSearchService:
         self.repository = repository
 
     async def execute_fulltext_search(
-        self, user, query: str, top_k: int, collection_ids: List[str]
+        self, user, query: str, top_k: int, collection_ids: List[str], keywords: List[str]
     ) -> List[DocumentWithScore]:
         """Execute fulltext search with given parameters"""
         collection = None
@@ -68,15 +69,18 @@ class FulltextSearchService:
         from aperag.index.fulltext_index import fulltext_indexer
 
         index = generate_vector_db_collection_name(collection.id)
-        async with IKExtractor(
-            {
-                "index_name": index,
-                "es_host": settings.es_host,
-                "es_timeout": settings.es_timeout,
-                "es_max_retries": settings.es_max_retries,
-            }
-        ) as extractor:
-            keywords = await extractor.extract(query)
+        if not keywords:
+            async with IKExtractor(
+                {
+                    "index_name": index,
+                    "es_host": settings.es_host,
+                    "es_timeout": settings.es_timeout,
+                    "es_max_retries": settings.es_max_retries,
+                }
+            ) as extractor:
+                keywords = await extractor.extract(query)
+        
+        keywords = list(set(keywords))
 
         # Find the related documents using keywords
         docs = await fulltext_indexer.search_document(index, keywords, top_k * 3)
@@ -104,7 +108,7 @@ class FulltextSearchNodeRunner(BaseNodeRunner):
         Returns (output, system_output)
         """
         docs = await self.service.execute_fulltext_search(
-            user=si.user, query=si.query, top_k=ui.top_k, collection_ids=ui.collection_ids or []
+            user=si.user, query=si.query, top_k=ui.top_k, collection_ids=ui.collection_ids or [], keywords=ui.keywords,
         )
 
         return FulltextSearchOutput(docs=docs), {}

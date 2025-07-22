@@ -320,6 +320,11 @@ fulltextSearchParams:
     topk:
       type: integer
       description: Top K results
+    keywords:
+      type: array
+      items:
+        type: string
+      description: Custom keywords to use for fulltext search
 
 graphSearchParams:
   type: object

@@ -70,12 +70,14 @@ async def search_collection(
     use_fulltext_index: bool = True,
     use_graph_index: bool = True,
     topk: int = 5,
+    query_keywords: list[str] = None,
 ) -> Dict[str, Any]:
     """Search for knowledge in a specific collection using vector, full-text, and/or graph search.
 
     Args:
         collection_id: The ID of the collection to search in
         query: The search query
+        query_keywords: The keywords extracted from query to use for fulltext search (optional), only effective when use_fulltext_index is True.
         use_vector_index: Whether to use vector/semantic search (default: True)
         use_fulltext_index: Whether to use full-text keyword search (default: True)
         use_graph_index: Whether to use knowledge graph search (default: True)
@@ -98,7 +100,7 @@ async def search_collection(
             search_data["vector_search"] = {"topk": topk, "similarity": 0.2}
 
         if use_fulltext_index:
-            search_data["fulltext_search"] = {"topk": topk}
+            search_data["fulltext_search"] = {"topk": topk, "keywords": query_keywords}
 
         if use_graph_index:
             search_data["graph_search"] = {"topk": topk}

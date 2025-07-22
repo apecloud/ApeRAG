@@ -215,8 +215,9 @@ class CollectionService:
                 type="fulltext_search",
                 input_values={
                     "query": query,
-                    "top_k": data.vector_search.topk if data.vector_search else 5,
+                    "top_k": data.fulltext_search.topk if data.fulltext_search else 5,
                     "collection_ids": [collection_id],
+                    "keywords": data.fulltext_search.keywords,
                 },
             )
             end_node_values["fulltext_search_docs"] = "{{ nodes.fulltext_search.output.docs }}"
