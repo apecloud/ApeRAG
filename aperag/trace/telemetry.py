@@ -116,8 +116,8 @@ def init_telemetry(
             else:
                 logger.warning("Jaeger endpoint provided but Jaeger exporter not available")
 
-        # Add console exporter if enabled or no other exporters
-        if enable_console or exporters_added == 0:
+        # Add console exporter only if explicitly enabled
+        if enable_console:
             try:
                 console_exporter = ConsoleSpanExporter()
                 console_processor = BatchSpanProcessor(console_exporter)
@@ -129,7 +129,7 @@ def init_telemetry(
 
         # Check if any exporters were configured
         if exporters_added == 0:
-            logger.error("No trace exporters could be configured")
+            logger.warning("No trace exporters configured - tracing will be disabled")
             return False
 
         # Set the global tracer provider

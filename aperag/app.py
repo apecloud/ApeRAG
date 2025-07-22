@@ -20,7 +20,7 @@ from aperag.trace import init_tracing
 init_tracing(
     service_name="aperag",
     service_version="1.0.0",
-    enable_console=True,  # Enable for debugging
+    enable_console=False,  # Disable console output to reduce noise
     enable_fastapi=True,
     enable_sqlalchemy=True,
     enable_mcp=True,
