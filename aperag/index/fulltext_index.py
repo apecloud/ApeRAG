@@ -449,7 +449,9 @@ Do not include any other text or explanation, just the JSON object."""
                         filtered_keywords = [str(k).strip() for k in keywords if k and str(k).strip()]
                         return filtered_keywords[:10]  # Limit to 10 keywords
             except json.JSONDecodeError as e:
-                logger.warning(f"JSON decode error: {str(e)}, response: {json_str[:200]}")
+                logger.warning(f"JSON decode error: {str(e)}, response: {json_str}")
+        else:
+            logger.warning(f"JSON object not found in response: {response}")
 
         return []
 
