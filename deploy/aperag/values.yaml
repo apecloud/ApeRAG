@@ -192,6 +192,10 @@ api:
     CACHE_ENABLED: "True"
     CACHE_TTL: "86400"
 
+    # LLM Keyword Extraction
+    LLM_KEYWORD_EXTRACTION_PROVIDER: "openrouter"
+    LLM_KEYWORD_EXTRACTION_MODEL: "google/gemini-2.5-flash"
+
   livenessProbe:
     httpGet:
       path: /health

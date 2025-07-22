@@ -295,7 +295,7 @@ class KeywordExtractor:
         raise NotImplementedError
 
 
-class IKExtractor(KeywordExtractor):
+class IKKeywordExtractor(KeywordExtractor):
     """Extract keywords from text using IK analyzer"""
 
     def __init__(self, ctx: Dict[str, Any]):
@@ -376,8 +376,7 @@ class LLMKeywordExtractor(KeywordExtractor):
             if not user_id:
                 logger.warning("User ID not available in context for LLM keyword extraction")
                 return None
-
-            api_key = db_ops.query_provider_api_key(settings.llm_keyword_extraction_provider, user_id)
+            api_key = db_ops.query_provider_api_key(settings.llm_keyword_extraction_provider, user_id=user_id, need_public=True)
             if not api_key:
                 logger.warning(f"API key not found for provider '{settings.llm_keyword_extraction_provider}'")
                 return None
@@ -502,7 +501,7 @@ async def extract_keywords(text: str, ctx: Dict[str, Any]) -> List[str]:
         extractors.append(("LLM", LLMKeywordExtractor))
 
     # Always add IK extractor as fallback
-    extractors.append(("IK", IKExtractor))
+    extractors.append(("IK", IKKeywordExtractor))
 
     # Try extractors in order
     for extractor_name, extractor_class in extractors:

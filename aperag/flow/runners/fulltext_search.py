@@ -76,7 +76,7 @@ class FulltextSearchService:
                 "es_host": settings.es_host,
                 "es_timeout": settings.es_timeout,
                 "es_max_retries": settings.es_max_retries,
-                "user_id": str(user.id) if user else None,
+                "user_id": str(user) if user else None,
             }
 
             # Use extract_keywords function with fallback strategy
