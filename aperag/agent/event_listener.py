@@ -33,8 +33,6 @@ logger = logging.getLogger(__name__)
 
 
 class UniversalEventListener(EventListener):
-    """通用事件监听器，支持多种事件类型的监听和处理"""
-
     def __init__(
         self,
         message_queue: AgentMessageQueue,
@@ -49,11 +47,14 @@ class UniversalEventListener(EventListener):
 
     @handle_agent_error("event_handling", reraise=False)
     async def handle_event(self, event: Event):
-        """处理各种类型的事件"""
-        if not event.message:
+        if not event or not event.message:
+            return
+        if self.trace_id != event.trace_id:
+            logger.warning(
+                f"Event trace_id {event.trace_id} does not match listener trace_id {self.trace_id}, ignoring event."
+            )
             return
 
-        # 根据消息类型分发到不同的处理函数
         if event.message == "send_request: request=":
             await self._handle_tool_request(event)
         elif event.message == "send_request: response=":
@@ -63,7 +64,6 @@ class UniversalEventListener(EventListener):
 
     @handle_agent_error("tool_request_handling", reraise=False)
     async def _handle_tool_request(self, event: Event):
-        """处理工具调用请求事件"""
         if not event.data or not isinstance(event.data, dict):
             raise EventListenerError(
                 "tool_request", "Invalid event data structure", event_data={"has_data": bool(event.data)}
@@ -93,7 +93,6 @@ class UniversalEventListener(EventListener):
 
     @handle_agent_error("tool_response_handling", reraise=False)
     async def _handle_tool_response(self, event: Event):
-        """处理工具调用响应事件"""
         if not event.data or not isinstance(event.data, dict):
             raise EventListenerError(
                 "tool_response", "Invalid event data structure", event_data={"has_data": bool(event.data)}
@@ -122,6 +121,4 @@ class UniversalEventListener(EventListener):
         logger.debug(f"Tool response captured for message {self.message_id}: {interface_type}")
 
     async def _handle_generic_event(self, event: Event):
-        """处理其他通用事件"""
-        # 可以根据需要扩展处理其他类型的事件
         pass
