@@ -402,8 +402,7 @@ class LLMKeywordExtractor(KeywordExtractor):
         prompt = f"""Extract the most important keywords from the following text. Focus on:
 1. Nouns, verbs, and adjectives that capture the main concepts
 2. Remove stop words and meaningless terms
-3. Extract 5-10 most relevant keywords
-4. Keywords should be in the same language as the input text
+3. Keywords should be in the same language as the input text
 
 Text: {text}
 
