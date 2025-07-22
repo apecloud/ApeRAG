@@ -17,6 +17,7 @@
 import json
 from typing import Any, Dict, Optional, Tuple
 
+from aperag.schema.view_models import CollectionList, SearchResult, WebReadResponse, WebSearchResponse
 from aperag.utils.utils import now_unix_milliseconds
 
 from .i18n import TOOL_USE_EVENT_MESSAGES
@@ -59,320 +60,342 @@ def get_i18n_messages(language: str) -> dict:
 class ToolResultFormatter:
     """Unified tool result formatter with simplified logic"""
 
-    def __init__(self, language: str = "en-US"):
+    def __init__(self, language: str = "en-US", context: Optional[Dict[str, Any]] = None):
         self.language = language
         self.messages = get_i18n_messages(language)
+        self.context = context or {}  # Store context like collection info
+
+    def set_context(self, context: Dict[str, Any]):
+        """Update context information"""
+        self.context.update(context)
 
     def detect_and_parse_result(self, content: Any) -> Tuple[str, Optional[Any]]:
         """Detect interface type and parse typed result"""
         if not content or not isinstance(content, dict):
             return "unknown", None
 
-        # Try to parse different result types
-        parsers = [
-            ("search_collection", self._parse_search_result),
-            ("list_collections", self._parse_collection_list),
-            ("web_search", self._parse_web_search),
-            ("web_read", self._parse_web_read),
-        ]
+        # Try to parse each type with clear criteria
+        try:
+            # SearchResult: has 'query' field
+            if "query" in content:
+                if "results" in content:
+                    # WebSearchResponse: has both 'query' and 'results'
+                    return "web_search", WebSearchResponse.model_validate(content)
+                else:
+                    # SearchResult: has 'query' but not 'results' (has 'items')
+                    return "search_collection", SearchResult.model_validate(content)
 
-        for interface_type, parser in parsers:
-            try:
-                result = parser(content)
-                if result:
-                    return interface_type, result
-            except Exception:
-                continue
+            # CollectionList: has 'items' but no 'query'
+            elif "items" in content:
+                return "list_collections", CollectionList.model_validate(content)
+
+            # WebReadResponse: has 'results' but no 'query', and has 'successful' field
+            elif "results" in content and "successful" in content:
+                return "web_read", WebReadResponse.model_validate(content)
+
+        except Exception:
+            pass
 
         return "unknown", None
 
-    def _parse_search_result(self, content: dict):
-        """Parse search result"""
-        from aperag.schema.view_models import SearchResult
-
-        return SearchResult.model_validate(content)
-
-    def _parse_collection_list(self, content: dict):
-        """Parse collection list"""
-        from aperag.schema.view_models import CollectionList
-
-        return CollectionList.model_validate(content)
-
-    def _parse_web_search(self, content: dict):
-        """Parse web search result"""
-        from aperag.schema.view_models import WebSearchResponse
-
-        return WebSearchResponse.model_validate(content)
-
-    def _parse_web_read(self, content: dict):
-        """Parse web read result"""
-        from aperag.schema.view_models import WebReadResponse
-
-        return WebReadResponse.model_validate(content)
-
     def should_display_result(self, interface_type: str, typed_result: Any, content: Any) -> bool:
-        """Simplified logic to determine if result should be displayed"""
-        # Always display search actions even with 0 results if query is valid
+        """Determine if result should be displayed"""
         if interface_type == "search_collection":
-            if typed_result:
-                from aperag.schema.view_models import SearchResult
+            result: SearchResult = typed_result
+            return bool(result.query and result.query.strip())
 
-                if isinstance(typed_result, SearchResult):
-                    return bool(typed_result.query and typed_result.query.strip())
-            elif isinstance(content, dict):
-                query = content.get("query", "")
-                return bool(query and query.strip())
-
-        # For other types, display if we have meaningful results
-        return self._has_meaningful_results(interface_type, typed_result, content)
-
-    def _has_meaningful_results(self, interface_type: str, typed_result: Any, content: Any) -> bool:
-        """Check if result has meaningful content to display"""
-        if interface_type == "list_collections":
-            if typed_result:
-                from aperag.schema.view_models import CollectionList
-
-                if isinstance(typed_result, CollectionList):
-                    return bool(typed_result.items)
-            elif isinstance(content, dict):
-                return bool(content.get("items"))
-
-        elif interface_type == "web_search":
-            if typed_result:
-                from aperag.schema.view_models import WebSearchResponse
-
-                if isinstance(typed_result, WebSearchResponse):
-                    return bool(typed_result.results)
-            elif isinstance(content, dict):
-                return bool(content.get("results"))
-
-        elif interface_type == "web_read":
-            if typed_result:
-                from aperag.schema.view_models import WebReadResponse
-
-                if isinstance(typed_result, WebReadResponse):
-                    return typed_result.successful > 0
-            elif isinstance(content, dict):
-                return content.get("successful", 0) > 0
-
-        return True
-
-    def format_tool_request(self, tool_name: str, arguments: dict) -> str:
-        """Format tool request display"""
-        display_name = self.messages["tool_names"].get(tool_name, tool_name)
-        details = self._format_request_details(tool_name, arguments)
-        return f"{display_name}\n{details}"
-
-    def _format_request_details(self, tool_name: str, arguments: dict) -> str:
-        """Format tool request details"""
-        if tool_name == "list_collections":
-            return self.messages["requests"]["list_collections"]
-
-        elif tool_name == "search_collection":
-            query = arguments.get("query", "")
-            use_vector = arguments.get("use_vector_index", True)
-            use_graph = arguments.get("use_graph_index", True)
-            use_fulltext = arguments.get("use_fulltext_index", False)
-            topk = arguments.get("topk", 5)
-
-            search_types = []
-            if use_vector:
-                search_types.append(self.messages["search_types"]["vector_search"])
-            if use_graph:
-                search_types.append(self.messages["search_types"]["graph_search"])
-            if use_fulltext:
-                search_types.append(self.messages["search_types"]["fulltext_search"])
-
-            return self.messages["requests"]["search_collection"].format(
-                query=query, search_types="/".join(search_types), topk=topk
-            )
-
-        elif tool_name == "web_search":
-            query = arguments.get("query", "")
-            max_results = arguments.get("max_results", 5)
-            return self.messages["requests"]["web_search"].format(query=query, max_results=max_results)
-
-        elif tool_name == "web_read":
-            url_list = arguments.get("url_list", [])
-            return self.messages["requests"]["web_read"].format(count=len(url_list))
-
-        else:
-            return f"Arguments: {json.dumps(arguments, ensure_ascii=False)}"
+        # For other types, always display if we have a valid result
+        return typed_result is not None
 
     def format_tool_response(self, interface_type: str, typed_result: Any, content: Any, is_error: bool = False) -> str:
-        """Format complete tool response with summary and details"""
+        """Format tool response using type-specific formatters"""
         if is_error:
             return self._format_error_response(interface_type)
 
-        display_name = self.messages["tool_names"].get(interface_type, interface_type)
-        summary = self._format_response_summary(interface_type, typed_result, content)
-        details = self._format_response_details(interface_type, typed_result, content)
+        # Route to type-specific formatters
+        if interface_type == "search_collection":
+            return self._format_search_collection(typed_result)
+        elif interface_type == "list_collections":
+            return self._format_list_collections(typed_result)
+        elif interface_type == "web_search":
+            return self._format_web_search(typed_result)
+        elif interface_type == "web_read":
+            return self._format_web_read(typed_result)
 
-        result = f"{display_name}\n{summary}"
-        if details:
-            result += f"\n{details}"
-        return result
+        # Fallback for unknown types
+        return self.messages["tool_names"].get(interface_type, interface_type)
+
+    def _format_search_collection(self, result: SearchResult) -> str:
+        """Format search collection result"""
+        collection_name = self._extract_collection_name()
+        query = result.query or ""
+
+        # Count results by type
+        vector_count = sum(1 for item in (result.items or []) if item.recall_type == "vector_search")
+        graph_count = sum(1 for item in (result.items or []) if item.recall_type == "graph_search")
+        fulltext_count = sum(1 for item in (result.items or []) if item.recall_type == "fulltext_search")
+        total_count = len(result.items or [])
+
+        # Determine search types used (infer from results)
+        search_types = []
+        if graph_count > 0:
+            search_types.append(self.messages["search_types"]["graph_search"])
+        if vector_count > 0:
+            search_types.append(self.messages["search_types"]["vector_search"])
+        if fulltext_count > 0:
+            search_types.append(self.messages["search_types"]["fulltext_search"])
+
+        # Default if no results
+        if not search_types:
+            if self.language == "zh-CN":
+                search_types = ["向量搜索、图谱搜索"]
+            else:
+                search_types = ["vector and graph search"]
+
+        search_methods = ", ".join(search_types)
+
+        # Part 1: Search execution
+        if self.language == "zh-CN":
+            execution = f"**🔍 搜索执行**\n\n使用{search_methods}在{collection_name}中查找「{query}」"
+        else:
+            execution = f'**🔍 Search Execution**\n\nUsing {search_methods} to find "{query}" in {collection_name}'
+
+        # Part 2: Results (only if has results)
+        if total_count == 0:
+            return execution
+
+        if self.language == "zh-CN":
+            results = f"**📊 搜索结果**\n\n找到 {total_count} 条相关结果"
+        else:
+            results = f"**📊 Search Results**\n\nFound {total_count} relevant results"
+
+        # Add breakdown of result types (only non-zero)
+        breakdown_parts = []
+        if graph_count > 0:
+            if self.language == "zh-CN":
+                breakdown_parts.append(f"图谱搜索：{graph_count} 条")
+            else:
+                breakdown_parts.append(f"Graph: {graph_count}")
+        if vector_count > 0:
+            if self.language == "zh-CN":
+                breakdown_parts.append(f"向量搜索：{vector_count} 条")
+            else:
+                breakdown_parts.append(f"Vector: {vector_count}")
+        if fulltext_count > 0:
+            if self.language == "zh-CN":
+                breakdown_parts.append(f"全文搜索：{fulltext_count} 条")
+            else:
+                breakdown_parts.append(f"Full-text: {fulltext_count}")
+
+        if breakdown_parts:
+            results += " • " + " • ".join(breakdown_parts)
+
+        return f"{execution}\n\n{results}"
+
+    def _format_list_collections(self, result: CollectionList) -> str:
+        """Format list collections result"""
+        count = len(result.items or [])
+
+        # Part 1: Action execution
+        if self.language == "zh-CN":
+            execution = "**📚 操作执行**\n\n获取所有可用的知识库集合"
+        else:
+            execution = "**📚 Action Execution**\n\nRetrieving all available knowledge base collections"
+
+        # Part 2: Results (only if has collections)
+        if count == 0:
+            return execution
+
+        if self.language == "zh-CN":
+            results = f"**📊 操作结果**\n\n找到 {count} 个知识库集合"
+        else:
+            results = f"**📊 Action Results**\n\nFound {count} knowledge base collections"
+
+        # Add collection names (first 3)
+        if result.items:
+            collection_names = [item.title or item.id or "Unknown" for item in result.items[:3]]
+            if len(result.items) > 3:
+                collection_names.append("...")
+
+            if self.language == "zh-CN":
+                results += f" • 集合：{', '.join(collection_names)}"
+            else:
+                results += f" • Collections: {', '.join(collection_names)}"
+
+        return f"{execution}\n\n{results}"
+
+    def _format_web_search(self, result: WebSearchResponse) -> str:
+        """Format web search result"""
+        query = result.query or ""
+        count = len(result.results or [])
+
+        # Part 1: Search execution
+        if self.language == "zh-CN":
+            execution = f"**🌐 搜索执行**\n\n在互联网上搜索「{query}」"
+        else:
+            execution = f'**🌐 Search Execution**\n\nSearching the web for "{query}"'
+
+        # Part 2: Results (only if has results)
+        if count == 0:
+            return execution
+
+        if self.language == "zh-CN":
+            results = f"**📊 搜索结果**\n\n找到 {count} 个网页结果"
+        else:
+            results = f"**📊 Search Results**\n\nFound {count} web results"
+
+        # Add domains (first 3)
+        if result.results:
+            domains = list(set([item.domain for item in result.results[:3]]))
+            if self.language == "zh-CN":
+                results += f" • 来源：{', '.join(domains)}"
+            else:
+                results += f" • Sources: {', '.join(domains)}"
+
+        return f"{execution}\n\n{results}"
+
+    def _format_web_read(self, result: WebReadResponse) -> str:
+        """Format web read result"""
+        total_count = result.total_urls or 0
+        success_count = result.successful or 0
+
+        # Part 1: Action execution
+        if self.language == "zh-CN":
+            execution = f"**📖 操作执行**\n\n读取 {total_count} 个网页的详细内容"
+        else:
+            execution = f"**📖 Action Execution**\n\nReading detailed content from {total_count} web pages"
+
+        # Part 2: Results (only if has successful reads)
+        if success_count == 0:
+            return execution
+
+        if self.language == "zh-CN":
+            results = f"**📊 操作结果**\n\n成功读取 {success_count} 个网页"
+        else:
+            results = f"**📊 Action Results**\n\nSuccessfully read {success_count} web pages"
+
+        # Add page titles (first 3 successful ones)
+        if result.results:
+            successful_results = [item for item in result.results if item.status == "success"]
+            page_titles = [item.title or item.url for item in successful_results[:3]]
+            if len(successful_results) > 3:
+                page_titles.append("...")
+
+            if page_titles:
+                if self.language == "zh-CN":
+                    results += f" • 页面：{', '.join(page_titles)}"
+                else:
+                    results += f" • Pages: {', '.join(page_titles)}"
+
+        return f"{execution}\n\n{results}"
 
     def _format_error_response(self, interface_type: str) -> str:
         """Format error response"""
         display_name = self.messages["tool_names"].get(interface_type, interface_type)
         error_msg = self.messages["responses"].get(interface_type, self.messages["responses"]["unknown"])["error"]
-        return f"{display_name}\n{error_msg}"
+        return f"{display_name}\n\n{error_msg}"
 
-    def _format_response_summary(self, interface_type: str, typed_result: Any, content: Any) -> str:
-        """Format response summary"""
-        response_config = self.messages["responses"].get(interface_type, self.messages["responses"]["unknown"])
+    def _extract_collection_name(self, collection_id: Optional[str] = None) -> str:
+        """Extract collection name from context or use default"""
+        # Try to get from context first (passed by caller)
+        if "current_collection" in self.context:
+            collection = self.context["current_collection"]
+            if isinstance(collection, dict):
+                return collection.get("title") or collection.get("name") or collection.get("id", "当前知识库")
+            elif hasattr(collection, "title") and collection.title:
+                return collection.title
+            elif hasattr(collection, "name") and collection.name:
+                return collection.name
+            elif hasattr(collection, "id") and collection.id:
+                return collection.id
 
-        if interface_type == "list_collections":
-            count = self._get_collection_count(typed_result, content)
-            return response_config["success"].format(count=count)
+        # Try to find by collection_id in collections list
+        if collection_id and "collections" in self.context:
+            collections = self.context["collections"]
+            if isinstance(collections, list):
+                for collection in collections:
+                    if isinstance(collection, dict):
+                        if collection.get("id") == collection_id:
+                            return collection.get("title") or collection.get("name") or collection_id
+                    elif hasattr(collection, "id") and collection.id == collection_id:
+                        return getattr(collection, "title", None) or getattr(collection, "name", None) or collection_id
 
-        elif interface_type == "search_collection":
-            count, query = self._get_search_info(typed_result, content)
-            # Show search action for valid queries even with 0 results
-            if count == 0 and query.strip():
-                return response_config["searching"].format(query=query)
-            else:
-                return response_config["success"].format(count=count, query=query)
+        # Try to get collection_id from arguments (stored in context)
+        if "tool_arguments" in self.context:
+            args = self.context["tool_arguments"]
+            if isinstance(args, dict) and "collection_id" in args:
+                collection_id = args["collection_id"]
+                # Try to find this collection in the context
+                if "collections" in self.context:
+                    collections = self.context["collections"]
+                    if isinstance(collections, list):
+                        for collection in collections:
+                            if isinstance(collection, dict) and collection.get("id") == collection_id:
+                                return collection.get("title") or collection.get("name") or collection_id
+                            elif hasattr(collection, "id") and collection.id == collection_id:
+                                return (
+                                    getattr(collection, "title", None)
+                                    or getattr(collection, "name", None)
+                                    or collection_id
+                                )
+                # If not found in collections list, use the ID itself
+                return collection_id
 
-        elif interface_type == "web_search":
-            count = self._get_web_search_count(typed_result, content)
-            return response_config["success"].format(count=count)
+        # Fallback to default
+        if self.language == "zh-CN":
+            return "当前知识库"
+        else:
+            return "current knowledge base"
 
-        elif interface_type == "web_read":
-            count = self._get_web_read_count(typed_result, content)
-            return response_config["success"].format(count=count)
 
-        return response_config["success"]
+# Legacy functions for backward compatibility
+def detect_interface_type(structured_content):
+    """Legacy function - detect interface type and return typed result"""
+    formatter = ToolResultFormatter()
+    interface_type, typed_result = formatter.detect_and_parse_result(structured_content)
+    return interface_type, typed_result
 
-    def _format_response_details(self, interface_type: str, typed_result: Any, content: Any) -> str:
-        """Format detailed response information"""
-        try:
-            if interface_type == "list_collections" and self._get_collection_count(typed_result, content) > 0:
-                collection_names = self._get_collection_names(typed_result, content)
-                if collection_names:
-                    return self.messages["details"]["collections_found"].format(
-                        collection_names=", ".join(collection_names)
-                    )
 
-            elif interface_type == "search_collection":
-                detail_info = self._get_search_detail_info(typed_result, content)
-                if detail_info:
-                    return self.messages["details"]["search_results_detail"].format(**detail_info)
+def format_tool_request_display(tool_name: str, arguments: dict, language: str = "en-US") -> str:
+    """Legacy function - format tool request display"""
+    messages = get_i18n_messages(language)
 
-            elif interface_type == "web_search":
-                domains = self._get_web_search_domains(typed_result, content)
-                if domains:
-                    return self.messages["details"]["web_search_sources"].format(domains=", ".join(domains))
+    display_name = messages["tool_names"].get(tool_name, tool_name)
 
-            elif interface_type == "web_read":
-                page_titles = self._get_web_read_titles(typed_result, content)
-                if page_titles:
-                    return self.messages["details"]["web_pages_read"].format(page_titles=", ".join(page_titles))
+    if tool_name == "list_collections":
+        details = messages["requests"]["list_collections"]
+    elif tool_name == "search_collection":
+        query = arguments.get("query", "")
+        use_vector = arguments.get("use_vector_index", True)
+        use_graph = arguments.get("use_graph_index", True)
+        use_fulltext = arguments.get("use_fulltext_index", False)
+        topk = arguments.get("topk", 5)
 
-        except Exception:
-            pass
+        search_types = []
+        if use_vector:
+            search_types.append(messages["search_types"]["vector_search"])
+        if use_graph:
+            search_types.append(messages["search_types"]["graph_search"])
+        if use_fulltext:
+            search_types.append(messages["search_types"]["fulltext_search"])
 
-        return ""
+        details = messages["requests"]["search_collection"].format(
+            query=query, search_types="/".join(search_types), topk=topk
+        )
+    elif tool_name == "web_search":
+        query = arguments.get("query", "")
+        max_results = arguments.get("max_results", 5)
+        details = messages["requests"]["web_search"].format(query=query, max_results=max_results)
+    elif tool_name == "web_read":
+        url_list = arguments.get("url_list", [])
+        details = messages["requests"]["web_read"].format(count=len(url_list))
+    else:
+        details = f"Arguments: {json.dumps(arguments, ensure_ascii=False)}"
 
-    # Helper methods for extracting information
-    def _get_collection_count(self, typed_result: Any, content: Any) -> int:
-        """Get collection count"""
-        if typed_result:
-            from aperag.schema.view_models import CollectionList
+    return f"{display_name}\n\n{details}"
 
-            if isinstance(typed_result, CollectionList):
-                return len(typed_result.items) if typed_result.items else 0
-        elif isinstance(content, dict):
-            items = content.get("items", [])
-            return len(items) if items else 0
-        return 0
 
-    def _get_collection_names(self, typed_result: Any, content: Any) -> list:
-        """Get collection names for display"""
-        if typed_result:
-            from aperag.schema.view_models import CollectionList
-
-            if isinstance(typed_result, CollectionList) and typed_result.items:
-                names = [item.title or item.id or "Unknown" for item in typed_result.items[:3]]
-                if len(typed_result.items) > 3:
-                    names.append("...")
-                return names
-        return []
-
-    def _get_search_info(self, typed_result: Any, content: Any) -> Tuple[int, str]:
-        """Get search count and query"""
-        if typed_result:
-            from aperag.schema.view_models import SearchResult
-
-            if isinstance(typed_result, SearchResult):
-                count = len(typed_result.items) if typed_result.items else 0
-                query = typed_result.query or ""
-                return count, query
-        elif isinstance(content, dict):
-            items = content.get("items", [])
-            count = len(items) if items else 0
-            query = content.get("query", "")
-            return count, query
-        return 0, ""
-
-    def _get_search_detail_info(self, typed_result: Any, content: Any) -> Optional[Dict[str, int]]:
-        """Get search result detail breakdown"""
-        if typed_result:
-            from aperag.schema.view_models import SearchResult
-
-            if isinstance(typed_result, SearchResult) and typed_result.items:
-                vector_count = sum(1 for item in typed_result.items if item.recall_type == "vector_search")
-                graph_count = sum(1 for item in typed_result.items if item.recall_type == "graph_search")
-                fulltext_count = sum(1 for item in typed_result.items if item.recall_type == "fulltext_search")
-
-                if vector_count > 0 or graph_count > 0 or fulltext_count > 0:
-                    return {"vector_count": vector_count, "graph_count": graph_count, "fulltext_count": fulltext_count}
-        return None
-
-    def _get_web_search_count(self, typed_result: Any, content: Any) -> int:
-        """Get web search result count"""
-        if typed_result:
-            from aperag.schema.view_models import WebSearchResponse
-
-            if isinstance(typed_result, WebSearchResponse):
-                return len(typed_result.results)
-        elif isinstance(content, dict):
-            results = content.get("results", [])
-            return len(results) if results else 0
-        return 0
-
-    def _get_web_search_domains(self, typed_result: Any, content: Any) -> list:
-        """Get web search domains"""
-        if typed_result:
-            from aperag.schema.view_models import WebSearchResponse
-
-            if isinstance(typed_result, WebSearchResponse):
-                domains = list(set([result.domain for result in typed_result.results[:5]]))
-                return domains
-        return []
-
-    def _get_web_read_count(self, typed_result: Any, content: Any) -> int:
-        """Get successful web read count"""
-        if typed_result:
-            from aperag.schema.view_models import WebReadResponse
-
-            if isinstance(typed_result, WebReadResponse):
-                return typed_result.successful
-        elif isinstance(content, dict):
-            return content.get("successful", 0)
-        return 0
-
-    def _get_web_read_titles(self, typed_result: Any, content: Any) -> list:
-        """Get web read page titles"""
-        if typed_result:
-            from aperag.schema.view_models import WebReadResponse
-
-            if isinstance(typed_result, WebReadResponse):
-                titles = [result.title or result.url for result in typed_result.results if result.status == "success"][
-                    :3
-                ]
-                if len([r for r in typed_result.results if r.status == "success"]) > 3:
-                    titles.append("...")
-                return titles
-        return []
+def format_tool_use_response(language: str, interface_type: str, typed_result: Any, is_error: bool) -> str:
+    """Legacy function - format tool response"""
+    formatter = ToolResultFormatter(language)
+    return formatter.format_tool_response(interface_type, typed_result, None, is_error)

@@ -15,6 +15,7 @@
 """Universal event listener for MCP agent events."""
 
 import logging
+from typing import Any, Dict, Optional
 
 from mcp_agent.logging.events import Event
 from mcp_agent.logging.listeners import EventListener
@@ -37,13 +38,14 @@ class AgentEventProcessor(EventListener):
         chat_id: str,
         message_id: str,
         language: str = "en-US",
+        context: Optional[Dict[str, Any]] = None,
     ):
         self.message_queue = message_queue
         self.trace_id = trace_id
         self.chat_id = chat_id
         self.message_id = message_id
         self.language = language
-        self.formatter = ToolResultFormatter(language)
+        self.formatter = ToolResultFormatter(language, context)
 
     @handle_agent_error("event_handling", reraise=False)
     async def handle_event(self, event: Event):
