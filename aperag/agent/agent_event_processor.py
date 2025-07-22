@@ -15,6 +15,7 @@
 """Universal event listener for MCP agent events."""
 
 import logging
+from typing import Any
 
 from mcp_agent.logging.events import Event
 from mcp_agent.logging.listeners import EventListener
@@ -77,16 +78,92 @@ class AgentEventProcessor(EventListener):
         structured_content = data_field.get("structuredContent")
         is_error = data_field.get("isError", False)
 
-        interface_type, result = detect_interface_type(structured_content)
-        if interface_type == "unknown" or result is None:
+        interface_type, typed_result = detect_interface_type(structured_content)
+        if interface_type == "unknown":
             return
 
-        display_text = format_tool_use_response(self.language, interface_type, structured_content, is_error)
+        # Skip error calls as requested by user feedback
+        if is_error:
+            return
 
-        formatted_message = format_tool_call_end(self.message_id, display_text, interface_type, structured_content)
+        # Skip empty or meaningless results
+        if self._should_skip_empty_result(interface_type, typed_result, structured_content):
+            return
+
+        display_text = format_tool_use_response(self.language, interface_type, typed_result, is_error)
+
+        formatted_message = format_tool_call_end(
+            self.message_id, display_text, interface_type, typed_result or structured_content
+        )
         await self.message_queue.put(formatted_message)
 
-        logger.debug(f"Tool response captured for message {self.message_id}: {interface_type}")
+        logger.debug(
+            f"Tool response captured for message {self.message_id}: {interface_type} (typed: {typed_result is not None})"
+        )
+
+    def _should_skip_empty_result(self, interface_type: str, typed_result: Any, structured_content: Any) -> bool:
+        """Check if we should skip displaying empty or meaningless results"""
+        try:
+            if interface_type == "search_collection":
+                # Skip if query is empty or just whitespace (meaningless search)
+                if typed_result:
+                    from aperag.schema.view_models import SearchResult
+
+                    if isinstance(typed_result, SearchResult):
+                        if not typed_result.query or not typed_result.query.strip():
+                            return True
+                        # Don't skip zero results if query is valid - show search action
+                elif isinstance(structured_content, dict):
+                    query = structured_content.get("query", "")
+                    if not query or not query.strip():
+                        return True
+                    # Don't skip zero results if query is valid - show search action
+
+            elif interface_type == "list_collections":
+                # Skip if no collections found
+                if typed_result:
+                    from aperag.schema.view_models import CollectionList
+
+                    if isinstance(typed_result, CollectionList):
+                        if not typed_result.items or len(typed_result.items) == 0:
+                            return True
+                elif isinstance(structured_content, dict):
+                    items = structured_content.get("items", [])
+                    if not items or len(items) == 0:
+                        return True
+
+            elif interface_type == "web_search":
+                # Skip if no web search results
+                if typed_result:
+                    from aperag.schema.view_models import WebSearchResponse
+
+                    if isinstance(typed_result, WebSearchResponse):
+                        if not typed_result.results or len(typed_result.results) == 0:
+                            return True
+                elif isinstance(structured_content, dict):
+                    results = structured_content.get("results", [])
+                    if not results or len(results) == 0:
+                        return True
+
+            elif interface_type == "web_read":
+                # Skip if no pages successfully read
+                if typed_result:
+                    from aperag.schema.view_models import WebReadResponse
+
+                    if isinstance(typed_result, WebReadResponse):
+                        if typed_result.successful == 0:
+                            return True
+                elif isinstance(structured_content, dict):
+                    successful = structured_content.get("successful", 0)
+                    if successful == 0:
+                        return True
+
+            return False
+
+        except Exception as e:
+            logger.warning(f"Error checking if should skip result: {e}")
+            # When in doubt, don't skip - better to show something than miss important info
+            return False
 
     async def _handle_generic_event(self, event: Event):
         pass

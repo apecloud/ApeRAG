@@ -84,7 +84,6 @@ from .tool_use_message_formatters import (
     format_tool_call_end,
     format_tool_call_start,
     format_tool_request_display,
-    format_tool_use_response,
 )
 
 __all__ = [

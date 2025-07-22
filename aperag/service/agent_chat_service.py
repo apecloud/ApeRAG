@@ -326,6 +326,8 @@ class AgentChatService:
             response = await llm.generate_str(comprehensive_prompt, request_params)
             full_content = response if response else "No response generated"
 
+            await asyncio.sleep(0.1)  # Allow time for the message to be processed in listener
+
             await message_queue.put(format_stream_content(message_id, full_content))
 
             updated_memory = self.memory_manager.extract_memory_from_llm(llm)
@@ -341,7 +343,6 @@ class AgentChatService:
             }
 
         finally:
-            # await asyncio.sleep(0.1)
             await message_queue.close()
 
     def _format_exception_to_error_response(self, exception: Exception, language: str) -> AgentErrorResponse:
