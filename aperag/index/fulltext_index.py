@@ -15,7 +15,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from elasticsearch import AsyncElasticsearch, Elasticsearch
 
@@ -23,6 +23,8 @@ from aperag.config import settings
 from aperag.db.ops import db_ops
 from aperag.docparser.chunking import rechunk
 from aperag.index.base import BaseIndexer, IndexResult, IndexType
+from aperag.llm.completion.completion_service import CompletionService
+from aperag.llm.llm_error_types import CompletionError, InvalidConfigurationError
 from aperag.query.query import DocumentWithScore
 from aperag.utils.tokenizer import get_default_tokenizer
 from aperag.utils.utils import generate_fulltext_index_name
@@ -313,7 +315,7 @@ class IKExtractor(KeywordExtractor):
 
     def _load_stop_words(self) -> set:
         """Load stop words from file"""
-        stop_words_path = Path(__file__).parent / "misc" / "stopwords.txt"
+        stop_words_path = Path(__file__).parent.parent / "misc" / "stopwords.txt"
         if os.path.exists(stop_words_path):
             with open(stop_words_path) as f:
                 return set(f.read().splitlines())
@@ -347,6 +349,182 @@ class IKExtractor(KeywordExtractor):
         except Exception as e:
             logger.error(f"Failed to extract keywords for index {self.index_name}: {str(e)}")
             return []
+
+
+class LLMKeywordExtractor(KeywordExtractor):
+    """Extract keywords from text using LLM with tool calling for stable output format"""
+
+    def __init__(self, ctx: Dict[str, Any]):
+        super().__init__(ctx)
+        self.completion_service = self._create_completion_service()
+
+    def _create_completion_service(self) -> Optional[CompletionService]:
+        """Create LLM completion service if configured"""
+        try:
+            # Check if LLM keyword extraction is configured
+            if not settings.llm_keyword_extraction_provider or not settings.llm_keyword_extraction_model:
+                return None
+
+            # Get provider information from database
+            llm_provider = db_ops.query_llm_provider_by_name(settings.llm_keyword_extraction_provider)
+            if not llm_provider:
+                logger.warning(f"LLM provider '{settings.llm_keyword_extraction_provider}' not found")
+                return None
+
+            # Get API key from context
+            user_id = self.ctx.get("user_id")
+            if not user_id:
+                logger.warning("User ID not available in context for LLM keyword extraction")
+                return None
+
+            api_key = db_ops.query_provider_api_key(settings.llm_keyword_extraction_provider, user_id)
+            if not api_key:
+                logger.warning(f"API key not found for provider '{settings.llm_keyword_extraction_provider}'")
+                return None
+
+            # Create completion service
+            return CompletionService(
+                provider=llm_provider.completion_dialect or "openai",
+                model=settings.llm_keyword_extraction_model,
+                base_url=llm_provider.base_url,
+                api_key=api_key,
+                temperature=settings.llm_keyword_extraction_temperature,
+                max_tokens=settings.llm_keyword_extraction_max_tokens,
+            )
+
+        except Exception as e:
+            logger.warning(f"Failed to create LLM completion service: {str(e)}")
+            return None
+
+    async def extract(self, text: str) -> List[str]:
+        """Extract keywords using LLM with structured JSON output"""
+        if not self.completion_service:
+            raise Exception("LLM completion service not available")
+
+        prompt = f"""Extract the most important keywords from the following text. Focus on:
+1. Nouns, verbs, and adjectives that capture the main concepts
+2. Remove stop words and meaningless terms
+3. Extract 5-10 most relevant keywords
+4. Keywords should be in the same language as the input text
+
+Text: {text}
+
+Please respond with ONLY a JSON object in the following format:
+{{"keywords": ["keyword1", "keyword2", "keyword3", ...]}}
+
+Do not include any other text or explanation, just the JSON object."""
+
+        try:
+            import json
+            response = await self.completion_service.agenerate([], prompt)
+
+            # Try to extract and parse JSON from response
+            keywords = self._parse_json_response(response)
+            if keywords:
+                return keywords[:10]  # Limit to 10 keywords
+
+            # Fallback to simple parsing if JSON parsing failed
+            logger.warning("JSON parsing failed, falling back to simple parsing")
+            return self._parse_keywords_fallback(response)
+
+        except Exception as e:
+            logger.error(f"LLM keyword extraction failed: {str(e)}")
+            raise
+
+    def _parse_json_response(self, response: str) -> List[str]:
+        """Parse JSON response to extract keywords"""
+        import json
+
+        # Clean up the response
+        response = response.strip()
+
+        # Try to find JSON object in the response
+        start_idx = response.find("{")
+        end_idx = response.rfind("}") + 1
+
+        if start_idx != -1 and end_idx != -1:
+            json_str = response[start_idx:end_idx]
+            try:
+                data = json.loads(json_str)
+                if isinstance(data, dict) and "keywords" in data:
+                    keywords = data["keywords"]
+                    if isinstance(keywords, list):
+                        # Filter out empty strings and ensure all items are strings
+                        filtered_keywords = [str(k).strip() for k in keywords if k and str(k).strip()]
+                        return filtered_keywords[:10]  # Limit to 10 keywords
+            except json.JSONDecodeError as e:
+                logger.warning(f"JSON decode error: {str(e)}, response: {json_str[:200]}")
+
+        return []
+
+    def _parse_keywords_fallback(self, response: str) -> List[str]:
+        """Fallback keyword parsing method"""
+        keywords = []
+        for line in response.strip().split('\n'):
+            keyword = line.strip()
+            # Remove common prefixes and clean up
+            keyword = keyword.lstrip('- *•').strip()
+            if keyword and not keyword.startswith(('1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.', '10.')):
+                # Remove quotes if present
+                keyword = keyword.strip('"\'')
+                if keyword:
+                    keywords.append(keyword)
+
+        return keywords[:10]  # Limit to 10 keywords
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        # No cleanup needed for completion service
+        pass
+
+
+async def extract_keywords(text: str, ctx: Dict[str, Any]) -> List[str]:
+    """
+    Extract keywords from text using multiple extractors with fallback strategy.
+
+    Priority order:
+    1. LLMKeywordExtractor (if configured)
+    2. IKExtractor (fallback)
+
+    Args:
+        text: Text to extract keywords from
+        ctx: Context dictionary containing configuration
+
+    Returns:
+        List of extracted keywords
+    """
+    # Define extractors in priority order
+    extractors = []
+
+    # Add LLM extractor if configured
+    if (settings.llm_keyword_extraction_provider and
+        settings.llm_keyword_extraction_model and
+        ctx.get("user_id")):
+        extractors.append(("LLM", LLMKeywordExtractor))
+
+    # Always add IK extractor as fallback
+    extractors.append(("IK", IKExtractor))
+
+    # Try extractors in order
+    for extractor_name, extractor_class in extractors:
+        try:
+            logger.info(f"Trying {extractor_name} keyword extractor")
+            async with extractor_class(ctx) as extractor:
+                keywords = await extractor.extract(text)
+                if keywords:  # Only return if we got some keywords
+                    logger.info(f"{extractor_name} extractor succeeded, got {len(keywords)} keywords")
+                    return keywords
+                else:
+                    logger.warning(f"{extractor_name} extractor returned no keywords")
+        except Exception as e:
+            logger.warning(f"{extractor_name} extractor failed: {str(e)}")
+            continue
+
+    # If all extractors failed, return empty list
+    logger.error("All keyword extractors failed")
+    return []
 
 
 def create_index(index: str):

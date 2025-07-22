@@ -21,7 +21,7 @@ from aperag.config import settings
 from aperag.db.models import Collection
 from aperag.db.ops import async_db_ops
 from aperag.flow.base.models import BaseNodeRunner, SystemInput, register_node_runner
-from aperag.index.fulltext_index import IKExtractor
+from aperag.index.fulltext_index import extract_keywords
 from aperag.query.query import DocumentWithScore
 from aperag.utils.utils import generate_vector_db_collection_name
 
@@ -70,15 +70,17 @@ class FulltextSearchService:
 
         index = generate_vector_db_collection_name(collection.id)
         if not keywords:
-            async with IKExtractor(
-                {
-                    "index_name": index,
-                    "es_host": settings.es_host,
-                    "es_timeout": settings.es_timeout,
-                    "es_max_retries": settings.es_max_retries,
-                }
-            ) as extractor:
-                keywords = await extractor.extract(query)
+            # Create context for keyword extractor
+            extractor_ctx = {
+                "index_name": index,
+                "es_host": settings.es_host,
+                "es_timeout": settings.es_timeout,
+                "es_max_retries": settings.es_max_retries,
+                "user_id": str(user.id) if user else None,
+            }
+
+            # Use extract_keywords function with fallback strategy
+            keywords = await extract_keywords(query, extractor_ctx)
         
         keywords = list(set(keywords))
 

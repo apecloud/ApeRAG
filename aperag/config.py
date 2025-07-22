@@ -136,6 +136,12 @@ class Config(BaseSettings):
     es_timeout: int = Field(30, alias="ES_TIMEOUT")  # ES request timeout in seconds
     es_max_retries: int = Field(3, alias="ES_MAX_RETRIES")  # Max retries for ES requests
 
+    # LLM keyword extraction
+    llm_keyword_extraction_provider: str = Field("", alias="LLM_KEYWORD_EXTRACTION_PROVIDER")
+    llm_keyword_extraction_model: str = Field("", alias="LLM_KEYWORD_EXTRACTION_MODEL")
+    llm_keyword_extraction_temperature: float = Field(0.1, alias="LLM_KEYWORD_EXTRACTION_TEMPERATURE")
+    llm_keyword_extraction_max_tokens: int = Field(100, alias="LLM_KEYWORD_EXTRACTION_MAX_TOKENS")
+
     # Qianfan
     qianfan_api_key: str = Field("", alias="QIANFAN_API_KEY")
     qianfan_secret_key: str = Field("", alias="QIANFAN_SECRET_KEY")
