@@ -28,12 +28,25 @@ try:
     from opentelemetry import trace
     from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SpanExporter
 
     OTEL_AVAILABLE = True
 except ImportError:
     OTEL_AVAILABLE = False
     logger.warning("OpenTelemetry not available - tracing disabled")
+
+
+class NoOpSpanExporter(SpanExporter):
+    """A no-op span exporter that discards all spans silently."""
+
+    def export(self, spans):
+        """Export spans by discarding them."""
+        return trace.StatusCode.OK
+
+    def shutdown(self):
+        """Shutdown the exporter."""
+        pass
+
 
 # Optional exporters (currently not used, but keep availability check for future use)
 OTLP_AVAILABLE = importlib.util.find_spec("opentelemetry.exporter.otlp.proto.grpc.trace_exporter") is not None
@@ -116,7 +129,7 @@ def init_telemetry(
             else:
                 logger.warning("Jaeger endpoint provided but Jaeger exporter not available")
 
-        # Add console exporter only if explicitly enabled
+        # Add console exporter if explicitly enabled
         if enable_console:
             try:
                 console_exporter = ConsoleSpanExporter()
@@ -127,10 +140,17 @@ def init_telemetry(
             except Exception as e:
                 logger.warning(f"Failed to configure console exporter: {e}")
 
-        # Check if any exporters were configured
+        # If no exporters were configured, use a no-op exporter to keep tracing functional
         if exporters_added == 0:
-            logger.warning("No trace exporters configured - tracing will be disabled")
-            return False
+            try:
+                noop_exporter = NoOpSpanExporter()
+                noop_processor = BatchSpanProcessor(noop_exporter)
+                tracer_provider.add_span_processor(noop_processor)
+                exporters_added += 1
+                logger.info("✅ No-op exporter configured (tracing enabled, no output)")
+            except Exception as e:
+                logger.warning(f"Failed to configure no-op exporter: {e}")
+                return False
 
         # Set the global tracer provider
         trace.set_tracer_provider(tracer_provider)

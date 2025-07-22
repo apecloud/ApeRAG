@@ -53,6 +53,7 @@ from aperag.agent.response_types import AgentErrorResponse
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.schema import view_models
 from aperag.service.prompt_template_service import build_agent_query_prompt, get_agent_system_prompt
+from aperag.trace import trace_async_function
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +144,7 @@ class AgentChatService:
             return None, error_response
 
     @handle_agent_error("websocket_agent_chat", reraise=False)
+    @trace_async_function("name=handle_websocket_agent_chat", new_trace=True)
     async def handle_websocket_agent_chat(self, websocket: WebSocket, user: str, bot_id: str, chat_id: str):
         """Handle WebSocket connections for agent-type bot chats with message queue architecture"""
         while True:
