@@ -340,6 +340,7 @@ class AgentChatService:
             }
 
         finally:
+            asyncio.sleep(0.2)  # Allow time for any pending messages to be processed
             await message_queue.close()
 
     def _format_exception_to_error_response(self, exception: Exception, language: str) -> AgentErrorResponse:

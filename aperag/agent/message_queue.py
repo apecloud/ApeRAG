@@ -36,7 +36,7 @@ class AgentMessageQueue:
     async def put(self, message: Dict[str, Any]) -> None:
         """Put a message into the queue"""
         if self._closed:
-            logger.warning("Attempted to put message into closed queue")
+            logger.warning(f"Attempted to put message into closed queue, message: {message}")
             return
 
         await self.queue.put(message)
