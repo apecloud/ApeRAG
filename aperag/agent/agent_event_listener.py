@@ -19,17 +19,17 @@ from typing import Dict
 from mcp_agent.logging.listeners import EventListener
 from mcp_agent.logging.transport import AsyncEventBus, Event
 
-from aperag.agent.event_listener import UniversalEventListener
-from aperag.agent.message_queue import AgentMessageQueue
+from aperag.agent import AgentMessageQueue
+from aperag.agent.agent_event_processor import AgentEventProcessor
 
 logger = logging.getLogger(__name__)
 
 
-class GlobalProxyListener(EventListener):
+class AgentEventListener(EventListener):
     """
     A thread-safe, singleton proxy listener that is registered once and never removed.
     It solves the "dictionary changed size during iteration" race condition by
-    managing its own internal, locked collection of temporary UniversalEventListeners,
+    managing its own internal, locked collection of temporary AgentEventProcessors,
     and uses the trace_id from the event to dispatch it to the correct listener.
     """
 
@@ -38,7 +38,7 @@ class GlobalProxyListener(EventListener):
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(GlobalProxyListener, cls).__new__(cls)
+            cls._instance = super(AgentEventListener, cls).__new__(cls)
             cls._instance._initialized = False
         return cls._instance
 
@@ -49,11 +49,11 @@ class GlobalProxyListener(EventListener):
         async with self._lock:
             if self._initialized:
                 return
-            self._request_listeners: Dict[str, UniversalEventListener] = {}
+            self._request_listeners: Dict[str, AgentEventProcessor] = {}
             self._bus = AsyncEventBus.get()
             self._bus.add_listener("global", self)  # Register self, permanently
             self._initialized = True
-            logger.info("GlobalProxyListener initialized and registered permanently.")
+            logger.info("AgentEventListener initialized and registered permanently.")
 
     async def register_listener(
         self,
@@ -63,10 +63,10 @@ class GlobalProxyListener(EventListener):
         queue: AgentMessageQueue,
     ):
         """
-        Safely creates and registers a UniversalEventListener for a specific request,
+        Safely creates and registers a AgentEventProcessor for a specific request,
         keyed by its trace_id.
         """
-        listener = UniversalEventListener(
+        listener = AgentEventProcessor(
             message_queue=queue,
             trace_id=trace_id,
             chat_id=chat_id,
@@ -109,4 +109,4 @@ class GlobalProxyListener(EventListener):
 
 
 # Create a single instance for the application to use
-global_proxy_listener = GlobalProxyListener()
+agent_event_listener = AgentEventListener()

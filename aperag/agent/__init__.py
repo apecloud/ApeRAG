@@ -15,11 +15,29 @@
 """Agent module for MCP-based intelligent conversation."""
 
 # Use simple session management instead of complex singleton patterns
+from .agent_event_processor import AgentEventProcessor
 from .agent_history_manager import AgentHistoryManager
 from .agent_memory_manager import AgentMemoryManager
+from .agent_message_queue import AgentMessageQueue
 from .agent_session_manager import get_or_create_session, get_stats
 from .agent_session_manager_lifecycle import agent_session_manager_lifespan
-from .event_listener import UniversalEventListener
+from .error_message_formatter import (
+    I18nErrorFormatter,
+    format_agent_execution_error,
+    format_agent_initialization_error,
+    format_agent_setup_error,
+    format_bot_flow_config_not_found_error,
+    format_bot_id_required_error,
+    format_bot_not_found_error,
+    format_invalid_json_error,
+    format_invalid_model_spec_error,
+    format_llm_generation_error,
+    format_mcp_connection_error,
+    format_model_spec_required_error,
+    format_no_output_node_error,
+    format_processing_error,
+    format_query_required_error,
+)
 from .exceptions import (
     AgentConfigError,
     AgentError,
@@ -41,25 +59,7 @@ from .exceptions import (
     tool_execution_failed,
     with_retry,
 )
-from .i18n_formatter import (
-    I18nErrorFormatter,
-    format_agent_execution_error,
-    format_agent_initialization_error,
-    format_agent_setup_error,
-    format_bot_flow_config_not_found_error,
-    format_bot_id_required_error,
-    format_bot_not_found_error,
-    format_invalid_json_error,
-    format_invalid_model_spec_error,
-    format_llm_generation_error,
-    format_mcp_connection_error,
-    format_model_spec_required_error,
-    format_no_output_node_error,
-    format_processing_error,
-    format_query_required_error,
-)
 from .mcp_app_factory import MCPAppFactory
-from .message_queue import AgentMessageQueue
 from .response_types import (
     AgentChatResponse,
     AgentErrorResponse,
@@ -90,7 +90,7 @@ from .tool_reference_extractor import extract_tool_call_references
 
 __all__ = [
     # Event listener
-    "UniversalEventListener",
+    "AgentEventProcessor",
     # Message queue
     "AgentMessageQueue",
     # Memory and history managers

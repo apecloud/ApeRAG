@@ -19,8 +19,8 @@ import logging
 from mcp_agent.logging.events import Event
 from mcp_agent.logging.listeners import EventListener
 
+from .agent_message_queue import AgentMessageQueue
 from .exceptions import EventListenerError, handle_agent_error
-from .message_queue import AgentMessageQueue
 from .tool_formatters import (
     detect_interface_type,
     format_tool_call_end,
@@ -32,7 +32,7 @@ from .tool_formatters import (
 logger = logging.getLogger(__name__)
 
 
-class UniversalEventListener(EventListener):
+class AgentEventProcessor(EventListener):
     def __init__(
         self,
         message_queue: AgentMessageQueue,

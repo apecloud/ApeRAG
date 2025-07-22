@@ -40,6 +40,7 @@ from aperag.agent import (
     format_stream_start,
 )
 from aperag.agent.agent_config import AgentConfig
+from aperag.agent.agent_event_listener import agent_event_listener
 from aperag.agent.exceptions import (
     AgentConfigurationError,
     JSONParsingError,
@@ -48,7 +49,6 @@ from aperag.agent.exceptions import (
     handle_agent_error,
     safe_json_parse,
 )
-from aperag.agent.global_proxy_listener import global_proxy_listener
 from aperag.agent.response_types import AgentErrorResponse
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.schema import view_models
@@ -203,7 +203,7 @@ class AgentChatService:
             await websocket.send_text(json.dumps(error_response))
         finally:
             if trace_id:
-                await global_proxy_listener.unregister_listener(str(trace_id))
+                await agent_event_listener.unregister_listener(str(trace_id))
 
     async def register_message_queue(self, chat_id, message_id, message_queue):
         # Get the trace_id from the current span
@@ -214,7 +214,7 @@ class AgentChatService:
             logger.error("Could not get trace_id from current span, event dispatching will fail.")
         else:
             # Register a listener for this request with the global proxy.
-            await global_proxy_listener.register_listener(
+            await agent_event_listener.register_listener(
                 trace_id=str(trace_id),
                 chat_id=chat_id,
                 message_id=message_id,
