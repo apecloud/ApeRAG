@@ -39,7 +39,6 @@ class AgentMessageQueue:
             logger.warning(f"Attempted to put message into closed queue, message: {message}")
             return
 
-        logger.warning("Attempted to put message into opening queue, message")
         await self.queue.put(message)
         logger.debug(f"Message queued: {message.get('type', 'unknown')}")
 
