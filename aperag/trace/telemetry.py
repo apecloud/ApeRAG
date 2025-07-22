@@ -123,7 +123,7 @@ def init_telemetry(
                     jaeger_processor = BatchSpanProcessor(jaeger_exporter)
                     tracer_provider.add_span_processor(jaeger_processor)
                     exporters_added += 1
-                    logger.info(f"✅ Jaeger exporter configured: {jaeger_endpoint}")
+                    logger.info(f"Jaeger exporter configured: {jaeger_endpoint}")
                 except Exception as e:
                     logger.warning(f"Failed to configure Jaeger exporter: {e}")
             else:
@@ -156,9 +156,7 @@ def init_telemetry(
         trace.set_tracer_provider(tracer_provider)
 
         _telemetry_initialized = True
-        logger.info("✅ OpenTelemetry initialized successfully")
-        logger.info(f"   Service: {service_name} v{service_version}")
-        logger.info(f"   Exporters: {exporters_added}")
+        logger.info("OpenTelemetry initialized successfully")
 
         return True
 

@@ -55,11 +55,11 @@ def init_fastapi_instrumentation(app: Any = None) -> bool:
         if app is not None:
             # Instrument specific app
             FastAPIInstrumentor.instrument_app(app)
-            logger.info("✅ FastAPI app instrumentation enabled")
+            logger.info("FastAPI app instrumentation enabled")
         else:
             # Global instrumentation - will apply to all FastAPI apps
             FastAPIInstrumentor().instrument()
-            logger.info("✅ FastAPI global instrumentation enabled")
+            logger.info("FastAPI global instrumentation enabled")
         return True
     except Exception as e:
         logger.warning(f"Failed to instrument FastAPI: {e}")
@@ -80,7 +80,7 @@ def init_sqlalchemy_instrumentation() -> bool:
     try:
         # Global SQLAlchemy instrumentation
         SQLAlchemyInstrumentor().instrument()
-        logger.info("✅ SQLAlchemy instrumentation enabled")
+        logger.info("SQLAlchemy instrumentation enabled")
         return True
     except Exception as e:
         logger.warning(f"Failed to instrument SQLAlchemy: {e}")
