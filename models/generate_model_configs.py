@@ -862,17 +862,6 @@ def create_openrouter_config():
             'x-ai/grok-3-beta',
             'x-ai/grok-3-mini-beta'
         ],
-        'vision': [
-            'anthropic/claude-3-opus',
-            'anthropic/claude-3-sonnet',
-            'anthropic/claude-3-haiku',
-            'google/gemini-pro-vision',
-            'google/gemini-2.5-pro',
-            'openai/gpt-4o',
-            'openai/gpt-4o-mini',
-            'qwen/qwen-vl-plus',
-            'qwen/qwen-vl-max',
-        ],
         'default_for_indexing': ['google/gemini-2.5-flash'],
         'default_for_generation': ['google/gemini-2.5-pro'],
     }
@@ -942,6 +931,13 @@ def create_openrouter_config():
         all_models = []
         for model in data.get("data", []):
             model_id = model.get("id", "")
+            tags = []
+            # Check for vision support
+            architecture = model.get("architecture", {})
+            input_modalities = architecture.get("input_modalities", [])
+            if "image" in input_modalities:
+                tags.append("vision")
+
             # Include all models, not just free ones
             all_models.append({
                 "model": model_id,
@@ -949,7 +945,7 @@ def create_openrouter_config():
                 "context_window": model.get("context_length"),
                 "max_input_tokens": model.get("max_input_tokens"),
                 "max_output_tokens": model.get("max_output_tokens"),
-                "tags": []
+                "tags": tags
             })
 
         # Apply blocklist filtering
