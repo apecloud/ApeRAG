@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 import logging
 from typing import List
 
@@ -30,14 +29,21 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-async def web_search_view(request: WebSearchRequest) -> WebSearchResponse:
+@router.post("/web/search", response_model=WebSearchResponse, tags=["websearch"])
+async def web_search_endpoint(request: WebSearchRequest, user: User = Depends(current_user)) -> WebSearchResponse:
     """
-    Enhanced web search with parallel regular and LLM.txt discovery.
+    Perform web search using various search engines with advanced domain targeting.
+
+    Supports parallel execution of:
+    - Regular web search with JINA priority and DuckDuckGo fallback (query + source)
+    - LLM.txt discovery search (search_llms_txt)
 
     Logic:
-    - query + source = site-specific regular search (AND relationship)
+    - query + source = site-specific regular search with JINA priority (AND relationship)
     - search_llms_txt = independent LLM.txt discovery (OR relationship)
     - Results are merged and ranked
+
+    Results are merged and ranked automatically.
     """
     # Validate that at least one search type is requested
     has_regular_search = bool(request.query and request.query.strip())
@@ -53,21 +59,10 @@ async def web_search_view(request: WebSearchRequest) -> WebSearchResponse:
     search_tasks = []
     search_descriptions = []
 
-    # Regular search (query + optional source filtering)
+    # Regular search with JINA priority and DuckDuckGo fallback
     if has_regular_search:
-        regular_service = SearchService(provider_name="duckduckgo")
-
-        regular_request = WebSearchRequest(
-            query=request.query.strip(),
-            max_results=request.max_results,
-            search_engine=request.search_engine,
-            timeout=request.timeout,
-            locale=request.locale,
-            source=request.source,  # Optional site filtering
-            search_llms_txt=None,  # Not used for regular search
-        )
-
-        search_tasks.append(regular_service.search(regular_request))
+        search_result = await _search_with_jina_fallback(request, user)
+        search_tasks.append(search_result)
         search_descriptions.append(
             f"Regular search: '{request.query}'" + (f" on {request.source}" if request.source else "")
         )
@@ -89,11 +84,15 @@ async def web_search_view(request: WebSearchRequest) -> WebSearchResponse:
         search_tasks.append(llm_txt_service.search(llm_txt_request))
         search_descriptions.append(f"LLM.txt discovery: {request.search_llms_txt}")
 
-    # Execute searches in parallel
-    try:
-        search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Search execution failed: {str(e)}")
+    # Execute LLM.txt search if needed (regular search already completed)
+    if has_llm_txt_search and len(search_tasks) > 1:
+        try:
+            llm_txt_result = await search_tasks[1]  # LLM.txt service search
+            search_results = [search_tasks[0], llm_txt_result]  # Regular result + LLM.txt result
+        except Exception as e:
+            search_results = [search_tasks[0], e]  # Regular result + exception
+    else:
+        search_results = search_tasks  # Only regular search
 
     # Process results and handle errors
     all_results = []
@@ -172,20 +171,6 @@ def _merge_and_rank_results(all_results: List, max_results: int) -> List:
         final_results.append(result)
 
     return final_results
-
-
-@router.post("/web/search", response_model=WebSearchResponse, tags=["websearch"])
-async def web_search_endpoint(request: WebSearchRequest) -> WebSearchResponse:
-    """
-    Perform web search using various search engines with advanced domain targeting.
-
-    Supports parallel execution of:
-    - Regular web search with optional site filtering (query + source)
-    - LLM.txt discovery search (search_llms_txt)
-
-    Results are merged and ranked automatically.
-    """
-    return await web_search_view(request)
 
 
 @router.post("/web/read", response_model=WebReadResponse, tags=["websearch"])
@@ -291,3 +276,46 @@ async def _read_with_trafilatura_only(request: WebReadRequest) -> WebReadRespons
         return await trafilatura_service.read(request)
     finally:
         await trafilatura_service.close()
+
+
+async def _search_with_jina_fallback(request: WebSearchRequest, user: User) -> WebSearchResponse:
+    """
+    Search with JINA priority and DuckDuckGo fallback - simple and reliable approach.
+
+    Args:
+        request: Web search request
+        user: Current user for API key lookup
+
+    Returns:
+        Search results from JINA if successful, otherwise from DuckDuckGo
+    """
+    # Try to get JINA API key for current user
+    jina_api_key = None
+    try:
+        jina_api_key = await async_db_ops.query_provider_api_key("jina", user_id=str(user.id), need_public=True)
+        logger.debug(f"JINA API key query result for user {user.id}: {'found' if jina_api_key else 'not found'}")
+    except Exception as e:
+        logger.debug(f"Could not query JINA API key for user {user.id}: {e}")
+
+    if jina_api_key:
+        # Try JINA first
+        try:
+            logger.info("Attempting to search with JINA")
+            jina_service = SearchService(provider_name="jina", provider_config={"api_key": jina_api_key})
+
+            jina_result = await jina_service.search(request)
+
+            # Check if JINA was successful
+            if jina_result and hasattr(jina_result, "results") and jina_result.results:
+                logger.info(f"JINA search succeeded: {len(jina_result.results)} results")
+                return jina_result
+            else:
+                logger.info("JINA search completed but no results returned")
+
+        except Exception as e:
+            logger.info(f"JINA search failed: {e}")
+
+    # Fallback to DuckDuckGo
+    logger.info("Using DuckDuckGo search")
+    duckduckgo_service = SearchService(provider_name="duckduckgo")
+    return await duckduckgo_service.search(request)
