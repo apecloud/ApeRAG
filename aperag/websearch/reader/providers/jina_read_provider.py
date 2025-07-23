@@ -91,6 +91,8 @@ class JinaReaderProvider(BaseReaderProvider):
                 # Convert locale to Accept-Language header format
                 accept_language = locale.replace("_", "-")
                 request_headers["Accept-Language"] = accept_language
+                # Set X-Locale for browser rendering (important for region-specific content)
+                request_headers["X-Locale"] = locale
 
             # Add Jina Reader specific headers based on documentation
             # X-Return-Format controls response format (json, text, markdown)
@@ -100,6 +102,8 @@ class JinaReaderProvider(BaseReaderProvider):
             # X-With-Links-Summary for link extraction
             request_headers["X-With-Links-Summary"] = "true"
             # Image processing is disabled (no X-With-Images-Summary or X-With-Generated-Alt)
+            # X-Proxy for better access in China/Hong Kong regions
+            request_headers["X-Proxy"] = "auto"
             # X-Proxy-URL for handling difficult-to-access content
             # request_headers["X-Proxy-URL"] = "true"  # Enable if needed
 
