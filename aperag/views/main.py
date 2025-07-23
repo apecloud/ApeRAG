@@ -15,13 +15,11 @@
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Path, Request, Response, UploadFile, WebSocket, Query
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Path, Request, Response, UploadFile, WebSocket
 
 from aperag.db.models import User
 from aperag.exceptions import CollectionNotFoundException
 from aperag.schema import view_models
-from aperag.schema.utils import parseCollectionConfig
 from aperag.service.bot_service import bot_service
 from aperag.service.chat_service import chat_service_global
 from aperag.service.collection_service import collection_service
@@ -107,7 +105,6 @@ async def generate_collection_summary_view(
     request: Request, collection_id: str, user: User = Depends(current_user)
 ) -> dict:
     """Trigger collection summary generation as background task"""
-    from aperag.service.collection_summary_service import collection_summary_service
 
     # Check if collection exists
     collection = await collection_service.get_collection(str(user.id), collection_id)

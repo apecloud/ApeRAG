@@ -57,7 +57,7 @@ class JinaReaderProvider(BaseReaderProvider):
         self,
         url: str,
         timeout: int = 30,
-        locale: str = "zh-CN",
+        locale: str = "en-US",
     ) -> WebReadResultItem:
         """
         Read content from a single URL using JINA Reader API.
@@ -134,7 +134,7 @@ class JinaReaderProvider(BaseReaderProvider):
         self,
         urls: List[str],
         timeout: int = 30,
-        locale: str = "zh-CN",
+        locale: str = "en-US",
         max_concurrent: int = 3,
     ) -> List[WebReadResultItem]:
         """

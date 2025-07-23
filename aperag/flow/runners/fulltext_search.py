@@ -32,7 +32,9 @@ class FulltextSearchInput(BaseModel):
     query: str = Field(..., description="User's question or query")
     top_k: int = Field(5, description="Number of top results to return")
     collection_ids: Optional[List[str]] = Field(default_factory=list, description="Collection IDs")
-    keywords: Optional[List[str]] = Field(default_factory=list, description="Custom keywords to use for fulltext search")
+    keywords: Optional[List[str]] = Field(
+        default_factory=list, description="Custom keywords to use for fulltext search"
+    )
 
 
 class FulltextSearchOutput(BaseModel):
@@ -81,7 +83,7 @@ class FulltextSearchService:
 
             # Use extract_keywords function with fallback strategy
             keywords = await extract_keywords(query, extractor_ctx)
-        
+
         keywords = list(set(keywords))
 
         # Find the related documents using keywords
@@ -110,7 +112,11 @@ class FulltextSearchNodeRunner(BaseNodeRunner):
         Returns (output, system_output)
         """
         docs = await self.service.execute_fulltext_search(
-            user=si.user, query=si.query, top_k=ui.top_k, collection_ids=ui.collection_ids or [], keywords=ui.keywords,
+            user=si.user,
+            query=si.query,
+            top_k=ui.top_k,
+            collection_ids=ui.collection_ids or [],
+            keywords=ui.keywords,
         )
 
         return FulltextSearchOutput(docs=docs), {}

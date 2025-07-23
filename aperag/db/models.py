@@ -208,6 +208,7 @@ class Collection(Base):
                     bots.append(bot)
             return bots
 
+
 class CollectionSummary(Base):
     __tablename__ = "collection_summary"
     __table_args__ = (UniqueConstraint("collection_id", name="uq_collection_summary"),)
@@ -216,10 +217,12 @@ class CollectionSummary(Base):
     collection_id = Column(String(24), nullable=False, index=True)
 
     # Reconciliation fields
-    status = Column(EnumColumn(CollectionSummaryStatus), nullable=False, default=CollectionSummaryStatus.PENDING, index=True)
+    status = Column(
+        EnumColumn(CollectionSummaryStatus), nullable=False, default=CollectionSummaryStatus.PENDING, index=True
+    )
     version = Column(Integer, nullable=False, default=1)
     observed_version = Column(Integer, nullable=False, default=0)
-    
+
     # Summary content and metadata
     summary = Column(Text, nullable=True)
     error_message = Column(Text, nullable=True)

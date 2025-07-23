@@ -24,7 +24,6 @@ from aperag.db.ops import db_ops
 from aperag.docparser.chunking import rechunk
 from aperag.index.base import BaseIndexer, IndexResult, IndexType
 from aperag.llm.completion.completion_service import CompletionService
-from aperag.llm.llm_error_types import CompletionError, InvalidConfigurationError
 from aperag.query.query import DocumentWithScore
 from aperag.utils.tokenizer import get_default_tokenizer
 from aperag.utils.utils import generate_fulltext_index_name
@@ -57,17 +56,19 @@ class FulltextIndexer(BaseIndexer):
 
     def _extract_chunk_data(self, part) -> Tuple[str, str, Dict[str, Any]]:
         """Extract chunk content, title and metadata from a document part"""
-        if not hasattr(part, 'content') or not part.content or not part.content.strip():
+        if not hasattr(part, "content") or not part.content or not part.content.strip():
             return "", "", {}
 
         chunk_content = part.content.strip()
-        chunk_metadata = part.metadata.copy() if hasattr(part, 'metadata') and part.metadata else {}
-        titles = chunk_metadata.get('titles', [])
+        chunk_metadata = part.metadata.copy() if hasattr(part, "metadata") and part.metadata else {}
+        titles = chunk_metadata.get("titles", [])
         title_text = " > ".join(titles) if titles else ""
 
         return chunk_content, title_text, chunk_metadata
 
-    def _process_chunks(self, document_id: int, doc_parts: List[Any], document_name: str, index_name: str) -> Tuple[int, int]:
+    def _process_chunks(
+        self, document_id: int, doc_parts: List[Any], document_name: str, index_name: str
+    ) -> Tuple[int, int]:
         """Process and insert all chunks for a document. Returns (chunk_count, total_content_length)"""
         chunk_count = 0
         total_content_length = 0
@@ -86,13 +87,22 @@ class FulltextIndexer(BaseIndexer):
                 continue
 
             chunk_id = f"{document_id}_{chunk_idx}"
-            self._insert_chunk(index_name, chunk_id, document_id, document_name, chunk_content, title_text, chunk_metadata)
+            self._insert_chunk(
+                index_name, chunk_id, document_id, document_name, chunk_content, title_text, chunk_metadata
+            )
             chunk_count += 1
             total_content_length += len(chunk_content)
 
         return chunk_count, total_content_length
 
-    def _create_success_result(self, index_name: str, document_name: str, chunk_count: int, total_content_length: int, operation: str = "created") -> IndexResult:
+    def _create_success_result(
+        self,
+        index_name: str,
+        document_name: str,
+        chunk_count: int,
+        total_content_length: int,
+        operation: str = "created",
+    ) -> IndexResult:
         """Create a success IndexResult with chunk statistics"""
         return IndexResult(
             success=True,
@@ -151,9 +161,13 @@ class FulltextIndexer(BaseIndexer):
 
             # Create new chunks if there are doc_parts
             if doc_parts:
-                chunk_count, total_content_length = self._process_chunks(document_id, doc_parts, document.name, index_name)
+                chunk_count, total_content_length = self._process_chunks(
+                    document_id, doc_parts, document.name, index_name
+                )
                 logger.info(f"Fulltext index updated for document {document_id} with {chunk_count} chunks")
-                return self._create_success_result(index_name, document.name, chunk_count, total_content_length, "updated")
+                return self._create_success_result(
+                    index_name, document.name, chunk_count, total_content_length, "updated"
+                )
             else:
                 return IndexResult(
                     success=True,
@@ -195,15 +209,9 @@ class FulltextIndexer(BaseIndexer):
             return 0
 
         try:
-            query = {
-                "query": {
-                    "term": {
-                        "document_id": doc_id
-                    }
-                }
-            }
+            query = {"query": {"term": {"document_id": doc_id}}}
             response = self.es.delete_by_query(index=index, body=query)
-            deleted_count = response.get('deleted', 0)
+            deleted_count = response.get("deleted", 0)
             logger.info(f"Deleted {deleted_count} chunks for document {doc_id} from index {index}")
             return deleted_count
 
@@ -211,7 +219,16 @@ class FulltextIndexer(BaseIndexer):
             logger.error(f"Failed to remove chunks for document {doc_id} from index {index}: {str(e)}")
             return 0
 
-    def _insert_chunk(self, index: str, chunk_id: str, doc_id: int, doc_name: str, content: str, title_text: str = "", metadata: Dict[str, Any] = None):
+    def _insert_chunk(
+        self,
+        index: str,
+        chunk_id: str,
+        doc_id: int,
+        doc_name: str,
+        content: str,
+        title_text: str = "",
+        metadata: Dict[str, Any] = None,
+    ):
         """Insert a document chunk into the fulltext index"""
         if not self.es.indices.exists(index=index).body:
             logger.warning("index %s not exists", index)
@@ -223,7 +240,7 @@ class FulltextIndexer(BaseIndexer):
             "name": doc_name,
             "content": content,
             "title": title_text,
-            "metadata": metadata or {}
+            "metadata": metadata or {},
         }
         self.es.index(index=index, id=chunk_id, document=doc)
 
@@ -239,11 +256,8 @@ class FulltextIndexer(BaseIndexer):
             # Search in both content and title fields
             query = {
                 "bool": {
-                    "should": [
-                        {"match": {"content": keyword}} for keyword in keywords
-                    ] + [
-                        {"match": {"title": keyword}} for keyword in keywords
-                    ],
+                    "should": [{"match": {"content": keyword}} for keyword in keywords]
+                    + [{"match": {"title": keyword}} for keyword in keywords],
                     "minimum_should_match": "80%",
                 },
             }
@@ -301,15 +315,14 @@ class IKKeywordExtractor(KeywordExtractor):
     def __init__(self, ctx: Dict[str, Any]):
         super().__init__(ctx)
         config = _create_es_client_config()
-        config.update({
-            "request_timeout": ctx.get("es_timeout", settings.es_timeout),
-            "max_retries": ctx.get("es_max_retries", settings.es_max_retries),
-        })
-
-        self.client = AsyncElasticsearch(
-            ctx.get("es_host", settings.es_host),
-            **config
+        config.update(
+            {
+                "request_timeout": ctx.get("es_timeout", settings.es_timeout),
+                "max_retries": ctx.get("es_max_retries", settings.es_max_retries),
+            }
         )
+
+        self.client = AsyncElasticsearch(ctx.get("es_host", settings.es_host), **config)
         self.index_name = ctx["index_name"]
         self.stop_words = self._load_stop_words()
 
@@ -334,10 +347,7 @@ class IKKeywordExtractor(KeywordExtractor):
                 logger.warning("index %s not exists", self.index_name)
                 return []
 
-            resp = await self.client.indices.analyze(
-                index=self.index_name,
-                body={"text": text, "analyzer": "ik_smart"}
-            )
+            resp = await self.client.indices.analyze(index=self.index_name, body={"text": text, "analyzer": "ik_smart"})
 
             tokens = set()
             for item in resp.body["tokens"]:
@@ -376,7 +386,9 @@ class LLMKeywordExtractor(KeywordExtractor):
             if not user_id:
                 logger.warning("User ID not available in context for LLM keyword extraction")
                 return None
-            api_key = db_ops.query_provider_api_key(settings.llm_keyword_extraction_provider, user_id=user_id, need_public=True)
+            api_key = db_ops.query_provider_api_key(
+                settings.llm_keyword_extraction_provider, user_id=user_id, need_public=True
+            )
             if not api_key:
                 logger.warning(f"API key not found for provider '{settings.llm_keyword_extraction_provider}'")
                 return None
@@ -411,7 +423,6 @@ Please respond with ONLY a JSON object in the following format:
 Do not include any other text or explanation, just the JSON object."""
 
         try:
-            import json
             response = await self.completion_service.agenerate([], prompt)
 
             # Try to extract and parse JSON from response
@@ -458,13 +469,13 @@ Do not include any other text or explanation, just the JSON object."""
     def _parse_keywords_fallback(self, response: str) -> List[str]:
         """Fallback keyword parsing method"""
         keywords = []
-        for line in response.strip().split('\n'):
+        for line in response.strip().split("\n"):
             keyword = line.strip()
             # Remove common prefixes and clean up
-            keyword = keyword.lstrip('- *•').strip()
-            if keyword and not keyword.startswith(('1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.', '10.')):
+            keyword = keyword.lstrip("- *•").strip()
+            if keyword and not keyword.startswith(("1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9.", "10.")):
                 # Remove quotes if present
-                keyword = keyword.strip('"\'')
+                keyword = keyword.strip("\"'")
                 if keyword:
                     keywords.append(keyword)
 
@@ -497,9 +508,7 @@ async def extract_keywords(text: str, ctx: Dict[str, Any]) -> List[str]:
     extractors = []
 
     # Add LLM extractor if configured
-    if (settings.llm_keyword_extraction_provider and
-        settings.llm_keyword_extraction_model and
-        ctx.get("user_id")):
+    if settings.llm_keyword_extraction_provider and settings.llm_keyword_extraction_model and ctx.get("user_id"):
         extractors.append(("LLM", LLMKeywordExtractor))
 
     # Always add IK extractor as fallback
@@ -538,7 +547,7 @@ def create_index(index: str):
                 "document_id": {"type": "keyword"},
                 "chunk_id": {"type": "keyword"},
                 "name": {"type": "keyword"},
-                "metadata": {"type": "object", "enabled": False}
+                "metadata": {"type": "object", "enabled": False},
             }
         }
         es.indices.create(index=index, body={"mappings": mapping})

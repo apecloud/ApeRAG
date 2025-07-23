@@ -16,9 +16,12 @@ import asyncio
 import logging
 from typing import List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from aperag.db.models import User
+from aperag.db.ops import async_db_ops
 from aperag.schema.view_models import WebReadRequest, WebReadResponse, WebSearchRequest, WebSearchResponse
+from aperag.views.auth import current_user
 from aperag.websearch.reader.reader_service import ReaderService
 from aperag.websearch.search.search_service import SearchService
 
@@ -186,7 +189,7 @@ async def web_search_endpoint(request: WebSearchRequest) -> WebSearchResponse:
 
 
 @router.post("/web/read", response_model=WebReadResponse, tags=["websearch"])
-async def web_read_endpoint(request: WebReadRequest) -> WebReadResponse:
+async def web_read_endpoint(request: WebReadRequest, user: User = Depends(current_user)) -> WebReadResponse:
     """
     Read and extract content from web pages.
 
@@ -194,7 +197,13 @@ async def web_read_endpoint(request: WebReadRequest) -> WebReadResponse:
     - Single URL or multiple URLs (use url_list array)
     - Concurrent processing for multiple URLs
     - Configurable timeout and locale settings
-    - Multiple reader providers (Trafilatura, JINA)
+    - Multiple reader providers (JINA priority, Trafilatura fallback)
+
+    Logic:
+    - Try to get JINA API key from user's provider settings
+    - If JINA API key available, run both JINA and Trafilatura concurrently
+    - Return JINA result if successful, otherwise fallback to Trafilatura
+    - If no JINA API key, use Trafilatura only
     """
     try:
         # Validate url_list parameter
@@ -203,13 +212,20 @@ async def web_read_endpoint(request: WebReadRequest) -> WebReadResponse:
                 status_code=400, detail="url_list parameter is required and must contain at least one URL"
             )
 
-        # Create reader service with default provider (Trafilatura)
-        reader_service = ReaderService()
+        # Try to get JINA API key for current user
+        jina_api_key = None
+        try:
+            jina_api_key = await async_db_ops.query_provider_api_key("jina", user_id=str(user.id), need_public=True)
+            logger.debug(f"JINA API key query result for user {user.id}: {'found' if jina_api_key else 'not found'}")
+        except Exception as e:
+            logger.debug(f"Could not query JINA API key for user {user.id}: {e}")
 
-        # Use the reader service directly with the URL list
-        response = await reader_service.read(request)
-
-        return response
+        if jina_api_key:
+            logger.info(f"JINA API key found for user {user.id}, using JINA with Trafilatura fallback")
+            return await _read_with_jina_fallback(request, jina_api_key)
+        else:
+            logger.info(f"No JINA API key found for user {user.id}, using Trafilatura only")
+            return await _read_with_trafilatura_only(request)
 
     except HTTPException:
         # Re-raise HTTP exceptions as-is
@@ -217,3 +233,61 @@ async def web_read_endpoint(request: WebReadRequest) -> WebReadResponse:
     except Exception as e:
         logger.error(f"Web read endpoint failed: {e}")
         raise HTTPException(status_code=500, detail=f"Web read failed: {str(e)}")
+
+
+async def _read_with_jina_fallback(request: WebReadRequest, jina_api_key: str) -> WebReadResponse:
+    """
+    Read with JINA priority and Trafilatura fallback - simple and reliable approach.
+
+    Args:
+        request: Web read request
+        jina_api_key: JINA API key for authentication
+
+    Returns:
+        Web read response from JINA if successful, otherwise from Trafilatura
+    """
+    jina_service = ReaderService(provider_name="jina", provider_config={"api_key": jina_api_key})
+
+    try:
+        # Try JINA first
+        try:
+            logger.info("Attempting to read with JINA")
+            jina_result = await jina_service.read(request)
+
+            # Check if JINA was successful
+            if jina_result and hasattr(jina_result, "results"):
+                successful_count = sum(1 for r in jina_result.results if r.status == "success")
+                if successful_count > 0:
+                    logger.info(f"JINA succeeded: {successful_count}/{jina_result.total_urls} URLs")
+                    return jina_result
+                else:
+                    logger.info("JINA completed but no URLs were successfully processed")
+            else:
+                logger.info("JINA returned empty or invalid result")
+
+        except Exception as e:
+            logger.info(f"JINA failed: {e}")
+
+        # Fallback to Trafilatura using the dedicated function
+        logger.info("Falling back to Trafilatura")
+        return await _read_with_trafilatura_only(request)
+
+    finally:
+        await jina_service.close()
+
+
+async def _read_with_trafilatura_only(request: WebReadRequest) -> WebReadResponse:
+    """
+    Read using Trafilatura only.
+
+    Args:
+        request: Web read request
+
+    Returns:
+        Web read response from Trafilatura
+    """
+    trafilatura_service = ReaderService(provider_name="trafilatura")
+    try:
+        return await trafilatura_service.read(request)
+    finally:
+        await trafilatura_service.close()

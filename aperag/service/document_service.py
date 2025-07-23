@@ -275,7 +275,7 @@ class DocumentService:
                     collection_config = json.loads(collection.config)
                     if collection_config.get("enable_knowledge_graph", False):
                         index_types.append(db_models.DocumentIndexType.GRAPH)
-                    
+
                     if collection_config.get("enable_summary", False):
                         index_types.append(db_models.DocumentIndexType.SUMMARY)
 

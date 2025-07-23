@@ -149,7 +149,7 @@ class ReaderService:
         self,
         url: str,
         timeout: int = 30,
-        locale: str = "zh-CN",
+        locale: str = "en-US",
     ) -> WebReadResultItem:
         """
         Simplified single URL reading interface.
@@ -178,7 +178,7 @@ class ReaderService:
         self,
         urls: List[str],
         timeout: int = 30,
-        locale: str = "zh-CN",
+        locale: str = "en-US",
         max_concurrent: int = 3,
     ) -> List[WebReadResultItem]:
         """
