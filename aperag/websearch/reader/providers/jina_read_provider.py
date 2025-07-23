@@ -118,9 +118,8 @@ class JinaReaderProvider(BaseReaderProvider):
 
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as session:
                 async with session.get(reader_url, headers=request_headers) as response:
-                    response_text = await response.text()
-
                     if response.status != 200:
+                        response_text = await response.text()
                         logger.error(f"JINA reader API error {response.status}: {response_text}")
                         return WebReadResultItem(
                             url=url,
@@ -131,17 +130,18 @@ class JinaReaderProvider(BaseReaderProvider):
 
                     logger.debug(f"Jina reader response type: {response.content_type}")
 
-                    # Parse response based on content type
-                    if "application/json" in response.content_type:
-                        try:
-                            data = await response.json()
-                            return self._parse_json_result(url, data)
-                        except Exception as e:
-                            logger.warning(f"Failed to parse JSON response: {e}")
-                            return self._parse_text_result(url, response_text)
-                    else:
-                        # Parse as text/markdown content
-                        return self._parse_text_result(url, response_text)
+                    # Parse response as JSON (Jina API should return JSON format)
+                    try:
+                        data = await response.json()
+                        return self._parse_json_result(url, data)
+                    except Exception as e:
+                        logger.error(f"Failed to parse Jina JSON response: {e}")
+                        return WebReadResultItem(
+                            url=url,
+                            status="error",
+                            error=f"Failed to parse JSON response: {str(e)}",
+                            error_code="PARSE_ERROR",
+                        )
 
         except aiohttp.ClientError as e:
             logger.error(f"JINA reader request failed for {url}: {e}")
@@ -308,70 +308,6 @@ class JinaReaderProvider(BaseReaderProvider):
             logger.error(f"Error parsing JINA reader JSON result for {url}: {e}")
             return WebReadResultItem(
                 url=url, status="error", error=f"Failed to parse JSON response: {str(e)}", error_code="PARSE_ERROR"
-            )
-
-    def _parse_text_result(self, url: str, text_content: str) -> WebReadResultItem:
-        """
-        Parse JINA reader text/markdown response into WebReadResultItem object.
-
-        Args:
-            url: Original URL
-            text_content: Raw text/markdown content from JINA API
-
-        Returns:
-            Parsed web read result item
-        """
-        try:
-            if not text_content or not text_content.strip():
-                return WebReadResultItem(
-                    url=url,
-                    status="error",
-                    error="No content could be extracted from the page",
-                    error_code="NO_CONTENT",
-                )
-
-            # For text/markdown responses, the entire response is the content
-            content = text_content.strip()
-
-            # Try to extract title from first line if it looks like a title
-            lines = content.split("\n")
-            title = ""
-            processed_content = content
-
-            if lines:
-                first_line = lines[0].strip()
-                # If first line starts with # (markdown header), use it as title
-                if first_line.startswith("#"):
-                    title = first_line.lstrip("#").strip()
-                    # Remove the title line from content to avoid duplication
-                    processed_content = "\n".join(lines[1:]).strip()
-                elif len(first_line) < 100 and not first_line.endswith("."):
-                    # If first line is short and doesn't end with period, might be title
-                    title = first_line
-                else:
-                    # Use URL-based title
-                    title = self._extract_title_from_url(url)
-
-            # Calculate word and token counts
-            word_count = len(processed_content.split()) if processed_content else 0
-            token_count = int(len(processed_content) / 3.5) if processed_content else 0
-
-            logger.info(f"Jina reader text parsing successful: {word_count} words, {token_count} tokens")
-
-            return WebReadResultItem(
-                url=url,
-                status="success",
-                title=title or self._extract_title_from_url(url),
-                content=processed_content,
-                extracted_at=datetime.now(),
-                word_count=word_count,
-                token_count=token_count,
-            )
-
-        except Exception as e:
-            logger.error(f"Error parsing JINA reader text result for {url}: {e}")
-            return WebReadResultItem(
-                url=url, status="error", error=f"Failed to parse text response: {str(e)}", error_code="PARSE_ERROR"
             )
 
     def _extract_title_from_url(self, url: str) -> str:

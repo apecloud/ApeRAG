@@ -133,25 +133,20 @@ class JinaSearchProvider(BaseSearchProvider):
 
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as session:
                 async with session.get(search_url, headers=request_headers) as response:
-                    response_text = await response.text()
-
                     if response.status != 200:
+                        response_text = await response.text()
                         logger.error(f"Jina Search API returned status {response.status}: {response_text}")
                         return []
 
                     logger.debug(f"Jina search response type: {response.content_type}")
 
-                    # Parse response based on content type
-                    if "application/json" in response.content_type:
-                        try:
-                            response_data = await response.json()
-                            return self._parse_jina_json_response(response_data, target_domain, max_results)
-                        except Exception as e:
-                            logger.warning(f"Failed to parse JSON response: {e}")
-                            return self._parse_jina_text_response(response_text, target_domain, max_results)
-                    else:
-                        # Parse as text/markdown format
-                        return self._parse_jina_text_response(response_text, target_domain, max_results)
+                    # Parse response as JSON (Jina API should return JSON format)
+                    try:
+                        response_data = await response.json()
+                        return self._parse_jina_json_response(response_data, target_domain, max_results)
+                    except Exception as e:
+                        logger.error(f"Failed to parse Jina JSON response: {e}")
+                        return []
 
         except asyncio.TimeoutError:
             logger.error(f"Jina search timed out after {timeout} seconds")
@@ -226,84 +221,6 @@ class JinaSearchProvider(BaseSearchProvider):
             f"Jina search JSON parsing completed: {len(results)} results"
             + (f" from domain {target_domain}" if target_domain else "")
         )
-        return results
-
-    def _parse_jina_text_response(
-        self, response_text: str, target_domain: Optional[str] = None, max_results: int = 5
-    ) -> List[WebSearchResultItem]:
-        """Parse Jina API text/markdown response into standardized result items."""
-        results = []
-
-        if not response_text or not response_text.strip():
-            logger.warning("Empty response text from Jina")
-            return results
-
-        logger.info(f"Parsing Jina text response ({len(response_text)} chars)")
-
-        # Jina s.reader returns structured markdown content
-        # Parse markdown links and content blocks
-        lines = response_text.split("\n")
-        current_title = ""
-        current_url = ""
-        current_snippet = ""
-
-        import re
-
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-
-            # Look for markdown headers (potential titles)
-            if line.startswith("#"):
-                if current_url and current_title:
-                    # Save previous result
-                    if len(results) < max_results:
-                        if not target_domain or target_domain.lower() in current_url.lower():
-                            result = WebSearchResultItem(
-                                url=current_url,
-                                title=current_title,
-                                snippet=current_snippet or "Content from Jina search",
-                                rank=len(results) + 1,
-                                domain=URLValidator.extract_domain(current_url) or "",
-                                timestamp=datetime.now(),
-                            )
-                            results.append(result)
-
-                # Start new result
-                current_title = re.sub(r"^#+\s*", "", line)
-                current_snippet = ""
-
-            # Look for URL patterns in markdown links: [title](url)
-            link_matches = re.findall(r"\[([^\]]*)\]\(([^)]+)\)", line)
-            for title, url in link_matches:
-                if len(results) >= max_results:
-                    break
-
-                # Apply domain filtering if specified
-                if target_domain:
-                    result_domain = URLValidator.extract_domain(url)
-                    if not result_domain or result_domain.lower() != target_domain.lower():
-                        continue
-
-                result = WebSearchResultItem(
-                    url=url,
-                    title=title.strip() or current_title or "No Title",
-                    snippet=current_snippet or "Content from Jina search",
-                    rank=len(results) + 1,
-                    domain=URLValidator.extract_domain(url) or "",
-                    timestamp=datetime.now(),
-                )
-                results.append(result)
-
-            # Collect snippet content
-            if not line.startswith("#") and not re.search(r"\[.*\]\(.*\)", line):
-                if current_snippet:
-                    current_snippet += " " + line
-                else:
-                    current_snippet = line
-
-        logger.info(f"Jina search text parsing completed: {len(results)} results")
         return results
 
     def get_supported_engines(self) -> List[str]:
