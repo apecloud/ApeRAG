@@ -9,11 +9,11 @@ Tests the web_search_endpoint function's ability to handle:
 - Error handling
 """
 
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from aperag.schema.view_models import WebSearchRequest, WebSearchResultItem, WebSearchResponse
+from aperag.schema.view_models import WebSearchRequest, WebSearchResponse, WebSearchResultItem
 from aperag.views.web import web_search_endpoint
 
 
@@ -49,12 +49,7 @@ class TestParallelSearchArchitecture:
         ]
 
         # Mock the search response
-        mock_response = WebSearchResponse(
-            query="test query",
-            results=mock_results,
-            total_results=2,
-            search_time=0.1
-        )
+        mock_response = WebSearchResponse(query="test query", results=mock_results, total_results=2, search_time=0.1)
 
         with patch("aperag.views.web._search_with_jina_fallback", new_callable=AsyncMock) as mock_search:
             mock_search.return_value = mock_response
@@ -87,10 +82,7 @@ class TestParallelSearchArchitecture:
         ]
 
         mock_response = WebSearchResponse(
-            query="LLM.txt:example.com",
-            results=mock_results,
-            total_results=1,
-            search_time=0.05
+            query="LLM.txt:example.com", results=mock_results, total_results=1, search_time=0.05
         )
 
         with patch("aperag.views.web._search_llm_txt_discovery", new_callable=AsyncMock) as mock_llm_search:
@@ -134,17 +126,11 @@ class TestParallelSearchArchitecture:
 
         # Mock responses
         regular_response = WebSearchResponse(
-            query="test query",
-            results=regular_results,
-            total_results=1,
-            search_time=0.05
+            query="test query", results=regular_results, total_results=1, search_time=0.05
         )
 
         llm_txt_response = WebSearchResponse(
-            query="LLM.txt:example.com",
-            results=llm_txt_results,
-            total_results=1,
-            search_time=0.03
+            query="LLM.txt:example.com", results=llm_txt_results, total_results=1, search_time=0.03
         )
 
         with patch("aperag.views.web._search_with_jina_fallback", new_callable=AsyncMock) as mock_regular:
@@ -177,12 +163,7 @@ class TestParallelSearchArchitecture:
             )
         ]
 
-        mock_response = WebSearchResponse(
-            query="documentation",
-            results=mock_results,
-            total_results=1,
-            search_time=0.1
-        )
+        mock_response = WebSearchResponse(query="documentation", results=mock_results, total_results=1, search_time=0.1)
 
         with patch("aperag.views.web._search_with_jina_fallback", new_callable=AsyncMock) as mock_search:
             mock_search.return_value = mock_response
@@ -248,10 +229,7 @@ class TestParallelSearchArchitecture:
         ]
 
         regular_response = WebSearchResponse(
-            query="test query",
-            results=regular_results,
-            total_results=1,
-            search_time=0.05
+            query="test query", results=regular_results, total_results=1, search_time=0.05
         )
 
         with patch("aperag.views.web._search_with_jina_fallback", new_callable=AsyncMock) as mock_regular:
@@ -303,17 +281,11 @@ class TestParallelSearchArchitecture:
         ]
 
         regular_response = WebSearchResponse(
-            query="test query",
-            results=regular_results,
-            total_results=2,
-            search_time=0.05
+            query="test query", results=regular_results, total_results=2, search_time=0.05
         )
 
         llm_txt_response = WebSearchResponse(
-            query="LLM.txt:example.com",
-            results=llm_txt_results,
-            total_results=2,
-            search_time=0.03
+            query="LLM.txt:example.com", results=llm_txt_results, total_results=2, search_time=0.03
         )
 
         with patch("aperag.views.web._search_with_jina_fallback", new_callable=AsyncMock) as mock_regular:

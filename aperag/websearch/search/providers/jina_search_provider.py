@@ -79,6 +79,10 @@ class JinaSearchProvider(BaseSearchProvider):
         if not has_query and not has_source:
             raise ValueError("Either query or source must be provided")
 
+        if max_results <= 0:
+            raise ValueError("max_results must be positive")
+        if max_results > 100:
+            raise ValueError("max_results cannot exceed 100")
         if timeout <= 0:
             raise ValueError("timeout must be positive")
 

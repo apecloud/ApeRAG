@@ -128,9 +128,7 @@ class TestSearchService:
 
         # Test simple search
         try:
-            results = await service.search_simple(
-                query="Python programming tutorial", max_results=3, timeout=10
-            )
+            results = await service.search_simple(query="Python programming tutorial", max_results=3, timeout=10)
 
             print("\n=== Real Search Results ===")
             print(f"Found {len(results)} results")
@@ -152,9 +150,7 @@ class TestSearchService:
                 assert result.rank > 0, "Rank should be positive"
 
             # Test full request object
-            request = WebSearchRequest(
-                query="machine learning basics", max_results=2, timeout=10
-            )
+            request = WebSearchRequest(query="machine learning basics", max_results=2, timeout=10)
 
             response = await service.search(request)
 
