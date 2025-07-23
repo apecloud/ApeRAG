@@ -84,6 +84,15 @@ class JinaReaderProvider(BaseReaderProvider):
                 url=url, status="error", error="Invalid URL format", error_code="INVALID_URL_FORMAT"
             )
 
+        # Validate API key is present before making requests
+        if not self.api_key:
+            return WebReadResultItem(
+                url=url,
+                status="error",
+                error="JINA API key is required. Please configure your API key to use JINA Reader.",
+                error_code="MISSING_API_KEY",
+            )
+
         try:
             # Prepare headers with locale and Jina-specific options
             request_headers = self.headers.copy()
