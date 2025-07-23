@@ -37,10 +37,12 @@ async def list_collections() -> Dict[str, Any]:
     """List all collections available to the user.
 
     Returns:
-        List of collections with their metadata (CollectionList format)
+        List of collections with only essential information (id, title, description)
+        for security and optimized LLM search.
 
     Note:
-        Uses CollectionList view model for type-safe response parsing
+        Uses CollectionList view model for type-safe response parsing but filters
+        sensitive and unnecessary information.
     """
     try:
         api_key = get_api_key()
@@ -52,7 +54,19 @@ async def list_collections() -> Dict[str, Any]:
                 try:
                     # Parse response using view model for type safety
                     collection_list = CollectionList.model_validate(response.json())
-                    return collection_list.model_dump()
+                    
+                    # Filter collection data to only include essential information
+                    filtered_items = []
+                    if collection_list.items:
+                        for collection in collection_list.items:
+                            filtered_items.append({
+                                "id": collection.id,
+                                "title": collection.title,
+                                "description": collection.description
+                            })
+                    
+                    # Return filtered data with the same structure
+                    return {"items": filtered_items, "pageResult": collection_list.pageResult}
                 except Exception as e:
                     logger.error(f"Failed to parse collections response: {e}")
                     return {"error": "Failed to parse collections response", "details": str(e)}
@@ -277,7 +291,7 @@ async def aperag_usage_guide() -> str:
 ApeRAG provides powerful knowledge search capabilities across your collections.
 
 ## Available Operations:
-1. **list_collections**: Get all available collections with complete details
+1. **list_collections**: Get all available collections with essential information (ID, title, description)
 2. **search_collection**: Search within collections using multiple search methods
 3. **web_search**: Perform web search using various search engines (Google, DuckDuckGo, Bing)
 4. **web_read**: Read and extract content from web pages
@@ -290,7 +304,7 @@ API authentication is handled automatically through one of these methods:
 The server will automatically try both methods in order of preference.
 
 ## Quick Start:
-1. First, get available collections with complete details: `list_collections()`
+1. First, get available collections with essential information: `list_collections()`
 2. Choose a collection from the list
 3. Search the collection: `search_collection(collection_id="abc123", query="your question")`
    (By default, all search types are enabled for comprehensive results)
@@ -305,11 +319,11 @@ By default, all three search types are enabled for comprehensive results (hybrid
 
 ## Example Workflow:
 ```
-# Step 1: Get collections with complete details
+# Step 1: Get collections with essential information
 collections = list_collections()
 
 # Step 2: Choose a collection from the list
-# (collections.items contains all collection details)
+# (collections.items contains collection ID, title, and description)
 collection_id = collections.items[0].id
 
 # Step 3: Search with all methods (hybrid search)
@@ -459,7 +473,7 @@ I can help you search your knowledge base effectively using ApeRAG.
 
 ## What I can do:
 - 🔍 **Search your knowledge base** using multiple search methods
-- 📚 **Browse your collections** to understand what data you have (with complete details)
+- 📚 **Browse your collections** to understand what data you have (with essential details)
 - 🎯 **Find specific information** with precise queries
 - 💡 **Suggest search strategies** for complex queries
 - 🌐 **Search the web** for latest information using multiple search engines
