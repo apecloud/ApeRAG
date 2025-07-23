@@ -136,7 +136,7 @@ def init_mcp_tracing() -> bool:
         Logger.event = _patched_event_method
 
         _mcp_tracing_enabled = True
-        logger.info("✅ MCP agent trace injection enabled")
+        logger.info("MCP agent trace injection enabled")
         return True
 
     except ImportError:

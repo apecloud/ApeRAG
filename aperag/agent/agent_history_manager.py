@@ -17,7 +17,8 @@
 import logging
 from typing import Dict, List, Optional
 
-from aperag.flow.runners.llm import add_ai_message, add_human_message
+from langchain.schema import AIMessage, HumanMessage
+
 from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
 
 from .exceptions import handle_agent_error
@@ -71,6 +72,7 @@ class AgentHistoryManager:
         Save a complete conversation turn to persistent storage.
 
         This is a pure function that accepts external history instance.
+        Uses agent-specific saving format (plain text) instead of flow-based Message JSON.
 
         Args:
             history: External RedisChatMessageHistory instance
@@ -85,18 +87,11 @@ class AgentHistoryManager:
         try:
             logger.debug(f"Saving conversation turn for history session: {history.session_id}")
 
-            # Save human message
-            await add_human_message(history, user_query, "")
+            # Save human message (plain text for agent conversations)
+            await history.add_message(HumanMessage(content=user_query))
 
-            # Save AI message with references
-            await add_ai_message(
-                history,
-                user_query,
-                "",  # empty user_input for compatibility
-                ai_response,
-                tool_references,
-                [],  # empty urls for now
-            )
+            # Save AI message (plain text for agent conversations)
+            await history.add_message(AIMessage(content=ai_response))
 
             logger.debug(f"Successfully saved conversation turn for session: {history.session_id}")
             return True
