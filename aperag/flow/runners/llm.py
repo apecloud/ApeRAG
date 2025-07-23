@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import json
+import logging
 import uuid
 from typing import Dict, List, Optional, Tuple
 
@@ -25,10 +27,13 @@ from aperag.db.ops import async_db_ops
 from aperag.flow.base.models import BaseNodeRunner, SystemInput, register_node_runner
 from aperag.llm.completion.completion_service import CompletionService
 from aperag.llm.llm_error_types import InvalidConfigurationError
+from aperag.objectstore.base import get_async_object_store
 from aperag.query.query import DocumentWithScore
 from aperag.utils.constant import DOC_QA_REFERENCES
 from aperag.utils.history import BaseChatMessageHistory
 from aperag.utils.utils import now_unix_milliseconds
+
+logger = logging.getLogger(__name__)
 
 # Character to token estimation ratio for Chinese/mixed content
 # Conservative estimate: 1.5 characters = 1 token
@@ -40,6 +45,8 @@ DEFAULT_OUTPUT_TOKENS = 1000
 # Fallback max context length if model context_window is not available
 FALLBACK_MAX_CONTEXT_LENGTH = 50000
 
+# Max images to feed to LLM
+MAX_IMAGES_PER_QUERY = 5
 
 class Message(BaseModel):
     id: str
@@ -228,8 +235,24 @@ class LLMService:
         max_input_chars = max_input_tokens * TOKEN_TO_CHAR_RATIO
         context = ""
         references = []
+        image_contents = []
         if docs:
+            # Filter out image content
+            text_docs: List[DocumentWithScore] = []
             for doc in docs:
+                if doc.metadata.get("indexer", "") == "vision":
+                    asset_id = doc.metadata.get("asset_id", None)
+                    mime_type = doc.metadata.get("mimetype", None)
+                    coll_id = doc.metadata.get("collection_id", None)
+                    doc_id = doc.metadata.get("document_id", None)
+                    if asset_id and mime_type and coll_id and doc_id:
+                        image_contents.append([asset_id, mime_type, coll_id, doc_id, doc.metadata, doc.score])
+                    if doc.metadata.get("index_method", "") == "vision_to_text":
+                        text_docs.append(doc)
+                else:
+                    text_docs.append(doc)
+
+            for doc in text_docs:
                 # Estimate final prompt length: template + query + current context + new doc
                 estimated_prompt_length = len(prompt_template) + len(query) + len(context) + len(doc.text)
                 if estimated_prompt_length > max_input_chars:
@@ -244,8 +267,33 @@ class LLMService:
                 f"input limit of {max_input_chars} characters"
             )
 
-        # TODO: When image retrieval is supported, images should be separated from docs to construct the 'images' parameter.
         images = []
+        if vision_model and image_contents:
+            object_store = get_async_object_store()
+            for asset_id, mime_type, coll_id, doc_id, metadata, score in image_contents:
+                try:
+                    doc = await async_db_ops.query_document(collection_id=coll_id, document_id=doc_id)
+                    if not doc:
+                        logger.warning(f"Document not found for collection_id={coll_id}, document_id={doc_id}")
+                        continue
+
+                    base_path = doc.object_store_base_path()
+                    asset_path = f"{base_path}/assets/{asset_id}"
+                    image_stream_tuple = await object_store.get(asset_path)
+                    if not image_stream_tuple:
+                        logger.warning(f"Image not found in object store at path: {asset_path}")
+                        continue
+
+                    image_stream, _ = image_stream_tuple
+                    image_bytes = b"".join([chunk async for chunk in image_stream])
+                    encoded_string = base64.b64encode(image_bytes).decode("utf-8")
+                    image_uri = f"data:{mime_type};base64,{encoded_string}"
+                    images.append(image_uri)
+                    references.append({"image_uri": image_uri, "metadata": metadata, "score": score})
+                except Exception as e:
+                    logger.error(f"Failed to process image asset {asset_id}: {e}", exc_info=True)
+
+            images = images[:MAX_IMAGES_PER_QUERY]
 
         cs = CompletionService(custom_llm_provider, model_name, base_url, api_key, temperature, max_output_tokens, vision=vision_model)
 

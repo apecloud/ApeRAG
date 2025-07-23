@@ -94,12 +94,15 @@ class VisionIndexer(BaseIndexer):
             image_uris = []
             for part in image_parts:
                 b64_image = base64.b64encode(part.data).decode("utf-8")
-                data_uri = f"data:{part.mime_type or 'image/png'};base64,{b64_image}"
+                mime_type = part.mime_type or "image/png"
+                data_uri = f"data:{mime_type};base64,{b64_image}"
                 image_uris.append(data_uri)
                 metadata = part.metadata.copy()
+                metadata["collection_id"] = collection.id
                 metadata["document_id"] = document_id
                 metadata["source"] = metadata.get("name", "")
                 metadata["asset_id"] = part.asset_id
+                metadata["mimetype"] = mime_type
                 metadata["indexer"] = "vision"
                 metadata["index_method"] = "multimodal_embedding"
                 asset_url = f"asset://{part.asset_id}"
@@ -123,7 +126,8 @@ class VisionIndexer(BaseIndexer):
                 text_nodes: List[TextNode] = []
                 for part in image_parts:
                     b64_image = base64.b64encode(part.data).decode("utf-8")
-                    data_uri = f"data:{part.mime_type or 'image/png'};base64,{b64_image}"
+                    mime_type = part.mime_type or "image/png"
+                    data_uri = f"data:{mime_type};base64,{b64_image}"
 
                     prompt = """Provide a detailed and concise analysis of the image, strictly following this format. Omit any introductory or conversational text.
 
@@ -165,9 +169,11 @@ class VisionIndexer(BaseIndexer):
 
                     if description:
                         metadata = part.metadata.copy()
+                        metadata["collection_id"] = collection.id
                         metadata["document_id"] = document_id
                         metadata["source"] = metadata.get("name", "")
                         metadata["asset_id"] = part.asset_id
+                        metadata["mimetype"] = mime_type
                         metadata["indexer"] = "vision"
                         metadata["index_method"] = "vision_to_text"
                         text_nodes.append(TextNode(text=description, metadata=metadata))

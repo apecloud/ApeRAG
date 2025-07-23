@@ -130,38 +130,79 @@ export const ChatMessageItem = ({
   const [feedbackMessage, setFeedbackMessage] = useState<string>();
 
   const getReferences: () => CollapseProps['items'] = () =>
-    item.references?.map((reference, index) => ({
-      key: index,
-      label: (
-        <Typography.Text
-          style={{ maxWidth: 400, color: token.colorPrimary }}
-          ellipsis
-        >
-          {index + 1}. {reference.metadata?.name || reference.metadata?.source}
-        </Typography.Text>
-      ),
-      children: (
-        <div
-          style={{
-            borderTop: `1px solid ${token.colorBorderSecondary}`,
-            paddingTop: 16,
-          }}
-        >
-          <ApeMarkdown>{reference.text}</ApeMarkdown>
-        </div>
-      ),
-      extra: (
-        <Space>
-          <BulbOutlined />
-          {reference.score}
-        </Space>
-      ),
-      style: {
-        marginBottom: 24,
-        borderRadius: token.borderRadiusLG,
-        border: `1px solid ${token.colorBorderSecondary}`,
-      },
-    }));
+    item.references?.map((reference, index) => {
+      if (reference.image_uri) {
+        return {
+          key: index,
+          label: (
+            <Typography.Text
+              style={{ maxWidth: 400, color: token.colorPrimary }}
+              ellipsis
+            >
+              {index + 1}. {reference.metadata?.name || 'Image Reference'}
+            </Typography.Text>
+          ),
+          children: (
+            <div
+              style={{
+                borderTop: `1px solid ${token.colorBorderSecondary}`,
+                paddingTop: 16,
+              }}
+            >
+              <img
+                src={reference.image_uri}
+                alt="Reference"
+                style={{ maxWidth: '100%' }}
+              />
+            </div>
+          ),
+          extra: (
+            <Space>
+              <BulbOutlined />
+              {reference.score}
+            </Space>
+          ),
+          style: {
+            marginBottom: 24,
+            borderRadius: token.borderRadiusLG,
+            border: `1px solid ${token.colorBorderSecondary}`,
+          },
+        };
+      }
+      return {
+        key: index,
+        label: (
+          <Typography.Text
+            style={{ maxWidth: 400, color: token.colorPrimary }}
+            ellipsis
+          >
+            {index + 1}.{' '}
+            {reference.metadata?.name || reference.metadata?.source}
+          </Typography.Text>
+        ),
+        children: (
+          <div
+            style={{
+              borderTop: `1px solid ${token.colorBorderSecondary}`,
+              paddingTop: 16,
+            }}
+          >
+            <ApeMarkdown>{reference.text || ''}</ApeMarkdown>
+          </div>
+        ),
+        extra: (
+          <Space>
+            <BulbOutlined />
+            {reference.score}
+          </Space>
+        ),
+        style: {
+          marginBottom: 24,
+          borderRadius: token.borderRadiusLG,
+          border: `1px solid ${token.colorBorderSecondary}`,
+        },
+      };
+    });
 
   const handleFeedback = (type: FeedbackTypeEnum) => {
     if (type === item.feedback?.type) {
