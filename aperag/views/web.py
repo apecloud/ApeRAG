@@ -14,6 +14,7 @@
 
 import copy
 import logging
+import time
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -58,6 +59,9 @@ async def web_search_endpoint(request: WebSearchRequest, user: User = Depends(cu
 
     Results are merged and ranked automatically.
     """
+    # Record start time for tracking search duration
+    search_start_time = time.time()
+
     try:
         # Validate that at least one search type is requested
         has_regular_search = bool(request.query and request.query.strip())
@@ -121,8 +125,13 @@ async def web_search_endpoint(request: WebSearchRequest, user: User = Depends(cu
 
         # Merge and rank results
         merged_results = _merge_and_rank_results(all_results, request.max_results)
+
+        # Calculate total search time
+        total_search_time = time.time() - search_start_time
+
         logger.info(
-            f"Search completed: {len(merged_results)} final results from {len(successful_searches)} successful sources"
+            f"Search completed: {len(merged_results)} final results from {len(successful_searches)} successful sources "
+            f"in {total_search_time:.2f}s"
         )
 
         # Determine the query description for response
@@ -139,7 +148,7 @@ async def web_search_endpoint(request: WebSearchRequest, user: User = Depends(cu
             results=merged_results,
             search_engine=f"serial({len(successful_searches)} sources)",
             total_results=len(merged_results),
-            search_time=0.0,  # TODO: Track actual search time
+            search_time=total_search_time,
         )
 
     except HTTPException:
@@ -244,6 +253,9 @@ async def web_read_endpoint(request: WebReadRequest, user: User = Depends(curren
     - If JINA API key available, try JINA first, fallback to Trafilatura on failure
     - If no JINA API key, use Trafilatura only
     """
+    # Record start time for tracking processing duration
+    processing_start_time = time.time()
+
     try:
         # Validate url_list parameter
         if not request.url_list or len(request.url_list) == 0:
@@ -251,15 +263,31 @@ async def web_read_endpoint(request: WebReadRequest, user: User = Depends(curren
                 status_code=400, detail="url_list parameter is required and must contain at least one URL"
             )
 
+        logger.info(f"Starting web read for {len(request.url_list)} URLs")
+
         # Try to get JINA API key for current user
         jina_api_key = await _get_user_jina_api_key(user)
 
         if jina_api_key:
             logger.info(f"JINA API key found for user {user.id}, using JINA with Trafilatura fallback")
-            return await _read_with_jina_fallback(request, jina_api_key)
+            result = await _read_with_jina_fallback(request, jina_api_key)
         else:
             logger.info(f"No JINA API key found for user {user.id}, using Trafilatura only")
-            return await _read_with_trafilatura_only(request)
+            result = await _read_with_trafilatura_only(request)
+
+        # Calculate total processing time and update result
+        total_processing_time = time.time() - processing_start_time
+
+        # Update the processing_time in the result
+        if hasattr(result, "processing_time"):
+            result.processing_time = total_processing_time
+
+        logger.info(
+            f"Web read completed: {result.successful}/{result.total_urls} URLs successful "
+            f"in {total_processing_time:.2f}s"
+        )
+
+        return result
 
     except HTTPException:
         # Re-raise HTTP exceptions as-is
