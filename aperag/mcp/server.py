@@ -56,17 +56,19 @@ async def list_collections() -> Dict[str, Any]:
                     collection_list = CollectionList.model_validate(response.json())
                     
                     # Filter collection data to only include essential information
-                    filtered_items = []
+                    # by directly modifying the CollectionList object and setting unneeded fields to None
                     if collection_list.items:
                         for collection in collection_list.items:
-                            filtered_items.append({
-                                "id": collection.id,
-                                "title": collection.title,
-                                "description": collection.description
-                            })
+                            # Keep essential fields and set sensitive fields to None
+                            # This preserves the original object structure for better maintainability
+                            collection.config = None
+                            collection.created = None
+                            collection.updated = None
+                            collection.source = None
+                            # Type and status are kept for compatibility and filtering
                     
-                    # Return filtered data with the same structure
-                    return {"items": filtered_items, "pageResult": collection_list.pageResult}
+                    # Return the modified object using model_dump()
+                    return collection_list.model_dump()
                 except Exception as e:
                     logger.error(f"Failed to parse collections response: {e}")
                     return {"error": "Failed to parse collections response", "details": str(e)}
