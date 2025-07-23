@@ -43,6 +43,7 @@ class JinaSearchProvider(BaseSearchProvider):
         self.headers = {
             "Accept": "application/json",
             "User-Agent": "ApeRAG-WebSearch/1.0",
+            "X-Respond-With": "no-content",
         }
         if self.api_key:
             self.headers["Authorization"] = f"Bearer {self.api_key}"
