@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import logging
 from typing import List
 
@@ -29,12 +30,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+class WebSearchError(Exception):
+    """Custom exception for web search failures."""
+
+    pass
+
+
+class WebReadError(Exception):
+    """Custom exception for web read failures."""
+
+    pass
+
+
 @router.post("/web/search", response_model=WebSearchResponse, tags=["websearch"])
 async def web_search_endpoint(request: WebSearchRequest, user: User = Depends(current_user)) -> WebSearchResponse:
     """
     Perform web search using various search engines with advanced domain targeting.
 
-    Supports parallel execution of:
+    Supports serial execution of:
     - Regular web search with JINA priority and DuckDuckGo fallback (query + source)
     - LLM.txt discovery search (search_llms_txt)
 
@@ -45,107 +58,147 @@ async def web_search_endpoint(request: WebSearchRequest, user: User = Depends(cu
 
     Results are merged and ranked automatically.
     """
-    # Validate that at least one search type is requested
-    has_regular_search = bool(request.query and request.query.strip())
-    has_llm_txt_search = bool(request.search_llms_txt and request.search_llms_txt.strip())
+    try:
+        # Validate that at least one search type is requested
+        has_regular_search = bool(request.query and request.query.strip())
+        has_llm_txt_search = bool(request.search_llms_txt and request.search_llms_txt.strip())
 
-    if not has_regular_search and not has_llm_txt_search:
-        raise HTTPException(
-            status_code=400,
-            detail="At least one search type is required: provide 'query' for regular search or 'search_llms_txt' for LLM.txt discovery.",
+        if not has_regular_search and not has_llm_txt_search:
+            raise HTTPException(
+                status_code=400,
+                detail="At least one search type is required: provide 'query' for regular search or 'search_llms_txt' for LLM.txt discovery.",
+            )
+
+        # Collect search results
+        all_results = []
+        successful_searches = []
+        failed_searches = []
+
+        # Execute regular search if requested
+        if has_regular_search:
+            try:
+                logger.info(
+                    f"Starting regular search: '{request.query}'" + (f" on {request.source}" if request.source else "")
+                )
+                regular_result = await _search_with_jina_fallback(request, user)
+
+                if regular_result and hasattr(regular_result, "results") and regular_result.results:
+                    all_results.extend(regular_result.results)
+                    search_desc = f"Regular search: '{request.query}'" + (
+                        f" on {request.source}" if request.source else ""
+                    )
+                    successful_searches.append(search_desc)
+                    logger.info(f"Regular search succeeded: {len(regular_result.results)} results")
+                else:
+                    failed_searches.append("Regular search: No results returned")
+
+            except Exception as e:
+                error_msg = f"Regular search failed: {str(e)}"
+                logger.error(error_msg, exc_info=True)
+                failed_searches.append(error_msg)
+
+        # Execute LLM.txt discovery search if requested
+        if has_llm_txt_search:
+            try:
+                logger.info(f"Starting LLM.txt discovery search: {request.search_llms_txt}")
+                llm_txt_result = await _search_llm_txt_discovery(request)
+
+                if llm_txt_result and hasattr(llm_txt_result, "results") and llm_txt_result.results:
+                    all_results.extend(llm_txt_result.results)
+                    successful_searches.append(f"LLM.txt discovery: {request.search_llms_txt}")
+                    logger.info(f"LLM.txt discovery succeeded: {len(llm_txt_result.results)} results")
+                else:
+                    failed_searches.append("LLM.txt discovery: No results returned")
+
+            except Exception as e:
+                error_msg = f"LLM.txt discovery failed: {str(e)}"
+                logger.error(error_msg, exc_info=True)
+                failed_searches.append(error_msg)
+
+        # If all searches failed, return error
+        if not all_results and failed_searches:
+            raise HTTPException(status_code=500, detail=f"All searches failed: {'; '.join(failed_searches)}")
+
+        # Merge and rank results
+        merged_results = _merge_and_rank_results(all_results, request.max_results)
+        logger.info(
+            f"Search completed: {len(merged_results)} final results from {len(successful_searches)} successful sources"
         )
 
-    # Prepare search tasks
-    search_tasks = []
-    search_descriptions = []
+        # Determine the query description for response
+        query_parts = []
+        if has_regular_search:
+            query_parts.append(request.query.strip())
+        if has_llm_txt_search:
+            query_parts.append(f"LLM.txt:{request.search_llms_txt.strip()}")
 
-    # Regular search with JINA priority and DuckDuckGo fallback
-    if has_regular_search:
-        search_result = await _search_with_jina_fallback(request, user)
-        search_tasks.append(search_result)
-        search_descriptions.append(
-            f"Regular search: '{request.query}'" + (f" on {request.source}" if request.source else "")
+        response_query = " + ".join(query_parts)
+
+        return WebSearchResponse(
+            query=response_query,
+            results=merged_results,
+            search_engine=f"serial({len(successful_searches)} sources)",
+            total_results=len(merged_results),
+            search_time=0.0,  # TODO: Track actual search time
         )
 
-    # LLM.txt discovery search (independent)
-    if has_llm_txt_search:
-        llm_txt_service = SearchService(provider_name="llm_txt")
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        logger.error(f"Web search endpoint failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Web search failed: {str(e)}")
 
-        llm_txt_request = WebSearchRequest(
-            query="",  # LLM.txt discovery doesn't use query
-            max_results=request.max_results,
-            search_engine="llm_txt",
-            timeout=request.timeout,
-            locale=request.locale,
-            source=request.search_llms_txt.strip(),  # LLM.txt domain
-            search_llms_txt=None,  # Not used in this provider
-        )
 
-        search_tasks.append(llm_txt_service.search(llm_txt_request))
-        search_descriptions.append(f"LLM.txt discovery: {request.search_llms_txt}")
+async def _search_llm_txt_discovery(request: WebSearchRequest) -> WebSearchResponse:
+    """
+    Perform LLM.txt discovery search using dedicated service.
 
-    # Execute LLM.txt search if needed (regular search already completed)
-    if has_llm_txt_search and len(search_tasks) > 1:
-        try:
-            llm_txt_result = await search_tasks[1]  # LLM.txt service search
-            search_results = [search_tasks[0], llm_txt_result]  # Regular result + LLM.txt result
-        except Exception as e:
-            search_results = [search_tasks[0], e]  # Regular result + exception
-    else:
-        search_results = search_tasks  # Only regular search
+    Args:
+        request: Original search request with search_llms_txt parameter
 
-    # Process results and handle errors
-    all_results = []
-    successful_searches = []
-    failed_searches = []
+    Returns:
+        Search response from LLM.txt discovery
 
-    for i, result in enumerate(search_results):
-        description = search_descriptions[i]
+    Raises:
+        WebSearchError: If LLM.txt search fails
+    """
+    try:
+        async with SearchService(provider_name="llm_txt") as llm_txt_service:
+            llm_txt_request = WebSearchRequest(
+                query="",  # LLM.txt discovery doesn't use query
+                max_results=request.max_results,
+                search_engine="llm_txt",
+                timeout=request.timeout,
+                locale=request.locale,
+                source=request.search_llms_txt.strip(),  # LLM.txt domain
+                search_llms_txt=None,  # Not used in this provider
+            )
 
-        if isinstance(result, Exception):
-            failed_searches.append(f"{description}: {str(result)}")
-            continue
+            return await llm_txt_service.search(llm_txt_request)
 
-        if hasattr(result, "results") and result.results:
-            all_results.extend(result.results)
-            successful_searches.append(description)
-        else:
-            failed_searches.append(f"{description}: No results returned")
-
-    # If all searches failed, return error
-    if not all_results and failed_searches:
-        raise HTTPException(status_code=500, detail=f"All searches failed: {'; '.join(failed_searches)}")
-
-    # Merge and rank results
-    merged_results = _merge_and_rank_results(all_results, request.max_results)
-
-    # Determine the query description for response
-    query_parts = []
-    if has_regular_search:
-        query_parts.append(request.query.strip())
-    if has_llm_txt_search:
-        query_parts.append(f"LLM.txt:{request.search_llms_txt.strip()}")
-
-    response_query = " + ".join(query_parts)
-
-    return WebSearchResponse(
-        query=response_query,
-        results=merged_results,
-        search_engine=f"parallel({len(successful_searches)} sources)",
-        total_results=len(merged_results),
-        search_time=0.0,  # TODO: Track actual search time
-    )
+    except Exception as e:
+        raise WebSearchError(f"LLM.txt discovery search failed: {str(e)}") from e
 
 
 def _merge_and_rank_results(all_results: List, max_results: int) -> List:
     """
     Merge results from multiple sources and re-rank them.
 
-    Simple strategy:
+    Creates new result objects instead of modifying originals.
+
+    Strategy:
     1. Remove duplicates by URL
     2. Sort by rank (lower is better)
-    3. Re-assign sequential ranks
+    3. Create new results with sequential ranks
     4. Limit to max_results
+
+    Args:
+        all_results: List of search result items from different sources
+        max_results: Maximum number of results to return
+
+    Returns:
+        List of merged and ranked results
     """
     if not all_results:
         return []
@@ -162,13 +215,15 @@ def _merge_and_rank_results(all_results: List, max_results: int) -> List:
     # Sort by existing rank (assume lower rank = higher relevance)
     sorted_results = sorted(unique_results, key=lambda r: getattr(r, "rank", 999))
 
-    # Re-assign sequential ranks and limit results
+    # Create new result objects with updated ranks instead of modifying originals
     final_results = []
     for i, result in enumerate(sorted_results[:max_results]):
-        # Create a new result item with updated rank
-        if hasattr(result, "rank"):
-            result.rank = i + 1
-        final_results.append(result)
+        # Create a deep copy to avoid modifying the original
+        new_result = copy.deepcopy(result)
+        # Update rank on the copy
+        if hasattr(new_result, "rank"):
+            new_result.rank = i + 1
+        final_results.append(new_result)
 
     return final_results
 
@@ -180,14 +235,13 @@ async def web_read_endpoint(request: WebReadRequest, user: User = Depends(curren
 
     Supports:
     - Single URL or multiple URLs (use url_list array)
-    - Concurrent processing for multiple URLs
+    - Serial processing for multiple URLs
     - Configurable timeout and locale settings
     - Multiple reader providers (JINA priority, Trafilatura fallback)
 
     Logic:
     - Try to get JINA API key from user's provider settings
-    - If JINA API key available, run both JINA and Trafilatura concurrently
-    - Return JINA result if successful, otherwise fallback to Trafilatura
+    - If JINA API key available, try JINA first, fallback to Trafilatura on failure
     - If no JINA API key, use Trafilatura only
     """
     try:
@@ -198,12 +252,7 @@ async def web_read_endpoint(request: WebReadRequest, user: User = Depends(curren
             )
 
         # Try to get JINA API key for current user
-        jina_api_key = None
-        try:
-            jina_api_key = await async_db_ops.query_provider_api_key("jina", user_id=str(user.id), need_public=True)
-            logger.debug(f"JINA API key query result for user {user.id}: {'found' if jina_api_key else 'not found'}")
-        except Exception as e:
-            logger.debug(f"Could not query JINA API key for user {user.id}: {e}")
+        jina_api_key = await _get_user_jina_api_key(user)
 
         if jina_api_key:
             logger.info(f"JINA API key found for user {user.id}, using JINA with Trafilatura fallback")
@@ -216,13 +265,32 @@ async def web_read_endpoint(request: WebReadRequest, user: User = Depends(curren
         # Re-raise HTTP exceptions as-is
         raise
     except Exception as e:
-        logger.error(f"Web read endpoint failed: {e}")
+        logger.error(f"Web read endpoint failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Web read failed: {str(e)}")
+
+
+async def _get_user_jina_api_key(user: User) -> str | None:
+    """
+    Get JINA API key for the current user.
+
+    Args:
+        user: Current user object
+
+    Returns:
+        JINA API key if found, None otherwise
+    """
+    try:
+        jina_api_key = await async_db_ops.query_provider_api_key("jina", user_id=str(user.id), need_public=True)
+        logger.debug(f"JINA API key query result for user {user.id}: {'found' if jina_api_key else 'not found'}")
+        return jina_api_key
+    except Exception as e:
+        logger.debug(f"Could not query JINA API key for user {user.id}: {e}")
+        return None
 
 
 async def _read_with_jina_fallback(request: WebReadRequest, jina_api_key: str) -> WebReadResponse:
     """
-    Read with JINA priority and Trafilatura fallback - simple and reliable approach.
+    Read with JINA priority and Trafilatura fallback.
 
     Args:
         request: Web read request
@@ -230,13 +298,14 @@ async def _read_with_jina_fallback(request: WebReadRequest, jina_api_key: str) -
 
     Returns:
         Web read response from JINA if successful, otherwise from Trafilatura
-    """
-    jina_service = ReaderService(provider_name="jina", provider_config={"api_key": jina_api_key})
 
+    Raises:
+        WebReadError: If both JINA and Trafilatura fail
+    """
+    # Try JINA first
     try:
-        # Try JINA first
-        try:
-            logger.info("Attempting to read with JINA")
+        logger.info("Attempting to read with JINA")
+        async with ReaderService(provider_name="jina", provider_config={"api_key": jina_api_key}) as jina_service:
             jina_result = await jina_service.read(request)
 
             # Check if JINA was successful
@@ -250,15 +319,15 @@ async def _read_with_jina_fallback(request: WebReadRequest, jina_api_key: str) -
             else:
                 logger.info("JINA returned empty or invalid result")
 
-        except Exception as e:
-            logger.info(f"JINA failed: {e}")
+    except Exception as e:
+        logger.info(f"JINA failed: {e}")
 
-        # Fallback to Trafilatura using the dedicated function
-        logger.info("Falling back to Trafilatura")
+    # Fallback to Trafilatura
+    logger.info("Falling back to Trafilatura")
+    try:
         return await _read_with_trafilatura_only(request)
-
-    finally:
-        await jina_service.close()
+    except Exception as e:
+        raise WebReadError(f"Both JINA and Trafilatura reading failed. Last error: {str(e)}") from e
 
 
 async def _read_with_trafilatura_only(request: WebReadRequest) -> WebReadResponse:
@@ -270,17 +339,20 @@ async def _read_with_trafilatura_only(request: WebReadRequest) -> WebReadRespons
 
     Returns:
         Web read response from Trafilatura
+
+    Raises:
+        WebReadError: If Trafilatura fails
     """
-    trafilatura_service = ReaderService(provider_name="trafilatura")
     try:
-        return await trafilatura_service.read(request)
-    finally:
-        await trafilatura_service.close()
+        async with ReaderService(provider_name="trafilatura") as trafilatura_service:
+            return await trafilatura_service.read(request)
+    except Exception as e:
+        raise WebReadError(f"Trafilatura reading failed: {str(e)}") from e
 
 
 async def _search_with_jina_fallback(request: WebSearchRequest, user: User) -> WebSearchResponse:
     """
-    Search with JINA priority and DuckDuckGo fallback - simple and reliable approach.
+    Search with JINA priority and DuckDuckGo fallback.
 
     Args:
         request: Web search request
@@ -288,34 +360,34 @@ async def _search_with_jina_fallback(request: WebSearchRequest, user: User) -> W
 
     Returns:
         Search results from JINA if successful, otherwise from DuckDuckGo
+
+    Raises:
+        WebSearchError: If both JINA and DuckDuckGo fail
     """
     # Try to get JINA API key for current user
-    jina_api_key = None
-    try:
-        jina_api_key = await async_db_ops.query_provider_api_key("jina", user_id=str(user.id), need_public=True)
-        logger.debug(f"JINA API key query result for user {user.id}: {'found' if jina_api_key else 'not found'}")
-    except Exception as e:
-        logger.debug(f"Could not query JINA API key for user {user.id}: {e}")
+    jina_api_key = await _get_user_jina_api_key(user)
 
+    # Try JINA first if API key is available
     if jina_api_key:
-        # Try JINA first
         try:
             logger.info("Attempting to search with JINA")
-            jina_service = SearchService(provider_name="jina", provider_config={"api_key": jina_api_key})
+            async with SearchService(provider_name="jina", provider_config={"api_key": jina_api_key}) as jina_service:
+                jina_result = await jina_service.search(request)
 
-            jina_result = await jina_service.search(request)
-
-            # Check if JINA was successful
-            if jina_result and hasattr(jina_result, "results") and jina_result.results:
-                logger.info(f"JINA search succeeded: {len(jina_result.results)} results")
-                return jina_result
-            else:
-                logger.info("JINA search completed but no results returned")
+                # Check if JINA was successful
+                if jina_result and hasattr(jina_result, "results") and jina_result.results:
+                    logger.info(f"JINA search succeeded: {len(jina_result.results)} results")
+                    return jina_result
+                else:
+                    logger.info("JINA search completed but no results returned")
 
         except Exception as e:
             logger.info(f"JINA search failed: {e}")
 
     # Fallback to DuckDuckGo
     logger.info("Using DuckDuckGo search")
-    duckduckgo_service = SearchService(provider_name="duckduckgo")
-    return await duckduckgo_service.search(request)
+    try:
+        async with SearchService(provider_name="duckduckgo") as duckduckgo_service:
+            return await duckduckgo_service.search(request)
+    except Exception as e:
+        raise WebSearchError(f"Both JINA and DuckDuckGo search failed. Last error: {str(e)}") from e
