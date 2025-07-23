@@ -15,7 +15,6 @@
 """Agent memory management for conversation sessions - Pure function implementation."""
 
 import logging
-from typing import Any, Dict
 
 from mcp_agent.workflows.llm.augmented_llm import SimpleMemory
 
@@ -99,28 +98,6 @@ class AgentMemoryManager:
             logger.warning(f"Failed to load history: {e}, returning empty memory")
             return memory
 
-    def prepare_memory_for_llm(self, memory: SimpleMemory) -> SimpleMemory:
-        """
-        Prepare memory for LLM use (pure function).
-
-        This method can apply additional processing like:
-        - Context summarization
-        - Token limit enforcement
-        - Message filtering
-
-        Args:
-            memory: Input memory instance
-
-        Returns:
-            SimpleMemory: Processed memory ready for LLM
-        """
-        logger.debug("Preparing memory for LLM use")
-
-        # For now, return as-is
-        # Future: Add summarization, token counting, etc.
-
-        return memory
-
     def extract_memory_from_llm(self, llm) -> SimpleMemory:
         """
         Extract updated memory from LLM after generation (pure function).
@@ -141,31 +118,3 @@ class AgentMemoryManager:
 
         logger.debug("Successfully extracted updated memory")
         return updated_memory
-
-    async def get_memory_stats(self, memory: SimpleMemory) -> Dict[str, Any]:
-        """
-        Get memory statistics (pure function).
-
-        Args:
-            memory: Memory instance to analyze
-
-        Returns:
-            Dict containing memory statistics
-        """
-        try:
-            # SimpleMemory stores messages in .history attribute
-            messages = getattr(memory, "history", [])
-
-            stats = {
-                "total_messages": len(messages),
-                "human_messages": len([m for m in messages if getattr(m, "type", None) == "human"]),
-                "ai_messages": len([m for m in messages if getattr(m, "type", None) == "ai"]),
-                "has_context": len(messages) > 0,
-            }
-
-            logger.debug(f"Memory stats: {stats}")
-            return stats
-
-        except Exception as e:
-            logger.warning(f"Failed to get memory stats: {e}")
-            return {"total_messages": 0, "human_messages": 0, "ai_messages": 0, "has_context": False}
