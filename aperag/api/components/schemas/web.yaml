@@ -11,11 +11,6 @@ webSearchRequest:
       description: Maximum number of results to return
       default: 5
       example: 5
-    search_engine:
-      type: string
-      description: Search engine to use
-      default: "duckduckgo"
-      example: "duckduckgo"
     timeout:
       type: integer
       description: Request timeout in seconds
@@ -84,9 +79,6 @@ webSearchResponse:
       description: List of search results
       items:
         $ref: '#/webSearchResultItem'
-    search_engine:
-      type: string
-      description: Search engine used
     total_results:
       type: integer
       description: Total number of results found
@@ -97,7 +89,6 @@ webSearchResponse:
   required:
     - query
     - results
-    - search_engine
 
 webReadRequest:
   type: object

@@ -36,12 +36,6 @@ export interface WebSearchResponse {
      */
     'results': Array<WebSearchResultItem>;
     /**
-     * Search engine used
-     * @type {string}
-     * @memberof WebSearchResponse
-     */
-    'search_engine': string;
-    /**
      * Total number of results found
      * @type {number}
      * @memberof WebSearchResponse

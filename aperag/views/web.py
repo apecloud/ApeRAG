@@ -146,7 +146,6 @@ async def web_search_endpoint(request: WebSearchRequest, user: User = Depends(cu
         return WebSearchResponse(
             query=response_query,
             results=merged_results,
-            search_engine=f"serial({len(successful_searches)} sources)",
             total_results=len(merged_results),
             search_time=total_search_time,
         )
@@ -177,7 +176,6 @@ async def _search_llm_txt_discovery(request: WebSearchRequest) -> WebSearchRespo
             llm_txt_request = WebSearchRequest(
                 query="",  # LLM.txt discovery doesn't use query
                 max_results=request.max_results,
-                search_engine="llm_txt",
                 timeout=request.timeout,
                 locale=request.locale,
                 source=request.search_llms_txt.strip(),  # LLM.txt domain

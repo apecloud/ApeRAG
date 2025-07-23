@@ -51,7 +51,6 @@ class JinaSearchProvider(BaseSearchProvider):
         self,
         query: str,
         max_results: int = 5,
-        search_engine: str = "jina",
         timeout: int = 30,
         locale: str = "en-US",
         source: Optional[str] = None,
@@ -65,7 +64,6 @@ class JinaSearchProvider(BaseSearchProvider):
         Args:
             query: Search query (can be empty for site-specific browsing)
             max_results: Maximum number of results to return (applied via local filtering)
-            search_engine: Search engine to use (ignored - Jina only supports its own engine)
             timeout: Request timeout in seconds
             locale: Browser locale (converted to Accept-Language header)
             source: Domain or URL for site-specific search. When provided, search will be limited to this domain.

@@ -2440,14 +2440,12 @@ paths:
                 value:
                   query: ApeRAG 2025年最新发展
                   max_results: 5
-                  search_engine: google
               advanced_search:
                 summary: Advanced search
                 description: Search with custom parameters
                 value:
                   query: 机器学习最新进展
                   max_results: 10
-                  search_engine: duckduckgo
                   timeout: 30
                   locale: zh-CN
       responses:
@@ -2470,7 +2468,6 @@ paths:
                         snippet: ApeRAG在2025年将重点发展...
                         domain: example.com
                         timestamp: '2025-01-01T00:00:00Z'
-                    search_engine: google
                     total_results: 1
                     search_time: 1.2
         '400':
@@ -3646,6 +3643,11 @@ components:
         topk:
           type: integer
           description: Top K results
+        keywords:
+          type: array
+          items:
+            type: string
+          description: Custom keywords to use for fulltext search
     graphSearchParams:
       type: object
       properties:
@@ -5150,11 +5152,6 @@ components:
           description: Maximum number of results to return
           default: 5
           example: 5
-        search_engine:
-          type: string
-          description: Search engine to use
-          default: duckduckgo
-          example: duckduckgo
         timeout:
           type: integer
           description: Request timeout in seconds
@@ -5221,9 +5218,6 @@ components:
           description: List of search results
           items:
             $ref: '#/components/schemas/webSearchResultItem'
-        search_engine:
-          type: string
-          description: Search engine used
         total_results:
           type: integer
           description: Total number of results found
@@ -5234,7 +5228,6 @@ components:
       required:
         - query
         - results
-        - search_engine
     webReadRequest:
       type: object
       description: Web content reading request

@@ -31,7 +31,6 @@ class BaseSearchProvider(ABC):
         self,
         query: str,
         max_results: int = 5,
-        search_engine: str = "google",
         timeout: int = 30,
         locale: str = "en-US",
         source: Optional[str] = None,
@@ -42,10 +41,9 @@ class BaseSearchProvider(ABC):
         Args:
             query: Search query
             max_results: Maximum number of results to return
-            search_engine: Search engine to use
             timeout: Request timeout in seconds
             locale: Browser locale
-            source: Domain or URL for targeted processing. When provided, search will be limited to this domain.
+            source: Domain or URL for site-specific search
 
         Returns:
             List of search result items
@@ -60,19 +58,7 @@ class BaseSearchProvider(ABC):
         Returns:
             List of supported search engine names
         """
-        pass
-
-    def validate_search_engine(self, search_engine: str) -> bool:
-        """
-        Validate if search engine is supported.
-
-        Args:
-            search_engine: Search engine name to validate
-
-        Returns:
-            True if supported, False otherwise
-        """
-        return search_engine in self.get_supported_engines()
+        raise NotImplementedError("Subclasses must implement get_supported_engines method")
 
     async def close(self):
         """

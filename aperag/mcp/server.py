@@ -143,7 +143,6 @@ async def search_collection(
 async def web_search(
     query: str = "",
     max_results: int = 5,
-    search_engine: str = "duckduckgo",
     timeout: int = 30,
     locale: str = "en-US",
     source: str = "",
@@ -154,7 +153,6 @@ async def web_search(
     Args:
         query: Search query for regular web search. Optional if only using LLM.txt discovery.
         max_results: Maximum number of results to return (default: 5)
-        search_engine: Search engine to use: duckduckgo, google, bing (default: duckduckgo)
         timeout: Request timeout in seconds (default: 30)
         locale: Browser locale (default: en-US)
         source: Optional domain or URL for site-specific filtering. When provided with query,
@@ -176,7 +174,6 @@ async def web_search(
         # Build search request
         search_data = {
             "max_results": max_results,
-            "search_engine": search_engine,
             "timeout": timeout,
             "locale": locale,
         }
@@ -344,7 +341,6 @@ You can also search the web and extract content from web pages:
 web_results = web_search(
     query="ApeRAG RAG system 2025",
     max_results=5,
-    search_engine="duckduckgo",  # or "google", "bing"
     locale="zh-CN"
 )
 

@@ -43,7 +43,6 @@ class DuckDuckGoProvider(BaseSearchProvider):
         self,
         query: str,
         max_results: int = 5,
-        search_engine: str = "duckduckgo",
         timeout: int = 30,
         locale: str = "en-US",
         source: Optional[str] = None,
@@ -54,7 +53,6 @@ class DuckDuckGoProvider(BaseSearchProvider):
         Args:
             query: Search query (can be empty for site-specific browsing)
             max_results: Maximum number of results to return
-            search_engine: Search engine to use
             timeout: Request timeout in seconds
             locale: Browser locale
             source: Domain or URL for site-specific search. When provided, search will be limited to this domain.

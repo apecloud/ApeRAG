@@ -20,14 +20,12 @@ webSearch:
               value:
                 query: "ApeRAG 2025年最新发展"
                 max_results: 5
-                search_engine: "google"
             advanced_search:
               summary: Advanced search
               description: Search with custom parameters
               value:
                 query: "机器学习最新进展"
                 max_results: 10
-                search_engine: "duckduckgo"
                 timeout: 30
                 locale: "zh-CN"
     responses:
@@ -50,7 +48,6 @@ webSearch:
                       snippet: "ApeRAG在2025年将重点发展..."
                       domain: "example.com"
                       timestamp: "2025-01-01T00:00:00Z"
-                  search_engine: "google"
                   total_results: 1
                   search_time: 1.2
       '400':
