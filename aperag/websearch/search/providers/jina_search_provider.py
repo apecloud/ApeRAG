@@ -120,12 +120,12 @@ class JinaSearchProvider(BaseSearchProvider):
                 request_headers["X-Target-Domain"] = target_domain
 
             # Make request to Jina Search API using correct URL format
-            # According to Jina docs: GET https://s.jina.ai/{search_query}
-            # URL encode the query to handle special characters
-            from urllib.parse import quote
+            # According to Jina docs: GET https://s.jina.ai/?q={search_query}
+            # URL encode the query using + for spaces (standard for query parameters)
+            from urllib.parse import quote_plus
 
-            encoded_query = quote(final_query, safe=" ")
-            search_url = f"{self.base_url}{encoded_query}"
+            encoded_query = quote_plus(final_query)
+            search_url = f"{self.base_url}?q={encoded_query}"
 
             logger.info(f"Jina search request: {search_url}")
             logger.debug(f"Request headers: {request_headers}")
