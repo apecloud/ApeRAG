@@ -33,6 +33,7 @@ class AgentMemoryManager:
     - Create memory from chat history (pure function)
     - Apply context window limitations and summarization
     - Return memory objects ready for LLM use
+    - Build context summaries for special scenarios
     - No direct LLM object manipulation
     """
 
@@ -98,23 +99,42 @@ class AgentMemoryManager:
             logger.warning(f"Failed to load history: {e}, returning empty memory")
             return memory
 
-    def extract_memory_from_llm(self, llm) -> SimpleMemory:
+    @handle_agent_error("context_summary_build", reraise=False)
+    async def build_context_summary(self, history: RedisChatMessageHistory, limit: int = 5) -> str:
         """
-        Extract updated memory from LLM after generation (pure function).
+        Build a context summary string from recent conversation history.
+
+        This is useful for including recent context in prompts for special scenarios.
+        Pure function that accepts external history instance.
 
         Args:
-            llm: LLM instance to extract from
+            history: External RedisChatMessageHistory instance
+            limit: Maximum number of recent messages to include
 
         Returns:
-            SimpleMemory: Updated conversation memory
+            str: Formatted context summary string
         """
-        logger.debug("Extracting memory from LLM")
+        try:
+            # Get recent messages from history
+            messages = await history.messages
 
-        updated_memory = getattr(llm, "history", None)
+            if not messages:
+                return ""
 
-        if updated_memory is None:
-            logger.warning("LLM history is None, creating fresh memory")
-            updated_memory = SimpleMemory()
+            # Convert to context format (limit to recent messages)
+            recent_messages = messages[-limit:] if len(messages) > limit else messages
 
-        logger.debug("Successfully extracted updated memory")
-        return updated_memory
+            context_lines = []
+            for message in recent_messages:
+                role = "User" if message.type == "human" else "Assistant"
+                content = message.content[:200] + "..." if len(message.content) > 200 else message.content
+                context_lines.append(f"{role}: {content}")
+
+            context_summary = "\n".join(context_lines)
+            logger.debug(f"Built context summary for session {history.session_id}: {len(context_summary)} characters")
+
+            return context_summary
+
+        except Exception as e:
+            logger.warning(f"Failed to build context summary for session {history.session_id}: {e}")
+            return ""

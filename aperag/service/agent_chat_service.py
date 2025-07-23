@@ -330,8 +330,7 @@ class AgentChatService:
 
             await message_queue.put(format_stream_content(message_id, full_content))
 
-            updated_memory = self.memory_manager.extract_memory_from_llm(llm)
-            tool_references = extract_tool_call_references(updated_memory)
+            tool_references = extract_tool_call_references(llm.history)
             urls = []
 
             await message_queue.put(format_stream_end(message_id, references=tool_references, urls=urls))
