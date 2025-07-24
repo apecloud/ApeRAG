@@ -95,7 +95,7 @@ class RedisLock(LockProtocol):
         """Get Redis client from shared connection manager."""
         from aperag.db.redis_manager import RedisConnectionManager
 
-        return await RedisConnectionManager.get_client()
+        return await RedisConnectionManager.get_async_client()
 
     async def acquire(self, timeout: Optional[float] = None) -> bool:
         """

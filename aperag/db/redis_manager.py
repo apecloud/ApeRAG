@@ -151,7 +151,7 @@ class RedisConnectionManager:
         # Import here to avoid circular imports
         from aperag.config import settings
 
-        return settings.MEMORY_REDIS_URL
+        return settings.memory_redis_url
 
     @classmethod
     async def close(cls):
