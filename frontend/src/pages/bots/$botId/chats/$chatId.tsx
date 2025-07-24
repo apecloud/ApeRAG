@@ -42,9 +42,14 @@ export default () => {
         }
 
         if (fragment.type === 'tool_call_result') {
-          
+          setMessages((msgs) => {
+            const last = msgs.findLast((m) => m.id === fragment.id);
+            if (last) {
+              last.data = (last.data || '') + `<tool_call_result>${fragment.data}</tool_call_result>`;
+            }
+            return [...msgs];
+          });
         }
-        
 
         if (fragment.type === 'message') {
           setMessages((msgs) => {

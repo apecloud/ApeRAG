@@ -137,7 +137,7 @@ export const ChatMessageItem = ({
           style={{ maxWidth: 400, color: token.colorPrimary }}
           ellipsis
         >
-          {index + 1}. {reference.metadata?.name || reference.metadata?.source}
+          {index + 1}. {reference.metadata?.name || reference.metadata?.source || reference.metadata?.query || reference.metadata?.type}
         </Typography.Text>
       ),
       children: (
