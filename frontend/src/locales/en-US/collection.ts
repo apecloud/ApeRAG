@@ -31,7 +31,8 @@ export const collection = {
   'collection.enable_knowledge_graph': 'Enable Graph RAG',
   'collection.enable_summary': 'Enable Summary',
   'collection.enable_auto_summary': 'Enable Auto Summary',
-  'collection.description.tips': 'If you enable auto summary, the description will become read-only. The backend LLM model will automatically generate summary indexes for each document and then generate the collection description based on these summaries, providing a more accurate reflection of the collection content.',
+  'collection.description.tips':
+    'If you enable auto summary, the description will become read-only. The backend LLM model will automatically generate summary indexes for each document and then generate the collection description based on these summaries, providing a more accurate reflection of the collection content.',
   'collection.embedding_model': 'Embedding Model',
   'collection.model_not_found':
     'Please set the API Key in Settings -> Model Provider',
@@ -67,9 +68,12 @@ export const collection = {
   'collection.summary.title': 'Knowledge Summary',
   'collection.summary.content': 'Summary Content',
   'collection.summary.not.enabled': 'Summary feature not enabled',
-  'collection.summary.enable.description': 'Please go to settings page to enable summary feature',
-  'collection.summary.generating.description': 'Summary is being generated in the background, please refresh later to see results',
-  'collection.summary.disabled.placeholder': 'Summary feature not enabled, please enable it in settings first',
+  'collection.summary.enable.description':
+    'Please go to settings page to enable summary feature',
+  'collection.summary.generating.description':
+    'Summary is being generated in the background, please refresh later to see results',
+  'collection.summary.disabled.placeholder':
+    'Summary feature not enabled, please enable it in settings first',
   'collection.goto.settings': 'Go to Settings',
   'collection.not.found': 'Collection not found',
 };

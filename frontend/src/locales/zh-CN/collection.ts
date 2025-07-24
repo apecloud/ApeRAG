@@ -29,7 +29,8 @@ export const collection = {
   'collection.enable_knowledge_graph': '启用Graph RAG',
   'collection.enable_summary': '启用摘要',
   'collection.enable_auto_summary': '启用自动摘要',
-  'collection.description.tips': '如果开启自动摘要，描述内容将变为只读，由后台 LLM 模型自动为每个文档生成摘要索引，并在此基础上生成集合描述，更加准确地反映知识库内容。',
+  'collection.description.tips':
+    '如果开启自动摘要，描述内容将变为只读，由后台 LLM 模型自动为每个文档生成摘要索引，并在此基础上生成集合描述，更加准确地反映知识库内容。',
   'collection.embedding_model': '嵌入模型',
   'collection.model_not_found': '请在设置 -> 模型服务商中设置API Key',
   'collection.embedding_model.required': '请选择嵌入模型',
@@ -64,7 +65,8 @@ export const collection = {
   'collection.summary.content': '摘要内容',
   'collection.summary.not.enabled': '摘要功能未启用',
   'collection.summary.enable.description': '请前往设置页面开启摘要功能',
-  'collection.summary.generating.description': '摘要正在后台生成中，请稍候刷新查看结果',
+  'collection.summary.generating.description':
+    '摘要正在后台生成中，请稍候刷新查看结果',
   'collection.summary.disabled.placeholder': '摘要功能未启用，请先在设置中开启',
   'collection.goto.settings': '前往设置',
   'collection.not.found': '知识库不存在',

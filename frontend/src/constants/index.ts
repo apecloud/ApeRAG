@@ -214,13 +214,7 @@ export const UI_INDEX_STATUS: {
     | DocumentVectorIndexStatusEnum
     | DocumentFulltextIndexStatusEnum
     | DocumentGraphIndexStatusEnum
-    | string // 新增，兼容 summary
-  ]:
-    | 'success'
-    | 'processing'
-    | 'error'
-    | 'default'
-    | 'warning';
+    | string]: 'success' | 'processing' | 'error' | 'default' | 'warning'; // 新增，兼容 summary
 } = {
   PENDING: 'warning',
   CREATING: 'processing',

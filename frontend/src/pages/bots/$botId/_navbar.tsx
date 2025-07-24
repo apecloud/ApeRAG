@@ -30,7 +30,7 @@ export const NavbarBot = () => {
   const { botId, chatId } = useParams();
   const [renameVisible, setRenameVisible] = useState<boolean>();
   const { bot, chats, getBot, setBot, setChats, getChats } = useModel('bot');
-  const { loading, setLoading } = useModel('global');
+  const { loading } = useModel('global');
 
   const [chatLoading, setChatLoading] = useState<boolean>(false);
 
@@ -38,29 +38,6 @@ export const NavbarBot = () => {
   const { formatMessage } = useIntl();
   const [modal, contextHolder] = Modal.useModal();
   const [form] = Form.useForm<Chat>();
-
-  const onDeleteBot = useCallback(async () => {
-    if (!botId) return;
-    const confirmed = await modal.confirm({
-      title: formatMessage({ id: 'action.confirm' }),
-      content: formatMessage(
-        { id: 'bot.delete_confirm' },
-        { name: bot?.title },
-      ),
-      okButtonProps: {
-        danger: true,
-        loading,
-      },
-    });
-    if (confirmed) {
-      setLoading(true);
-      const res = await api.botsBotIdDelete({ botId });
-      setLoading(false);
-      if (res.status === 200) {
-        history.push('/bots');
-      }
-    }
-  }, [botId, bot]);
 
   const onCreateChat = useCallback(async () => {
     if (botId) {
@@ -238,20 +215,7 @@ export const NavbarBot = () => {
         <NavbarHeader
           title={bot?.title || formatMessage({ id: 'bot.name' })}
           backTo="/bots"
-        >
-          <Tooltip
-            title={formatMessage({ id: 'bot.delete' })}
-            placement="right"
-          >
-            <Button
-              type="text"
-              danger
-              loading={loading}
-              icon={<DeleteOutlined />}
-              onClick={() => onDeleteBot()}
-            />
-          </Tooltip>
-        </NavbarHeader>
+        ></NavbarHeader>
         <NavbarBody>
           <Menu
             onClick={({ key }) => history.push(key)}

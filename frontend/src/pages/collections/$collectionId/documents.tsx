@@ -41,7 +41,6 @@ import {
   Typography,
   Upload,
   UploadProps,
-  Spin,
 } from 'antd';
 import byteSize from 'byte-size';
 import alpha from 'color-alpha';
@@ -290,7 +289,7 @@ export default () => {
           status,
           record.summary_index_updated,
         );
-        
+
         // 只有ACTIVE状态才显示查看图标
         if (status === 'ACTIVE') {
           return (
@@ -298,10 +297,10 @@ export default () => {
               {statusBadge}
               <Tooltip title={formatMessage({ id: 'document.summary.view' })}>
                 <EyeOutlined
-                  style={{ 
-                    cursor: 'pointer', 
+                  style={{
+                    cursor: 'pointer',
                     color: '#1677ff',
-                    fontSize: '14px'
+                    fontSize: '14px',
                   }}
                   onClick={() => handleViewSummary(record)}
                 />
@@ -309,7 +308,7 @@ export default () => {
             </Space>
           );
         }
-        
+
         // 其他状态只显示badge
         return statusBadge;
       },
@@ -502,9 +501,13 @@ export default () => {
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(summaryContent);
-                  toast.success(formatMessage({ id: 'document.summary.copy.success' }));
+                  toast.success(
+                    formatMessage({ id: 'document.summary.copy.success' }),
+                  );
                 } catch (error) {
-                  toast.error(formatMessage({ id: 'document.summary.copy.failed' }));
+                  toast.error(
+                    formatMessage({ id: 'document.summary.copy.failed' }),
+                  );
                 }
               }}
             >
@@ -514,7 +517,13 @@ export default () => {
         }
       >
         {summaryDoc && (
-          <div style={{ marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid #f0f0f0' }}>
+          <div
+            style={{
+              marginBottom: 16,
+              paddingBottom: 16,
+              borderBottom: '1px solid #f0f0f0',
+            }}
+          >
             <Typography.Text strong style={{ fontSize: '16px' }}>
               {summaryDoc.name}
             </Typography.Text>
