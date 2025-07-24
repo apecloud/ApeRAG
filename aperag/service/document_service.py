@@ -133,7 +133,7 @@ class DocumentService:
                 if doc.id not in documents_dict:
                     documents_dict[doc.id] = doc
                     # Initialize index information for all types
-                    doc.indexes = {"VECTOR": None, "FULLTEXT": None, "GRAPH": None, "SUMMARY": None}
+                    doc.indexes = {"VECTOR": None, "FULLTEXT": None, "GRAPH": None, "SUMMARY": None, "VISION": None}
 
                 # Add index information if exists
                 if row.index_type:
@@ -155,7 +155,7 @@ class DocumentService:
         Build document response object with all index types information.
         """
         # Get all index information if available
-        indexes = getattr(document, "indexes", {"VECTOR": None, "FULLTEXT": None, "GRAPH": None, "SUMMARY": None})
+        indexes = getattr(document, "indexes", {"VECTOR": None, "FULLTEXT": None, "GRAPH": None, "SUMMARY": None, "VISION": None})
 
         # Parse summary from SUMMARY index's index_data
         summary = None
@@ -184,6 +184,8 @@ class DocumentService:
             # Summary index information
             summary_index_status=indexes["SUMMARY"]["status"] if indexes.get("SUMMARY") else "SKIPPED",
             summary_index_updated=indexes["SUMMARY"]["updated_at"] if indexes.get("SUMMARY") else None,
+            vision_index_status=indexes["VISION"]["status"] if indexes.get("VISION") else "SKIPPED",
+            vision_index_updated=indexes["VISION"]["updated_at"] if indexes.get("VISION") else None,
             summary=summary,  # Parse from index_data
             size=document.size,
             created=document.gmt_created,

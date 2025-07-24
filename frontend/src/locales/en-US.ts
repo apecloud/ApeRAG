@@ -241,6 +241,7 @@ export default {
   'document.index.type.fulltext': 'Fulltext Index',
   'document.index.type.graph': 'Graph Index',
   'document.index.type.summary': 'Summary Index',
+  'document.index.type.vision': 'Vision Index',
   'document.index.rebuild': 'Rebuild Index',
   'document.index.rebuild.title': 'Rebuild Index',
   'document.index.rebuild.description': 'Select index types to rebuild',

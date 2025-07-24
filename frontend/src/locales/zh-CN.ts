@@ -239,6 +239,7 @@ export default {
   'document.index.type.fulltext': '全文索引',
   'document.index.type.graph': '图索引',
   'document.index.type.summary': '摘要索引',
+  'document.index.type.vision': '视觉索引',
   'document.index.rebuild': '重建索引',
   'document.index.rebuild.title': '重建索引',
   'document.index.rebuild.description': '选择要重建的索引类型',

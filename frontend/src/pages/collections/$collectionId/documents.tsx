@@ -2,6 +2,7 @@ import {
   DocumentFulltextIndexStatusEnum,
   DocumentGraphIndexStatusEnum,
   DocumentVectorIndexStatusEnum,
+  RebuildIndexesRequestIndexTypesEnum,
 } from '@/api';
 import { ChunkViewer, RefreshButton } from '@/components';
 import {
@@ -41,7 +42,6 @@ import {
   Typography,
   Upload,
   UploadProps,
-  Spin,
 } from 'antd';
 import byteSize from 'byte-size';
 import alpha from 'color-alpha';
@@ -66,7 +66,7 @@ export default () => {
   const [rebuildModalVisible, setRebuildModalVisible] = useState(false);
   const [rebuildSelectedDocument, setRebuildSelectedDocument] =
     useState<ApeDocument | null>(null);
-  const [rebuildSelectedTypes, setRebuildSelectedTypes] = useState<string[]>(
+  const [rebuildSelectedTypes, setRebuildSelectedTypes] = useState<RebuildIndexesRequestIndexTypesEnum[]>(
     [],
   );
   const [viewerVisible, setViewerVisible] = useState(false);
@@ -108,7 +108,7 @@ export default () => {
 
   const handleRebuildIndex = (document: ApeDocument) => {
     setRebuildSelectedDocument(document);
-    setRebuildSelectedTypes(['VECTOR', 'FULLTEXT', 'GRAPH', 'SUMMARY']);
+    setRebuildSelectedTypes([RebuildIndexesRequestIndexTypesEnum.VECTOR, RebuildIndexesRequestIndexTypesEnum.FULLTEXT, RebuildIndexesRequestIndexTypesEnum.GRAPH, RebuildIndexesRequestIndexTypesEnum.SUMMARY, RebuildIndexesRequestIndexTypesEnum.VISION]);
     setRebuildModalVisible(true);
   };
 
@@ -121,11 +121,7 @@ export default () => {
         collectionId: collectionId!,
         documentId: rebuildSelectedDocument.id!,
         rebuildIndexesRequest: {
-          index_types: rebuildSelectedTypes as (
-            | 'VECTOR'
-            | 'FULLTEXT'
-            | 'GRAPH'
-          )[],
+          index_types: rebuildSelectedTypes as any,
         },
       });
       toast.success(formatMessage({ id: 'document.index.rebuild.success' }));
@@ -163,6 +159,10 @@ export default () => {
     {
       label: formatMessage({ id: 'document.index.type.summary' }),
       value: 'SUMMARY',
+    },
+    {
+      label: formatMessage({ id: 'document.index.type.vision' }),
+      value: 'VISION',
     },
   ];
 
@@ -290,7 +290,7 @@ export default () => {
           status,
           record.summary_index_updated,
         );
-        
+
         // 只有ACTIVE状态才显示查看图标
         if (status === 'ACTIVE') {
           return (
@@ -298,8 +298,8 @@ export default () => {
               {statusBadge}
               <Tooltip title={formatMessage({ id: 'document.summary.view' })}>
                 <EyeOutlined
-                  style={{ 
-                    cursor: 'pointer', 
+                  style={{
+                    cursor: 'pointer',
                     color: '#1677ff',
                     fontSize: '14px'
                   }}
@@ -309,9 +309,21 @@ export default () => {
             </Space>
           );
         }
-        
+
         // 其他状态只显示badge
         return statusBadge;
+      },
+    },
+    {
+      title: formatMessage({ id: 'document.index.type.vision' }),
+      dataIndex: 'vision_index_status',
+      width: 120,
+      align: 'center',
+      render: (value, record) => {
+        return renderIndexStatus(
+          record.vision_index_status,
+          record.vision_index_updated,
+        );
       },
     },
     {
@@ -568,7 +580,7 @@ export default () => {
             onChange={(e) => {
               if (e.target.checked) {
                 setRebuildSelectedTypes(
-                  indexTypeOptions.map((option) => option.value),
+                  indexTypeOptions.map((option) => option.value as RebuildIndexesRequestIndexTypesEnum),
                 );
               } else {
                 setRebuildSelectedTypes([]);
@@ -582,7 +594,7 @@ export default () => {
         <Checkbox.Group
           options={indexTypeOptions}
           value={rebuildSelectedTypes}
-          onChange={(values) => setRebuildSelectedTypes(values as string[])}
+          onChange={(values) => setRebuildSelectedTypes(values as RebuildIndexesRequestIndexTypesEnum[])}
           style={{ display: 'flex', flexDirection: 'row', gap: 16 }}
         />
       </Modal>
