@@ -142,6 +142,24 @@ class DocumentIndexTask:
                     if not result.success:
                         raise Exception(result.error)
                     result_data = result.data or {"success": True}
+
+            elif index_type == DocumentIndexType.VISION.value:
+                from aperag.index.vision_index import vision_indexer
+
+                if not vision_indexer.is_enabled(collection):
+                    logger.info(f"Vision indexing disabled for document {document_id}")
+                    result_data = {"success": True, "message": "Vision indexing disabled"}
+                else:
+                    result = vision_indexer.create_index(
+                        document_id=document_id,
+                        content=parsed_data.content,
+                        doc_parts=parsed_data.doc_parts,
+                        collection=collection,
+                        file_path=parsed_data.file_path,
+                    )
+                    if not result.success:
+                        raise Exception(result.error)
+                    result_data = result.data or {"success": True}
             else:
                 raise ValueError(f"Unknown index type: {index_type}")
 
@@ -206,6 +224,14 @@ class DocumentIndexTask:
                 result = summary_indexer.delete_index(document_id, collection)
                 if not result.success:
                     raise Exception(result.error)
+
+            elif index_type == DocumentIndexType.VISION.value:
+                from aperag.index.vision_index import vision_indexer
+
+                result = vision_indexer.delete_index(document_id, collection)
+                if not result.success:
+                    raise Exception(result.error)
+
             else:
                 raise ValueError(f"Unknown index type: {index_type}")
 
@@ -297,6 +323,24 @@ class DocumentIndexTask:
                     result_data = {"success": True, "message": "Summary indexing disabled"}
                 else:
                     result = summary_indexer.update_index(
+                        document_id=document_id,
+                        content=parsed_data.content,
+                        doc_parts=parsed_data.doc_parts,
+                        collection=collection,
+                        file_path=parsed_data.file_path,
+                    )
+                    if not result.success:
+                        raise Exception(result.error)
+                    result_data = result.data or {"success": True}
+
+            elif index_type == DocumentIndexType.VISION.value:
+                from aperag.index.vision_index import vision_indexer
+
+                if not vision_indexer.is_enabled(collection):
+                    logger.info(f"Vision indexing disabled for document {document_id}")
+                    result_data = {"success": True, "message": "Vision indexing disabled"}
+                else:
+                    result = vision_indexer.update_index(
                         document_id=document_id,
                         content=parsed_data.content,
                         doc_parts=parsed_data.doc_parts,

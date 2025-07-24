@@ -96,6 +96,7 @@ class DocumentIndexType(str, Enum):
     FULLTEXT = "FULLTEXT"
     GRAPH = "GRAPH"
     SUMMARY = "SUMMARY"
+    VISION = "VISION"
 
 
 class DocumentIndexStatus(str, Enum):

@@ -1,0 +1,253 @@
+# Copyright 2025 ApeCloud, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import base64
+import json
+import logging
+import time
+from typing import Any, List
+from urllib.parse import quote_plus
+
+from llama_index.core.schema import TextNode
+from sqlalchemy import and_, select
+
+from aperag.config import get_vector_db_connector
+from aperag.db.models import Collection
+from aperag.index.base import BaseIndexer, IndexResult, IndexType
+from aperag.llm.completion.base_completion import get_collection_completion_service_sync
+from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
+from aperag.llm.llm_error_types import (
+    CompletionError,
+    InvalidConfigurationError,
+    LLMError,
+    is_retryable_error,
+)
+from aperag.schema.utils import parseCollectionConfig
+from aperag.utils.utils import generate_vector_db_collection_name
+
+logger = logging.getLogger(__name__)
+
+
+class VisionIndexer(BaseIndexer):
+    """Indexer for creating vision-based indexes."""
+
+    def __init__(self):
+        super().__init__(IndexType.VISION)
+
+    def is_enabled(self, collection: Collection) -> bool:
+        """Check if vision index is enabled for the collection."""
+        try:
+            config = parseCollectionConfig(collection.config)
+            return config.enable_vision
+        except Exception:
+            return False
+
+    def create_index(self, document_id: str, content: str, doc_parts: List[Any], collection: Collection, **kwargs) -> IndexResult:
+        """Create vision index for a document."""
+        if not self.is_enabled(collection):
+            return IndexResult(
+                success=True, index_type=self.index_type, metadata={"message": "Vision index is disabled."}
+            )
+
+        embedding_svc, vector_size = get_collection_embedding_service_sync(collection)
+
+        try:
+            completion_svc = None
+            # The collection might not have an LLM configured. It will throw exceptions in this case.
+            completion_svc = get_collection_completion_service_sync(collection)
+        except (InvalidConfigurationError, CompletionError):
+            pass
+
+        if not embedding_svc.is_multimodal() and (completion_svc is None or not completion_svc.is_vision_model()):
+            return IndexResult(
+                success=True,
+                index_type=self.index_type,
+                metadata={"message": "Neither multimodal embedding nor vision completion model is configured."},
+            )
+
+        # Type info are lost, can't just check `isinstance(part, AssetBinPart)`
+        image_parts = [part for part in doc_parts if hasattr(part, "mime_type") and (part.mime_type or "").startswith("image/")]
+        if not image_parts:
+            return IndexResult(
+                success=True, index_type=self.index_type, metadata={"message": "No images found to index."}
+            )
+
+        vector_store_adaptor = get_vector_db_connector(
+            collection=generate_vector_db_collection_name(collection_id=collection.id)
+        )
+        all_ctx_ids = []
+
+        # Path A: Pure Vision Embedding
+        try:
+            nodes: List[TextNode] = []
+            image_uris = []
+            for part in image_parts:
+                b64_image = base64.b64encode(part.data).decode("utf-8")
+                data_uri = f"data:{part.mime_type or 'image/png'};base64,{b64_image}"
+                image_uris.append(data_uri)
+                metadata = part.metadata.copy()
+                metadata["document_id"] = document_id
+                metadata["source"] = metadata.get("name", "")
+                metadata["asset_id"] = part.asset_id
+                metadata["indexer"] = "vision"
+                metadata["index_method"] = "multimodal_embedding"
+                asset_url = f"asset://{part.asset_id}"
+                if part.mime_type:
+                    asset_url += f"?mime_type={quote_plus(part.mime_type)}"
+                nodes.append(TextNode(text=f"![{part.asset_id}]({asset_url})", metadata=metadata))
+
+            vectors = embedding_svc.embed_documents(image_uris)
+            for i, node in enumerate(nodes):
+                node.embedding = vectors[i]
+
+            ctx_ids = vector_store_adaptor.connector.store.add(nodes)
+            all_ctx_ids.extend(ctx_ids)
+            logger.info(f"Created {len(ctx_ids)} direct vision vectors for document {document_id}")
+        except Exception as e:
+            logger.error(f"Failed to create pure vision embedding for document {document_id}: {e}", exc_info=True)
+
+        # Path B: Vision-to-Text
+        if completion_svc:
+            try:
+                text_nodes: List[TextNode] = []
+                for part in image_parts:
+                    b64_image = base64.b64encode(part.data).decode("utf-8")
+                    data_uri = f"data:{part.mime_type or 'image/png'};base64,{b64_image}"
+
+                    prompt = """Provide a detailed and concise analysis of the image, strictly following this format. Omit any introductory or conversational text.
+
+1.  **Overall Summary:** A brief overview of the image's subject, setting, and any visible activities.
+
+2.  **Text Extraction:** All text from the image, in its original language. Do not translate.
+
+3.  **Chart/Graph Analysis:** For any charts, graphs, or tables: specify its type, explain the data it shows, and summarize key insights, trends, or comparisons.
+
+4.  **Object Recognition:** A list of all significant objects and entities shown."""
+
+                    description = None
+                    max_retries = 3
+                    retry_delay = 5  # seconds
+                    for attempt in range(max_retries):
+                        try:
+                            description = completion_svc.generate(history=[], prompt=prompt, images=[data_uri])
+                            break  # Success
+                        except LLMError as e:
+                            if attempt < max_retries - 1 and is_retryable_error(e):
+                                logger.warning(
+                                    f"Retryable error generating vision-to-text for asset {part.asset_id}: {e}. "
+                                    f"Retrying in {retry_delay}s... (Attempt {attempt + 1}/{max_retries})"
+                                )
+                                time.sleep(retry_delay)
+                                retry_delay *= 2  # Exponential backoff
+                            else:
+                                logger.error(
+                                    f"Non-retryable error or max retries exceeded for asset {part.asset_id}: {e}",
+                                    exc_info=True,
+                                )
+                                break  # Failed
+                        except Exception as e:
+                            logger.error(
+                                f"Unexpected error generating vision-to-text for asset {part.asset_id}: {e}",
+                                exc_info=True,
+                            )
+                            break  # Failed
+
+                    if description:
+                        metadata = part.metadata.copy()
+                        metadata["document_id"] = document_id
+                        metadata["source"] = metadata.get("name", "")
+                        metadata["asset_id"] = part.asset_id
+                        metadata["indexer"] = "vision"
+                        metadata["index_method"] = "vision_to_text"
+                        text_nodes.append(TextNode(text=description, metadata=metadata))
+
+                vectors = embedding_svc.embed_documents([node.get_content() for node in text_nodes])
+                for i, node in enumerate(text_nodes):
+                    node.embedding = vectors[i]
+
+                ctx_ids = vector_store_adaptor.connector.store.add(text_nodes)
+                all_ctx_ids.extend(ctx_ids)
+                logger.info(f"Created {len(ctx_ids)} vision-to-text vectors for document {document_id}")
+            except Exception as e:
+                logger.error(
+                    f"Failed to create vision-to-text embedding for document {document_id}: {e}", exc_info=True
+                )
+
+        return IndexResult(
+            success=True,
+            index_type=self.index_type,
+            data={"context_ids": all_ctx_ids},
+            metadata={"vector_count": len(all_ctx_ids), "vector_size": vector_size},
+        )
+
+    def update_index(self, document_id: str, content: str, doc_parts: List[Any], collection: Collection, **kwargs) -> IndexResult:
+        """Update vision index for a document."""
+        result = self.delete_index(document_id, collection)
+        if not result.success:
+            return result
+        return self.create_index(document_id, content, doc_parts, collection, **kwargs)
+
+    def delete_index(self, document_id: str, collection: Collection, **kwargs) -> IndexResult:
+        """Delete vision index for a document."""
+
+        try:
+            # Get existing vector index data from DocumentIndex
+            from aperag.config import get_sync_session
+            from aperag.db.models import DocumentIndex, DocumentIndexType
+
+            ctx_ids = []
+            for session in get_sync_session():
+                stmt = select(DocumentIndex).where(
+                    and_(DocumentIndex.document_id == document_id, DocumentIndex.index_type == DocumentIndexType.VISION)
+                )
+                result = session.execute(stmt)
+                doc_index = result.scalar_one_or_none()
+
+                if not doc_index or not doc_index.index_data:
+                    return IndexResult(
+                        success=True, index_type=self.index_type, metadata={"message": "No vision index to delete"}
+                    )
+
+                index_data = json.loads(doc_index.index_data)
+                ctx_ids = index_data.get("context_ids", [])
+
+            if not ctx_ids:
+                return IndexResult(
+                    success=True, index_type=self.index_type, metadata={"message": "No context IDs to delete"}
+                )
+
+            # Delete vectors from vector database
+            vector_db = get_vector_db_connector(
+                collection=generate_vector_db_collection_name(collection_id=collection.id)
+            )
+            vector_db.connector.delete(ids=ctx_ids)
+
+            logger.info(f"Deleted {len(ctx_ids)} vectors for document {document_id}")
+
+            return IndexResult(
+                success=True,
+                index_type=self.index_type,
+                data={"deleted_context_ids": ctx_ids},
+                metadata={"deleted_vector_count": len(ctx_ids)},
+            )
+
+        except Exception as e:
+            logger.error(f"Vision index deletion failed for document {document_id}: {str(e)}")
+            return IndexResult(
+                success=False, index_type=self.index_type, error=f"Vector index deletion failed: {str(e)}"
+            )
+
+
+# Global instance
+vision_indexer = VisionIndexer()

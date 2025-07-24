@@ -278,7 +278,9 @@ async def _gen_llm_func(collection: Collection) -> Callable[..., Awaitable[str]]
             if history_messages:
                 messages.extend(history_messages)
 
-            full_response = await completion_service.agenerate(history=messages, prompt=prompt, images=[], memory=bool(messages))
+            full_response = await completion_service.agenerate(
+                history=messages, prompt=prompt, images=[], memory=bool(messages)
+            )
 
             return full_response
 

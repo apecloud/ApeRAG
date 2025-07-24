@@ -42,7 +42,9 @@ def test_vision_llm_completion():
         try:
             response = await service.agenerate(history=[], prompt=prompt_two_cats, images=images_two_cats)
             print(f"   - Success! Response: '{response}'")
-            assert "2" in response or "two" in response.lower(), f"Expected '2' or 'two' in response, but got '{response}'"
+            assert "2" in response or "two" in response.lower(), (
+                f"Expected '2' or 'two' in response, but got '{response}'"
+            )
         except Exception as e:
             print(f"   - Failed: {e}")
             pytest.fail(f"Two cats test failed: {e}")
@@ -55,7 +57,9 @@ def test_vision_llm_completion():
             response = await service.agenerate(history=[], prompt=prompt_dog_cat, images=images_dog_cat)
             print(f"   - Success! Response: '{response}'")
             response_lower = response.lower()
-            assert "dog" in response_lower and "cat" in response_lower, f"Expected 'dog' and 'cat' in response, but got '{response}'"
+            assert "dog" in response_lower and "cat" in response_lower, (
+                f"Expected 'dog' and 'cat' in response, but got '{response}'"
+            )
         except Exception as e:
             print(f"   - Failed: {e}")
             pytest.fail(f"Dog and cat test failed: {e}")

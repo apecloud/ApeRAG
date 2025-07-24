@@ -47,12 +47,17 @@ class CompletionService:
         self.vision = vision
         self.caching = caching
 
+    def is_vision_model(self) -> bool:
+        return self.vision
+
     def _validate_inputs(self, prompt: Optional[str], images: Optional[List[str]] = None) -> None:
         """Validate input parameters."""
         if not self.vision:
             images = []
         if not images and (not prompt or not prompt.strip()):
-            raise InvalidPromptError("Prompt cannot be empty when no images are provided", prompt[:100] if prompt else "")
+            raise InvalidPromptError(
+                "Prompt cannot be empty when no images are provided", prompt[:100] if prompt else ""
+            )
 
     def _build_messages(
         self, history: List[Dict], prompt: Optional[str], images: Optional[List[str]] = None, memory: bool = False

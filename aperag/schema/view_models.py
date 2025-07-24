@@ -414,6 +414,9 @@ class CollectionConfig(BaseModel):
     enable_summary: Optional[bool] = Field(
         None, description='Whether to enable summary generation'
     )
+    enable_vision: Optional[bool] = Field(
+        None, description='Whether to enable vision index'
+    )
     embedding: Optional[ModelSpec] = None
     completion: Optional[ModelSpec] = None
     parser: Optional[ParserConfig] = None

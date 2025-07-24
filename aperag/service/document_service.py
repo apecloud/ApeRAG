@@ -279,6 +279,9 @@ class DocumentService:
                     if collection_config.get("enable_summary", False):
                         index_types.append(db_models.DocumentIndexType.SUMMARY)
 
+                    if collection_config.get("enable_vision", False):
+                        index_types.append(db_models.DocumentIndexType.VISION)
+
                     # Use index manager to create indexes with new status model
                     await document_index_manager.create_or_update_document_indexes(
                         document_id=document_instance.id, index_types=index_types, session=session
@@ -419,6 +422,8 @@ class DocumentService:
                 index_type_enums.append(DocumentIndexType.GRAPH)
             elif index_type == "SUMMARY":
                 index_type_enums.append(DocumentIndexType.SUMMARY)
+            elif index_type == "VISION":
+                index_type_enums.append(DocumentIndexType.VISION)
             else:
                 raise invalid_param("index_type", f"Invalid index type: {index_type}")
 
