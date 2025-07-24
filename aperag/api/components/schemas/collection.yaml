@@ -371,6 +371,9 @@ searchResultItem:
         - vector_search
         - graph_search
         - fulltext_search
+    metadata:
+      type: object
+      description: Metadata of the result
 
 searchResult:
   type: object

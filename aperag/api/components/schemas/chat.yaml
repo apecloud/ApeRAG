@@ -29,8 +29,11 @@ reference:
       type: number
     text:
       type: string
+    image_uri:
+      type: string
     metadata:
       type: object
+      additionalProperties: true
 
 chatMessage:
   type: object

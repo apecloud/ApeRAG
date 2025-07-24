@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Sequence, Tuple
@@ -248,7 +249,7 @@ class EmbeddingService:
         }
 
         try:
-            response = requests.post(api_url, headers=headers, json=payload, timeout=180)
+            response = requests.post(api_url, headers=headers, data=json.dumps(payload), timeout=180)
             response.raise_for_status()
             response_json = response.json()
 

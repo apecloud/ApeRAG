@@ -1,5 +1,5 @@
 import { SearchRequest, SearchResult } from '@/api';
-import { ApeMarkdown } from '@/components';
+import { ApeMarkdown, AuthAssetImage } from '@/components';
 import { DATETIME_FORMAT } from '@/constants';
 import { api } from '@/services';
 import { CaretRightOutlined, DeleteOutlined } from '@ant-design/icons';
@@ -405,7 +405,18 @@ export default () => {
                     {item.rank}. {item.source}
                   </Typography.Text>
                 ),
-                children: <ApeMarkdown>{item.content}</ApeMarkdown>,
+                children: (
+                  <>
+                    {item.metadata?.asset_id && (
+                      <AuthAssetImage
+                        collectionId={item.metadata?.collection_id}
+                        documentId={item.metadata?.document_id}
+                        src={`asset://${item.metadata?.asset_id}`}
+                      />
+                    )}
+                    <ApeMarkdown>{item.content}</ApeMarkdown>
+                  </>
+                ),
                 extra: (
                   <Space align="center" size="large">
                     {item.recall_type ? (

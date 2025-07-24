@@ -3041,8 +3041,11 @@ components:
           type: number
         text:
           type: string
+        image_uri:
+          type: string
         metadata:
           type: object
+          additionalProperties: true
     feedback:
       type: object
       properties:
@@ -3694,6 +3697,9 @@ components:
             - vector_search
             - graph_search
             - fulltext_search
+        metadata:
+          type: object
+          description: Metadata of the result
     searchResult:
       type: object
       properties:

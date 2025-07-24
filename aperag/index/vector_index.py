@@ -59,6 +59,9 @@ class VectorIndexer(BaseIndexer):
                 collection=generate_vector_db_collection_name(collection_id=collection.id)
             )
 
+            # Filter out non-text parts
+            doc_parts = [part for part in doc_parts if hasattr(part, "content") and part.content]
+
             # Generate embeddings and store in vector database
             ctx_ids = create_embeddings_and_store(
                 parts=doc_parts,
@@ -130,6 +133,9 @@ class VectorIndexer(BaseIndexer):
             if old_ctx_ids:
                 vector_store_adaptor.connector.delete(ids=old_ctx_ids)
                 logger.info(f"Deleted {len(old_ctx_ids)} old vectors for document {document_id}")
+
+            # Filter out non-text parts
+            doc_parts = [part for part in doc_parts if hasattr(part, "content") and part.content]
 
             # Create new vectors
             embedding_model, vector_size = get_collection_embedding_service_sync(collection)

@@ -164,6 +164,9 @@ class SummaryIndexer(BaseIndexer):
         try:
             completion_service = get_collection_completion_service_sync(collection)
 
+            # Filter out non-text parts
+            doc_parts = [part for part in doc_parts if hasattr(part, "content") and part.content]
+
             # If no doc_parts or content is short, summarize directly
             if not doc_parts or len(content) < 4000:
                 return self._summarize_text(content, completion_service)

@@ -267,6 +267,7 @@ class CollectionService:
                     content=doc.text,
                     source=doc.metadata.get("source", ""),
                     recall_type=doc.metadata.get("recall_type", ""),
+                    metadata=doc.metadata,
                 )
             )
 

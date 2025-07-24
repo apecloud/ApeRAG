@@ -138,6 +138,7 @@ class DocumentParser:
         md_part = next((part for part in doc_parts if isinstance(part, MarkdownPart)), None)
         if md_part is not None:
             content = md_part.markdown
+            doc_parts.remove(md_part)
 
         pdf_part = next((part for part in doc_parts if isinstance(part, PdfPart)), None)
         if pdf_part is not None:
@@ -162,19 +163,14 @@ class DocumentParser:
 
             # Save assets
             asset_count = 0
-            to_be_removed = []
             for part in doc_parts:
                 if not isinstance(part, AssetBinPart):
                     continue
-                to_be_removed.append(part)
 
                 asset_upload_path = f"{base_path}/assets/{part.asset_id}"
                 obj_store.put(asset_upload_path, part.data)
                 asset_count += 1
                 logger.info(f"uploaded asset to {asset_upload_path}, size: {len(part.data)}")
-
-            for part in to_be_removed:
-                doc_parts.remove(part)
 
             logger.info(f"Saved {asset_count} assets to object storage")
 

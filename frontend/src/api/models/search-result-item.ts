@@ -50,6 +50,12 @@ export interface SearchResultItem {
      * @memberof SearchResultItem
      */
     'recall_type'?: SearchResultItemRecallTypeEnum;
+    /**
+     * Metadata of the result
+     * @type {object}
+     * @memberof SearchResultItem
+     */
+    'metadata'?: object;
 }
 
 export const SearchResultItemRecallTypeEnum = {

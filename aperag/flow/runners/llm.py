@@ -246,7 +246,7 @@ class LLMService:
                     coll_id = doc.metadata.get("collection_id", None)
                     doc_id = doc.metadata.get("document_id", None)
                     if asset_id and mime_type and coll_id and doc_id:
-                        image_contents.append([asset_id, mime_type, coll_id, doc_id, doc.metadata, doc.score])
+                        image_contents.append([asset_id, mime_type, coll_id, doc_id, doc])
                     if doc.metadata.get("index_method", "") == "vision_to_text":
                         text_docs.append(doc)
                 else:
@@ -270,9 +270,9 @@ class LLMService:
         images = []
         if vision_model and image_contents:
             object_store = get_async_object_store()
-            for asset_id, mime_type, coll_id, doc_id, metadata, score in image_contents:
+            for asset_id, mime_type, coll_id, doc_id, doc_with_score in image_contents:
                 try:
-                    doc = await async_db_ops.query_document(collection_id=coll_id, document_id=doc_id)
+                    doc = await async_db_ops.query_document(user=user, collection_id=coll_id, document_id=doc_id)
                     if not doc:
                         logger.warning(f"Document not found for collection_id={coll_id}, document_id={doc_id}")
                         continue
@@ -289,7 +289,10 @@ class LLMService:
                     encoded_string = base64.b64encode(image_bytes).decode("utf-8")
                     image_uri = f"data:{mime_type};base64,{encoded_string}"
                     images.append(image_uri)
-                    references.append({"image_uri": image_uri, "metadata": metadata, "score": score})
+                    ref_obj = {"image_uri": image_uri, "metadata": doc_with_score.metadata, "score": doc_with_score.score}
+                    if doc_with_score.metadata.get("index_method") == "vision_to_text":
+                        ref_obj["text"] = doc_with_score.text
+                    references.append(ref_obj)
                 except Exception as e:
                     logger.error(f"Failed to process image asset {asset_id}: {e}", exc_info=True)
 
