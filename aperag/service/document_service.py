@@ -155,7 +155,9 @@ class DocumentService:
         Build document response object with all index types information.
         """
         # Get all index information if available
-        indexes = getattr(document, "indexes", {"VECTOR": None, "FULLTEXT": None, "GRAPH": None, "SUMMARY": None, "VISION": None})
+        indexes = getattr(
+            document, "indexes", {"VECTOR": None, "FULLTEXT": None, "GRAPH": None, "SUMMARY": None, "VISION": None}
+        )
 
         # Parse summary from SUMMARY index's index_data
         summary = None

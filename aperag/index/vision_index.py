@@ -53,11 +53,15 @@ class VisionIndexer(BaseIndexer):
         except Exception:
             return False
 
-    def create_index(self, document_id: str, content: str, doc_parts: List[Any], collection: Collection, **kwargs) -> IndexResult:
+    def create_index(
+        self, document_id: str, content: str, doc_parts: List[Any], collection: Collection, **kwargs
+    ) -> IndexResult:
         """Create vision index for a document."""
         if not self.is_enabled(collection):
             return IndexResult(
-                success=True, index_type=self.index_type, metadata={"message": "Vision index is disabled.", "status": "skipped"}
+                success=True,
+                index_type=self.index_type,
+                metadata={"message": "Vision index is disabled.", "status": "skipped"},
             )
 
         embedding_svc, vector_size = get_collection_embedding_service_sync(collection)
@@ -73,11 +77,16 @@ class VisionIndexer(BaseIndexer):
             return IndexResult(
                 success=True,
                 index_type=self.index_type,
-                metadata={"message": "Neither multimodal embedding nor vision completion model is configured.", "status": "skipped"},
+                metadata={
+                    "message": "Neither multimodal embedding nor vision completion model is configured.",
+                    "status": "skipped",
+                },
             )
 
         # Type info are lost, can't just check `isinstance(part, AssetBinPart)`
-        image_parts = [part for part in doc_parts if hasattr(part, "mime_type") and (part.mime_type or "").startswith("image/")]
+        image_parts = [
+            part for part in doc_parts if hasattr(part, "mime_type") and (part.mime_type or "").startswith("image/")
+        ]
         if not image_parts:
             return IndexResult(
                 success=True, index_type=self.index_type, metadata={"message": "No images found to index."}
@@ -122,7 +131,10 @@ class VisionIndexer(BaseIndexer):
             return IndexResult(
                 success=False,
                 index_type=self.index_type,
-                metadata={"message": f"Failed to create pure vision embedding for document {document_id}: {e}", "status": "failed"},
+                metadata={
+                    "message": f"Failed to create pure vision embedding for document {document_id}: {e}",
+                    "status": "failed",
+                },
             )
 
         # Path B: Vision-to-Text
@@ -167,7 +179,10 @@ class VisionIndexer(BaseIndexer):
                                 return IndexResult(
                                     success=False,
                                     index_type=self.index_type,
-                                    metadata={"message": f"Non-retryable error or max retries exceeded for asset {part.asset_id}: {e}", "status": "failed"},
+                                    metadata={
+                                        "message": f"Non-retryable error or max retries exceeded for asset {part.asset_id}: {e}",
+                                        "status": "failed",
+                                    },
                                 )
                         except Exception as e:
                             logger.error(
@@ -177,7 +192,10 @@ class VisionIndexer(BaseIndexer):
                             return IndexResult(
                                 success=False,
                                 index_type=self.index_type,
-                                metadata={"message": f"Unexpected error generating vision-to-text for asset {part.asset_id}: {e}", "status": "failed"},
+                                metadata={
+                                    "message": f"Unexpected error generating vision-to-text for asset {part.asset_id}: {e}",
+                                    "status": "failed",
+                                },
                             )
 
                     if description:
@@ -205,7 +223,10 @@ class VisionIndexer(BaseIndexer):
                 return IndexResult(
                     success=False,
                     index_type=self.index_type,
-                    metadata={"message": f"Failed to create vision-to-text embedding for document {document_id}: {e}", "status": "failed"},
+                    metadata={
+                        "message": f"Failed to create vision-to-text embedding for document {document_id}: {e}",
+                        "status": "failed",
+                    },
                 )
 
         return IndexResult(
@@ -215,7 +236,9 @@ class VisionIndexer(BaseIndexer):
             metadata={"vector_count": len(all_ctx_ids), "vector_size": vector_size},
         )
 
-    def update_index(self, document_id: str, content: str, doc_parts: List[Any], collection: Collection, **kwargs) -> IndexResult:
+    def update_index(
+        self, document_id: str, content: str, doc_parts: List[Any], collection: Collection, **kwargs
+    ) -> IndexResult:
         """Update vision index for a document."""
         result = self.delete_index(document_id, collection)
         if not result.success:

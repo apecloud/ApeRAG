@@ -162,7 +162,6 @@ def get_collection_completion_service_sync(collection) -> CompletionService:
         logger.error(f"Failed to query LLM provider model '{completion_model_name}': {str(e)}")
         raise
 
-
     try:
         return _get_completion_service(
             completion_provider=custom_llm_provider,

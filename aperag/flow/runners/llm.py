@@ -49,6 +49,7 @@ FALLBACK_MAX_CONTEXT_LENGTH = 50000
 # Max images to feed to LLM
 MAX_IMAGES_PER_QUERY = 5
 
+
 class Message(BaseModel):
     id: str
     query: Optional[str] = None
@@ -315,7 +316,9 @@ class LLMService:
                 except Exception as e:
                     logger.error(f"Failed to process image asset {asset_id}: {e}", exc_info=True)
 
-        cs = CompletionService(custom_llm_provider, model_name, base_url, api_key, temperature, max_output_tokens, vision=vision_model)
+        cs = CompletionService(
+            custom_llm_provider, model_name, base_url, api_key, temperature, max_output_tokens, vision=vision_model
+        )
 
         # Convert to plain dict objects
         references = [ref.model_dump() for ref in references]

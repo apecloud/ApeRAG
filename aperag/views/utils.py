@@ -61,7 +61,12 @@ async def query_chat_messages(user: str, chat_id: str) -> list[view_models.ChatM
             msg.references = []
             for ref in item.get("references", []):
                 msg.references.append(
-                    view_models.Reference(score=ref["score"], text=ref.get("text", None), image_uri=ref.get("image_uri", None), metadata=ref["metadata"])
+                    view_models.Reference(
+                        score=ref["score"],
+                        text=ref.get("text", None),
+                        image_uri=ref.get("image_uri", None),
+                        metadata=ref["metadata"],
+                    )
                 )
             msg.urls = item.get("urls", [])
         feedback = feedback_map.get(item.get("id", ""), None)
