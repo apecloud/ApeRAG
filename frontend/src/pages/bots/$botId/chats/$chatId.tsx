@@ -41,6 +41,11 @@ export default () => {
           setLoading(true);
         }
 
+        if (fragment.type === 'tool_call_result') {
+          
+        }
+        
+
         if (fragment.type === 'message') {
           setMessages((msgs) => {
             const last = msgs.findLast((m) => m.id === fragment.id);
