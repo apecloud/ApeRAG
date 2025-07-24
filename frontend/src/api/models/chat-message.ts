@@ -81,7 +81,8 @@ export const ChatMessageTypeEnum = {
     message: 'message',
     start: 'start',
     stop: 'stop',
-    error: 'error'
+    error: 'error',
+    tool_call_result: 'tool_call_result'
 } as const;
 
 export type ChatMessageTypeEnum = typeof ChatMessageTypeEnum[keyof typeof ChatMessageTypeEnum];

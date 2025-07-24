@@ -39,7 +39,7 @@ chatMessage:
       type: string
     type:
       type: string
-      enum: [welcome, message, start, stop, error]
+      enum: [welcome, message, start, stop, error, tool_call_result]
     timestamp:
       type: number
     role:

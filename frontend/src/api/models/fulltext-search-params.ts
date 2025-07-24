@@ -26,5 +26,11 @@ export interface FulltextSearchParams {
      * @memberof FulltextSearchParams
      */
     'topk'?: number;
+    /**
+     * Custom keywords to use for fulltext search
+     * @type {Array<string>}
+     * @memberof FulltextSearchParams
+     */
+    'keywords'?: Array<string>;
 }
 

@@ -3101,6 +3101,7 @@ components:
             - start
             - stop
             - error
+            - tool_call_result
         timestamp:
           type: number
         role:
@@ -3670,6 +3671,11 @@ components:
         topk:
           type: integer
           description: Top K results
+        keywords:
+          type: array
+          items:
+            type: string
+          description: Custom keywords to use for fulltext search
     graphSearchParams:
       type: object
       properties:
