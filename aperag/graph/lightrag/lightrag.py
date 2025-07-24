@@ -778,9 +778,9 @@ class LightRAG:
         )
 
         if context_data is None:
-            entities_context, relations_context, text_units_context = [], [], []
-        else:
-            entities_context, relations_context, text_units_context = context_data
+            return ""
+
+        entities_context, relations_context, text_units_context = context_data
 
         # Remove file_path from all contexts before serialization
         def remove_file_path_from_context(context_list):

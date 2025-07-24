@@ -29,6 +29,7 @@ from aperag.llm.completion.completion_service import CompletionService
 from aperag.llm.llm_error_types import InvalidConfigurationError
 from aperag.objectstore.base import get_async_object_store
 from aperag.query.query import DocumentWithScore
+from aperag.schema.view_models import Reference
 from aperag.utils.constant import DOC_QA_REFERENCES
 from aperag.utils.history import BaseChatMessageHistory
 from aperag.utils.utils import now_unix_milliseconds
@@ -234,21 +235,19 @@ class LLMService:
         # Build context and references from documents
         max_input_chars = max_input_tokens * TOKEN_TO_CHAR_RATIO
         context = ""
-        references = []
-        image_contents = []
+        references: List[Reference] = []
+        image_docs: List[DocumentWithScore] = []
         if docs:
             # Filter out image content
             text_docs: List[DocumentWithScore] = []
             for doc in docs:
                 if doc.metadata.get("indexer", "") == "vision":
-                    asset_id = doc.metadata.get("asset_id", None)
-                    mime_type = doc.metadata.get("mimetype", None)
-                    coll_id = doc.metadata.get("collection_id", None)
-                    doc_id = doc.metadata.get("document_id", None)
-                    if asset_id and mime_type and coll_id and doc_id:
-                        image_contents.append([asset_id, mime_type, coll_id, doc_id, doc])
+                    image_docs.append(doc)
                     if doc.metadata.get("index_method", "") == "vision_to_text":
-                        text_docs.append(doc)
+                        # If the index_method is "vision_to_text", the doc is also contains text content,
+                        # which is useful if the current LLM doesn't support image input.
+                        if not vision_model:
+                            text_docs.append(doc)
                 else:
                     text_docs.append(doc)
 
@@ -258,7 +257,8 @@ class LLMService:
                 if estimated_prompt_length > max_input_chars:
                     break
                 context += doc.text
-                references.append({"text": doc.text, "metadata": doc.metadata, "score": doc.score})
+                ref_obj = Reference(text=doc.text, metadata=doc.metadata, score=doc.score)
+                references.append(ref_obj)
 
         prompt = prompt_template.format(query=query, context=context)
         if len(prompt) > max_input_chars:
@@ -268,16 +268,29 @@ class LLMService:
             )
 
         images = []
-        if vision_model and image_contents:
+        if vision_model and image_docs:
+            base_path_cache: Dict[Tuple[str, str], str] = {}
             object_store = get_async_object_store()
-            for asset_id, mime_type, coll_id, doc_id, doc_with_score in image_contents:
-                try:
-                    doc = await async_db_ops.query_document(user=user, collection_id=coll_id, document_id=doc_id)
-                    if not doc:
-                        logger.warning(f"Document not found for collection_id={coll_id}, document_id={doc_id}")
-                        continue
+            for doc_with_score in image_docs:
+                asset_id = doc_with_score.metadata.get("asset_id", None)
+                mime_type = doc_with_score.metadata.get("mimetype", None)
+                coll_id = doc_with_score.metadata.get("collection_id", None)
+                doc_id = doc_with_score.metadata.get("document_id", None)
+                if not (asset_id and mime_type and coll_id and doc_id):
+                    continue
 
-                    base_path = doc.object_store_base_path()
+                try:
+                    cache_key = (coll_id, doc_id)
+                    if cache_key in base_path_cache:
+                        base_path = base_path_cache[cache_key]
+                    else:
+                        doc = await async_db_ops.query_document(user=user, collection_id=coll_id, document_id=doc_id)
+                        if not doc:
+                            logger.warning(f"Document not found for collection_id={coll_id}, document_id={doc_id}")
+                            continue
+                        base_path = doc.object_store_base_path()
+                        base_path_cache[cache_key] = base_path
+
                     asset_path = f"{base_path}/assets/{asset_id}"
                     image_stream_tuple = await object_store.get(asset_path)
                     if not image_stream_tuple:
@@ -289,16 +302,23 @@ class LLMService:
                     encoded_string = base64.b64encode(image_bytes).decode("utf-8")
                     image_uri = f"data:{mime_type};base64,{encoded_string}"
                     images.append(image_uri)
-                    ref_obj = {"image_uri": image_uri, "metadata": doc_with_score.metadata, "score": doc_with_score.score}
-                    if doc_with_score.metadata.get("index_method") == "vision_to_text":
-                        ref_obj["text"] = doc_with_score.text
+                    ref_obj = Reference(
+                        text=doc_with_score.text,
+                        image_uri=image_uri,
+                        metadata=doc_with_score.metadata,
+                        score=doc_with_score.score,
+                    )
                     references.append(ref_obj)
+
+                    if len(images) > MAX_IMAGES_PER_QUERY:
+                        break
                 except Exception as e:
                     logger.error(f"Failed to process image asset {asset_id}: {e}", exc_info=True)
 
-            images = images[:MAX_IMAGES_PER_QUERY]
-
         cs = CompletionService(custom_llm_provider, model_name, base_url, api_key, temperature, max_output_tokens, vision=vision_model)
+
+        # Convert to plain dict objects
+        references = [ref.model_dump() for ref in references]
 
         async def async_generator():
             response = ""

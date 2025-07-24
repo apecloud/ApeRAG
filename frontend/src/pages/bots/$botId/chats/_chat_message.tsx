@@ -154,6 +154,11 @@ export const ChatMessageItem = ({
                 alt="Reference"
                 style={{ maxWidth: '100%' }}
               />
+              {reference.text && (
+                <div style={{ marginTop: 16 }}>
+                  <ApeMarkdown>{reference.text}</ApeMarkdown>
+                </div>
+              )}
             </div>
           ),
           extra: (
