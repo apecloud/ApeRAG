@@ -37,6 +37,12 @@ export interface ChatMessage {
      * @type {string}
      * @memberof ChatMessage
      */
+    'part_id'?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ChatMessage
+     */
     'type'?: ChatMessageTypeEnum;
     /**
      * 

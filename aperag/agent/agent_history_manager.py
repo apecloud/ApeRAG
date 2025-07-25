@@ -15,12 +15,11 @@
 """Agent chat history management for persistent storage - pure functions for testability."""
 
 import logging
-from typing import Dict, List, Optional
-
-from langchain.schema import AIMessage, HumanMessage
+from typing import Dict, List
 
 from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
 
+from ..chat.history import create_assistant_message, create_user_message
 from .exceptions import handle_agent_error
 
 logger = logging.getLogger(__name__)
@@ -62,11 +61,13 @@ class AgentHistoryManager:
     @handle_agent_error("conversation_save", reraise=False)
     async def save_conversation_turn(
         self,
+        message_id: str,
+        trace_id: str,
         history: RedisChatMessageHistory,
         user_query: str,
         ai_response: str,
+        tool_use_list: List[Dict],
         tool_references: List,
-        metadata: Optional[Dict] = None,
     ) -> bool:
         """
         Save a complete conversation turn to persistent storage.
@@ -79,7 +80,6 @@ class AgentHistoryManager:
             user_query: User's query message
             ai_response: AI's response message
             tool_references: Tool call references from the conversation
-            metadata: Optional metadata for the conversation turn (unused for now)
 
         Returns:
             bool: True if saved successfully, False otherwise
@@ -87,11 +87,26 @@ class AgentHistoryManager:
         try:
             logger.debug(f"Saving conversation turn for history session: {history.session_id}")
 
+            user_message = create_user_message(
+                content=user_query,
+                chat_id=history.session_id,
+                message_id=message_id,
+                trace_id=trace_id,
+            )
             # Save human message (plain text for agent conversations)
-            await history.add_message(HumanMessage(content=user_query))
+            await history.add_stored_message(user_message)
 
             # Save AI message (plain text for agent conversations)
-            await history.add_message(AIMessage(content=ai_response))
+            ai_message = create_assistant_message(
+                content=ai_response,
+                chat_id=history.session_id,
+                message_id=message_id,
+                trace_id=trace_id,
+                tool_use_list=tool_use_list,
+                references=tool_references,
+                # urls=,
+            )
+            await history.add_stored_message(ai_message)
 
             logger.debug(f"Successfully saved conversation turn for session: {history.session_id}")
             return True

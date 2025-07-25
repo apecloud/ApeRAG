@@ -137,7 +137,7 @@ def create_assistant_message(
     content: str,
     chat_id: str,
     message_id: str = None,
-    thinking_steps: List[str] = None,
+    tool_use_list: List[str] = None,
     references: List[Dict[str, Any]] = None,
     urls: List[str] = None,
     trace_id: Optional[str] = None,
@@ -150,8 +150,8 @@ def create_assistant_message(
     parts = []
 
     # Add thinking steps
-    if thinking_steps:
-        for step in thinking_steps:
+    if tool_use_list:
+        for step in tool_use_list:
             parts.append(
                 StoredChatMessagePart(
                     chat_id=chat_id,
@@ -159,7 +159,7 @@ def create_assistant_message(
                     trace_id=trace_id,
                     type="tool_call_result",
                     role="ai",
-                    content=step,
+                    content=step.get("data"),
                     metadata=metadata,
                 )
             )

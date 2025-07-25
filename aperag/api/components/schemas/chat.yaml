@@ -37,6 +37,8 @@ chatMessage:
   properties:
     id:
       type: string
+    part_id:
+      type: string
     type:
       type: string
       enum: [welcome, message, start, stop, error, tool_call_result, thinking, references]

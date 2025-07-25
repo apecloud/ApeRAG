@@ -17,7 +17,7 @@ import json
 import logging
 import os
 import uuid
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import WebSocket
 from mcp_agent.workflows.llm.augmented_llm import RequestParams
@@ -49,7 +49,7 @@ from aperag.agent.exceptions import (
     handle_agent_error,
     safe_json_parse,
 )
-from aperag.agent.response_types import AgentErrorResponse
+from aperag.agent.response_types import AgentErrorResponse, AgentToolCallResultResponse
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.schema import view_models
 from aperag.service.prompt_template_service import build_agent_query_prompt, get_agent_system_prompt
@@ -173,7 +173,9 @@ class AgentChatService:
                 self.process_agent_message(agent_message, user, chat_id, message_id, message_queue)
             )
             # Message Consumer
-            consumer_task = asyncio.create_task(self._consume_messages_from_queue(message_queue, websocket))
+            consumer_task = asyncio.create_task(
+                self._consume_messages_from_queue(chat_id, message_id, trace_id, message_queue, websocket)
+            )
             process_result, consumer_result = await asyncio.gather(process_task, consumer_task, return_exceptions=True)
 
             # Handle process_task exceptions with unified error formatting
@@ -194,7 +196,13 @@ class AgentChatService:
 
             # Handle history saving at WebSocket layer (better separation of concerns)
             # process_result now contains {query, content, references} on success
-            await self._save_conversation_history(chat_id, process_result)
+            query = process_result.get("query", "")
+            ai_response = process_result.get("content", "")
+            references = process_result.get("references", "")
+            tool_use_list = consumer_result
+            await self._save_conversation_history(
+                chat_id, message_id, trace_id, query, ai_response, tool_use_list, references
+            )
 
         except Exception as e:
             # This catches any other unexpected errors not handled above
@@ -223,13 +231,19 @@ class AgentChatService:
             )
         return trace_id
 
-    async def _consume_messages_from_queue(self, message_queue: AgentMessageQueue, websocket: WebSocket) -> None:
+    async def _consume_messages_from_queue(
+        self, chat_id: str, message_id: str, trace_id: str, message_queue: AgentMessageQueue, websocket: WebSocket
+    ) -> List[AgentToolCallResultResponse]:
         """
-        Consume messages from queue and send to WebSocket.
+        Consume messages from queue, send to WebSocket, and collect AgentToolCallResultResponse messages.
 
         This method runs as a separate task to avoid race conditions.
+        Returns a list of all AgentToolCallResultResponse messages.
         """
         try:
+            # Properly initialize list to collect AgentToolCallResultResponse messages
+            tool_call_results: List[Dict] = []
+
             while True:
                 # Get message from queue (blocks until message is available)
                 message = await message_queue.get()
@@ -239,9 +253,15 @@ class AgentChatService:
                     logger.debug("Received end-of-stream signal from message queue")
                     break
 
-                # Send message to WebSocket
+                # Collect AgentToolCallResultResponse messages
+                if isinstance(message, dict) and message.get("type") == "tool_call_result":
+                    tool_call_results.append(message)
+
+                # Send message to WebSocket (preserve original functionality)
                 await websocket.send_text(json.dumps(message))
                 logger.debug(f"Sent message to WebSocket: {message.get('type', 'unknown')}")
+
+            return tool_call_results
 
         except Exception as e:
             logger.error(f"Error in message consumer: {e}")
@@ -389,7 +409,16 @@ class AgentChatService:
             # Handle unexpected errors with generic processing error
             return format_processing_error(str(exception), language)
 
-    async def _save_conversation_history(self, chat_id: str, conversation_data: Dict[str, Any]) -> None:
+    async def _save_conversation_history(
+        self,
+        chat_id: str,
+        message_id: str,
+        trace_id: str,
+        query: str,
+        ai_response: str,
+        tool_use_list: List[Dict],
+        tool_references: List[Dict[str, Any]],
+    ) -> None:
         """
         Save conversation history from successful agent processing.
 
@@ -403,10 +432,13 @@ class AgentChatService:
 
             # Save conversation turn with data from successful processing
             history_saved = await self.history_manager.save_conversation_turn(
+                message_id=message_id,
+                trace_id=trace_id,
                 history=history,
-                user_query=conversation_data.get("query", ""),
-                ai_response=conversation_data.get("content", ""),
-                tool_references=conversation_data.get("references", []),
+                user_query=query,
+                ai_response=ai_response,
+                tool_use_list=tool_use_list,
+                tool_references=tool_references,
             )
 
             if not history_saved:

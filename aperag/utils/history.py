@@ -162,7 +162,7 @@ class RedisChatMessageHistory:
                 continue
         return messages
 
-    async def _add_stored_message(self, message: StoredChatMessage) -> None:
+    async def add_stored_message(self, message: StoredChatMessage) -> None:
         """Add a StoredChatMessage directly to Redis"""
         message_json = json.dumps(message_to_storage_dict(message))
         await self.redis_client.lpush(self.key, message_json)
@@ -176,7 +176,7 @@ class RedisChatMessageHistory:
             chat_id=self.session_id,
             message_id=message_id,
         )
-        await self._add_stored_message(stored_message)
+        await self.add_stored_message(stored_message)
 
     async def add_ai_message(
         self,
@@ -200,7 +200,7 @@ class RedisChatMessageHistory:
             trace_id=trace_id,
             metadata=metadata,
         )
-        await self._add_stored_message(stored_message)
+        await self.add_stored_message(stored_message)
 
     async def clear(self) -> None:
         """Clear session memory from Redis"""

@@ -3093,6 +3093,8 @@ components:
       properties:
         id:
           type: string
+        part_id:
+          type: string
         type:
           type: string
           enum:
