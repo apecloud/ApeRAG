@@ -3102,6 +3102,8 @@ components:
             - stop
             - error
             - tool_call_result
+            - thinking
+            - references
         timestamp:
           type: number
         role:
@@ -3143,8 +3145,12 @@ components:
             - dingtalk
         history:
           type: array
+          description: Array of conversation turns, where each turn is an array of message parts
           items:
-            $ref: '#/components/schemas/chatMessage'
+            type: array
+            description: A conversation turn containing multiple message parts (thinking, content, references, etc.)
+            items:
+              $ref: '#/components/schemas/chatMessage'
         status:
           type: string
           enum:

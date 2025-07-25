@@ -26,10 +26,10 @@ class AsyncApiKeyRepositoryMixin(AsyncRepositoryProtocol):
 
         async def _query(session):
             stmt = select(ApiKey).where(
-                ApiKey.user == user, 
-                ApiKey.status == ApiKeyStatus.ACTIVE, 
+                ApiKey.user == user,
+                ApiKey.status == ApiKeyStatus.ACTIVE,
                 ApiKey.gmt_deleted.is_(None),
-                ApiKey.is_system == is_system
+                ApiKey.is_system == is_system,
             )
             result = await session.execute(stmt)
             return result.scalars().all()

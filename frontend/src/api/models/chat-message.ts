@@ -82,7 +82,9 @@ export const ChatMessageTypeEnum = {
     start: 'start',
     stop: 'stop',
     error: 'error',
-    tool_call_result: 'tool_call_result'
+    tool_call_result: 'tool_call_result',
+    thinking: 'thinking',
+    references: 'references'
 } as const;
 
 export type ChatMessageTypeEnum = typeof ChatMessageTypeEnum[keyof typeof ChatMessageTypeEnum];

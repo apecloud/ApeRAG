@@ -368,10 +368,9 @@ async def register_view(
 
     # Create default API key and bot for the new user
     try:
-        from aperag.service.api_key_service import api_key_service
-        from aperag.service.bot_service import bot_service
-        from aperag.schema.view_models import ApiKeyCreate, BotCreate
         from aperag.db.models import BotType
+        from aperag.schema.view_models import BotCreate
+        from aperag.service.bot_service import bot_service
 
         # Create a system API key for the user (not visible to user)
         await async_db_ops.create_api_key(user=str(user.id), description="aperag", is_system=True)
