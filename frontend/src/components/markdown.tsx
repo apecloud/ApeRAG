@@ -141,11 +141,13 @@ export const CollapseResult = ({
       style={{ background: 'none' }}
       bordered={false}
       className={className}
-      items={[{
-        key: 'conent',
-        label: <Space>💡 {title}</Space>,
-        children
-      }]}
+      items={[
+        {
+          key: 'conent',
+          label: <Space>💡 {title}</Space>,
+          children,
+        },
+      ]}
     />
   );
 };

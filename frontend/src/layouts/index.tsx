@@ -12,6 +12,8 @@ import { AuthProvider } from './auth';
 
 import Layout from './layout';
 
+import { LayoutAgent } from '@/pages/agent/LayoutAgent';
+import { NavbarAgent } from '@/pages/agent/NavbarAgent';
 import { LayoutBot } from '@/pages/bots/$botId/_layout';
 import { NavbarBot } from '@/pages/bots/$botId/_navbar';
 import { LayoutCollection } from '@/pages/collections/$collectionId/_layout';
@@ -27,6 +29,8 @@ const { darkAlgorithm, defaultAlgorithm } = theme;
 const config: {
   [key in string]: React.ReactNode;
 } = {
+  '/agent(/*)': <Layout navbar={<NavbarAgent />} outlet={<LayoutAgent />} />,
+
   '/bots/:botId/*': <Layout navbar={<NavbarBot />} outlet={<LayoutBot />} />,
   '/bots(/*)': <Layout />,
 

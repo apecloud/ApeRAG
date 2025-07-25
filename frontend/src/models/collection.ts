@@ -18,7 +18,6 @@ export default () => {
     setLoading(true);
     setCollectionsLoading(true);
     const res = await api.collectionsGet();
-
     setLoading(false);
     setCollectionsLoading(false);
     setCollections(res.data.items);

@@ -191,12 +191,14 @@ export default () => {
 
   const _bots = useMemo(
     () =>
-      bots?.filter((item) => {
-        const titleMatch = searchParams?.title
-          ? item.title?.includes(searchParams.title)
-          : true;
-        return titleMatch;
-      }),
+      bots
+        ?.filter((item) => item.type !== 'agent')
+        .filter((item) => {
+          const titleMatch = searchParams?.title
+            ? item.title?.includes(searchParams.title)
+            : true;
+          return titleMatch;
+        }),
     [bots, searchParams],
   );
 
@@ -310,11 +312,11 @@ export default () => {
                   icon: BOT_TYPE_ICON['common'],
                   value: 'common',
                 },
-                {
-                  label: <FormattedMessage id="bot.type_agent" />,
-                  icon: BOT_TYPE_ICON['agent'],
-                  value: 'agent',
-                },
+                // {
+                //   label: <FormattedMessage id="bot.type_agent" />,
+                //   icon: BOT_TYPE_ICON['agent'],
+                //   value: 'agent',
+                // },
               ]}
             />
           </Form.Item>
