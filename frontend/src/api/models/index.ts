@@ -115,6 +115,7 @@ export * from './target-entity-data-response';
 export * from './user';
 export * from './user-list';
 export * from './vector-search-params';
+export * from './vision-chunk';
 export * from './web-read-request';
 export * from './web-read-response';
 export * from './web-read-result-item';

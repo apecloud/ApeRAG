@@ -150,7 +150,7 @@ class VisionIndexer(BaseIndexer):
 
 1.  **Overall Summary:** A brief overview of the image's subject, setting, and any visible activities.
 
-2.  **Text Extraction:** All text from the image, in its original language. Do not translate.
+2.  **Text Extraction:** All text from the image, in its original language. Do not translate. If the content appears to be a table, attempt to reproduce the visual style using GFM Markdown tables.
 
 3.  **Chart/Graph Analysis:** For any charts, graphs, or tables: specify its type, explain the data it shows, and summarize key insights, trends, or comparisons.
 

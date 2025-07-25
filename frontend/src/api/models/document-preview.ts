@@ -16,6 +16,9 @@
 // May contain unused imports in some cases
 // @ts-ignore
 import type { DocumentPreviewChunksInner } from './document-preview-chunks-inner';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { VisionChunk } from './vision-chunk';
 
 /**
  * 
@@ -53,5 +56,11 @@ export interface DocumentPreview {
      * @memberof DocumentPreview
      */
     'chunks'?: Array<DocumentPreviewChunksInner>;
+    /**
+     * 
+     * @type {Array<VisionChunk>}
+     * @memberof DocumentPreview
+     */
+    'vision_chunks'?: Array<VisionChunk>;
 }
 

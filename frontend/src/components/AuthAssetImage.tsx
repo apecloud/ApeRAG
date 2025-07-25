@@ -8,6 +8,8 @@ interface AuthAssetImageProps {
   collectionId: string;
   documentId: string;
   onLoad?: () => void;
+  isDirectUrl?: boolean;
+  style?: React.CSSProperties;
 }
 
 export const AuthAssetImage = ({
@@ -15,6 +17,8 @@ export const AuthAssetImage = ({
   collectionId,
   documentId,
   onLoad,
+  isDirectUrl = false,
+  style,
 }: AuthAssetImageProps) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isIntersecting, setIntersecting] = useState(false);
@@ -83,12 +87,14 @@ export const AuthAssetImage = ({
   // Fetch the image only when it becomes visible.
   useEffect(() => {
     if (isIntersecting) {
-      if (src && src.startsWith('asset://')) {
+      if (isDirectUrl) {
+        setImageUrl(src);
+      } else if (src && src.startsWith('asset://')) {
         const assetId = src.substring('asset://'.length).split('?')[0];
         fetchImage('assets/' + assetId);
       }
     }
-  }, [isIntersecting, src, fetchImage]);
+  }, [isIntersecting, src, fetchImage, isDirectUrl]);
 
   // Effect to handle the lifecycle of the blob URL.
   useEffect(() => {
@@ -105,8 +111,9 @@ export const AuthAssetImage = ({
       <Image
         src={imageUrl}
         alt={src}
-        style={{ maxWidth: '100%' }}
+        style={{ maxWidth: '100%', ...style }}
         onLoad={onLoad}
+        preview={!isDirectUrl} // Disable preview for direct URLs like the main image view
       />
     );
   }

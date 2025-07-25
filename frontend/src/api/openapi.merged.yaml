@@ -3619,6 +3619,17 @@ components:
           minItems: 1
       required:
         - index_types
+    visionChunk:
+      type: object
+      properties:
+        id:
+          type: string
+        asset_id:
+          type: string
+        text:
+          type: string
+        metadata:
+          type: object
     documentPreview:
       type: object
       properties:
@@ -3647,6 +3658,10 @@ components:
                 type: string
               metadata:
                 type: object
+        vision_chunks:
+          type: array
+          items:
+            $ref: '#/components/schemas/visionChunk'
     vectorSearchParams:
       type: object
       properties:
