@@ -54,11 +54,11 @@ export interface ChatDetails {
      */
     'peer_type'?: ChatDetailsPeerTypeEnum;
     /**
-     * 
-     * @type {Array<ChatMessage>}
+     * Array of conversation turns, where each turn is an array of message parts
+     * @type {Array<Array<ChatMessage>>}
      * @memberof ChatDetails
      */
-    'history'?: Array<ChatMessage>;
+    'history'?: Array<Array<ChatMessage>>;
     /**
      * 
      * @type {string}

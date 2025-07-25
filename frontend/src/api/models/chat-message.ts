@@ -37,6 +37,12 @@ export interface ChatMessage {
      * @type {string}
      * @memberof ChatMessage
      */
+    'part_id'?: string;
+    /**
+     * 
+     * @type {string}
+     * @memberof ChatMessage
+     */
     'type'?: ChatMessageTypeEnum;
     /**
      * 
@@ -82,7 +88,9 @@ export const ChatMessageTypeEnum = {
     start: 'start',
     stop: 'stop',
     error: 'error',
-    tool_call_result: 'tool_call_result'
+    tool_call_result: 'tool_call_result',
+    thinking: 'thinking',
+    references: 'references'
 } as const;
 
 export type ChatMessageTypeEnum = typeof ChatMessageTypeEnum[keyof typeof ChatMessageTypeEnum];

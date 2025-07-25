@@ -16,7 +16,6 @@ import json
 import uuid
 from typing import Dict, List, Optional, Tuple
 
-from langchain.schema import AIMessage, HumanMessage
 from litellm import BaseModel
 from pydantic import Field
 
@@ -28,7 +27,6 @@ from aperag.llm.llm_error_types import InvalidConfigurationError
 from aperag.query.query import DocumentWithScore
 from aperag.utils.constant import DOC_QA_REFERENCES
 from aperag.utils.history import BaseChatMessageHistory
-from aperag.utils.utils import now_unix_milliseconds
 
 # Character to token estimation ratio for Chinese/mixed content
 # Conservative estimate: 1.5 characters = 1 token
@@ -41,47 +39,23 @@ DEFAULT_OUTPUT_TOKENS = 1000
 FALLBACK_MAX_CONTEXT_LENGTH = 50000
 
 
-class Message(BaseModel):
-    id: str
-    query: Optional[str] = None
-    timestamp: Optional[int] = None
-    response: Optional[str] = None
-    urls: Optional[List[str]] = None
-    references: Optional[List[Dict]] = None
-
-
-def new_ai_message(message, message_id, response, references, urls):
-    return Message(
-        id=message_id,
-        query=message,
-        response=response,
-        timestamp=now_unix_milliseconds(),
-        references=references,
-        urls=urls,
-    )
-
-
-def new_human_message(message, message_id):
-    return Message(
-        id=message_id,
-        query=message,
-        timestamp=now_unix_milliseconds(),
-    )
-
-
 async def add_human_message(history: BaseChatMessageHistory, message, message_id):
     if not message_id:
         message_id = str(uuid.uuid4())
-
-    human_msg = new_human_message(message, message_id)
-    human_msg = human_msg.model_dump_json(exclude_none=True)
-    await history.add_message(HumanMessage(content=human_msg, additional_kwargs={"role": "human"}))
+    await history.add_user_message(message, message_id)
 
 
 async def add_ai_message(history: BaseChatMessageHistory, message, message_id, response, references, urls):
-    ai_msg = new_ai_message(message, message_id, response, references, urls)
-    ai_msg = ai_msg.model_dump_json(exclude_none=True)
-    await history.add_message(AIMessage(content=ai_msg, additional_kwargs={"role": "ai"}))
+    await history.add_ai_message(
+        content=response,
+        chat_id=history.session_id,
+        message_id=message_id,
+        thinking_steps=None,
+        references=references,
+        urls=urls,
+        trace_id=None,
+        metadata=None,
+    )
 
 
 class LLMInput(BaseModel):

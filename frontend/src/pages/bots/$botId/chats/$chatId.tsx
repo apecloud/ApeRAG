@@ -146,7 +146,9 @@ export default () => {
   }, [chatId, botId]);
 
   useEffect(() => {
-    setMessages(chat?.history || []);
+    // Flatten the 2D array of conversation turns into a 1D array of messages
+    const flattenedMessages = chat?.history?.flat() || [];
+    setMessages(flattenedMessages);
   }, [chat]);
 
   useEffect(() => {

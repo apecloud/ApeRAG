@@ -168,18 +168,18 @@ class ToolResultFormatter:
 
         # Part 1: Action execution
         if self.language == "zh-CN":
-            execution = "**📚 操作执行**\n\n获取所有可用的知识库集合"
+            execution = "📚 **操作执行**\n\n获取所有可用的知识库集合"
         else:
-            execution = "**📚 Action Execution**\n\nRetrieving all available knowledge base collections"
+            execution = "📚 **Action Execution**\n\nRetrieving all available knowledge base collections"
 
         # Part 2: Results (only if has collections)
         if count == 0:
             return execution
 
         if self.language == "zh-CN":
-            results = f"**📊 操作结果**\n\n找到 {count} 个知识库集合"
+            results = f"📊 **操作结果**\n\n找到 {count} 个知识库集合"
         else:
-            results = f"**📊 Action Results**\n\nFound {count} knowledge base collections"
+            results = f"📊 **Action Results**\n\nFound {count} knowledge base collections"
 
         # Add collection names (first 3)
         if result.items:

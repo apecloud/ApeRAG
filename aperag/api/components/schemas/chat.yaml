@@ -37,9 +37,11 @@ chatMessage:
   properties:
     id:
       type: string
+    part_id:
+      type: string
     type:
       type: string
-      enum: [welcome, message, start, stop, error, tool_call_result]
+      enum: [welcome, message, start, stop, error, tool_call_result, thinking, references]
     timestamp:
       type: number
     role:
@@ -74,8 +76,12 @@ chatDetails:
       enum: [system, feishu, weixin, weixin_official, web, dingtalk]
     history:
       type: array
+      description: Array of conversation turns, where each turn is an array of message parts
       items:
-        $ref: '#/chatMessage'
+        type: array
+        description: A conversation turn containing multiple message parts (thinking, content, references, etc.)
+        items:
+          $ref: '#/chatMessage'
     status:
       type: string
       enum: [active, archived]

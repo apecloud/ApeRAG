@@ -149,7 +149,7 @@ class ChatService:
 
     async def get_chat(self, user: str, bot_id: str, chat_id: str) -> view_models.ChatDetails:
         # Import here to avoid circular imports
-        from aperag.views.utils import query_chat_messages
+        from aperag.utils.history import query_chat_messages
 
         chat = await self.db_ops.query_chat(user, bot_id, chat_id)
         if chat is None:

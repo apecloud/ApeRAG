@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
 import uuid
 from typing import Dict, Tuple
@@ -21,54 +20,11 @@ from langchain_core.prompts import PromptTemplate
 from pydantic import ValidationError
 
 from aperag.db.models import BotType
-from aperag.db.ops import async_db_ops
-from aperag.schema import view_models
 from aperag.schema.view_models import CollectionConfig
 from aperag.source.base import CustomSourceInitializationError, get_source
-from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
 from aperag.utils.utils import AVAILABLE_SOURCE
 
 logger = logging.getLogger(__name__)
-
-
-async def query_chat_messages(user: str, chat_id: str) -> list[view_models.ChatMessage]:
-    feedbacks = await async_db_ops.query_chat_feedbacks(user, chat_id)
-    feedback_map = {}
-    for feedback in feedbacks:
-        feedback_map[feedback.message_id] = feedback
-
-    history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
-    messages = []
-    for message in await history.messages:
-        try:
-            item = json.loads(message.content)
-        except Exception as e:
-            logger.exception(e)
-            continue
-        role = message.additional_kwargs.get("role", "")
-        if not role:
-            continue
-        msg = view_models.ChatMessage(
-            id=item["id"],
-            type="message",
-            timestamp=item["timestamp"],
-            role=role,
-        )
-        if role == "human":
-            msg.data = item["query"]
-        else:
-            msg.data = item["response"]
-            msg.references = []
-            for ref in item.get("references", []):
-                msg.references.append(
-                    view_models.Reference(score=ref["score"], text=ref["text"], metadata=ref["metadata"])
-                )
-            msg.urls = item.get("urls", [])
-        feedback = feedback_map.get(item.get("id", ""), None)
-        if role == "ai" and feedback:
-            msg.feedback = view_models.Feedback(type=feedback.type, tag=feedback.tag, message=feedback.message)
-        messages.append(msg)
-    return messages
 
 
 def validate_source_connect_config(config: CollectionConfig) -> Tuple[bool, str]:
