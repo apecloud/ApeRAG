@@ -123,6 +123,33 @@ const StyledCopyButton = styled('div').withConfig({
   }}
 `;
 
+export const CollapseResult = ({
+  title,
+  className,
+  children,
+}: {
+  title: string;
+  className?: string;
+  children?: string;
+}) => {
+  return (
+    <Collapse
+      expandIcon={({ isActive }) => (
+        <CaretRightOutlined rotate={isActive ? 90 : 0} />
+      )}
+      defaultActiveKey={['conent']}
+      style={{ background: 'none' }}
+      bordered={false}
+      className={className}
+      items={[{
+        key: 'conent',
+        label: <Space>💡 {title}</Space>,
+        children
+      }]}
+    />
+  );
+};
+
 export const ApeMarkdown = ({ children }: MarkdownProps) => {
   const { token } = theme.useToken();
 
@@ -159,7 +186,6 @@ export const ApeMarkdown = ({ children }: MarkdownProps) => {
             if (match?.length) {
               return (
                 <code id={id} className={className + ' copy-to-clipboard'}>
-                  {/* @ts-ignore */}
                   <StyledCopyButton
                     className="copy-to-clipboard-trigger"
                     token={token}
@@ -176,46 +202,19 @@ export const ApeMarkdown = ({ children }: MarkdownProps) => {
           },
           div: (props: any) => {
             const className = props?.className || '';
+            const children = props?.children || '';
             if (/think/.exec(className)?.length) {
               return (
-                <Collapse
-                  expandIcon={({ isActive }) => (
-                    <CaretRightOutlined rotate={isActive ? 90 : 0} />
-                  )}
-                  defaultActiveKey={['1']}
-                  style={{ background: 'none' }}
-                  bordered={false}
-                  className={className}
-                >
-                  <Collapse.Panel
-                    header={<Space>💡 思考过程</Space>}
-                    key="1"
-                    style={{ padding: 0 }}
-                  >
-                    { props?.children }
-                  </Collapse.Panel>
-                </Collapse>
+                <CollapseResult title="Thinking" className={className}>
+                  {children}
+                </CollapseResult>
               );
             }
             if (/tool_call_result/.exec(className)?.length) {
               return (
-                <Collapse
-                  expandIcon={({ isActive }) => (
-                    <CaretRightOutlined rotate={isActive ? 90 : 0} />
-                  )}
-                  defaultActiveKey={['1']}
-                  style={{ background: 'none' }}
-                  bordered={false}
-                  className={className}
-                >
-                  <Collapse.Panel
-                    header={<Space>💡 Tool call</Space>}
-                    key="1"
-                    style={{ padding: 0 }}
-                  >
-                    {props?.children}
-                  </Collapse.Panel>
-                </Collapse>
+                <CollapseResult title="Tool call" className={className}>
+                  {children}
+                </CollapseResult>
               );
             }
             return <div {...props} />;

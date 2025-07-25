@@ -33,7 +33,7 @@ import {
 } from 'antd';
 import _ from 'lodash';
 import moment from 'moment';
-import { useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { BsRobot } from 'react-icons/bs';
 import { css, styled, useIntl } from 'umi';
 
@@ -137,7 +137,11 @@ export const ChatMessageItem = ({
           style={{ maxWidth: 400, color: token.colorPrimary }}
           ellipsis
         >
-          {index + 1}. {reference.metadata?.name || reference.metadata?.source || reference.metadata?.query || reference.metadata?.type}
+          {index + 1}.{' '}
+          {reference.metadata?.name ||
+            reference.metadata?.source ||
+            reference.metadata?.query ||
+            reference.metadata?.type}
         </Typography.Text>
       ),
       children: (
@@ -163,7 +167,7 @@ export const ChatMessageItem = ({
       },
     }));
 
-  const handleFeedback = (type: FeedbackTypeEnum) => {
+  const handleFeedback = useCallback((type: FeedbackTypeEnum) => {
     if (type === item.feedback?.type) {
       onVote(item, {});
     } else if (type === FeedbackTypeEnum.good) {
@@ -171,9 +175,9 @@ export const ChatMessageItem = ({
     } else {
       setFeedbackModalVisible(true);
     }
-  };
+  }, []);
 
-  const handleFeedbackSubmit = () => {
+  const handleFeedbackSubmit = useCallback(() => {
     onVote(item, {
       type: FeedbackTypeEnum.bad,
       tag: feedbackTag,
@@ -182,7 +186,12 @@ export const ChatMessageItem = ({
     setFeedbackModalVisible(false);
     setFeedbackTag(undefined);
     setFeedbackMessage(undefined);
-  };
+  }, []);
+
+  const body = useMemo(
+    () => <ApeMarkdown>{item.data}</ApeMarkdown>,
+    [item.data],
+  );
 
   return (
     <>
@@ -197,7 +206,7 @@ export const ChatMessageItem = ({
             ) : loading ? (
               <TypingAnimate />
             ) : (
-              <ApeMarkdown>{item.data}</ApeMarkdown>
+              body
             )}
           </StyledMessageContent>
           <StyledMessageInfo token={token} message={item}>
