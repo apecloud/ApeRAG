@@ -264,6 +264,21 @@ class AgentChatService:
             logger.error(error_msg)
             raise AgentConfigurationError(error_msg)
 
+        aperag_api_keys = await self.db_ops.query_api_keys(user, is_system=True)
+        for item in aperag_api_keys:
+            aperag_api_key = item.key
+        if not aperag_api_key:
+            # Auto-create a new system aperag API key for the user if none exists
+            logger.info(f"No aperag API key found for user {user}, creating a new system key")
+            try:
+                api_key_result = await self.db_ops.create_api_key(user=user, description="aperag", is_system=True)
+                aperag_api_key = api_key_result.key
+                logger.info(f"Successfully created new system aperag API key for user {user}")
+            except Exception as e:
+                error_msg = f"Failed to create aperag API key for user {user}: {str(e)}"
+                logger.error(error_msg)
+                raise AgentConfigurationError(error_msg)
+
         # Create AgentConfig with all needed parameters including chat_id
         config = AgentConfig(
             user_id=user,
@@ -275,7 +290,7 @@ class AgentChatService:
             language=agent_message.language if agent_message.language else "en-US",
             instruction=get_agent_system_prompt(language=agent_message.language),
             server_names=["aperag"],
-            aperag_api_key=os.getenv("APERAG_API_KEY", "sk-test"),  # todo delete me, use user's aperag api key
+            aperag_api_key=aperag_api_key,
             aperag_mcp_url=os.getenv("APERAG_MCP_URL", "http://localhost:8000/mcp/"),
             temperature=0.7,
             max_tokens=60000,

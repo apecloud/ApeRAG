@@ -450,6 +450,7 @@ class ApiKey(Base):
     user = Column(String(256), nullable=False, index=True)  # Add index for user queries
     description = Column(String(256), nullable=True)
     status = Column(EnumColumn(ApiKeyStatus), nullable=False, index=True)  # Add index for status queries
+    is_system = Column(Boolean, default=False, nullable=False, index=True)  # Mark system-generated API keys
     last_used_at = Column(DateTime(timezone=True), nullable=True)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)

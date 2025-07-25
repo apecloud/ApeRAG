@@ -46,7 +46,7 @@ class ApiKeyService:
 
     async def list_api_keys(self, user: str) -> ApiKeyList:
         """List all API keys for the current user"""
-        tokens = await self.db_ops.query_api_keys(user)
+        tokens = await self.db_ops.query_api_keys(user, is_system=False)
         items = []
         for token in tokens:
             items.append(self.to_api_key_model(token))
@@ -55,7 +55,7 @@ class ApiKeyService:
     async def create_api_key(self, user: str, api_key_create: ApiKeyCreate) -> ApiKeyModel:
         """Create a new API key"""
         # For single operations, use DatabaseOps directly
-        token = await self.db_ops.create_api_key(user, api_key_create.description)
+        token = await self.db_ops.create_api_key(user, api_key_create.description, is_system=False)
         return self.to_api_key_model(token)
 
     async def delete_api_key(self, user: str, apikey_id: str) -> Optional[bool]:
@@ -64,7 +64,7 @@ class ApiKeyService:
         Returns True if deleted, None if already deleted/not found
         """
         # Check if API key exists - if not, silently succeed (idempotent)
-        existing_keys = await self.db_ops.query_api_keys(user)
+        existing_keys = await self.db_ops.query_api_keys(user, is_system=False)
         key_exists = any(str(key.id) == apikey_id for key in existing_keys)
 
         if not key_exists:
