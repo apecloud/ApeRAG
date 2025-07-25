@@ -50,7 +50,7 @@ async def add_ai_message(history: BaseChatMessageHistory, message, message_id, r
         content=response,
         chat_id=history.session_id,
         message_id=message_id,
-        thinking_steps=None,
+        tool_use_list=None,
         references=references,
         urls=urls,
         trace_id=None,

@@ -33,6 +33,7 @@ from aperag.utils.history import (
     RedisChatMessageHistory,
     fail_response,
     get_async_redis_client,
+    references_response,
     start_response,
     stop_response,
     success_response,
@@ -450,7 +451,8 @@ class ChatService:
 
                     # Send stop message with references and URLs
                     memory_count = 0  # You might want to implement memory counting if needed
-                    await websocket.send_text(stop_response(message_id, references, memory_count, urls))
+                    await websocket.send_text(references_response(message_id, references, memory_count, urls))
+                    await websocket.send_text(stop_response(message_id))
 
                 except Exception as e:
                     logger.exception(f"Error processing WebSocket message: {e}")

@@ -72,7 +72,7 @@ class BaseChatMessageHistory(ABC):
         content: str,
         chat_id: str,
         message_id: str = None,
-        thinking_steps: List[str] = None,
+        tool_use_list: List = None,
         references: List[Dict[str, Any]] = None,
         urls: List[str] = None,
         trace_id: Optional[str] = None,
@@ -183,7 +183,7 @@ class RedisChatMessageHistory:
         content: str,
         chat_id: str,
         message_id: str = None,
-        thinking_steps: List[str] = None,
+        tool_use_list: List = None,
         references: List[Dict[str, Any]] = None,
         urls: List[str] = None,
         trace_id: Optional[str] = None,
@@ -194,7 +194,7 @@ class RedisChatMessageHistory:
             content=content,
             chat_id=self.session_id,
             message_id=message_id,
-            thinking_steps=thinking_steps,
+            tool_use_list=tool_use_list,
             references=references,
             urls=urls,
             trace_id=trace_id,
@@ -289,16 +289,26 @@ def start_response(message_id):
     )
 
 
-def stop_response(message_id, references, memory_count=0, urls=[]):
+def references_response(message_id, references, memory_count=0, urls=[]):
     if references is None:
         references = []
     return json.dumps(
         {
-            "type": "stop",
+            "type": "references",
             "id": message_id,
             "data": references,
             "memoryCount": memory_count,
             "urls": urls,
+            "timestamp": now_unix_milliseconds(),
+        }
+    )
+
+
+def stop_response(message_id):
+    return json.dumps(
+        {
+            "type": "stop",
+            "id": message_id,
             "timestamp": now_unix_milliseconds(),
         }
     )
