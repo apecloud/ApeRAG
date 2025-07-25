@@ -4,6 +4,8 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from aperag.schema.view_models import ChatMessage
+
 
 class StoredChatMessagePart(BaseModel):
     """Single part of a chat message with complete identification"""
@@ -50,22 +52,22 @@ class StoredChatMessage(BaseModel):
         """Get timestamp from first part (convenience property)"""
         return self.parts[0].timestamp if self.parts else None
 
-    def to_frontend_format(self) -> List[Dict[str, Any]]:
+    def to_frontend_format(self) -> List[ChatMessage]:
         """Convert parts to frontend ChatMessage format"""
         frontend_messages = []
         for part in self.parts:
-            frontend_messages.append(
-                {
-                    "id": part.part_id or part.message_id,
-                    "type": part.type,
-                    "timestamp": part.timestamp,
-                    "role": "human" if part.role == "user" else part.role,  # Convert "user" to "human" for frontend
-                    "data": part.content,  # Frontend expects "data" field
-                    "references": part.references if part.references else None,
-                    "urls": part.urls if part.urls else None,
-                    "feedback": part.feedback,
-                }
+            chatMessage = ChatMessage(
+                id=part.message_id,
+                part_id=part.part_id,
+                type=part.type,
+                timestamp=part.timestamp,
+                role="human" if part.role == "user" else part.role,  # Convert "user" to "human" for frontend
+                data=part.content,  # Frontend expects "data" field
+                references=part.references if part.references else None,
+                urls=part.urls if part.urls else None,
+                feedback=part.feedback,
             )
+            frontend_messages.append(chatMessage)
         return frontend_messages
 
     def to_openai_format(self) -> List[Dict[str, Any]]:
@@ -228,7 +230,7 @@ def group_parts_by_message_id(parts: List[StoredChatMessagePart]) -> Dict[str, L
     return groups
 
 
-def messages_to_frontend_format(messages: List[StoredChatMessage]) -> List[Dict[str, Any]]:
+def messages_to_frontend_format(messages: List[StoredChatMessage]) -> List[ChatMessage]:
     """Convert multiple StoredChatMessage objects to frontend format"""
     frontend_messages = []
     for message in messages:

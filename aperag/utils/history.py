@@ -237,18 +237,18 @@ async def query_chat_messages(user: str, chat_id: str):
         conversation_turns = []
         for stored_message in stored_messages:
             # Convert this turn to frontend format (returns array of parts)
-            turn_parts = stored_message.to_frontend_format()
+            chat_message_list = stored_message.to_frontend_format()
 
             # Add feedback data if available
-            for frontend_msg in turn_parts:
-                msg_id = frontend_msg.get("id", "")
+            for chat_msg in chat_message_list:
+                msg_id = chat_msg.id
                 feedback = feedback_map.get(msg_id)
-                if feedback and frontend_msg.get("role") == "ai":
-                    frontend_msg["feedback"] = view_models.Feedback(
+                if feedback and chat_msg.get("role") == "ai":
+                    chat_msg["feedback"] = view_models.Feedback(
                         type=feedback.type, tag=feedback.tag, message=feedback.message
                     )
 
-            conversation_turns.append(turn_parts)
+            conversation_turns.append(chat_message_list)
 
         return conversation_turns
 
