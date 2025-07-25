@@ -23,7 +23,7 @@ export default () => {
       setBotsCreating(false);
       if (res.status === 200 && res?.data.id) {
         setChats((cs) => cs?.concat(res.data));
-        history.push(`/bots/${botId}/chats/${res.data.id}`);
+        history.push(`/agent/${botId}/chats/${res.data.id}`);
       }
     }
   }, [botId]);
