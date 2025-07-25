@@ -40,9 +40,6 @@ class UserManager(BaseUserManager[User, str]):
     reset_password_token_secret = "SECRET"
     verification_token_secret = "SECRET"
 
-    async def on_after_register(self, user: User, request: Optional[Request] = None):
-        pass
-
     def parse_id(self, value: any) -> str:
         """Parse ID from any type to str"""
         if isinstance(value, str):
@@ -368,6 +365,29 @@ async def register_view(
         invitation.used_at = utc_now()
         session.add(invitation)
         await session.commit()
+
+    # Create default API key and bot for the new user
+    try:
+        from aperag.service.api_key_service import api_key_service
+        from aperag.service.bot_service import bot_service
+        from aperag.schema.view_models import ApiKeyCreate, BotCreate
+        from aperag.db.models import BotType
+
+        # Create a system API key for the user (not visible to user)
+        await async_db_ops.create_api_key(user=str(user.id), description="aperag", is_system=True)
+
+        # Create a default bot for the user
+        bot_create = BotCreate(
+            title="Default Agent Bot",
+            type=BotType.AGENT,
+            description="Default agent bot created on registration.",
+            collection_ids=[],
+        )
+        await bot_service.create_bot(user=str(user.id), bot_in=bot_create)
+
+        logger.info(f"Created default bot and api key for user {user.username} ({user.id})")
+    except Exception as e:
+        logger.error(f"Failed to create default bot and api key for user {user.username} ({user.id}): {e}")
 
     return view_models.User(
         id=str(user.id),
