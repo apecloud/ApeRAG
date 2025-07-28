@@ -291,26 +291,19 @@ export default () => {
           record.summary_index_updated,
         );
 
-        // 只有ACTIVE状态才显示查看图标
-        if (status === 'ACTIVE') {
+        // 只有ACTIVE状态才可以点击查看摘要
+        if (status === 'ACTIVE' && record.summary) {
           return (
-            <Space size={4}>
+            <div
+              style={{ cursor: 'pointer' }}
+              onClick={() => handleViewSummary(record)}
+            >
               {statusBadge}
-              <Tooltip title={formatMessage({ id: 'document.summary.view' })}>
-                <EyeOutlined
-                  style={{
-                    cursor: 'pointer',
-                    color: '#1677ff',
-                    fontSize: '14px'
-                  }}
-                  onClick={() => handleViewSummary(record)}
-                />
-              </Tooltip>
-            </Space>
+            </div>
           );
         }
 
-        // 其他状态只显示badge
+        // 其他状态只显示badge，不可点击
         return statusBadge;
       },
     },
