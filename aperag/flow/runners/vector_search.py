@@ -148,6 +148,10 @@ class VectorSearchService:
                 if item.metadata is None:
                     item.metadata = {}
                 item.metadata["recall_type"] = "vector_search"
+                
+                # Mark summary results for better identification
+                if item.metadata.get("indexer") == "summary" and item.metadata.get("content_type") == "summary":
+                    item.metadata["is_summary"] = True
 
             # Deduplicate vision results
             results = _deduplicate_vision_results(results)

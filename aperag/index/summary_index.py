@@ -16,10 +16,15 @@ import json
 import logging
 from typing import Any, List
 
+from aperag.config import get_vector_db_connector
 from aperag.db.ops import db_ops
+from aperag.docparser.base import TextPart
 from aperag.index.base import BaseIndexer, IndexResult, IndexType
 from aperag.llm.completion.base_completion import get_collection_completion_service_sync
+from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
+from aperag.llm.embed.embedding_utils import create_embeddings_and_store
 from aperag.llm.llm_error_types import CompletionError, InvalidConfigurationError
+from aperag.utils.utils import generate_vector_db_collection_name
 
 logger = logging.getLogger(__name__)
 
@@ -76,12 +81,49 @@ class SummaryIndexer(BaseIndexer):
                     metadata={"message": "Empty summary generated", "status": "skipped"},
                 )
 
+            # Vectorize and store summary in vector database
+            summary_ctx_ids = []
+            try:
+                # Get embedding model and vector store
+                embedding_model, vector_size = get_collection_embedding_service_sync(collection)
+                vector_store_adaptor = get_vector_db_connector(
+                    collection=generate_vector_db_collection_name(collection_id=collection.id)
+                )
+
+                # Create a TextPart for the summary
+                summary_part = TextPart(
+                    content=summary,
+                    metadata={
+                        "document_id": document_id,
+                        "document_name": document.name,
+                        "name": f"{document.name} - Summary",
+                        "indexer": "summary",
+                        "index_method": "summary",
+                        "collection_id": collection.id,
+                        "content_type": "summary",
+                    }
+                )
+
+                # Store summary vector in vector database
+                summary_ctx_ids = create_embeddings_and_store(
+                    parts=[summary_part],
+                    vector_store_adaptor=vector_store_adaptor,
+                    embedding_model=embedding_model,
+                )
+
+                logger.info(f"Summary vectorized and stored for document {document_id}: {len(summary_ctx_ids)} vectors")
+
+            except Exception as e:
+                logger.warning(f"Failed to vectorize summary for document {document_id}: {str(e)}")
+                # Continue without failing the entire summary indexing process
+
             # Store summary data
             summary_data = {
                 "summary": summary,
                 "document_name": document.name,
                 "chunk_count": len(doc_parts) if doc_parts else 0,
                 "content_length": len(content) if content else 0,
+                "summary_context_ids": summary_ctx_ids,
             }
 
             logger.info(f"Summary index created for document {document_id}")
@@ -94,6 +136,7 @@ class SummaryIndexer(BaseIndexer):
                     "summary_length": len(summary),
                     "chunk_count": len(doc_parts) if doc_parts else 0,
                     "content_length": len(content) if content else 0,
+                    "summary_vector_count": len(summary_ctx_ids),
                 },
             )
 
@@ -117,8 +160,52 @@ class SummaryIndexer(BaseIndexer):
         Returns:
             IndexResult: Result of summary index update
         """
-        # For summary index, update is the same as create
-        return self.create_index(document_id, content, doc_parts, collection, **kwargs)
+        try:
+            # Get existing summary index data from DocumentIndex to find old vector IDs
+            from sqlalchemy import and_, select
+
+            from aperag.config import get_sync_session
+            from aperag.db.models import DocumentIndex, DocumentIndexType
+
+            old_summary_ctx_ids = []
+            for session in get_sync_session():
+                stmt = select(DocumentIndex).where(
+                    and_(
+                        DocumentIndex.document_id == document_id, DocumentIndex.index_type == DocumentIndexType.SUMMARY
+                    )
+                )
+                result = session.execute(stmt)
+                doc_index = result.scalar_one_or_none()
+
+                if doc_index and doc_index.index_data:
+                    index_data = json.loads(doc_index.index_data)
+                    old_summary_ctx_ids = index_data.get("summary_context_ids", [])
+
+            # Delete old summary vectors from vector database if they exist
+            if old_summary_ctx_ids:
+                try:
+                    vector_store_adaptor = get_vector_db_connector(
+                        collection=generate_vector_db_collection_name(collection_id=collection.id)
+                    )
+                    vector_store_adaptor.connector.delete(ids=old_summary_ctx_ids)
+                    logger.info(f"Deleted {len(old_summary_ctx_ids)} old summary vectors for document {document_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete old summary vectors for document {document_id}: {str(e)}")
+
+            # Create new summary index (which includes vectorization)
+            result = self.create_index(document_id, content, doc_parts, collection, **kwargs)
+            
+            # Update metadata to include old vector count
+            if result.success and result.metadata:
+                result.metadata["old_summary_vector_count"] = len(old_summary_ctx_ids)
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Summary index update failed for document {document_id}: {str(e)}")
+            return IndexResult(
+                success=False, index_type=self.index_type, error=f"Summary index update failed: {str(e)}"
+            )
 
     def delete_index(self, document_id: str, collection, **kwargs) -> IndexResult:
         """
@@ -133,14 +220,46 @@ class SummaryIndexer(BaseIndexer):
             IndexResult: Result of summary index deletion
         """
         try:
-            # For summary index, deletion is just removing the stored data
-            # The actual data is stored in DocumentIndex.index_data
+            # Get existing summary index data from DocumentIndex to find vector IDs
+            from sqlalchemy import and_, select
+
+            from aperag.config import get_sync_session
+            from aperag.db.models import DocumentIndex, DocumentIndexType
+
+            summary_ctx_ids = []
+            for session in get_sync_session():
+                stmt = select(DocumentIndex).where(
+                    and_(
+                        DocumentIndex.document_id == document_id, DocumentIndex.index_type == DocumentIndexType.SUMMARY
+                    )
+                )
+                result = session.execute(stmt)
+                doc_index = result.scalar_one_or_none()
+
+                if doc_index and doc_index.index_data:
+                    index_data = json.loads(doc_index.index_data)
+                    summary_ctx_ids = index_data.get("summary_context_ids", [])
+
+            # Delete summary vectors from vector database if they exist
+            if summary_ctx_ids:
+                try:
+                    vector_store_adaptor = get_vector_db_connector(
+                        collection=generate_vector_db_collection_name(collection_id=collection.id)
+                    )
+                    vector_store_adaptor.connector.delete(ids=summary_ctx_ids)
+                    logger.info(f"Deleted {len(summary_ctx_ids)} summary vectors for document {document_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete summary vectors for document {document_id}: {str(e)}")
+
             logger.info(f"Summary index deleted for document {document_id}")
 
             return IndexResult(
                 success=True,
                 index_type=self.index_type,
-                metadata={"operation": "deleted"},
+                metadata={
+                    "operation": "deleted",
+                    "deleted_vector_count": len(summary_ctx_ids),
+                },
             )
 
         except Exception as e:
