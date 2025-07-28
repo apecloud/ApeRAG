@@ -220,14 +220,27 @@ class SummaryIndexer(BaseIndexer):
 
             # Create appropriate prompt based on whether it's a chunk or full document
             if is_chunk:
-                prompt = f"""Summarize this text chunk in 1-2 sentences, focusing only on the most important points:
+                prompt = f"""Summarize this text chunk concisely. Requirements:
+1. Use the same language as the original text for the summary
+2. Keep it within 1-2 sentences
+3. Extract only the most important core information
+4. Stay objective and accurate, do not add content not present in the original text
+5. Output ONLY the summary content, no additional text, explanations, or formatting
 
+Text content:
 {text}
 
 Summary:"""
             else:
-                prompt = f"""Provide a brief summary of this document in 2-3 sentences. Focus on the main topic and key insights only:
+                prompt = f"""Generate a concise summary of this document. Requirements:
+1. Use the same language as the original text for the summary
+2. Keep it within 2-3 sentences
+3. Summarize the main topic and key insights of the document
+4. Stay objective and accurate, do not add content not present in the original text
+5. If it's a technical document, highlight the technical points
+6. Output ONLY the summary content, no additional text, explanations, or formatting
 
+Document content:
 {text}
 
 Summary:"""
@@ -252,8 +265,16 @@ Summary:"""
             str: Final document summary
         """
         try:
-            prompt = f"""Combine these section summaries into a concise final summary in 3-4 sentences. Focus on the main topic and most important insights:
+            prompt = f"""Combine these section summaries into a comprehensive final document summary. Requirements:
+1. Use the same language as the original summaries for the final summary
+2. Keep it within 3-4 sentences
+3. Integrate the core content from all sections into a coherent overall summary
+4. Highlight the main topic and most important insights of the document
+5. Maintain logical clarity and avoid repetitive content
+6. If technical content is involved, maintain accuracy of technical terminology
+7. Output ONLY the final summary content, no additional text, explanations, or formatting
 
+Section summaries:
 {combined_summaries}
 
 Final summary:"""
