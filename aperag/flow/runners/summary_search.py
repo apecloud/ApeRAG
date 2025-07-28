@@ -82,32 +82,23 @@ class SummarySearchService:
 
             vector = embedding_model.embed_query(query)
 
-            # Query vector database and filter for summary vectors only
-            # We need to query more results since we'll filter them
-            search_top_k = top_k * 3  # Get more results to account for filtering
+            # Query vector database for summary vectors only
             results = context_manager.query(
                 query, 
                 score_threshold=similarity_threshold, 
-                topk=search_top_k, 
-                vector=vector
+                topk=top_k, 
+                vector=vector,
+                index_types=["summary"]
             )
 
-            # Filter to only return summary vectors
-            summary_results = []
+            # Add recall type metadata for summary search
             for item in results:
-                metadata = item.metadata or {}
-                if (metadata.get("indexer") == "summary" and 
-                    metadata.get("content_type") == "summary"):
-                    # Add recall type metadata for summary search
-                    item.metadata["recall_type"] = "summary_search"
-                    item.metadata["is_summary"] = True
-                    summary_results.append(item)
-                    
-                    # Stop when we have enough results
-                    if len(summary_results) >= top_k:
-                        break
+                if item.metadata is None:
+                    item.metadata = {}
+                item.metadata["recall_type"] = "summary_search"
+                item.metadata["is_summary"] = True
 
-            return summary_results
+            return results
 
         except ProviderNotFoundError as e:
             # Configuration error - gracefully degrade by returning empty results

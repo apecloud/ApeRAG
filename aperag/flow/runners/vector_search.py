@@ -141,26 +141,26 @@ class VectorSearchService:
             # which could lead to the same document chunk being retrieved twice. To ensure the number of unique results
             # is sufficient after deduplication, we double the top_k value before querying and then deduplicate the results.
             top_k = top_k * 2
-            results = context_manager.query(query, score_threshold=similarity_threshold, topk=top_k, vector=vector)
+            
+            # Query vector database for vector and vision indexes only (excluding summary)
+            results = context_manager.query(
+                query, 
+                score_threshold=similarity_threshold, 
+                topk=top_k, 
+                vector=vector,
+                index_types=["vector", "vision"]
+            )
 
-            # Filter out summary vectors and add recall type metadata
-            filtered_results = []
+            # Add recall type metadata
             for item in results:
                 if item.metadata is None:
                     item.metadata = {}
-                
-                # Skip summary vectors in vector search
-                if (item.metadata.get("indexer") == "summary" and 
-                    item.metadata.get("content_type") == "summary"):
-                    continue
-                    
                 item.metadata["recall_type"] = "vector_search"
-                filtered_results.append(item)
 
             # Deduplicate vision results
-            filtered_results = _deduplicate_vision_results(filtered_results)
+            results = _deduplicate_vision_results(results)
 
-            return filtered_results[:top_k]
+            return results[:top_k]
         except ProviderNotFoundError as e:
             # Configuration error - gracefully degrade by returning empty results
             logger.warning(f"Vector search skipped for collection {collection.id} due to provider not found: {str(e)}")
