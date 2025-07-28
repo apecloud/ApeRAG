@@ -337,7 +337,7 @@ export default {
   'search.graphsearchTopK': '图TopK',
   'search.summaryTopK': '摘要TopK',
   'search.summarySimilarityThreshold': '摘要相似度阈值',
-  'search.searchResults': '检索结果',
+  'search.searchResults': '结果',
   'search.searchResults.detail': '共有{count}条检索结果',
   'search.searchResults.empty': '没有检索结果',
   'search.history_question': '历史问题',

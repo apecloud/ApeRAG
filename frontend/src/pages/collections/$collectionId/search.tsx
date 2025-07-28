@@ -110,6 +110,8 @@ export default () => {
     {
       title: formatMessage({ id: 'search.history_question' }),
       dataIndex: 'query',
+      fixed: 'left',
+      width: 200,
       render: (_value, record) => {
         return (
           <>
@@ -133,6 +135,8 @@ export default () => {
     {
       title: formatMessage({ id: 'search.searchResults' }),
       align: 'center',
+      fixed: 'left',
+      width: 120,
       render: (text, record) => (
         <Button
           onClick={() => setHistoryModal({ visible: true, record })}
@@ -209,10 +213,43 @@ export default () => {
       },
     },
     {
+      title: formatMessage({ id: 'search.summaryTopK' }),
+      width: 130,
+      render: (text, record) => {
+        return (
+          <Tooltip title={record.summary_search?.topk}>
+            <Progress
+              steps={20}
+              percent={((record.summary_search?.topk || 0) * 100) / 20}
+              size={[3, 4]}
+              showInfo={false}
+            />
+          </Tooltip>
+        );
+      },
+    },
+    {
+      title: formatMessage({ id: 'search.summarySimilarityThreshold' }),
+      width: 130,
+      render: (text, record) => {
+        return (
+          <Tooltip title={record.summary_search?.similarity}>
+            <Progress
+              steps={20}
+              percent={((record.summary_search?.similarity || 0) * 100) / 1}
+              size={[3, 4]}
+              showInfo={false}
+            />
+          </Tooltip>
+        );
+      },
+    },
+    {
       title: formatMessage({ id: 'action.name' }),
       key: 'action',
       width: 80,
       align: 'center',
+      fixed: 'right',
       render: (_value, record) => (
         <Button
           size="small"
@@ -388,7 +425,14 @@ export default () => {
         </Space>
       </Card>
 
-      <Table dataSource={records} bordered columns={columns} rowKey="id" />
+      <Table 
+        dataSource={records} 
+        bordered 
+        columns={columns} 
+        rowKey="id" 
+        scroll={{ x: 'max-content' }}
+        size="small"
+      />
 
       <Drawer
         open={historyModal?.visible}
