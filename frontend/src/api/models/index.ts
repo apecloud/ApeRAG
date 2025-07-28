@@ -108,6 +108,7 @@ export * from './search-result-item';
 export * from './search-result-list';
 export * from './suggestion-action-request';
 export * from './suggestion-action-response';
+export * from './summary-search-params';
 export * from './tag-filter-condition';
 export * from './tag-filter-request';
 export * from './target-entity-data-request';

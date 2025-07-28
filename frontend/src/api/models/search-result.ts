@@ -24,6 +24,9 @@ import type { GraphSearchParams } from './graph-search-params';
 import type { SearchResultItem } from './search-result-item';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { SummarySearchParams } from './summary-search-params';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { VectorSearchParams } from './vector-search-params';
 
 /**
@@ -62,6 +65,12 @@ export interface SearchResult {
      * @memberof SearchResult
      */
     'graph_search'?: GraphSearchParams;
+    /**
+     * 
+     * @type {SummarySearchParams}
+     * @memberof SearchResult
+     */
+    'summary_search'?: SummarySearchParams;
     /**
      * 
      * @type {Array<SearchResultItem>}

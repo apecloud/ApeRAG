@@ -3690,6 +3690,17 @@ components:
         topk:
           type: integer
           description: Top K results
+    summarySearchParams:
+      type: object
+      properties:
+        topk:
+          type: integer
+          description: Top K results
+        similarity:
+          type: number
+          description: Similarity threshold
+          minimum: 0
+          maximum: 1
     searchResultItem:
       type: object
       properties:
@@ -3712,6 +3723,7 @@ components:
             - vector_search
             - graph_search
             - fulltext_search
+            - summary_search
         metadata:
           type: object
           description: Metadata of the result
@@ -3729,6 +3741,8 @@ components:
           $ref: '#/components/schemas/fulltextSearchParams'
         graph_search:
           $ref: '#/components/schemas/graphSearchParams'
+        summary_search:
+          $ref: '#/components/schemas/summarySearchParams'
         items:
           type: array
           items:
@@ -3757,6 +3771,8 @@ components:
           $ref: '#/components/schemas/fulltextSearchParams'
         graph_search:
           $ref: '#/components/schemas/graphSearchParams'
+        summary_search:
+          $ref: '#/components/schemas/summarySearchParams'
     graphLabelsResponse:
       type: object
       description: Response containing available graph labels

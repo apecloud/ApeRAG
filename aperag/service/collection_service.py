@@ -236,6 +236,21 @@ class CollectionService:
             end_node_values["graph_search_docs"] = "{{ nodes.graph_search.output.docs }}"
             edges.append(Edge(source="graph_search", target=end_node_id))
 
+        if data.summary_search:
+            node_id = "summary_search"
+            nodes[node_id] = NodeInstance(
+                id=node_id,
+                type="summary_search",
+                input_values={
+                    "query": query,
+                    "top_k": data.summary_search.topk if data.summary_search else 5,
+                    "similarity_threshold": data.summary_search.similarity if data.summary_search else 0.7,
+                    "collection_ids": [collection_id],
+                },
+            )
+            end_node_values["summary_search_docs"] = "{{ nodes.summary_search.output.docs }}"
+            edges.append(Edge(source=node_id, target=end_node_id))
+
         nodes[end_node_id] = NodeInstance(
             id=end_node_id,
             type="merge",
@@ -278,6 +293,7 @@ class CollectionService:
             vector_search=data.vector_search.model_dump() if data.vector_search else None,
             fulltext_search=data.fulltext_search.model_dump() if data.fulltext_search else None,
             graph_search=data.graph_search.model_dump() if data.graph_search else None,
+            summary_search=data.summary_search.model_dump() if data.summary_search else None,
             items=[item.model_dump() for item in items],
         )
         return SearchResult(
@@ -286,6 +302,7 @@ class CollectionService:
             vector_search=record.vector_search,
             fulltext_search=record.fulltext_search,
             graph_search=record.graph_search,
+            summary_search=record.summary_search,
             items=items,
             created=record.gmt_created.isoformat(),
         )
@@ -312,6 +329,7 @@ class CollectionService:
                     vector_search=search.vector_search,
                     fulltext_search=search.fulltext_search,
                     graph_search=search.graph_search,
+                    summary_search=search.summary_search,
                     items=search_result_items,
                     created=search.gmt_created.isoformat(),
                 )

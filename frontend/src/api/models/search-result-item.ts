@@ -61,7 +61,8 @@ export interface SearchResultItem {
 export const SearchResultItemRecallTypeEnum = {
     vector_search: 'vector_search',
     graph_search: 'graph_search',
-    fulltext_search: 'fulltext_search'
+    fulltext_search: 'fulltext_search',
+    summary_search: 'summary_search'
 } as const;
 
 export type SearchResultItemRecallTypeEnum = typeof SearchResultItemRecallTypeEnum[keyof typeof SearchResultItemRecallTypeEnum];

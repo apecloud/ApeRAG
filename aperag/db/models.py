@@ -634,6 +634,7 @@ class SearchHistory(Base):
     vector_search = Column(JSON, default=lambda: {}, nullable=True)
     fulltext_search = Column(JSON, default=lambda: {}, nullable=True)
     graph_search = Column(JSON, default=lambda: {}, nullable=True)
+    summary_search = Column(JSON, default=lambda: {}, nullable=True)
     items = Column(JSON, default=lambda: [], nullable=True)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
