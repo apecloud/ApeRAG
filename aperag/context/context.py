@@ -77,13 +77,17 @@ class ContextManager(ABC):
             return None
             
         if self.vectordb_type == "qdrant":
-            from qdrant_client.models import Filter, FieldCondition, MatchAny
+            from qdrant_client.models import Filter, FieldCondition, MatchAny, IsEmptyCondition, PayloadField
             
             return Filter(
-                must=[
+                should=[
                     FieldCondition(
                         key="indexer",
                         match=MatchAny(any=index_types)
+                    ),
+                    # compitable with existing vectors don't have indexer field
+                    IsEmptyCondition(
+                        is_empty=PayloadField(key="indexer"),
                     )
                 ]
             )
