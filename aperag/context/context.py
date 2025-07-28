@@ -79,28 +79,14 @@ class ContextManager(ABC):
         if self.vectordb_type == "qdrant":
             from qdrant_client.models import Filter, FieldCondition, MatchAny
             
-            # Map index types to indexer values
-            indexer_values = []
-            for index_type in index_types:
-                if index_type == "vector":
-                    indexer_values.extend(["vector", "text"])  # Include both vector and text indexers
-                elif index_type == "vision":
-                    indexer_values.append("vision")
-                elif index_type == "summary":
-                    indexer_values.append("summary")
-                else:
-                    # For unknown types, use the type name directly
-                    indexer_values.append(index_type)
-            
-            if indexer_values:
-                return Filter(
-                    must=[
-                        FieldCondition(
-                            key="metadata.indexer",
-                            match=MatchAny(any=indexer_values)
-                        )
-                    ]
-                )
+            return Filter(
+                must=[
+                    FieldCondition(
+                        key="indexer",
+                        match=MatchAny(any=index_types)
+                    )
+                ]
+            )
         
         # Add support for other vector databases here
         # elif self.vectordb_type == "pinecone":

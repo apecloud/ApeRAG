@@ -62,6 +62,12 @@ class VectorIndexer(BaseIndexer):
             # Filter out non-text parts
             doc_parts = [part for part in doc_parts if hasattr(part, "content") and part.content]
 
+            # Add indexer metadata to parts for proper identification
+            for part in doc_parts:
+                if not hasattr(part, 'metadata'):
+                    part.metadata = {}
+                part.metadata['indexer'] = 'vector'
+
             # Generate embeddings and store in vector database
             ctx_ids = create_embeddings_and_store(
                 parts=doc_parts,
@@ -136,6 +142,12 @@ class VectorIndexer(BaseIndexer):
 
             # Filter out non-text parts
             doc_parts = [part for part in doc_parts if hasattr(part, "content") and part.content]
+
+            # Add indexer metadata to parts for proper identification
+            for part in doc_parts:
+                if not hasattr(part, 'metadata'):
+                    part.metadata = {}
+                part.metadata['indexer'] = 'vector'
 
             # Create new vectors
             embedding_model, vector_size = get_collection_embedding_service_sync(collection)

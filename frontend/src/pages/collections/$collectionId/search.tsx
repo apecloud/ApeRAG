@@ -30,7 +30,7 @@ import { toast } from 'react-toastify';
 import { UndrawScience } from 'react-undraw-illustrations';
 import { FormattedMessage, useIntl, useModel, useParams } from 'umi';
 
-type SearchTypeEnum = 'vector_search' | 'fulltext_search' | 'graph_search';
+type SearchTypeEnum = 'vector_search' | 'fulltext_search' | 'graph_search' | 'summary_search';
 
 export default () => {
   const { formatMessage } = useIntl();
@@ -242,6 +242,10 @@ export default () => {
       graph_search: {
         topk: 5,
       },
+      summary_search: {
+        topk: 5,
+        similarity: 0.7,
+      },
     });
   }, []);
 
@@ -294,6 +298,12 @@ export default () => {
                     }),
                     value: 'graph_search',
                   },
+                  {
+                    label: formatMessage({
+                      id: 'search.type.summary_search',
+                    }),
+                    value: 'summary_search',
+                  },
                 ] as { label: string; value: SearchTypeEnum }[]
               }
             />
@@ -343,6 +353,26 @@ export default () => {
                   name={['graph_search', 'topk']}
                 >
                   <Slider style={{ width: 80 }} min={0} max={20} />
+                </Form.Item>
+              </>
+            )}
+
+            {searchType.find((item) => item === 'summary_search') && (
+              <>
+                <Form.Item
+                  label={formatMessage({ id: 'search.summaryTopK' })}
+                  name={['summary_search', 'topk']}
+                >
+                  <Slider style={{ width: 80 }} min={0} max={20} />
+                </Form.Item>
+
+                <Form.Item
+                  label={formatMessage({
+                    id: 'search.summarySimilarityThreshold',
+                  })}
+                  name={['summary_search', 'similarity']}
+                >
+                  <Slider style={{ width: 80 }} min={0} max={1} step={0.01} />
                 </Form.Item>
               </>
             )}

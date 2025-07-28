@@ -19,6 +19,7 @@ from .merge import MergeNodeRunner
 from .rerank import RerankNodeRunner
 from .start import StartNodeRunner
 from .vector_search import VectorSearchNodeRunner
+from .summary_search import SummarySearchNodeRunner
 
 __all__ = [
     "FulltextSearchNodeRunner",
@@ -28,4 +29,5 @@ __all__ = [
     "StartNodeRunner",
     "VectorSearchNodeRunner",
     "GraphSearchNodeRunner",
+    "SummarySearchNodeRunner"
 ]

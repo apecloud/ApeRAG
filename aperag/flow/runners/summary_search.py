@@ -96,7 +96,6 @@ class SummarySearchService:
                 if item.metadata is None:
                     item.metadata = {}
                 item.metadata["recall_type"] = "summary_search"
-                item.metadata["is_summary"] = True
 
             return results
 
