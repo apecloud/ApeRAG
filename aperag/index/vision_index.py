@@ -146,15 +146,26 @@ class VisionIndexer(BaseIndexer):
                     mime_type = part.mime_type or "image/png"
                     data_uri = f"data:{mime_type};base64,{b64_image}"
 
-                    prompt = """Provide a detailed and concise analysis of the image, strictly following this format. Omit any introductory or conversational text.
+                    prompt = """Analyze the provided image and extract its content with high fidelity. Follow these instructions precisely and use Markdown for formatting your entire response. Do not include any introductory or conversational text.
 
-1.  **Overall Summary:** A brief overview of the image's subject, setting, and any visible activities.
+1.  **Overall Summary:**
+    *   Provide a brief, one-paragraph overview of the image's main subject, setting, and any depicted activities.
 
-2.  **Text Extraction:** All text from the image, in its original language. Do not translate. If the content appears to be a table, attempt to reproduce the visual style using GFM Markdown tables.
+2.  **Detailed Text Extraction:**
+    *   Extract all text from the image, preserving the original language. Do not translate.
+    *   **Crucially, maintain the visual reading order.** For multi-column layouts, process the text column by column (e.g., left column top-to-bottom, then right column top-to-bottom).
+    *   **Exclude headers and footers:** Do not extract repetitive content from the top (headers) or bottom (footers) of the page, such as page numbers, book titles, or chapter names.
+    *   Replicate the original formatting using Markdown as much as possible (e.g., headings, lists, bold/italic text).
+    *   For mathematical formulas or equations, represent them using LaTeX syntax (e.g., `$$...$$` for block equations, `$...$` for inline equations).
+    *   For tables, reproduce them accurately using GitHub Flavored Markdown (GFM) table syntax.
 
-3.  **Chart/Graph Analysis:** For any charts, graphs, or tables: specify its type, explain the data it shows, and summarize key insights, trends, or comparisons.
+3.  **Chart/Graph Analysis:**
+    *   If the image contains charts, graphs, or complex tables, identify their type (e.g., bar chart, line graph, pie chart).
+    *   Explain the data presented, including axes, labels, and legends.
+    *   Summarize the key insights, trends, or comparisons revealed by the data.
 
-4.  **Object Recognition:** A list of all significant objects and entities shown."""
+4.  **Object and Scene Recognition:**
+    *   List all significant objects, entities, and scene elements visible in the image."""
 
                     description = None
                     max_retries = 3

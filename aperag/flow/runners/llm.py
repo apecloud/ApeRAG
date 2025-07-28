@@ -247,7 +247,14 @@ class LLMService:
                     if doc.metadata.get("index_method", "") == "vision_to_text":
                         # If the index_method is "vision_to_text", the doc is also contains text content,
                         # which is useful if the current LLM doesn't support image input.
-                        if not vision_model:
+                        if not vision_model and doc.text and doc.text.strip():
+                            metadata = ""
+                            if doc.metadata.get("source"):
+                                metadata += "Source: " + doc.metadata["source"] + "\n"
+                            if doc.metadata.get("page_idx") is not None:
+                                metadata += "Page: " + str(int(doc.metadata["page_idx"]) + 1) + "\n"
+
+                            doc.text = f"\n------ IMAGE DESCRIPTION BEGIN ------ \n{metadata}Description:\n{doc.text}\n------ IMAGE DESCRIPTION END ------\n"
                             text_docs.append(doc)
                 else:
                     text_docs.append(doc)

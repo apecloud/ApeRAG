@@ -43,6 +43,16 @@ const rehypeAddLineIds = () => {
   };
 };
 
+const processLongText = (text: string) => {
+  // Manually insert zero-width spaces to force wrapping and prevent excessively long text (e.g., thousands of '.' in a row),
+  // which can cause the browser's UI thread to hang during rendering.
+  // TODO: avoid inserting characters into an inlined image (e.g., "![](data:image/png;base64,xxxxxx)")
+  const processedText = (text || '').replace(/\S{400,}/g, (word: string) => {
+    return word.replace(/(.{400})/g, '$1\u200B'); // Insert zero-width space every 400 characters
+  });
+  return processedText;
+};
+
 export const ChunkViewer = ({
   document: initialDoc,
   collectionId,
@@ -184,7 +194,7 @@ export const ChunkViewer = ({
         rightOptions.push({ label: 'Chunks', value: 'chunks' });
       }
       if (hasVisionChunks) {
-        rightOptions.push({ label: 'Vision to Text', value: 'vision' });
+        rightOptions.push({ label: 'Visual Descriptions', value: 'vision' });
       }
       setRightPaneOptions(rightOptions);
 
@@ -637,7 +647,8 @@ export const ChunkViewer = ({
           overflowY: 'auto',
           border: '1px solid #f0f0f0',
           padding: '16px',
-          whiteSpace: 'pre-wrap',
+          overflowWrap: 'break-word',
+          wordBreak: 'break-word',
         }}
       >
         <ReactMarkdown
@@ -933,7 +944,13 @@ export const ChunkViewer = ({
                           Page: {pageIdx + 1}
                         </div>
                       )}
-                      <div className={styles.markdownContainer}>
+                      <div
+                        className={styles.markdownContainer}
+                        style={{
+                          overflowWrap: 'break-word',
+                          wordBreak: 'break-word',
+                        }}
+                      >
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm, remarkMath]}
                           rehypePlugins={[rehypeRaw, rehypeKatex]}
@@ -944,7 +961,7 @@ export const ChunkViewer = ({
                               : new URL(url, window.location.href).href
                           }
                         >
-                          {item.text || ''}
+                          {processLongText(item.text || '')}
                         </ReactMarkdown>
                       </div>
                     </List.Item>
