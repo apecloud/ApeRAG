@@ -141,14 +141,10 @@ class VectorSearchService:
             # which could lead to the same document chunk being retrieved twice. To ensure the number of unique results
             # is sufficient after deduplication, we double the top_k value before querying and then deduplicate the results.
             top_k = top_k * 2
-            
+
             # Query vector database for vector and vision indexes only (excluding summary)
             results = context_manager.query(
-                query, 
-                score_threshold=similarity_threshold, 
-                topk=top_k, 
-                vector=vector,
-                index_types=["vector", "vision"]
+                query, score_threshold=similarity_threshold, topk=top_k, vector=vector, index_types=["vector", "vision"]
             )
 
             # Add recall type metadata

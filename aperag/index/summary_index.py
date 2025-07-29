@@ -101,7 +101,7 @@ class SummaryIndexer(BaseIndexer):
                         "index_method": "summary",
                         "collection_id": collection.id,
                         "content_type": "summary",
-                    }
+                    },
                 )
 
                 # Store summary vector in vector database
@@ -194,7 +194,7 @@ class SummaryIndexer(BaseIndexer):
 
             # Create new summary index (which includes vectorization)
             result = self.create_index(document_id, content, doc_parts, collection, **kwargs)
-            
+
             # Update metadata to include old vector count
             if result.success and result.metadata:
                 result.metadata["old_summary_vector_count"] = len(old_summary_ctx_ids)

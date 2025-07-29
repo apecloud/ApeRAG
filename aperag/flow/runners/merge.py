@@ -31,7 +31,9 @@ class MergeInput(BaseModel):
         default_factory=list, description="Fulltext search docs"
     )
     graph_search_docs: Optional[List[DocumentWithScore]] = Field(default_factory=list, description="Graph search docs")
-    summary_search_docs: Optional[List[DocumentWithScore]] = Field(default_factory=list, description="Summary search docs")
+    summary_search_docs: Optional[List[DocumentWithScore]] = Field(
+        default_factory=list, description="Summary search docs"
+    )
 
 
 class MergeOutput(BaseModel):

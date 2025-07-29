@@ -84,11 +84,7 @@ class SummarySearchService:
 
             # Query vector database for summary vectors only
             results = context_manager.query(
-                query, 
-                score_threshold=similarity_threshold, 
-                topk=top_k, 
-                vector=vector,
-                index_types=["summary"]
+                query, score_threshold=similarity_threshold, topk=top_k, vector=vector, index_types=["summary"]
             )
 
             # Add recall type metadata for summary search
