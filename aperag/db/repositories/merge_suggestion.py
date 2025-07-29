@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Optional
 
 from sqlalchemy import and_, select, text, update
@@ -26,17 +26,15 @@ class AsyncMergeSuggestionRepositoryMixin(AsyncRepositoryProtocol):
     """Repository mixin for MergeSuggestion operations"""
 
     async def get_valid_suggestions(self, collection_id: str) -> List[MergeSuggestion]:
-        """Get all valid (non-expired, non-deleted) suggestions for a collection"""
+        """Get all valid (non-deleted) suggestions for a collection"""
 
         async def _query(session):
-            now = utc_now()
             stmt = (
                 select(MergeSuggestion)
                 .where(
                     and_(
                         MergeSuggestion.collection_id == collection_id,
                         MergeSuggestion.gmt_deleted.is_(None),
-                        MergeSuggestion.expires_at > now,
                         MergeSuggestion.status.in_(
                             [
                                 MergeSuggestionStatus.PENDING,
@@ -51,6 +49,39 @@ class AsyncMergeSuggestionRepositoryMixin(AsyncRepositoryProtocol):
 
             result = await session.execute(stmt)
             return result.scalars().all()
+
+        return await self._execute_query(_query)
+
+    async def has_pending_suggestions(self, collection_id: str) -> bool:
+        """Check if there are any pending suggestions for a collection"""
+
+        async def _query(session):
+            from sqlalchemy import exists
+
+            stmt = select(
+                exists().where(
+                    MergeSuggestion.collection_id == collection_id,
+                    MergeSuggestion.status == MergeSuggestionStatus.PENDING,
+                    MergeSuggestion.gmt_deleted.is_(None),
+                )
+            )
+            result = await session.execute(stmt)
+            return result.scalar()
+
+        return await self._execute_query(_query)
+
+    async def get_last_suggestion_time(self, collection_id: str) -> Optional[datetime]:
+        """Get the creation time of the most recent suggestion for a collection"""
+
+        async def _query(session):
+            from sqlalchemy import func
+
+            stmt = select(func.max(MergeSuggestion.gmt_created)).where(
+                MergeSuggestion.collection_id == collection_id,
+                MergeSuggestion.gmt_deleted.is_(None),
+            )
+            result = await session.execute(stmt)
+            return result.scalar_one_or_none()
 
         return await self._execute_query(_query)
 
@@ -103,7 +134,6 @@ class AsyncMergeSuggestionRepositoryMixin(AsyncRepositoryProtocol):
                     confidence_score=suggestion["confidence_score"],
                     merge_reason=suggestion["merge_reason"],
                     suggested_target_entity=suggestion["suggested_target_entity"],
-                    expires_at=suggestion.get("expires_at", utc_now() + timedelta(days=7)),
                 )
                 suggestion_records.append(suggestion_record)
 
@@ -177,18 +207,16 @@ class AsyncMergeSuggestionRepositoryMixin(AsyncRepositoryProtocol):
 
         return 0
 
-    async def cleanup_expired_suggestions(self, collection_id: Optional[str] = None) -> int:
-        """Clean up expired suggestions (soft delete)"""
+    async def delete_pending_suggestions_for_collection(self, collection_id: str) -> int:
+        """Physically delete all PENDING suggestions for a collection"""
 
         async def _operation(session):
-            now = utc_now()
+            from sqlalchemy import delete
 
-            conditions = [MergeSuggestion.gmt_deleted.is_(None), MergeSuggestion.expires_at <= now]
-
-            if collection_id:
-                conditions.append(MergeSuggestion.collection_id == collection_id)
-
-            stmt = update(MergeSuggestion).where(and_(*conditions)).values(gmt_deleted=now, gmt_updated=now)
+            stmt = delete(MergeSuggestion).where(
+                MergeSuggestion.collection_id == collection_id,
+                MergeSuggestion.status == MergeSuggestionStatus.PENDING,
+            )
 
             result = await session.execute(stmt)
             await session.flush()

@@ -26,6 +26,7 @@ from aperag.db.repositories.document import (
     AsyncDocumentRepositoryMixin,
     DocumentRepositoryMixin,
 )
+from aperag.db.repositories.document_index import AsyncDocumentIndexRepositoryMixin
 from aperag.db.repositories.graph import GraphRepositoryMixin
 from aperag.db.repositories.lightrag import LightragRepositoryMixin
 from aperag.db.repositories.llm_provider import (
@@ -63,6 +64,7 @@ class AsyncDatabaseOps(
     AsyncSystemRepositoryMixin,
     AsyncSearchRepositoryMixin,
     AsyncMergeSuggestionRepositoryMixin,
+    AsyncDocumentIndexRepositoryMixin,
 ):
     pass
 

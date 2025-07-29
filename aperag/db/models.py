@@ -873,7 +873,6 @@ class MergeSuggestion(Base):
         Index("idx_graph_index_merge_suggestion_collection_status", "collection_id", "status"),
         Index("idx_graph_index_merge_suggestion_batch", "collection_id", "suggestion_batch_id"),
         Index("idx_graph_index_merge_suggestion_created", "gmt_created"),
-        Index("idx_graph_index_merge_suggestion_expires", "expires_at"),
     )
 
     id = Column(String(24), primary_key=True, default=lambda: "msug" + random_id())
@@ -900,7 +899,6 @@ class MergeSuggestion(Base):
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)
-    expires_at = Column(DateTime(timezone=True), nullable=False)  # Suggestion expiration time, default 7 days
 
     # User operation tracking
     operated_at = Column(DateTime(timezone=True), nullable=True)  # User operation timestamp

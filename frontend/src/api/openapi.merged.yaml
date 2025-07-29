@@ -4138,11 +4138,6 @@ components:
           format: date-time
           description: Creation timestamp
           example: '2025-01-07T10:00:00Z'
-        expires_at:
-          type: string
-          format: date-time
-          description: Expiration timestamp
-          example: '2025-01-14T10:00:00Z'
         operated_at:
           type: string
           format: date-time
@@ -4159,7 +4154,6 @@ components:
         - suggested_target_entity
         - status
         - created
-        - expires_at
     mergeSuggestionsResponse:
       type: object
       description: Response containing node merge suggestions
@@ -4210,11 +4204,6 @@ components:
           description: Number of rejected suggestions
           example: 1
           minimum: 0
-        expired_count:
-          type: integer
-          description: Number of expired suggestions
-          example: 0
-          minimum: 0
       required:
         - suggestions
         - total_analyzed_nodes
@@ -4225,7 +4214,6 @@ components:
         - pending_count
         - accepted_count
         - rejected_count
-        - expired_count
     suggestionActionRequest:
       type: object
       description: Request to take action on a merge suggestion

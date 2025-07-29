@@ -167,19 +167,19 @@ class GraphService:
 
         try:
             async with lock_context(lock, timeout=120.0):  # 120 seconds timeout
-                logger.info(f"Acquired lock '{lock_name}' for merge suggestions generation")
+                logger.debug(f"Acquired lock '{lock_name}' for merge suggestions generation")
 
                 # Check cache first (double-check pattern after acquiring lock)
                 if not force_refresh:
                     cached_suggestions = await self.db_ops.get_valid_suggestions(collection_id)
                     if cached_suggestions:
-                        logger.info(
+                        logger.debug(
                             f"Found {len(cached_suggestions)} cached suggestions for collection {collection_id}"
                         )
                         return self._format_suggestions_response(cached_suggestions, from_cache=True)
 
                 # Generate new suggestions
-                logger.info(f"Generating new merge suggestions for collection {collection_id}")
+                logger.debug(f"Generating new merge suggestions for collection {collection_id}")
                 llm_result = await self.generate_merge_suggestions(
                     user_id, collection_id, max_suggestions, max_concurrent_llm_calls
                 )
@@ -197,25 +197,29 @@ class GraphService:
                 ]
 
                 if suggestion_data:
-                    # Always delete existing suggestions before storing new ones to prevent duplicates
-                    # This fixes the concurrent issue where multiple requests create different batches
-                    deleted_count = await self.db_ops.delete_all_suggestions_for_collection(collection_id)
+                    # Clean up old pending suggestions before creating new ones.
+                    # This prevents unique key violations if the same suggestion is generated again,
+                    # while preserving user-acted-on (ACCEPTED, REJECTED) suggestions.
+                    deleted_count = await self.db_ops.delete_pending_suggestions_for_collection(collection_id)
                     if deleted_count > 0:
                         logger.info(
-                            f"Deleted {deleted_count} existing suggestions for collection {collection_id} "
+                            f"Deleted {deleted_count} existing PENDING suggestions for collection {collection_id} "
                             f"(force_refresh={force_refresh})"
                         )
 
-                    # Store new suggestions
-                    stored_suggestions = await self.db_ops.batch_create_suggestions(suggestion_data)
+                    # Intelligently store new suggestions
+                    stored_suggestions = await self._intelligently_store_suggestions(collection_id, suggestion_data)
                     logger.info(f"Stored {len(stored_suggestions)} new suggestions for collection {collection_id}")
-                    # Extract metadata from llm_result, excluding 'suggestions' to avoid parameter conflict
-                    llm_metadata = {k: v for k, v in llm_result.items() if k != "suggestions"}
-                    return self._format_suggestions_response(stored_suggestions, from_cache=False, **llm_metadata)
+
+                    # After storing, fetch all valid suggestions to return a complete view
+                    final_suggestions = await self.db_ops.get_valid_suggestions(collection_id)
+                else:
+                    # No suggestions generated, return empty list
+                    final_suggestions = []
 
                 # Extract metadata from llm_result, excluding 'suggestions' to avoid parameter conflict
                 llm_metadata = {k: v for k, v in llm_result.items() if k != "suggestions"}
-                return self._format_suggestions_response([], from_cache=False, **llm_metadata)
+                return self._format_suggestions_response(final_suggestions, from_cache=False, **llm_metadata)
 
         except TimeoutError:
             logger.warning(f"Failed to acquire lock '{lock_name}' within timeout, falling back to cache")
@@ -228,6 +232,35 @@ class GraphService:
                 # No cache available, return empty result
                 logger.warning(f"No cached suggestions available for collection {collection_id}")
                 return self._format_suggestions_response([], from_cache=False)
+
+    async def _intelligently_store_suggestions(self, collection_id: str, suggestions: List[dict]) -> List:
+        """
+        Store suggestions intelligently, avoiding duplicates for combinations that
+        have already been acted upon (accepted/rejected).
+        """
+        from aperag.db.models import MergeSuggestion
+
+        newly_stored_suggestions = []
+        # Get all existing non-deleted, non-pending suggestions hashes to avoid re-creating them
+        # Since we deleted all pending suggestions, any existing hash belongs to an acted-on suggestion
+        existing_suggestions = await self.db_ops.get_valid_suggestions(collection_id)
+        existing_hashes = {s.entity_ids_hash for s in existing_suggestions}
+
+        suggestions_to_create = []
+        for suggestion in suggestions:
+            entity_ids_hash = MergeSuggestion.generate_entity_ids_hash(suggestion["entity_ids"])
+            if entity_ids_hash in existing_hashes:
+                logger.info(
+                    f"Skipping suggestion for entities {suggestion['entity_ids']} "
+                    "as a suggestion with the same hash already exists and has been acted upon."
+                )
+                continue
+            suggestions_to_create.append(suggestion)
+
+        if suggestions_to_create:
+            newly_stored_suggestions = await self.db_ops.batch_create_suggestions(suggestions_to_create)
+
+        return newly_stored_suggestions
 
     def _format_suggestions_response(self, suggestions: List, from_cache: bool = False, **kwargs) -> dict[str, Any]:
         """Format suggestions response with statistics"""
@@ -242,14 +275,13 @@ class GraphService:
                 "suggested_target_entity": suggestion.suggested_target_entity,
                 "status": suggestion.status,
                 "created": suggestion.gmt_created,
-                "expires_at": suggestion.expires_at,
                 "operated_at": suggestion.operated_at,
             }
             for suggestion in suggestions
         ]
 
         # Count by status
-        status_counts = {"PENDING": 0, "ACCEPTED": 0, "REJECTED": 0, "EXPIRED": 0}
+        status_counts = {"PENDING": 0, "ACCEPTED": 0, "REJECTED": 0}
         for suggestion in suggestions:
             status_counts[suggestion.status] += 1
 
@@ -263,7 +295,6 @@ class GraphService:
             "pending_count": status_counts["PENDING"],
             "accepted_count": status_counts["ACCEPTED"],
             "rejected_count": status_counts["REJECTED"],
-            "expired_count": status_counts["EXPIRED"],
         }
 
     async def generate_merge_suggestions(
