@@ -1,8 +1,8 @@
-"""empty message
+"""Create database schema
 
-Revision ID: 0b274fcc91e2
+Revision ID: 1c554c77c8e5
 Revises: db9c88848f52
-Create Date: 2025-07-03 13:32:08.830672
+Create Date: 2025-07-29 18:41:54.296210
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
 
 # revision identifiers, used by Alembic.
-revision: str = '0b274fcc91e2'
+revision: str = '1c554c77c8e5'
 down_revision: Union[str, None] = 'db9c88848f52'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -26,7 +26,8 @@ def upgrade() -> None:
     sa.Column('key', sa.String(length=64), nullable=False),
     sa.Column('user', sa.String(length=256), nullable=False),
     sa.Column('description', sa.String(length=256), nullable=True),
-    sa.Column('status', sa.Enum('ACTIVE', 'DELETED', name='apikeystatus'), nullable=False),
+    sa.Column('status', sa.String(length=50), nullable=False),
+    sa.Column('is_system', sa.Boolean(), nullable=False),
     sa.Column('last_used_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('gmt_updated', sa.DateTime(timezone=True), nullable=False),
     sa.Column('gmt_created', sa.DateTime(timezone=True), nullable=False),
@@ -34,13 +35,14 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_api_key_gmt_deleted'), 'api_key', ['gmt_deleted'], unique=False)
+    op.create_index(op.f('ix_api_key_is_system'), 'api_key', ['is_system'], unique=False)
     op.create_index(op.f('ix_api_key_status'), 'api_key', ['status'], unique=False)
     op.create_index(op.f('ix_api_key_user'), 'api_key', ['user'], unique=False)
     op.create_table('audit_log',
     sa.Column('id', sa.String(length=36), nullable=False),
     sa.Column('user_id', sa.String(length=36), nullable=True, comment='User ID'),
     sa.Column('username', sa.String(length=255), nullable=True, comment='Username'),
-    sa.Column('resource_type', sa.Enum('collection', 'document', 'bot', 'chat', 'message', 'api_key', 'llm_provider', 'llm_provider_model', 'model_service_provider', 'user', 'config', 'invitation', 'auth', 'chat_completion', 'search', 'llm', 'flow', 'system', name='auditresource'), nullable=True, comment='Resource type'),
+    sa.Column('resource_type', sa.String(length=50), nullable=True, comment='Resource type'),
     sa.Column('resource_id', sa.String(length=255), nullable=True, comment='Resource ID (extracted at query time)'),
     sa.Column('api_name', sa.String(length=255), nullable=False, comment='API operation name'),
     sa.Column('http_method', sa.String(length=10), nullable=False, comment='HTTP method (POST, PUT, DELETE)'),
@@ -70,9 +72,9 @@ def upgrade() -> None:
     sa.Column('id', sa.String(length=24), nullable=False),
     sa.Column('user', sa.String(length=256), nullable=False),
     sa.Column('title', sa.String(length=256), nullable=True),
-    sa.Column('type', sa.Enum('knowledge', 'common', name='bottype'), nullable=False),
+    sa.Column('type', sa.String(length=50), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
-    sa.Column('status', sa.Enum('ACTIVE', 'DELETED', name='botstatus'), nullable=False),
+    sa.Column('status', sa.String(length=50), nullable=False),
     sa.Column('config', sa.Text(), nullable=False),
     sa.Column('gmt_created', sa.DateTime(timezone=True), nullable=False),
     sa.Column('gmt_updated', sa.DateTime(timezone=True), nullable=False),
@@ -94,9 +96,9 @@ def upgrade() -> None:
     op.create_table('chat',
     sa.Column('id', sa.String(length=24), nullable=False),
     sa.Column('user', sa.String(length=256), nullable=False),
-    sa.Column('peer_type', sa.Enum('system', 'feishu', 'weixin', 'weixin_official', 'web', 'dingtalk', name='chatpeertype'), nullable=False),
+    sa.Column('peer_type', sa.String(length=50), nullable=False),
     sa.Column('peer_id', sa.String(length=256), nullable=True),
-    sa.Column('status', sa.Enum('ACTIVE', 'DELETED', name='chatstatus'), nullable=False),
+    sa.Column('status', sa.String(length=50), nullable=False),
     sa.Column('bot_id', sa.String(length=24), nullable=False),
     sa.Column('title', sa.String(length=256), nullable=True),
     sa.Column('gmt_created', sa.DateTime(timezone=True), nullable=False),
@@ -114,8 +116,8 @@ def upgrade() -> None:
     sa.Column('title', sa.String(length=256), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
     sa.Column('user', sa.String(length=256), nullable=False),
-    sa.Column('status', sa.Enum('INACTIVE', 'ACTIVE', 'DELETED', name='collectionstatus'), nullable=False),
-    sa.Column('type', sa.Enum('document', name='collectiontype'), nullable=False),
+    sa.Column('status', sa.String(length=50), nullable=False),
+    sa.Column('type', sa.String(length=50), nullable=False),
     sa.Column('config', sa.Text(), nullable=False),
     sa.Column('gmt_created', sa.DateTime(timezone=True), nullable=False),
     sa.Column('gmt_updated', sa.DateTime(timezone=True), nullable=False),
@@ -125,6 +127,22 @@ def upgrade() -> None:
     op.create_index(op.f('ix_collection_gmt_deleted'), 'collection', ['gmt_deleted'], unique=False)
     op.create_index(op.f('ix_collection_status'), 'collection', ['status'], unique=False)
     op.create_index(op.f('ix_collection_user'), 'collection', ['user'], unique=False)
+    op.create_table('collection_summary',
+    sa.Column('id', sa.String(length=24), nullable=False),
+    sa.Column('collection_id', sa.String(length=24), nullable=False),
+    sa.Column('status', sa.String(length=50), nullable=False),
+    sa.Column('version', sa.Integer(), nullable=False),
+    sa.Column('observed_version', sa.Integer(), nullable=False),
+    sa.Column('summary', sa.Text(), nullable=True),
+    sa.Column('error_message', sa.Text(), nullable=True),
+    sa.Column('gmt_created', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('gmt_updated', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('gmt_last_reconciled', sa.DateTime(timezone=True), nullable=True),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('collection_id', name='uq_collection_summary')
+    )
+    op.create_index(op.f('ix_collection_summary_collection_id'), 'collection_summary', ['collection_id'], unique=False)
+    op.create_index(op.f('ix_collection_summary_status'), 'collection_summary', ['status'], unique=False)
     op.create_table('config',
     sa.Column('key', sa.String(length=256), nullable=False),
     sa.Column('value', sa.Text(), nullable=False),
@@ -138,7 +156,7 @@ def upgrade() -> None:
     sa.Column('name', sa.String(length=1024), nullable=False),
     sa.Column('user', sa.String(length=256), nullable=False),
     sa.Column('collection_id', sa.String(length=24), nullable=True),
-    sa.Column('status', sa.Enum('PENDING', 'RUNNING', 'COMPLETE', 'FAILED', 'DELETED', name='documentstatus'), nullable=False),
+    sa.Column('status', sa.String(length=50), nullable=False),
     sa.Column('size', sa.BigInteger(), nullable=False),
     sa.Column('object_path', sa.Text(), nullable=True),
     sa.Column('doc_metadata', sa.Text(), nullable=True),
@@ -155,8 +173,8 @@ def upgrade() -> None:
     op.create_table('document_index',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('document_id', sa.String(length=24), nullable=False),
-    sa.Column('index_type', sa.Enum('VECTOR', 'FULLTEXT', 'GRAPH', name='documentindextype'), nullable=False),
-    sa.Column('status', sa.Enum('PENDING', 'CREATING', 'ACTIVE', 'DELETING', 'DELETION_IN_PROGRESS', 'FAILED', name='documentindexstatus'), nullable=False),
+    sa.Column('index_type', sa.String(length=50), nullable=False),
+    sa.Column('status', sa.String(length=50), nullable=False),
     sa.Column('version', sa.Integer(), nullable=False),
     sa.Column('observed_version', sa.Integer(), nullable=False),
     sa.Column('index_data', sa.Text(), nullable=True),
@@ -171,6 +189,53 @@ def upgrade() -> None:
     op.create_index(op.f('ix_document_index_id'), 'document_index', ['id'], unique=False)
     op.create_index(op.f('ix_document_index_index_type'), 'document_index', ['index_type'], unique=False)
     op.create_index(op.f('ix_document_index_status'), 'document_index', ['status'], unique=False)
+    op.create_table('graph_index_merge_suggestions',
+    sa.Column('id', sa.String(length=24), nullable=False),
+    sa.Column('collection_id', sa.String(length=24), nullable=False),
+    sa.Column('suggestion_batch_id', sa.String(length=24), nullable=False),
+    sa.Column('entity_ids', sa.ARRAY(sa.String()), nullable=False),
+    sa.Column('entity_ids_hash', sa.String(length=64), nullable=False),
+    sa.Column('confidence_score', sa.Numeric(precision=3, scale=2), nullable=False),
+    sa.Column('merge_reason', sa.Text(), nullable=False),
+    sa.Column('suggested_target_entity', sa.JSON(), nullable=False),
+    sa.Column('status', sa.String(length=50), nullable=False),
+    sa.Column('gmt_created', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('gmt_updated', sa.DateTime(timezone=True), nullable=False),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('collection_id', 'entity_ids_hash', name='uq_graph_index_merge_suggestions')
+    )
+    op.create_index('idx_graph_index_merge_suggestions_batch', 'graph_index_merge_suggestions', ['collection_id', 'suggestion_batch_id'], unique=False)
+    op.create_index('idx_graph_index_merge_suggestions_collection', 'graph_index_merge_suggestions', ['collection_id'], unique=False)
+    op.create_index('idx_graph_index_merge_suggestions_confidence', 'graph_index_merge_suggestions', ['confidence_score'], unique=False)
+    op.create_index('idx_graph_index_merge_suggestions_created', 'graph_index_merge_suggestions', ['gmt_created'], unique=False)
+    op.create_index(op.f('ix_graph_index_merge_suggestions_collection_id'), 'graph_index_merge_suggestions', ['collection_id'], unique=False)
+    op.create_index(op.f('ix_graph_index_merge_suggestions_status'), 'graph_index_merge_suggestions', ['status'], unique=False)
+    op.create_index(op.f('ix_graph_index_merge_suggestions_suggestion_batch_id'), 'graph_index_merge_suggestions', ['suggestion_batch_id'], unique=False)
+    op.create_table('graph_index_merge_suggestions_history',
+    sa.Column('id', sa.String(length=24), nullable=False),
+    sa.Column('original_suggestion_id', sa.String(length=24), nullable=False),
+    sa.Column('collection_id', sa.String(length=24), nullable=False),
+    sa.Column('suggestion_batch_id', sa.String(length=24), nullable=False),
+    sa.Column('entity_ids', sa.ARRAY(sa.String()), nullable=False),
+    sa.Column('entity_ids_hash', sa.String(length=64), nullable=False),
+    sa.Column('confidence_score', sa.Numeric(precision=3, scale=2), nullable=False),
+    sa.Column('merge_reason', sa.Text(), nullable=False),
+    sa.Column('suggested_target_entity', sa.JSON(), nullable=False),
+    sa.Column('status', sa.String(length=50), nullable=False),
+    sa.Column('gmt_created', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('operated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('operated_by', sa.String(length=24), nullable=True),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('idx_graph_index_merge_suggestions_history_batch', 'graph_index_merge_suggestions_history', ['suggestion_batch_id'], unique=False)
+    op.create_index('idx_graph_index_merge_suggestions_history_collection', 'graph_index_merge_suggestions_history', ['collection_id'], unique=False)
+    op.create_index('idx_graph_index_merge_suggestions_history_collection_status', 'graph_index_merge_suggestions_history', ['collection_id', 'status'], unique=False)
+    op.create_index('idx_graph_index_merge_suggestions_history_operated_at', 'graph_index_merge_suggestions_history', ['operated_at'], unique=False)
+    op.create_index('idx_graph_index_merge_suggestions_history_original_id', 'graph_index_merge_suggestions_history', ['original_suggestion_id'], unique=False)
+    op.create_index(op.f('ix_graph_index_merge_suggestions_history_collection_id'), 'graph_index_merge_suggestions_history', ['collection_id'], unique=False)
+    op.create_index(op.f('ix_graph_index_merge_suggestions_history_original_suggestion_id'), 'graph_index_merge_suggestions_history', ['original_suggestion_id'], unique=False)
+    op.create_index(op.f('ix_graph_index_merge_suggestions_history_status'), 'graph_index_merge_suggestions_history', ['status'], unique=False)
+    op.create_index(op.f('ix_graph_index_merge_suggestions_history_suggestion_batch_id'), 'graph_index_merge_suggestions_history', ['suggestion_batch_id'], unique=False)
     op.create_table('invitation',
     sa.Column('id', sa.String(length=24), nullable=False),
     sa.Column('email', sa.String(length=254), nullable=False),
@@ -180,7 +245,7 @@ def upgrade() -> None:
     sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('is_used', sa.Boolean(), nullable=False),
     sa.Column('used_at', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('role', sa.Enum('admin', 'rw', 'ro', name='role'), nullable=False),
+    sa.Column('role', sa.String(length=50), nullable=False),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('token')
     )
@@ -282,7 +347,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_llm_provider_user_id'), 'llm_provider', ['user_id'], unique=False)
     op.create_table('llm_provider_models',
     sa.Column('provider_name', sa.String(length=128), nullable=False),
-    sa.Column('api', sa.Enum('completion', 'embedding', 'rerank', name='apitype'), nullable=False),
+    sa.Column('api', sa.String(length=50), nullable=False),
     sa.Column('model', sa.String(length=256), nullable=False),
     sa.Column('custom_llm_provider', sa.String(length=128), nullable=False),
     sa.Column('context_window', sa.Integer(), nullable=True),
@@ -299,11 +364,11 @@ def upgrade() -> None:
     sa.Column('collection_id', sa.String(length=24), nullable=True),
     sa.Column('chat_id', sa.String(length=24), nullable=False),
     sa.Column('message_id', sa.String(length=256), nullable=False),
-    sa.Column('type', sa.Enum('good', 'bad', name='messagefeedbacktype'), nullable=True),
-    sa.Column('tag', sa.Enum('Harmful', 'Unsafe', 'Fake', 'Unhelpful', 'Other', name='messagefeedbacktag'), nullable=True),
+    sa.Column('type', sa.String(length=50), nullable=True),
+    sa.Column('tag', sa.String(length=50), nullable=True),
     sa.Column('message', sa.Text(), nullable=True),
     sa.Column('question', sa.Text(), nullable=True),
-    sa.Column('status', sa.Enum('PENDING', 'RUNNING', 'COMPLETE', 'FAILED', name='messagefeedbackstatus'), nullable=True),
+    sa.Column('status', sa.String(length=50), nullable=True),
     sa.Column('original_answer', sa.Text(), nullable=True),
     sa.Column('revised_answer', sa.Text(), nullable=True),
     sa.Column('gmt_created', sa.DateTime(timezone=True), nullable=False),
@@ -319,7 +384,7 @@ def upgrade() -> None:
     op.create_table('model_service_provider',
     sa.Column('id', sa.String(length=24), nullable=False),
     sa.Column('name', sa.String(length=256), nullable=False),
-    sa.Column('status', sa.Enum('ACTIVE', 'INACTIVE', 'DELETED', name='modelserviceproviderstatus'), nullable=False),
+    sa.Column('status', sa.String(length=50), nullable=False),
     sa.Column('api_key', sa.String(length=256), nullable=False),
     sa.Column('gmt_created', sa.DateTime(timezone=True), nullable=False),
     sa.Column('gmt_updated', sa.DateTime(timezone=True), nullable=False),
@@ -338,6 +403,7 @@ def upgrade() -> None:
     sa.Column('vector_search', sa.JSON(), nullable=True),
     sa.Column('fulltext_search', sa.JSON(), nullable=True),
     sa.Column('graph_search', sa.JSON(), nullable=True),
+    sa.Column('summary_search', sa.JSON(), nullable=True),
     sa.Column('items', sa.JSON(), nullable=True),
     sa.Column('gmt_created', sa.DateTime(timezone=True), nullable=False),
     sa.Column('gmt_deleted', sa.DateTime(timezone=True), nullable=True),
@@ -350,7 +416,7 @@ def upgrade() -> None:
     sa.Column('id', sa.String(length=24), nullable=False),
     sa.Column('username', sa.String(length=256), nullable=False),
     sa.Column('email', sa.String(length=254), nullable=True),
-    sa.Column('role', sa.Enum('admin', 'rw', 'ro', name='role'), nullable=False),
+    sa.Column('role', sa.String(length=50), nullable=False),
     sa.Column('hashed_password', sa.String(length=128), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('is_superuser', sa.Boolean(), nullable=False),
@@ -416,6 +482,24 @@ def downgrade() -> None:
     op.drop_table('lightrag_graph_edges')
     op.drop_table('lightrag_doc_chunks')
     op.drop_table('invitation')
+    op.drop_index(op.f('ix_graph_index_merge_suggestions_history_suggestion_batch_id'), table_name='graph_index_merge_suggestions_history')
+    op.drop_index(op.f('ix_graph_index_merge_suggestions_history_status'), table_name='graph_index_merge_suggestions_history')
+    op.drop_index(op.f('ix_graph_index_merge_suggestions_history_original_suggestion_id'), table_name='graph_index_merge_suggestions_history')
+    op.drop_index(op.f('ix_graph_index_merge_suggestions_history_collection_id'), table_name='graph_index_merge_suggestions_history')
+    op.drop_index('idx_graph_index_merge_suggestions_history_original_id', table_name='graph_index_merge_suggestions_history')
+    op.drop_index('idx_graph_index_merge_suggestions_history_operated_at', table_name='graph_index_merge_suggestions_history')
+    op.drop_index('idx_graph_index_merge_suggestions_history_collection_status', table_name='graph_index_merge_suggestions_history')
+    op.drop_index('idx_graph_index_merge_suggestions_history_collection', table_name='graph_index_merge_suggestions_history')
+    op.drop_index('idx_graph_index_merge_suggestions_history_batch', table_name='graph_index_merge_suggestions_history')
+    op.drop_table('graph_index_merge_suggestions_history')
+    op.drop_index(op.f('ix_graph_index_merge_suggestions_suggestion_batch_id'), table_name='graph_index_merge_suggestions')
+    op.drop_index(op.f('ix_graph_index_merge_suggestions_status'), table_name='graph_index_merge_suggestions')
+    op.drop_index(op.f('ix_graph_index_merge_suggestions_collection_id'), table_name='graph_index_merge_suggestions')
+    op.drop_index('idx_graph_index_merge_suggestions_created', table_name='graph_index_merge_suggestions')
+    op.drop_index('idx_graph_index_merge_suggestions_confidence', table_name='graph_index_merge_suggestions')
+    op.drop_index('idx_graph_index_merge_suggestions_collection', table_name='graph_index_merge_suggestions')
+    op.drop_index('idx_graph_index_merge_suggestions_batch', table_name='graph_index_merge_suggestions')
+    op.drop_table('graph_index_merge_suggestions')
     op.drop_index(op.f('ix_document_index_status'), table_name='document_index')
     op.drop_index(op.f('ix_document_index_index_type'), table_name='document_index')
     op.drop_index(op.f('ix_document_index_id'), table_name='document_index')
@@ -427,6 +511,9 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_document_collection_id'), table_name='document')
     op.drop_table('document')
     op.drop_table('config')
+    op.drop_index(op.f('ix_collection_summary_status'), table_name='collection_summary')
+    op.drop_index(op.f('ix_collection_summary_collection_id'), table_name='collection_summary')
+    op.drop_table('collection_summary')
     op.drop_index(op.f('ix_collection_user'), table_name='collection')
     op.drop_index(op.f('ix_collection_status'), table_name='collection')
     op.drop_index(op.f('ix_collection_gmt_deleted'), table_name='collection')
@@ -453,6 +540,7 @@ def downgrade() -> None:
     op.drop_table('audit_log')
     op.drop_index(op.f('ix_api_key_user'), table_name='api_key')
     op.drop_index(op.f('ix_api_key_status'), table_name='api_key')
+    op.drop_index(op.f('ix_api_key_is_system'), table_name='api_key')
     op.drop_index(op.f('ix_api_key_gmt_deleted'), table_name='api_key')
     op.drop_table('api_key')
     # ### end Alembic commands ###

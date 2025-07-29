@@ -1,8 +1,8 @@
 """Initialize LLM model configurations
 
 Revision ID: b598e645b2ba
-Revises: 0b274fcc91e2
-Create Date: 2025-07-03 13:33:04.315167
+Revises: 1c554c77c8e5
+Create Date: 2025-07-29 18:41:56.296210
 
 """
 from typing import Sequence, Union
@@ -15,7 +15,7 @@ from aperag.migration.utils import execute_sql_file
 
 # revision identifiers, used by Alembic.
 revision: str = 'b598e645b2ba'
-down_revision: Union[str, None] = '0b274fcc91e2'
+down_revision: Union[str, None] = '1c554c77c8e5'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
