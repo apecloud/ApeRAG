@@ -30,18 +30,6 @@ export interface MergeSuggestionsResponse {
      */
     'suggestions': Array<MergeSuggestionItem>;
     /**
-     * Total number of nodes analyzed
-     * @type {number}
-     * @memberof MergeSuggestionsResponse
-     */
-    'total_analyzed_nodes': number;
-    /**
-     * Processing time in seconds
-     * @type {number}
-     * @memberof MergeSuggestionsResponse
-     */
-    'processing_time_seconds': number;
-    /**
      * Whether suggestions were loaded from cache
      * @type {boolean}
      * @memberof MergeSuggestionsResponse
@@ -53,29 +41,5 @@ export interface MergeSuggestionsResponse {
      * @memberof MergeSuggestionsResponse
      */
     'generated_at': string;
-    /**
-     * Total number of suggestions
-     * @type {number}
-     * @memberof MergeSuggestionsResponse
-     */
-    'total_suggestions': number;
-    /**
-     * Number of pending suggestions
-     * @type {number}
-     * @memberof MergeSuggestionsResponse
-     */
-    'pending_count': number;
-    /**
-     * Number of accepted suggestions
-     * @type {number}
-     * @memberof MergeSuggestionsResponse
-     */
-    'accepted_count': number;
-    /**
-     * Number of rejected suggestions
-     * @type {number}
-     * @memberof MergeSuggestionsResponse
-     */
-    'rejected_count': number;
 }
 

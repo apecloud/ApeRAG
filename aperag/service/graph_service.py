@@ -158,7 +158,7 @@ class GraphService:
         max_concurrent_llm_calls: int = 4,
         force_refresh: bool = False,
     ) -> dict[str, Any]:
-        """Get cached suggestions or generate new ones"""
+        """Get cached active suggestions or generate new ones"""
         await self._get_and_validate_collection(user_id, collection_id)
 
         # Use collection-specific lock to prevent concurrent generation for the same collection
@@ -166,106 +166,48 @@ class GraphService:
         lock = get_or_create_lock(lock_name)
 
         try:
-            async with lock_context(lock, timeout=120.0):  # 120 seconds timeout
+            async with lock_context(lock, timeout=120.0):
                 logger.debug(f"Acquired lock '{lock_name}' for merge suggestions generation")
 
-                # Check cache first (double-check pattern after acquiring lock)
                 if not force_refresh:
-                    cached_suggestions = await self.db_ops.get_valid_suggestions(collection_id)
-                    if cached_suggestions:
-                        logger.debug(
-                            f"Found {len(cached_suggestions)} cached suggestions for collection {collection_id}"
-                        )
-                        return self._format_suggestions_response(cached_suggestions, from_cache=True)
+                    active_suggestions = await self.db_ops.get_active_suggestions(collection_id)
+                    if active_suggestions:  # If there are active suggestions
+                        return await self.get_merge_suggestions(collection_id, from_cache=True)
 
-                # Generate new suggestions
-                logger.debug(f"Generating new merge suggestions for collection {collection_id}")
-                llm_result = await self.generate_merge_suggestions(
-                    user_id, collection_id, max_suggestions, max_concurrent_llm_calls
-                )
+                # Generate and store new suggestions
+                await self.generate_merge_suggestions(user_id, collection_id, max_suggestions, max_concurrent_llm_calls)
 
-                # Prepare suggestion data
-                suggestion_data = [
-                    {
-                        "collection_id": collection_id,
-                        "entity_ids": [entity["entity_id"] for entity in suggestion["entities"]],
-                        "confidence_score": suggestion["confidence_score"],
-                        "merge_reason": suggestion["merge_reason"],
-                        "suggested_target_entity": suggestion["suggested_target_entity"],
-                    }
-                    for suggestion in llm_result.get("suggestions", [])
-                ]
-
-                if suggestion_data:
-                    # Clean up old pending suggestions before creating new ones.
-                    # This prevents unique key violations if the same suggestion is generated again,
-                    # while preserving user-acted-on (ACCEPTED, REJECTED) suggestions.
-                    deleted_count = await self.db_ops.delete_pending_suggestions_for_collection(collection_id)
-                    if deleted_count > 0:
-                        logger.info(
-                            f"Deleted {deleted_count} existing PENDING suggestions for collection {collection_id} "
-                            f"(force_refresh={force_refresh})"
-                        )
-
-                    # Intelligently store new suggestions
-                    stored_suggestions = await self._intelligently_store_suggestions(collection_id, suggestion_data)
-                    logger.info(f"Stored {len(stored_suggestions)} new suggestions for collection {collection_id}")
-
-                    # After storing, fetch all valid suggestions to return a complete view
-                    all_suggestions = await self.db_ops.get_valid_suggestions(collection_id)
-
-                    # Extract metadata from llm_result, excluding 'suggestions' to avoid parameter conflict
-                    llm_metadata = {k: v for k, v in llm_result.items() if k != "suggestions"}
-                    return self._format_suggestions_response(all_suggestions, from_cache=False, **llm_metadata)
-                else:
-                    # Extract metadata from llm_result, excluding 'suggestions' to avoid parameter conflict
-                    llm_metadata = {k: v for k, v in llm_result.items() if k != "suggestions"}
-                    return self._format_suggestions_response([], from_cache=False, **llm_metadata)
-
+                return await self.get_merge_suggestions(collection_id, from_cache=False)
         except TimeoutError:
             logger.warning(f"Failed to acquire lock '{lock_name}' within timeout, falling back to cache")
-            # Fallback: return cached suggestions if available
-            cached_suggestions = await self.db_ops.get_valid_suggestions(collection_id)
-            if cached_suggestions:
-                logger.info(f"Returning {len(cached_suggestions)} cached suggestions due to lock timeout")
-                return self._format_suggestions_response(cached_suggestions, from_cache=True)
-            else:
-                # No cache available, return empty result
-                logger.warning(f"No cached suggestions available for collection {collection_id}")
-                return self._format_suggestions_response([], from_cache=False)
+            # Fallback: return existing suggestions
+            return await self.get_merge_suggestions(collection_id, from_cache=True)
 
-    async def _intelligently_store_suggestions(self, collection_id: str, suggestions: List[dict]) -> List:
-        """
-        Store suggestions intelligently, avoiding duplicates for combinations that
-        have already been acted upon (accepted/rejected).
-        """
-        from aperag.db.models import MergeSuggestion
+    async def _update_active_suggestions(self, collection_id: str, suggestions: List[dict]) -> None:
+        """Update active suggestions (clear old ones and store new ones)"""
+        # Always clear existing active suggestions when generating new ones
+        cleared_count = await self.db_ops.clear_active_suggestions(collection_id)
+        if cleared_count > 0:
+            logger.info(f"Cleared {cleared_count} existing active suggestions for collection {collection_id}")
 
-        newly_stored_suggestions = []
-        # Get all existing non-deleted, non-pending suggestions hashes to avoid re-creating them
-        # Since we deleted all pending suggestions, any existing hash belongs to an acted-on suggestion
-        existing_suggestions = await self.db_ops.get_valid_suggestions(collection_id)
-        existing_hashes = {s.entity_ids_hash for s in existing_suggestions}
+        # Store new suggestions if any
+        if suggestions and len(suggestions) > 0:
+            await self.db_ops.create_active_suggestions(suggestions)
+        else:
+            logger.debug("No new suggestions to store")
 
-        suggestions_to_create = []
-        for suggestion in suggestions:
-            entity_ids_hash = MergeSuggestion.generate_entity_ids_hash(suggestion["entity_ids"])
-            if entity_ids_hash in existing_hashes:
-                logger.info(
-                    f"Skipping suggestion for entities {suggestion['entity_ids']} "
-                    "as a suggestion with the same hash already exists and has been acted upon."
-                )
-                continue
-            suggestions_to_create.append(suggestion)
+    async def get_merge_suggestions(self, collection_id: str, from_cache: bool = False, **kwargs) -> dict[str, Any]:
+        """Get complete suggestions response with active and history suggestions combined"""
+        # Get active suggestions and history suggestions in parallel for efficiency
+        import asyncio
 
-        if suggestions_to_create:
-            newly_stored_suggestions = await self.db_ops.batch_create_suggestions(suggestions_to_create)
+        active_suggestions, history_suggestions = await asyncio.gather(
+            self.db_ops.get_active_suggestions(collection_id),
+            self.db_ops.get_suggestion_history(collection_id, limit=100),  # Get recent history
+        )
 
-        return newly_stored_suggestions
-
-    def _format_suggestions_response(self, suggestions: List, from_cache: bool = False, **kwargs) -> dict[str, Any]:
-        """Format suggestions response with statistics"""
-        suggestion_items = [
+        # Format active suggestions (always PENDING, no operated_at)
+        active_items = [
             {
                 "id": suggestion.id,
                 "collection_id": suggestion.collection_id,
@@ -274,28 +216,48 @@ class GraphService:
                 "confidence_score": float(suggestion.confidence_score),
                 "merge_reason": suggestion.merge_reason,
                 "suggested_target_entity": suggestion.suggested_target_entity,
-                "status": suggestion.status,
+                "status": str(suggestion.status),  # Convert enum to string
+                "created": suggestion.gmt_created,
+                "operated_at": None,  # Active suggestions don't have operated_at
+            }
+            for suggestion in active_suggestions
+        ]
+
+        # Format history suggestions (ACCEPTED/REJECTED, has operated_at)
+        history_items = [
+            {
+                "id": suggestion.id,
+                "collection_id": suggestion.collection_id,
+                "suggestion_batch_id": suggestion.suggestion_batch_id,
+                "entity_ids": suggestion.entity_ids,
+                "confidence_score": float(suggestion.confidence_score),
+                "merge_reason": suggestion.merge_reason,
+                "suggested_target_entity": suggestion.suggested_target_entity,
+                "status": str(suggestion.status),  # Convert enum to string
                 "created": suggestion.gmt_created,
                 "operated_at": suggestion.operated_at,
             }
-            for suggestion in suggestions
+            for suggestion in history_suggestions
         ]
 
-        # Count by status
-        status_counts = {"PENDING": 0, "ACCEPTED": 0, "REJECTED": 0}
-        for suggestion in suggestions:
-            status_counts[suggestion.status] += 1
+        # Combine: active first, then history
+        all_suggestions = active_items + history_items
+
+        # Calculate statistics from the actual data
+        pending_count = len(active_items)
+        accepted_count = sum(1 for item in history_items if item["status"] == "ACCEPTED")
+        rejected_count = sum(1 for item in history_items if item["status"] == "REJECTED")
 
         return {
-            "suggestions": suggestion_items,
+            "suggestions": all_suggestions,
             "total_analyzed_nodes": kwargs.get("total_analyzed_nodes", 0),
             "processing_time_seconds": kwargs.get("processing_time_seconds", 0.0),
             "from_cache": from_cache,
             "generated_at": utc_now(),
-            "total_suggestions": len(suggestion_items),
-            "pending_count": status_counts["PENDING"],
-            "accepted_count": status_counts["ACCEPTED"],
-            "rejected_count": status_counts["REJECTED"],
+            "total_suggestions": len(all_suggestions),
+            "pending_count": pending_count,
+            "accepted_count": accepted_count,
+            "rejected_count": rejected_count,
         }
 
     async def generate_merge_suggestions(
@@ -305,12 +267,13 @@ class GraphService:
         max_suggestions: int = 10,
         max_concurrent_llm_calls: int = 4,
     ) -> dict[str, Any]:
-        """Generate node merge suggestions using LLM analysis"""
+        """Generate node merge suggestions using LLM analysis and store them"""
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
+        # Generate suggestions using LightRAG
         rag = await lightrag_manager.create_lightrag_instance(db_collection)
         try:
-            return await rag.agenerate_merge_suggestions(
+            llm_result = await rag.agenerate_merge_suggestions(
                 max_suggestions=max_suggestions,
                 entity_types=None,  # Default to None (consider all entity types)
                 debug_mode=False,  # Default to False
@@ -318,6 +281,26 @@ class GraphService:
             )
         finally:
             await rag.finalize_storages()
+
+        # Prepare suggestion data for storage
+        suggestion_data = [
+            {
+                "collection_id": collection_id,
+                "entity_ids": [entity["entity_id"] for entity in suggestion["entities"]],
+                "confidence_score": suggestion["confidence_score"],
+                "merge_reason": suggestion["merge_reason"],
+                "suggested_target_entity": suggestion["suggested_target_entity"],
+            }
+            for suggestion in llm_result.get("suggestions", [])
+        ]
+
+        # Store suggestions if any were generated
+        if suggestion_data:
+            await self._update_active_suggestions(collection_id, suggestion_data)
+            logger.info(f"Stored {len(suggestion_data)} new active suggestions for collection {collection_id}")
+
+        # Return the LLM result with metadata for response formatting
+        return llm_result
 
     async def merge_nodes(
         self,
@@ -358,22 +341,22 @@ class GraphService:
 
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
-        # Get and validate suggestion
-        suggestions = await self.db_ops.get_suggestions_by_ids([suggestion_id])
-        if not suggestions:
-            raise ValueError(f"Suggestion not found: {suggestion_id}")
-
-        suggestion = suggestions[0]
-
-        if suggestion.status != MergeSuggestionStatus.PENDING:
-            raise ValueError(f"Cannot act on suggestion with status: {suggestion.status}")
+        # Get and validate active suggestion
+        suggestion = await self.db_ops.get_active_suggestion_by_id(suggestion_id)
+        if not suggestion:
+            raise ValueError(f"Active suggestion not found: {suggestion_id}")
 
         if suggestion.collection_id != collection_id:
             raise ValueError(f"Suggestion {suggestion_id} does not belong to collection {collection_id}")
 
+        # Determine the status for history record
+        history_status = (
+            MergeSuggestionStatus.ACCEPTED if normalized_action == "accept" else MergeSuggestionStatus.REJECTED
+        )
+
         if normalized_action == "reject":
-            # Simple rejection - just update status
-            await self.db_ops.update_suggestion_status(suggestion_id, MergeSuggestionStatus.REJECTED, utc_now())
+            # Move to history and remove from active suggestions
+            await self.db_ops.move_to_history(suggestion, history_status, user_id)
 
             logger.info(f"Suggestion {suggestion_id} has been rejected")
             return {
@@ -395,8 +378,8 @@ class GraphService:
                 target_entity_data=merge_target_data,
             )
 
-            # Update suggestion status to ACCEPTED
-            await self.db_ops.update_suggestion_status(suggestion_id, MergeSuggestionStatus.ACCEPTED, utc_now())
+            # Move to history and remove from active suggestions
+            await self.db_ops.move_to_history(suggestion, history_status, user_id)
 
             logger.info(f"Suggestion {suggestion_id} has been accepted and merge completed")
             return {

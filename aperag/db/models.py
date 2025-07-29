@@ -860,19 +860,19 @@ class MergeSuggestionStatus(str, Enum):
     PENDING = "PENDING"
     ACCEPTED = "ACCEPTED"
     REJECTED = "REJECTED"
-    EXPIRED = "EXPIRED"
 
 
 class MergeSuggestion(Base):
-    """Merge suggestion storage model for knowledge graph node merging"""
+    """Active merge suggestions for knowledge graph node merging (PENDING only)"""
 
     __tablename__ = "graph_index_merge_suggestions"
     __table_args__ = (
-        # Prevent duplicate suggestions for the same entity combination
-        UniqueConstraint("collection_id", "entity_ids_hash", "gmt_deleted", name="uq_graph_index_merge_suggestion"),
-        Index("idx_graph_index_merge_suggestion_collection_status", "collection_id", "status"),
-        Index("idx_graph_index_merge_suggestion_batch", "collection_id", "suggestion_batch_id"),
-        Index("idx_graph_index_merge_suggestion_created", "gmt_created"),
+        # Only allow one active suggestion per entity combination per collection
+        UniqueConstraint("collection_id", "entity_ids_hash", name="uq_graph_index_merge_suggestions"),
+        Index("idx_graph_index_merge_suggestions_collection", "collection_id"),
+        Index("idx_graph_index_merge_suggestions_created", "gmt_created"),
+        Index("idx_graph_index_merge_suggestions_batch", "collection_id", "suggestion_batch_id"),
+        Index("idx_graph_index_merge_suggestions_confidence", "confidence_score"),
     )
 
     id = Column(String(24), primary_key=True, default=lambda: "msug" + random_id())
@@ -890,7 +890,7 @@ class MergeSuggestion(Base):
     merge_reason = Column(Text, nullable=False)  # LLM-generated reason for merging
     suggested_target_entity = Column(JSON, nullable=False)  # Suggested target entity {entity_name, entity_type}
 
-    # Status and lifecycle
+    # Status (always PENDING for active suggestions)
     status = Column(
         EnumColumn(MergeSuggestionStatus), nullable=False, default=MergeSuggestionStatus.PENDING, index=True
     )
@@ -898,10 +898,6 @@ class MergeSuggestion(Base):
     # Timestamps
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)
-
-    # User operation tracking
-    operated_at = Column(DateTime(timezone=True), nullable=True)  # User operation timestamp
 
     @classmethod
     def generate_entity_ids_hash(cls, entity_ids: list) -> str:
@@ -912,4 +908,56 @@ class MergeSuggestion(Base):
         return hashlib.md5(":".join(sorted_ids).encode()).hexdigest()
 
     def __repr__(self):
-        return f"<MergeSuggestion(id={self.id}, collection_id={self.collection_id}, status={self.status})>"
+        return f"<MergeSuggestion(id={self.id}, collection_id={self.collection_id}, entities={len(self.entity_ids)})>"
+
+
+class MergeSuggestionHistory(Base):
+    """History of processed merge suggestions for knowledge graph node merging"""
+
+    __tablename__ = "graph_index_merge_suggestions_history"
+    __table_args__ = (
+        Index("idx_graph_index_merge_suggestions_history_collection", "collection_id"),
+        Index("idx_graph_index_merge_suggestions_history_collection_status", "collection_id", "status"),
+        Index("idx_graph_index_merge_suggestions_history_operated_at", "operated_at"),
+        Index("idx_graph_index_merge_suggestions_history_original_id", "original_suggestion_id"),
+        Index("idx_graph_index_merge_suggestions_history_batch", "suggestion_batch_id"),
+    )
+
+    id = Column(String(24), primary_key=True, default=lambda: "hsug" + random_id())
+    original_suggestion_id = Column(String(24), nullable=False, index=True)  # ID from active suggestions
+    collection_id = Column(String(24), nullable=False, index=True)
+
+    # Suggestion batch (same batch_id for suggestions generated in the same LLM call)
+    suggestion_batch_id = Column(String(24), nullable=False, index=True)
+
+    # Entity combination for merging
+    entity_ids = Column(ARRAY(String), nullable=False)  # Entity IDs suggested for merging
+    entity_ids_hash = Column(String(64), nullable=False)  # Hash of entity ID combination for uniqueness
+
+    # LLM analysis results
+    confidence_score = Column(Numeric(3, 2), nullable=False)  # 0.00-1.00
+    merge_reason = Column(Text, nullable=False)  # LLM-generated reason for merging
+    suggested_target_entity = Column(JSON, nullable=False)  # Suggested target entity {entity_name, entity_type}
+
+    # Status (ACCEPTED or REJECTED only)
+    status = Column(EnumColumn(MergeSuggestionStatus), nullable=False, index=True)
+
+    # Timestamps
+    gmt_created = Column(DateTime(timezone=True), nullable=False)  # Original creation time
+    operated_at = Column(DateTime(timezone=True), nullable=False)  # When the action was taken
+
+    # User operation tracking
+    operated_by = Column(String(24), nullable=True)  # User ID who performed the action
+
+    @classmethod
+    def generate_entity_ids_hash(cls, entity_ids: list) -> str:
+        """Generate hash for entity ID combination"""
+        import hashlib
+
+        sorted_ids = sorted(entity_ids)
+        return hashlib.md5(":".join(sorted_ids).encode()).hexdigest()
+
+    def __repr__(self):
+        return (
+            f"<MergeSuggestionHistory(id={self.id}, original_id={self.original_suggestion_id}, status={self.status})>"
+        )

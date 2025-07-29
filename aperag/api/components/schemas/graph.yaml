@@ -434,17 +434,6 @@ mergeSuggestionsResponse:
       items:
         $ref: '#/mergeSuggestionItem'
       description: List of merge suggestions ordered by confidence score (highest first)
-    total_analyzed_nodes:
-      type: integer
-      description: Total number of nodes analyzed
-      example: 156
-      minimum: 0
-    processing_time_seconds:
-      type: number
-      format: float
-      description: Processing time in seconds
-      example: 12.5
-      minimum: 0.0
     from_cache:
       type: boolean
       description: Whether suggestions were loaded from cache
@@ -455,36 +444,10 @@ mergeSuggestionsResponse:
       format: date-time
       description: Generation timestamp
       example: "2025-01-07T10:00:00Z"
-    total_suggestions:
-      type: integer
-      description: Total number of suggestions
-      example: 5
-      minimum: 0
-    pending_count:
-      type: integer
-      description: Number of pending suggestions
-      example: 3
-      minimum: 0
-    accepted_count:
-      type: integer
-      description: Number of accepted suggestions
-      example: 1
-      minimum: 0
-    rejected_count:
-      type: integer
-      description: Number of rejected suggestions
-      example: 1
-      minimum: 0
   required:
     - suggestions
-    - total_analyzed_nodes
-    - processing_time_seconds
     - from_cache
     - generated_at
-    - total_suggestions
-    - pending_count
-    - accepted_count
-    - rejected_count
 
 suggestionActionRequest:
   type: object
