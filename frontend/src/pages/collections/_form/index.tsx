@@ -21,7 +21,6 @@ import {
   Tooltip,
   Typography,
   message,
-  Tooltip,
   theme,
 } from 'antd';
 import _ from 'lodash';
@@ -33,7 +32,6 @@ import DocumentFeishuFormItems from './DocumentFeishuFormItems';
 import DocumentFtpFormItems from './DocumentFtpFormItems';
 import DocumentGithubFormItems from './DocumentGithubFormItems';
 import DocumentLocalFormItems from './DocumentLocalFormItems';
-import { QuestionCircleOutlined } from '@ant-design/icons';
 
 type Props = {
   action: 'add' | 'edit';
