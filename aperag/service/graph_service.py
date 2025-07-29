@@ -212,14 +212,15 @@ class GraphService:
                     logger.info(f"Stored {len(stored_suggestions)} new suggestions for collection {collection_id}")
 
                     # After storing, fetch all valid suggestions to return a complete view
-                    final_suggestions = await self.db_ops.get_valid_suggestions(collection_id)
-                else:
-                    # No suggestions generated, return empty list
-                    final_suggestions = []
+                    all_suggestions = await self.db_ops.get_valid_suggestions(collection_id)
 
-                # Extract metadata from llm_result, excluding 'suggestions' to avoid parameter conflict
-                llm_metadata = {k: v for k, v in llm_result.items() if k != "suggestions"}
-                return self._format_suggestions_response(final_suggestions, from_cache=False, **llm_metadata)
+                    # Extract metadata from llm_result, excluding 'suggestions' to avoid parameter conflict
+                    llm_metadata = {k: v for k, v in llm_result.items() if k != "suggestions"}
+                    return self._format_suggestions_response(all_suggestions, from_cache=False, **llm_metadata)
+                else:
+                    # Extract metadata from llm_result, excluding 'suggestions' to avoid parameter conflict
+                    llm_metadata = {k: v for k, v in llm_result.items() if k != "suggestions"}
+                    return self._format_suggestions_response([], from_cache=False, **llm_metadata)
 
         except TimeoutError:
             logger.warning(f"Failed to acquire lock '{lock_name}' within timeout, falling back to cache")
