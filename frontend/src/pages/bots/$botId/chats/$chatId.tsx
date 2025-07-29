@@ -1,10 +1,9 @@
-import { ChatMessage, Feedback, Reference } from '@/api';
+import { ChatMessage, Feedback } from '@/api';
 import { PageContainer } from '@/components';
 import { api } from '@/services';
 import { useWebSocket } from 'ahooks';
 import { ReadyState } from 'ahooks/lib/useWebSocket';
 import { Result, theme } from 'antd';
-import useApp from 'antd/es/app/useApp';
 import _ from 'lodash';
 import { useCallback, useEffect, useState } from 'react';
 import { animateScroll as scroll } from 'react-scroll';
@@ -16,10 +15,9 @@ import { ChatMessageItem } from './_chat_message';
 export default () => {
   const { chat, getChat, setChat, bot } = useModel('bot');
   const { botId, chatId } = useParams();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[][]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const { token } = theme.useToken();
-  const app = useApp();
 
   const isAgent = bot?.type === 'agent';
   const protocol = window.location.protocol === 'http:' ? 'ws://' : 'wss://';
@@ -30,65 +28,45 @@ export default () => {
     {
       onMessage: (message) => {
         const fragment = JSON.parse(message.data) as ChatMessage;
-
-        if (fragment.type === 'start') {
-          setMessages((msgs) =>
-            msgs.concat({
-              ...fragment,
-              role: 'ai',
-            }),
-          );
-          setLoading(true);
+        if(fragment.type === 'start') {
+          setLoading(true)
+        }
+        if(fragment.type === 'stop') {
+          setLoading(false)
         }
 
-        if (fragment.type === 'tool_call_result') {
-          setMessages((msgs) => {
-            const last = msgs.findLast((m) => m.id === fragment.id);
-            if (last) {
-              last.data =
-                (last.data || '') +
-                `<tool_call_result>${fragment.data}</tool_call_result>`;
-            }
-            return [...msgs];
+        setMessages((msgs) => {
+          const parts = msgs.findLast((parts) => {
+            return Boolean(
+              parts.find(
+                (part) => part.id === fragment.id && part.role === 'ai',
+              ),
+            );
           });
-        }
 
-        if (fragment.type === 'message') {
-          setMessages((msgs) => {
-            const last = msgs.findLast((m) => m.id === fragment.id);
-            if (last) {
-              last.data = (last.data || '') + (fragment.data || '');
-            }
-            return [...msgs];
-          });
-        }
-
-        if (fragment.type === 'stop') {
-          const references = fragment.data as unknown as Reference[];
-          if (references) {
-            setMessages((msgs) => {
-              const last = msgs.findLast((m) => m.id === fragment.id);
-              if (last) {
-                last.references = references;
+          if (parts) {
+            const part = parts.find((p) => {
+              if (fragment.type === 'message') {
+                return p.type === 'message';
+              } else {
+                return fragment.part_id && fragment.part_id === p.part_id;
               }
-              return [...msgs];
             });
-          }
-          setLoading(false);
-        }
-
-        if (fragment.type === 'error') {
-          setMessages((msgs) => {
-            const last = msgs.findLast((m) => m.id === fragment.id);
-            if (last) {
-              last.data = fragment.data;
+            if (part) {
+              part.data = (part.data || '') + fragment.data;
             } else {
-              app.message.error(fragment.data);
+              parts.push(fragment);
             }
-            return [...msgs];
-          });
-          setLoading(false);
-        }
+          } else {
+            msgs.push([
+              {
+                ...fragment,
+                role: 'ai',
+              },
+            ]);
+          }
+          return [...msgs];
+        });
       },
     },
   );
@@ -102,7 +80,10 @@ export default () => {
         data: params.query,
         timestamp,
       };
-      setMessages((msgs) => msgs?.concat(msg));
+      setMessages((msgs) => {
+        msgs?.push([msg]);
+        return [...msgs];
+      });
 
       if (isAgent) {
         sendMessage(JSON.stringify(params));
@@ -121,6 +102,7 @@ export default () => {
 
   const onVote = async (item: ChatMessage, feedback: Feedback) => {
     if (!botId || !chatId || !item.id) return;
+
     const res = await api.botsBotIdChatsChatIdMessagesMessageIdPost({
       botId,
       chatId,
@@ -129,10 +111,13 @@ export default () => {
     });
     if (res.status === 200) {
       setMessages((msgs) => {
-        const index = msgs.findIndex(
-          (m) => m.id === item.id && m.role === 'ai',
+        const parts = msgs.find((parts) =>
+          parts.find((p) => p.id === item.id && p.type === 'references'),
         );
-        if (index !== -1) msgs.splice(index, 1, { ...item, feedback });
+        const referencePart = parts?.find((p) => p.type === 'references');
+        if (referencePart) {
+          referencePart.feedback = feedback;
+        }
         return [...msgs];
       });
     }
@@ -146,9 +131,7 @@ export default () => {
   }, [chatId, botId]);
 
   useEffect(() => {
-    // Flatten the 2D array of conversation turns into a 1D array of messages
-    const flattenedMessages = chat?.history?.flat() || [];
-    setMessages(flattenedMessages);
+    setMessages(chat?.history || []);
   }, [chat]);
 
   useEffect(() => {
@@ -165,17 +148,13 @@ export default () => {
           subTitle={<FormattedMessage id="chat.empty_description" />}
         />
       ) : (
-        messages?.map((item, index) => {
+        messages?.map((parts, index) => {
+          const isAi = Boolean(parts.find((p) => p.role === 'ai'));
           return (
             <ChatMessageItem
               onVote={onVote}
-              loading={
-                item.role === 'ai' &&
-                _.size(messages) === index + 1 &&
-                loading &&
-                _.isEmpty(item.data)
-              }
-              item={item}
+              isAi={isAi}
+              parts={parts}
               key={index}
             />
           );

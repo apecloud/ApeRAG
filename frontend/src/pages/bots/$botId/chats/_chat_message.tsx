@@ -16,6 +16,7 @@ import {
 } from '@ant-design/icons';
 import { useHover } from 'ahooks';
 import {
+  Alert,
   Avatar,
   Badge,
   Button,
@@ -38,13 +39,13 @@ import { BsRobot } from 'react-icons/bs';
 import { css, styled, useIntl } from 'umi';
 
 export const StyledMessage = styled('div').withConfig({
-  shouldForwardProp: (prop) => !['message'].includes(prop),
-})<{ message: ChatMessage }>`
-  ${({ message }) => {
+  shouldForwardProp: (prop) => !['isAi'].includes(prop),
+})<{ isAi: boolean }>`
+  ${({ isAi }) => {
     return css`
       display: flex;
       flex-direction: row;
-      justify-content: ${message.role === 'human' ? 'flex-end' : 'flex-start'};
+      justify-content: ${!isAi ? 'flex-end' : 'flex-start'};
       margin-bottom: 24px;
       gap: 12px;
       min-width: 240px;
@@ -77,14 +78,12 @@ export const StyledMessageBody = styled('div')`
 `;
 
 export const StyledMessageContent = styled('div').withConfig({
-  shouldForwardProp: (prop) => !['message', 'token'].includes(prop),
-})<{ message: ChatMessage; token: GlobalToken }>`
-  ${({ message, token }) => {
+  shouldForwardProp: (prop) => !['isAi', 'token'].includes(prop),
+})<{ isAi: boolean; token: GlobalToken }>`
+  ${({ isAi, token }) => {
     return css`
-      background: ${message.role === 'human'
-        ? token.colorPrimary
-        : token.colorBgContainer};
-      color: ${message.role === 'human' ? token.colorWhite : token.colorText};
+      background: ${!isAi ? token.colorPrimary : token.colorBgContainer};
+      color: ${!isAi ? token.colorWhite : token.colorText};
       min-height: 54px;
       padding: 16px;
       border-radius: 8px;
@@ -94,9 +93,9 @@ export const StyledMessageContent = styled('div').withConfig({
 `;
 
 export const StyledMessageInfo = styled('div').withConfig({
-  shouldForwardProp: (prop) => !['token', 'message'].includes(prop),
-})<{ token: GlobalToken; message: ChatMessage }>`
-  ${({ token, message }) => {
+  shouldForwardProp: (prop) => !['token', 'isAi'].includes(prop),
+})<{ token: GlobalToken; isAi: boolean }>`
+  ${({ token, isAi }) => {
     return css`
       color: ${token.colorTextSecondary};
       display: flex;
@@ -105,19 +104,67 @@ export const StyledMessageInfo = styled('div').withConfig({
       gap: 16px;
       align-items: center;
       min-height: 32px;
-      justify-content: ${message.role === 'human' ? 'flex-end' : 'flex-start'};
+      justify-content: ${!isAi ? 'flex-end' : 'flex-start'};
     `;
   }}
 `;
 
-export const ChatMessageItem = ({
-  item,
-  loading,
-  onVote,
+export const CollapseResult = ({
+  title,
+  children,
 }: {
-  item: ChatMessage;
-  loading: boolean;
-  onVote: (item: ChatMessage, feedback: Feedback) => void;
+  title: string;
+  children?: React.ReactNode;
+}) => {
+  const { token } = theme.useToken();
+  const [open, setOpen] = useState<boolean>(true);
+
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <Space
+        style={{
+          background: token.controlItemBgHover,
+          cursor: 'pointer',
+          padding: '4px 8px',
+          borderRadius: 100,
+          alignItems: 'center',
+          fontSize: '0.75rem',
+        }}
+        onClick={() => setOpen(!open)}
+      >
+        <CaretRightOutlined
+          style={{
+            transitionDuration: '0.3s',
+            transform: `rotate(${open ? 90 : 0}deg)`,
+          }}
+        />
+        {title}
+      </Space>
+      {open && (
+        <div
+          style={{
+            padding: 12,
+            border: `1px dashed ${token.colorBorder}`,
+            borderRadius: 4,
+            background: token.colorBgLayout,
+            marginTop: 4,
+          }}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export const ChatMessageItem = ({
+  parts,
+  onVote = () => {},
+  isAi,
+}: {
+  parts: ChatMessage[];
+  isAi: boolean;
+  onVote?: (item: ChatMessage, feedback: Feedback) => void;
 }) => {
   const { token } = theme.useToken();
   const hoverRef = useRef(null);
@@ -130,95 +177,132 @@ export const ChatMessageItem = ({
   const [feedbackMessage, setFeedbackMessage] = useState<string>();
 
   const getReferences: () => CollapseProps['items'] = () =>
-    item.references?.map((reference, index) => ({
-      key: index,
-      label: (
-        <Typography.Text
-          style={{ maxWidth: 400, color: token.colorPrimary }}
-          ellipsis
-        >
-          {index + 1}.{' '}
-          {reference.metadata?.name ||
-            reference.metadata?.source ||
-            reference.metadata?.query ||
-            reference.metadata?.type}
-        </Typography.Text>
-      ),
-      children: (
-        <div
-          style={{
-            borderTop: `1px solid ${token.colorBorderSecondary}`,
-            paddingTop: 16,
-          }}
-        >
-          <ApeMarkdown>{reference.text}</ApeMarkdown>
-        </div>
-      ),
-      extra: (
-        <Space>
-          <BulbOutlined />
-          {reference.score}
-        </Space>
-      ),
-      style: {
-        marginBottom: 24,
-        borderRadius: token.borderRadiusLG,
-        border: `1px solid ${token.colorBorderSecondary}`,
-      },
-    }));
+    parts
+      .find((p) => p.type === 'references')
+      ?.references?.map((reference, index) => ({
+        key: index,
+        label: (
+          <Typography.Text
+            style={{ maxWidth: 400, color: token.colorPrimary }}
+            ellipsis
+          >
+            {index + 1}.{' '}
+            {reference.metadata?.name ||
+              reference.metadata?.source ||
+              reference.metadata?.query ||
+              reference.metadata?.type}
+          </Typography.Text>
+        ),
+        children: (
+          <div
+            style={{
+              borderTop: `1px solid ${token.colorBorderSecondary}`,
+              paddingTop: 16,
+            }}
+          >
+            <ApeMarkdown>{reference.text}</ApeMarkdown>
+          </div>
+        ),
+        extra: (
+          <Space>
+            <BulbOutlined />
+            {reference.score}
+          </Space>
+        ),
+        style: {
+          marginBottom: 24,
+          borderRadius: token.borderRadiusLG,
+          border: `1px solid ${token.colorBorderSecondary}`,
+        },
+      }));
 
-  const handleFeedback = useCallback((type: FeedbackTypeEnum) => {
-    if (type === item.feedback?.type) {
-      onVote(item, {});
-    } else if (type === FeedbackTypeEnum.good) {
-      onVote(item, { type });
-    } else {
-      setFeedbackModalVisible(true);
-    }
-  }, []);
+  const partReference = useMemo(() => {
+    return parts.find((p) => p.type === 'references');
+  }, [parts]);
+
+  const handleFeedback = useCallback(
+    (type: FeedbackTypeEnum) => {
+      if (!partReference) return;
+
+      if (type === partReference?.feedback?.type) {
+        onVote(partReference, {});
+      } else if (type === FeedbackTypeEnum.good) {
+        onVote(partReference, { type });
+      } else {
+        setFeedbackModalVisible(true);
+      }
+    },
+    [partReference],
+  );
 
   const handleFeedbackSubmit = useCallback(() => {
-    onVote(item, {
+    if (!partReference) return;
+    onVote(partReference, {
       type: FeedbackTypeEnum.bad,
       tag: feedbackTag,
       message: feedbackMessage,
     });
+
     setFeedbackModalVisible(false);
     setFeedbackTag(undefined);
     setFeedbackMessage(undefined);
-  }, []);
-
-  const body = useMemo(
-    () => <ApeMarkdown>{item.data}</ApeMarkdown>,
-    [item.data],
-  );
+  }, [partReference, feedbackTag, feedbackMessage]);
 
   return (
     <>
-      <StyledMessage message={item}>
-        {item.role === 'ai' && (
+      <StyledMessage isAi={isAi}>
+        {isAi && (
           <StyledMessageAvatar src={<BsRobot />} size="large" token={token} />
         )}
         <StyledMessageBody ref={hoverRef}>
-          <StyledMessageContent token={token} message={item}>
-            {item.role === 'human' ? (
-              item.data
-            ) : loading ? (
-              <TypingAnimate />
-            ) : (
-              body
-            )}
+          <StyledMessageContent token={token} isAi={isAi}>
+            {!isAi
+              ? parts[0].data
+              : parts.map((part, index) => {
+                  switch (part.type) {
+                    case 'tool_call_result':
+                      return (
+                        <CollapseResult key={index} title="Tool call">
+                          <ApeMarkdown>{part.data}</ApeMarkdown>
+                        </CollapseResult>
+                      );
+                    case 'thinking':
+                      return (
+                        <CollapseResult key={index} title="Thinking">
+                          <ApeMarkdown>{part.data}</ApeMarkdown>
+                        </CollapseResult>
+                      );
+                    case 'message':
+                      return <ApeMarkdown key={index}>{part.data}</ApeMarkdown>;
+                    case 'error':
+                      return (
+                        <Alert key={index} message={part.data} type="error" />
+                      );
+                    case 'start':
+                      return (
+                        parts.length === 1 && <TypingAnimate key={index} />
+                      );
+                    case 'stop':
+                    case 'welcome':
+                    case 'references':
+                      return '';
+                    default:
+                      return 'unknow part type';
+                  }
+                })}
           </StyledMessageContent>
-          <StyledMessageInfo token={token} message={item}>
-            {moment(item.timestamp).format(DATETIME_FORMAT)}
-            {!_.isEmpty(item.references) && item.role === 'ai' && (
+          <StyledMessageInfo token={token} isAi={isAi}>
+            {moment(
+              parts?.[0]?.timestamp ? parts?.[0]?.timestamp * 1000 : undefined,
+            ).format(DATETIME_FORMAT)}
+            {!_.isEmpty(partReference?.references) && isAi && (
               <Tooltip title={formatMessage({ id: 'text.references' })}>
                 <Button
                   type="text"
                   onClick={() => setReferencesVisible(true)}
                   icon={
                     <Badge
-                      count={_.size(item.references)}
+                      count={_.size(partReference?.references)}
                       size="small"
                       style={{ marginTop: -2 }}
                     />
@@ -226,14 +310,15 @@ export const ChatMessageItem = ({
                 />
               </Tooltip>
             )}
-            {isHovering && item.role === 'ai' ? (
+            {isHovering && partReference ? (
               <Space>
                 <Button
                   icon={
                     <LikeFilled
                       style={{
                         color:
-                          item.feedback?.type === FeedbackTypeEnum.good
+                          partReference?.feedback?.type ===
+                          FeedbackTypeEnum.good
                             ? token.colorSuccess
                             : token.colorTextDisabled,
                       }}
@@ -247,7 +332,7 @@ export const ChatMessageItem = ({
                     <DislikeFilled
                       style={{
                         color:
-                          item.feedback?.type === FeedbackTypeEnum.bad
+                          partReference?.feedback?.type === FeedbackTypeEnum.bad
                             ? token.colorError
                             : token.colorTextDisabled,
                       }}
@@ -260,7 +345,7 @@ export const ChatMessageItem = ({
             ) : null}
           </StyledMessageInfo>
         </StyledMessageBody>
-        {item.role === 'human' && (
+        {!isAi && (
           <StyledMessageAvatar
             size="large"
             token={token}
