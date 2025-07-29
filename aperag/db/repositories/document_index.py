@@ -14,7 +14,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 
 from aperag.db.models import Document, DocumentIndex, DocumentIndexStatus, DocumentIndexType
 from aperag.db.repositories.base import AsyncRepositoryProtocol
@@ -23,21 +23,17 @@ from aperag.db.repositories.base import AsyncRepositoryProtocol
 class AsyncDocumentIndexRepositoryMixin(AsyncRepositoryProtocol):
     """Repository mixin for DocumentIndex operations"""
 
-    async def has_recent_graph_index_updates(self, collection_id: str, since_time: datetime) -> bool:
-        """Check if there have been any successful graph index updates since a given time."""
+    async def has_recent_graph_index_updates(self, collection_id: str, since_time: datetime) -> int:
+        """Count the number of successful graph index updates since a given time."""
 
         async def _query(session):
-            from sqlalchemy import exists
-
-            stmt = select(
-                exists().where(
-                    and_(
-                        Document.id == DocumentIndex.document_id,
-                        Document.collection_id == collection_id,
-                        DocumentIndex.index_type == DocumentIndexType.GRAPH,
-                        DocumentIndex.status == DocumentIndexStatus.ACTIVE,
-                        DocumentIndex.gmt_updated > since_time,
-                    )
+            stmt = select(func.count()).where(
+                and_(
+                    Document.id == DocumentIndex.document_id,
+                    Document.collection_id == collection_id,
+                    DocumentIndex.index_type == DocumentIndexType.GRAPH,
+                    DocumentIndex.status == DocumentIndexStatus.ACTIVE,
+                    DocumentIndex.gmt_updated > since_time,
                 )
             )
             result = await session.execute(stmt)
