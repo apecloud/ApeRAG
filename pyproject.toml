@@ -77,6 +77,7 @@ dependencies = [
     "opentelemetry-exporter-jaeger>=1.20.0",
     "opentelemetry-instrumentation-fastapi>=0.41b0",
     "opentelemetry-instrumentation-sqlalchemy>=0.41b0",
+    "pypdfium2>=4.30.0",
 ]
 name = "aperag"
 version = "0.1.0"

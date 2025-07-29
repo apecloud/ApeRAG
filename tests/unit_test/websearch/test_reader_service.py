@@ -45,7 +45,7 @@ class TestReaderService:
         with patch.object(service.provider, "read", new_callable=AsyncMock) as mock_read:
             mock_read.return_value = mock_result
 
-            request = WebReadRequest(urls="https://example.com", timeout=30)
+            request = WebReadRequest(url_list=["https://example.com"], timeout=30)
 
             response = await service.read(request)
 
@@ -79,7 +79,7 @@ class TestReaderService:
             mock_read_batch.return_value = mock_results
 
             request = WebReadRequest(
-                urls=["https://example1.com", "https://example2.com"], timeout=30, max_concurrent=2
+                url_list=["https://example1.com", "https://example2.com"], timeout=30, max_concurrent=2
             )
 
             response = await service.read(request)
@@ -137,15 +137,15 @@ class TestReaderService:
         service = ReaderService.create_default()
 
         # Test empty URLs
-        request = WebReadRequest(urls=[])
-        with pytest.raises(ReaderProviderError, match="cannot be empty"):
+        request = WebReadRequest(url_list=[])
+        with pytest.raises(ReaderProviderError, match="No URLs provided in request"):
             await service.read(request)
 
         # Test provider error
         with patch.object(service.provider, "read", new_callable=AsyncMock) as mock_read:
             mock_read.side_effect = ReaderProviderError("Network timeout")
 
-            request = WebReadRequest(urls="https://test.com")
+            request = WebReadRequest(url_list=["https://test.com"])
             with pytest.raises(ReaderProviderError, match="Network timeout"):
                 await service.read(request)
 
@@ -191,7 +191,7 @@ class TestReaderService:
             print(f"Content preview: {result.content[:200]}...")
 
             # Test batch read
-            request = WebReadRequest(urls=test_urls, timeout=15)
+            request = WebReadRequest(url_list=test_urls, timeout=15)
 
             response = await service.read(request)
 
@@ -263,7 +263,7 @@ class TestReaderService:
         with patch.object(service.provider, "read_batch", new_callable=AsyncMock) as mock_read_batch:
             mock_read_batch.return_value = mock_results
 
-            request = WebReadRequest(urls=["https://success.com", "https://fail.com", "https://timeout.com"])
+            request = WebReadRequest(url_list=["https://success.com", "https://fail.com", "https://timeout.com"])
 
             response = await service.read(request)
 

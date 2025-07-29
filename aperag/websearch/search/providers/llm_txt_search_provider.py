@@ -56,27 +56,22 @@ class LLMTxtSearchProvider(BaseSearchProvider):
         self,
         query: str,
         max_results: int = 5,
-        search_engine: str = "llm_txt",
         timeout: int = 30,
         locale: str = "en-US",
         source: Optional[str] = None,
     ) -> List[WebSearchResultItem]:
         """
-        Perform LLM.txt discovery search.
-
-        This provider specifically searches for llms.txt files from a given source domain.
-        It ignores the query parameter as it's designed for LLM-optimized content discovery.
+        Perform LLM.txt discovery search on specified domain.
 
         Args:
-            query: Search query (ignored by this provider)
+            query: Search query (can be empty for domain discovery)
             max_results: Maximum number of results to return
-            search_engine: Search engine to use
             timeout: Request timeout in seconds
-            locale: Browser locale
-            source: Domain or URL to search for llms.txt files (required)
+            locale: Browser locale (not used for LLM.txt)
+            source: Domain for LLM.txt discovery (required)
 
         Returns:
-            List of search result items
+            List of search result items containing LLM.txt content
         """
         # Validate parameters
         if max_results <= 0:
@@ -458,5 +453,6 @@ class LLMTxtSearchProvider(BaseSearchProvider):
         """
         Close and cleanup resources.
         """
-        # No resources to clean up since we use direct HTTP requests
-        pass
+        # Close reader service if it exists and has a close method
+        if hasattr(self, "reader_service") and self.reader_service and hasattr(self.reader_service, "close"):
+            await self.reader_service.close()

@@ -301,6 +301,7 @@ class ChatCreate(BaseModel):
 class Reference(BaseModel):
     score: Optional[float] = None
     text: Optional[str] = None
+    image_uri: Optional[str] = None
     metadata: Optional[dict[str, Any]] = None
 
 
@@ -428,6 +429,9 @@ class CollectionConfig(BaseModel):
     )
     enable_summary: Optional[bool] = Field(
         None, description='Whether to enable summary generation'
+    )
+    enable_vision: Optional[bool] = Field(
+        None, description='Whether to enable vision index'
     )
     embedding: Optional[ModelSpec] = None
     completion: Optional[ModelSpec] = None
@@ -618,6 +622,17 @@ class Document(BaseModel):
             'SKIPPED',
         ]
     ] = None
+    vision_index_status: Optional[
+        Literal[
+            'PENDING',
+            'CREATING',
+            'ACTIVE',
+            'DELETING',
+            'DELETION_IN_PROGRESS',
+            'FAILED',
+            'SKIPPED',
+        ]
+    ] = None
     vector_index_updated: Optional[datetime] = Field(
         None, description='Vector index last updated time'
     )
@@ -629,6 +644,9 @@ class Document(BaseModel):
     )
     summary_index_updated: Optional[datetime] = Field(
         None, description='Summary index last updated time'
+    )
+    vision_index_updated: Optional[datetime] = Field(
+        None, description='Vision index last updated time'
     )
     summary: Optional[str] = Field(None, description='Summary of the document')
     config: Optional[str] = None
@@ -654,9 +672,16 @@ class DocumentCreate(BaseModel):
 
 
 class RebuildIndexesRequest(BaseModel):
-    index_types: list[Literal['VECTOR', 'FULLTEXT', 'GRAPH', 'SUMMARY']] = Field(
-        ..., description='Types of indexes to rebuild', min_items=1
+    index_types: list[Literal['VECTOR', 'FULLTEXT', 'GRAPH', 'SUMMARY', 'VISION']] = (
+        Field(..., description='Types of indexes to rebuild', min_items=1)
     )
+
+
+class VisionChunk(BaseModel):
+    id: Optional[str] = None
+    asset_id: Optional[str] = None
+    text: Optional[str] = None
+    metadata: Optional[dict[str, Any]] = None
 
 
 class Chunk(BaseModel):
@@ -677,6 +702,7 @@ class DocumentPreview(BaseModel):
         None, description='The markdown content of the document.'
     )
     chunks: Optional[list[Chunk]] = None
+    vision_chunks: Optional[list[VisionChunk]] = None
 
 
 class VectorSearchParams(BaseModel):
@@ -697,14 +723,24 @@ class GraphSearchParams(BaseModel):
     topk: Optional[int] = Field(None, description='Top K results')
 
 
+class SummarySearchParams(BaseModel):
+    topk: Optional[int] = Field(None, description='Top K results')
+    similarity: Optional[confloat(ge=0.0, le=1.0)] = Field(
+        None, description='Similarity threshold'
+    )
+
+
 class SearchResultItem(BaseModel):
     rank: Optional[int] = Field(None, description='Result rank')
     score: Optional[float] = Field(None, description='Result score')
     content: Optional[str] = Field(None, description='Result content')
     source: Optional[str] = Field(None, description='Source document or metadata')
     recall_type: Optional[
-        Literal['vector_search', 'graph_search', 'fulltext_search']
+        Literal['vector_search', 'graph_search', 'fulltext_search', 'summary_search']
     ] = Field(None, description='Recall type')
+    metadata: Optional[dict[str, Any]] = Field(
+        None, description='Metadata of the result'
+    )
 
 
 class SearchResult(BaseModel):
@@ -713,6 +749,7 @@ class SearchResult(BaseModel):
     vector_search: Optional[VectorSearchParams] = None
     fulltext_search: Optional[FulltextSearchParams] = None
     graph_search: Optional[GraphSearchParams] = None
+    summary_search: Optional[SummarySearchParams] = None
     items: Optional[list[SearchResultItem]] = None
     created: Optional[datetime] = Field(
         None, description='The creation time of the search result'
@@ -736,6 +773,7 @@ class SearchRequest(BaseModel):
     vector_search: Optional[VectorSearchParams] = None
     fulltext_search: Optional[FulltextSearchParams] = None
     graph_search: Optional[GraphSearchParams] = None
+    summary_search: Optional[SummarySearchParams] = None
 
 
 class GraphLabelsResponse(BaseModel):
@@ -1037,9 +1075,6 @@ class MergeSuggestionItem(BaseModel):
     created: datetime = Field(
         ..., description='Creation timestamp', example='2025-01-07T10:00:00Z'
     )
-    expires_at: datetime = Field(
-        ..., description='Expiration timestamp', example='2025-01-14T10:00:00Z'
-    )
     operated_at: Optional[datetime] = Field(
         None, description='User operation timestamp', example='2025-01-08T15:30:00Z'
     )
@@ -1077,9 +1112,6 @@ class MergeSuggestionsResponse(BaseModel):
     )
     rejected_count: conint(ge=0) = Field(
         ..., description='Number of rejected suggestions', example=1
-    )
-    expired_count: conint(ge=0) = Field(
-        ..., description='Number of expired suggestions', example=0
     )
 
 
@@ -1747,9 +1779,6 @@ class WebSearchRequest(BaseModel):
     max_results: Optional[int] = Field(
         5, description='Maximum number of results to return', example=5
     )
-    search_engine: Optional[str] = Field(
-        'duckduckgo', description='Search engine to use', example='duckduckgo'
-    )
     timeout: Optional[int] = Field(
         30, description='Request timeout in seconds', example=30
     )
@@ -1796,7 +1825,6 @@ class WebSearchResponse(BaseModel):
     results: list[WebSearchResultItem] = Field(
         ..., description='List of search results'
     )
-    search_engine: str = Field(..., description='Search engine used')
     total_results: Optional[int] = Field(
         None, description='Total number of results found'
     )

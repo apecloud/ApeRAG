@@ -54,6 +54,16 @@ document:
         - DELETION_IN_PROGRESS
         - FAILED
         - SKIPPED
+    vision_index_status:
+      type: string
+      enum:
+        - PENDING
+        - CREATING
+        - ACTIVE
+        - DELETING
+        - DELETION_IN_PROGRESS
+        - FAILED
+        - SKIPPED
     vector_index_updated:
       type: string
       format: date-time
@@ -70,6 +80,10 @@ document:
       type: string
       format: date-time
       description: Summary index last updated time
+    vision_index_updated:
+      type: string
+      format: date-time
+      description: Vision index last updated time
     summary:
       type: string
       description: Summary of the document
@@ -119,10 +133,23 @@ rebuildIndexesRequest:
           - FULLTEXT
           - GRAPH
           - SUMMARY
+          - VISION
       description: Types of indexes to rebuild
       minItems: 1
   required:
     - index_types
+
+visionChunk:
+  type: object
+  properties:
+    id:
+      type: string
+    asset_id:
+      type: string
+    text:
+      type: string
+    metadata:
+      type: object
 
 documentPreview:
   type: object
@@ -152,3 +179,7 @@ documentPreview:
             type: string
           metadata:
             type: object
+    vision_chunks:
+      type: array
+      items:
+        $ref: '#/visionChunk'

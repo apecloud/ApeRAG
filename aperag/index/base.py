@@ -25,6 +25,7 @@ class IndexType(Enum):
     FULLTEXT = "FULLTEXT"
     GRAPH = "GRAPH"
     SUMMARY = "SUMMARY"
+    VISION = "VISION"
 
 
 class IndexStatus(Enum):

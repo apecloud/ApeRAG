@@ -28,7 +28,7 @@ class TestRedisLockWithConnectionManager:
     def mock_connection_manager(self, mock_redis_client):
         """Create a mock Redis connection manager."""
         with patch("aperag.db.redis_manager.RedisConnectionManager") as mock_manager:
-            mock_manager.get_client = AsyncMock(return_value=mock_redis_client)
+            mock_manager.get_async_client = AsyncMock(return_value=mock_redis_client)
             yield mock_manager, mock_redis_client
 
     def test_redis_lock_creation(self):
@@ -182,7 +182,7 @@ class TestRedisLockWithConnectionManager:
         lock = RedisLock(key="test_integration")
 
         # Test that _get_redis_client calls the connection manager
-        with patch("aperag.db.redis_manager.RedisConnectionManager.get_client") as mock_get:
+        with patch("aperag.db.redis_manager.RedisConnectionManager.get_async_client") as mock_get:
             mock_client = AsyncMock()
             mock_get.return_value = mock_client
 
@@ -222,7 +222,7 @@ class TestRedisLockErrorHandling:
     @pytest.mark.asyncio
     async def test_redis_operation_error_during_acquire(self):
         """Test Redis operation errors during acquire."""
-        with patch("aperag.db.redis_manager.RedisConnectionManager.get_client") as mock_get:
+        with patch("aperag.db.redis_manager.RedisConnectionManager.get_async_client") as mock_get:
             mock_client = AsyncMock()
             mock_client.set.side_effect = Exception("Redis error")
             mock_get.return_value = mock_client
@@ -236,7 +236,7 @@ class TestRedisLockErrorHandling:
     @pytest.mark.asyncio
     async def test_redis_operation_error_during_release(self):
         """Test Redis operation errors during release."""
-        with patch("aperag.db.redis_manager.RedisConnectionManager.get_client") as mock_get:
+        with patch("aperag.db.redis_manager.RedisConnectionManager.get_async_client") as mock_get:
             mock_client = AsyncMock()
             mock_client.set.return_value = True
             mock_client.eval.side_effect = Exception("Redis error")
@@ -260,7 +260,7 @@ class TestRedisLockLuaScript:
     @pytest.mark.asyncio
     async def test_lua_script_execution(self):
         """Test that Lua script is executed with correct parameters."""
-        with patch("aperag.db.redis_manager.RedisConnectionManager.get_client") as mock_get:
+        with patch("aperag.db.redis_manager.RedisConnectionManager.get_async_client") as mock_get:
             mock_client = AsyncMock()
             mock_client.set.return_value = True
             mock_client.eval.return_value = 1

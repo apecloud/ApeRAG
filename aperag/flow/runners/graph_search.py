@@ -80,6 +80,8 @@ class GraphSearchService:
             top_k=top_k,
         )
         context = await rag.aquery_context(query=query, param=param)
+        if not context:
+            return []
 
         # Return documents with graph search metadata
         return [DocumentWithScore(text=context, metadata={"recall_type": "graph_search"})]

@@ -33,7 +33,7 @@ class TestRealWorldSearch:
         try:
             # Test basic programming query
             response = await service.search(
-                WebSearchRequest(query="Python asyncio tutorial", max_results=5, search_engine="duckduckgo", timeout=15)
+                WebSearchRequest(query="Python asyncio tutorial", max_results=5, timeout=15)
             )
 
             print("\n=== DuckDuckGo Search: 'Python asyncio tutorial' ===")
@@ -74,11 +74,9 @@ class TestRealWorldSearch:
             request = WebSearchRequest(
                 query="machine learning",
                 max_results=3,
-                search_engine="duckduckgo",
                 timeout=30,
                 locale="en-US",
                 source="github.com",
-                search_llms_txt=False,
             )
             response = await service.search(request)
 

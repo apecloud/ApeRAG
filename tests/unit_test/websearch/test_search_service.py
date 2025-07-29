@@ -47,19 +47,17 @@ class TestSearchService:
         ]
 
         with patch.object(service.provider, "search", new_callable=AsyncMock) as mock_search:
-            with patch.object(service.provider, "validate_search_engine", return_value=True):
-                mock_search.return_value = mock_results
+            mock_search.return_value = mock_results
 
-                request = WebSearchRequest(query="Python tutorial", max_results=5, search_engine="duckduckgo")
+            request = WebSearchRequest(query="Python tutorial", max_results=5)
 
-                response = await service.search(request)
+            response = await service.search(request)
 
-                assert response.query == "Python tutorial"
-                assert response.search_engine == "duckduckgo"
-                assert len(response.results) == 1
-                assert response.results[0].title == "Test Result"
-                assert response.total_results == 1
-                assert response.search_time >= 0
+            assert response.query == "Python tutorial"
+            assert len(response.results) == 1
+            assert response.results[0].title == "Test Result"
+            assert response.total_results == 1
+            assert response.search_time >= 0
 
     @pytest.mark.asyncio
     async def test_search_simple_interface(self):
@@ -73,13 +71,12 @@ class TestSearchService:
         ]
 
         with patch.object(service.provider, "search", new_callable=AsyncMock) as mock_search:
-            with patch.object(service.provider, "validate_search_engine", return_value=True):
-                mock_search.return_value = mock_results
+            mock_search.return_value = mock_results
 
-                results = await service.search_simple("machine learning", max_results=3)
+            results = await service.search_simple("machine learning", max_results=3)
 
-                assert len(results) == 1
-                assert results[0].title == "Simple Result"
+            assert len(results) == 1
+            assert results[0].title == "Simple Result"
 
     @pytest.mark.asyncio
     async def test_search_error_handling(self):
@@ -93,28 +90,30 @@ class TestSearchService:
 
         # Test provider error
         with patch.object(service.provider, "search", new_callable=AsyncMock) as mock_search:
-            with patch.object(service.provider, "validate_search_engine", return_value=True):
-                mock_search.side_effect = ValueError("Network error")
+            mock_search.side_effect = ValueError("Network error")
 
-                request = WebSearchRequest(query="test")
-                with pytest.raises(ValueError, match="Network error"):
-                    await service.search(request)
+            request = WebSearchRequest(query="test")
+            with pytest.raises(ValueError, match="Network error"):
+                await service.search(request)
 
     @pytest.mark.asyncio
-    async def test_unsupported_search_engine_no_fallback(self):
-        """Test that unsupported search engine is passed through to provider"""
+    async def test_provider_call_parameters(self):
+        """Test that provider is called with correct parameters"""
         service = SearchService.create_default()
 
         with patch.object(service.provider, "search", new_callable=AsyncMock) as mock_search:
             mock_search.return_value = []
 
-            # Use unsupported engine
-            await service.search_simple("test", search_engine="unsupported")
+            # Test that parameters are passed correctly to provider
+            await service.search_simple("test query", max_results=10, timeout=15, locale="zh-CN")
 
-            # Should pass the unsupported engine to provider
+            # Should pass the parameters correctly to provider
             mock_search.assert_called_once()
             call_args = mock_search.call_args.kwargs
-            assert call_args["search_engine"] == "unsupported"
+            assert call_args["query"] == "test query"
+            assert call_args["max_results"] == 10
+            assert call_args["timeout"] == 15
+            assert call_args["locale"] == "zh-CN"
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -129,9 +128,7 @@ class TestSearchService:
 
         # Test simple search
         try:
-            results = await service.search_simple(
-                query="Python programming tutorial", max_results=3, search_engine="duckduckgo", timeout=10
-            )
+            results = await service.search_simple(query="Python programming tutorial", max_results=3, timeout=10)
 
             print("\n=== Real Search Results ===")
             print(f"Found {len(results)} results")
@@ -153,20 +150,16 @@ class TestSearchService:
                 assert result.rank > 0, "Rank should be positive"
 
             # Test full request object
-            request = WebSearchRequest(
-                query="machine learning basics", max_results=2, search_engine="duckduckgo", timeout=10
-            )
+            request = WebSearchRequest(query="machine learning basics", max_results=2, timeout=10)
 
             response = await service.search(request)
 
             print("\n=== Full Response ===")
             print(f"Query: {response.query}")
-            print(f"Engine: {response.search_engine}")
             print(f"Total: {response.total_results}")
             print(f"Time: {response.search_time:.2f}s")
 
             assert response.query == "machine learning basics"
-            assert response.search_engine == "duckduckgo"
             assert response.total_results > 0
             assert response.search_time > 0
             assert len(response.results) > 0

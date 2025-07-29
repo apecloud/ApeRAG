@@ -12,82 +12,50 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import datetime, timedelta
 from typing import List, Optional
 
-from sqlalchemy import and_, select, text, update
+from sqlalchemy import and_, delete, func, select
 
-from aperag.db.models import MergeSuggestion, MergeSuggestionStatus
+from aperag.db.models import MergeSuggestion, MergeSuggestionHistory, MergeSuggestionStatus
 from aperag.db.repositories.base import AsyncRepositoryProtocol
 from aperag.utils.utils import utc_now
 
 
-class AsyncMergeSuggestionRepositoryMixin(AsyncRepositoryProtocol):
-    """Repository mixin for MergeSuggestion operations"""
+class MergeSuggestionRepository(AsyncRepositoryProtocol):
+    """
+    Unified repository for merge suggestions with clean 2-table design:
+    - graph_index_merge_suggestions: Active suggestions (PENDING only)
+    - graph_index_merge_suggestions_history: Processed suggestions (ACCEPTED/REJECTED)
+    """
 
-    async def get_valid_suggestions(self, collection_id: str) -> List[MergeSuggestion]:
-        """Get all valid (non-expired, non-deleted) suggestions for a collection"""
+    # ========== Active Suggestions (Main Table) ==========
+
+    async def get_active_suggestions(self, collection_id: str) -> List[MergeSuggestion]:
+        """Get all active suggestions for a collection"""
 
         async def _query(session):
-            now = utc_now()
             stmt = (
                 select(MergeSuggestion)
-                .where(
-                    and_(
-                        MergeSuggestion.collection_id == collection_id,
-                        MergeSuggestion.gmt_deleted.is_(None),
-                        MergeSuggestion.expires_at > now,
-                        MergeSuggestion.status.in_(
-                            [
-                                MergeSuggestionStatus.PENDING,
-                                MergeSuggestionStatus.ACCEPTED,
-                                MergeSuggestionStatus.REJECTED,
-                            ]
-                        ),
-                    )
-                )
+                .where(MergeSuggestion.collection_id == collection_id)
                 .order_by(MergeSuggestion.confidence_score.desc())
             )
-
             result = await session.execute(stmt)
             return result.scalars().all()
 
         return await self._execute_query(_query)
 
-    async def get_suggestions_by_ids(self, suggestion_ids: List[str]) -> List[MergeSuggestion]:
-        """Get suggestions by their IDs"""
+    async def get_active_suggestion_by_id(self, suggestion_id: str) -> Optional[MergeSuggestion]:
+        """Get an active suggestion by ID"""
 
         async def _query(session):
-            stmt = select(MergeSuggestion).where(
-                and_(MergeSuggestion.id.in_(suggestion_ids), MergeSuggestion.gmt_deleted.is_(None))
-            )
-
+            stmt = select(MergeSuggestion).where(MergeSuggestion.id == suggestion_id)
             result = await session.execute(stmt)
-            return result.scalars().all()
+            return result.scalar_one_or_none()
 
         return await self._execute_query(_query)
 
-    async def get_suggestions_containing_entities(
-        self, collection_id: str, entity_ids: List[str]
-    ) -> List[MergeSuggestion]:
-        """Get suggestions that contain any of the specified entities"""
-
-        async def _query(session):
-            stmt = select(MergeSuggestion).where(
-                and_(
-                    MergeSuggestion.collection_id == collection_id,
-                    MergeSuggestion.gmt_deleted.is_(None),
-                    text("entity_ids && :entity_ids"),  # PostgreSQL array overlap operator
-                )
-            )
-
-            result = await session.execute(stmt, {"entity_ids": entity_ids})
-            return result.scalars().all()
-
-        return await self._execute_query(_query)
-
-    async def batch_create_suggestions(self, suggestions: List[dict]) -> List[MergeSuggestion]:
-        """Batch create suggestions with the same batch_id"""
+    async def create_active_suggestions(self, suggestions: List[dict]) -> List[MergeSuggestion]:
+        """Create new active suggestions"""
 
         async def _operation(session):
             suggestion_batch_id = f"batch{self._generate_random_id()}"
@@ -103,7 +71,7 @@ class AsyncMergeSuggestionRepositoryMixin(AsyncRepositoryProtocol):
                     confidence_score=suggestion["confidence_score"],
                     merge_reason=suggestion["merge_reason"],
                     suggested_target_entity=suggestion["suggested_target_entity"],
-                    expires_at=suggestion.get("expires_at", utc_now() + timedelta(days=7)),
+                    status=MergeSuggestionStatus.PENDING,  # Always PENDING for active suggestions
                 )
                 suggestion_records.append(suggestion_record)
 
@@ -117,98 +85,92 @@ class AsyncMergeSuggestionRepositoryMixin(AsyncRepositoryProtocol):
 
         return await self.execute_with_transaction(_operation)
 
-    async def update_suggestion_status(
-        self, suggestion_id: str, status: MergeSuggestionStatus, operated_at: Optional[datetime] = None
-    ) -> bool:
-        """Update suggestion status"""
+    async def clear_active_suggestions(self, collection_id: str) -> int:
+        """Clear all active suggestions for a collection"""
 
         async def _operation(session):
-            update_values = {"status": status, "gmt_updated": utc_now()}
-
-            if operated_at:
-                update_values["operated_at"] = operated_at
-
-            stmt = (
-                update(MergeSuggestion)
-                .where(and_(MergeSuggestion.id == suggestion_id, MergeSuggestion.gmt_deleted.is_(None)))
-                .values(**update_values)
-            )
-
-            result = await session.execute(stmt)
-            await session.flush()
-            return result.rowcount > 0
-
-        return await self.execute_with_transaction(_operation)
-
-    async def batch_update_suggestion_status(
-        self, suggestion_ids: List[str], status: MergeSuggestionStatus, operated_at: Optional[datetime] = None
-    ) -> int:
-        """Batch update suggestion status"""
-
-        async def _operation(session):
-            update_values = {"status": status, "gmt_updated": utc_now()}
-
-            if operated_at:
-                update_values["operated_at"] = operated_at
-
-            stmt = (
-                update(MergeSuggestion)
-                .where(and_(MergeSuggestion.id.in_(suggestion_ids), MergeSuggestion.gmt_deleted.is_(None)))
-                .values(**update_values)
-            )
-
-            result = await session.execute(stmt)
-            await session.flush()
-            return result.rowcount
-
-        return await self.execute_with_transaction(_operation)
-
-    async def expire_related_suggestions(self, collection_id: str, entity_ids: List[str]) -> int:
-        """Expire suggestions that contain any of the specified entities"""
-        suggestions = await self.get_suggestions_containing_entities(collection_id, entity_ids)
-
-        # Only expire pending suggestions
-        pending_suggestion_ids = [s.id for s in suggestions if s.status == MergeSuggestionStatus.PENDING]
-
-        if pending_suggestion_ids:
-            return await self.batch_update_suggestion_status(
-                pending_suggestion_ids, MergeSuggestionStatus.EXPIRED, utc_now()
-            )
-
-        return 0
-
-    async def cleanup_expired_suggestions(self, collection_id: Optional[str] = None) -> int:
-        """Clean up expired suggestions (soft delete)"""
-
-        async def _operation(session):
-            now = utc_now()
-
-            conditions = [MergeSuggestion.gmt_deleted.is_(None), MergeSuggestion.expires_at <= now]
-
-            if collection_id:
-                conditions.append(MergeSuggestion.collection_id == collection_id)
-
-            stmt = update(MergeSuggestion).where(and_(*conditions)).values(gmt_deleted=now, gmt_updated=now)
-
-            result = await session.execute(stmt)
-            await session.flush()
-            return result.rowcount
-
-        return await self.execute_with_transaction(_operation)
-
-    async def delete_all_suggestions_for_collection(self, collection_id: str) -> int:
-        """Physically delete all suggestions for a collection"""
-
-        async def _operation(session):
-            from sqlalchemy import delete
-
             stmt = delete(MergeSuggestion).where(MergeSuggestion.collection_id == collection_id)
-
             result = await session.execute(stmt)
             await session.flush()
             return result.rowcount
 
         return await self.execute_with_transaction(_operation)
+
+    # ========== History Management ==========
+
+    async def move_to_history(
+        self, suggestion: MergeSuggestion, final_status: MergeSuggestionStatus, operated_by: str = None
+    ) -> MergeSuggestionHistory:
+        """Move an active suggestion to history table and remove from active"""
+
+        async def _operation(session):
+            # Create history record
+            history_record = MergeSuggestionHistory(
+                original_suggestion_id=suggestion.id,
+                collection_id=suggestion.collection_id,
+                suggestion_batch_id=suggestion.suggestion_batch_id,
+                entity_ids=suggestion.entity_ids,
+                entity_ids_hash=suggestion.entity_ids_hash,
+                confidence_score=suggestion.confidence_score,
+                merge_reason=suggestion.merge_reason,
+                suggested_target_entity=suggestion.suggested_target_entity,
+                status=final_status,
+                gmt_created=suggestion.gmt_created,
+                operated_at=utc_now(),
+                operated_by=operated_by,
+            )
+            session.add(history_record)
+
+            # Delete from active suggestions
+            delete_stmt = delete(MergeSuggestion).where(MergeSuggestion.id == suggestion.id)
+            await session.execute(delete_stmt)
+
+            await session.flush()
+            await session.refresh(history_record)
+            return history_record
+
+        return await self.execute_with_transaction(_operation)
+
+    # ========== History Queries ==========
+
+    async def get_suggestion_history(
+        self,
+        collection_id: str,
+        status_filter: List[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[MergeSuggestionHistory]:
+        """Get suggestion history for a collection"""
+
+        async def _query(session):
+            stmt = select(MergeSuggestionHistory).where(MergeSuggestionHistory.collection_id == collection_id)
+
+            if status_filter:
+                stmt = stmt.where(MergeSuggestionHistory.status.in_(status_filter))
+
+            stmt = stmt.order_by(MergeSuggestionHistory.operated_at.desc()).limit(limit).offset(offset)
+
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+        return await self._execute_query(_query)
+
+    async def get_history_stats(self, collection_id: str) -> dict:
+        """Get history statistics by status"""
+
+        async def _query(session):
+            stmt = (
+                select(MergeSuggestionHistory.status, func.count(MergeSuggestionHistory.id))
+                .where(MergeSuggestionHistory.collection_id == collection_id)
+                .group_by(MergeSuggestionHistory.status)
+            )
+
+            result = await session.execute(stmt)
+            return {status: count for status, count in result.fetchall()}
+
+        return await self._execute_query(_query)
+
+    # ========== Utility Methods ==========
 
     def _generate_random_id(self) -> str:
         """Generate a random ID for batch operations"""
@@ -217,12 +179,39 @@ class AsyncMergeSuggestionRepositoryMixin(AsyncRepositoryProtocol):
 
         return "".join(random.sample(uuid.uuid4().hex, 16))
 
+    async def has_active_suggestions(self, collection_id: str) -> bool:
+        """Check if there are any active suggestions"""
 
-# Keep the original class for backwards compatibility if needed
-class MergeSuggestionRepository(AsyncMergeSuggestionRepositoryMixin):
-    """Legacy repository class - use AsyncMergeSuggestionRepositoryMixin instead"""
+        async def _query(session):
+            from sqlalchemy import exists
 
-    def __init__(self, session):
-        # Initialize the parent mixin properly
-        super().__init__()
-        self._session = session
+            stmt = select(exists().where(MergeSuggestion.collection_id == collection_id))
+            result = await session.execute(stmt)
+            return result.scalar()
+
+        return await self._execute_query(_query)
+
+    # ========== Cleanup Methods ==========
+
+    async def cleanup_old_history(self, collection_id: str, days_to_keep: int = 90) -> int:
+        """Clean up old history records (optional maintenance)"""
+        from datetime import timedelta
+
+        cutoff_date = utc_now() - timedelta(days=days_to_keep)
+
+        async def _operation(session):
+            stmt = delete(MergeSuggestionHistory).where(
+                and_(
+                    MergeSuggestionHistory.collection_id == collection_id,
+                    MergeSuggestionHistory.operated_at < cutoff_date,
+                )
+            )
+            result = await session.execute(stmt)
+            await session.flush()
+            return result.rowcount
+
+        return await self.execute_with_transaction(_operation)
+
+
+# Singleton instance
+merge_suggestion_repo = MergeSuggestionRepository()

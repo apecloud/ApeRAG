@@ -30,7 +30,7 @@ from aperag.utils.utils import utc_now
 
 
 class LlmProviderRepositoryMixin(SyncRepositoryProtocol):
-    def query_llm_provider_by_name(self, name: str, user_id: str = None):
+    def query_llm_provider_by_name(self, name: str, user_id: str = None) -> LLMProvider:
         def _query(session):
             stmt = select(LLMProvider).where(LLMProvider.name == name, LLMProvider.gmt_deleted.is_(None))
             if user_id:
@@ -97,6 +97,21 @@ class LlmProviderRepositoryMixin(SyncRepositoryProtocol):
             # For now, return all MSPs since we removed user column
             result = session.execute(stmt)
             return {msp.name: msp for msp in result.scalars().all()}
+
+        return self._execute_query(_query)
+
+    def query_llm_provider_model(self, provider_name: str, api: str, model: str) -> LLMProviderModel:
+        """Get a specific LLM provider model"""
+
+        def _query(session):
+            stmt = select(LLMProviderModel).where(
+                LLMProviderModel.provider_name == provider_name,
+                LLMProviderModel.api == api,
+                LLMProviderModel.model == model,
+                LLMProviderModel.gmt_deleted.is_(None),
+            )
+            result = session.execute(stmt)
+            return result.scalars().first()
 
         return self._execute_query(_query)
 
@@ -501,7 +516,7 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
 
         return await self._execute_query(_query)
 
-    async def query_llm_provider_model(self, provider_name: str, api: str, model: str):
+    async def query_llm_provider_model(self, provider_name: str, api: str, model: str) -> LLMProviderModel:
         """Get a specific LLM provider model"""
 
         async def _query(session):

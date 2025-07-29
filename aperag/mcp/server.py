@@ -37,10 +37,12 @@ async def list_collections() -> Dict[str, Any]:
     """List all collections available to the user.
 
     Returns:
-        List of collections with their metadata (CollectionList format)
+        List of collections with only essential information (id, title, description)
+        for security and optimized LLM search.
 
     Note:
-        Uses CollectionList view model for type-safe response parsing
+        Uses CollectionList view model for type-safe response parsing but filters
+        sensitive and unnecessary information.
     """
     try:
         api_key = get_api_key()
@@ -52,6 +54,20 @@ async def list_collections() -> Dict[str, Any]:
                 try:
                     # Parse response using view model for type safety
                     collection_list = CollectionList.model_validate(response.json())
+
+                    # Filter collection data to only include essential information
+                    # by directly modifying the CollectionList object and setting unneeded fields to None
+                    if collection_list.items:
+                        for collection in collection_list.items:
+                            # Keep essential fields and set sensitive fields to None
+                            # This preserves the original object structure for better maintainability
+                            collection.config = None
+                            collection.created = None
+                            collection.updated = None
+                            collection.source = None
+                            # Type and status are kept for compatibility and filtering
+
+                    # Return the modified object using model_dump()
                     return collection_list.model_dump()
                 except Exception as e:
                     logger.error(f"Failed to parse collections response: {e}")
@@ -144,7 +160,6 @@ async def search_collection(
 async def web_search(
     query: str = "",
     max_results: int = 5,
-    search_engine: str = "duckduckgo",
     timeout: int = 30,
     locale: str = "en-US",
     source: str = "",
@@ -155,7 +170,6 @@ async def web_search(
     Args:
         query: Search query for regular web search. Optional if only using LLM.txt discovery.
         max_results: Maximum number of results to return (default: 5)
-        search_engine: Search engine to use: duckduckgo, google, bing (default: duckduckgo)
         timeout: Request timeout in seconds (default: 30)
         locale: Browser locale (default: en-US)
         source: Optional domain or URL for site-specific filtering. When provided with query,
@@ -177,7 +191,6 @@ async def web_search(
         # Build search request
         search_data = {
             "max_results": max_results,
-            "search_engine": search_engine,
             "timeout": timeout,
             "locale": locale,
         }
@@ -280,7 +293,7 @@ async def aperag_usage_guide() -> str:
 ApeRAG provides powerful knowledge search capabilities across your collections.
 
 ## Available Operations:
-1. **list_collections**: Get all available collections with complete details
+1. **list_collections**: Get all available collections with essential information (ID, title, description)
 2. **search_collection**: Search within collections using multiple search methods
 3. **web_search**: Perform web search using various search engines (Google, DuckDuckGo, Bing)
 4. **web_read**: Read and extract content from web pages
@@ -293,7 +306,7 @@ API authentication is handled automatically through one of these methods:
 The server will automatically try both methods in order of preference.
 
 ## Quick Start:
-1. First, get available collections with complete details: `list_collections()`
+1. First, get available collections with essential information: `list_collections()`
 2. Choose a collection from the list
 3. Search the collection: `search_collection(collection_id="abc123", query="your question")`
    (By default, vector and graph search are enabled for optimal performance)
@@ -310,11 +323,11 @@ By default, vector and graph search are enabled for optimal balance of quality a
 
 ## Example Workflow:
 ```
-# Step 1: Get collections with complete details
+# Step 1: Get collections with essential information
 collections = list_collections()
 
 # Step 2: Choose a collection from the list
-# (collections.items contains all collection details)
+# (collections.items contains collection ID, title, and description)
 collection_id = collections.items[0].id
 
 # Step 3: Search with default methods (vector + graph)
@@ -359,7 +372,6 @@ You can also search the web and extract content from web pages:
 web_results = web_search(
     query="ApeRAG RAG system 2025",
     max_results=5,
-    search_engine="duckduckgo",  # or "google", "bing"
     locale="zh-CN"
 )
 
@@ -474,7 +486,7 @@ I can help you search your knowledge base effectively using ApeRAG.
 
 ## What I can do:
 - 🔍 **Search your knowledge base** using multiple search methods
-- 📚 **Browse your collections** to understand what data you have (with complete details)
+- 📚 **Browse your collections** to understand what data you have (with essential details)
 - 🎯 **Find specific information** with precise queries
 - 💡 **Suggest search strategies** for complex queries
 - 🌐 **Search the web** for latest information using multiple search engines

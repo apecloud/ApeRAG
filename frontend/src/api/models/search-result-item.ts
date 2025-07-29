@@ -50,12 +50,19 @@ export interface SearchResultItem {
      * @memberof SearchResultItem
      */
     'recall_type'?: SearchResultItemRecallTypeEnum;
+    /**
+     * Metadata of the result
+     * @type {object}
+     * @memberof SearchResultItem
+     */
+    'metadata'?: object;
 }
 
 export const SearchResultItemRecallTypeEnum = {
     vector_search: 'vector_search',
     graph_search: 'graph_search',
-    fulltext_search: 'fulltext_search'
+    fulltext_search: 'fulltext_search',
+    summary_search: 'summary_search'
 } as const;
 
 export type SearchResultItemRecallTypeEnum = typeof SearchResultItemRecallTypeEnum[keyof typeof SearchResultItemRecallTypeEnum];

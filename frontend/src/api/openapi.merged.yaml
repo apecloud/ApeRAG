@@ -2440,14 +2440,12 @@ paths:
                 value:
                   query: ApeRAG 2025年最新发展
                   max_results: 5
-                  search_engine: google
               advanced_search:
                 summary: Advanced search
                 description: Search with custom parameters
                 value:
                   query: 机器学习最新进展
                   max_results: 10
-                  search_engine: duckduckgo
                   timeout: 30
                   locale: zh-CN
       responses:
@@ -2470,7 +2468,6 @@ paths:
                         snippet: ApeRAG在2025年将重点发展...
                         domain: example.com
                         timestamp: '2025-01-01T00:00:00Z'
-                    search_engine: google
                     total_results: 1
                     search_time: 1.2
         '400':
@@ -3068,8 +3065,11 @@ components:
           type: number
         text:
           type: string
+        image_uri:
+          type: string
         metadata:
           type: object
+          additionalProperties: true
     feedback:
       type: object
       properties:
@@ -3268,6 +3268,9 @@ components:
         enable_summary:
           type: boolean
           description: Whether to enable summary generation
+        enable_vision:
+          type: boolean
+          description: Whether to enable vision index
         embedding:
           $ref: '#/components/schemas/modelSpec'
         completion:
@@ -3568,6 +3571,16 @@ components:
             - DELETION_IN_PROGRESS
             - FAILED
             - SKIPPED
+        vision_index_status:
+          type: string
+          enum:
+            - PENDING
+            - CREATING
+            - ACTIVE
+            - DELETING
+            - DELETION_IN_PROGRESS
+            - FAILED
+            - SKIPPED
         vector_index_updated:
           type: string
           format: date-time
@@ -3584,6 +3597,10 @@ components:
           type: string
           format: date-time
           description: Summary index last updated time
+        vision_index_updated:
+          type: string
+          format: date-time
+          description: Vision index last updated time
         summary:
           type: string
           description: Summary of the document
@@ -3630,10 +3647,22 @@ components:
               - FULLTEXT
               - GRAPH
               - SUMMARY
+              - VISION
           description: Types of indexes to rebuild
           minItems: 1
       required:
         - index_types
+    visionChunk:
+      type: object
+      properties:
+        id:
+          type: string
+        asset_id:
+          type: string
+        text:
+          type: string
+        metadata:
+          type: object
     documentPreview:
       type: object
       properties:
@@ -3662,6 +3691,10 @@ components:
                 type: string
               metadata:
                 type: object
+        vision_chunks:
+          type: array
+          items:
+            $ref: '#/components/schemas/visionChunk'
     vectorSearchParams:
       type: object
       properties:
@@ -3690,6 +3723,17 @@ components:
         topk:
           type: integer
           description: Top K results
+    summarySearchParams:
+      type: object
+      properties:
+        topk:
+          type: integer
+          description: Top K results
+        similarity:
+          type: number
+          description: Similarity threshold
+          minimum: 0
+          maximum: 1
     searchResultItem:
       type: object
       properties:
@@ -3712,6 +3756,10 @@ components:
             - vector_search
             - graph_search
             - fulltext_search
+            - summary_search
+        metadata:
+          type: object
+          description: Metadata of the result
     searchResult:
       type: object
       properties:
@@ -3726,6 +3774,8 @@ components:
           $ref: '#/components/schemas/fulltextSearchParams'
         graph_search:
           $ref: '#/components/schemas/graphSearchParams'
+        summary_search:
+          $ref: '#/components/schemas/summarySearchParams'
         items:
           type: array
           items:
@@ -3754,6 +3804,8 @@ components:
           $ref: '#/components/schemas/fulltextSearchParams'
         graph_search:
           $ref: '#/components/schemas/graphSearchParams'
+        summary_search:
+          $ref: '#/components/schemas/summarySearchParams'
     graphLabelsResponse:
       type: object
       description: Response containing available graph labels
@@ -4119,11 +4171,6 @@ components:
           format: date-time
           description: Creation timestamp
           example: '2025-01-07T10:00:00Z'
-        expires_at:
-          type: string
-          format: date-time
-          description: Expiration timestamp
-          example: '2025-01-14T10:00:00Z'
         operated_at:
           type: string
           format: date-time
@@ -4140,7 +4187,6 @@ components:
         - suggested_target_entity
         - status
         - created
-        - expires_at
     mergeSuggestionsResponse:
       type: object
       description: Response containing node merge suggestions
@@ -4191,11 +4237,6 @@ components:
           description: Number of rejected suggestions
           example: 1
           minimum: 0
-        expired_count:
-          type: integer
-          description: Number of expired suggestions
-          example: 0
-          minimum: 0
       required:
         - suggestions
         - total_analyzed_nodes
@@ -4206,7 +4247,6 @@ components:
         - pending_count
         - accepted_count
         - rejected_count
-        - expired_count
     suggestionActionRequest:
       type: object
       description: Request to take action on a merge suggestion
@@ -5188,11 +5228,6 @@ components:
           description: Maximum number of results to return
           default: 5
           example: 5
-        search_engine:
-          type: string
-          description: Search engine to use
-          default: duckduckgo
-          example: duckduckgo
         timeout:
           type: integer
           description: Request timeout in seconds
@@ -5259,9 +5294,6 @@ components:
           description: List of search results
           items:
             $ref: '#/components/schemas/webSearchResultItem'
-        search_engine:
-          type: string
-          description: Search engine used
         total_results:
           type: integer
           description: Total number of results found
@@ -5272,7 +5304,6 @@ components:
       required:
         - query
         - results
-        - search_engine
     webReadRequest:
       type: object
       description: Web content reading request

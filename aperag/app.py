@@ -35,18 +35,19 @@ from fastapi import FastAPI  # noqa: E402
 
 from aperag.agent.agent_event_listener import agent_event_listener  # noqa: E402
 from aperag.agent.agent_session_manager_lifecycle import agent_session_manager_lifespan  # noqa: E402
-from aperag.exception_handlers import register_exception_handlers  # noqa: E402
-from aperag.llm.litellm_track import register_custom_llm_track  # noqa: E402
-from aperag.mcp import mcp_server  # noqa: E402
-from aperag.views.api_key import router as api_key_router  # noqa: E402
-from aperag.views.audit import router as audit_router  # noqa: E402
-from aperag.views.auth import router as auth_router  # noqa: E402
-from aperag.views.chat_completion import router as chat_completion_router  # noqa: E402
-from aperag.views.config import router as config_router  # noqa: E402
-from aperag.views.flow import router as flow_router  # noqa: E402
-from aperag.views.llm import router as llm_router  # noqa: E402
-from aperag.views.main import router as main_router  # noqa: E402
-from aperag.views.web import router as web_router  # noqa: E402
+from aperag.exception_handlers import register_exception_handlers
+from aperag.llm.litellm_track import register_custom_llm_track
+from aperag.mcp import mcp_server
+from aperag.views.api_key import router as api_key_router
+from aperag.views.audit import router as audit_router
+from aperag.views.auth import router as auth_router
+from aperag.views.chat_completion import router as chat_completion_router
+from aperag.views.config import router as config_router
+from aperag.views.flow import router as flow_router
+from aperag.views.graph import router as graph_router
+from aperag.views.llm import router as llm_router
+from aperag.views.main import router as main_router
+from aperag.views.web import router as web_router
 
 # Initialize MCP server integration with stateless HTTP to fix OpenAI tool call sequence issues
 mcp_app = mcp_server.http_app(path="/", stateless_http=True)
@@ -92,6 +93,7 @@ app.include_router(api_key_router, prefix="/api/v1")
 app.include_router(audit_router, prefix="/api/v1")  # Add audit router
 app.include_router(flow_router, prefix="/api/v1")
 app.include_router(llm_router, prefix="/api/v1")
+app.include_router(graph_router, prefix="/api/v1")
 app.include_router(web_router, prefix="/api/v1")  # Add web search router
 app.include_router(chat_completion_router, prefix="/v1")
 app.include_router(config_router, prefix="/api/v1/config")

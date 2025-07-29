@@ -408,11 +408,6 @@ mergeSuggestionItem:
       format: date-time
       description: Creation timestamp
       example: "2025-01-07T10:00:00Z"
-    expires_at:
-      type: string
-      format: date-time
-      description: Expiration timestamp
-      example: "2025-01-14T10:00:00Z"
     operated_at:
       type: string
       format: date-time
@@ -429,7 +424,6 @@ mergeSuggestionItem:
     - suggested_target_entity
     - status
     - created
-    - expires_at
 
 mergeSuggestionsResponse:
   type: object
@@ -481,11 +475,6 @@ mergeSuggestionsResponse:
       description: Number of rejected suggestions
       example: 1
       minimum: 0
-    expired_count:
-      type: integer
-      description: Number of expired suggestions
-      example: 0
-      minimum: 0
   required:
     - suggestions
     - total_analyzed_nodes
@@ -496,7 +485,6 @@ mergeSuggestionsResponse:
     - pending_count
     - accepted_count
     - rejected_count
-    - expired_count
 
 suggestionActionRequest:
   type: object

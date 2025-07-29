@@ -177,9 +177,58 @@ export const ChatMessageItem = ({
   const [feedbackMessage, setFeedbackMessage] = useState<string>();
 
   const getReferences: () => CollapseProps['items'] = () =>
-    parts
-      .find((p) => p.type === 'references')
-      ?.references?.map((reference, index) => ({
+  parts
+    .find((p) => p.type === 'references')
+    ?.references?.map((reference, index) => {
+      if (reference.image_uri) {
+        return {
+          key: index,
+          label: (
+            <Typography.Text
+              style={{ maxWidth: 400, color: token.colorPrimary }}
+              ellipsis
+            >
+              {index + 1}.{' '}
+              {reference.metadata?.name ||
+                reference.metadata?.source ||
+                reference.metadata?.query ||
+                reference.metadata?.type ||
+                'Image Reference'}
+            </Typography.Text>
+          ),
+          children: (
+            <div
+              style={{
+                borderTop: `1px solid ${token.colorBorderSecondary}`,
+                paddingTop: 16,
+              }}
+            >
+              <img
+                src={reference.image_uri}
+                alt="Reference"
+                style={{ maxWidth: '100%' }}
+              />
+              {reference.text && (
+                <div style={{ marginTop: 16 }}>
+                  <ApeMarkdown>{reference.text}</ApeMarkdown>
+                </div>
+              )}
+            </div>
+          ),
+          extra: (
+            <Space>
+              <BulbOutlined />
+              {reference.score}
+            </Space>
+          ),
+          style: {
+            marginBottom: 24,
+            borderRadius: token.borderRadiusLG,
+            border: `1px solid ${token.colorBorderSecondary}`,
+          },
+        };
+      }
+      return {
         key: index,
         label: (
           <Typography.Text
@@ -200,7 +249,7 @@ export const ChatMessageItem = ({
               paddingTop: 16,
             }}
           >
-            <ApeMarkdown>{reference.text}</ApeMarkdown>
+            <ApeMarkdown>{reference.text || ''}</ApeMarkdown>
           </div>
         ),
         extra: (
@@ -214,7 +263,8 @@ export const ChatMessageItem = ({
           borderRadius: token.borderRadiusLG,
           border: `1px solid ${token.colorBorderSecondary}`,
         },
-      }));
+      };
+    });
 
   const partReference = useMemo(() => {
     return parts.find((p) => p.type === 'references');

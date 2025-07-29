@@ -33,12 +33,6 @@ export interface WebSearchRequest {
      */
     'max_results'?: number;
     /**
-     * Search engine to use
-     * @type {string}
-     * @memberof WebSearchRequest
-     */
-    'search_engine'?: string;
-    /**
      * Request timeout in seconds
      * @type {number}
      * @memberof WebSearchRequest

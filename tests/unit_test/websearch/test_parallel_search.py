@@ -1,7 +1,7 @@
 """
 Unit tests for the new parallel search architecture.
 
-Tests the web_search_view function's ability to handle:
+Tests the web_search_endpoint function's ability to handle:
 - Regular search only
 - LLM.txt discovery only
 - Site-specific search
@@ -9,16 +9,23 @@ Tests the web_search_view function's ability to handle:
 - Error handling
 """
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from aperag.schema.view_models import WebSearchRequest, WebSearchResultItem
-from aperag.views.web import web_search_view
+from aperag.schema.view_models import WebSearchRequest, WebSearchResponse, WebSearchResultItem
+from aperag.views.web import web_search_endpoint
 
 
 class TestParallelSearchArchitecture:
-    """Test the new parallel search architecture in web_search_view."""
+    """Test the new parallel search architecture in web_search_endpoint."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        # Create a mock user for all tests
+        self.mock_user = MagicMock()
+        self.mock_user.id = 1
+        self.mock_user.username = "test_user"
 
     @pytest.mark.asyncio
     async def test_regular_search_only(self):
@@ -41,30 +48,25 @@ class TestParallelSearchArchitecture:
             ),
         ]
 
-        with patch("aperag.views.web.SearchService") as mock_service_class:
-            mock_service = AsyncMock()
-            mock_service_class.return_value = mock_service
+        # Mock the search response
+        mock_response = WebSearchResponse(query="test query", results=mock_results, total_results=2, search_time=0.1)
 
-            # Mock the search response
-            mock_response = AsyncMock()
-            mock_response.results = mock_results
-            mock_service.search.return_value = mock_response
+        with patch("aperag.views.web._search_with_jina_fallback", new_callable=AsyncMock) as mock_search:
+            mock_search.return_value = mock_response
 
             # Test regular search only
             request = WebSearchRequest(query="test query", max_results=5)
 
-            response = await web_search_view(request)
+            response = await web_search_endpoint(request, self.mock_user)
 
             # Verify response structure
             assert response.query == "test query"
             assert len(response.results) == 2
-            assert response.search_engine == "parallel(1 sources)"
             assert response.results[0].title == "Test Result 1"
             assert response.results[1].title == "Test Result 2"
 
-            # Verify that only one SearchService was created (regular search)
-            assert mock_service_class.call_count == 1
-            mock_service.search.assert_called_once()
+            # Verify that search was called once
+            mock_search.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_llm_txt_discovery_only(self):
@@ -79,28 +81,24 @@ class TestParallelSearchArchitecture:
             )
         ]
 
-        with patch("aperag.views.web.SearchService") as mock_service_class:
-            mock_service = AsyncMock()
-            mock_service_class.return_value = mock_service
+        mock_response = WebSearchResponse(
+            query="LLM.txt:example.com", results=mock_results, total_results=1, search_time=0.05
+        )
 
-            mock_response = AsyncMock()
-            mock_response.results = mock_results
-            mock_service.search.return_value = mock_response
+        with patch("aperag.views.web._search_llm_txt_discovery", new_callable=AsyncMock) as mock_llm_search:
+            mock_llm_search.return_value = mock_response
 
             request = WebSearchRequest(search_llms_txt="example.com", max_results=5)
 
-            response = await web_search_view(request)
+            response = await web_search_endpoint(request, self.mock_user)
 
             # Verify response
             assert response.query == "LLM.txt:example.com"
             assert len(response.results) == 1
-            assert response.search_engine == "parallel(1 sources)"
             assert response.results[0].url == "https://example.com/llms.txt"
 
-            # Verify SearchService was called for LLM.txt provider
-            assert mock_service_class.call_count == 1
-            call_args = mock_service_class.call_args
-            assert call_args[1]["provider_name"] == "llm_txt"
+            # Verify LLM.txt search was called
+            mock_llm_search.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_combined_parallel_search(self):
@@ -126,35 +124,31 @@ class TestParallelSearchArchitecture:
             )
         ]
 
-        with patch("aperag.views.web.SearchService") as mock_service_class:
-            # Create separate mock instances for each service
-            mock_services = [AsyncMock(), AsyncMock()]
-            mock_service_class.side_effect = mock_services
+        # Mock responses
+        regular_response = WebSearchResponse(
+            query="test query", results=regular_results, total_results=1, search_time=0.05
+        )
 
-            # Configure responses
-            mock_response_1 = AsyncMock()
-            mock_response_1.results = regular_results
-            mock_services[0].search.return_value = mock_response_1
+        llm_txt_response = WebSearchResponse(
+            query="LLM.txt:example.com", results=llm_txt_results, total_results=1, search_time=0.03
+        )
 
-            mock_response_2 = AsyncMock()
-            mock_response_2.results = llm_txt_results
-            mock_services[1].search.return_value = mock_response_2
+        with patch("aperag.views.web._search_with_jina_fallback", new_callable=AsyncMock) as mock_regular:
+            with patch("aperag.views.web._search_llm_txt_discovery", new_callable=AsyncMock) as mock_llm:
+                mock_regular.return_value = regular_response
+                mock_llm.return_value = llm_txt_response
 
-            request = WebSearchRequest(query="test query", search_llms_txt="example.com", max_results=5)
+                request = WebSearchRequest(query="test query", search_llms_txt="example.com", max_results=5)
 
-            response = await web_search_view(request)
+                response = await web_search_endpoint(request, self.mock_user)
 
-            # Verify combined response
-            assert response.query == "test query + LLM.txt:example.com"
-            assert len(response.results) == 2  # Merged results
-            assert response.search_engine == "parallel(2 sources)"
+                # Verify combined response
+                assert response.query == "test query + LLM.txt:example.com"
+                assert len(response.results) == 2  # Merged results
 
-            # Verify both SearchServices were created
-            assert mock_service_class.call_count == 2
-
-            # Check that both services were called
-            mock_services[0].search.assert_called_once()
-            mock_services[1].search.assert_called_once()
+                # Verify both searches were called
+                mock_regular.assert_called_once()
+                mock_llm.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_site_specific_search(self):
@@ -169,66 +163,60 @@ class TestParallelSearchArchitecture:
             )
         ]
 
-        with patch("aperag.views.web.SearchService") as mock_service_class:
-            mock_service = AsyncMock()
-            mock_service_class.return_value = mock_service
+        mock_response = WebSearchResponse(query="documentation", results=mock_results, total_results=1, search_time=0.1)
 
-            mock_response = AsyncMock()
-            mock_response.results = mock_results
-            mock_service.search.return_value = mock_response
+        with patch("aperag.views.web._search_with_jina_fallback", new_callable=AsyncMock) as mock_search:
+            mock_search.return_value = mock_response
 
             request = WebSearchRequest(query="documentation", source="github.com", max_results=3)
 
-            response = await web_search_view(request)
+            response = await web_search_endpoint(request, self.mock_user)
 
             # Verify site-specific search
             assert response.query == "documentation"
             assert len(response.results) == 1
-            assert response.results[0].domain == "github.com"
+            assert response.results[0].url == "https://github.com/test"
 
-            # Verify SearchService was called with source
-            mock_service.search.assert_called_once()
-            call_args = mock_service.search.call_args[0][0]  # WebSearchRequest
+            # Verify search was called with correct parameters
+            mock_search.assert_called_once()
+            call_args = mock_search.call_args[0][0]  # First positional argument (request)
             assert call_args.source == "github.com"
 
     @pytest.mark.asyncio
     async def test_error_handling_no_params(self):
-        """Test error handling when neither query nor search_llms_txt provided."""
-        request = WebSearchRequest(max_results=5)
+        """Test error handling when no search parameters are provided."""
+        # Empty request should raise an error
+        request = WebSearchRequest()
 
         with pytest.raises(Exception) as exc_info:
-            await web_search_view(request)
+            await web_search_endpoint(request, self.mock_user)
 
         assert "At least one search type is required" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_error_handling_empty_query(self):
-        """Test error handling with empty query string."""
-        request = WebSearchRequest(
-            query="   ",  # Only whitespace
-            max_results=5,
-        )
+        """Test error handling with empty query."""
+        request = WebSearchRequest(query="")
 
         with pytest.raises(Exception) as exc_info:
-            await web_search_view(request)
+            await web_search_endpoint(request, self.mock_user)
 
         assert "At least one search type is required" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_search_failure_handling(self):
         """Test handling when searches fail."""
-        with patch("aperag.views.web.SearchService") as mock_service_class:
-            mock_service = AsyncMock()
-            mock_service_class.return_value = mock_service
-
+        with patch("aperag.views.web._search_with_jina_fallback", new_callable=AsyncMock) as mock_search:
             # Make search raise an exception
-            mock_service.search.side_effect = Exception("Network error")
+            mock_search.side_effect = Exception("Network error")
 
             request = WebSearchRequest(query="test query", max_results=5)
 
+            # Should raise HTTPException when all searches fail
             with pytest.raises(Exception) as exc_info:
-                await web_search_view(request)
+                await web_search_endpoint(request, self.mock_user)
 
+            # Verify the error message
             assert "All searches failed" in str(exc_info.value)
 
     @pytest.mark.asyncio
@@ -240,27 +228,25 @@ class TestParallelSearchArchitecture:
             )
         ]
 
-        with patch("aperag.views.web.SearchService") as mock_service_class:
-            # Create separate mock instances
-            mock_services = [AsyncMock(), AsyncMock()]
-            mock_service_class.side_effect = mock_services
+        regular_response = WebSearchResponse(
+            query="test query", results=regular_results, total_results=1, search_time=0.05
+        )
 
-            # First service succeeds
-            mock_response = AsyncMock()
-            mock_response.results = regular_results
-            mock_services[0].search.return_value = mock_response
+        with patch("aperag.views.web._search_with_jina_fallback", new_callable=AsyncMock) as mock_regular:
+            with patch("aperag.views.web._search_llm_txt_discovery", new_callable=AsyncMock) as mock_llm:
+                # First service succeeds
+                mock_regular.return_value = regular_response
 
-            # Second service fails
-            mock_services[1].search.side_effect = Exception("LLM.txt error")
+                # Second service fails
+                mock_llm.side_effect = Exception("LLM.txt error")
 
-            request = WebSearchRequest(query="test query", search_llms_txt="example.com", max_results=5)
+                request = WebSearchRequest(query="test query", search_llms_txt="example.com", max_results=5)
 
-            response = await web_search_view(request)
+                response = await web_search_endpoint(request, self.mock_user)
 
-            # Should return successful results despite partial failure
-            assert len(response.results) == 1
-            assert response.results[0].title == "Success Result"
-            assert response.search_engine == "parallel(1 sources)"
+                # Should return successful results despite partial failure
+                assert len(response.results) == 1
+                assert response.results[0].title == "Success Result"
 
     @pytest.mark.asyncio
     async def test_result_deduplication(self):
@@ -294,28 +280,30 @@ class TestParallelSearchArchitecture:
             ),
         ]
 
-        with patch("aperag.views.web.SearchService") as mock_service_class:
-            mock_services = [AsyncMock(), AsyncMock()]
-            mock_service_class.side_effect = mock_services
+        regular_response = WebSearchResponse(
+            query="test query", results=regular_results, total_results=2, search_time=0.05
+        )
 
-            # Configure responses
-            mock_response_1 = AsyncMock()
-            mock_response_1.results = regular_results
-            mock_services[0].search.return_value = mock_response_1
+        llm_txt_response = WebSearchResponse(
+            query="LLM.txt:example.com", results=llm_txt_results, total_results=2, search_time=0.03
+        )
 
-            mock_response_2 = AsyncMock()
-            mock_response_2.results = llm_txt_results
-            mock_services[1].search.return_value = mock_response_2
+        with patch("aperag.views.web._search_with_jina_fallback", new_callable=AsyncMock) as mock_regular:
+            with patch("aperag.views.web._search_llm_txt_discovery", new_callable=AsyncMock) as mock_llm:
+                mock_regular.return_value = regular_response
+                mock_llm.return_value = llm_txt_response
 
-            request = WebSearchRequest(query="test query", search_llms_txt="example.com", max_results=10)
+                request = WebSearchRequest(query="test query", search_llms_txt="example.com", max_results=10)
 
-            response = await web_search_view(request)
+                response = await web_search_endpoint(request, self.mock_user)
 
-            # Should have 3 unique URLs (duplicate removed)
-            assert len(response.results) == 3
+                # Should have 3 unique URLs (duplicate removed)
+                assert len(response.results) == 3
+                assert response.total_results == 3
 
-            urls = [result.url for result in response.results]
-            assert len(set(urls)) == 3  # All URLs should be unique
-            assert duplicate_url in urls
-            assert "https://unique1.com" in urls
-            assert "https://unique2.com" in urls
+                # Verify URLs are unique
+                urls = [result.url for result in response.results]
+                assert len(set(urls)) == 3  # All URLs should be unique
+                assert duplicate_url in urls
+                assert "https://unique1.com" in urls
+                assert "https://unique2.com" in urls

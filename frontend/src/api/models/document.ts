@@ -63,6 +63,12 @@ export interface Document {
      */
     'summary_index_status'?: DocumentSummaryIndexStatusEnum;
     /**
+     * 
+     * @type {string}
+     * @memberof Document
+     */
+    'vision_index_status'?: DocumentVisionIndexStatusEnum;
+    /**
      * Vector index last updated time
      * @type {string}
      * @memberof Document
@@ -86,6 +92,12 @@ export interface Document {
      * @memberof Document
      */
     'summary_index_updated'?: string;
+    /**
+     * Vision index last updated time
+     * @type {string}
+     * @memberof Document
+     */
+    'vision_index_updated'?: string;
     /**
      * Summary of the document
      * @type {string}
@@ -172,5 +184,16 @@ export const DocumentSummaryIndexStatusEnum = {
 } as const;
 
 export type DocumentSummaryIndexStatusEnum = typeof DocumentSummaryIndexStatusEnum[keyof typeof DocumentSummaryIndexStatusEnum];
+export const DocumentVisionIndexStatusEnum = {
+    PENDING: 'PENDING',
+    CREATING: 'CREATING',
+    ACTIVE: 'ACTIVE',
+    DELETING: 'DELETING',
+    DELETION_IN_PROGRESS: 'DELETION_IN_PROGRESS',
+    FAILED: 'FAILED',
+    SKIPPED: 'SKIPPED'
+} as const;
+
+export type DocumentVisionIndexStatusEnum = typeof DocumentVisionIndexStatusEnum[keyof typeof DocumentVisionIndexStatusEnum];
 
 

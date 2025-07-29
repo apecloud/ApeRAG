@@ -1,4 +1,5 @@
 export * from './animate-node';
+export * from './AuthAssetImage';
 export * from './check-card';
 export * from './ChunkViewer';
 export * from './markdown';

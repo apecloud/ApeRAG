@@ -151,6 +151,9 @@ collectionConfig:
     enable_summary:
       type: boolean
       description: Whether to enable summary generation
+    enable_vision:
+      type: boolean
+      description: Whether to enable vision index
     embedding:
       $ref: './model.yaml#/modelSpec'
     completion:
@@ -333,6 +336,18 @@ graphSearchParams:
       type: integer
       description: Top K results
 
+summarySearchParams:
+  type: object
+  properties:
+    topk:
+      type: integer
+      description: Top K results
+    similarity:
+      type: number
+      description: Similarity threshold
+      minimum: 0
+      maximum: 1
+
 searchRequest:
   type: object
   description: Search request
@@ -345,6 +360,8 @@ searchRequest:
       $ref: '#/fulltextSearchParams'
     graph_search:
       $ref: '#/graphSearchParams'
+    summary_search:
+      $ref: '#/summarySearchParams'
 
 searchResultItem:
   type: object
@@ -368,6 +385,10 @@ searchResultItem:
         - vector_search
         - graph_search
         - fulltext_search
+        - summary_search
+    metadata:
+      type: object
+      description: Metadata of the result
 
 searchResult:
   type: object
@@ -383,6 +404,8 @@ searchResult:
       $ref: '#/fulltextSearchParams'
     graph_search:
       $ref: '#/graphSearchParams'
+    summary_search:
+      $ref: '#/summarySearchParams'
     items:
       type: array
       items:

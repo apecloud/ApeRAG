@@ -21,6 +21,7 @@ import {
   Tooltip,
   Typography,
   message,
+  Tooltip,
   theme,
 } from 'antd';
 import _ from 'lodash';
@@ -32,6 +33,7 @@ import DocumentFeishuFormItems from './DocumentFeishuFormItems';
 import DocumentFtpFormItems from './DocumentFtpFormItems';
 import DocumentGithubFormItems from './DocumentGithubFormItems';
 import DocumentLocalFormItems from './DocumentLocalFormItems';
+import { QuestionCircleOutlined } from '@ant-design/icons';
 
 type Props = {
   action: 'add' | 'edit';
@@ -56,6 +58,7 @@ const configEmbeddingCustomLlmProviderKey = [
 
 const configEnableKnowledgeGraphKey = ['config', 'enable_knowledge_graph'];
 const configEnableSummaryKey = ['config', 'enable_summary'];
+const configEnableVisionKey = ['config', 'enable_vision'];
 
 const configCompletionModelKey = ['config', 'completion', 'model'];
 const configCompletionModelServiceProviderKey = [
@@ -399,6 +402,24 @@ export default ({ onSubmit, action, values, form }: Props) => {
               label={formatMessage({ id: 'collection.enable_auto_summary' })}
               valuePropName="checked"
               name={configEnableSummaryKey}
+            >
+              <Switch />
+            </Form.Item>
+          </Col>
+          <Col
+            {...{
+              xs: 24,
+              sm: 24,
+              md: 12,
+              lg: 12,
+              xl: 12,
+              xxl: 12,
+            }}
+          >
+            <Form.Item
+              label={formatMessage({ id: 'collection.enable_vision' })}
+              valuePropName="checked"
+              name={configEnableVisionKey}
             >
               <Switch />
             </Form.Item>

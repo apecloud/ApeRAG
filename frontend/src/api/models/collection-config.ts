@@ -54,6 +54,12 @@ export interface CollectionConfig {
      */
     'enable_summary'?: boolean;
     /**
+     * Whether to enable vision index
+     * @type {boolean}
+     * @memberof CollectionConfig
+     */
+    'enable_vision'?: boolean;
+    /**
      * 
      * @type {ModelSpec}
      * @memberof CollectionConfig

@@ -764,7 +764,7 @@ class LightRAG:
         param: QueryParam = QueryParam(),
     ):
         param.original_query = query
-        entities_context, relations_context, text_units_context = await build_query_context(
+        context_data = await build_query_context(
             query.strip(),
             self.chunk_entity_relation_graph,
             self.entities_vdb,
@@ -776,6 +776,11 @@ class LightRAG:
             self.addon_params,
             chunks_vdb=self.chunks_vdb,
         )
+
+        if context_data is None:
+            return ""
+
+        entities_context, relations_context, text_units_context = context_data
 
         # Remove file_path from all contexts before serialization
         def remove_file_path_from_context(context_list):

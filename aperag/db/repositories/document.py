@@ -170,7 +170,7 @@ class AsyncDocumentRepositoryMixin(AsyncRepositoryProtocol):
 
         return await self.execute_with_transaction(_operation)
 
-    async def query_document(self, user: str, collection_id: str, document_id: str):
+    async def query_document(self, user: str, collection_id: str, document_id: str) -> Document:
         async def _query(session):
             stmt = select(Document).where(
                 Document.id == document_id,

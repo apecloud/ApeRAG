@@ -100,7 +100,6 @@ class SearchService:
         results = await self.provider.search(
             query=request.query,
             max_results=request.max_results,
-            search_engine=request.search_engine,
             timeout=request.timeout,
             locale=request.locale,
             source=request.source,
@@ -112,7 +111,6 @@ class SearchService:
         return WebSearchResponse(
             query=request.query or "",
             results=results,
-            search_engine=request.search_engine,
             total_results=len(results),
             search_time=search_time,
         )
@@ -121,7 +119,6 @@ class SearchService:
         self,
         query: str,
         max_results: int = 5,
-        search_engine: str = "google",
         timeout: int = 30,
         locale: str = "en-US",
     ) -> List[WebSearchResultItem]:
@@ -131,7 +128,6 @@ class SearchService:
         Args:
             query: Search query
             max_results: Maximum number of results
-            search_engine: Search engine to use
             timeout: Request timeout in seconds
             locale: Browser locale
 
@@ -141,7 +137,6 @@ class SearchService:
         request = WebSearchRequest(
             query=query,
             max_results=max_results,
-            search_engine=search_engine,
             timeout=timeout,
             locale=locale,
         )

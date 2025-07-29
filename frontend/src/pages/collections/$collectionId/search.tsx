@@ -1,5 +1,5 @@
 import { SearchRequest, SearchResult } from '@/api';
-import { ApeMarkdown } from '@/components';
+import { ApeMarkdown, AuthAssetImage } from '@/components';
 import { DATETIME_FORMAT } from '@/constants';
 import { api } from '@/services';
 import { CaretRightOutlined, DeleteOutlined } from '@ant-design/icons';
@@ -30,7 +30,7 @@ import { toast } from 'react-toastify';
 import { UndrawScience } from 'react-undraw-illustrations';
 import { FormattedMessage, useIntl, useModel, useParams } from 'umi';
 
-type SearchTypeEnum = 'vector_search' | 'fulltext_search' | 'graph_search';
+type SearchTypeEnum = 'vector_search' | 'fulltext_search' | 'graph_search' | 'summary_search';
 
 export default () => {
   const { formatMessage } = useIntl();
@@ -110,6 +110,8 @@ export default () => {
     {
       title: formatMessage({ id: 'search.history_question' }),
       dataIndex: 'query',
+      fixed: 'left',
+      width: 200,
       render: (_value, record) => {
         return (
           <>
@@ -133,6 +135,8 @@ export default () => {
     {
       title: formatMessage({ id: 'search.searchResults' }),
       align: 'center',
+      fixed: 'left',
+      width: 120,
       render: (text, record) => (
         <Button
           onClick={() => setHistoryModal({ visible: true, record })}
@@ -209,10 +213,43 @@ export default () => {
       },
     },
     {
+      title: formatMessage({ id: 'search.summaryTopK' }),
+      width: 130,
+      render: (text, record) => {
+        return (
+          <Tooltip title={record.summary_search?.topk}>
+            <Progress
+              steps={20}
+              percent={((record.summary_search?.topk || 0) * 100) / 20}
+              size={[3, 4]}
+              showInfo={false}
+            />
+          </Tooltip>
+        );
+      },
+    },
+    {
+      title: formatMessage({ id: 'search.summarySimilarityThreshold' }),
+      width: 130,
+      render: (text, record) => {
+        return (
+          <Tooltip title={record.summary_search?.similarity}>
+            <Progress
+              steps={20}
+              percent={((record.summary_search?.similarity || 0) * 100) / 1}
+              size={[3, 4]}
+              showInfo={false}
+            />
+          </Tooltip>
+        );
+      },
+    },
+    {
       title: formatMessage({ id: 'action.name' }),
       key: 'action',
       width: 80,
       align: 'center',
+      fixed: 'right',
       render: (_value, record) => (
         <Button
           size="small"
@@ -241,6 +278,10 @@ export default () => {
       },
       graph_search: {
         topk: 5,
+      },
+      summary_search: {
+        topk: 5,
+        similarity: 0.7,
       },
     });
   }, []);
@@ -294,6 +335,12 @@ export default () => {
                     }),
                     value: 'graph_search',
                   },
+                  {
+                    label: formatMessage({
+                      id: 'search.type.summary_search',
+                    }),
+                    value: 'summary_search',
+                  },
                 ] as { label: string; value: SearchTypeEnum }[]
               }
             />
@@ -346,6 +393,26 @@ export default () => {
                 </Form.Item>
               </>
             )}
+
+            {searchType.find((item) => item === 'summary_search') && (
+              <>
+                <Form.Item
+                  label={formatMessage({ id: 'search.summaryTopK' })}
+                  name={['summary_search', 'topk']}
+                >
+                  <Slider style={{ width: 80 }} min={0} max={20} />
+                </Form.Item>
+
+                <Form.Item
+                  label={formatMessage({
+                    id: 'search.summarySimilarityThreshold',
+                  })}
+                  name={['summary_search', 'similarity']}
+                >
+                  <Slider style={{ width: 80 }} min={0} max={1} step={0.01} />
+                </Form.Item>
+              </>
+            )}
           </Form>
           <Button
             disabled={!_.size(searchType)}
@@ -358,7 +425,14 @@ export default () => {
         </Space>
       </Card>
 
-      <Table dataSource={records} bordered columns={columns} rowKey="id" />
+      <Table 
+        dataSource={records} 
+        bordered 
+        columns={columns} 
+        rowKey="id" 
+        scroll={{ x: 'max-content' }}
+        size="small"
+      />
 
       <Drawer
         open={historyModal?.visible}
@@ -405,7 +479,18 @@ export default () => {
                     {item.rank}. {item.source}
                   </Typography.Text>
                 ),
-                children: <ApeMarkdown>{item.content}</ApeMarkdown>,
+                children: (
+                  <>
+                    {item.metadata?.asset_id && (
+                      <AuthAssetImage
+                        collectionId={item.metadata?.collection_id}
+                        documentId={item.metadata?.document_id}
+                        src={`asset://${item.metadata?.asset_id}`}
+                      />
+                    )}
+                    <ApeMarkdown>{item.content}</ApeMarkdown>
+                  </>
+                ),
                 extra: (
                   <Space align="center" size="large">
                     {item.recall_type ? (
