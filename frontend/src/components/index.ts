@@ -2,6 +2,7 @@ export * from './animate-node';
 export * from './AuthAssetImage';
 export * from './check-card';
 export * from './ChunkViewer';
+export * from './index-type-selector';
 export * from './markdown';
 export * from './model-select';
 export * from './navbar';

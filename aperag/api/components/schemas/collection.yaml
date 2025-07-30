@@ -145,15 +145,26 @@ collectionConfig:
       example: "system"
     crontab:
       $ref: '#/crontabConfig'
+    enable_vector:
+      type: boolean
+      description: Whether to enable vector index
+      default: true
+    enable_fulltext:
+      type: boolean
+      description: Whether to enable fulltext index
+      default: true
     enable_knowledge_graph:
       type: boolean
-      description: Whether to enable knowledge graph
+      description: Whether to enable knowledge graph index
+      default: true
     enable_summary:
       type: boolean
-      description: Whether to enable summary generation
+      description: Whether to enable summary index
+      default: false
     enable_vision:
       type: boolean
       description: Whether to enable vision index
+      default: false
     embedding:
       $ref: './model.yaml#/modelSpec'
     completion:
