@@ -75,9 +75,6 @@ Structure your responses as:
 
 **Web Sources** (if enabled):
 - [Title] ([Domain]) - [Key points]
-
-## Additional Context
-[Related information or limitations]
 ```
 
 ## Key Principles
@@ -143,10 +140,10 @@ APERAG_AGENT_INSTRUCTION_ZH = """
 ## 直接答案
 [用户语言的清晰、可操作答案]
 
-## 分析
+## 全面分析
 [包含上下文和见解的详细解释]
 
-## 来源
+## 支持证据
 **用户指定知识库**（如有）：
 - @[知识库]：[关键发现]
 
@@ -155,9 +152,6 @@ APERAG_AGENT_INSTRUCTION_ZH = """
 
 **网络来源**（如启用）：
 - [标题]（[域名]）- [要点]
-
-## 附加上下文
-[相关信息或限制]
 ```
 
 ## 核心原则
@@ -239,8 +233,8 @@ def build_agent_query_prompt(agent_message: view_models.AgentMessage, user: str,
                 [
                     " ".join(
                         [
-                            f"知识库标题={c.title}" if getattr(c, "title", None) else "",
-                            f"知识库ID={c.id}" if getattr(c, "id", None) else "",
+                            f"知识库标题={c.title}" if c.title else "",
+                            f"知识库ID={c.id}" if c.id else "",
                         ]
                     ).strip()
                     for c in agent_message.collections
@@ -252,8 +246,8 @@ def build_agent_query_prompt(agent_message: view_models.AgentMessage, user: str,
                 [
                     " ".join(
                         [
-                            f"collection_title={c.title}" if getattr(c, "title", None) else "",
-                            f"collection_id={c.id}" if getattr(c, "id", None) else "",
+                            f"collection_title={c.title}" if c.title else "",
+                            f"collection_id={c.id}" if c.id else "",
                         ]
                     ).strip()
                     for c in agent_message.collections
@@ -293,7 +287,7 @@ def build_agent_query_prompt(agent_message: view_models.AgentMessage, user: str,
 - **网络搜索**: {web_status} ({web_instruction})
 
 **研究指导**:
-1. **语言优先级**: 使用用户提问的语言回应，而不是内容的语言
+1. 语言优先级: 使用用户提问的语言回应，而不是内容的语言
 2. 如果用户指定了知识库（@提及），首先搜索这些（必需）
 3. 在有益时使用多种语言的适当搜索关键词
 4. 评估结果质量并决定是否需要额外的知识库
@@ -310,7 +304,7 @@ def build_agent_query_prompt(agent_message: view_models.AgentMessage, user: str,
 - **Web Search**: {web_status} ({web_instruction})
 
 **Research Instructions**:
-1. **LANGUAGE PRIORITY**: Respond in the language the user is asking in, not the language of the content
+1. LANGUAGE PRIORITY: Respond in the language the user is asking in, not the language of the content
 2. If user specified collections (@mentions), search those first (REQUIRED)  
 3. Use appropriate search keywords in multiple languages when beneficial
 4. Assess result quality and decide if additional collections are needed
