@@ -162,7 +162,7 @@ class ToolResultFormatter:
                 breakdown_parts.append(f"Full-text: {fulltext_count}")
 
         if breakdown_parts:
-            results += " • " + " • ".join(breakdown_parts)
+            results += "\n\n • " + "\n\n • ".join(breakdown_parts)
 
         return f"{execution}\n\n{results}"
 

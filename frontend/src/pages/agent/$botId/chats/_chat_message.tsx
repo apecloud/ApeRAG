@@ -277,10 +277,10 @@ export const ChatMessageItem = ({
               : parts.map((part, index) => {
                   switch (part.type) {
                     case 'tool_call_result': {
-                      const { title } = parseToolCallTitle(part.data || '');
+                      const { title, body } = parseToolCallTitle(part.data || '');
                       return (
                         <CollapseResult key={index} title={title}>
-                          <ApeMarkdown>{part.data}</ApeMarkdown>
+                          <ApeMarkdown>{body}</ApeMarkdown>
                         </CollapseResult>
                       );
                     }
