@@ -234,6 +234,10 @@ export const ChatInput = ({
                     style={{ width: 220 }}
                     value={modelName}
                     onChange={setModelName}
+                    tagFilters={[{
+                      operation: "OR",
+                      tags: ["enable_for_agent"]
+                    }]}
                   />
                 </Tooltip>
               </>
