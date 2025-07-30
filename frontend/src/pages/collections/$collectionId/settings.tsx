@@ -1,7 +1,7 @@
 import { Collection } from '@/api';
 import { Form } from 'antd';
 import { toast } from 'react-toastify';
-import { useIntl, useModel } from 'umi';
+import { useIntl, useModel, history } from 'umi';
 import CollectionForm from '../_form';
 
 export default () => {
@@ -13,6 +13,8 @@ export default () => {
     const updated = await updateCollection(values);
     if (updated) {
       toast.success(formatMessage({ id: 'tips.update.success' }));
+      // Navigate to documents page after successful update
+      history.push(`/collections/${collection?.id}/documents`);
     }
   };
 

@@ -73,7 +73,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
   };
 
   // form field watch
-  const indexTypes = Form.useWatch(configIndexTypesKey, form) || ['vector', 'fulltext', 'graph'];
+  const indexTypes = Form.useWatch(configIndexTypesKey, form) || (action === 'add' ? ['vector', 'fulltext', 'graph'] : []);
   const embeddingModel = Form.useWatch(configEmbeddingModelKey, form);
   const completionModel = Form.useWatch(configCompletionModelKey, form);
   
@@ -154,6 +154,20 @@ export default ({ onSubmit, action, values, form }: Props) => {
     getAvailableModels();
   }, []);
 
+  // Set initial index types based on config values in edit mode
+  useEffect(() => {
+    if (action === 'edit' && values?.config) {
+      const indexTypes = [];
+      if (values.config.enable_vector) indexTypes.push('vector');
+      if (values.config.enable_fulltext) indexTypes.push('fulltext');
+      if (values.config.enable_knowledge_graph) indexTypes.push('graph');
+      if (values.config.enable_summary) indexTypes.push('summary');
+      if (values.config.enable_vision) indexTypes.push('vision');
+      
+      form.setFieldValue(configIndexTypesKey, indexTypes);
+    }
+  }, [action, values, form]);
+
   return (
     <Form
       autoComplete="off"
@@ -228,7 +242,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
         {/* Index Types Selector */}
         <Form.Item
           name={configIndexTypesKey}
-          initialValue={['vector', 'fulltext', 'graph']}
+          initialValue={action === 'add' ? ['vector', 'fulltext', 'graph'] : undefined}
         >
           <IndexTypeSelector disabled={action === 'edit'} />
         </Form.Item>
@@ -284,6 +298,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
           >
             <ModelSelect 
               model="completion" 
+              disabled={action === 'edit'}
               tagFilters={[{
                 operation: "OR",
                 tags: ["enable_for_collection"]

@@ -3336,7 +3336,7 @@ components:
         enable_knowledge_graph:
           type: boolean
           description: Whether to enable knowledge graph index
-          default: false
+          default: true
         enable_summary:
           type: boolean
           description: Whether to enable summary index
