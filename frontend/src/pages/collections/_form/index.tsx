@@ -363,7 +363,13 @@ export default ({ onSubmit, action, values, form }: Props) => {
                 },
               ]}
             >
-              <ModelSelect model="completion" />
+              <ModelSelect 
+                model="completion" 
+                tagFilters={[{
+                  operation: "OR",
+                  tags: ["enable_for_collection"]
+                }]}
+              />
             </Form.Item>
             <Form.Item name={configCompletionModelServiceProviderKey} hidden>
               <Input hidden />
