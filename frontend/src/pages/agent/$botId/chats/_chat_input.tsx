@@ -190,7 +190,22 @@ export const ChatInput = ({
             paddingTop: 4,
           }}
         >
-          <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {bot?.type === 'agent' && (
+              <Tooltip title="Web search">
+                <Button
+                  type="text"
+                  onClick={() => setWebSearchEnabled(!webSearchEnabled)}
+                  style={{
+                    color: webSearchEnabled
+                      ? token.colorPrimary
+                      : token.colorText,
+                  }}
+                  shape="circle"
+                  icon={<GlobalOutlined />}
+                />
+              </Tooltip>
+            )}
             {bot?.type === 'agent' &&
               (selectedCollections.length ? (
                 selectedCollections.map((c) => (
@@ -213,34 +228,19 @@ export const ChatInput = ({
           </div>
           <Space style={{ display: 'flex', gap: 12 }}>
             {bot?.type === 'agent' && (
-              <>
-                <Tooltip title="Web search">
-                  <Button
-                    type="text"
-                    onClick={() => setWebSearchEnabled(!webSearchEnabled)}
-                    style={{
-                      color: webSearchEnabled
-                        ? token.colorPrimary
-                        : token.colorText,
-                    }}
-                    shape="circle"
-                    icon={<GlobalOutlined />}
-                  />
-                </Tooltip>
-                <Tooltip title={modelName}>
-                  <ModelSelect
-                    model="completion"
-                    showSearch
-                    style={{ width: 220 }}
-                    value={modelName}
-                    onChange={setModelName}
-                    tagFilters={[{
-                      operation: "OR",
-                      tags: ["enable_for_agent"]
-                    }]}
-                  />
-                </Tooltip>
-              </>
+              <Tooltip title={modelName}>
+                <ModelSelect
+                  model="completion"
+                  showSearch
+                  style={{ width: 220 }}
+                  value={modelName}
+                  onChange={setModelName}
+                  tagFilters={[{
+                    operation: "OR",
+                    tags: ["enable_for_agent"]
+                  }]}
+                />
+              </Tooltip>
             )}
 
             <Button
