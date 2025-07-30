@@ -176,6 +176,22 @@ export const ChatMessageItem = ({
   const [feedbackTag, setFeedbackTag] = useState<FeedbackTagEnum>();
   const [feedbackMessage, setFeedbackMessage] = useState<string>();
 
+  const parseToolCallTitle = (content: string): { title: string; body: string } => {
+    const lines = content.split('\n');
+    const firstLine = lines[0] || '';
+    
+    // Check if first line has **title** format
+    const titleMatch = firstLine.match(/^\*\*(.*?)\*\*$/);
+    if (titleMatch) {
+      const title = titleMatch[1].trim();
+      const body = lines.slice(1).join('\n').trim();
+      return { title, body };
+    }
+    
+    // Fallback to default title
+    return { title: 'Tool call', body: content };
+  };
+
   const getReferences: () => CollapseProps['items'] = () =>
     parts
       .find((p) => p.type === 'references')
@@ -260,12 +276,14 @@ export const ChatMessageItem = ({
               ? parts[0].data
               : parts.map((part, index) => {
                   switch (part.type) {
-                    case 'tool_call_result':
+                    case 'tool_call_result': {
+                      const { title, body } = parseToolCallTitle(part.data || '');
                       return (
-                        <CollapseResult key={index} title="Tool call">
-                          <ApeMarkdown>{part.data}</ApeMarkdown>
+                        <CollapseResult key={index} title={title}>
+                          <ApeMarkdown>{body}</ApeMarkdown>
                         </CollapseResult>
                       );
+                    }
                     case 'thinking':
                       return (
                         <CollapseResult key={index} title="Thinking">
