@@ -296,7 +296,7 @@ def create_openai_config():
 
     # Define tag rules
     completion_tag_rules = {
-        'enable_for_collection': ['chatgpt-4o-latest', 'gpt-4o-mini', 'o3', 'o3-mini', 'o4-mini'],
+        'enable_for_collection': ['gpt-4o-mini'],
         'enable_for_agent': ['chatgpt-4o-latest', 'gpt-4o-mini', 'o3', 'o3-mini', 'o4-mini'],
         'free': []  # No free models for OpenAI
     }
@@ -340,7 +340,7 @@ def create_anthropic_config():
 
     # Define tag rules
     completion_tag_rules = {
-        'enable_for_collection': ['claude-3-7-sonnet-20250219', 'claude-opus-4-20250514', 'claude-sonnet-4-20250514'],
+        'enable_for_collection': ['claude-3-7-sonnet-20250219', 'claude-sonnet-4-20250514'],
         'enable_for_agent': ['claude-3-7-sonnet-20250219', 'claude-opus-4-20250514', 'claude-sonnet-4-20250514']
     }
     embedding_tag_rules = {
@@ -381,7 +381,8 @@ def create_deepseek_config():
 
     # Define tag rules
     completion_tag_rules = {
-        'enable_for_collection': ['deepseek-r1', 'deepseek-v3']
+        'enable_for_collection': ['deepseek-v3'],
+        # 'enable_for_agent': ['deepseek-r1', 'deepseek-v3']
     }
     embedding_tag_rules = {
         'enable_for_collection': ['*']
@@ -442,8 +443,8 @@ def create_gemini_config():
 
     # Define tag rules
     completion_tag_rules = {
-        'enable_for_collection': ['*'],
-        'enable_for_agent': ['*']
+        'enable_for_collection': ['gemini-2.5-flash'],
+        'enable_for_agent': ['gemini-2.5-flash', 'gemini-2.5-pro'],
     }
     embedding_tag_rules = {
         'enable_for_collection': ['*']
@@ -662,7 +663,8 @@ def create_siliconflow_config():
 
     # Define tag rules
     completion_tag_rules = {
-        'enable_for_collection': ['deepseek-ai/DeepSeek-R1', 'deepseek-ai/DeepSeek-V3']
+        'enable_for_collection': [],
+        'enable_for_agent': [],
     }
     embedding_tag_rules = {
         'enable_for_collection': ['*']
@@ -853,16 +855,8 @@ def create_openrouter_config():
         'free': [':free'],  # Models ending with :free
         'enable_for_collection': [
             'google/gemini-2.5-flash',
-            'google/gemini-2.5-pro',
-            'openai/gpt-4o',
             'openai/gpt-4o-mini',
-            'anthropic/claude-sonnet-4',
             'deepseek/deepseek-chat',
-            'deepseek/deepseek-r1',
-            'openai/o3',
-            'openai/o4-mini',
-            'x-ai/grok-3-beta',
-            'x-ai/grok-3-mini-beta'
         ],
         'enable_for_agent': [
             'google/gemini-2.5-flash',
