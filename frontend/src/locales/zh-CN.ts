@@ -249,6 +249,12 @@ export default {
   'document.index.rebuild.confirm': '确认重建',
   'document.index.rebuild.success': '索引重建任务已启动',
   'document.index.rebuild.failed': '索引重建失败',
+  'document.index.rebuild.failed.button': '重建失败索引',
+  'document.index.rebuild.failed.confirm.title': '重建失败索引',
+  'document.index.rebuild.failed.confirm.content': '确定要重建所有失败的索引吗？这将为 {count} 个文档重建失败的索引。',
+  'document.index.rebuild.failed.success': '成功为 {total} 个文档中的 {success} 个启动了重建任务',
+  'document.index.rebuild.failed.partial': '{total} 个文档中有 {failed} 个索引重建失败',
+  'document.index.rebuild.noFailedIndexes': '未找到失败的索引',
   'document.view.title': '查看: {name}',
   'document.view.unsupportedFormat': '不支持预览该文件格式。',
 

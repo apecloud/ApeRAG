@@ -251,6 +251,12 @@ export default {
   'document.index.rebuild.confirm': 'Confirm Rebuild',
   'document.index.rebuild.success': 'Index rebuild task initiated',
   'document.index.rebuild.failed': 'Index rebuild failed',
+  'document.index.rebuild.failed.button': 'Rebuild Failed Indexes',
+  'document.index.rebuild.failed.confirm.title': 'Rebuild Failed Indexes',
+  'document.index.rebuild.failed.confirm.content': 'Are you sure you want to rebuild all failed indexes? This will rebuild failed indexes for {count} documents.',
+  'document.index.rebuild.failed.success': 'Successfully initiated rebuild for {success} of {total} documents',
+  'document.index.rebuild.failed.partial': 'Failed to rebuild indexes for {failed} of {total} documents',
+  'document.index.rebuild.noFailedIndexes': 'No failed indexes found',
   'document.view.title': 'View: {name}',
   'document.view.unsupportedFormat':
     'This file format is not supported for viewing.',

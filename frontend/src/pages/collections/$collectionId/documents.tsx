@@ -136,6 +136,117 @@ export default () => {
     }
   };
 
+  // Get documents with failed indexes
+  const getDocumentsWithFailedIndexes = () => {
+    if (!documents) return [];
+    
+    return documents.filter((doc) => {
+      const hasFailedVector = doc.vector_index_status === 'FAILED';
+      const hasFailedFulltext = doc.fulltext_index_status === 'FAILED';
+      const hasFailedGraph = doc.graph_index_status === 'FAILED';
+      const hasFailedSummary = doc.summary_index_status === 'FAILED';
+      const hasFailedVision = doc.vision_index_status === 'FAILED';
+      
+      return hasFailedVector || hasFailedFulltext || hasFailedGraph || hasFailedSummary || hasFailedVision;
+    });
+  };
+
+  // Get failed index types for a document
+  const getFailedIndexTypes = (document: ApeDocument): RebuildIndexesRequestIndexTypesEnum[] => {
+    const failedTypes: RebuildIndexesRequestIndexTypesEnum[] = [];
+    
+    if (document.vector_index_status === 'FAILED') {
+      failedTypes.push(RebuildIndexesRequestIndexTypesEnum.VECTOR);
+    }
+    if (document.fulltext_index_status === 'FAILED') {
+      failedTypes.push(RebuildIndexesRequestIndexTypesEnum.FULLTEXT);
+    }
+    if (document.graph_index_status === 'FAILED') {
+      failedTypes.push(RebuildIndexesRequestIndexTypesEnum.GRAPH);
+    }
+    if (document.summary_index_status === 'FAILED') {
+      failedTypes.push(RebuildIndexesRequestIndexTypesEnum.SUMMARY);
+    }
+    if (document.vision_index_status === 'FAILED') {
+      failedTypes.push(RebuildIndexesRequestIndexTypesEnum.VISION);
+    }
+    
+    return failedTypes;
+  };
+
+  // Handle rebuild failed indexes
+  const handleRebuildFailedIndexes = async () => {
+    const failedDocuments = getDocumentsWithFailedIndexes();
+    
+    if (failedDocuments.length === 0) {
+      toast.info(formatMessage({ id: 'document.index.rebuild.noFailedIndexes' }));
+      return;
+    }
+
+    const confirmed = await new Promise<boolean>((resolve) => {
+      modal.confirm({
+        title: formatMessage({ id: 'document.index.rebuild.failed.confirm.title' }),
+        content: formatMessage(
+          { id: 'document.index.rebuild.failed.confirm.content' },
+          { count: failedDocuments.length }
+        ),
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false),
+      });
+    });
+
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+      let successCount = 0;
+      let failureCount = 0;
+
+      // Process documents sequentially to avoid overwhelming the server
+      for (const document of failedDocuments) {
+        try {
+          const failedIndexTypes = getFailedIndexTypes(document);
+          if (failedIndexTypes.length > 0) {
+            await api.collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost({
+              collectionId: collectionId!,
+              documentId: document.id!,
+              rebuildIndexesRequest: {
+                index_types: failedIndexTypes as any,
+              },
+            });
+            successCount++;
+          }
+        } catch (error) {
+          failureCount++;
+          console.error(`Failed to rebuild indexes for document ${document.id}:`, error);
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(
+          formatMessage(
+            { id: 'document.index.rebuild.failed.success' },
+            { success: successCount, total: failedDocuments.length }
+          )
+        );
+        getDocuments();
+      }
+
+      if (failureCount > 0) {
+        toast.warning(
+          formatMessage(
+            { id: 'document.index.rebuild.failed.partial' },
+            { failed: failureCount, total: failedDocuments.length }
+          )
+        );
+      }
+    } catch (error) {
+      toast.error(formatMessage({ id: 'document.index.rebuild.failed' }));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // 新增：点击查看摘要（直接用record.summary，无需再请求接口）
   const handleViewSummary = (record: ApeDocument) => {
     setSummaryDoc(record);
@@ -460,6 +571,24 @@ export default () => {
               </Button>
             </Upload>
           ) : null}
+          <Button
+            type="default"
+            onClick={handleRebuildFailedIndexes}
+            disabled={getDocumentsWithFailedIndexes().length === 0}
+            loading={documentsLoading}
+            style={{
+              borderColor: getDocumentsWithFailedIndexes().length > 0 ? '#ff4d4f' : undefined,
+              color: getDocumentsWithFailedIndexes().length > 0 ? '#ff4d4f' : undefined,
+            }}
+          >
+            <ReloadOutlined />
+            <FormattedMessage id="document.index.rebuild.failed.button" />
+            {getDocumentsWithFailedIndexes().length > 0 && (
+              <span style={{ marginLeft: 4, fontSize: '12px', opacity: 0.8 }}>
+                ({getDocumentsWithFailedIndexes().length})
+              </span>
+            )}
+          </Button>
           <RefreshButton
             loading={documentsLoading}
             onClick={() => collectionId && getDocuments()}
