@@ -1,10 +1,10 @@
 export const collection = {
-  'collection.name': 'Dataset',
+  'collection.name': 'Collection',
   'collection.files': 'All files',
   'collection.settings': 'Settings',
   'collection.search': 'Search',
-  'collection.add': 'Add Dataset',
-  'collection.select': 'Select Dataset',
+  'collection.add': 'Add Collection',
+  'collection.select': 'Select Collection',
   'collection.tips':
     'You can import and manage your data sources in dataset to enhance the context of LLM.',
   'collection.source': 'Data source',
