@@ -489,6 +489,7 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
             stmt = select(LLMProviderModel).where(LLMProviderModel.gmt_deleted.is_(None))
             if provider_name:
                 stmt = stmt.where(LLMProviderModel.provider_name == provider_name)
+            stmt = stmt.order_by(LLMProviderModel.model)
             result = await session.execute(stmt)
             return result.scalars().all()
 
@@ -508,8 +509,10 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
             if not provider_names:
                 return []
 
-            stmt = select(LLMProviderModel).where(
-                LLMProviderModel.provider_name.in_(provider_names), LLMProviderModel.gmt_deleted.is_(None)
+            stmt = (
+                select(LLMProviderModel)
+                .where(LLMProviderModel.provider_name.in_(provider_names), LLMProviderModel.gmt_deleted.is_(None))
+                .order_by(LLMProviderModel.model)
             )
             result = await session.execute(stmt)
             return result.scalars().all()
@@ -713,8 +716,12 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
                 return {"providers": [], "models": []}
 
             # Second query: Get models for available providers only
-            model_stmt = select(LLMProviderModel).where(
-                LLMProviderModel.provider_name.in_(available_provider_names), LLMProviderModel.gmt_deleted.is_(None)
+            model_stmt = (
+                select(LLMProviderModel)
+                .where(
+                    LLMProviderModel.provider_name.in_(available_provider_names), LLMProviderModel.gmt_deleted.is_(None)
+                )
+                .order_by(LLMProviderModel.model)
             )
 
             model_result = await session.execute(model_stmt)

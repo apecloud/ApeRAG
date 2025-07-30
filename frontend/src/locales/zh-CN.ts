@@ -363,9 +363,13 @@ export default {
   'model.field.maxOutput': '最大输出',
   'model.field.maxOutput.tooltip': '模型支持的最大输出Token长度',
   'model.field.tags': '标签',
-  'model.field.tags.tooltip':
-    '为模型设置标签，便于分类和识别（例如：free, recommend）',
-  'model.field.action': '操作',
+      'model.field.tags.tooltip':
+      '标签由上方的用途选择自动管理，无需手动编辑',
+      'model.field.action': '操作',
+    'model.field.useCases': '用途',
+    'model.field.useCases.tooltip': '选择模型适用的业务场景，会自动添加相应标签',
+    'model.useCase.update.success': '用途更新成功',
+    'model.useCase.update.failed': '用途更新失败',
 
   // API Key Management
   'api_key.title': 'API 密钥管理',
