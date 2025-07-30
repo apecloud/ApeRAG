@@ -586,10 +586,10 @@ def create_alibabacloud_config():
 
     # Define tag rules
     completion_tag_rules = {
-        'enable_for_collection': ['qwen-max']
+        'enable_for_collection': []
     }
     embedding_tag_rules = {
-        'enable_for_collection': ['*'],
+        'enable_for_collection': ['text-embedding-v4'],
         'multimodal': ['multimodal-embedding-v1'],
         'default_for_embedding': ['text-embedding-v4'],
     }
@@ -793,12 +793,10 @@ def create_jina_config():
         'enable_for_collection': []  # No completion models for Jina
     }
     embedding_tag_rules = {
-        'enable_for_collection': ['*'],
-        'default_for_embedding': ['jina-embeddings-v4'],
+        # 'enable_for_collection': ['*'],
     }
     rerank_tag_rules = {
-        'enable_for_collection': ['*'],
-        'default_for_rerank': ['jina-reranker-m0'],
+        # 'enable_for_collection': ['*'],
     }
 
     config = {
