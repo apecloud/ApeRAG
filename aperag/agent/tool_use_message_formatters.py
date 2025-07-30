@@ -170,7 +170,7 @@ class ToolResultFormatter:
         if self.language == "zh-CN":
             execution = "📚 正在搜索可用知识库"
         else:
-            execution = "📚 Retrieving all available knowledge collections"
+            execution = "📚 Searching available knowledge collections"
 
         # Part 2: Results (only if has collections)
         if count == 0:
@@ -181,16 +181,16 @@ class ToolResultFormatter:
         else:
             results = f"📚 Found {count} knowledge base collections"
 
-        # Add collection names (first 3)
+        # Add collection names (first 5)
         if result.items:
             collection_names = [item.title or item.id or "Unknown" for item in result.items[:5]]
             if len(result.items) > 5:
                 collection_names.append("...")
 
             if self.language == "zh-CN":
-                results += f" • 集合：{', '.join(collection_names)}"
+                results += "\n\n • " + "\n\n • ".join(collection_names)
             else:
-                results += f" • Collections: {', '.join(collection_names)}"
+                results += "\n\n • " + "\n\n • ".join(collection_names)
 
         return f"{execution}\n\n{results}"
 
@@ -214,15 +214,22 @@ class ToolResultFormatter:
         else:
             results = f"🌐 Found {count} web results"
 
-        # Add domains (first 3)
+        # Add search results as markdown links (first 5)
         if result.results:
-            domains = list(set([item.domain for item in result.results[:5]]))
+            links = []
+            for item in result.results[:5]:
+                # Create markdown link format [title](url)
+                title = item.title or item.domain or "Untitled"
+                url = item.url
+                links.append(f"[{title}]({url})")
+
             if len(result.results) > 5:
-                domains.append("...")
+                links.append("...")
+
             if self.language == "zh-CN":
-                results += f"\n\n • {', '.join(domains)}"
+                results += "\n\n • " + "\n\n • ".join(links)
             else:
-                results += f"\n\n • {', '.join(domains)}"
+                results += "\n\n • " + "\n\n • ".join(links)
 
         return f"{execution}\n\n{results}"
 
@@ -246,18 +253,24 @@ class ToolResultFormatter:
         else:
             results = f"📖 Successfully read {success_count} web pages"
 
-        # Add page titles (first 3 successful ones)
+        # Add page links as markdown links (first 5 successful ones)
         if result.results:
             successful_results = [item for item in result.results if item.status == "success"]
-            page_titles = [item.title or item.url for item in successful_results[:3]]
-            if len(successful_results) > 3:
-                page_titles.append("...")
+            links = []
+            for item in successful_results[:5]:
+                # Create markdown link format [title](url)
+                title = item.title or "Untitled"
+                url = item.url
+                links.append(f"[{title}]({url})")
 
-            if page_titles:
+            if len(successful_results) > 5:
+                links.append("...")
+
+            if links:
                 if self.language == "zh-CN":
-                    results += f"\n\n • {', '.join(page_titles)}"
+                    results += "\n\n • " + "\n\n • ".join(links)
                 else:
-                    results += f"\n\n • {', '.join(page_titles)}"
+                    results += "\n\n • " + "\n\n • ".join(links)
 
         return f"{execution}\n\n{results}"
 
