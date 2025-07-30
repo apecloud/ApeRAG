@@ -957,7 +957,7 @@ export default () => {
               dataSource={getCurrentProviderModels()}
               rowKey={(record) => `${record.api}-${record.model}`}
               loading={loading}
-              // pagination={false}
+              pagination={{ pageSize: 100 }}
               size="small"
               scroll={{ x: 700 }}
               style={{
