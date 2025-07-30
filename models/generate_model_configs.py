@@ -197,7 +197,6 @@ def apply_model_tags(model_specs: List[Dict[str, Any]], tag_rules: Dict[str, Lis
                     if tag not in tags:
                         tags.append(tag)
                     break
-                # Exact matching for all other patterns (especially recommend tags)
                 elif pattern != ':free' and pattern != '*' and pattern == model_name:
                     if tag not in tags:
                         tags.append(tag)
@@ -297,14 +296,15 @@ def create_openai_config():
 
     # Define tag rules
     completion_tag_rules = {
-        'recommend': ['chatgpt-4o-latest', 'gpt-4o-mini', 'o3', 'o3-mini', 'o4-mini'],
+        'enable_for_collection': ['chatgpt-4o-latest', 'gpt-4o-mini', 'o3', 'o3-mini', 'o4-mini'],
+        'enable_for_agent': ['chatgpt-4o-latest', 'gpt-4o-mini', 'o3', 'o3-mini', 'o4-mini'],
         'free': []  # No free models for OpenAI
     }
     embedding_tag_rules = {
-        'recommend': ['*']  # All embedding models get recommend tag
+        'enable_for_collection': ['*']
     }
     rerank_tag_rules = {
-        'recommend': ['*']  # All rerank models get recommend tag
+        'enable_for_collection': ['*']
     }
 
     config = {
@@ -340,13 +340,14 @@ def create_anthropic_config():
 
     # Define tag rules
     completion_tag_rules = {
-        'recommend': ['claude-3-7-sonnet-20250219', 'claude-opus-4-20250514', 'claude-sonnet-4-20250514']
+        'enable_for_collection': ['claude-3-7-sonnet-20250219', 'claude-opus-4-20250514', 'claude-sonnet-4-20250514'],
+        'enable_for_agent': ['claude-3-7-sonnet-20250219', 'claude-opus-4-20250514', 'claude-sonnet-4-20250514']
     }
     embedding_tag_rules = {
-        'recommend': ['*']  # All embedding models get recommend tag
+        'enable_for_collection': ['*']
     }
     rerank_tag_rules = {
-        'recommend': ['*']  # All rerank models get recommend tag
+        'enable_for_collection': ['*']
     }
 
     config = {
@@ -380,13 +381,13 @@ def create_deepseek_config():
 
     # Define tag rules
     completion_tag_rules = {
-        'recommend': ['deepseek-r1', 'deepseek-v3']
+        'enable_for_collection': ['deepseek-r1', 'deepseek-v3']
     }
     embedding_tag_rules = {
-        'recommend': ['*']  # All embedding models get recommend tag
+        'enable_for_collection': ['*']
     }
     rerank_tag_rules = {
-        'recommend': ['*']  # All rerank models get recommend tag
+        'enable_for_collection': ['*']
     }
 
     config = {
@@ -441,13 +442,14 @@ def create_gemini_config():
 
     # Define tag rules
     completion_tag_rules = {
-        'recommend': ['*']
+        'enable_for_collection': ['*'],
+        'enable_for_agent': ['*']
     }
     embedding_tag_rules = {
-        'recommend': ['*']  # All embedding models get recommend tag
+        'enable_for_collection': ['*']
     }
     rerank_tag_rules = {
-        'recommend': ['*']  # All rerank models get recommend tag
+        'enable_for_collection': ['*']
     }
 
     config = {
@@ -483,13 +485,13 @@ def create_xai_config():
 
     # Define tag rules
     completion_tag_rules = {
-        'recommend': ['xai/grok-3', 'xai/grok-3-mini']
+        'enable_for_collection': ['xai/grok-3', 'xai/grok-3-mini']
     }
     embedding_tag_rules = {
-        'recommend': ['*']  # All embedding models get recommend tag
+        'enable_for_collection': ['*']
     }
     rerank_tag_rules = {
-        'recommend': ['*']  # All rerank models get recommend tag
+        'enable_for_collection': ['*']
     }
 
     config = {
@@ -583,15 +585,15 @@ def create_alibabacloud_config():
 
     # Define tag rules
     completion_tag_rules = {
-        'recommend': ['qwen-max']
+        'enable_for_collection': ['qwen-max']
     }
     embedding_tag_rules = {
-        'recommend': ['*'],  # All embedding models get recommend tag
+        'enable_for_collection': ['*'],
         'multimodal': ['multimodal-embedding-v1'],
         'default_for_embedding': ['text-embedding-v4'],
     }
     rerank_tag_rules = {
-        'recommend': ['*'],  # All rerank models get recommend tag
+        'enable_for_collection': ['*'],
         'default_for_rerank': ['gte-rerank-v2'],
     }
 
@@ -660,13 +662,13 @@ def create_siliconflow_config():
 
     # Define tag rules
     completion_tag_rules = {
-        'recommend': ['deepseek-ai/DeepSeek-R1', 'deepseek-ai/DeepSeek-V3']
+        'enable_for_collection': ['deepseek-ai/DeepSeek-R1', 'deepseek-ai/DeepSeek-V3']
     }
     embedding_tag_rules = {
-        'recommend': ['*']  # All embedding models get recommend tag
+        'enable_for_collection': ['*']
     }
     rerank_tag_rules = {
-        'recommend': ['*']  # All rerank models get recommend tag
+        'enable_for_collection': ['*']
     }
 
     config = {
@@ -786,14 +788,14 @@ def create_jina_config():
 
     # Define tag rules
     completion_tag_rules = {
-        'recommend': []  # No completion models for Jina
+        'enable_for_collection': []  # No completion models for Jina
     }
     embedding_tag_rules = {
-        'recommend': ['*'],  # All embedding models get recommend tag
+        'enable_for_collection': ['*'],
         'default_for_embedding': ['jina-embeddings-v4'],
     }
     rerank_tag_rules = {
-        'recommend': ['*'],  # All rerank models get recommend tag
+        'enable_for_collection': ['*'],
         'default_for_rerank': ['jina-reranker-m0'],
     }
 
@@ -849,7 +851,7 @@ def create_openrouter_config():
     # Define tag rules - OpenRouter models with :free are free
     completion_tag_rules = {
         'free': [':free'],  # Models ending with :free
-        'recommend': [
+        'enable_for_collection': [
             'google/gemini-2.5-flash',
             'google/gemini-2.5-pro',
             'openai/gpt-4o',
@@ -862,14 +864,18 @@ def create_openrouter_config():
             'x-ai/grok-3-beta',
             'x-ai/grok-3-mini-beta'
         ],
+        'enable_for_agent': [
+            'google/gemini-2.5-flash',
+            'google/gemini-2.5-pro',
+        ],
         'default_for_indexing': ['google/gemini-2.5-flash'],
         'default_for_generation': ['google/gemini-2.5-pro'],
     }
     embedding_tag_rules = {
-        'recommend': ['*']  # All embedding models get recommend tag
+        'enable_for_collection': ['*']
     }
     rerank_tag_rules = {
-        'recommend': ['*']  # All rerank models get recommend tag
+        'enable_for_collection': ['*']
     }
 
     # Setup file paths - now that the script is in models directory, use current directory
@@ -1197,7 +1203,7 @@ def main():
         print("   Modify the completion_blocklist, embedding_blocklist, or rerank_blocklist in provider functions")
         print("3. To add/modify model tags:")
         print("   Update the tag_rules dictionaries in provider functions")
-        print("   Example: completion_tag_rules = {'recommend': ['model1', 'model2'], 'free': ['model3']}")
+        print("   Example: completion_tag_rules = {'enable_for_collection': ['model1', 'model2'], 'free': ['model3']}")
 
     except Exception as e:
         print(f"❌ Error generating SQL script: {e}")
