@@ -59,8 +59,6 @@ logger = logging.getLogger(__name__)
 
 
 def format_websocket_error(error: Exception, data: str) -> AgentErrorResponse:
-    """格式化WebSocket错误响应 - 简单直接"""
-    # 尽力提取语言，失败就返回英语，不死磕
     try:
         parsed = safe_json_parse(data, "language_detection")
         language = parsed.get("language", "en-US")
@@ -77,7 +75,6 @@ def format_websocket_error(error: Exception, data: str) -> AgentErrorResponse:
         if "completion" in error_msg or "modelspec" in error_msg:
             return format_invalid_model_spec_error(str(error), language)
 
-    # 默认处理
     return format_processing_error(str(error), language)
 
 

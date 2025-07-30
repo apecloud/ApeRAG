@@ -20,7 +20,7 @@ import {
 import alpha from 'color-alpha';
 import _ from 'lodash';
 import { useCallback, useEffect, useState } from 'react';
-import { css, styled, useIntl, useModel } from 'umi';
+import { css, styled, useIntl, useModel, getLocale } from 'umi';
 
 export const StyledChatInputContainer = styled('div').withConfig({
   shouldForwardProp: (prop) => !['token'].includes(prop),
@@ -135,6 +135,7 @@ export const ChatInput = ({
           custom_llm_provider: model?.custom_llm_provider,
         },
         web_search_enabled: webSearchEnabled,
+        language: getLocale(),
       });
     }
     onSubmit(data);
