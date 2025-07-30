@@ -26,6 +26,10 @@ export const NavbarSettings = () => {
         label: <FormattedMessage id="audit.logs.title" />,
         key: `/settings/auditLogs`,
       },
+      {
+        label: <FormattedMessage id="settings.miscellaneous" />,
+        key: `/settings/miscellaneous`,
+      },
     ],
     [],
   );

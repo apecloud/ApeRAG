@@ -60,6 +60,12 @@ paths:
   /collections/{collection_id}/searches/{search_id}:
     $ref: './paths/collections.yaml#/search_detail'
 
+  # settings
+  /settings:
+    $ref: './paths/settings.yaml#/settings'
+  /settings/test_mineru_token:
+    $ref: './paths/misc.yaml#/test_mineru_token'
+
   # graphs
   /collections/{collection_id}/graphs/labels:
     $ref: './paths/collections.yaml#/graph_labels'

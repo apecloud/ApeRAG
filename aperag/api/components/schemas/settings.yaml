@@ -1,0 +1,9 @@
+Settings:
+  type: object
+  properties:
+    use_mineru:
+      type: boolean
+      description: Whether to use MinerU
+    mineru_api_token:
+      type: string
+      description: API token for MinerU

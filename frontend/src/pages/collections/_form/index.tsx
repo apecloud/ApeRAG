@@ -20,11 +20,10 @@ import {
   Switch,
   Tooltip,
   Typography,
-  message,
   theme,
 } from 'antd';
 import _ from 'lodash';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { FormattedMessage, useIntl, useModel } from 'umi';
 import DocumentCloudFormItems from './DocumentCloudFormItems';
 import DocumentEmailFormItems from './DocumentEmailFormItems';
@@ -71,9 +70,6 @@ const configCompletionCustomLlmProviderKey = [
 ];
 
 const configEmailSourceKey = ['config', 'email_source'];
-const configParserUseMineruKey = ['config', 'parser', 'use_mineru'];
-const configParserMineruApiTokenKey = ['config', 'parser', 'mineru_api_token'];
-
 export default ({ onSubmit, action, values, form }: Props) => {
   const { formatMessage } = useIntl();
   const { token } = theme.useToken();
@@ -105,81 +101,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
 
   const enableSummary = Form.useWatch(configEnableSummaryKey, form);
 
-  const useMineru = Form.useWatch(configParserUseMineruKey, form);
-  const mineruApiToken = Form.useWatch(configParserMineruApiTokenKey, form);
-  const [isTesting, setIsTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{
-    type: 'success' | 'danger';
-    message: string;
-  } | null>(null);
-
   const completionModel = Form.useWatch(configCompletionModelKey, form);
-
-  const handleTestMineruToken = async () => {
-    setIsTesting(true);
-    setTestResult(null);
-    const token = form.getFieldValue(configParserMineruApiTokenKey);
-    if (!token) {
-      message.error(
-        formatMessage({ id: 'collection.mineru_api_token.required' }),
-      );
-      setIsTesting(false);
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/v1/collections/test-mineru-token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ token }),
-      });
-      const result = await response.json();
-      const { status_code, data: res } = result;
-
-      if (status_code === 401) {
-        if (res && res.msgCode === 'A0211') {
-          setTestResult({
-            type: 'danger',
-            message: formatMessage({
-              id: 'collection.mineru_api_token.test.expired',
-            }),
-          });
-        } else {
-          setTestResult({
-            type: 'danger',
-            message: formatMessage({
-              id: 'collection.mineru_api_token.test.invalid',
-            }),
-          });
-        }
-      } else if (status_code === 404 || (res && res.code === -60012)) {
-        setTestResult({
-          type: 'success',
-          message: formatMessage({
-            id: 'collection.mineru_api_token.test.valid',
-          }),
-        });
-      } else {
-        setTestResult({
-          type: 'danger',
-          message: `${formatMessage({
-            id: 'collection.mineru_api_token.test.error',
-          })}: ${res.msg || 'Unknown error'}`,
-        });
-      }
-    } catch (error) {
-      setTestResult({
-        type: 'danger',
-        message: formatMessage({
-          id: 'collection.mineru_api_token.test.fetch_error',
-        }),
-      });
-    } finally {
-      setIsTesting(false);
-    }
-  };
 
   // Set default models for new collection when availableModels are loaded
   useEffect(() => {
@@ -534,70 +456,6 @@ export default ({ onSubmit, action, values, form }: Props) => {
         {source === 'feishu' ? <DocumentFeishuFormItems /> : null}
 
         {source === 'github' ? <DocumentGithubFormItems /> : null}
-
-        <Form.Item
-          label={formatMessage({ id: 'collection.use_mineru' })}
-          name={configParserUseMineruKey}
-          valuePropName="checked"
-          initialValue={true}
-          extra={formatMessage({ id: 'collection.use_mineru.extra' })}
-        >
-          <Switch />
-        </Form.Item>
-
-        {useMineru ? (
-          <>
-            <Form.Item
-              label="MinerU API Token"
-              required
-              extra={
-                <>
-                  <div>
-                    {formatMessage({ id: 'collection.mineru_api_token.extra' })}
-                  </div>
-                  {testResult && (
-                    <Typography.Text type={testResult.type}>
-                      {testResult.message}
-                    </Typography.Text>
-                  )}
-                </>
-              }
-            >
-              <Space.Compact style={{ width: '100%' }}>
-                <Form.Item
-                  name={configParserMineruApiTokenKey}
-                  noStyle
-                  rules={[
-                    {
-                      required: true,
-                      message: formatMessage({
-                        id: 'collection.mineru_api_token.required',
-                      }),
-                    },
-                  ]}
-                >
-                  <Input.Password
-                    placeholder={formatMessage({
-                      id: 'collection.mineru_api_token.placeholder',
-                    })}
-                    autoComplete="off"
-                    onChange={() => setTestResult(null)}
-                  />
-                </Form.Item>
-                <Button
-                  type="primary"
-                  loading={isTesting}
-                  disabled={!mineruApiToken}
-                  onClick={handleTestMineruToken}
-                >
-                  {formatMessage({
-                    id: 'collection.mineru_api_token.test.btn',
-                  })}
-                </Button>
-              </Space.Compact>
-            </Form.Item>
-          </>
-        ) : null}
 
         <br />
         <Divider />

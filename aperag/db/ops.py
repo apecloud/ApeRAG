@@ -35,6 +35,10 @@ from aperag.db.repositories.llm_provider import (
 )
 from aperag.db.repositories.merge_suggestion import MergeSuggestionRepository
 from aperag.db.repositories.search import AsyncSearchRepositoryMixin
+from aperag.db.repositories.setting import (
+    AsyncSettingRepositoryMixin,
+    SettingRepositoryMixin,
+)
 from aperag.db.repositories.system import AsyncSystemRepositoryMixin
 from aperag.db.repositories.user import AsyncUserRepositoryMixin
 
@@ -48,6 +52,7 @@ class DatabaseOps(
     LlmProviderRepositoryMixin,
     LightragRepositoryMixin,
     GraphRepositoryMixin,
+    SettingRepositoryMixin,
 ):
     pass
 
@@ -65,6 +70,7 @@ class AsyncDatabaseOps(
     AsyncSearchRepositoryMixin,
     MergeSuggestionRepository,
     AsyncDocumentIndexRepositoryMixin,
+    AsyncSettingRepositoryMixin,
 ):
     pass
 

@@ -28,6 +28,7 @@ def parse_document_content(document, collection) -> Tuple[str, List[Any], Any]:
     """Parse document content for indexing (shared across all index types)"""
     from aperag.index.document_parser import document_parser
     from aperag.schema.utils import parseCollectionConfig
+    from aperag.service.setting_service import setting_service
     from aperag.source.base import get_source
 
     # Get document source and prepare local file
@@ -37,16 +38,14 @@ def parse_document_content(document, collection) -> Tuple[str, List[Any], Any]:
     local_doc = source.prepare_document(name=document.name, metadata=metadata)
 
     try:
-        collection_config = parseCollectionConfig(collection.config)
-        parser_config = {}
-        if collection_config.parser is not None:
-            parser_config = collection_config.parser.model_dump()
+        global_settings = setting_service.get_all_settings_sync()
+
         # Parse document to get content and parts
         parsing_result = document_parser.process_document_parsing(
             local_doc.path,
             local_doc.metadata,
             document.object_store_base_path(),
-            parser_config,
+            global_settings,
         )
 
         return parsing_result.content, parsing_result.doc_parts, local_doc

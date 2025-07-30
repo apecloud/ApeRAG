@@ -2,6 +2,7 @@ import { apiKeys } from './zh-CN/apiKeys';
 import { bot } from './zh-CN/bots';
 import { collection } from './zh-CN/collection';
 import { model, model_provider } from './zh-CN/models';
+import { settings } from './zh-CN/settings';
 import { user, users } from './zh-CN/users';
 
 export default {
@@ -12,6 +13,7 @@ export default {
   ...model_provider,
   ...collection,
   ...apiKeys,
+  ...settings,
 
   // Audit logs
   'audit.logs.title': '操作日志',
@@ -313,6 +315,9 @@ export default {
 
   system: '------------------------------',
   'system.management': '系统设置',
+
+  settings: '------------------------------',
+  'settings.miscellaneous': '其他',
 
   feedback: '---------------',
   'feedback.bad.title': '这个回答有什么问题？',

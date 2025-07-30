@@ -414,11 +414,6 @@ class ModelSpec(BaseModel):
     )
 
 
-class ParserConfig(BaseModel):
-    use_mineru: Optional[bool] = Field(None, description='Whether to use MinerU parser')
-    mineru_api_token: Optional[str] = Field(None, description='MinerU API token')
-
-
 class CollectionConfig(BaseModel):
     source: Optional[str] = Field(
         None, description='Source system identifier', example='system'
@@ -435,7 +430,6 @@ class CollectionConfig(BaseModel):
     )
     embedding: Optional[ModelSpec] = None
     completion: Optional[ModelSpec] = None
-    parser: Optional[ParserConfig] = None
     path: Optional[str] = Field(None, description='Path for local and ftp sources')
     host: Optional[str] = Field(None, description='FTP host')
     username: Optional[str] = Field(None, description='FTP username')
@@ -774,6 +768,11 @@ class SearchRequest(BaseModel):
     fulltext_search: Optional[FulltextSearchParams] = None
     graph_search: Optional[GraphSearchParams] = None
     summary_search: Optional[SummarySearchParams] = None
+
+
+class Settings(BaseModel):
+    use_mineru: Optional[bool] = Field(None, description='Whether to use MinerU')
+    mineru_api_token: Optional[str] = Field(None, description='API token for MinerU')
 
 
 class GraphLabelsResponse(BaseModel):

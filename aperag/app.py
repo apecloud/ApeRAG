@@ -47,6 +47,7 @@ from aperag.views.flow import router as flow_router
 from aperag.views.graph import router as graph_router
 from aperag.views.llm import router as llm_router
 from aperag.views.main import router as main_router
+from aperag.views.settings import router as settings_router
 from aperag.views.web import router as web_router
 
 # Initialize MCP server integration with stateless HTTP to fix OpenAI tool call sequence issues
@@ -94,6 +95,7 @@ app.include_router(audit_router, prefix="/api/v1")  # Add audit router
 app.include_router(flow_router, prefix="/api/v1")
 app.include_router(llm_router, prefix="/api/v1")
 app.include_router(graph_router, prefix="/api/v1")
+app.include_router(settings_router, prefix="/api/v1")
 app.include_router(web_router, prefix="/api/v1")  # Add web search router
 app.include_router(chat_completion_router, prefix="/v1")
 app.include_router(config_router, prefix="/api/v1/config")

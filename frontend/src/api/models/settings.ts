@@ -17,19 +17,19 @@
 /**
  * 
  * @export
- * @interface ParserConfig
+ * @interface Settings
  */
-export interface ParserConfig {
+export interface Settings {
     /**
-     * Whether to use MinerU parser
+     * Whether to use MinerU
      * @type {boolean}
-     * @memberof ParserConfig
+     * @memberof Settings
      */
     'use_mineru'?: boolean;
     /**
-     * MinerU API token
+     * API token for MinerU
      * @type {string}
-     * @memberof ParserConfig
+     * @memberof Settings
      */
     'mineru_api_token'?: string;
 }

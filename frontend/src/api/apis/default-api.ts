@@ -118,6 +118,12 @@ import type { SearchResult } from '../models';
 // @ts-ignore
 import type { SearchResultList } from '../models';
 // @ts-ignore
+import type { Settings } from '../models';
+// @ts-ignore
+import type { SettingsTestMineruTokenPost200Response } from '../models';
+// @ts-ignore
+import type { SettingsTestMineruTokenPostRequest } from '../models';
+// @ts-ignore
 import type { TagFilterRequest } from '../models';
 // @ts-ignore
 import type { User } from '../models';
@@ -2270,6 +2276,118 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
+         * Retrieve all application settings
+         * @summary Get all settings
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        settingsGet: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/settings`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Update one or more application settings
+         * @summary Update settings
+         * @param {Settings} settings 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        settingsPut: async (settings: Settings, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'settings' is not null or undefined
+            assertParamExists('settingsPut', 'settings', settings)
+            const localVarPath = `/settings`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'PUT', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(settings, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Test the connectivity of the MinerU API Token
+         * @summary Test MinerU API Token
+         * @param {SettingsTestMineruTokenPostRequest} [settingsTestMineruTokenPostRequest] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        settingsTestMineruTokenPost: async (settingsTestMineruTokenPostRequest?: SettingsTestMineruTokenPostRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/settings/test_mineru_token`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(settingsTestMineruTokenPostRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Get user info
          * @summary Get user info
          * @param {*} [options] Override http request option.
@@ -3106,6 +3224,44 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Retrieve all application settings
+         * @summary Get all settings
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async settingsGet(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<Settings>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.settingsGet(options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.settingsGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Update one or more application settings
+         * @summary Update settings
+         * @param {Settings} settings 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async settingsPut(settings: Settings, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<void>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.settingsPut(settings, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.settingsPut']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Test the connectivity of the MinerU API Token
+         * @summary Test MinerU API Token
+         * @param {SettingsTestMineruTokenPostRequest} [settingsTestMineruTokenPostRequest] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async settingsTestMineruTokenPost(settingsTestMineruTokenPostRequest?: SettingsTestMineruTokenPostRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SettingsTestMineruTokenPost200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.settingsTestMineruTokenPost(settingsTestMineruTokenPostRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.settingsTestMineruTokenPost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Get user info
          * @summary Get user info
          * @param {*} [options] Override http request option.
@@ -3687,6 +3843,35 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.registerPost(requestParameters.register, options).then((request) => request(axios, basePath));
         },
         /**
+         * Retrieve all application settings
+         * @summary Get all settings
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        settingsGet(options?: RawAxiosRequestConfig): AxiosPromise<Settings> {
+            return localVarFp.settingsGet(options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Update one or more application settings
+         * @summary Update settings
+         * @param {DefaultApiSettingsPutRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        settingsPut(requestParameters: DefaultApiSettingsPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<void> {
+            return localVarFp.settingsPut(requestParameters.settings, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Test the connectivity of the MinerU API Token
+         * @summary Test MinerU API Token
+         * @param {DefaultApiSettingsTestMineruTokenPostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        settingsTestMineruTokenPost(requestParameters: DefaultApiSettingsTestMineruTokenPostRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<SettingsTestMineruTokenPost200Response> {
+            return localVarFp.settingsTestMineruTokenPost(requestParameters.settingsTestMineruTokenPostRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Get user info
          * @summary Get user info
          * @param {*} [options] Override http request option.
@@ -4256,6 +4441,35 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     registerPost(requestParameters: DefaultApiRegisterPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<User>;
+
+    /**
+     * Retrieve all application settings
+     * @summary Get all settings
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    settingsGet(options?: RawAxiosRequestConfig): AxiosPromise<Settings>;
+
+    /**
+     * Update one or more application settings
+     * @summary Update settings
+     * @param {DefaultApiSettingsPutRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    settingsPut(requestParameters: DefaultApiSettingsPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
+
+    /**
+     * Test the connectivity of the MinerU API Token
+     * @summary Test MinerU API Token
+     * @param {DefaultApiSettingsTestMineruTokenPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    settingsTestMineruTokenPost(requestParameters?: DefaultApiSettingsTestMineruTokenPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<SettingsTestMineruTokenPost200Response>;
 
     /**
      * Get user info
@@ -5212,6 +5426,34 @@ export interface DefaultApiRegisterPostRequest {
 }
 
 /**
+ * Request parameters for settingsPut operation in DefaultApi.
+ * @export
+ * @interface DefaultApiSettingsPutRequest
+ */
+export interface DefaultApiSettingsPutRequest {
+    /**
+     * 
+     * @type {Settings}
+     * @memberof DefaultApiSettingsPut
+     */
+    readonly settings: Settings
+}
+
+/**
+ * Request parameters for settingsTestMineruTokenPost operation in DefaultApi.
+ * @export
+ * @interface DefaultApiSettingsTestMineruTokenPostRequest
+ */
+export interface DefaultApiSettingsTestMineruTokenPostRequest {
+    /**
+     * 
+     * @type {SettingsTestMineruTokenPostRequest}
+     * @memberof DefaultApiSettingsTestMineruTokenPost
+     */
+    readonly settingsTestMineruTokenPostRequest?: SettingsTestMineruTokenPostRequest
+}
+
+/**
  * Request parameters for usersUserIdDelete operation in DefaultApi.
  * @export
  * @interface DefaultApiUsersUserIdDeleteRequest
@@ -5872,6 +6114,41 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      */
     public registerPost(requestParameters: DefaultApiRegisterPostRequest, options?: RawAxiosRequestConfig) {
         return DefaultApiFp(this.configuration).registerPost(requestParameters.register, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Retrieve all application settings
+     * @summary Get all settings
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public settingsGet(options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).settingsGet(options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Update one or more application settings
+     * @summary Update settings
+     * @param {DefaultApiSettingsPutRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public settingsPut(requestParameters: DefaultApiSettingsPutRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).settingsPut(requestParameters.settings, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Test the connectivity of the MinerU API Token
+     * @summary Test MinerU API Token
+     * @param {DefaultApiSettingsTestMineruTokenPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public settingsTestMineruTokenPost(requestParameters: DefaultApiSettingsTestMineruTokenPostRequest = {}, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).settingsTestMineruTokenPost(requestParameters.settingsTestMineruTokenPostRequest, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

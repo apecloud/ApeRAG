@@ -1,0 +1,39 @@
+settings:
+  get:
+    summary: Get all settings
+    description: Retrieve all application settings
+    security:
+      - BearerAuth: []
+    responses:
+      '200':
+        description: A list of all settings
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/settings.yaml#/Settings'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+  put:
+    summary: Update settings
+    description: Update one or more application settings
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/settings.yaml#/Settings'
+    responses:
+      '204':
+        description: Settings updated successfully
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'

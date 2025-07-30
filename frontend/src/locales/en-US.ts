@@ -2,6 +2,7 @@ import { apiKeys } from './en-US/apiKeys';
 import { bot } from './en-US/bots';
 import { collection } from './en-US/collection';
 import { model, model_provider } from './en-US/models';
+import { settings } from './en-US/settings';
 import { user, users } from './en-US/users';
 
 export default {
@@ -12,6 +13,7 @@ export default {
   ...model_provider,
   ...collection,
   ...apiKeys,
+  ...settings,
 
   // Audit logs
   'audit.logs.title': 'Audit Logs',
@@ -317,6 +319,9 @@ export default {
 
   system: '------------------------------',
   'system.management': 'Settings',
+
+  settings: '------------------------------',
+  'settings.miscellaneous': 'Miscellaneous',
 
   feedback: '---------------',
   'feedback.bad.title': "What's wrong with this response?",

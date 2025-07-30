@@ -158,8 +158,6 @@ collectionConfig:
       $ref: './model.yaml#/modelSpec'
     completion:
       $ref: './model.yaml#/modelSpec'
-    parser:
-      $ref: '#/parserConfig'
     path:
       type: string
       description: Path for local and ftp sources
@@ -228,17 +226,6 @@ collectionConfig:
       type: string
       description: Feishu space ID
       deprecated: true
-
-
-parserConfig:
-  type: object
-  properties:
-    use_mineru:
-      type: boolean
-      description: Whether to use MinerU parser
-    mineru_api_token:
-      type: string
-      description: MinerU API token
 
 collectionCreate:
   type: object

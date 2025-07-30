@@ -963,3 +963,13 @@ class MergeSuggestionHistory(Base):
         return (
             f"<MergeSuggestionHistory(id={self.id}, original_id={self.original_suggestion_id}, status={self.status})>"
         )
+
+
+class Setting(Base):
+    __tablename__ = "setting"
+
+    key = Column(String(256), primary_key=True)
+    value = Column(Text, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True)

@@ -616,9 +616,9 @@ graph_nodes_merge:
     summary: Merge graph nodes
     description: |
       Merge multiple graph nodes into one, combining their descriptions, relationships, and vector data.
-      
+
       Provide `entity_ids` array with 1+ entities and optional `target_entity_data` for customization.
-      
+
       The operation:
       1. Auto-selects target entity (highest degree) if not specified in `target_entity_data`
       2. Combines descriptions using default merge strategy (concatenate)
@@ -626,7 +626,7 @@ graph_nodes_merge:
       4. Updates all relationships to point to the target node
       5. Updates vector storage data
       6. Removes the source nodes
-      
+
       Entity type handling: Uses target entity's type if it exists, otherwise uses merged result.
       The operation is idempotent - if source nodes don't exist, it returns success.
     tags:
@@ -684,11 +684,11 @@ graph_merge_suggestions:
     description: |
       Analyze knowledge graph to identify potentially mergeable nodes using LLM for semantic similarity.
       Returns confidence-ranked merge suggestions for user review and decision.
-      
+
       This is a stateless endpoint that analyzes the current graph and returns suggestions
       without persisting any state. Users can then use the suggestions with the existing
       merge_nodes endpoint to perform actual merges.
-      
+
       The algorithm prioritizes high-degree nodes and uses LLM to judge semantic similarity
       based on entity names, types, and descriptions.
     tags:
@@ -793,20 +793,20 @@ graph_suggestion_action:
     summary: Accept or reject a merge suggestion
     description: |
       Take action on a specific merge suggestion.
-      
+
       Actions:
       - accept: Accept the suggestion and perform the merge operation
       - reject: Reject the suggestion and mark it as rejected
-      
+
       When accepting, the system will:
       1. Update suggestion status to ACCEPTED
       2. Perform the actual node merge using suggested entity IDs
       3. Mark related suggestions involving the same entities as EXPIRED
-      
+
       When rejecting, the system will:
       1. Update suggestion status to REJECTED
       2. No merge operation is performed
-      
+
       The target entity data can be optionally overridden when accepting a suggestion.
     tags:
       - graph
@@ -906,40 +906,6 @@ graph_suggestion_action:
               $ref: '../components/schemas/common.yaml#/failResponse'
       '500':
         description: Internal server error
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/common.yaml#/failResponse'
-
-test_mineru_token:
-  post:
-    summary: Test MinerU API Token
-    description: Test the connectivity of the MinerU API Token
-    security:
-      - BearerAuth: []
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              token:
-                type: string
-    responses:
-      '200':
-        description: Token test result
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                status_code:
-                  type: integer
-                data:
-                  type: object
-      '401':
-        description: Unauthorized
         content:
           application/json:
             schema:
