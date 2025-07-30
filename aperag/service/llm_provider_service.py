@@ -100,6 +100,14 @@ async def get_llm_configuration(user_id: str, is_admin: bool = False):
         providers_data.append(provider_data)
         provider_names.append(provider.name)
 
+    # Sort providers: enabled first, then by name
+    def _is_provider_enabled(provider_data):
+        """Check if provider is enabled (has API key)"""
+        api_key = provider_data.get("api_key", "")
+        return api_key and api_key.strip() != ""
+
+    providers_data.sort(key=lambda p: (not _is_provider_enabled(p), p["name"].lower()))
+
     # Get models only for the providers user has access to
     models = await async_db_ops.query_llm_provider_models_by_provider_list(provider_names)
     models_data = []
