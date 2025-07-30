@@ -103,6 +103,10 @@ export const model = {
   'model.save.failed': 'Failed to save model',
   'model.delete.failed': 'Failed to delete model',
   'model.configuration.fetch.failed': 'Failed to fetch LLM configuration',
+
+  // Use cases
+  'model.usecase.collection': 'Collection',
+  'model.usecase.agent': 'Agent',
 };
 
 export const model_provider = {

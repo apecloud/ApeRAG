@@ -594,7 +594,9 @@ export default () => {
       render: (_, record: LlmProviderModel) => (
         <Space direction="vertical" size="small" style={{ width: '100%' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ fontSize: '12px' }}>知识库</Text>
+            <Text style={{ fontSize: '12px' }}>
+              {formatMessage({ id: 'model.usecase.collection' })}
+            </Text>
             <Switch
               size="small"
               checked={record.tags?.includes('enable_for_collection') || false}
@@ -602,7 +604,9 @@ export default () => {
             />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ fontSize: '12px' }}>Agent</Text>
+            <Text style={{ fontSize: '12px' }}>
+              {formatMessage({ id: 'model.usecase.agent' })}
+            </Text>
             <Switch
               size="small"
               checked={record.tags?.includes('enable_for_agent') || false}

@@ -99,6 +99,10 @@ export const model = {
   'model.save.failed': '模型保存失败',
   'model.delete.failed': '模型删除失败',
   'model.configuration.fetch.failed': '获取LLM配置失败',
+
+  // Use cases
+  'model.usecase.collection': '知识库',
+  'model.usecase.agent': '智能代理',
 };
 
 export const model_provider = {
