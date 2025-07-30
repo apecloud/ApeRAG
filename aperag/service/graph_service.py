@@ -20,6 +20,7 @@ from aperag.db.models import MergeSuggestionStatus
 from aperag.db.ops import async_db_ops
 from aperag.exceptions import CollectionNotFoundException
 from aperag.graph import lightrag_manager
+from aperag.graph.lightrag.types import KnowledgeGraph
 from aperag.schema import view_models
 from aperag.utils.utils import utc_now
 
@@ -92,7 +93,7 @@ class GraphService:
                 mode_description = f"subgraph from '{label}'"
 
             # Get knowledge graph
-            kg = await rag.get_knowledge_graph(
+            kg: KnowledgeGraph = await rag.get_knowledge_graph(
                 node_label=node_label,
                 max_depth=max_depth,
                 max_nodes=query_max_nodes,
