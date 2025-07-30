@@ -665,15 +665,7 @@ export default () => {
         </Button>
         <RefreshButton onClick={() => fetchConfiguration()} loading={loading} />
       </PageHeader>
-      {user?.role === 'admin' && (
-        <Alert
-          message={formatMessage({ id: 'model.configuration.admin_only' })}
-          type="info"
-          showIcon
-          icon={<InfoCircleOutlined />}
-          style={{ marginBottom: '16px' }}
-        />
-      )}
+
       <Table
         columns={providerColumns}
         dataSource={configuration.providers}
