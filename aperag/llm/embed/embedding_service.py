@@ -110,7 +110,8 @@ class EmbeddingService:
                 if failed_batches:
                     raise BatchProcessingError(
                         batch_size=batch_size,
-                        reason=f"Failed to process {len(failed_batches)} batches: {failed_batches[:3]}",
+                        reason=f"Failed to process {len(failed_batches)} batches: {failed_batches[:3]} "
+                        f"contents: {contents}",
                     )
 
             # Reconstruct the result list in the original order
