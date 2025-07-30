@@ -179,14 +179,14 @@ class ToolResultFormatter:
         # Part 2: Results (only if has collections)
         if count == 0:
             if self.language == "zh-CN":
-                results = "没有找到任何知识库集合"
+                results = "没有找到任何知识库"
             else:
-                results = "No knowledge base collections found"
+                results = "No knowledge collections found"
         else:
             if self.language == "zh-CN":
-                results = f"找到 {count} 个知识库集合"
+                results = f"找到 {count} 个知识库"
             else:
-                results = f"Found {count} knowledge base collections"
+                results = f"Found {count} knowledge collections"
 
         # Add collection names (first 5)
         if result.items:
