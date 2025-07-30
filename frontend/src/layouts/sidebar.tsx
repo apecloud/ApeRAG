@@ -73,6 +73,7 @@ export const Sidebar = ({ topbar }: { topbar: boolean }) => {
   const { token } = theme.useToken();
   const { formatMessage } = useIntl();
   const { themeName } = useModel('global');
+  const { user } = useModel('user');
   const location = useLocation();
 
   const sidebar_items = [
@@ -127,21 +128,23 @@ export const Sidebar = ({ topbar }: { topbar: boolean }) => {
           })}
         </div>
       </div>
-      <Tooltip
-        title={formatMessage({ id: 'action.settings' })}
-        placement="right"
-      >
-        <div>
-          <StyledSidebarLink
-            token={token}
-            active={new UrlPattern(`/settings*`).match(location.pathname)}
-            to="/settings"
-          >
-            <BsGear />
-            <div>{formatMessage({ id: 'action.settings' })}</div>
-          </StyledSidebarLink>
-        </div>
-      </Tooltip>
+      {user?.role === 'admin' && (
+        <Tooltip
+          title={formatMessage({ id: 'action.settings' })}
+          placement="right"
+        >
+          <div>
+            <StyledSidebarLink
+              token={token}
+              active={new UrlPattern(`/settings*`).match(location.pathname)}
+              to="/settings"
+            >
+              <BsGear />
+              <div>{formatMessage({ id: 'action.settings' })}</div>
+            </StyledSidebarLink>
+          </div>
+        </Tooltip>
+      )}
     </StyledSidebar>
   );
 };
