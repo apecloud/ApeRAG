@@ -409,16 +409,33 @@ ORDER BY ucs.gmt_subscribed DESC;
     - `gmt_created: datetime`: 分享记录创建时间
     - `gmt_updated: datetime`: 分享记录最后更新时间
 
-- **`MarketplaceCollectionView`**: 市场页面展示的 Collection 信息（视图模型）
+- **`SubscribedCollection`**: 用户订阅的 Collection 信息（视图模型）
+    - `id: str`: Collection ID
+    - `title: str`: Collection 标题
+    - `description: str`: Collection 描述
+    - `owner_user_id: str`: 原所有者用户ID
+    - `owner_username: str`: 原所有者用户名
+    - `gmt_created: datetime`: Collection 创建时间
+    - `gmt_updated: datetime`: Collection 最后更新时间
+    - `subscription_id: str`: 订阅记录ID
+    - `gmt_subscribed: datetime`: 订阅时间
+
+- **`SubscribedCollectionList`**: 用户订阅的 Collection 列表响应
+    - `items: List[SubscribedCollection]`: 订阅的 Collection 列表
+    - `total: int`: 总数量（用于分页）
+    - `page: int`: 当前页码
+    - `page_size: int`: 每页大小
+
+- **`MarketplaceCollectionSummary`**: 市场浏览页面的 Collection 摘要信息
     - `collection_id: str`: Collection ID
     - `title: str`: Collection 标题
     - `description: str`: Collection 描述
     - `owner_username: str`: 所有者用户名
-    - `gmt_published: datetime`: 首次发布时间（对应数据库中的 gmt_created 字段）
+    - `gmt_published: datetime`: 发布时间
     - `is_subscribed: bool`: 当前用户是否已订阅（非数据库字段，在服务层计算）
 
-- **`MarketplaceCollectionViewList`**: 市场 Collection 列表响应
-    - `items: List[MarketplaceCollectionView]`: Collection 列表
+- **`MarketplaceCollectionSummaryList`**: 市场 Collection 列表响应
+    - `items: List[MarketplaceCollectionSummary]`: Collection 摘要列表
     - `total: int`: 总数量（用于分页）
     - `page: int`: 当前页码
     - `page_size: int`: 每页大小
@@ -439,11 +456,6 @@ ORDER BY ucs.gmt_subscribed DESC;
 
 - **`Collection`**: 扩展现有 Collection model
     - `sharing_info: Optional[CollectionMarketplaceInfo]`: 分享信息，仅在所有者查看时返回
-    - `is_readonly_view: bool`: 是否为只读视图，非数据库字段，在服务层计算
-        - 计算逻辑：当前用户不是所有者且通过订阅访问时为 `true`
-        - 用于前端判断是否显示只读模式 UI
-    - `subscription_info: Optional[UserSubscription]`: 订阅信息，仅在通过订阅访问时返回
-    - `access_type: str`: 访问类型，枚举值：`owner`（所有者）、`subscribed`（订阅访问）
 
 **4.1.4 OpenAPI Schema 组织:**
 
@@ -479,13 +491,13 @@ class MarketplaceService:
     async def get_raw_sharing_status(self, collection_id: str) -> Optional[CollectionMarketplace]:
         """获取原始分享状态（供权限检查使用）"""
         
-    async def list_published_collections(self, user_id: str, page: int, page_size: int) -> MarketplaceCollectionViewList:
+    async def list_published_collections(self, user_id: str, page: int, page_size: int) -> MarketplaceCollectionSummaryList:
         """列出市场中所有已发布的Collection"""
         # 查询PUBLISHED状态的Collection
         # 计算当前用户的订阅状态
         # 支持分页
         
-    async def subscribe_collection(self, user_id: str, collection_id: str) -> UserSubscription:
+    async def subscribe_collection(self, user_id: str, collection_id: str) -> SubscribedCollection:
         """订阅Collection"""
         # 1. 验证Collection已发布 (status = 'PUBLISHED')
         # 2. 验证用户不是Collection所有者 (user_id != collection.user)
@@ -503,7 +515,7 @@ class MarketplaceService:
         # 供权限检查函数调用
         # 返回None表示未订阅或已取消订阅
         
-    async def list_user_subscribed_collections(self, user_id: str, page: int, page_size: int) -> UserSubscriptionList:
+    async def list_user_subscribed_collections(self, user_id: str, page: int, page_size: int) -> SubscribedCollectionList:
         """获取用户所有活跃订阅的Collection"""
         # 查询WHERE gmt_deleted IS NULL
         # 关联查询获取Collection详细信息和原所有者信息
@@ -629,7 +641,7 @@ class CollectionService:
 - **`GET /api/v1/marketplace/collections`**: 列出市场中所有公开的 Collection
     - **功能**: 返回所有状态为 `PUBLISHED` 的 Collection 列表（包括当前用户自己发布的Collection）
     - **权限**: 任何已登录用户都可以访问
-    - **响应**: `MarketplaceCollectionViewList` 类型，包含每个 Collection 的基本信息、所有者用户名、发布时间
+    - **响应**: `MarketplaceCollectionSummaryList` 类型，包含每个 Collection 的基本信息、所有者用户名、发布时间
     - **分页**: 支持 `page` 和 `page_size` 参数
 
 - **`POST /api/v1/collections/{collection_id}/sharing`**: 发布一个 Collection 到市场
@@ -654,7 +666,7 @@ class CollectionService:
     - **权限**: 任何已登录用户（除 Collection 所有者外）
     - **业务限制**: 用户无法订阅自己是所有者的 Collection
     - **行为**: 在 `user_collection_subscription` 表中创建订阅记录
-    - **响应**: 返回 `UserSubscription` 信息
+    - **响应**: 返回 `SubscribedCollection` 信息
     - **错误处理**: 
         - 如果已订阅则返回 409 Conflict
         - 如果尝试订阅自己的 Collection 则返回 400 Bad Request "Cannot subscribe to your own collection"
@@ -681,12 +693,11 @@ class CollectionService:
 - 订阅关系为用户提供只读访问权限
 - 当 Collection 被取消发布时，相关订阅会自动失效（设置 `gmt_deleted`），但保留历史记录
 
-- **只读端点（Read-Only Endpoints）**:
+    - **只读端点（Read-Only Endpoints）**:
     - **`GET /api/v1/collections/{collection_id}`**: 获取 Collection 详情
         - **权限检查**: 调用 `_check_read_access`
-        - **响应变更**: 新增 `is_readonly_view: bool` 字段和 `sharing_info` 字段
-        - **`is_readonly_view` 计算逻辑**: 当访问用户不是所有者且通过订阅访问时为 `true`
-        - **`access_type` 计算逻辑**: `owner`（所有者）或 `subscribed`（订阅访问）
+        - **响应类型**: 如果是所有者访问，返回 `Collection`（含 `sharing_info`）；如果是订阅者访问，返回 `SubscribedCollection`
+        - **前端判断**: 根据响应类型判断是否为只读模式（`SubscribedCollection` 即为只读）
     - **`GET /api/v1/collections/{collection_id}/documents`**: 获取文档列表
         - **权限检查**: 调用 `_check_read_access`
         - **行为**: 权限通过后正常返回文档列表
@@ -1054,8 +1065,8 @@ describe('MarketplacePage', () => {
     ```typescript
     // 并行调用两个接口
     const [ownedCollections, subscribedCollections] = await Promise.all([
-      api.getCollections(pagination),                            // 获取自有Collection
-      api.getMarketplaceCollectionsSubscriptions(pagination)    // 获取订阅Collection
+      api.getCollections(pagination),                            // 获取自有Collection，返回Collection[]
+      api.getMarketplaceCollectionsSubscriptions(pagination)    // 获取订阅Collection，返回SubscribedCollection[]
     ]);
     ```
 - **设计理念**: 聚焦marketplace核心概念，避免workspace抽象，双接口专职专责
@@ -1065,17 +1076,20 @@ describe('MarketplacePage', () => {
     - 新增筛选器：`全部` / `我的知识库` / `已订阅` (前端筛选实现)
     - 订阅Collection显示特殊图标和样式区分
     - 在订阅Collection上提供取消订阅操作
-- **UI 设计增强**:
+    - **UI 设计增强**:
     ```typescript
-    // Collection 卡片增强 Props
-    interface EnhancedCollectionCardProps {
+    // Collection 卡片 Props - 支持两种类型
+    interface OwnedCollectionCardProps {
+      type: 'owned';
       collection: Collection;
-      access_type: 'owner' | 'subscribed';
-      subscription_info?: {
-        owner_username: string;
-        gmt_subscribed: string;
-      };
     }
+    
+    interface SubscribedCollectionCardProps {
+      type: 'subscribed';
+      collection: SubscribedCollection;
+    }
+    
+    type CollectionCardProps = OwnedCollectionCardProps | SubscribedCollectionCardProps;
     ```
     - **Collection卡片左上角显示类型标签**:
         - 自有Collection: 绿色标签 "我的"
@@ -1093,9 +1107,14 @@ describe('MarketplacePage', () => {
     - **筛选器实现**:
         ```typescript
         const [filter, setFilter] = useState<'all' | 'owned' | 'subscribed'>('all');
-        const filteredCollections = collections.filter(col => {
-          if (filter === 'owned') return col.access_type === 'owner';
-          if (filter === 'subscribed') return col.access_type === 'subscribed';
+        // 前端合并两种类型的Collection进行筛选
+        const allCollections = [
+          ...ownedCollections.map(col => ({ type: 'owned' as const, collection: col })),
+          ...subscribedCollections.map(col => ({ type: 'subscribed' as const, collection: col }))
+        ];
+        const filteredCollections = allCollections.filter(item => {
+          if (filter === 'owned') return item.type === 'owned';
+          if (filter === 'subscribed') return item.type === 'subscribed';
           return true; // 'all'
         });
         ```
@@ -1106,38 +1125,30 @@ describe('MarketplacePage', () => {
 - **文件位置**: `frontend/src/pages/collections/$collectionId/index.tsx`
 - **API调用**: `GET /api/v1/collections/{collection_id}` (现有接口)
 - **权限检查**: 后端 `_check_read_access()` 验证用户是否有权限访问
-- **响应字段扩展**:
+- **响应类型区分**:
     ```typescript
-    interface CollectionDetail {
-      // ... 现有字段
-      is_readonly_view: boolean;           // 是否只读模式
-      access_type: 'owner' | 'subscribed' | 'public'; // 访问类型
-      sharing_info?: {                     // 分享信息 (仅所有者可见)
-        status: 'DRAFT' | 'PUBLISHED';
-        gmt_created: string;
-      };
-      subscription_info?: {                // 订阅信息 (仅订阅者可见)
-        gmt_subscribed: string;
-        owner_username: string;
-      };
+    // 根据用户权限返回不同类型
+    type CollectionDetailResponse = Collection | SubscribedCollection;
+    
+    // 前端类型守卫
+    function isSubscribedCollection(data: any): data is SubscribedCollection {
+      return 'subscription_id' in data && 'owner_username' in data;
     }
     ```
 - **功能增强**:
-    - **只读模式** (`is_readonly_view: true`):
+    - **所有者模式** (响应类型为 `Collection`):
+        - 显示SharingControl组件（发布/取消发布开关）
+        - 显示完整的编辑功能
+        - 可查看分享统计信息（通过 `sharing_info` 字段）
+    - **订阅模式** (响应类型为 `SubscribedCollection`):
         - 页面顶部显示ReadOnlyBanner组件
+        - 显示订阅信息："订阅自 @{owner_username}，{订阅时间}"
+        - 提供取消订阅按钮
         - 隐藏所有编辑按钮：编辑Collection、上传文档、删除文档、重建索引
         - 隐藏设置页面入口
         - 文档列表只显示查看、预览按钮
         - 图谱页面隐藏合并节点等编辑功能
         - 聊天Bot可正常使用（只读查询）
-    - **所有者模式** (`access_type: 'owner'`):
-        - 显示SharingControl组件（发布/取消发布开关）
-        - 显示完整的编辑功能
-        - 可查看分享统计信息
-    - **订阅模式** (`access_type: 'subscribed'`):
-        - 显示订阅信息："订阅自 @{owner_username}，{订阅时间}"
-        - 提供取消订阅按钮
-        - 所有内容只读访问
 
 #### 6.2. 组件设计
 
@@ -1147,7 +1158,7 @@ describe('MarketplacePage', () => {
 - **Props 接口**:
     ```typescript
     interface CollectionMarketplaceCardProps {
-      collection: CollectionMarketplaceDetail;
+      collection: MarketplaceCollectionSummary;
       onClick: (collectionId: string) => void;
     }
     ```
@@ -1156,16 +1167,24 @@ describe('MarketplacePage', () => {
     - Collection 描述（最多显示 150 字符，超出显示省略号）
     - 所有者用户名（小号字体，灰色显示）
     - 发布时间（相对时间格式，如 "3 天前"）
+    - 订阅状态显示（已订阅/未订阅）
     - 悬浮效果和点击交互
 
 **B. 只读模式提示 Banner**
 
 - **文件位置**: `frontend/src/components/ReadOnlyBanner.tsx`
-- **显示条件**: 当 `is_readonly_view` 为 `true` 时显示
+- **显示条件**: 当响应类型为 `SubscribedCollection` 时显示
+- **Props 接口**:
+    ```typescript
+    interface ReadOnlyBannerProps {
+      ownerUsername: string;
+      subscribedTime: string;
+    }
+    ```
 - **UI 设计**:
     - 位置：页面顶部，在页面标题下方
     - 样式：使用 Ant Design Alert 组件，type="info"
-    - 文案："您正在以只读模式浏览一个共享知识库，无法进行修改操作"
+    - 文案："您正在以只读模式浏览来自 @{ownerUsername} 的共享知识库，无法进行修改操作"
     - 图标：信息图标
     - 可关闭：否
 
@@ -1189,9 +1208,16 @@ describe('MarketplacePage', () => {
       // 现有字段...
       
       // 新增字段
-      marketplaceCollections: CollectionMarketplaceDetail[];
+      marketplaceCollections: MarketplaceCollectionSummary[];
+      subscribedCollections: SubscribedCollection[];
       marketplaceLoading: boolean;
+      subscribedLoading: boolean;
       marketplacePagination: {
+        current: number;
+        pageSize: number;
+        total: number;
+      };
+      subscribedPagination: {
         current: number;
         pageSize: number;
         total: number;
@@ -1200,6 +1226,9 @@ describe('MarketplacePage', () => {
     ```
 - **新增 Effects**:
     - `fetchMarketplaceCollections`: 获取市场 Collection 列表
+    - `fetchSubscribedCollections`: 获取用户订阅的 Collection 列表
+    - `subscribeCollection`: 订阅 Collection
+    - `unsubscribeCollection`: 取消订阅 Collection
     - `publishCollection`: 发布 Collection 到市场
     - `unpublishCollection`: 从市场下架 Collection
     - `fetchSharingStatus`: 获取 Collection 分享状态
@@ -1213,7 +1242,19 @@ describe('MarketplacePage', () => {
 
 **A. 只读模式下的 UI 限制**
 
-需要在以下组件中根据 `is_readonly_view` 字段禁用或隐藏相关功能：
+需要在以下组件中根据响应类型（`SubscribedCollection`）禁用或隐藏相关功能：
+
+```typescript
+// 类型判断逻辑
+const isReadOnly = isSubscribedCollection(collectionData);
+
+// 在组件中使用
+if (isReadOnly) {
+  // 隐藏编辑功能
+} else {
+  // 显示完整功能
+}
+```
 
 - **文档管理页面**:
     - 隐藏 "上传文档" 按钮
@@ -1262,10 +1303,11 @@ describe('MarketplacePage', () => {
     - [ ] 创建 `aperag/api/components/schemas/marketplace.yaml`，定义以下视图模型：
         - `CollectionMarketplaceStatusEnum`
         - `CollectionMarketplaceInfo` (分享状态响应模型)
-        - `MarketplaceCollectionView` (市场页面展示模型)
-        - `MarketplaceCollectionViewList` (市场列表响应模型)
-        - `UserSubscription` (用于订阅Collection API)
-        - `UserSubscriptionList` (用于订阅Collection API)
+        - `MarketplaceCollectionSummary` (市场浏览页面摘要模型)
+        - `MarketplaceCollectionSummaryList` (市场列表响应模型)
+        - `SubscribedCollection` (用户订阅的Collection详细信息模型)
+        - `SubscribedCollectionList` (订阅Collection列表响应模型)
+        - `UserSubscription` (原有订阅信息模型，保留用于其他用途)
     - [ ] 创建 `aperag/api/paths/marketplace.yaml`，定义以下端点的完整规范：
         - `GET /api/v1/marketplace/collections`：获取市场Collection列表
         - `GET /api/v1/marketplace/collections/subscriptions`：获取当前用户订阅的Collection列表
@@ -1379,9 +1421,10 @@ describe('MarketplacePage', () => {
         - 集成到主应用的路由配置中
     - [ ] 修改现有的 `get_collection_view` 视图逻辑：
         - 使用新的 `_check_read_access` 权限检查
-        - 计算并填充 `is_readonly_view` 字段
-        - 为所有者返回 `sharing_info` 信息
-        - 处理非所有者访问共享 Collection 的情况
+        - 根据用户权限返回不同类型：
+            - 所有者访问：返回 `Collection` 类型（含 `sharing_info`）
+            - 订阅者访问：返回 `SubscribedCollection` 类型
+        - 实现类型判断和相应的数据转换逻辑
 
 - [ ] **2.2. 前端 - 生成 SDK 与状态管理**
     - [ ] 运行 `make generate-frontend-sdk` 更新前端 API client
@@ -1392,7 +1435,8 @@ describe('MarketplacePage', () => {
     - [ ] 更新前端类型定义：
         - 修改 `frontend/src/models/collection.ts` 中的 Collection 接口
         - 在 `frontend/src/types/` 中添加或更新相关类型定义
-        - 确保 `sharing_info` 和 `is_readonly_view` 字段类型正确
+        - 确保 `SubscribedCollection` 和 `MarketplaceCollectionSummary` 类型正确
+        - 实现类型守卫函数 `isSubscribedCollection`
 
 #### **Phase 3: 前端 - UI 实现**
 
@@ -1410,8 +1454,10 @@ describe('MarketplacePage', () => {
         - 实现悬浮效果和点击交互
         - 处理描述文本截断（最多 150 字符）
         - 添加相对时间格式化功能
-        - 实现订阅按钮逻辑：
-            - 如果当前用户是Collection所有者，显示 "我的" 标签，不显示订阅按钮
+        - 使用 `MarketplaceCollectionSummary` 类型作为 Props
+        - 实现订阅状态显示逻辑：
+            - 根据 `is_subscribed` 字段显示订阅状态
+            - 如果当前用户是Collection所有者，显示 "我的" 标签
             - 如果当前用户非所有者且未订阅，显示 "订阅" 按钮
             - 如果当前用户已订阅，显示 "已订阅" 状态
     - [ ] 实现网格布局和响应式设计：
@@ -1422,14 +1468,17 @@ describe('MarketplacePage', () => {
         - 在 `frontend/src/layouts/sidebar.tsx` 中添加 "知识库市场" 菜单项
         - 设置市场图标（如ShopOutlined）和路由链接
 
-- [ ] **3.2. Collection 详情页 - 只读模式实现**
+- [ ] **3.2. Collection 详情页 - 类型判断与UI控制**
     - [ ] 创建 `ReadOnlyBanner` 组件（`frontend/src/components/ReadOnlyBanner.tsx`）：
         - 使用 Ant Design Alert 组件
         - 设计醒目的提示样式（蓝色信息提示）
         - 添加信息图标（InfoCircleOutlined）和提示文案
+        - 接收 `ownerUsername` 和 `subscribedTime` 作为 Props
     - [ ] 修改 Collection 详情页面：
-        - 在页面顶部集成 ReadOnlyBanner 组件
-        - 根据 `is_readonly_view` 字段控制组件显示
+        - 实现 `isSubscribedCollection` 类型守卫判断
+        - 根据响应类型控制UI显示：
+            - `SubscribedCollection` 类型：显示 ReadOnlyBanner，隐藏编辑功能
+            - `Collection` 类型：显示 SharingControl，显示完整功能
     - [ ] 实现写操作 UI 的禁用逻辑：
         - 文档管理页面：隐藏 "上传文档"、"批量操作"、文档编辑/删除按钮
         - Collection 设置页面：完全隐藏设置页面入口或设置表单为只读
