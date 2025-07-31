@@ -17,9 +17,10 @@ MVP 阶段将专注于实现最核心的发布、浏览和只读访问流程，�
 - 只读模式禁止：添加/删除/修改文档、修改 Collection 设置、任何写操作
 
 **MVP 简化设计原则:**
-- **两层用户体验**: 市场浏览页 + 统一工作台，无独立订阅管理页
-- **统一工作台**: 在现有 `/collections` 页面混合显示自有和订阅的Collection
-- **筛选器管理**: 通过筛选器 (`全部`/`我的知识库`/`已订阅`) 实现订阅内容管理
+- **聚焦核心概念**: marketplace分享Collection，避免引入抽象的workspace概念
+- **专职专责API**: `/api/v1/collections`获取自有，`/api/v1/users/me/subscribed-collections`获取订阅
+- **前端双接口调用**: 在`/collections`页面并行调用两个API，前端合并展示
+- **筛选器管理**: 通过前端筛选 (`全部`/`我的知识库`/`已订阅`) 实现订阅内容管理
 - **复用现有路由**: Collection详情页复用现有路由，根据权限动态显示只读模式
 
 ### 2. 数据库 Schema 设计
@@ -128,7 +129,7 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
 │                    后端 API (FastAPI)                            │
 ├─────────────────────────────────────────────────────────────────┤
 │  MarketplaceView  │ CollectionView    │ UserView              │
-│  - 市场API         │ - Collection API  │ - 工作区API            │
+│  - 市场API         │ - Collection API  │ - 订阅Collection API   │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 │ Service Layer
@@ -137,8 +138,8 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
 │                        服务层 (Business Logic)                   │
 ├─────────────────────────────────────────────────────────────────┤
 │  MarketplaceService │ CollectionService │ UserService           │
-│  - 发布/取消发布     │ - 权限检查        │ - 工作区Collection     │
-│  - 订阅管理         │ - CRUD操作        │ - 统一列表管理         │
+│  - 发布/取消发布     │ - 权限检查        │ - 用户订阅管理         │
+│  - 订阅管理         │ - CRUD操作        │ - 订阅Collection列表   │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 │ Database Layer
@@ -188,12 +189,14 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
     │
     └─ 3. 访问订阅的Collection内容
            │
-           ├─ 3a. 在个人工作台查看订阅列表
+           ├─ 3a. 在Collection列表页面查看订阅的Collection
            │     │
            │     ├─ 页面: /collections (主Collection列表页面)
-           │     ├─ API: GET /api/v1/users/me/workspace
-           │     ├─ 响应: 混合显示自有Collection + 订阅Collection
-           │     ├─ 区分显示: 订阅Collection显示"已订阅"标签
+           │     ├─ API调用: 
+           │     │   ├─ GET /api/v1/collections (获取自有Collection)
+           │     │   └─ GET /api/v1/users/me/subscribed-collections (获取订阅Collection)
+           │     ├─ 前端合并: 两个接口响应合并显示在同一页面
+           │     ├─ 区分显示: 订阅Collection显示"已订阅"标签，自有Collection显示"我的"标签
            │     └─ 点击进入: 路由到 /collections/{id}
            │
 
@@ -427,12 +430,12 @@ LIMIT 1;
     - **行为**: 软删除订阅记录（设置 `gmt_deleted = current_timestamp`）
     - **响应**: 返回 204 No Content
 
-- **`GET /api/v1/users/me/workspace`**: 获取用户工作区 Collection 列表 (MVP核心API)
-    - **功能**: 返回用户所有可访问的 Collection（拥有的 + 订阅的）
+- **`GET /api/v1/users/me/subscribed-collections`**: 获取用户订阅的 Collection 列表 (MVP核心API)
+    - **功能**: 返回用户所有活跃订阅的 Collection（`gmt_deleted IS NULL`）
     - **权限**: 仅限当前用户
-    - **响应**: 扩展的 Collection 列表，包含 `access_type` 字段区分所有权类型
+    - **响应**: Collection 列表，每个item包含订阅信息（订阅时间、原所有者等）
     - **分页**: 支持 `page` 和 `page_size` 参数
-    - **过滤**: 支持 `access_type` 参数过滤（`owner`、`subscribed`、`all`）
+    - **设计理念**: 专注于marketplace核心概念，避免抽象的workspace概念
 
 **B. 修改现有 API 行为**
 
@@ -589,7 +592,7 @@ LIMIT 1;
     - `owner_username: str`: 原所有者用户名
     - `gmt_subscribed: datetime`: 订阅时间
 
-- **`UserSubscriptionList`**: 用户订阅列表响应 (在Workspace API中使用)
+- **`UserSubscriptionList`**: 用户订阅列表响应 (专门的订阅Collection API响应)
     - `items: List[UserSubscription]`: 订阅列表
     - `total: int`: 总数量
 
@@ -851,16 +854,23 @@ describe('MarketplacePage', () => {
     - 点击卡片跳转到对应的 Collection 详情页（只读模式）
 - **UI 设计**:
 
-**B. 用户工作台页面增强 (MVP核心功能)**
+**B. Collection列表页面增强 (MVP核心功能)**
 
 - **路由**: `/collections` (现有页面增强)
 - **文件位置**: `frontend/src/pages/collections/index.tsx`
-- **API 调用**: `GET /api/v1/users/me/workspace`
-- **设计理念**: 统一的工作台替代专门的订阅管理页面，符合MVP简化原则
+- **API 调用策略**: 同时调用两个专门的API接口
+    ```typescript
+    // 并行调用两个接口
+    const [ownedCollections, subscribedCollections] = await Promise.all([
+      api.getCollections(pagination),           // 获取自有Collection
+      api.getUserSubscribedCollections(pagination) // 获取订阅Collection
+    ]);
+    ```
+- **设计理念**: 聚焦marketplace核心概念，避免workspace抽象，双接口专职专责
 - **页面功能增强**:
-    - 混合显示用户自有Collection + 订阅的Collection
-    - 新增Collection类型标签：`自有` / `已订阅`
-    - 新增筛选器：`全部` / `我的知识库` / `已订阅` (通过筛选器实现订阅管理)
+    - 前端合并显示用户自有Collection + 订阅的Collection
+    - 新增Collection类型标签：`我的` / `已订阅`
+    - 新增筛选器：`全部` / `我的知识库` / `已订阅` (前端筛选实现)
     - 订阅Collection显示特殊图标和样式区分
     - 在订阅Collection上提供取消订阅操作
 - **UI 设计增强**:
@@ -1061,8 +1071,8 @@ describe('MarketplacePage', () => {
         - `CollectionMarketplaceDetail`
         - `CollectionMarketplaceDetailList`
         - `UserCollectionSubscription`
-        - `UserSubscription` (用于Workspace API)
-        - `UserSubscriptionList` (用于Workspace API)
+        - `UserSubscription` (用于订阅Collection API)
+        - `UserSubscriptionList` (用于订阅Collection API)
     - [ ] 创建 `aperag/api/paths/marketplace.yaml`，定义以下端点的完整规范：
         - `GET /marketplace/collections`：获取市场Collection列表
         - `POST /marketplace/collections/{collection_id}/subscribe`：订阅Collection
@@ -1071,8 +1081,8 @@ describe('MarketplacePage', () => {
         - `GET /collections/{collection_id}/sharing`
         - `POST /collections/{collection_id}/sharing`
         - `DELETE /collections/{collection_id}/sharing`
-    - [ ] 修改 `aperag/api/paths/user.yaml`（或创建），添加用户工作区端点：
-        - `GET /users/me/workspace`：获取用户工作区Collection列表（自有+订阅）
+    - [ ] 修改 `aperag/api/paths/user.yaml`（或创建），添加用户订阅端点：
+        - `GET /users/me/subscribed-collections`：获取用户订阅的Collection列表
     - [ ] 修改 `aperag/api/components/schemas/collection.yaml`，在 Collection schema 中添加 `sharing_info` 和 `is_readonly_view` 字段
     - [ ] 运行 `make generate-models` 生成更新后的 `aperag/schema/view_models.py`
     - [ ] 验证生成的 Pydantic 模型类型注解正确
@@ -1107,11 +1117,10 @@ describe('MarketplacePage', () => {
         - `get_user_subscription(user_id: str, collection_id: str)` 方法：
             - 获取用户对指定 Collection 的活跃订阅状态（`WHERE gmt_deleted IS NULL`）
             - 供权限检查函数调用，返回 None 表示未订阅或已取消订阅
-        - (MVP阶段不需要独立的list_user_subscriptions方法，通过workspace API统一提供)
-        - `get_user_workspace_collections(user_id: str, access_type: str, page: int, page_size: int)` 方法：
-            - 查询用户所有可访问的 Collection（拥有的 + 活跃订阅的，`gmt_deleted IS NULL`）
-            - 支持按访问类型过滤（owner、subscribed、all）
-            - 为每个 Collection 计算 access_type 和 is_readonly_view 字段
+        - `list_user_subscribed_collections(user_id: str, page: int, page_size: int)` 方法：
+            - 查询用户所有活跃订阅的 Collection（`WHERE gmt_deleted IS NULL`）
+            - 关联查询获取 Collection 详细信息和原所有者信息
+            - 返回包含订阅信息的 Collection 列表
             - 支持分页功能
 
 - [ ] **1.4. 服务层 - 权限控制**
