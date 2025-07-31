@@ -127,8 +127,8 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
 ┌─────────────────────────────────────────────────────────────────┐
 │                        前端 (UmiJS + React)                      │
 ├─────────────────────────────────────────────────────────────────┤
-│  /marketplace     │ /collections      │ /collections/{collection_id} │
-│  (市场浏览页面)     │ (统一工作台)       │ (Collection详情)         │
+│  /marketplace     │ /collections      │ /collections/{collection_id}            │
+│  (市场浏览页面)     │ (统一工作台)       │ (Collection详情, 区分owner/订阅者)         │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 │ HTTP/HTTPS
