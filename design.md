@@ -31,8 +31,8 @@ CREATE TABLE collection_marketplace (
     id VARCHAR(24) PRIMARY KEY DEFAULT ('market_' || substr(md5(random()::text), 1, 16)),
     collection_id VARCHAR(24) NOT NULL,  -- 关联collections表，应用层维护关联关系
     
-    -- 分享状态：使用VARCHAR存储，不使用数据库enum类型
-    status VARCHAR(20) NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'PUBLISHED')),
+    -- 分享状态：使用VARCHAR存储，不使用数据库enum类型，应用层校验
+    status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
     
     -- 时间戳字段
     gmt_created TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -95,7 +95,7 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
 2. **订阅约束**: 一个用户对同一 Collection 只能有一个活跃订阅
 3. **所有权约束**: 用户无法订阅自己是所有者的 Collection（业务逻辑禁止）
 4. **应用层级联**: Collection 删除时，需要在代码中同时软删除相关的分享和订阅记录
-5. **状态检查**: 分享状态只能是 'DRAFT' 或 'PUBLISHED'
+5. **状态检查**: 分享状态只能是 'DRAFT' 或 'PUBLISHED'（应用层校验）
 
 **性能优化:**
 1. **部分索引**: 只为活跃记录（`gmt_deleted IS NULL`）创建索引，大幅减少索引空间
@@ -399,15 +399,17 @@ ORDER BY ucs.gmt_subscribed DESC;
     - `gmt_deleted: Optional[datetime]`: 取消订阅时间（NULL表示活跃订阅）
 
 **4.1.2 新增视图模型 (aperag/schema/view_models.py):**
+> 在aperag/api/components/schemas/marketplace.yaml中定义
+> 注意需要用make generate-models和make generate-frontend-sdk生成前后端代码
 
-- **`CollectionMarketplaceView`**: Collection 分享状态信息（视图模型）
+- **`CollectionMarketplaceInfo`**: Collection 分享状态信息（视图模型）
     - `id: str`: 分享记录的唯一标识符
     - `collection_id: str`: 关联的 Collection ID
     - `status: CollectionMarketplaceStatusEnum`: 当前分享状态
     - `gmt_created: datetime`: 分享记录创建时间
     - `gmt_updated: datetime`: 分享记录最后更新时间
 
-- **`CollectionMarketplaceDetailView`**: 市场页面展示的 Collection 信息（视图模型）
+- **`MarketplaceCollectionView`**: 市场页面展示的 Collection 信息（视图模型）
     - `collection_id: str`: Collection ID
     - `title: str`: Collection 标题
     - `description: str`: Collection 描述
@@ -415,8 +417,8 @@ ORDER BY ucs.gmt_subscribed DESC;
     - `gmt_published: datetime`: 首次发布时间（对应数据库中的 gmt_created 字段）
     - `is_subscribed: bool`: 当前用户是否已订阅（非数据库字段，在服务层计算）
 
-- **`CollectionMarketplaceDetailViewList`**: 市场 Collection 列表响应
-    - `items: List[CollectionMarketplaceDetailView]`: Collection 列表
+- **`MarketplaceCollectionViewList`**: 市场 Collection 列表响应
+    - `items: List[MarketplaceCollectionView]`: Collection 列表
     - `total: int`: 总数量（用于分页）
     - `page: int`: 当前页码
     - `page_size: int`: 每页大小
@@ -436,7 +438,7 @@ ORDER BY ucs.gmt_subscribed DESC;
 **4.1.3 修改现有模型:**
 
 - **`Collection`**: 扩展现有 Collection model
-    - `sharing_info: Optional[CollectionMarketplaceView]`: 分享信息，仅在所有者查看时返回
+    - `sharing_info: Optional[CollectionMarketplaceInfo]`: 分享信息，仅在所有者查看时返回
     - `is_readonly_view: bool`: 是否为只读视图，非数据库字段，在服务层计算
         - 计算逻辑：当前用户不是所有者且通过订阅访问时为 `true`
         - 用于前端判断是否显示只读模式 UI
@@ -458,7 +460,7 @@ class MarketplaceService:
     职责: 处理所有与市场和分享相关的业务逻辑
     """
     
-    async def publish_collection(self, user_id: str, collection_id: str) -> CollectionMarketplaceView:
+    async def publish_collection(self, user_id: str, collection_id: str) -> CollectionMarketplaceInfo:
         """发布Collection到市场"""
         # 验证用户所有权
         # 创建或更新collection_marketplace记录
@@ -471,13 +473,13 @@ class MarketplaceService:
         # 批量失效相关订阅(设置gmt_deleted = datetime.utcnow())
         # 注意：需要使用事务确保数据一致性
         
-    async def get_sharing_status(self, collection_id: str) -> Optional[CollectionMarketplaceView]:
+    async def get_sharing_status(self, collection_id: str) -> Optional[CollectionMarketplaceInfo]:
         """获取Collection的分享状态"""
         
     async def get_raw_sharing_status(self, collection_id: str) -> Optional[CollectionMarketplace]:
         """获取原始分享状态（供权限检查使用）"""
         
-    async def list_published_collections(self, user_id: str, page: int, page_size: int) -> CollectionMarketplaceDetailViewList:
+    async def list_published_collections(self, user_id: str, page: int, page_size: int) -> MarketplaceCollectionViewList:
         """列出市场中所有已发布的Collection"""
         # 查询PUBLISHED状态的Collection
         # 计算当前用户的订阅状态
@@ -512,7 +514,7 @@ class MarketplaceService:
 
 核心变更是在所有Collection相关操作的入口处增加**权限检查**：
 
-        ```python
+```python
 class CollectionService:
     
     async def _check_read_access(self, user_id: str, collection_id: str) -> db_models.Collection:
@@ -627,14 +629,14 @@ class CollectionService:
 - **`GET /api/v1/marketplace/collections`**: 列出市场中所有公开的 Collection
     - **功能**: 返回所有状态为 `PUBLISHED` 的 Collection 列表（包括当前用户自己发布的Collection）
     - **权限**: 任何已登录用户都可以访问
-    - **响应**: `CollectionMarketplaceDetailViewList` 类型，包含每个 Collection 的基本信息、所有者用户名、发布时间
+    - **响应**: `MarketplaceCollectionViewList` 类型，包含每个 Collection 的基本信息、所有者用户名、发布时间
     - **分页**: 支持 `page` 和 `page_size` 参数
 
 - **`POST /api/v1/collections/{collection_id}/sharing`**: 发布一个 Collection 到市场
     - **功能**: 将指定 Collection 的状态设置为 `PUBLISHED`
     - **权限**: 仅限 Collection 所有者
     - **行为**: 在 `collection_marketplace` 表中创建记录或更新状态
-    - **响应**: 返回更新后的 `CollectionMarketplaceView` 信息
+    - **响应**: 返回更新后的 `CollectionMarketplaceInfo` 信息
 
 - **`DELETE /api/v1/collections/{collection_id}/sharing`**: 从市场下架一个 Collection
     - **功能**: 将指定 Collection 的状态设置为 `DRAFT`（不删除记录，仅改变状态）
@@ -645,7 +647,7 @@ class CollectionService:
 - **`GET /api/v1/collections/{collection_id}/sharing`**: 获取指定 Collection 的分享状态
     - **功能**: 返回 Collection 的当前分享状态和相关信息
     - **权限**: 仅限 Collection 所有者
-    - **响应**: `CollectionMarketplaceView` 类型，包含状态、发布时间
+    - **响应**: `CollectionMarketplaceInfo` 类型，包含状态、发布时间
 
 - **`POST /api/v1/marketplace/collections/{collection_id}/subscribe`**: 订阅一个已发布的 Collection
     - **功能**: 将指定的已发布 Collection 添加到用户的订阅列表
@@ -1259,9 +1261,9 @@ describe('MarketplacePage', () => {
 - [ ] **1.2. OpenAPI Schema 定义**
     - [ ] 创建 `aperag/api/components/schemas/marketplace.yaml`，定义以下视图模型：
         - `CollectionMarketplaceStatusEnum`
-        - `CollectionMarketplaceView` (分享状态响应模型)
-        - `CollectionMarketplaceDetailView` (市场页面展示模型)
-        - `CollectionMarketplaceDetailViewList` (市场列表响应模型)
+        - `CollectionMarketplaceInfo` (分享状态响应模型)
+        - `MarketplaceCollectionView` (市场页面展示模型)
+        - `MarketplaceCollectionViewList` (市场列表响应模型)
         - `UserSubscription` (用于订阅Collection API)
         - `UserSubscriptionList` (用于订阅Collection API)
     - [ ] 创建 `aperag/api/paths/marketplace.yaml`，定义以下端点的完整规范：
