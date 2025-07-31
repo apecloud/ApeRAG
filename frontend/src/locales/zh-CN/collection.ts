@@ -72,7 +72,6 @@ export const collection = {
   'collection.merge_suggestion.status.PENDING': '待处理',
   'collection.merge_suggestion.status.ACCEPTED': '已接受',
   'collection.merge_suggestion.status.REJECTED': '已回绝',
-  'collection.merge_suggestion.status.EXPIRED': '已过期',
   'collection.summary.generate': '生成摘要',
   'collection.summary.generating': '正在生成摘要...',
   'collection.summary.generated': '摘要已生成',

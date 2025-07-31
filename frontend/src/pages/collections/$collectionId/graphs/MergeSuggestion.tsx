@@ -76,7 +76,7 @@ const SuggestionItem = ({
       }
       setLoading(false);
     },
-    [],
+    [item],
   );
 
   return (
@@ -193,12 +193,6 @@ export const MergeSuggestion = ({
               key: MergeSuggestionItemStatusEnum.REJECTED,
               label: formatMessage({
                 id: 'collection.merge_suggestion.status.REJECTED',
-              }),
-            },
-            {
-              key: MergeSuggestionItemStatusEnum.EXPIRED,
-              label: formatMessage({
-                id: 'collection.merge_suggestion.status.EXPIRED',
               }),
             },
           ]}

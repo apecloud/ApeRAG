@@ -77,7 +77,6 @@ export const collection = {
   'collection.merge_suggestion.status.PENDING': 'Pending',
   'collection.merge_suggestion.status.ACCEPTED': 'Accepted',
   'collection.merge_suggestion.status.REJECTED': 'Rejected',
-  'collection.merge_suggestion.status.EXPIRED': 'Expired',
   'collection.summary.generate': 'Generate Summary',
   'collection.summary.generating': 'Generating summary...',
   'collection.summary.generated': 'Summary generated',
