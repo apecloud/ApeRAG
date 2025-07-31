@@ -276,121 +276,234 @@ LIMIT 1;
 
 ### 4. 后端设计
 
-#### 4.1. 模块与服务层
+遵循**软件架构分层原则**，按照从底层到高层的顺序进行设计：数据模型 → 服务层 → API层。
 
-**A. 新增模块: `aperag/service/marketplace_service.py`**
+#### 4.1. 数据模型设计 (OpenAPI / `view_models.py`)
 
-- **职责**: 处理所有与市场和分享相关的业务逻辑。
-- **核心函数**:
-    - `publish_collection(user_id: str, collection_id: str)`: 发布一个 Collection。
-    - `unpublish_collection(user_id: str, collection_id: str)`: 取消发布。
-    - `get_sharing_status(collection_id: str)`: 获取一个 Collection 的分享状态。
-    - `list_published_collections(page: int, size: int)`: 列出市场中所有已发布的 Collection。
+**4.1.1 新增数据库模型:**
 
-**B. 修改现有服务**
+- **`CollectionMarketplaceStatusEnum`**: 分享状态枚举
+    - `DRAFT`: 未发布状态，仅所有者可见
+    - `PUBLISHED`: 已发布状态，公开可见
 
-- **`aperag/service/collection_service.py`**:
-    - **核心变更**: 必须在所有函数（如 `get_collection`, `update_collection`, `delete_collection`）的入口处增加**权限检查**。
-    - **权限控制设计**:
-        ```python
-        # aperag/service/collection_service.py
+- **`CollectionMarketplaceItem`**: Collection 分享状态记录（数据库模型）
+    - `id: str`: 分享记录的唯一标识符
+    - `collection_id: str`: 关联的 Collection ID
+    - `status: CollectionMarketplaceStatusEnum`: 当前分享状态
+    - `gmt_created: datetime`: 分享记录创建时间
+    - `gmt_updated: datetime`: 分享记录最后更新时间
 
-        async def _check_read_access(self, user_id: str, collection_id: str) -> db_models.Collection:
-            """
-            检查用户是否有权限读取指定的 Collection。
-            返回 Collection 实例，如果无权限则抛出 HTTPException。
-            
-            权限规则（Subscribe 模式）：
-            1. Collection 所有者有完全读权限
-            2. 非所有者必须订阅已发布的 Collection 才能读取
-            3. 未订阅的用户无法访问任何非自有的 Collection
-            """
-            collection = await self.db_ops.query_collection_by_id(collection_id)
-            if not collection:
-                raise HTTPException(status_code=404, detail="Collection not found")
+- **`UserCollectionSubscription`**: 用户订阅 Collection 记录（数据库模型）
+    - `id: str`: 订阅记录的唯一标识符
+    - `user_id: str`: 订阅用户 ID
+    - `collection_id: str`: 被订阅的 Collection ID
+    - `sharing_id: str`: 对应的分享记录 ID
+    - `gmt_subscribed: datetime`: 订阅时间
+    - `gmt_deleted: Optional[datetime]`: 取消订阅时间（NULL表示活跃订阅）
 
-            # 1. 所有者有完全访问权限
-            if collection.user == user_id:
-                return collection
+**4.1.2 新增视图模型:**
 
-            # 2. 非所有者需要检查订阅状态
-            from aperag.service.marketplace_service import marketplace_service
-            
-            # 首先检查Collection是否已发布
-            sharing_info = await marketplace_service.get_raw_sharing_status(collection_id)
-            is_published = sharing_info and sharing_info.status == "PUBLISHED"
+- **`CollectionMarketplaceDetail`**: 市场页面展示的 Collection 信息（视图模型）
+    - `sharing_id: str`: 分享记录 ID
+    - `collection_id: str`: Collection ID
+    - `title: str`: Collection 标题
+    - `description: str`: Collection 描述
+    - `owner_username: str`: 所有者用户名
+    - `gmt_published: datetime`: 首次发布时间
+    - `is_subscribed: bool`: 当前用户是否已订阅（非数据库字段，在服务层计算）
 
-            if not is_published:
-                # 未发布的 Collection 拒绝非所有者访问
-                raise HTTPException(status_code=403, detail="Collection not published")
-            
-            # 检查用户是否已订阅该Collection
-            subscription = await marketplace_service.get_user_subscription(user_id, collection_id)
-            if not subscription or subscription.gmt_deleted is not None:
-                raise HTTPException(
-                    status_code=403, 
-                    detail="Access denied. Please subscribe to this collection first."
-                )
-            
-            # 订阅用户可以读取
+- **`CollectionMarketplaceDetailList`**: 市场 Collection 列表响应
+    - `items: List[CollectionMarketplaceDetail]`: Collection 列表
+    - `total: int`: 总数量（用于分页）
+    - `page: int`: 当前页码
+    - `page_size: int`: 每页大小
+
+- **`UserSubscription`**: 用户订阅信息（视图模型）
+    - `subscription_id: str`: 订阅记录 ID
+    - `collection_id: str`: Collection ID
+    - `collection_title: str`: Collection 标题
+    - `collection_description: str`: Collection 描述
+    - `owner_username: str`: 原所有者用户名
+    - `gmt_subscribed: datetime`: 订阅时间
+
+- **`UserSubscriptionList`**: 用户订阅列表响应 (专门的订阅Collection API响应)
+    - `items: List[UserSubscription]`: 订阅列表
+    - `total: int`: 总数量
+
+**4.1.3 修改现有模型:**
+
+- **`Collection`**: 扩展现有 Collection model
+    - `sharing_info: Optional[CollectionMarketplaceItem]`: 分享信息，仅在所有者查看时返回
+    - `is_readonly_view: bool`: 是否为只读视图，非数据库字段，在服务层计算
+        - 计算逻辑：当前用户不是所有者且通过订阅访问时为 `true`
+        - 用于前端判断是否显示只读模式 UI
+    - `subscription_info: Optional[UserSubscription]`: 订阅信息，仅在通过订阅访问时返回
+    - `access_type: str`: 访问类型，枚举值：`owner`（所有者）、`subscribed`（订阅访问）
+
+**4.1.4 OpenAPI Schema 组织:**
+
+所有新增的 model 定义将放置在 `aperag/api/components/schemas/marketplace.yaml` 文件中，现有 Collection model 的扩展将在 `aperag/api/components/schemas/collection.yaml` 中添加新字段。
+
+#### 4.2. 服务层设计 (Business Logic)
+
+**4.2.1 新增服务模块: `aperag/service/marketplace_service.py`**
+
+```python
+class MarketplaceService:
+    """
+    Marketplace业务逻辑服务
+    职责: 处理所有与市场和分享相关的业务逻辑
+    """
+    
+    async def publish_collection(self, user_id: str, collection_id: str) -> CollectionMarketplaceItem:
+        """发布Collection到市场"""
+        # 验证用户所有权
+        # 创建或更新collection_marketplace记录
+        # 状态设置为PUBLISHED
+        
+    async def unpublish_collection(self, user_id: str, collection_id: str) -> None:
+        """从市场下架Collection"""
+        # 验证用户所有权
+        # 更新collection_marketplace状态为DRAFT
+        # 批量失效相关订阅(设置gmt_deleted)
+        
+    async def get_sharing_status(self, collection_id: str) -> Optional[CollectionMarketplaceItem]:
+        """获取Collection的分享状态"""
+        
+    async def get_raw_sharing_status(self, collection_id: str) -> Optional[CollectionMarketplaceItem]:
+        """获取原始分享状态（供权限检查使用）"""
+        
+    async def list_published_collections(self, user_id: str, page: int, page_size: int) -> CollectionMarketplaceDetailList:
+        """列出市场中所有已发布的Collection"""
+        # 查询PUBLISHED状态的Collection
+        # 计算当前用户的订阅状态
+        # 支持分页
+        
+    async def subscribe_collection(self, user_id: str, collection_id: str) -> UserSubscription:
+        """订阅Collection"""
+        # 验证Collection已发布且用户不是所有者
+        # 检查是否已订阅，防止重复订阅
+        # 创建user_collection_subscription记录
+        
+    async def unsubscribe_collection(self, user_id: str, collection_id: str) -> None:
+        """取消订阅Collection"""
+        # 验证用户已订阅该Collection
+        # 软删除订阅记录(设置gmt_deleted)
+        
+    async def get_user_subscription(self, user_id: str, collection_id: str) -> Optional[UserCollectionSubscription]:
+        """获取用户对指定Collection的活跃订阅状态"""
+        # 供权限检查函数调用
+        # 返回None表示未订阅或已取消订阅
+        
+    async def list_user_subscribed_collections(self, user_id: str, page: int, page_size: int) -> UserSubscriptionList:
+        """获取用户所有活跃订阅的Collection"""
+        # 查询WHERE gmt_deleted IS NULL
+        # 关联查询获取Collection详细信息和原所有者信息
+        # 支持分页
+```
+
+**4.2.2 修改现有服务: `aperag/service/collection_service.py`**
+
+核心变更是在所有Collection相关操作的入口处增加**权限检查**：
+
+```python
+class CollectionService:
+    
+    async def _check_read_access(self, user_id: str, collection_id: str) -> db_models.Collection:
+        """
+        检查用户是否有权限读取指定的Collection
+        
+        权限规则（Subscribe模式）：
+        1. Collection所有者有完全读权限
+        2. 非所有者必须订阅已发布的Collection才能读取
+        3. 未订阅的用户无法访问任何非自有的Collection
+        """
+        collection = await self.db_ops.query_collection_by_id(collection_id)
+        if not collection:
+            raise HTTPException(status_code=404, detail="Collection not found")
+
+        # 1. 所有者有完全访问权限
+        if collection.user == user_id:
             return collection
 
-        async def _check_write_access(self, user_id: str, collection_id: str) -> db_models.Collection:
-            """
-            检查用户是否有权限修改指定的 Collection。
-            返回 Collection 实例，如果无权限则抛出 HTTPException。
-            
-            权限规则（Subscribe 模式）：
-            1. 只有 Collection 所有者有写权限
-            2. 订阅的 Collection 对订阅者严格只读
-            3. 非所有者和非订阅者无任何访问权限
-            """
-            collection = await self.db_ops.query_collection_by_id(collection_id)
-            if not collection:
-                raise HTTPException(status_code=404, detail="Collection not found")
+        # 2. 非所有者需要检查订阅状态
+        from aperag.service.marketplace_service import marketplace_service
+        
+        # 首先检查Collection是否已发布
+        sharing_info = await marketplace_service.get_raw_sharing_status(collection_id)
+        is_published = sharing_info and sharing_info.status == "PUBLISHED"
 
-            # 只有所有者才有写权限
-            if collection.user == user_id:
-                return collection
+        if not is_published:
+            raise HTTPException(status_code=403, detail="Collection not published")
+        
+        # 检查用户是否已订阅该Collection
+        subscription = await marketplace_service.get_user_subscription(user_id, collection_id)
+        if not subscription or subscription.gmt_deleted is not None:
+            raise HTTPException(
+                status_code=403, 
+                detail="Access denied. Please subscribe to this collection first."
+            )
+        
+        return collection
 
-            # 检查是否为共享 Collection，提供更具体的错误信息
-            from aperag.service.marketplace_service import marketplace_service
-            sharing_info = await marketplace_service.get_raw_sharing_status(collection_id)
-            is_published = sharing_info and sharing_info.status == "PUBLISHED"
+    async def _check_write_access(self, user_id: str, collection_id: str) -> db_models.Collection:
+        """
+        检查用户是否有权限修改指定的Collection
+        
+        权限规则（Subscribe模式）：
+        1. 只有Collection所有者有写权限
+        2. 订阅的Collection对订阅者严格只读
+        3. 非所有者和非订阅者无任何访问权限
+        """
+        collection = await self.db_ops.query_collection_by_id(collection_id)
+        if not collection:
+            raise HTTPException(status_code=404, detail="Collection not found")
 
-            if is_published:
-                raise HTTPException(
-                    status_code=403, 
-                    detail="Permission denied. This is a read-only shared collection."
-                )
-            else:
-                raise HTTPException(status_code=403, detail="Permission denied")
+        # 只有所有者才有写权限
+        if collection.user == user_id:
+            return collection
 
-        # 使用示例：
-        async def get_collection(self, user_id: str, collection_id: str):
-            collection = await self._check_read_access(user_id, collection_id)
-            # ... 构建响应数据并计算 is_readonly_view 字段
-            
-        async def update_collection(self, user_id: str, collection_id: str, updates: dict):
-            collection = await self._check_write_access(user_id, collection_id)
-            # ... 执行更新逻辑
-            
-        async def delete_collection(self, user_id: str, collection_id: str):
-            collection = await self._check_write_access(user_id, collection_id)
-            # ... 执行删除逻辑
-        ```
+        # 检查是否为共享Collection，提供更具体的错误信息
+        from aperag.service.marketplace_service import marketplace_service
+        sharing_info = await marketplace_service.get_raw_sharing_status(collection_id)
+        is_published = sharing_info and sharing_info.status == "PUBLISHED"
 
-- **其他相关服务的权限控制**:
-    - **`aperag/service/document_service.py`**: 所有涉及 Collection 内文档的读取操作（如 `list_documents`, `get_document`）必须调用 `collection_service._check_read_access`
-    - **`aperag/service/document_service.py`**: 所有涉及 Collection 内文档的写操作（如 `create_document`, `update_document`, `delete_document`）必须调用 `collection_service._check_write_access`
-    - **`aperag/service/graph_service.py`**: 图相关的读取操作（如 `get_graph`）必须调用 `collection_service._check_read_access`
-    - **`aperag/service/chat_service.py`**: 聊天查询操作必须调用 `collection_service._check_read_access`
-    - **`aperag/service/bot_service.py`**: Bot 相关操作必须检查关联 Collection 的权限
-    - **`aperag/service/search_service.py`**: 搜索相关操作必须调用权限检查函数
+        if is_published:
+            raise HTTPException(
+                status_code=403, 
+                detail="Permission denied. This is a read-only shared collection."
+            )
+        else:
+            raise HTTPException(status_code=403, detail="Permission denied")
 
-#### 3.2. API 端点设计 (View 层)
+    # 使用示例：
+    async def get_collection(self, user_id: str, collection_id: str):
+        collection = await self._check_read_access(user_id, collection_id)
+        # ... 构建响应数据并计算 is_readonly_view 字段
+        
+    async def update_collection(self, user_id: str, collection_id: str, updates: dict):
+        collection = await self._check_write_access(user_id, collection_id)
+        # ... 执行更新逻辑
+        
+    async def delete_collection(self, user_id: str, collection_id: str):
+        collection = await self._check_write_access(user_id, collection_id)
+        # ... 执行删除逻辑
+```
 
-**A. 新增 API 端点**
+**4.2.3 其他相关服务的权限集成:**
+
+- **`aperag/service/document_service.py`**: 所有涉及Collection内文档的读取操作（如`list_documents`, `get_document`）必须调用`collection_service._check_read_access`
+- **`aperag/service/document_service.py`**: 所有涉及Collection内文档的写操作（如`create_document`, `update_document`, `delete_document`）必须调用`collection_service._check_write_access`
+- **`aperag/service/graph_service.py`**: 图相关的读取操作（如`get_graph`）必须调用`collection_service._check_read_access`
+- **`aperag/service/chat_service.py`**: 聊天查询操作必须调用`collection_service._check_read_access`
+- **`aperag/service/bot_service.py`**: Bot相关操作必须检查关联Collection的权限
+- **`aperag/service/search_service.py`**: 搜索相关操作必须调用权限检查函数
+
+#### 4.3. API 端点设计 (View 层)
+
+基于服务层的业务逻辑，设计RESTful API端点，遵循统一的URL命名规范和错误处理模式。
+
+**4.3.1 新增 API 端点**
 
 设计采用混合 URL 模式：marketplace 相关的浏览功能使用 `/marketplace` 路径，而具体 Collection 的分享操作作为 Collection 的子资源管理。
 
@@ -437,7 +550,7 @@ LIMIT 1;
     - **分页**: 支持 `page` 和 `page_size` 参数
     - **设计理念**: 资源层级更清晰，subscriptions作为collections的子资源
 
-**B. 修改现有 API 行为**
+**4.3.2 修改现有 API 行为**
 
 现有的 Collection 相关端点需要集成新的权限控制逻辑，支持 Subscribe 模式的访问控制。
 
@@ -514,7 +627,7 @@ LIMIT 1;
         - **权限检查**: 调用 `_check_write_access`
         - **行为**: 非所有者访问将返回 `403 Forbidden`
 
-**C. Bot 和 Chat 相关端点权限控制**
+**4.3.3 Bot 和 Chat 相关端点权限控制**
 
 由于 Bot 通常与特定的 Collection 关联，需要在 Bot 相关操作中检查关联 Collection 的权限：
 
@@ -546,69 +659,6 @@ LIMIT 1;
         - **权限检查**: 检查聊天所有权（不需要 Collection 写权限）
         - **行为**: 用户只能删除自己的聊天记录
 
-#### 3.3. 数据模型 (OpenAPI / `view_models.py`)
-
-**新增 Models:**
-
-- **`CollectionMarketplaceStatusEnum`**: 分享状态枚举
-    - `DRAFT`: 未发布状态，仅所有者可见
-    - `PUBLISHED`: 已发布状态，公开可见
-
-- **`CollectionMarketplaceItem`**: Collection 分享状态记录（数据库模型）
-    - `id: str`: 分享记录的唯一标识符
-    - `collection_id: str`: 关联的 Collection ID
-    - `status: CollectionMarketplaceStatusEnum`: 当前分享状态
-    - `gmt_created: datetime`: 分享记录创建时间
-    - `gmt_updated: datetime`: 分享记录最后更新时间
-
-- **`UserCollectionSubscription`**: 用户订阅 Collection 记录（数据库模型）
-    - `id: str`: 订阅记录的唯一标识符
-    - `user_id: str`: 订阅用户 ID
-    - `collection_id: str`: 被订阅的 Collection ID
-    - `sharing_id: str`: 对应的分享记录 ID
-    - `gmt_subscribed: datetime`: 订阅时间
-    - `gmt_deleted: Optional[datetime]`: 取消订阅时间（NULL表示活跃订阅）
-
-- **`CollectionMarketplaceDetail`**: 市场页面展示的 Collection 信息（视图模型）
-    - `sharing_id: str`: 分享记录 ID
-    - `collection_id: str`: Collection ID
-    - `title: str`: Collection 标题
-    - `description: str`: Collection 描述
-    - `owner_username: str`: 所有者用户名
-    - `gmt_published: datetime`: 首次发布时间
-    - `is_subscribed: bool`: 当前用户是否已订阅（非数据库字段，在服务层计算）
-
-- **`CollectionMarketplaceDetailList`**: 市场 Collection 列表响应
-    - `items: List[CollectionMarketplaceDetail]`: Collection 列表
-    - `total: int`: 总数量（用于分页）
-    - `page: int`: 当前页码
-    - `page_size: int`: 每页大小
-
-- **`UserSubscription`**: 用户订阅信息（视图模型）
-    - `subscription_id: str`: 订阅记录 ID
-    - `collection_id: str`: Collection ID
-    - `collection_title: str`: Collection 标题
-    - `collection_description: str`: Collection 描述
-    - `owner_username: str`: 原所有者用户名
-    - `gmt_subscribed: datetime`: 订阅时间
-
-- **`UserSubscriptionList`**: 用户订阅列表响应 (专门的订阅Collection API响应)
-    - `items: List[UserSubscription]`: 订阅列表
-    - `total: int`: 总数量
-
-**修改现有 Models:**
-
-- **`Collection`**: 扩展现有 Collection model
-    - `sharing_info: Optional[CollectionMarketplaceItem]`: 分享信息，仅在所有者查看时返回
-    - `is_readonly_view: bool`: 是否为只读视图，非数据库字段，在服务层计算
-        - 计算逻辑：当前用户不是所有者且通过订阅访问时为 `true`
-        - 用于前端判断是否显示只读模式 UI
-    - `subscription_info: Optional[UserSubscription]`: 订阅信息，仅在通过订阅访问时返回
-    - `access_type: str`: 访问类型，枚举值：`owner`（所有者）、`subscribed`（订阅访问）
-
-**OpenAPI Schema 组织:**
-
-所有新增的 model 定义将放置在 `aperag/api/components/schemas/marketplace.yaml` 文件中，现有 Collection model 的扩展将在 `aperag/api/components/schemas/collection.yaml` 中添加新字段。
 
 ### 5. 错误处理与测试策略
 
