@@ -146,9 +146,16 @@ export const ChunkViewer = ({
   const isOriginalImage = useMemo(() => {
     const filename = previewData?.doc_filename?.toLowerCase();
     if (!filename) return false;
-    return ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif'].some((ext) =>
-      filename.endsWith(ext),
-    );
+    return [
+      '.jpg',
+      '.jpeg',
+      '.png',
+      '.bmp',
+      '.gif',
+      '.webp',
+      '.tiff',
+      '.tif',
+    ].some((ext) => filename.endsWith(ext));
   }, [previewData?.doc_filename]);
 
   const canShowPdfPreview = useMemo(() => {
@@ -915,8 +922,7 @@ export const ChunkViewer = ({
                   return (
                     <List.Item
                       ref={(el) => {
-                        if (el)
-                          chunkItemRefs.current.set(item.id || '', el);
+                        if (el) chunkItemRefs.current.set(item.id || '', el);
                         else chunkItemRefs.current.delete(item.id || '');
                       }}
                       onMouseEnter={() => {

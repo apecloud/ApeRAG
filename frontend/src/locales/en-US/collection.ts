@@ -29,31 +29,42 @@ export const collection = {
   'collection.delete.confirm':
     'The collection "{name}" will be deleted, confirm the current operation.',
   'collection.index_types': 'Index Types',
-  'collection.index_types.description': 'Select the AI capabilities you need, we will build corresponding indexes for your documents',
+  'collection.index_types.description':
+    'Select the AI capabilities you need, we will build corresponding indexes for your documents',
   'collection.index_type.vector': 'Vector Index',
-  'collection.index_type.vector.description': 'Basic semantic search, supports text similarity search',
+  'collection.index_type.vector.description':
+    'Basic semantic search, supports text similarity search',
   'collection.index_type.fulltext': 'Fulltext Index',
-  'collection.index_type.fulltext.description': 'Keyword exact matching, supports traditional fulltext search',
+  'collection.index_type.fulltext.description':
+    'Keyword exact matching, supports traditional fulltext search',
   'collection.index_type.graph': 'Graph Index',
-  'collection.index_type.graph.description': 'Knowledge graph enhancement, discover complex relationships between concepts',
+  'collection.index_type.graph.description':
+    'Knowledge graph enhancement, discover complex relationships between concepts',
   'collection.index_type.summary': 'Summary Index',
-  'collection.index_type.summary.description': 'Automatically generate document summaries, improve long document understanding',
+  'collection.index_type.summary.description':
+    'Automatically generate document summaries, improve long document understanding',
   'collection.index_type.vision': 'Vision Index',
-  'collection.index_type.vision.description': 'Image understanding, supports mixed text and image content analysis',
+  'collection.index_type.vision.description':
+    'Image understanding, supports mixed text and image content analysis',
   'collection.index_type.requires': 'Requires',
   'collection.index_type.model': 'model',
   'collection.index_type.embedding': 'embedding',
   'collection.index_type.completion': 'completion',
   'collection.index_type.required': 'Required',
-  'collection.index_type.required.tooltip': 'This index type is required and cannot be deselected',
-  'collection.description.auto_generated.placeholder': 'AI will automatically generate description based on document content...',
-  'collection.description.auto_generated.tip': 'AI will analyze document content and automatically generate knowledge base description',
-  'collection.model_settings.description': 'Select AI models for document processing. Different index types require different model support',
+  'collection.index_type.required.tooltip':
+    'This index type is required and cannot be deselected',
+  'collection.description.auto_generated.placeholder':
+    'AI will automatically generate description based on document content...',
+  'collection.description.auto_generated.tip':
+    'AI will analyze document content and automatically generate knowledge base description',
+  'collection.model_settings.description':
+    'Select AI models for document processing. Different index types require different model support',
   'collection.enable_knowledge_graph': 'Enable Graph RAG',
   'collection.enable_summary': 'Enable Summary',
   'collection.enable_auto_summary': 'Enable Auto Summary',
   'collection.enable_vision': 'Enable Vision Index',
-  'collection.description.tips': 'If you enable auto summary, the description will become read-only. The backend LLM model will automatically generate summary indexes for each document and then generate the collection description based on these summaries, providing a more accurate reflection of the collection content.',
+  'collection.description.tips':
+    'If you enable auto summary, the description will become read-only. The backend LLM model will automatically generate summary indexes for each document and then generate the collection description based on these summaries, providing a more accurate reflection of the collection content.',
   'collection.embedding_model': 'Embedding Model',
   'collection.model_not_found':
     'Please set the API Key in Settings -> Model Provider',

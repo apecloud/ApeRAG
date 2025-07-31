@@ -1,7 +1,8 @@
 export const settings = {
   'settings.use_mineru': 'Use MinerU API',
   'settings.mineru_api_token.placeholder.new': 'Please enter a token',
-  'settings.mineru_api_token.extra': 'Tips: The official MinerU API Token is valid for 14 days, please replace it before it expires.',
+  'settings.mineru_api_token.extra':
+    'Tips: The official MinerU API Token is valid for 14 days, please replace it before it expires.',
   'settings.mineru_api_token.test.valid': 'Token is valid',
   'settings.mineru_api_token.test.invalid': 'Invalid Token',
   'settings.mineru_api_token.test.expired': 'Token is expired',

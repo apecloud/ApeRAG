@@ -1,7 +1,7 @@
 import { Collection } from '@/api';
 import { Form } from 'antd';
 import { toast } from 'react-toastify';
-import { useIntl, useModel, history } from 'umi';
+import { history, useIntl, useModel } from 'umi';
 import CollectionForm from '../_form';
 
 export default () => {

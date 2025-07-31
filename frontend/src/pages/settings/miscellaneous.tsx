@@ -1,4 +1,6 @@
+import { Settings } from '@/api';
 import { PageContainer, PageHeader } from '@/components';
+import { api } from '@/services';
 import { QuestionCircleOutlined } from '@ant-design/icons';
 import {
   Button,
@@ -13,8 +15,6 @@ import {
 } from 'antd';
 import { useEffect, useState } from 'react';
 import { useIntl } from 'umi';
-import { Settings } from '@/api';
-import { api } from '@/services';
 
 export default () => {
   const { formatMessage } = useIntl();

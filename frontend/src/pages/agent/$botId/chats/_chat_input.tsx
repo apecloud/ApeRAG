@@ -20,7 +20,7 @@ import {
 import alpha from 'color-alpha';
 import _ from 'lodash';
 import { useCallback, useEffect, useState } from 'react';
-import { css, styled, useIntl, useModel, getLocale } from 'umi';
+import { css, getLocale, styled, useIntl, useModel } from 'umi';
 
 export const StyledChatInputContainer = styled('div').withConfig({
   shouldForwardProp: (prop) => !['token'].includes(prop),
@@ -235,10 +235,12 @@ export const ChatInput = ({
                   style={{ width: 220 }}
                   value={modelName}
                   onChange={setModelName}
-                  tagFilters={[{
-                    operation: "OR",
-                    tags: ["enable_for_agent"]
-                  }]}
+                  tagFilters={[
+                    {
+                      operation: 'OR',
+                      tags: ['enable_for_agent'],
+                    },
+                  ]}
                 />
               </Tooltip>
             )}

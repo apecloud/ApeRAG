@@ -28,9 +28,9 @@ export const ModelSelect = (props: SelectProps & ModelSelectProps) => {
       // Apply tag filters logic
       return tagFilters.some((filter) => {
         const { operation, tags } = filter;
-        if (operation === "OR") {
+        if (operation === 'OR') {
           return tags.some((tag: string) => model.tags.includes(tag));
-        } else if (operation === "AND") {
+        } else if (operation === 'AND') {
           return tags.every((tag: string) => model.tags.includes(tag));
         }
         return false;
@@ -43,7 +43,7 @@ export const ModelSelect = (props: SelectProps & ModelSelectProps) => {
       _.map(availableModels, (provider) => {
         const models = provider[props.model] || [];
         const filteredModels = filterModelsByTags(models, props.tagFilters);
-        
+
         return {
           label: (
             <Space>

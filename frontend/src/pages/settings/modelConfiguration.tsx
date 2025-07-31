@@ -15,13 +15,11 @@ import {
   ArrowLeftOutlined,
   DeleteOutlined,
   EditOutlined,
-  InfoCircleOutlined,
   PlusOutlined,
   SearchOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
 import {
-  Alert,
   Button,
   Col,
   Divider,
@@ -265,7 +263,7 @@ export default () => {
     async (values: any) => {
       try {
         setLoading(true);
-        
+
         if (editingModel) {
           // Update existing model - 保持原有的tags和token限制字段不变
           const finalData = {
@@ -274,7 +272,7 @@ export default () => {
             max_input_tokens: editingModel.max_input_tokens, // 保持原有最大输入
             max_output_tokens: editingModel.max_output_tokens, // 保持原有最大输出
           };
-          
+
           await api.llmProvidersProviderNameModelsApiModelPut({
             providerName: editingModel.provider_name,
             api: editingModel.api as LlmProvidersProviderNameModelsApiModelPutApiEnum,
@@ -349,19 +347,21 @@ export default () => {
     async (model: LlmProviderModel, tag: string, checked: boolean) => {
       try {
         setLoading(true);
-        
+
         // 更新tags数组
         const currentTags = model.tags || [];
         let newTags: string[];
-        
+
         if (checked) {
           // 添加标签
-          newTags = currentTags.includes(tag) ? currentTags : [...currentTags, tag];
+          newTags = currentTags.includes(tag)
+            ? currentTags
+            : [...currentTags, tag];
         } else {
           // 移除标签
-          newTags = currentTags.filter(t => t !== tag);
+          newTags = currentTags.filter((t) => t !== tag);
         }
-        
+
         // 调用API更新模型
         await api.llmProvidersProviderNameModelsApiModelPut({
           providerName: model.provider_name,
@@ -369,10 +369,10 @@ export default () => {
           model: model.model,
           llmProviderModelUpdate: {
             ...model,
-            tags: newTags
+            tags: newTags,
           } as LlmProviderModelUpdate,
         });
-        
+
         message.success(formatMessage({ id: 'model.useCase.update.success' }));
         await fetchConfiguration();
       } catch (error) {
@@ -593,24 +593,40 @@ export default () => {
       width: 160,
       render: (_, record: LlmProviderModel) => (
         <Space direction="vertical" size="small" style={{ width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
             <Text style={{ fontSize: '12px' }}>
               {formatMessage({ id: 'model.usecase.collection' })}
             </Text>
             <Switch
               size="small"
               checked={record.tags?.includes('enable_for_collection') || false}
-              onChange={(checked) => handleUseCaseChange(record, 'enable_for_collection', checked)}
+              onChange={(checked) =>
+                handleUseCaseChange(record, 'enable_for_collection', checked)
+              }
             />
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
             <Text style={{ fontSize: '12px' }}>
               {formatMessage({ id: 'model.usecase.agent' })}
             </Text>
             <Switch
               size="small"
               checked={record.tags?.includes('enable_for_agent') || false}
-              onChange={(checked) => handleUseCaseChange(record, 'enable_for_agent', checked)}
+              onChange={(checked) =>
+                handleUseCaseChange(record, 'enable_for_agent', checked)
+              }
             />
           </div>
         </Space>
@@ -624,9 +640,7 @@ export default () => {
         <Space wrap>
           {tags
             ?.filter((tag) => tag !== '__autogen__')
-            .map((tag) => (
-              <Tag key={tag}>{tag}</Tag>
-            ))}
+            .map((tag) => <Tag key={tag}>{tag}</Tag>)}
         </Space>
       ),
     },

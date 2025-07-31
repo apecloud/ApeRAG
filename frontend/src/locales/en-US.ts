@@ -253,9 +253,12 @@ export default {
   'document.index.rebuild.failed': 'Index rebuild failed',
   'document.index.rebuild.failed.button': 'Rebuild Failed Indexes',
   'document.index.rebuild.failed.confirm.title': 'Rebuild Failed Indexes',
-  'document.index.rebuild.failed.confirm.content': 'Are you sure you want to rebuild all failed indexes? This will rebuild failed indexes for {count} documents.',
-  'document.index.rebuild.failed.success': 'Successfully initiated rebuild for {success} of {total} documents',
-  'document.index.rebuild.failed.partial': 'Failed to rebuild indexes for {failed} of {total} documents',
+  'document.index.rebuild.failed.confirm.content':
+    'Are you sure you want to rebuild all failed indexes? This will rebuild failed indexes for {count} documents.',
+  'document.index.rebuild.failed.success':
+    'Successfully initiated rebuild for {success} of {total} documents',
+  'document.index.rebuild.failed.partial':
+    'Failed to rebuild indexes for {failed} of {total} documents',
   'document.index.rebuild.noFailedIndexes': 'No failed indexes found',
   'document.view.title': 'View: {name}',
   'document.view.unsupportedFormat':
@@ -378,13 +381,14 @@ export default {
   'model.field.maxOutput.tooltip':
     'The maximum output token length supported by the model',
   'model.field.tags': 'Tags',
-      'model.field.tags.tooltip':
-      'Tags are automatically managed by the use case selection above, no manual editing required',
-      'model.field.action': 'Action',
-    'model.field.useCases': 'Use Cases',
-    'model.field.useCases.tooltip': 'Select applicable business scenarios for the model, corresponding tags will be added automatically',
-    'model.useCase.update.success': 'Use case updated successfully',
-    'model.useCase.update.failed': 'Failed to update use case',
+  'model.field.tags.tooltip':
+    'Tags are automatically managed by the use case selection above, no manual editing required',
+  'model.field.action': 'Action',
+  'model.field.useCases': 'Use Cases',
+  'model.field.useCases.tooltip':
+    'Select applicable business scenarios for the model, corresponding tags will be added automatically',
+  'model.useCase.update.success': 'Use case updated successfully',
+  'model.useCase.update.failed': 'Failed to update use case',
 
   // API Key Management
   'api_key.title': 'API Key Management',

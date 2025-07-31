@@ -1,12 +1,7 @@
-import {
-  Tag,
-  Typography,
-  theme,
-  Tooltip,
-} from 'antd';
-import { ReactNode, useEffect, useState } from 'react';
-import { useIntl } from 'umi';
+import { Tag, Tooltip, Typography } from 'antd';
 import classNames from 'classnames';
+import { useEffect, useState } from 'react';
+import { useIntl } from 'umi';
 import styles from './index.less';
 
 type IndexType = 'vector' | 'fulltext' | 'graph' | 'summary' | 'vision';
@@ -54,8 +49,6 @@ const INDEX_TYPE_OPTIONS: IndexTypeOption[] = [
   },
 ];
 
-
-
 export const IndexTypeSelector = ({
   value,
   defaultValue = ['vector', 'fulltext', 'graph'],
@@ -63,14 +56,13 @@ export const IndexTypeSelector = ({
   disabled,
 }: PropsType) => {
   const { formatMessage } = useIntl();
-  const { token } = theme.useToken();
   const [selectedTypes, setSelectedTypes] = useState<IndexType[]>(
     value || defaultValue,
   );
 
   const handleTypeToggle = (type: IndexType, option: IndexTypeOption) => {
     if (disabled) return;
-    
+
     // Required types cannot be deselected
     if (option.required && selectedTypes.includes(type)) return;
 
@@ -105,7 +97,7 @@ export const IndexTypeSelector = ({
           const isDisabled = disabled;
 
           const cannotDeselect = option.required && isSelected;
-          
+
           const itemElement = (
             <div
               key={option.key}
@@ -117,7 +109,9 @@ export const IndexTypeSelector = ({
                 [styles.cannotDeselect]: cannotDeselect,
               })}
               onClick={() => handleTypeToggle(option.key, option)}
-              style={{ marginBottom: index === INDEX_TYPE_OPTIONS.length - 1 ? 0 : 16 }}
+              style={{
+                marginBottom: index === INDEX_TYPE_OPTIONS.length - 1 ? 0 : 16,
+              }}
             >
               <div className={styles.itemContent}>
                 <div className={styles.iconWrapper}>
@@ -132,7 +126,9 @@ export const IndexTypeSelector = ({
                     </Typography.Text>
                     {option.required && (
                       <Tag className={styles.requiredTag}>
-                        {formatMessage({ id: 'collection.index_type.required' })}
+                        {formatMessage({
+                          id: 'collection.index_type.required',
+                        })}
                       </Tag>
                     )}
                   </div>
@@ -144,14 +140,24 @@ export const IndexTypeSelector = ({
                   {option.dependency ? (
                     <div className={styles.dependency}>
                       <Typography.Text className={styles.dependencyText}>
-                        {formatMessage({ id: 'collection.index_type.requires' })} {
-                          option.dependency === 'completion' ? formatMessage({ id: 'collection.index_type.completion' }) : 
-                          formatMessage({ id: 'collection.index_type.embedding' })
-                        } {formatMessage({ id: 'collection.index_type.model' })}
+                        {formatMessage({
+                          id: 'collection.index_type.requires',
+                        })}{' '}
+                        {option.dependency === 'completion'
+                          ? formatMessage({
+                              id: 'collection.index_type.completion',
+                            })
+                          : formatMessage({
+                              id: 'collection.index_type.embedding',
+                            })}{' '}
+                        {formatMessage({ id: 'collection.index_type.model' })}
                       </Typography.Text>
                     </div>
                   ) : (
-                    <div className={styles.dependency} style={{ visibility: 'hidden' }}>
+                    <div
+                      className={styles.dependency}
+                      style={{ visibility: 'hidden' }}
+                    >
                       <Typography.Text className={styles.dependencyText}>
                         &nbsp;
                       </Typography.Text>
@@ -166,11 +172,15 @@ export const IndexTypeSelector = ({
           return cannotDeselect ? (
             <Tooltip
               key={option.key}
-              title={formatMessage({ id: 'collection.index_type.required.tooltip' })}
+              title={formatMessage({
+                id: 'collection.index_type.required.tooltip',
+              })}
             >
               {itemElement}
             </Tooltip>
-          ) : itemElement;
+          ) : (
+            itemElement
+          );
         })}
       </div>
     </div>

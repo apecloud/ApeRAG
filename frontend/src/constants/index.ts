@@ -190,7 +190,6 @@ export const UI_COLLECTION_STATUS: {
   ACTIVE: 'success',
   INACTIVE: 'error',
   DELETED: 'error',
-  SUMMARY_GENERATING: 'processing',
 };
 
 export const UI_DOCUMENT_STATUS: {

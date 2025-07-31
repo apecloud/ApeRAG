@@ -1,7 +1,8 @@
 export const settings = {
   'settings.use_mineru': '使用 MinerU API',
   'settings.mineru_api_token.placeholder.new': '请输入 Token',
-  'settings.mineru_api_token.extra': 'Tips: MinerU API Token 官方有效期为 14 天，请在过期前及时更换。',
+  'settings.mineru_api_token.extra':
+    'Tips: MinerU API Token 官方有效期为 14 天，请在过期前及时更换。',
   'settings.mineru_api_token.test.valid': 'Token 有效',
   'settings.mineru_api_token.test.invalid': '无效的 Token',
   'settings.mineru_api_token.test.expired': 'Token 已过期',

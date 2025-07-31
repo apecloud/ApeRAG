@@ -1,5 +1,5 @@
 import { Collection } from '@/api';
-import { ApeMarkdown, IndexTypeSelector, ModelSelect } from '@/components';
+import { IndexTypeSelector, ModelSelect } from '@/components';
 
 import { QuestionCircleOutlined } from '@ant-design/icons';
 import {
@@ -9,7 +9,6 @@ import {
   Form,
   FormInstance,
   Input,
-  Space,
   Tooltip,
   Typography,
   theme,
@@ -73,10 +72,12 @@ export default ({ onSubmit, action, values, form }: Props) => {
   };
 
   // form field watch
-  const indexTypes = Form.useWatch(configIndexTypesKey, form) || (action === 'add' ? ['vector', 'fulltext', 'graph'] : []);
+  const indexTypes =
+    Form.useWatch(configIndexTypesKey, form) ||
+    (action === 'add' ? ['vector', 'fulltext', 'graph'] : []);
   const embeddingModel = Form.useWatch(configEmbeddingModelKey, form);
   const completionModel = Form.useWatch(configCompletionModelKey, form);
-  
+
   const enableKnowledgeGraph = indexTypes.includes('graph');
   const enableSummary = indexTypes.includes('summary');
   const enableVision = indexTypes.includes('vision');
@@ -143,9 +144,18 @@ export default ({ onSubmit, action, values, form }: Props) => {
   useEffect(() => {
     if (indexTypes) {
       form.setFieldValue(configEnableVectorKey, indexTypes.includes('vector'));
-      form.setFieldValue(configEnableFulltextKey, indexTypes.includes('fulltext'));
-      form.setFieldValue(configEnableKnowledgeGraphKey, indexTypes.includes('graph'));
-      form.setFieldValue(configEnableSummaryKey, indexTypes.includes('summary'));
+      form.setFieldValue(
+        configEnableFulltextKey,
+        indexTypes.includes('fulltext'),
+      );
+      form.setFieldValue(
+        configEnableKnowledgeGraphKey,
+        indexTypes.includes('graph'),
+      );
+      form.setFieldValue(
+        configEnableSummaryKey,
+        indexTypes.includes('summary'),
+      );
       form.setFieldValue(configEnableVisionKey, indexTypes.includes('vision'));
     }
   }, [indexTypes, form]);
@@ -163,7 +173,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
       if (values.config.enable_knowledge_graph) indexTypes.push('graph');
       if (values.config.enable_summary) indexTypes.push('summary');
       if (values.config.enable_vision) indexTypes.push('vision');
-      
+
       form.setFieldValue(configIndexTypesKey, indexTypes);
     }
   }, [action, values, form]);
@@ -229,10 +239,20 @@ export default ({ onSubmit, action, values, form }: Props) => {
               maxLength={300}
               rows={3}
               readOnly={enableSummary}
-              placeholder={enableSummary ? formatMessage({ id: 'collection.description.auto_generated.placeholder' }) : undefined}
+              placeholder={
+                enableSummary
+                  ? formatMessage({
+                      id: 'collection.description.auto_generated.placeholder',
+                    })
+                  : undefined
+              }
               style={{
-                color: enableSummary ? token.colorTextDisabled : token.colorText,
-                backgroundColor: enableSummary ? token.colorBgContainerDisabled : token.colorBgContainer,
+                color: enableSummary
+                  ? token.colorTextDisabled
+                  : token.colorText,
+                backgroundColor: enableSummary
+                  ? token.colorBgContainerDisabled
+                  : token.colorBgContainer,
                 cursor: enableSummary ? 'default' : 'text',
               }}
             />
@@ -242,7 +262,9 @@ export default ({ onSubmit, action, values, form }: Props) => {
         {/* Index Types Selector */}
         <Form.Item
           name={configIndexTypesKey}
-          initialValue={action === 'add' ? ['vector', 'fulltext', 'graph'] : undefined}
+          initialValue={
+            action === 'add' ? ['vector', 'fulltext', 'graph'] : undefined
+          }
         >
           <IndexTypeSelector disabled={action === 'edit'} />
         </Form.Item>
@@ -252,7 +274,9 @@ export default ({ onSubmit, action, values, form }: Props) => {
           <Typography.Title level={4} style={{ marginBottom: 16 }}>
             {formatMessage({ id: 'collection.advanced_settings' })}
           </Typography.Title>
-          <Typography.Paragraph style={{ marginBottom: 24, color: token.colorTextSecondary }}>
+          <Typography.Paragraph
+            style={{ marginBottom: 24, color: token.colorTextSecondary }}
+          >
             {formatMessage({ id: 'collection.model_settings.description' })}
           </Typography.Paragraph>
         </div>
@@ -270,13 +294,15 @@ export default ({ onSubmit, action, values, form }: Props) => {
           ]}
           label={formatMessage({ id: 'collection.embedding_model' })}
         >
-          <ModelSelect 
-            model="embedding" 
-            disabled={action === 'edit'} 
-            tagFilters={[{
-              operation: "OR",
-              tags: ["enable_for_collection"]
-            }]}
+          <ModelSelect
+            model="embedding"
+            disabled={action === 'edit'}
+            tagFilters={[
+              {
+                operation: 'OR',
+                tags: ['enable_for_collection'],
+              },
+            ]}
           />
         </Form.Item>
 
@@ -296,13 +322,15 @@ export default ({ onSubmit, action, values, form }: Props) => {
               },
             ]}
           >
-            <ModelSelect 
-              model="completion" 
+            <ModelSelect
+              model="completion"
               disabled={action === 'edit'}
-              tagFilters={[{
-                operation: "OR",
-                tags: ["enable_for_collection"]
-              }]}
+              tagFilters={[
+                {
+                  operation: 'OR',
+                  tags: ['enable_for_collection'],
+                },
+              ]}
             />
           </Form.Item>
         )}

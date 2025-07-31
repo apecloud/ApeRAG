@@ -12,6 +12,7 @@ import {
   CaretRightOutlined,
   DislikeFilled,
   LikeFilled,
+  LoadingOutlined,
   UserOutlined,
 } from '@ant-design/icons';
 import { useHover } from 'ahooks';
@@ -158,10 +159,12 @@ export const CollapseResult = ({
 };
 
 export const ChatMessageItem = ({
+  loading = false,
   parts,
   onVote = () => {},
   isAi,
 }: {
+  loading: boolean;
   parts: ChatMessage[];
   isAi: boolean;
   onVote?: (item: ChatMessage, feedback: Feedback) => void;
@@ -176,10 +179,12 @@ export const ChatMessageItem = ({
   const [feedbackTag, setFeedbackTag] = useState<FeedbackTagEnum>();
   const [feedbackMessage, setFeedbackMessage] = useState<string>();
 
-  const parseToolCallTitle = (content: string): { title: string; body: string } => {
+  const parseToolCallTitle = (
+    content: string,
+  ): { title: string; body: string } => {
     const lines = content.split('\n');
     const firstLine = lines[0] || '';
-    
+
     // Check if first line has **title** format
     const titleMatch = firstLine.match(/^\*\*(.*?)\*\*$/);
     if (titleMatch) {
@@ -187,7 +192,7 @@ export const ChatMessageItem = ({
       const body = lines.slice(1).join('\n').trim();
       return { title, body };
     }
-    
+
     // Fallback to default title
     return { title: 'Tool call', body: content };
   };
@@ -268,7 +273,11 @@ export const ChatMessageItem = ({
     <>
       <StyledMessage isAi={isAi}>
         {isAi && (
-          <StyledMessageAvatar src={<BsRobot />} size="large" token={token} />
+          <StyledMessageAvatar
+            src={loading ? <LoadingOutlined /> : <BsRobot />}
+            size="large"
+            token={token}
+          />
         )}
         <StyledMessageBody ref={hoverRef}>
           <StyledMessageContent token={token} isAi={isAi}>
@@ -277,7 +286,9 @@ export const ChatMessageItem = ({
               : parts.map((part, index) => {
                   switch (part.type) {
                     case 'tool_call_result': {
-                      const { title, body } = parseToolCallTitle(part.data || '');
+                      const { title, body } = parseToolCallTitle(
+                        part.data || '',
+                      );
                       return (
                         <CollapseResult key={index} title={title}>
                           <ApeMarkdown>{body}</ApeMarkdown>

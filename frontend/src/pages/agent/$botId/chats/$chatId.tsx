@@ -28,11 +28,11 @@ export default () => {
     {
       onMessage: (message) => {
         const fragment = JSON.parse(message.data) as ChatMessage;
-        if(fragment.type === 'start') {
-          setLoading(true)
+        if (fragment.type === 'start') {
+          setLoading(true);
         }
-        if(fragment.type === 'stop') {
-          setLoading(false)
+        if (fragment.type === 'stop') {
+          setLoading(false);
         }
 
         setMessages((msgs) => {
@@ -156,6 +156,7 @@ export default () => {
               isAi={isAi}
               parts={parts}
               key={index}
+              loading={isAi && loading && index + 1 === messages.length}
             />
           );
         })

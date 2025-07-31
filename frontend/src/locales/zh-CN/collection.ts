@@ -27,15 +27,20 @@ export const collection = {
   'collection.delete': '删除知识库',
   'collection.delete.confirm': '知识库 "{name}" 将会被删除，确定此操作吗？',
   'collection.index_types': '索引类型',
-  'collection.index_types.description': '选择你需要的AI理解能力，我们会为文档建立相应的索引',
+  'collection.index_types.description':
+    '选择你需要的AI理解能力，我们会为文档建立相应的索引',
   'collection.index_type.vector': '向量索引',
-  'collection.index_type.vector.description': '基础语义检索，支持文本相似度搜索',
-  'collection.index_type.fulltext': '全文索引', 
-  'collection.index_type.fulltext.description': '关键词精确匹配，支持传统全文检索',
+  'collection.index_type.vector.description':
+    '基础语义检索，支持文本相似度搜索',
+  'collection.index_type.fulltext': '全文索引',
+  'collection.index_type.fulltext.description':
+    '关键词精确匹配，支持传统全文检索',
   'collection.index_type.graph': '图谱索引',
-  'collection.index_type.graph.description': '知识图谱增强，发现概念间的复杂关系',
+  'collection.index_type.graph.description':
+    '知识图谱增强，发现概念间的复杂关系',
   'collection.index_type.summary': '摘要索引',
-  'collection.index_type.summary.description': '自动生成文档摘要，提升长文档理解',
+  'collection.index_type.summary.description':
+    '自动生成文档摘要，提升长文档理解',
   'collection.index_type.vision': '视觉索引',
   'collection.index_type.vision.description': '图像理解，支持图文混合内容分析',
   'collection.index_type.requires': '需要',
@@ -44,14 +49,18 @@ export const collection = {
   'collection.index_type.completion': 'AI生成',
   'collection.index_type.required': '必需',
   'collection.index_type.required.tooltip': '此索引类型为必需项，无法取消选择',
-  'collection.description.auto_generated.placeholder': 'AI将根据文档内容自动生成描述...',
-  'collection.description.auto_generated.tip': 'AI将分析文档内容并自动生成知识库描述',
-  'collection.model_settings.description': '选择用于处理文档的AI模型，不同索引类型需要不同的模型支持',
+  'collection.description.auto_generated.placeholder':
+    'AI将根据文档内容自动生成描述...',
+  'collection.description.auto_generated.tip':
+    'AI将分析文档内容并自动生成知识库描述',
+  'collection.model_settings.description':
+    '选择用于处理文档的AI模型，不同索引类型需要不同的模型支持',
   'collection.enable_knowledge_graph': '启用Graph RAG',
   'collection.enable_summary': '启用摘要',
   'collection.enable_auto_summary': '启用自动摘要',
   'collection.enable_vision': '启用视觉索引',
-  'collection.description.tips': '如果开启自动摘要，描述内容将变为只读，由后台 LLM 模型自动为每个文档生成摘要索引，并在此基础上生成集合描述，更加准确地反映知识库内容。',
+  'collection.description.tips':
+    '如果开启自动摘要，描述内容将变为只读，由后台 LLM 模型自动为每个文档生成摘要索引，并在此基础上生成集合描述，更加准确地反映知识库内容。',
   'collection.embedding_model': '嵌入模型',
   'collection.model_not_found': '请在设置 -> 模型服务商中设置API Key',
   'collection.embedding_model.required': '请选择嵌入模型',

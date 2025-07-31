@@ -251,9 +251,12 @@ export default {
   'document.index.rebuild.failed': '索引重建失败',
   'document.index.rebuild.failed.button': '重建失败索引',
   'document.index.rebuild.failed.confirm.title': '重建失败索引',
-  'document.index.rebuild.failed.confirm.content': '确定要重建所有失败的索引吗？这将为 {count} 个文档重建失败的索引。',
-  'document.index.rebuild.failed.success': '成功为 {total} 个文档中的 {success} 个启动了重建任务',
-  'document.index.rebuild.failed.partial': '{total} 个文档中有 {failed} 个索引重建失败',
+  'document.index.rebuild.failed.confirm.content':
+    '确定要重建所有失败的索引吗？这将为 {count} 个文档重建失败的索引。',
+  'document.index.rebuild.failed.success':
+    '成功为 {total} 个文档中的 {success} 个启动了重建任务',
+  'document.index.rebuild.failed.partial':
+    '{total} 个文档中有 {failed} 个索引重建失败',
   'document.index.rebuild.noFailedIndexes': '未找到失败的索引',
   'document.view.title': '查看: {name}',
   'document.view.unsupportedFormat': '不支持预览该文件格式。',
@@ -369,13 +372,12 @@ export default {
   'model.field.maxOutput': '最大输出',
   'model.field.maxOutput.tooltip': '模型支持的最大输出Token长度',
   'model.field.tags': '标签',
-      'model.field.tags.tooltip':
-      '标签由上方的用途选择自动管理，无需手动编辑',
-      'model.field.action': '操作',
-    'model.field.useCases': '用途',
-    'model.field.useCases.tooltip': '选择模型适用的业务场景，会自动添加相应标签',
-    'model.useCase.update.success': '用途更新成功',
-    'model.useCase.update.failed': '用途更新失败',
+  'model.field.tags.tooltip': '标签由上方的用途选择自动管理，无需手动编辑',
+  'model.field.action': '操作',
+  'model.field.useCases': '用途',
+  'model.field.useCases.tooltip': '选择模型适用的业务场景，会自动添加相应标签',
+  'model.useCase.update.success': '用途更新成功',
+  'model.useCase.update.failed': '用途更新失败',
 
   // API Key Management
   'api_key.title': 'API 密钥管理',

@@ -30,7 +30,11 @@ import { toast } from 'react-toastify';
 import { UndrawScience } from 'react-undraw-illustrations';
 import { FormattedMessage, useIntl, useModel, useParams } from 'umi';
 
-type SearchTypeEnum = 'vector_search' | 'fulltext_search' | 'graph_search' | 'summary_search';
+type SearchTypeEnum =
+  | 'vector_search'
+  | 'fulltext_search'
+  | 'graph_search'
+  | 'summary_search';
 
 export default () => {
   const { formatMessage } = useIntl();
@@ -425,11 +429,11 @@ export default () => {
         </Space>
       </Card>
 
-      <Table 
-        dataSource={records} 
-        bordered 
-        columns={columns} 
-        rowKey="id" 
+      <Table
+        dataSource={records}
+        bordered
+        columns={columns}
+        rowKey="id"
         scroll={{ x: 'max-content' }}
         size="small"
       />
