@@ -31,7 +31,7 @@ CREATE TABLE collection_marketplace (
     id VARCHAR(24) PRIMARY KEY DEFAULT ('market_' || substr(md5(random()::text), 1, 16)),
     collection_id VARCHAR(24) NOT NULL,  -- 关联collections表，应用层维护关联关系
     
-    -- 分享状态枚举: DRAFT, PUBLISHED
+    -- 分享状态：使用VARCHAR存储，不使用数据库enum类型
     status VARCHAR(20) NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'PUBLISHED')),
     
     -- 时间戳字段
@@ -377,30 +377,37 @@ ORDER BY ucs.gmt_subscribed DESC;
 
 #### 4.1. 数据模型设计 (OpenAPI / `view_models.py`)
 
-**4.1.1 新增数据库模型:**
+**4.1.1 新增数据库模型 (aperag/db/models.py):**
 
-- **`CollectionMarketplaceStatusEnum`**: 分享状态枚举
-    - `DRAFT`: 未发布状态，仅所有者可见
-    - `PUBLISHED`: 已发布状态，公开可见
+- **`CollectionMarketplaceStatusEnum`**: 分享状态枚举 (Python enum，用于代码逻辑)
+    - `DRAFT = "DRAFT"`: 未发布状态，仅所有者可见
+    - `PUBLISHED = "PUBLISHED"`: 已发布状态，公开可见
 
-- **`CollectionMarketplaceItem`**: Collection 分享状态记录（数据库模型）
+- **`CollectionMarketplace`**: Collection 分享状态表 (SQLAlchemy 模型)
     - `id: str`: 分享记录的唯一标识符
     - `collection_id: str`: 关联的 Collection ID
-    - `status: CollectionMarketplaceStatusEnum`: 当前分享状态
+    - `status: str`: 当前分享状态 (VARCHAR存储，值为'DRAFT'或'PUBLISHED')
     - `gmt_created: datetime`: 分享记录创建时间
     - `gmt_updated: datetime`: 分享记录最后更新时间
     - `gmt_deleted: Optional[datetime]`: 软删除时间（NULL表示活跃记录）
 
-- **`UserCollectionSubscription`**: 用户订阅 Collection 记录（数据库模型）
+- **`UserCollectionSubscription`**: 用户订阅 Collection 表 (SQLAlchemy 模型)
     - `id: str`: 订阅记录的唯一标识符
     - `user_id: str`: 订阅用户 ID
     - `collection_id: str`: 被订阅的 Collection ID
     - `gmt_subscribed: datetime`: 订阅时间
     - `gmt_deleted: Optional[datetime]`: 取消订阅时间（NULL表示活跃订阅）
 
-**4.1.2 新增视图模型:**
+**4.1.2 新增视图模型 (aperag/schema/view_models.py):**
 
-- **`CollectionMarketplaceDetail`**: 市场页面展示的 Collection 信息（视图模型）
+- **`CollectionMarketplaceView`**: Collection 分享状态信息（视图模型）
+    - `id: str`: 分享记录的唯一标识符
+    - `collection_id: str`: 关联的 Collection ID
+    - `status: CollectionMarketplaceStatusEnum`: 当前分享状态
+    - `gmt_created: datetime`: 分享记录创建时间
+    - `gmt_updated: datetime`: 分享记录最后更新时间
+
+- **`CollectionMarketplaceDetailView`**: 市场页面展示的 Collection 信息（视图模型）
     - `collection_id: str`: Collection ID
     - `title: str`: Collection 标题
     - `description: str`: Collection 描述
@@ -408,8 +415,8 @@ ORDER BY ucs.gmt_subscribed DESC;
     - `gmt_published: datetime`: 首次发布时间（对应数据库中的 gmt_created 字段）
     - `is_subscribed: bool`: 当前用户是否已订阅（非数据库字段，在服务层计算）
 
-- **`CollectionMarketplaceDetailList`**: 市场 Collection 列表响应
-    - `items: List[CollectionMarketplaceDetail]`: Collection 列表
+- **`CollectionMarketplaceDetailViewList`**: 市场 Collection 列表响应
+    - `items: List[CollectionMarketplaceDetailView]`: Collection 列表
     - `total: int`: 总数量（用于分页）
     - `page: int`: 当前页码
     - `page_size: int`: 每页大小
@@ -429,7 +436,7 @@ ORDER BY ucs.gmt_subscribed DESC;
 **4.1.3 修改现有模型:**
 
 - **`Collection`**: 扩展现有 Collection model
-    - `sharing_info: Optional[CollectionMarketplaceItem]`: 分享信息，仅在所有者查看时返回
+    - `sharing_info: Optional[CollectionMarketplaceView]`: 分享信息，仅在所有者查看时返回
     - `is_readonly_view: bool`: 是否为只读视图，非数据库字段，在服务层计算
         - 计算逻辑：当前用户不是所有者且通过订阅访问时为 `true`
         - 用于前端判断是否显示只读模式 UI
@@ -451,7 +458,7 @@ class MarketplaceService:
     职责: 处理所有与市场和分享相关的业务逻辑
     """
     
-    async def publish_collection(self, user_id: str, collection_id: str) -> CollectionMarketplaceItem:
+    async def publish_collection(self, user_id: str, collection_id: str) -> CollectionMarketplaceView:
         """发布Collection到市场"""
         # 验证用户所有权
         # 创建或更新collection_marketplace记录
@@ -464,13 +471,13 @@ class MarketplaceService:
         # 批量失效相关订阅(设置gmt_deleted = datetime.utcnow())
         # 注意：需要使用事务确保数据一致性
         
-    async def get_sharing_status(self, collection_id: str) -> Optional[CollectionMarketplaceItem]:
+    async def get_sharing_status(self, collection_id: str) -> Optional[CollectionMarketplaceView]:
         """获取Collection的分享状态"""
         
-    async def get_raw_sharing_status(self, collection_id: str) -> Optional[CollectionMarketplaceItem]:
+    async def get_raw_sharing_status(self, collection_id: str) -> Optional[CollectionMarketplace]:
         """获取原始分享状态（供权限检查使用）"""
         
-    async def list_published_collections(self, user_id: str, page: int, page_size: int) -> CollectionMarketplaceDetailList:
+    async def list_published_collections(self, user_id: str, page: int, page_size: int) -> CollectionMarketplaceDetailViewList:
         """列出市场中所有已发布的Collection"""
         # 查询PUBLISHED状态的Collection
         # 计算当前用户的订阅状态
@@ -620,14 +627,14 @@ class CollectionService:
 - **`GET /api/v1/marketplace/collections`**: 列出市场中所有公开的 Collection
     - **功能**: 返回所有状态为 `PUBLISHED` 的 Collection 列表（包括当前用户自己发布的Collection）
     - **权限**: 任何已登录用户都可以访问
-    - **响应**: `CollectionMarketplaceDetailList` 类型，包含每个 Collection 的基本信息、所有者用户名、发布时间
+    - **响应**: `CollectionMarketplaceDetailViewList` 类型，包含每个 Collection 的基本信息、所有者用户名、发布时间
     - **分页**: 支持 `page` 和 `page_size` 参数
 
 - **`POST /api/v1/collections/{collection_id}/sharing`**: 发布一个 Collection 到市场
     - **功能**: 将指定 Collection 的状态设置为 `PUBLISHED`
     - **权限**: 仅限 Collection 所有者
     - **行为**: 在 `collection_marketplace` 表中创建记录或更新状态
-    - **响应**: 返回更新后的 `CollectionMarketplaceItem` 信息
+    - **响应**: 返回更新后的 `CollectionMarketplaceView` 信息
 
 - **`DELETE /api/v1/collections/{collection_id}/sharing`**: 从市场下架一个 Collection
     - **功能**: 将指定 Collection 的状态设置为 `DRAFT`（不删除记录，仅改变状态）
@@ -638,7 +645,7 @@ class CollectionService:
 - **`GET /api/v1/collections/{collection_id}/sharing`**: 获取指定 Collection 的分享状态
     - **功能**: 返回 Collection 的当前分享状态和相关信息
     - **权限**: 仅限 Collection 所有者
-    - **响应**: `CollectionMarketplaceItem` 类型，包含状态、发布时间
+    - **响应**: `CollectionMarketplaceView` 类型，包含状态、发布时间
 
 - **`POST /api/v1/marketplace/collections/{collection_id}/subscribe`**: 订阅一个已发布的 Collection
     - **功能**: 将指定的已发布 Collection 添加到用户的订阅列表
@@ -1239,21 +1246,22 @@ describe('MarketplacePage', () => {
 
 - [ ] **1.1. 数据库模型与迁移**
     - [ ] 在 `aperag/db/models.py` 中定义数据库模型：
-        - `CollectionMarketplaceItem` SQLModel：分享状态记录，包含状态和时间字段
-        - `UserCollectionSubscription` SQLModel：用户订阅记录，使用 `gmt_deleted` 字段实现软删除
+        - `CollectionMarketplace` (SQLAlchemy模型)：分享状态记录，包含状态和时间字段
+        - `UserCollectionSubscription` (SQLAlchemy模型)：用户订阅记录，使用 `gmt_deleted` 字段实现软删除
+        - `CollectionMarketplaceStatusEnum` (Python enum)：分享状态枚举，用于代码逻辑，数据库使用VARCHAR存储
         - 包含所有必要字段、约束和索引（特别注意 `gmt_deleted` 的索引优化）
+        - 注意：`status` 字段使用 `Column(String(20))` 而非 `EnumColumn`，确保数据库层使用VARCHAR
     - [ ] 运行 `make makemigration` 生成新的数据库迁移脚本
     - [ ] 检查生成的迁移脚本（位于 `aperag/migration/versions/`）确保 SQL 语法正确性和索引创建
     - [ ] 运行 `make migrate` 将数据库 schema 变更应用到开发环境
     - [ ] 验证新表创建成功，检查约束和索引是否正确建立
 
 - [ ] **1.2. OpenAPI Schema 定义**
-    - [ ] 创建 `aperag/api/components/schemas/marketplace.yaml`，定义以下模型：
+    - [ ] 创建 `aperag/api/components/schemas/marketplace.yaml`，定义以下视图模型：
         - `CollectionMarketplaceStatusEnum`
-        - `CollectionMarketplaceItem`
-        - `CollectionMarketplaceDetail`
-        - `CollectionMarketplaceDetailList`
-        - `UserCollectionSubscription`
+        - `CollectionMarketplaceView` (分享状态响应模型)
+        - `CollectionMarketplaceDetailView` (市场页面展示模型)
+        - `CollectionMarketplaceDetailViewList` (市场列表响应模型)
         - `UserSubscription` (用于订阅Collection API)
         - `UserSubscriptionList` (用于订阅Collection API)
     - [ ] 创建 `aperag/api/paths/marketplace.yaml`，定义以下端点的完整规范：
