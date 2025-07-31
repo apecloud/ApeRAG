@@ -495,7 +495,7 @@ class MarketplaceService:
 
 核心变更是在所有Collection相关操作的入口处增加**权限检查**：
 
-        ```python
+```python
 class CollectionService:
     
     async def _check_read_access(self, user_id: str, collection_id: str) -> db_models.Collection:
