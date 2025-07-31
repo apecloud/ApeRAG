@@ -18,7 +18,7 @@ MVP 阶段将专注于实现最核心的发布、浏览和只读访问流程，�
 
 **MVP 简化设计原则:**
 - **聚焦核心概念**: marketplace分享Collection，避免引入抽象的workspace概念
-- **专职专责API**: `/api/v1/collections`获取自有，`/api/v1/users/me/subscribed-collections`获取订阅
+- **专职专责API**: `/api/v1/collections`获取自有，`/api/v1/marketplace/collections/subscriptions`获取订阅
 - **前端双接口调用**: 在`/collections`页面并行调用两个API，前端合并展示
 - **筛选器管理**: 通过前端筛选 (`全部`/`我的知识库`/`已订阅`) 实现订阅内容管理
 - **复用现有路由**: Collection详情页复用现有路由，根据权限动态显示只读模式
@@ -194,7 +194,7 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
            │     ├─ 页面: /collections (主Collection列表页面)
            │     ├─ API调用: 
            │     │   ├─ GET /api/v1/collections (获取自有Collection)
-           │     │   └─ GET /api/v1/users/me/subscribed-collections (获取订阅Collection)
+           │     │   └─ GET /api/v1/marketplace/collections/subscriptions (获取订阅Collection)
            │     ├─ 前端合并: 两个接口响应合并显示在同一页面
            │     ├─ 区分显示: 订阅Collection显示"已订阅"标签，自有Collection显示"我的"标签
            │     └─ 点击进入: 路由到 /collections/{id}
@@ -430,12 +430,12 @@ LIMIT 1;
     - **行为**: 软删除订阅记录（设置 `gmt_deleted = current_timestamp`）
     - **响应**: 返回 204 No Content
 
-- **`GET /api/v1/users/me/subscribed-collections`**: 获取用户订阅的 Collection 列表 (MVP核心API)
-    - **功能**: 返回用户所有活跃订阅的 Collection（`gmt_deleted IS NULL`）
-    - **权限**: 仅限当前用户
+- **`GET /api/v1/marketplace/collections/subscriptions`**: 获取用户订阅的 Collection 列表 (MVP核心API)
+    - **功能**: 返回当前用户所有活跃订阅的 Collection（`gmt_deleted IS NULL`）
+    - **权限**: 仅限当前用户（通过认证确定）
     - **响应**: Collection 列表，每个item包含订阅信息（订阅时间、原所有者等）
     - **分页**: 支持 `page` 和 `page_size` 参数
-    - **设计理念**: 专注于marketplace核心概念，避免抽象的workspace概念
+    - **设计理念**: 资源层级更清晰，subscriptions作为collections的子资源
 
 **B. 修改现有 API 行为**
 
@@ -862,8 +862,8 @@ describe('MarketplacePage', () => {
     ```typescript
     // 并行调用两个接口
     const [ownedCollections, subscribedCollections] = await Promise.all([
-      api.getCollections(pagination),           // 获取自有Collection
-      api.getUserSubscribedCollections(pagination) // 获取订阅Collection
+      api.getCollections(pagination),                            // 获取自有Collection
+      api.getMarketplaceCollectionsSubscriptions(pagination)    // 获取订阅Collection
     ]);
     ```
 - **设计理念**: 聚焦marketplace核心概念，避免workspace抽象，双接口专职专责
@@ -1075,14 +1075,14 @@ describe('MarketplacePage', () => {
         - `UserSubscriptionList` (用于订阅Collection API)
     - [ ] 创建 `aperag/api/paths/marketplace.yaml`，定义以下端点的完整规范：
         - `GET /marketplace/collections`：获取市场Collection列表
+        - `GET /marketplace/collections/subscriptions`：获取当前用户订阅的Collection列表
         - `POST /marketplace/collections/{collection_id}/subscribe`：订阅Collection
         - `DELETE /marketplace/collections/{collection_id}/subscribe`：取消订阅Collection
     - [ ] 修改 `aperag/api/paths/collections.yaml`，添加 sharing 相关端点：
         - `GET /collections/{collection_id}/sharing`
         - `POST /collections/{collection_id}/sharing`
         - `DELETE /collections/{collection_id}/sharing`
-    - [ ] 修改 `aperag/api/paths/user.yaml`（或创建），添加用户订阅端点：
-        - `GET /users/me/subscribed-collections`：获取用户订阅的Collection列表
+
     - [ ] 修改 `aperag/api/components/schemas/collection.yaml`，在 Collection schema 中添加 `sharing_info` 和 `is_readonly_view` 字段
     - [ ] 运行 `make generate-models` 生成更新后的 `aperag/schema/view_models.py`
     - [ ] 验证生成的 Pydantic 模型类型注解正确
