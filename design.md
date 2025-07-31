@@ -1,6 +1,6 @@
 ## 设计文档：Collection 分享与市场 (MVP)
 
-**版本:** 1.2 (优化权限设计)
+**版本:** 1.6
 **关联 Issue:** [#1127](https://github.com/apecloud/ApeRAG/issues/1127)
 
 ### 1. 概述
@@ -66,7 +66,7 @@ CREATE TABLE user_collection_subscription (
     id VARCHAR(24) PRIMARY KEY DEFAULT ('sub_' || substr(md5(random()::text), 1, 16)),
     user_id VARCHAR(24) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     collection_id VARCHAR(24) NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
-    sharing_id VARCHAR(24) NOT NULL REFERENCES collection_marketplace(id) ON DELETE CASCADE,
+    collection_marketplace_id VARCHAR(24) NOT NULL REFERENCES collection_marketplace(id) ON DELETE CASCADE,
     
     -- 时间戳字段
     gmt_subscribed TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -371,14 +371,14 @@ LIMIT 1;
     - `id: str`: 订阅记录的唯一标识符
     - `user_id: str`: 订阅用户 ID
     - `collection_id: str`: 被订阅的 Collection ID
-    - `sharing_id: str`: 对应的分享记录 ID
+    - `collection_marketplace_id: str`: 对应的分享记录 ID
     - `gmt_subscribed: datetime`: 订阅时间
     - `gmt_deleted: Optional[datetime]`: 取消订阅时间（NULL表示活跃订阅）
 
 **4.1.2 新增视图模型:**
 
 - **`CollectionMarketplaceDetail`**: 市场页面展示的 Collection 信息（视图模型）
-    - `sharing_id: str`: 分享记录 ID
+    - `collection_marketplace_id: str`: 分享记录 ID
     - `collection_id: str`: Collection ID
     - `title: str`: Collection 标题
     - `description: str`: Collection 描述
