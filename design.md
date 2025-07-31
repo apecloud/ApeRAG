@@ -136,8 +136,11 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
 ┌─────────────────────────────────────────────────────────────────┐
 │                    后端 API (FastAPI)                            │
 ├─────────────────────────────────────────────────────────────────┤
-│  MarketplaceView  │ CollectionView    │ UserView              │
-│  - 市场API         │ - Collection API  │ - 订阅Collection API   │
+│  MarketplaceView              │ CollectionView                  │
+│  - 市场Collection列表          │ - Collection CRUD API          │
+│  - 发布/取消发布API           │ - 分享状态管理API                │
+│  - 订阅/取消订阅API           │ - 权限控制集成                   │
+│  - 用户订阅列表API            │                                 │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 │ Service Layer
@@ -145,9 +148,11 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
 ┌─────────────────────────────────────────────────────────────────┐
 │                        服务层 (Business Logic)                   │
 ├─────────────────────────────────────────────────────────────────┤
-│  MarketplaceService │ CollectionService │ UserService           │
-│  - 发布/取消发布     │ - 权限检查        │ - 用户订阅管理         │
-│  - 订阅管理         │ - CRUD操作        │ - 订阅Collection列表   │
+│  MarketplaceService           │ CollectionService               │
+│  - 发布/取消发布              │ - 权限检查 (_check_read/write)   │
+│  - 订阅/取消订阅              │ - Collection CRUD操作           │
+│  - 用户订阅列表               │ - 分享状态查询                   │
+│  - 市场Collection列表         │                                 │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 │ Database Layer
