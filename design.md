@@ -221,7 +221,7 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
                  ├─ 页面: /collections/{collection_id} (同自有Collection)
                  ├─ API: GET /api/v1/collections/{collection_id}
                  ├─ 权限检查: _check_read_access() 验证订阅状态
-                 ├─ 响应字段: is_readonly_view=true, access_type="subscribed"
+                 ├─ 响应类型: SharedCollection（表示只读访问）
                  ├─ UI显示: 顶部显示只读Banner
                  ├─ 功能权限: 可查看文档、图谱、搜索，可使用聊天Bot
                  └─ 操作限制: 隐藏所有编辑、删除、上传按钮
@@ -259,7 +259,7 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
     ├─ 1. 在Collection详情页点击"取消订阅"
     │     │
     │     ├─ 页面: /collections/{collection_id}
-    │     ├─ UI元素: 详情页面显示"取消订阅"按钮（因为 is_readonly_view=true）
+    │     ├─ UI元素: 详情页面显示"取消订阅"按钮（SharedCollection类型时显示）
     │     └─ 确认对话框: "确定要取消订阅此知识库吗？"
     │
     ├─ 2. 执行取消订阅 (DELETE /api/v1/marketplace/collections/{collection_id}/subscribe)
@@ -363,7 +363,7 @@ WHERE user_id = ? AND collection_id = ? AND gmt_deleted IS NULL
 LIMIT 1;
 
 -- 获取用户订阅的Collection详情（通过collection_id关联，无需冗余外键）
-SELECT c.id, c.title, c.description, u.username, ucs.gmt_subscribed
+SELECT c.id, c.title, c.description, u.username, ucs.id as subscription_id, ucs.gmt_subscribed
 FROM user_collection_subscription ucs
 JOIN collections c ON ucs.collection_id = c.id
 JOIN users u ON c.user_id = u.id
@@ -416,6 +416,7 @@ ORDER BY ucs.gmt_subscribed DESC;
     - `owner_user_id: str`: 原所有者用户ID
     - `owner_username: str`: 原所有者用户名
     - `subscription_id: Optional[str]`: 订阅记录ID（有值表示已订阅，None表示未订阅）
+    - `gmt_subscribed: Optional[datetime]`: 订阅时间（仅在已订阅时有值）
 
 - **`SharedCollectionList`**: 共享 Collection 列表响应
     - `items: List[SharedCollection]`: 共享的 Collection 列表
@@ -524,7 +525,7 @@ class CollectionService:
         
         # 首先检查Collection是否已发布
             sharing_info = await marketplace_service.get_raw_sharing_status(collection_id)
-        is_published = sharing_info and sharing_info.status == CollectionMarketplaceStatusEnum.PUBLISHED
+        is_published = sharing_info and sharing_info.status == "PUBLISHED"
 
         if not is_published:
             raise HTTPException(status_code=403, detail="Collection not published")
@@ -566,7 +567,7 @@ class CollectionService:
         # 检查是否为共享Collection，提供更具体的错误信息
         from aperag.service.marketplace_service import marketplace_service
         sharing_info = await marketplace_service.get_raw_sharing_status(collection_id)
-        is_published = sharing_info and sharing_info.status == CollectionMarketplaceStatusEnum.PUBLISHED
+        is_published = sharing_info and sharing_info.status == "PUBLISHED"
 
         if is_published:
             raise HTTPException(
@@ -579,7 +580,7 @@ class CollectionService:
     # 使用示例：
     async def get_collection(self, user_id: str, collection_id: str):
         collection = await self._check_read_access(user_id, collection_id)
-        # ... 构建响应数据并计算 is_readonly_view 字段
+        # ... 构建响应数据
         
     async def update_collection(self, user_id: str, collection_id: str, updates: dict):
         collection = await self._check_write_access(user_id, collection_id)
@@ -773,9 +774,7 @@ class CollectionService:
         - **行为**: 用户只能删除自己的聊天记录
 
 
-### 5. 错误处理与测试策略
-
-#### 5.1. 错误处理策略
+### 5. 错误处理策略
 
 **API 错误处理分层:**
 
@@ -879,142 +878,6 @@ const subscribeCollection = async (collectionId: string) => {
 };
 ```
 
-#### 5.2. 测试策略
-
-**单元测试覆盖 (使用 pytest):**
-
-```python
-# tests/unit_test/test_marketplace_service.py
-import pytest
-from aperag.service.marketplace_service import MarketplaceService
-from aperag.service.marketplace_service import AlreadySubscribedError
-
-class TestMarketplaceService:
-    
-    @pytest.fixture
-    def service(self, mock_db_session):
-        return MarketplaceService(mock_db_session)
-    
-    async def test_subscribe_collection_success(self, service, mock_user, mock_collection):
-        # 测试正常订阅流程
-        result = await service.subscribe_collection(mock_user.id, mock_collection.id)
-        assert result.user_id == mock_user.id
-        assert result.collection_id == mock_collection.id
-    
-    async def test_subscribe_already_subscribed(self, service, mock_user, mock_collection):
-        # 测试重复订阅错误
-        await service.subscribe_collection(mock_user.id, mock_collection.id)
-        
-        with pytest.raises(AlreadySubscribedError):
-            await service.subscribe_collection(mock_user.id, mock_collection.id)
-    
-    async def test_subscribe_own_collection_error(self, service, mock_user):
-        # 测试用户无法订阅自己的Collection
-        own_collection = create_mock_collection(owner_id=mock_user.id)
-        
-        with pytest.raises(SelfSubscriptionError):
-            await service.subscribe_collection(mock_user.id, own_collection.id)
-    
-    async def test_permission_check_owner_vs_subscriber(self, service):
-        # 测试权限检查逻辑
-        # ... 详细的权限测试用例
-```
-
-**集成测试 (E2E 测试):**
-
-```python
-# tests/e2e_test/test_marketplace_integration.py
-import pytest
-from httpx import AsyncClient
-
-class TestMarketplaceIntegration:
-    
-    async def test_complete_subscription_workflow(self, async_client: AsyncClient):
-        """完整的订阅工作流程测试"""
-        
-        # 1. 用户A创建Collection
-        collection_data = {"title": "Test Collection", "description": "Test"}
-        response = await async_client.post("/collections", json=collection_data)
-        collection = response.json()
-        
-        # 2. 用户A发布Collection
-        response = await async_client.post(f"/collections/{collection['id']}/sharing")
-        assert response.status_code == 200
-        
-        # 3. 用户B订阅Collection
-        response = await async_client.post(f"/marketplace/collections/{collection['id']}/subscribe")
-        assert response.status_code == 200
-        
-        # 4. 用户B访问Collection内容 (只读)
-        response = await async_client.get(f"/collections/{collection['id']}")
-        assert response.status_code == 200
-        data = response.json()
-        assert data['is_readonly_view'] == True
-        assert data['access_type'] == 'subscribed'
-        
-        # 5. 用户B尝试写操作 (应该失败)
-        response = await async_client.put(f"/collections/{collection['id']}", 
-                                         json={"title": "Modified"})
-        assert response.status_code == 403
-```
-
-**性能测试:**
-
-```python
-# tests/performance/test_marketplace_load.py
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
-
-async def test_concurrent_subscriptions():
-    """测试并发订阅场景"""
-    
-    # 模拟100个用户同时订阅同一个Collection
-    async def subscribe_user(user_id: int, collection_id: str):
-        async with AsyncClient() as client:
-            return await client.post(f"/marketplace/collections/{collection_id}/subscribe")
-    
-    tasks = [subscribe_user(i, "test_collection_id") for i in range(100)]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    
-    # 验证数据库一致性
-    success_count = sum(1 for r in results if not isinstance(r, Exception))
-    assert success_count <= 100  # 不应该有重复订阅
-```
-
-**前端测试策略:**
-
-```typescript
-// frontend/src/pages/marketplace/__tests__/index.test.tsx
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import MarketplacePage from '../index';
-
-describe('MarketplacePage', () => {
-  test('displays published collections', async () => {
-    render(<MarketplacePage />);
-    
-    await waitFor(() => {
-      expect(screen.getByText('知识库市场')).toBeInTheDocument();
-    });
-    
-    // 验证Collection卡片显示
-    const collectionCards = screen.getAllByTestId('collection-card');
-    expect(collectionCards.length).toBeGreaterThan(0);
-  });
-  
-  test('handles subscription action', async () => {
-    const mockSubscribe = jest.fn().mockResolvedValue({});
-    render(<MarketplacePage />);
-    
-    const subscribeButton = screen.getByText('订阅');
-    fireEvent.click(subscribeButton);
-    
-    await waitFor(() => {
-      expect(mockSubscribe).toHaveBeenCalled();
-    });
-  });
-});
-```
-
 ### 6. 前端设计
 
 #### 6.1. 页面与路由设计
@@ -1073,7 +936,7 @@ describe('MarketplacePage', () => {
         - 标题前添加订阅图标 `<ShareAltOutlined />`
     - **悬浮信息显示**:
         - 自有Collection: 显示创建时间
-        - 订阅Collection: 显示 "来自 @{owner_username} • 订阅于 {相对时间}"
+        - 订阅Collection: 显示 "来自 @{owner_username} • 订阅于 {gmt_subscribed相对时间}"
     - **操作菜单差异化**:
         - 自有Collection: 编辑、删除、分享设置、查看详情
         - 订阅Collection: 查看详情、取消订阅
@@ -1209,7 +1072,7 @@ describe('MarketplacePage', () => {
 - **文件位置**: `frontend/src/models/global.ts`
 - **导航菜单**: 新增 "知识库市场" 菜单项，链接到 `/marketplace`
 
-#### 4.4. UI 交互逻辑
+#### 6.4. UI 交互逻辑
 
 **A. 只读模式下的 UI 限制**
 
@@ -1286,7 +1149,7 @@ if (isReadOnly) {
         - `POST /api/v1/collections/{collection_id}/sharing`
         - `DELETE /api/v1/collections/{collection_id}/sharing`
 
-    - [ ] 修改 `aperag/api/components/schemas/collection.yaml`，在 Collection schema 中添加 `sharing_info` 和 `is_readonly_view` 字段
+    - [ ] 修改 `aperag/api/components/schemas/collection.yaml`，在 Collection schema 中添加 `sharing_info` 字段
     - [ ] 运行 `make generate-models` 生成更新后的 `aperag/schema/view_models.py`
     - [ ] 验证生成的 Pydantic 模型类型注解正确
 
@@ -1309,7 +1172,7 @@ if (isReadOnly) {
         - 查询所有 PUBLISHED 状态的 Collection
         - 支持分页功能
         - 关联查询获取 Collection 基本信息和所有者用户名
-        - 计算当前用户的订阅状态（is_subscribed 字段）
+        - 计算当前用户的订阅状态（通过subscription_id字段）
     - [ ] 实现订阅相关方法：
         - `subscribe_collection(user_id: str, collection_id: str)` 方法：
             - 验证 Collection 已发布 (status = 'PUBLISHED')
