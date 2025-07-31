@@ -16,13 +16,6 @@ MVP 阶段将专注于实现最核心的发布、浏览和只读访问流程，�
 - 只读模式包括：查看文档列表、阅读文档内容、浏览知识图谱、使用聊天机器人搜索
 - 只读模式禁止：添加/删除/修改文档、修改 Collection 设置、任何写操作
 
-**MVP 简化设计原则:**
-- **聚焦核心概念**: marketplace分享Collection，避免引入抽象的workspace概念
-- **专职专责API**: `/api/v1/collections`获取自有，`/api/v1/marketplace/collections/subscriptions`获取订阅
-- **前端双接口调用**: 在`/collections`页面并行调用两个API，前端合并展示
-- **筛选器管理**: 通过前端筛选 (`全部`/`我的知识库`/`已订阅`) 实现订阅内容管理
-- **复用现有路由**: Collection详情页复用现有路由，根据权限动态显示只读模式
-
 ### 2. 数据库 Schema 设计
 
 基于 Subscribe 模式的需求，我们需要新增两个表来支持 Collection 分享和用户订阅功能。
