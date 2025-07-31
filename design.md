@@ -71,14 +71,12 @@ CREATE TABLE user_collection_subscription (
     gmt_subscribed TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     gmt_deleted TIMESTAMP WITH TIME ZONE NULL,  -- 软删除：NULL表示活跃订阅
     
-    -- 约束：一个用户对同一Collection只能有一个活跃订阅
-    CONSTRAINT uq_user_collection_active_subscription UNIQUE (user_id, collection_id) 
-        DEFERRABLE INITIALLY DEFERRED
+    -- 注意：活跃订阅的唯一性通过部分唯一索引实现，而非表级约束
 );
 
 -- 索引优化
-CREATE INDEX idx_user_subscription_active ON user_collection_subscription(user_id, collection_id) 
-    WHERE gmt_deleted IS NULL;
+CREATE UNIQUE INDEX idx_user_collection_active_unique ON user_collection_subscription(user_id, collection_id) 
+    WHERE gmt_deleted IS NULL;  -- 部分唯一索引：确保活跃订阅唯一性
 CREATE INDEX idx_user_subscription_collection ON user_collection_subscription(collection_id) 
     WHERE gmt_deleted IS NULL;
 CREATE INDEX idx_user_subscription_user ON user_collection_subscription(user_id) 
@@ -120,8 +118,8 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
 ┌─────────────────────────────────────────────────────────────────┐
 │                        前端 (UmiJS + React)                      │
 ├─────────────────────────────────────────────────────────────────┤
-│  /marketplace     │ /collections/xxx  │ /users/me/subscriptions │
-│  (市场浏览页面)     │ (Collection详情)   │ (用户订阅管理)           │
+│  /marketplace     │ /collections      │ /collections/{id}       │
+│  (市场浏览页面)     │ (统一工作台)       │ (Collection详情)         │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 │ HTTP/HTTPS
@@ -130,7 +128,7 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
 │                    后端 API (FastAPI)                            │
 ├─────────────────────────────────────────────────────────────────┤
 │  MarketplaceView  │ CollectionView    │ UserView              │
-│  - 市场API         │ - Collection API  │ - 用户订阅API          │
+│  - 市场API         │ - Collection API  │ - 工作区API            │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 │ Service Layer
@@ -139,8 +137,8 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
 │                        服务层 (Business Logic)                   │
 ├─────────────────────────────────────────────────────────────────┤
 │  MarketplaceService │ CollectionService │ UserService           │
-│  - 发布/取消发布     │ - 权限检查        │ - 订阅管理             │
-│  - 订阅管理         │ - CRUD操作        │ - 工作区管理           │
+│  - 发布/取消发布     │ - 权限检查        │ - 工作区Collection     │
+│  - 订阅管理         │ - CRUD操作        │ - 统一列表管理         │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 │ Database Layer
@@ -318,7 +316,7 @@ LIMIT 1;
             # 首先检查Collection是否已发布
             sharing_info = await marketplace_service.get_raw_sharing_status(collection_id)
             is_published = sharing_info and sharing_info.status == "PUBLISHED"
-            
+
             if not is_published:
                 # 未发布的 Collection 拒绝非所有者访问
                 raise HTTPException(status_code=403, detail="Collection not published")
@@ -429,13 +427,7 @@ LIMIT 1;
     - **行为**: 软删除订阅记录（设置 `gmt_deleted = current_timestamp`）
     - **响应**: 返回 204 No Content
 
-- **`GET /api/v1/users/me/subscriptions`**: 获取当前用户的订阅列表
-    - **功能**: 返回用户所有活跃的 Collection 订阅（`gmt_deleted IS NULL`）
-    - **权限**: 仅限当前用户
-    - **响应**: `UserSubscriptionList` 类型，包含订阅的 Collection 信息
-    - **分页**: 支持 `page` 和 `page_size` 参数
-
-- **`GET /api/v1/users/me/workspace`**: 获取用户工作区 Collection 列表
+- **`GET /api/v1/users/me/workspace`**: 获取用户工作区 Collection 列表 (MVP核心API)
     - **功能**: 返回用户所有可访问的 Collection（拥有的 + 订阅的）
     - **权限**: 仅限当前用户
     - **响应**: 扩展的 Collection 列表，包含 `access_type` 字段区分所有权类型
@@ -597,7 +589,7 @@ LIMIT 1;
     - `owner_username: str`: 原所有者用户名
     - `gmt_subscribed: datetime`: 订阅时间
 
-- **`UserSubscriptionList`**: 用户订阅列表响应
+- **`UserSubscriptionList`**: 用户订阅列表响应 (在Workspace API中使用)
     - `items: List[UserSubscription]`: 订阅列表
     - `total: int`: 总数量
 
@@ -1069,8 +1061,8 @@ describe('MarketplacePage', () => {
         - `CollectionMarketplaceDetail`
         - `CollectionMarketplaceDetailList`
         - `UserCollectionSubscription`
-        - `UserSubscription`
-        - `UserSubscriptionList`
+        - `UserSubscription` (用于Workspace API)
+        - `UserSubscriptionList` (用于Workspace API)
     - [ ] 创建 `aperag/api/paths/marketplace.yaml`，定义以下端点的完整规范：
         - `GET /marketplace/collections`：获取市场Collection列表
         - `POST /marketplace/collections/{collection_id}/subscribe`：订阅Collection
@@ -1079,8 +1071,8 @@ describe('MarketplacePage', () => {
         - `GET /collections/{collection_id}/sharing`
         - `POST /collections/{collection_id}/sharing`
         - `DELETE /collections/{collection_id}/sharing`
-    - [ ] 修改 `aperag/api/paths/user.yaml`（或创建），添加用户订阅端点：
-        - `GET /users/me/subscriptions`：获取用户订阅列表
+    - [ ] 修改 `aperag/api/paths/user.yaml`（或创建），添加用户工作区端点：
+        - `GET /users/me/workspace`：获取用户工作区Collection列表（自有+订阅）
     - [ ] 修改 `aperag/api/components/schemas/collection.yaml`，在 Collection schema 中添加 `sharing_info` 和 `is_readonly_view` 字段
     - [ ] 运行 `make generate-models` 生成更新后的 `aperag/schema/view_models.py`
     - [ ] 验证生成的 Pydantic 模型类型注解正确
@@ -1115,10 +1107,7 @@ describe('MarketplacePage', () => {
         - `get_user_subscription(user_id: str, collection_id: str)` 方法：
             - 获取用户对指定 Collection 的活跃订阅状态（`WHERE gmt_deleted IS NULL`）
             - 供权限检查函数调用，返回 None 表示未订阅或已取消订阅
-        - `list_user_subscriptions(user_id: str, page: int, page_size: int)` 方法：
-            - 查询用户所有活跃的订阅（`WHERE gmt_deleted IS NULL`）
-            - 关联查询获取 Collection 详细信息
-            - 支持分页功能
+        - (MVP阶段不需要独立的list_user_subscriptions方法，通过workspace API统一提供)
         - `get_user_workspace_collections(user_id: str, access_type: str, page: int, page_size: int)` 方法：
             - 查询用户所有可访问的 Collection（拥有的 + 活跃订阅的，`gmt_deleted IS NULL`）
             - 支持按访问类型过滤（owner、subscribed、all）
