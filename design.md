@@ -138,9 +138,9 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
 ├─────────────────────────────────────────────────────────────────┤
 │  MarketplaceView              │ CollectionView                  │
 │  - 市场Collection列表          │ - Collection CRUD API          │
-│  - 发布/取消发布API           │ - 分享状态管理API                │
-│  - 订阅/取消订阅API           │ - 权限控制集成                   │
-│  - 用户订阅列表API            │                                 │
+│  - 订阅/取消订阅API           │ - 发布/取消发布API               │
+│  - 用户订阅列表API            │ - 分享状态查询API                │
+│                              │ - 权限控制集成                   │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 │ Service Layer
@@ -151,8 +151,9 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
 │  MarketplaceService           │ CollectionService               │
 │  - 发布/取消发布              │ - 权限检查 (_check_read/write)   │
 │  - 订阅/取消订阅              │ - Collection CRUD操作           │
-│  - 用户订阅列表               │ - 分享状态查询                   │
+│  - 用户订阅列表               │                                 │
 │  - 市场Collection列表         │                                 │
+│  - 分享状态查询               │                                 │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 │ Database Layer
