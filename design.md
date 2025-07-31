@@ -29,25 +29,34 @@ MVP 阶段将专注于实现最核心的发布、浏览和只读访问流程，�
 ```sql
 CREATE TABLE collection_marketplace (
     id VARCHAR(24) PRIMARY KEY DEFAULT ('market_' || substr(md5(random()::text), 1, 16)),
-    collection_id VARCHAR(24) NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+    collection_id VARCHAR(24) NOT NULL,  -- 关联collections表，应用层维护关联关系
     
     -- 分享状态枚举: DRAFT, PUBLISHED
     status VARCHAR(20) NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'PUBLISHED')),
     
     -- 时间戳字段
     gmt_created TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    gmt_updated TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    gmt_updated TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),  -- 代码层更新
     gmt_deleted TIMESTAMP WITH TIME ZONE NULL,
     
     -- 约束
     CONSTRAINT uq_collection_marketplace_collection UNIQUE (collection_id)
 );
 
+-- 注意：gmt_updated字段需要在应用代码中手动更新
+-- 在SQLModel中更新记录时，手动设置: gmt_updated = datetime.utcnow()
+
 -- 索引优化
 CREATE INDEX idx_collection_marketplace_status ON collection_marketplace(status) 
     WHERE gmt_deleted IS NULL;
 CREATE INDEX idx_collection_marketplace_published ON collection_marketplace(gmt_created) 
     WHERE status = 'PUBLISHED' AND gmt_deleted IS NULL;
+-- 查询市场列表时的复合索引
+CREATE INDEX idx_collection_marketplace_list ON collection_marketplace(status, gmt_created DESC) 
+    WHERE gmt_deleted IS NULL;
+-- Collection关联查询索引
+CREATE INDEX idx_collection_marketplace_collection_id ON collection_marketplace(collection_id) 
+    WHERE gmt_deleted IS NULL;
 ```
 
 **表2: `user_collection_subscription` - 用户订阅表**
@@ -57,15 +66,15 @@ CREATE INDEX idx_collection_marketplace_published ON collection_marketplace(gmt_
 ```sql
 CREATE TABLE user_collection_subscription (
     id VARCHAR(24) PRIMARY KEY DEFAULT ('sub_' || substr(md5(random()::text), 1, 16)),
-    user_id VARCHAR(24) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    collection_id VARCHAR(24) NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
-    collection_marketplace_id VARCHAR(24) NOT NULL REFERENCES collection_marketplace(id) ON DELETE CASCADE,
+    user_id VARCHAR(24) NOT NULL,        -- 关联users表，应用层维护关联关系
+    collection_id VARCHAR(24) NOT NULL,  -- 关联collections表，应用层维护关联关系
     
     -- 时间戳字段
     gmt_subscribed TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     gmt_deleted TIMESTAMP WITH TIME ZONE NULL,  -- 软删除：NULL表示活跃订阅
     
     -- 注意：活跃订阅的唯一性通过部分唯一索引实现，而非表级约束
+    -- 级联删除逻辑需要在应用代码中处理，删除Collection时同时删除相关订阅记录
 );
 
 -- 索引优化
@@ -84,25 +93,31 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
 **业务约束:**
 1. **唯一性约束**: 每个 Collection 只能有一条分享记录
 2. **订阅约束**: 一个用户对同一 Collection 只能有一个活跃订阅
-3. **级联删除**: Collection 删除时，相关的分享和订阅记录自动删除
+3. **应用层级联**: Collection 删除时，需要在代码中同时软删除相关的分享和订阅记录
 4. **状态检查**: 分享状态只能是 'DRAFT' 或 'PUBLISHED'
 
 **性能优化:**
-1. **部分索引**: 只为活跃记录（`gmt_deleted IS NULL`）创建索引
-2. **复合索引**: 用户+Collection 组合查询优化  
-3. **时间索引**: 支持按发布时间排序的市场列表查询
+1. **部分索引**: 只为活跃记录（`gmt_deleted IS NULL`）创建索引，大幅减少索引空间
+2. **复合索引**: 
+   - 用户+Collection 组合查询优化（订阅检查场景）
+   - 状态+时间复合索引（市场列表查询场景）
+   - Collection关联查询索引（按collection_id查询优化）
+3. **应用层更新**: `gmt_updated` 字段在代码中手动更新，保持项目一致性
+4. **数据规范化**: 遵循项目惯例，不使用外键约束，通过应用层维护数据一致性
 
 #### 2.3. 数据生命周期
 
 **分享生命周期:**
 - **创建**: 用户首次发布 Collection 时创建记录，状态为 'PUBLISHED'
-- **取消发布**: 状态改为 'DRAFT'，所有相关订阅自动失效（设置 `gmt_deleted`）
+- **取消发布**: 状态改为 'DRAFT'，需要在代码中批量失效所有相关订阅（设置 `gmt_deleted`）
 - **重新发布**: 状态改回 'PUBLISHED'，用户需要重新订阅
+- **删除处理**: Collection 删除时，需要在代码中同时软删除 collection_marketplace 记录
 
 **订阅生命周期:**
 - **订阅**: 用户订阅已发布的 Collection，创建订阅记录
 - **取消订阅**: 设置 `gmt_deleted = NOW()`，保留历史记录
-- **自动失效**: Collection 取消发布时，批量设置相关订阅的 `gmt_deleted`
+- **自动失效**: Collection 取消发布时，在代码中批量设置相关订阅的 `gmt_deleted`
+- **级联删除**: Collection 删除时，在代码中批量软删除相关订阅记录
 
 ### 3. 系统架构与业务流程
 
@@ -325,7 +340,7 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
 
 **查询优化:**
 ```sql
--- 高效的市场列表查询
+-- 高效的市场列表查询（利用复合索引 idx_collection_marketplace_list）
 SELECT cm.id, c.title, c.description, u.username, cm.gmt_created
 FROM collection_marketplace cm
 JOIN collections c ON cm.collection_id = c.id  
@@ -334,10 +349,18 @@ WHERE cm.status = 'PUBLISHED' AND cm.gmt_deleted IS NULL
 ORDER BY cm.gmt_created DESC
 LIMIT 12 OFFSET ?;
 
--- 高效的订阅检查查询
+-- 高效的订阅检查查询（利用唯一索引 idx_user_collection_active_unique）
 SELECT id FROM user_collection_subscription 
 WHERE user_id = ? AND collection_id = ? AND gmt_deleted IS NULL
 LIMIT 1;
+
+-- 获取用户订阅的Collection详情（通过collection_id关联，无需冗余外键）
+SELECT c.id, c.title, c.description, u.username, ucs.gmt_subscribed
+FROM user_collection_subscription ucs
+JOIN collections c ON ucs.collection_id = c.id
+JOIN users u ON c.user_id = u.id
+WHERE ucs.user_id = ? AND ucs.gmt_deleted IS NULL
+ORDER BY ucs.gmt_subscribed DESC;
 ```
 
 ### 4. 后端设计
@@ -364,14 +387,12 @@ LIMIT 1;
     - `id: str`: 订阅记录的唯一标识符
     - `user_id: str`: 订阅用户 ID
     - `collection_id: str`: 被订阅的 Collection ID
-    - `collection_marketplace_id: str`: 对应的分享记录 ID
     - `gmt_subscribed: datetime`: 订阅时间
     - `gmt_deleted: Optional[datetime]`: 取消订阅时间（NULL表示活跃订阅）
 
 **4.1.2 新增视图模型:**
 
 - **`CollectionMarketplaceDetail`**: 市场页面展示的 Collection 信息（视图模型）
-    - `collection_marketplace_id: str`: 分享记录 ID
     - `collection_id: str`: Collection ID
     - `title: str`: Collection 标题
     - `description: str`: Collection 描述
@@ -431,8 +452,9 @@ class MarketplaceService:
     async def unpublish_collection(self, user_id: str, collection_id: str) -> None:
         """从市场下架Collection"""
         # 验证用户所有权
-        # 更新collection_marketplace状态为DRAFT
-        # 批量失效相关订阅(设置gmt_deleted)
+        # 更新collection_marketplace状态为DRAFT，同时更新gmt_updated字段
+        # 批量失效相关订阅(设置gmt_deleted = datetime.utcnow())
+        # 注意：需要使用事务确保数据一致性
         
     async def get_sharing_status(self, collection_id: str) -> Optional[CollectionMarketplaceItem]:
         """获取Collection的分享状态"""
@@ -552,9 +574,13 @@ class CollectionService:
         collection = await self._check_write_access(user_id, collection_id)
         # ... 执行更新逻辑
         
-        async def delete_collection(self, user_id: str, collection_id: str):
+    async def delete_collection(self, user_id: str, collection_id: str):
         collection = await self._check_write_access(user_id, collection_id)
         # ... 执行删除逻辑
+        # 注意：删除Collection时需要级联软删除相关记录：
+        # 1. 软删除collection_marketplace记录 (设置gmt_deleted)
+        # 2. 批量软删除user_collection_subscription记录 (设置gmt_deleted)
+        # 3. 使用事务确保数据一致性
 ```
 
 **4.2.3 其他相关服务的权限集成:**
@@ -1208,12 +1234,13 @@ describe('MarketplacePage', () => {
     - [ ] 创建 `aperag/service/marketplace_service.py` 文件和 MarketplaceService 类
     - [ ] 实现 `publish_collection(user_id: str, collection_id: str)` 方法：
         - 验证用户是 Collection 所有者
-        - 创建或更新 collection_marketplace 记录为 PUBLISHED 状态
+        - 创建或更新 collection_marketplace 记录为 PUBLISHED 状态，手动设置 `gmt_updated = datetime.utcnow()`
         - 处理重复发布的情况
     - [ ] 实现 `unpublish_collection(user_id: str, collection_id: str)` 方法：
         - 验证用户是 Collection 所有者
-        - 将 collection_marketplace 记录状态更新为 DRAFT 或软删除
-        - 自动失效所有相关订阅（批量设置 `gmt_deleted = current_timestamp`）
+        - 将 collection_marketplace 记录状态更新为 DRAFT，同时手动设置 `gmt_updated = datetime.utcnow()`
+        - 批量失效所有相关订阅（批量设置 `gmt_deleted = datetime.utcnow()`）
+        - 使用数据库事务确保数据一致性
     - [ ] 实现 `get_sharing_status(collection_id: str)` 方法：
         - 返回指定 Collection 的分享状态信息
     - [ ] 实现 `get_raw_sharing_status(collection_id: str)` 内部方法：
@@ -1256,7 +1283,7 @@ describe('MarketplacePage', () => {
     - [ ] 修改 `collection_service.py` 中的现有方法集成权限检查：
         - `get_collection`: 调用 `_check_read_access`
         - `update_collection`: 调用 `_check_write_access`
-        - `delete_collection`: 调用 `_check_write_access`
+        - `delete_collection`: 调用 `_check_write_access`，并实现级联软删除相关的marketplace和订阅记录
         - `list_collections`: 保持现有逻辑（仅返回所有者的 Collection）
     - [ ] 修改 `aperag/service/document_service.py` 集成权限检查：
         - `list_documents`: 调用 `collection_service._check_read_access`
