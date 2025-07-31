@@ -505,7 +505,7 @@ class MarketplaceService:
 
 核心变更是在所有Collection相关操作的入口处增加**权限检查**：
 
-```python
+        ```python
 class CollectionService:
     
     async def _check_read_access(self, user_id: str, collection_id: str) -> db_models.Collection:
@@ -538,10 +538,17 @@ class CollectionService:
         # 检查用户是否已订阅该Collection
         subscription = await marketplace_service.get_user_subscription(user_id, collection_id)
         if not subscription or subscription.gmt_deleted is not None:
-            raise HTTPException(
-                status_code=403, 
-                detail="Access denied. Please subscribe to this collection first."
-            )
+            # 区分未订阅和订阅已失效的情况
+            if not subscription:
+                raise HTTPException(
+                    status_code=403, 
+                    detail="Access denied. Please subscribe to this collection first."
+                )
+            else:
+                raise HTTPException(
+                    status_code=403, 
+                    detail="Access denied. Your subscription to this collection has expired."
+                )
         
         return collection
 
@@ -584,7 +591,7 @@ class CollectionService:
         collection = await self._check_write_access(user_id, collection_id)
         # ... 执行更新逻辑
         
-    async def delete_collection(self, user_id: str, collection_id: str):
+        async def delete_collection(self, user_id: str, collection_id: str):
         collection = await self._check_write_access(user_id, collection_id)
         # ... 执行删除逻辑
         # 注意：删除Collection时需要级联软删除相关记录：
@@ -611,7 +618,7 @@ class CollectionService:
 设计采用混合 URL 模式：marketplace 相关的浏览功能使用 `/marketplace` 路径，而具体 Collection 的分享操作作为 Collection 的子资源管理。
 
 - **`GET /api/v1/marketplace/collections`**: 列出市场中所有公开的 Collection
-    - **功能**: 返回所有状态为 `PUBLISHED` 的 Collection 列表
+    - **功能**: 返回所有状态为 `PUBLISHED` 的 Collection 列表（包括当前用户自己发布的Collection）
     - **权限**: 任何已登录用户都可以访问
     - **响应**: `CollectionMarketplaceDetailList` 类型，包含每个 Collection 的基本信息、所有者用户名、发布时间
     - **分页**: 支持 `page` 和 `page_size` 参数
@@ -623,9 +630,9 @@ class CollectionService:
     - **响应**: 返回更新后的 `CollectionMarketplaceItem` 信息
 
 - **`DELETE /api/v1/collections/{collection_id}/sharing`**: 从市场下架一个 Collection
-    - **功能**: 将指定 Collection 的状态设置为 `DRAFT` 或软删除记录
+    - **功能**: 将指定 Collection 的状态设置为 `DRAFT`（不删除记录，仅改变状态）
     - **权限**: 仅限 Collection 所有者
-    - **行为**: 立即停止其他用户对该 Collection 的访问
+    - **行为**: 立即停止其他用户对该 Collection 的访问，批量失效所有相关订阅
     - **响应**: 返回 204 No Content
 
 - **`GET /api/v1/collections/{collection_id}/sharing`**: 获取指定 Collection 的分享状态
@@ -708,6 +715,11 @@ class CollectionService:
     - **`DELETE /api/v1/collections/{collection_id}`**: 删除 Collection
         - **权限检查**: 调用 `_check_write_access`
         - **行为**: 非所有者访问将返回 `403 Forbidden`
+        - **应用层级联删除**: 
+            - 软删除 `collection_marketplace` 记录（设置 `gmt_deleted`）
+            - 批量软删除所有相关的 `user_collection_subscription` 记录
+            - 使用数据库事务确保操作原子性
+        - **注意**: 订阅用户将立即失去对该Collection的访问权限
     - **`POST /api/v1/collections/{collection_id}/documents`**: 创建文档
         - **权限检查**: 调用 `_check_write_access`
         - **行为**: 非所有者访问将返回 `403 Forbidden`，错误信息明确说明这是只读共享 Collection
@@ -736,6 +748,8 @@ class CollectionService:
 **4.3.3 Bot 和 Chat 相关端点权限控制**
 
 由于 Bot 通常与特定的 Collection 关联，需要在 Bot 相关操作中检查关联 Collection 的权限：
+
+**⚠️ 重要边界情况**: 如果 Bot 关联的 Collection 被删除（`gmt_deleted` 不为 NULL），所有 Bot 相关操作应返回 `404 Not Found` 或 `403 Forbidden`，并提供明确的错误信息。
 
 - **Bot 管理端点**:
     - **`GET /api/v1/bots/{bot_id}`**: 获取 Bot 详情
@@ -1261,7 +1275,7 @@ describe('MarketplacePage', () => {
     - [ ] 实现 `publish_collection(user_id: str, collection_id: str)` 方法：
         - 验证用户是 Collection 所有者
         - 创建或更新 collection_marketplace 记录为 PUBLISHED 状态，手动设置 `gmt_updated = datetime.utcnow()`
-        - 处理重复发布的情况
+        - 处理重复发布的情况（如果已经是 PUBLISHED 状态，应返回成功但不执行任何操作）
     - [ ] 实现 `unpublish_collection(user_id: str, collection_id: str)` 方法：
         - 验证用户是 Collection 所有者
         - 将 collection_marketplace 记录状态更新为 DRAFT，同时手动设置 `gmt_updated = datetime.utcnow()`
