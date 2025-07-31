@@ -119,7 +119,7 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
 ┌─────────────────────────────────────────────────────────────────┐
 │                        前端 (UmiJS + React)                      │
 ├─────────────────────────────────────────────────────────────────┤
-│  /marketplace     │ /collections      │ /collections/{id}       │
+│  /marketplace     │ /collections      │ /collections/{collection_id} │
 │  (市场浏览页面)     │ (统一工作台)       │ (Collection详情)         │
 └─────────────────────────────────────────────────────────────────┘
                                 │
@@ -161,7 +161,7 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
 ```
 用户A (Collection所有者)
     │
-    ├─ 1. POST /collections/{id}/sharing
+    ├─ 1. POST /api/v1/collections/{collection_id}/sharing
     │     │
     │     ├─ 验证用户身份和所有权
     │     ├─ 创建/更新 collection_marketplace 记录
@@ -180,7 +180,7 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
     │     │
     │     └─ 看到用户A发布的Collection
     │
-    ├─ 2. 点击订阅 (POST /api/v1/marketplace/collections/{id}/subscribe)
+    ├─ 2. 点击订阅 (POST /api/v1/marketplace/collections/{collection_id}/subscribe)
     │     │
     │     ├─ 验证Collection已发布
     │     ├─ 检查是否已订阅  
@@ -197,13 +197,13 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
            │     │   └─ GET /api/v1/marketplace/collections/subscriptions (获取订阅Collection)
            │     ├─ 前端合并: 两个接口响应合并显示在同一页面
            │     ├─ 区分显示: 订阅Collection显示"已订阅"标签，自有Collection显示"我的"标签
-           │     └─ 点击进入: 路由到 /collections/{id}
+           │     └─ 点击进入: 路由到 /collections/{collection_id}
            │
 
            └─ 3b. Collection详情页只读访问
                  │
-                 ├─ 页面: /collections/{id} (同自有Collection)
-                 ├─ API: GET /api/v1/collections/{id}
+                 ├─ 页面: /collections/{collection_id} (同自有Collection)
+                 ├─ API: GET /api/v1/collections/{collection_id}
                  ├─ 权限检查: _check_read_access() 验证订阅状态
                  ├─ 响应字段: is_readonly_view=true, access_type="subscribed"
                  ├─ UI显示: 顶部显示只读Banner
@@ -242,11 +242,11 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
     │
     ├─ 1. 在Collection详情页点击"取消订阅"
     │     │
-    │     ├─ 页面: /collections/{id}
+    │     ├─ 页面: /collections/{collection_id}
     │     ├─ UI元素: 详情页面显示"取消订阅"按钮（因为 is_readonly_view=true）
     │     └─ 确认对话框: "确定要取消订阅此知识库吗？"
     │
-    ├─ 2. 执行取消订阅 (DELETE /api/v1/marketplace/collections/{id}/subscribe)
+    ├─ 2. 执行取消订阅 (DELETE /api/v1/marketplace/collections/{collection_id}/subscribe)
     │     │
     │     ├─ 验证用户身份和订阅状态
     │     ├─ 验证用户确实已订阅该Collection (gmt_deleted IS NULL)
@@ -273,12 +273,12 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
     │
     ├─ 1. 在Collection详情页点击"取消发布"
     │     │
-    │     ├─ 页面: /collections/{id}
+    │     ├─ 页面: /collections/{collection_id}
     │     ├─ UI元素: 分享控制组件显示"取消发布"按钮
     │     ├─ 确认对话框: "取消发布后，所有订阅用户将失去访问权限，确定继续吗？"
     │     └─ 风险提示: 显示当前订阅用户数量
     │
-    ├─ 2. 执行取消发布 (DELETE /api/v1/collections/{id}/sharing)
+    ├─ 2. 执行取消发布 (DELETE /api/v1/collections/{collection_id}/sharing)
     │     │
     │     ├─ 验证用户身份和所有权
     │     ├─ 更新 collection_marketplace 状态为 'DRAFT'
@@ -303,7 +303,7 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
     │
     └─ 5. 重新发布支持
            │
-           ├─ 状态恢复: 所有者可以重新发布 (POST /api/v1/collections/{id}/sharing)
+           ├─ 状态恢复: 所有者可以重新发布 (POST /api/v1/collections/{collection_id}/sharing)
            ├─ 订阅恢复: 重新发布后不会自动恢复之前的订阅关系
            ├─ 用户重新订阅: 之前的订阅用户需要重新手动订阅
            └─ 历史记录: 保留所有发布/取消发布的历史记录
@@ -365,6 +365,7 @@ LIMIT 1;
     - `status: CollectionMarketplaceStatusEnum`: 当前分享状态
     - `gmt_created: datetime`: 分享记录创建时间
     - `gmt_updated: datetime`: 分享记录最后更新时间
+    - `gmt_deleted: Optional[datetime]`: 软删除时间（NULL表示活跃记录）
 
 - **`UserCollectionSubscription`**: 用户订阅 Collection 记录（数据库模型）
     - `id: str`: 订阅记录的唯一标识符
@@ -382,7 +383,7 @@ LIMIT 1;
     - `title: str`: Collection 标题
     - `description: str`: Collection 描述
     - `owner_username: str`: 所有者用户名
-    - `gmt_published: datetime`: 首次发布时间
+    - `gmt_published: datetime`: 首次发布时间（对应数据库中的 gmt_created 字段）
     - `is_subscribed: bool`: 当前用户是否已订阅（非数据库字段，在服务层计算）
 
 - **`CollectionMarketplaceDetailList`**: 市场 Collection 列表响应
@@ -479,7 +480,7 @@ class MarketplaceService:
 
 核心变更是在所有Collection相关操作的入口处增加**权限检查**：
 
-```python
+        ```python
 class CollectionService:
     
     async def _check_read_access(self, user_id: str, collection_id: str) -> db_models.Collection:
@@ -492,19 +493,19 @@ class CollectionService:
         3. 未订阅的用户无法访问任何非自有的Collection
         """
         collection = await self.db_ops.query_collection_by_id(collection_id)
-        if not collection:
-            raise HTTPException(status_code=404, detail="Collection not found")
+            if not collection:
+                raise HTTPException(status_code=404, detail="Collection not found")
 
         # 1. 所有者有完全访问权限
-        if collection.user == user_id:
-            return collection
+            if collection.user == user_id:
+                return collection
 
         # 2. 非所有者需要检查订阅状态
         from aperag.service.marketplace_service import marketplace_service
         
         # 首先检查Collection是否已发布
-        sharing_info = await marketplace_service.get_raw_sharing_status(collection_id)
-        is_published = sharing_info and sharing_info.status == "PUBLISHED"
+            sharing_info = await marketplace_service.get_raw_sharing_status(collection_id)
+        is_published = sharing_info and sharing_info.status == CollectionMarketplaceStatusEnum.PUBLISHED
 
         if not is_published:
             raise HTTPException(status_code=403, detail="Collection not published")
@@ -534,12 +535,12 @@ class CollectionService:
 
         # 只有所有者才有写权限
         if collection.user == user_id:
-            return collection
-
+                return collection
+            
         # 检查是否为共享Collection，提供更具体的错误信息
         from aperag.service.marketplace_service import marketplace_service
         sharing_info = await marketplace_service.get_raw_sharing_status(collection_id)
-        is_published = sharing_info and sharing_info.status == "PUBLISHED"
+        is_published = sharing_info and sharing_info.status == CollectionMarketplaceStatusEnum.PUBLISHED
 
         if is_published:
             raise HTTPException(
@@ -558,7 +559,7 @@ class CollectionService:
         collection = await self._check_write_access(user_id, collection_id)
         # ... 执行更新逻辑
         
-    async def delete_collection(self, user_id: str, collection_id: str):
+        async def delete_collection(self, user_id: str, collection_id: str):
         collection = await self._check_write_access(user_id, collection_id)
         # ... 执行删除逻辑
 ```
@@ -1197,14 +1198,14 @@ describe('MarketplacePage', () => {
         - `UserSubscription` (用于订阅Collection API)
         - `UserSubscriptionList` (用于订阅Collection API)
     - [ ] 创建 `aperag/api/paths/marketplace.yaml`，定义以下端点的完整规范：
-        - `GET /marketplace/collections`：获取市场Collection列表
-        - `GET /marketplace/collections/subscriptions`：获取当前用户订阅的Collection列表
-        - `POST /marketplace/collections/{collection_id}/subscribe`：订阅Collection
-        - `DELETE /marketplace/collections/{collection_id}/subscribe`：取消订阅Collection
+        - `GET /api/v1/marketplace/collections`：获取市场Collection列表
+        - `GET /api/v1/marketplace/collections/subscriptions`：获取当前用户订阅的Collection列表
+        - `POST /api/v1/marketplace/collections/{collection_id}/subscribe`：订阅Collection
+        - `DELETE /api/v1/marketplace/collections/{collection_id}/subscribe`：取消订阅Collection
     - [ ] 修改 `aperag/api/paths/collections.yaml`，添加 sharing 相关端点：
-        - `GET /collections/{collection_id}/sharing`
-        - `POST /collections/{collection_id}/sharing`
-        - `DELETE /collections/{collection_id}/sharing`
+        - `GET /api/v1/collections/{collection_id}/sharing`
+        - `POST /api/v1/collections/{collection_id}/sharing`
+        - `DELETE /api/v1/collections/{collection_id}/sharing`
 
     - [ ] 修改 `aperag/api/components/schemas/collection.yaml`，在 Collection schema 中添加 `sharing_info` 和 `is_readonly_view` 字段
     - [ ] 运行 `make generate-models` 生成更新后的 `aperag/schema/view_models.py`
@@ -1301,7 +1302,7 @@ describe('MarketplacePage', () => {
         - `get_collection_sharing_status_view`: 获取分享状态（仅所有者）
         - `publish_collection_view`: 发布 Collection 到市场
         - `unpublish_collection_view`: 从市场下架 Collection
-        - 为每个端点添加适当的权限检查和错误处理
+        - 为每个端点添加用户身份验证、所有权验证和异常错误处理
     - [ ] 在 `aperag/app.py` 中注册新的路由：
         - 添加 `marketplace` 路由组，tag 设为 "marketplace"
         - 集成到主应用的路由配置中
@@ -1344,13 +1345,13 @@ describe('MarketplacePage', () => {
         - 手机端：1 列布局
     - [ ] 添加到导航菜单：
         - 在 `frontend/src/layouts/sidebar.tsx` 中添加 "知识库市场" 菜单项
-        - 设置合适的图标和路由链接
+        - 设置市场图标（如ShopOutlined）和路由链接
 
 - [ ] **3.2. Collection 详情页 - 只读模式实现**
     - [ ] 创建 `ReadOnlyBanner` 组件（`frontend/src/components/ReadOnlyBanner.tsx`）：
         - 使用 Ant Design Alert 组件
         - 设计醒目的提示样式（蓝色信息提示）
-        - 添加适当的图标和文案
+        - 添加信息图标（InfoCircleOutlined）和提示文案
     - [ ] 修改 Collection 详情页面：
         - 在页面顶部集成 ReadOnlyBanner 组件
         - 根据 `is_readonly_view` 字段控制组件显示
@@ -1378,6 +1379,6 @@ describe('MarketplacePage', () => {
         - 实现发布/取消发布的 API 调用
         - 处理操作成功/失败的反馈提示
     - [ ] 在 Collection 详情页面中集成 SharingControl：
-        - 合适的位置展示分享控制组件
+        - 在Collection标题右侧区域展示分享控制组件
         - 根据用户权限控制组件可见性
         - 实现状态变更后的页面刷新
