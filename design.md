@@ -423,17 +423,7 @@ ORDER BY ucs.gmt_subscribed DESC;
     - `page: int`: 当前页码
     - `page_size: int`: 每页大小
 
-- **`UserSubscription`**: 用户订阅信息（视图模型）
-    - `subscription_id: str`: 订阅记录 ID
-    - `collection_id: str`: Collection ID
-    - `collection_title: str`: Collection 标题
-    - `collection_description: str`: Collection 描述
-    - `owner_username: str`: 原所有者用户名
-    - `gmt_subscribed: datetime`: 订阅时间
 
-- **`UserSubscriptionList`**: 用户订阅列表响应 (专门的订阅Collection API响应)
-    - `items: List[UserSubscription]`: 订阅列表
-    - `total: int`: 总数量
 
 **4.1.3 修改现有模型:**
 
@@ -1286,7 +1276,6 @@ if (isReadOnly) {
         - `CollectionMarketplaceInfo` (分享状态响应模型)
         - `SharedCollection` (共享Collection模型，用于市场浏览和订阅访问)
         - `SharedCollectionList` (共享Collection列表响应模型)
-        - `UserSubscription` (原有订阅信息模型，保留用于其他用途)
     - [ ] 创建 `aperag/api/paths/marketplace.yaml`，定义以下端点的完整规范：
         - `GET /api/v1/marketplace/collections`：获取市场Collection列表
         - `GET /api/v1/marketplace/collections/subscriptions`：获取当前用户订阅的Collection列表
