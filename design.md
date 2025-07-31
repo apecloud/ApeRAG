@@ -236,6 +236,79 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
            └─ 否 → 403 "只读共享Collection" ❌
 ```
 
+**流程4: 用户取消订阅流程**
+```
+用户B (已订阅用户)
+    │
+    ├─ 1. 在Collection详情页点击"取消订阅"
+    │     │
+    │     ├─ 页面: /collections/{id}
+    │     ├─ UI元素: 详情页面显示"取消订阅"按钮（因为 is_readonly_view=true）
+    │     └─ 确认对话框: "确定要取消订阅此知识库吗？"
+    │
+    ├─ 2. 执行取消订阅 (DELETE /api/v1/marketplace/collections/{id}/subscribe)
+    │     │
+    │     ├─ 验证用户身份和订阅状态
+    │     ├─ 验证用户确实已订阅该Collection (gmt_deleted IS NULL)
+    │     ├─ 软删除订阅记录 (设置 gmt_deleted = current_timestamp)
+    │     └─ 返回取消成功响应
+    │
+    ├─ 3. 立即失去访问权限
+    │     │
+    │     ├─ 权限检查: _check_read_access() 立即返回403
+    │     ├─ 前端处理: 自动跳转到市场页面或首页
+    │     └─ 提示消息: "已成功取消订阅"
+    │
+    └─ 4. Collection从用户工作区移除
+           │
+           ├─ API影响: GET /api/v1/marketplace/collections/subscriptions 不再返回该Collection
+           ├─ 前端更新: Collection列表页面不再显示该Collection
+           ├─ 重新订阅: 用户可以在市场页面重新订阅
+           └─ 历史保留: 数据库保留订阅历史记录（便于审计）
+```
+
+**流程5: Collection取消发布流程**
+```
+用户A (Collection所有者)
+    │
+    ├─ 1. 在Collection详情页点击"取消发布"
+    │     │
+    │     ├─ 页面: /collections/{id}
+    │     ├─ UI元素: 分享控制组件显示"取消发布"按钮
+    │     ├─ 确认对话框: "取消发布后，所有订阅用户将失去访问权限，确定继续吗？"
+    │     └─ 风险提示: 显示当前订阅用户数量
+    │
+    ├─ 2. 执行取消发布 (DELETE /api/v1/collections/{id}/sharing)
+    │     │
+    │     ├─ 验证用户身份和所有权
+    │     ├─ 更新 collection_marketplace 状态为 'DRAFT'
+    │     ├─ 批量失效所有相关订阅
+    │     │   └─ UPDATE user_collection_subscription 
+    │     │       SET gmt_deleted = current_timestamp 
+    │     │       WHERE collection_id = ? AND gmt_deleted IS NULL
+    │     └─ 返回取消发布成功响应
+    │
+    ├─ 3. 立即从市场移除
+    │     │
+    │     ├─ 市场API: GET /api/v1/marketplace/collections 不再返回该Collection
+    │     ├─ 搜索结果: 市场搜索无法找到该Collection
+    │     └─ 直接访问: 非所有者访问将返回403 "Collection not published"
+    │
+    ├─ 4. 所有订阅用户失去访问权限
+    │     │
+    │     ├─ 权限检查: _check_read_access() 对所有非所有者返回403
+    │     ├─ 活跃连接: 正在使用的用户会在下次请求时收到403错误
+    │     ├─ 前端处理: 订阅用户的Collection列表自动移除该项
+    │     └─ 通知机制: (可选) 向订阅用户发送取消发布通知
+    │
+    └─ 5. 重新发布支持
+           │
+           ├─ 状态恢复: 所有者可以重新发布 (POST /api/v1/collections/{id}/sharing)
+           ├─ 订阅恢复: 重新发布后不会自动恢复之前的订阅关系
+           ├─ 用户重新订阅: 之前的订阅用户需要重新手动订阅
+           └─ 历史记录: 保留所有发布/取消发布的历史记录
+```
+
 #### 3.3. 安全设计
 
 **权限控制策略:**
