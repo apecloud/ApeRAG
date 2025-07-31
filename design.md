@@ -93,8 +93,9 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
 **业务约束:**
 1. **唯一性约束**: 每个 Collection 只能有一条分享记录
 2. **订阅约束**: 一个用户对同一 Collection 只能有一个活跃订阅
-3. **应用层级联**: Collection 删除时，需要在代码中同时软删除相关的分享和订阅记录
-4. **状态检查**: 分享状态只能是 'DRAFT' 或 'PUBLISHED'
+3. **所有权约束**: 用户无法订阅自己是所有者的 Collection（业务逻辑禁止）
+4. **应用层级联**: Collection 删除时，需要在代码中同时软删除相关的分享和订阅记录
+5. **状态检查**: 分享状态只能是 'DRAFT' 或 'PUBLISHED'
 
 **性能优化:**
 1. **部分索引**: 只为活跃记录（`gmt_deleted IS NULL`）创建索引，大幅减少索引空间
@@ -197,6 +198,7 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
     ├─ 2. 点击订阅 (POST /api/v1/marketplace/collections/{collection_id}/subscribe)
     │     │
     │     ├─ 验证Collection已发布
+    │     ├─ 验证用户不是Collection所有者（防止订阅自己的Collection）
     │     ├─ 检查是否已订阅  
     │     ├─ 创建 user_collection_subscription 记录
     │     └─ 返回订阅成功，自动跳转到Collection详情页
@@ -476,9 +478,11 @@ class MarketplaceService:
         
     async def subscribe_collection(self, user_id: str, collection_id: str) -> UserSubscription:
         """订阅Collection"""
-        # 验证Collection已发布且用户不是所有者
-        # 检查是否已订阅，防止重复订阅
-        # 创建user_collection_subscription记录
+        # 1. 验证Collection已发布 (status = 'PUBLISHED')
+        # 2. 验证用户不是Collection所有者 (user_id != collection.user)
+        # 3. 检查是否已订阅，防止重复订阅
+        # 4. 创建user_collection_subscription记录
+        # 异常: 如果用户是所有者，抛出 SelfSubscriptionError("Cannot subscribe to your own collection")
         
     async def unsubscribe_collection(self, user_id: str, collection_id: str) -> None:
         """取消订阅Collection"""
@@ -632,9 +636,12 @@ class CollectionService:
 - **`POST /api/v1/marketplace/collections/{collection_id}/subscribe`**: 订阅一个已发布的 Collection
     - **功能**: 将指定的已发布 Collection 添加到用户的订阅列表
     - **权限**: 任何已登录用户（除 Collection 所有者外）
+    - **业务限制**: 用户无法订阅自己是所有者的 Collection
     - **行为**: 在 `user_collection_subscription` 表中创建订阅记录
     - **响应**: 返回 `UserSubscription` 信息
-    - **错误处理**: 如果已订阅则返回 409 Conflict
+    - **错误处理**: 
+        - 如果已订阅则返回 409 Conflict
+        - 如果尝试订阅自己的 Collection 则返回 400 Bad Request "Cannot subscribe to your own collection"
 
 - **`DELETE /api/v1/marketplace/collections/{collection_id}/subscribe`**: 取消订阅 Collection
     - **功能**: 从用户的订阅列表中移除指定 Collection
@@ -783,6 +790,10 @@ class SubscriptionNotFoundError(MarketplaceError):
     """订阅不存在错误"""
     pass
 
+class SelfSubscriptionError(MarketplaceError):
+    """尝试订阅自己Collection错误"""
+    pass
+
 # 2. API层错误转换 (View Layer)
 @router.post("/marketplace/collections/{collection_id}/subscribe")
 async def subscribe_collection(collection_id: str, user: User = Depends(current_user)):
@@ -791,6 +802,8 @@ async def subscribe_collection(collection_id: str, user: User = Depends(current_
         return result
     except CollectionNotPublishedError:
         raise HTTPException(status_code=400, detail="Collection is not published")
+    except SelfSubscriptionError:
+        raise HTTPException(status_code=400, detail="Cannot subscribe to your own collection")
     except AlreadySubscribedError:
         raise HTTPException(status_code=409, detail="Already subscribed to this collection")
     except PermissionError:
@@ -887,6 +900,13 @@ class TestMarketplaceService:
         
         with pytest.raises(AlreadySubscribedError):
             await service.subscribe_collection(mock_user.id, mock_collection.id)
+    
+    async def test_subscribe_own_collection_error(self, service, mock_user):
+        # 测试用户无法订阅自己的Collection
+        own_collection = create_mock_collection(owner_id=mock_user.id)
+        
+        with pytest.raises(SelfSubscriptionError):
+            await service.subscribe_collection(mock_user.id, own_collection.id)
     
     async def test_permission_check_owner_vs_subscriber(self, service):
         # 测试权限检查逻辑
@@ -1258,7 +1278,8 @@ describe('MarketplacePage', () => {
         - 计算当前用户的订阅状态（is_subscribed 字段）
     - [ ] 实现订阅相关方法：
         - `subscribe_collection(user_id: str, collection_id: str)` 方法：
-            - 验证 Collection 已发布且用户不是所有者
+            - 验证 Collection 已发布 (status = 'PUBLISHED')
+            - 验证用户不是 Collection 所有者，如果是则抛出 SelfSubscriptionError
             - 检查是否已订阅，防止重复订阅
             - 创建用户订阅记录
         - `unsubscribe_collection(user_id: str, collection_id: str)` 方法：
@@ -1365,6 +1386,10 @@ describe('MarketplacePage', () => {
         - 实现悬浮效果和点击交互
         - 处理描述文本截断（最多 150 字符）
         - 添加相对时间格式化功能
+        - 实现订阅按钮逻辑：
+            - 如果当前用户是Collection所有者，显示 "我的" 标签，不显示订阅按钮
+            - 如果当前用户非所有者且未订阅，显示 "订阅" 按钮
+            - 如果当前用户已订阅，显示 "已订阅" 状态
     - [ ] 实现网格布局和响应式设计：
         - 桌面端：4 列网格布局
         - 平板端：2-3 列网格布局
