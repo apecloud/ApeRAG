@@ -395,13 +395,6 @@ ORDER BY ucs.gmt_subscribed DESC;
 > 在aperag/api/components/schemas/marketplace.yaml中定义
 > 注意需要用make generate-models和make generate-frontend-sdk生成前后端代码
 
-- **`CollectionMarketplaceInfo`**: Collection 分享状态信息（视图模型）
-    - `id: str`: 分享记录的唯一标识符
-    - `collection_id: str`: 关联的 Collection ID
-    - `status: CollectionMarketplaceStatusEnum`: 当前分享状态
-    - `gmt_created: datetime`: 分享记录创建时间
-    - `gmt_updated: datetime`: 分享记录最后更新时间
-
 - **`SharedCollection`**: 共享的 Collection 信息（视图模型）
     - `id: str`: Collection ID
     - `title: str`: Collection 标题
@@ -417,12 +410,11 @@ ORDER BY ucs.gmt_subscribed DESC;
     - `page: int`: 当前页码
     - `page_size: int`: 每页大小
 
-
-
 **4.1.3 修改现有模型:**
 
-- **`Collection`**: 扩展现有 Collection model
-    - `sharing_info: Optional[CollectionMarketplaceInfo]`: 分享信息，仅在所有者查看时返回
+- **`Collection`**: 扩展现有 Collection model（采用语义化设计）
+    - `is_published: bool`: 是否已发布到市场
+    - `published_at: Optional[datetime]`: 发布时间，未发布时为null
 
 **4.1.4 OpenAPI Schema 组织:**
 
@@ -439,7 +431,7 @@ class MarketplaceService:
     职责: 处理所有与市场和分享相关的业务逻辑
     """
     
-    async def publish_collection(self, user_id: str, collection_id: str) -> CollectionMarketplaceInfo:
+    async def publish_collection(self, user_id: str, collection_id: str) -> None:
         """发布Collection到市场"""
         # 验证用户所有权
         # 创建或更新collection_marketplace记录
@@ -452,8 +444,9 @@ class MarketplaceService:
         # 关联的订阅通过外键关系自动失效，无需额外处理
         # 注意：需要使用事务确保数据一致性
         
-    async def get_sharing_status(self, collection_id: str) -> Optional[CollectionMarketplaceInfo]:
+    async def get_sharing_status(self, collection_id: str) -> tuple[bool, Optional[datetime]]:
         """获取Collection的分享状态"""
+        # 返回 (is_published, published_at) 元组
         
     async def get_raw_sharing_status(self, collection_id: str) -> Optional[CollectionMarketplace]:
         """获取原始分享状态（供权限检查使用）"""
@@ -616,7 +609,7 @@ class CollectionService:
     - **功能**: 将指定 Collection 的状态设置为 `PUBLISHED`
     - **权限**: 仅限 Collection 所有者
     - **行为**: 在 `collection_marketplace` 表中创建记录或更新状态
-    - **响应**: 返回更新后的 `CollectionMarketplaceInfo` 信息
+    - **响应**: 返回 204 No Content
 
 - **`DELETE /api/v1/collections/{collection_id}/sharing`**: 从市场下架一个 Collection
     - **功能**: 将指定 Collection 的状态设置为 `DRAFT`（不删除记录，仅改变状态）
@@ -627,7 +620,13 @@ class CollectionService:
 - **`GET /api/v1/collections/{collection_id}/sharing`**: 获取指定 Collection 的分享状态
     - **功能**: 返回 Collection 的当前分享状态和相关信息
     - **权限**: 仅限 Collection 所有者
-    - **响应**: `CollectionMarketplaceInfo` 类型，包含状态、发布时间
+    - **响应**: 简洁的分享状态对象
+    ```json
+    {
+      "is_published": true,
+      "published_at": "2024-01-15T10:30:00Z"
+    }
+    ```
 
 - **`POST /api/v1/marketplace/collections/{collection_id}/subscribe`**: 订阅一个已发布的 Collection
     - **功能**: 将指定的已发布 Collection 添加到用户的订阅列表
@@ -928,7 +927,7 @@ const subscribeCollection = async (collectionId: string) => {
     - **所有者模式** (响应类型为 `Collection`):
         - 显示SharingControl组件（发布/取消发布开关）
         - 显示完整的编辑功能
-        - 可查看分享统计信息（通过 `sharing_info` 字段）
+        - 可查看分享状态信息（通过 `is_published` 和 `published_at` 字段）
     - **共享模式** (响应类型为 `SharedCollection`):
         - 页面顶部显示ReadOnlyBanner组件
         - 显示订阅信息："来自 @{owner_username} 的共享知识库"
@@ -1070,6 +1069,61 @@ if (isReadOnly) {
     - 操作失败后显示错误信息
     - 操作进行中显示加载状态
 
+**C. 前端代码示例（简化设计的使用）**
+
+```typescript
+// SharingControl 组件使用示例
+interface SharingControlProps {
+  collection: Collection;
+  onToggle: (published: boolean) => Promise<void>;
+}
+
+const SharingControl: React.FC<SharingControlProps> = ({ collection, onToggle }) => {
+  return (
+    <div className="sharing-control">
+      <Switch 
+        checked={collection.is_published}
+        onChange={onToggle}
+        loading={loading}
+      />
+      <span className="sharing-status">
+        {collection.is_published ? '已发布到市场' : '未发布'}
+      </span>
+      {collection.is_published && collection.published_at && (
+        <Text type="secondary" className="publish-time">
+          发布于 {formatRelativeTime(collection.published_at)}
+        </Text>
+      )}
+    </div>
+  );
+};
+
+// 在Collection详情页面中的使用
+const CollectionDetail: React.FC = () => {
+  const handleTogglePublish = async (shouldPublish: boolean) => {
+    if (shouldPublish) {
+      await api.publishCollection(collection.id);
+    } else {
+      await api.unpublishCollection(collection.id);
+    }
+    // 刷新Collection数据
+    refreshCollection();
+  };
+
+  return (
+    <div>
+      {/* 只有所有者才显示分享控制 */}
+      {isOwner && (
+        <SharingControl 
+          collection={collection} 
+          onToggle={handleTogglePublish} 
+        />
+      )}
+    </div>
+  );
+};
+```
+
 ### 7. 详细实施计划 (TODO List)
 
 #### **Phase 1: 后端 - 数据库与核心服务**
@@ -1090,9 +1144,9 @@ if (isReadOnly) {
 - [ ] **1.2. OpenAPI Schema 定义**
     - [ ] 创建 `aperag/api/components/schemas/marketplace.yaml`，定义以下视图模型：
         - `CollectionMarketplaceStatusEnum`
-        - `CollectionMarketplaceInfo` (分享状态响应模型)
         - `SharedCollection` (共享Collection模型，用于市场浏览和订阅访问)
         - `SharedCollectionList` (共享Collection列表响应模型)
+        - `SharingStatusResponse` (简洁的分享状态响应模型，包含is_published和published_at字段)
     - [ ] 创建 `aperag/api/paths/marketplace.yaml`，定义以下端点的完整规范：
         - `GET /api/v1/marketplace/collections`：获取市场Collection列表
         - `GET /api/v1/marketplace/collections/subscriptions`：获取当前用户订阅的Collection列表
@@ -1103,7 +1157,7 @@ if (isReadOnly) {
         - `POST /api/v1/collections/{collection_id}/sharing`
         - `DELETE /api/v1/collections/{collection_id}/sharing`
 
-    - [ ] 修改 `aperag/api/components/schemas/collection.yaml`，在 Collection schema 中添加 `sharing_info` 字段
+    - [ ] 修改 `aperag/api/components/schemas/collection.yaml`，在 Collection schema 中添加 `is_published` 和 `published_at` 字段
     - [ ] 运行 `make generate-models` 生成更新后的 `aperag/schema/view_models.py`
     - [ ] 验证生成的 Pydantic 模型类型注解正确
 
