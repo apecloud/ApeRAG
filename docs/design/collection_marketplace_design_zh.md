@@ -87,7 +87,7 @@ CREATE INDEX idx_user_subscription_gmt_deleted ON user_collection_subscription(g
 3. **所有权约束**: 用户无法订阅自己是所有者的 Collection（业务逻辑禁止）
 4. **应用层级联**: Collection 删除时，需要在代码中同时软删除相关的分享和订阅记录
 5. **状态检查**: 分享状态只能是 'DRAFT' 或 'PUBLISHED'（应用层校验）
-6. **发布实例绑定**: 订阅关系与具体的发布实例绑定，Collection重新发布时旧订阅自动失效
+6. **发布状态绑定**: 订阅关系与Collection的发布状态绑定，Collection取消发布时订阅失效，重新发布时需要重新订阅
 
 **性能优化:**
 1. **简单索引策略**: 使用常规索引，与项目现有表保持一致，降低维护复杂度
@@ -102,14 +102,14 @@ CREATE INDEX idx_user_subscription_gmt_deleted ON user_collection_subscription(g
 
 **分享生命周期:**
 - **创建**: 用户首次发布 Collection 时创建记录，状态为 'PUBLISHED'
-- **取消发布**: 软删除整个 collection_marketplace 记录（设置 `gmt_deleted`），关联的订阅通过外键关系自动失效
-- **重新发布**: 创建新的 collection_marketplace 记录，用户需要重新订阅新的发布实例
+- **取消发布**: 将 collection_marketplace 记录状态改为 'DRAFT'（保留记录），应用层处理相关订阅失效
+- **重新发布**: 将现有 collection_marketplace 记录状态改回 'PUBLISHED'，之前的订阅关系不会自动恢复
 - **删除处理**: Collection 删除时，需要在代码中同时软删除 collection_marketplace 记录
 
 **订阅生命周期:**
 - **订阅**: 用户订阅已发布的 Collection，创建订阅记录（关联到具体的发布实例）
 - **取消订阅**: 设置 `gmt_deleted = NOW()`，保留历史记录
-- **自动失效**: Collection 取消发布时，关联的 collection_marketplace 记录被软删除，订阅通过外键关系自动失效
+- **自动失效**: Collection 取消发布时，collection_marketplace 记录状态改为 'DRAFT'，应用层查询并软删除相关订阅记录
 - **级联删除**: Collection 删除时，在代码中批量软删除相关的 marketplace 和订阅记录
 
 ### 3. 系统架构与业务流程
@@ -145,7 +145,7 @@ CREATE INDEX idx_user_subscription_gmt_deleted ON user_collection_subscription(g
 │  - 发布/取消发布              │ - 现有CRUD操作 (保持不变)        │
 │  - 订阅/取消订阅              │ - 添加分享状态字段               │
 │  - 用户订阅列表               │                                 │
-│  - 市场Collection列表         │ SharedCollectionService         │
+│  - 市场Collection列表         │ MarketplaceCollectionService    │
 │  - 分享状态查询               │ - 订阅权限检查                   │
 └─────────────────────────────────────────────────────────────────┘
                                 │
@@ -279,8 +279,8 @@ CREATE INDEX idx_user_subscription_gmt_deleted ON user_collection_subscription(g
     ├─ 2. 执行取消发布 (DELETE /api/v1/collections/{collection_id}/sharing)
     │     │
     │     ├─ 验证用户身份和所有权
-    │     ├─ 软删除 collection_marketplace 记录（设置 gmt_deleted = current_timestamp）
-    │     ├─ 关联的订阅通过外键关系自动失效（marketplace记录被软删除后，查询时会过滤掉）
+    │     ├─ 将 collection_marketplace 记录状态改为 'DRAFT'（设置 status='DRAFT', gmt_updated=current_timestamp）
+    │     ├─ 应用层查询并软删除相关订阅记录（设置 gmt_deleted）
     │     └─ 返回取消发布成功响应
     │
     ├─ 3. 立即从市场移除
@@ -428,8 +428,8 @@ class MarketplaceService:
     async def unpublish_collection(self, user_id: str, collection_id: str) -> None:
         """从市场下架Collection"""
         # 验证用户所有权
-        # 软删除collection_marketplace记录（设置gmt_deleted = datetime.utcnow()）
-        # 关联的订阅通过外键关系自动失效，无需额外处理
+        # 将collection_marketplace记录状态改为'DRAFT'（设置status='DRAFT', gmt_updated=datetime.utcnow()）
+        # 应用层查询并软删除相关订阅记录（设置gmt_deleted）
         # 注意：需要使用事务确保数据一致性
         
     async def get_sharing_status(self, collection_id: str) -> tuple[bool, Optional[datetime]]:
@@ -533,7 +533,7 @@ async def delete_collection(self, user_id: str, collection_id: str):
 - **`DELETE /api/v1/collections/{collection_id}/sharing`**: 从市场下架一个 Collection
     - **功能**: 将指定 Collection 的状态设置为 `DRAFT`（不删除记录，仅改变状态）
     - **权限**: 仅限 Collection 所有者
-    - **行为**: 立即停止其他用户对该 Collection 的访问，批量失效所有相关订阅
+    - **行为**: 立即停止其他用户对该 Collection 的访问，应用层处理相关订阅失效
     - **响应**: 返回 204 No Content
 
 - **`GET /api/v1/collections/{collection_id}/sharing`**: 获取指定 Collection 的分享状态
@@ -1143,8 +1143,8 @@ const CollectionDetail: React.FC = () => {
         - 处理重复发布的情况（如果已经是 PUBLISHED 状态，应返回成功但不执行任何操作）
     - [ ] 实现 `unpublish_collection(user_id: str, collection_id: str)` 方法：
         - 验证用户是 Collection 所有者
-        - 软删除 collection_marketplace 记录（设置 `gmt_deleted = datetime.utcnow()`）
-        - 关联的订阅通过外键关系自动失效，无需额外处理
+        - 将 collection_marketplace 记录状态改为 'DRAFT'（设置 `status='DRAFT', gmt_updated=datetime.utcnow()`）
+        - 应用层查询并软删除相关订阅记录（设置 `gmt_deleted`）
         - 使用数据库事务确保数据一致性
     - [ ] 实现 `get_sharing_status(collection_id: str)` 方法：
         - 返回指定 Collection 的分享状态信息
@@ -1174,23 +1174,23 @@ const CollectionDetail: React.FC = () => {
             - 返回包含订阅信息的 Collection 列表
             - 支持分页功能
 
-- [ ] **1.4. 服务层 - SharedCollection Service**
-    - [ ] 创建 `aperag/service/shared_collection_service.py` 文件和 SharedCollectionService 类
+- [ ] **1.4. 服务层 - MarketplaceCollection Service**
+    - [ ] 创建 `aperag/service/marketplace_collection_service.py` 文件和 MarketplaceCollectionService 类
     - [ ] 实现 `_check_subscription_access(user_id: str, collection_id: str)` 方法：
         - 验证 Collection 是否存在且已发布（status = 'PUBLISHED'）
         - 验证用户是否已订阅且订阅有效（gmt_deleted IS NULL）
         - 返回有效的订阅记录或抛出相应的 HTTPException
-    - [ ] 实现 SharedCollection 专用业务方法：
-        - `get_shared_collection(user_id: str, collection_id: str)` 方法：
+    - [ ] 实现 MarketplaceCollection 专用业务方法：
+        - `get_marketplace_collection(user_id: str, collection_id: str)` 方法：
             - 调用 `_check_subscription_access` 验证权限
             - 返回 SharedCollection 数据（只包含订阅者需要的字段）
-        - `list_shared_collection_documents(user_id: str, collection_id: str, page: int, page_size: int)` 方法：
+        - `list_marketplace_collection_documents(user_id: str, collection_id: str, page: int, page_size: int)` 方法：
             - 调用 `_check_subscription_access` 验证权限
             - 返回文档列表（隐藏内部信息如创建者、编辑历史等）
-        - `get_shared_collection_document_preview(user_id: str, collection_id: str, document_id: str)` 方法：
+        - `get_marketplace_collection_document_preview(user_id: str, collection_id: str, document_id: str)` 方法：
             - 调用 `_check_subscription_access` 验证权限
             - 返回文档预览数据
-        - `get_shared_collection_graph(user_id: str, collection_id: str, **params)` 方法：
+        - `get_marketplace_collection_graph(user_id: str, collection_id: str, **params)` 方法：
             - 调用 `_check_subscription_access` 验证权限
             - 返回知识图谱数据（只读模式）
 
@@ -1262,9 +1262,9 @@ const CollectionDetail: React.FC = () => {
         - 在 `frontend/src/layouts/sidebar.tsx` 中添加 "知识库市场" 菜单项
         - 设置市场图标（如ShopOutlined）和路由链接
 
-- [ ] **3.2. SharedCollection 专用页面开发**
+- [ ] **3.2. MarketplaceCollection 专用页面开发**
     - [ ] 创建 `frontend/src/pages/marketplace/collections/$collectionId/index.tsx`：
-        - 实现SharedCollection详情页面基础结构
+        - 实现MarketplaceCollection详情页面基础结构
         - 使用专用的marketplace/collections API接口
         - 显示只读模式Banner和取消订阅功能
     - [ ] 创建 `ReadOnlyBanner` 组件（`frontend/src/components/ReadOnlyBanner.tsx`）：
@@ -1273,7 +1273,7 @@ const CollectionDetail: React.FC = () => {
         - 添加信息图标（InfoCircleOutlined）和提示文案
         - 接收 `ownerUsername` 作为 Props
         - 集成"取消订阅"按钮功能
-    - [ ] 实现SharedCollection页面功能：
+    - [ ] 实现MarketplaceCollection页面功能：
         - 文档列表展示（只读模式）
         - 文档预览功能
         - 知识图谱查看（只读模式）
