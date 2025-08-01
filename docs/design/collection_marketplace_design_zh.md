@@ -142,11 +142,11 @@ CREATE INDEX idx_user_subscription_gmt_deleted ON user_collection_subscription(g
 │                        服务层 (Business Logic)                   │
 ├─────────────────────────────────────────────────────────────────┤
 │  MarketplaceService           │ CollectionService               │
-│  - 发布/取消发布              │ - 权限检查 (_check_read/write)   │
-│  - 订阅/取消订阅              │ - Collection CRUD操作           │
+│  - 发布/取消发布              │ - 现有CRUD操作 (保持不变)        │
+│  - 订阅/取消订阅              │ - 添加分享状态字段               │
 │  - 用户订阅列表               │                                 │
-│  - 市场Collection列表         │                                 │
-│  - 分享状态查询               │                                 │
+│  - 市场Collection列表         │ SharedCollectionService         │
+│  - 分享状态查询               │ - 订阅权限检查                   │
 └─────────────────────────────────────────────────────────────────┘
                                 │
                                 │ Database Layer
@@ -219,21 +219,7 @@ CREATE INDEX idx_user_subscription_gmt_deleted ON user_collection_subscription(g
                  └─ 操作限制: 隐藏所有编辑、删除、上传按钮
 ```
 
-**流程3a: Collection接口权限检查流程（所有者专用）**
-```
-用户请求访问 /api/v1/collections/{id}
-    │
-    └─ _check_ownership_access()
-           │
-           ├─ 检查用户是否为Collection所有者
-           │   └─ 是 → 完全访问权限（读写） ✅
-           │
-           └─ 否 → 403 "Access denied" ❌
-           
-注意：非所有者用户应该使用 /api/v1/shared-collections/{id} 接口
-```
-
-**流程3b: SharedCollection接口权限检查流程**
+**流程3: SharedCollection接口权限检查流程（新增）**
 ```
 用户请求访问 /api/v1/shared-collections/{id}
     │
@@ -485,64 +471,32 @@ class MarketplaceService:
         # 支持分页
 ```
 
-**4.2.2 修改现有服务: `aperag/service/collection_service.py`**
+**4.2.2 级联删除处理**
 
-核心变更是在所有Collection相关操作的入口处增加**权限检查**：
+由于新增了marketplace相关数据，需要在Collection删除时进行级联处理：
 
 ```python
-class CollectionService:
+# 在现有的collection删除逻辑中添加
+async def delete_collection(self, user_id: str, collection_id: str):
+    # ... 现有的删除逻辑
     
-    async def _check_ownership_access(self, user_id: str, collection_id: str) -> db_models.Collection:
-        """
-        检查用户是否为Collection所有者（简化权限检查）
-        
-        权限规则：
-        - Collection接口只允许所有者访问
-        - 非所有者用户应使用 shared-collections 接口
-        """
-        collection = await self.db_ops.query_collection_by_id(collection_id)
-        if not collection:
-            raise HTTPException(status_code=404, detail="Collection not found")
-
-        if collection.user != user_id:
-            raise HTTPException(status_code=403, detail="Access denied. Only collection owner can access this endpoint.")
-            
-        return collection
-
-    # 使用示例：
-    async def get_collection(self, user_id: str, collection_id: str):
-        collection = await self._check_ownership_access(user_id, collection_id)
-        # 添加分享状态信息
-        is_published, published_at = await marketplace_service.get_sharing_status(collection_id)
-        # ... 构建响应数据，包含 is_published 和 published_at
-        
-    async def update_collection(self, user_id: str, collection_id: str, updates: dict):
-        collection = await self._check_ownership_access(user_id, collection_id)
-        # ... 执行更新逻辑
-        
-    async def delete_collection(self, user_id: str, collection_id: str):
-        collection = await self._check_ownership_access(user_id, collection_id)
-        # ... 执行删除逻辑
-        # 注意：删除Collection时需要级联软删除相关记录：
-        # 1. 软删除collection_marketplace记录 (设置gmt_deleted)
-        # 2. 批量软删除user_collection_subscription记录 (设置gmt_deleted)
-        # 3. 使用事务确保数据一致性
+    # 新增：级联软删除marketplace相关记录
+    await marketplace_service.cleanup_collection_marketplace_data(collection_id)
+    # 该方法会：
+    # 1. 软删除collection_marketplace记录 (设置gmt_deleted)
+    # 2. 批量软删除user_collection_subscription记录 (设置gmt_deleted)
+    # 3. 使用事务确保数据一致性
 ```
 
-**4.2.3 接口权限分离策略:**
+**4.2.3 接口权限策略:**
 
-由于采用了"专门接口分离"的设计，权限检查变得简单明确：
+采用"专门接口分离"的设计，权限职责明确：
 
-**Collection接口族** (`/api/v1/collections/*`)：
-- **权限策略**: 仅允许Collection所有者访问
-- **权限检查**: 所有相关服务调用 `collection_service._check_ownership_access`
-- **适用服务**: 
-  - `document_service`: 文档CRUD操作
-  - `graph_service`: 图编辑操作  
-  - `chat_service`: 聊天配置管理
-  - `bot_service`: Bot配置管理
+**现有Collection接口族** (`/api/v1/collections/*`)：
+- 保持现有权限逻辑不变
+- 只需在Collection model响应中添加 `is_published` 和 `published_at` 字段
 
-**SharedCollection接口族** (`/api/v1/shared-collections/*`)：
+**新增SharedCollection接口族** (`/api/v1/shared-collections/*`)：
 - **权限策略**: 仅允许有效订阅用户只读访问
 - **权限检查**: 在 `shared_collection_service._check_subscription_access` 中统一处理
 - **适用功能**: 
@@ -551,10 +505,10 @@ class CollectionService:
   - 聊天Bot查询（如果支持）
 
 **核心优势**：
-- ✅ **职责清晰**: 每个接口族有明确的权限边界
-- ✅ **代码简洁**: 避免复杂的权限判断逻辑
-- ✅ **安全可靠**: 权限检查在接口层面就被分离，不会出现权限混淆
-- ✅ **易于扩展**: 新增功能时只需要选择对应的接口族
+- ✅ **不影响现有逻辑**: 现有Collection接口保持不变
+- ✅ **职责清晰**: 新增接口专门处理订阅访问
+- ✅ **安全可靠**: 权限检查在接口层面就被分离
+- ✅ **易于维护**: marketplace功能独立，便于后续扩展
 
 #### 4.3. API 端点设计 (View 层)
 
@@ -877,7 +831,7 @@ const subscribeCollection = async (collectionId: string) => {
 - **路由**: `/collections/{collection_id}` (保持现有路由)
 - **文件位置**: `frontend/src/pages/collections/$collectionId/index.tsx`
 - **API调用**: `GET /api/v1/collections/{collection_id}` (仅限所有者)
-- **权限检查**: 后端 `_check_ownership_access()` 验证用户是否为Collection所有者
+- **权限检查**: 使用现有的所有者权限验证
 - **功能特性**:
     - 显示SharingControl组件（发布/取消发布开关）
     - 显示完整的编辑功能（文档管理、设置、删除等）
