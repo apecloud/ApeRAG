@@ -739,41 +739,6 @@ class CollectionService:
         - **权限检查**: 调用 `_check_write_access`
         - **行为**: 非所有者访问将返回 `403 Forbidden`
 
-**4.3.3 Bot 和 Chat 相关端点权限控制**
-
-由于 Bot 通常与特定的 Collection 关联，需要在 Bot 相关操作中检查关联 Collection 的权限：
-
-**⚠️ 重要边界情况**: 如果 Bot 关联的 Collection 被删除（`gmt_deleted` 不为 NULL），所有 Bot 相关操作应返回 `404 Not Found` 或 `403 Forbidden`，并提供明确的错误信息。
-
-- **Bot 管理端点**:
-    - **`GET /api/v1/bots/{bot_id}`**: 获取 Bot 详情
-        - **权限检查**: 检查 Bot 关联的 Collection 读权限
-        - **行为**: 如果 Bot 关联到共享 Collection，非所有者可以查看（用于聊天）
-    - **`PUT /api/v1/bots/{bot_id}`**: 更新 Bot
-        - **权限检查**: 检查 Bot 关联的 Collection 写权限
-        - **行为**: 非所有者无法修改关联到共享 Collection 的 Bot
-    - **`DELETE /api/v1/bots/{bot_id}`**: 删除 Bot
-        - **权限检查**: 检查 Bot 关联的 Collection 写权限
-        - **行为**: 非所有者无法删除关联到共享 Collection 的 Bot
-
-- **Chat 相关端点**:
-    - **`GET /api/v1/bots/{bot_id}/chats`**: 获取聊天列表
-        - **权限检查**: 检查 Bot 关联的 Collection 读权限
-        - **行为**: 非所有者可以查看自己与共享 Collection Bot 的聊天记录
-    - **`POST /api/v1/bots/{bot_id}/chats`**: 创建新聊天
-        - **权限检查**: 检查 Bot 关联的 Collection 读权限
-        - **行为**: 非所有者可以与共享 Collection 的 Bot 创建聊天
-    - **`GET /api/v1/bots/{bot_id}/chats/{chat_id}`**: 获取聊天详情
-        - **权限检查**: 检查 Bot 关联的 Collection 读权限 + 聊天所有权
-        - **行为**: 用户只能查看自己的聊天记录
-    - **`PUT /api/v1/bots/{bot_id}/chats/{chat_id}`**: 更新聊天
-        - **权限检查**: 检查聊天所有权（不需要 Collection 写权限）
-        - **行为**: 用户只能修改自己的聊天记录
-    - **`DELETE /api/v1/bots/{bot_id}/chats/{chat_id}`**: 删除聊天
-        - **权限检查**: 检查聊天所有权（不需要 Collection 写权限）
-        - **行为**: 用户只能删除自己的聊天记录
-
-
 ### 5. 错误处理策略
 
 **API 错误处理分层:**
