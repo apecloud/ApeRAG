@@ -66,8 +66,8 @@ CREATE INDEX idx_collection_marketplace_collection_id ON collection_marketplace(
 ```sql
 CREATE TABLE user_collection_subscription (
     id VARCHAR(24) PRIMARY KEY DEFAULT ('sub_' || substr(md5(random()::text), 1, 16)),
-    user_id VARCHAR(24) NOT NULL,        -- 关联users表，应用层维护关联关系
-    collection_id VARCHAR(24) NOT NULL,  -- 关联collections表，应用层维护关联关系
+    user_id VARCHAR(24) NOT NULL,                      -- 关联users表，应用层维护关联关系
+    collection_marketplace_id VARCHAR(24) NOT NULL,    -- 关联collection_marketplace表，应用层维护关联关系
     
     -- 时间戳字段
     gmt_subscribed TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -78,9 +78,9 @@ CREATE TABLE user_collection_subscription (
 );
 
 -- 索引优化
-CREATE UNIQUE INDEX idx_user_collection_active_unique ON user_collection_subscription(user_id, collection_id) 
+CREATE UNIQUE INDEX idx_user_marketplace_active_unique ON user_collection_subscription(user_id, collection_marketplace_id) 
     WHERE gmt_deleted IS NULL;  -- 部分唯一索引：确保活跃订阅唯一性
-CREATE INDEX idx_user_subscription_collection ON user_collection_subscription(collection_id) 
+CREATE INDEX idx_user_subscription_marketplace ON user_collection_subscription(collection_marketplace_id) 
     WHERE gmt_deleted IS NULL;
 CREATE INDEX idx_user_subscription_user ON user_collection_subscription(user_id) 
     WHERE gmt_deleted IS NULL;
@@ -92,10 +92,11 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
 
 **业务约束:**
 1. **唯一性约束**: 每个 Collection 只能有一条分享记录
-2. **订阅约束**: 一个用户对同一 Collection 只能有一个活跃订阅
+2. **订阅约束**: 一个用户对同一发布实例（collection_marketplace）只能有一个活跃订阅
 3. **所有权约束**: 用户无法订阅自己是所有者的 Collection（业务逻辑禁止）
 4. **应用层级联**: Collection 删除时，需要在代码中同时软删除相关的分享和订阅记录
 5. **状态检查**: 分享状态只能是 'DRAFT' 或 'PUBLISHED'（应用层校验）
+6. **发布实例绑定**: 订阅关系与具体的发布实例绑定，Collection重新发布时旧订阅自动失效
 
 **性能优化:**
 1. **部分索引**: 只为活跃记录（`gmt_deleted IS NULL`）创建索引，大幅减少索引空间
@@ -110,15 +111,15 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
 
 **分享生命周期:**
 - **创建**: 用户首次发布 Collection 时创建记录，状态为 'PUBLISHED'
-- **取消发布**: 状态改为 'DRAFT'，需要在代码中批量失效所有相关订阅（设置 `gmt_deleted`）
-- **重新发布**: 状态改回 'PUBLISHED'，用户需要重新订阅
+- **取消发布**: 软删除整个 collection_marketplace 记录（设置 `gmt_deleted`），关联的订阅通过外键关系自动失效
+- **重新发布**: 创建新的 collection_marketplace 记录，用户需要重新订阅新的发布实例
 - **删除处理**: Collection 删除时，需要在代码中同时软删除 collection_marketplace 记录
 
 **订阅生命周期:**
-- **订阅**: 用户订阅已发布的 Collection，创建订阅记录
+- **订阅**: 用户订阅已发布的 Collection，创建订阅记录（关联到具体的发布实例）
 - **取消订阅**: 设置 `gmt_deleted = NOW()`，保留历史记录
-- **自动失效**: Collection 取消发布时，在代码中批量设置相关订阅的 `gmt_deleted`
-- **级联删除**: Collection 删除时，在代码中批量软删除相关订阅记录
+- **自动失效**: Collection 取消发布时，关联的 collection_marketplace 记录被软删除，订阅通过外键关系自动失效
+- **级联删除**: Collection 删除时，在代码中批量软删除相关的 marketplace 和订阅记录
 
 ### 3. 系统架构与业务流程
 
@@ -299,11 +300,8 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
     ├─ 2. 执行取消发布 (DELETE /api/v1/collections/{collection_id}/sharing)
     │     │
     │     ├─ 验证用户身份和所有权
-    │     ├─ 更新 collection_marketplace 状态为 'DRAFT'
-    │     ├─ 批量失效所有相关订阅
-    │     │   └─ UPDATE user_collection_subscription 
-    │     │       SET gmt_deleted = current_timestamp 
-    │     │       WHERE collection_id = ? AND gmt_deleted IS NULL
+    │     ├─ 软删除 collection_marketplace 记录（设置 gmt_deleted = current_timestamp）
+    │     ├─ 关联的订阅通过外键关系自动失效（marketplace记录被软删除后，查询时会过滤掉）
     │     └─ 返回取消发布成功响应
     │
     ├─ 3. 立即从市场移除
@@ -359,17 +357,19 @@ WHERE cm.status = 'PUBLISHED' AND cm.gmt_deleted IS NULL
 ORDER BY cm.gmt_created DESC
 LIMIT 12 OFFSET ?;
 
--- 高效的订阅检查查询（利用唯一索引 idx_user_collection_active_unique）
-SELECT id FROM user_collection_subscription 
-WHERE user_id = ? AND collection_id = ? AND gmt_deleted IS NULL
+-- 高效的订阅检查查询（利用唯一索引 idx_user_marketplace_active_unique）
+SELECT ucs.id FROM user_collection_subscription ucs
+JOIN collection_marketplace cm ON ucs.collection_marketplace_id = cm.id
+WHERE ucs.user_id = ? AND cm.collection_id = ? AND ucs.gmt_deleted IS NULL AND cm.gmt_deleted IS NULL
 LIMIT 1;
 
--- 获取用户订阅的Collection详情（通过collection_id关联，无需冗余外键）
+-- 获取用户订阅的Collection详情（通过marketplace表关联）
 SELECT c.id, c.title, c.description, u.username, ucs.id as subscription_id, ucs.gmt_subscribed
 FROM user_collection_subscription ucs
-JOIN collections c ON ucs.collection_id = c.id
+JOIN collection_marketplace cm ON ucs.collection_marketplace_id = cm.id
+JOIN collections c ON cm.collection_id = c.id
 JOIN users u ON c.user_id = u.id
-WHERE ucs.user_id = ? AND ucs.gmt_deleted IS NULL
+WHERE ucs.user_id = ? AND ucs.gmt_deleted IS NULL AND cm.gmt_deleted IS NULL
 ORDER BY ucs.gmt_subscribed DESC;
 ```
 
@@ -396,7 +396,7 @@ ORDER BY ucs.gmt_subscribed DESC;
 - **`UserCollectionSubscription`**: 用户订阅 Collection 表 (SQLAlchemy 模型)
     - `id: str`: 订阅记录的唯一标识符
     - `user_id: str`: 订阅用户 ID
-    - `collection_id: str`: 被订阅的 Collection ID
+    - `collection_marketplace_id: str`: 关联的发布实例 ID（collection_marketplace.id）
     - `gmt_subscribed: datetime`: 订阅时间
     - `gmt_deleted: Optional[datetime]`: 取消订阅时间（NULL表示活跃订阅）
 
@@ -457,8 +457,8 @@ class MarketplaceService:
     async def unpublish_collection(self, user_id: str, collection_id: str) -> None:
         """从市场下架Collection"""
         # 验证用户所有权
-        # 更新collection_marketplace状态为DRAFT，同时更新gmt_updated字段
-        # 批量失效相关订阅(设置gmt_deleted = datetime.utcnow())
+        # 软删除collection_marketplace记录（设置gmt_deleted = datetime.utcnow()）
+        # 关联的订阅通过外键关系自动失效，无需额外处理
         # 注意：需要使用事务确保数据一致性
         
     async def get_sharing_status(self, collection_id: str) -> Optional[CollectionMarketplaceInfo]:
@@ -475,10 +475,10 @@ class MarketplaceService:
         
     async def subscribe_collection(self, user_id: str, collection_id: str) -> SharedCollection:
         """订阅Collection"""
-        # 1. 验证Collection已发布 (status = 'PUBLISHED')
+        # 1. 查找Collection对应的已发布marketplace记录 (status = 'PUBLISHED', gmt_deleted IS NULL)
         # 2. 验证用户不是Collection所有者 (user_id != collection.user)
-        # 3. 检查是否已订阅，防止重复订阅
-        # 4. 创建user_collection_subscription记录
+        # 3. 检查是否已订阅该marketplace实例，防止重复订阅
+        # 4. 创建user_collection_subscription记录（关联collection_marketplace_id）
         # 异常: 如果用户是所有者，抛出 SelfSubscriptionError("Cannot subscribe to your own collection")
         
     async def unsubscribe_collection(self, user_id: str, collection_id: str) -> None:
@@ -488,6 +488,7 @@ class MarketplaceService:
         
     async def get_user_subscription(self, user_id: str, collection_id: str) -> Optional[UserCollectionSubscription]:
         """获取用户对指定Collection的活跃订阅状态"""
+        # 通过collection_id查找已发布的marketplace记录，再查找对应的订阅记录
         # 供权限检查函数调用
         # 返回None表示未订阅或已取消订阅
         
@@ -1085,10 +1086,11 @@ if (isReadOnly) {
 - [ ] **1.1. 数据库模型与迁移**
     - [ ] 在 `aperag/db/models.py` 中定义数据库模型：
         - `CollectionMarketplace` (SQLAlchemy模型)：分享状态记录，包含状态和时间字段
-        - `UserCollectionSubscription` (SQLAlchemy模型)：用户订阅记录，使用 `gmt_deleted` 字段实现软删除
+        - `UserCollectionSubscription` (SQLAlchemy模型)：用户订阅记录，关联collection_marketplace_id，使用 `gmt_deleted` 字段实现软删除
         - `CollectionMarketplaceStatusEnum` (Python enum)：分享状态枚举，用于代码逻辑，数据库使用VARCHAR存储
         - 包含所有必要字段、约束和索引（特别注意 `gmt_deleted` 的索引优化）
         - 注意：`status` 字段使用 `Column(String(20))` 而非 `EnumColumn`，确保数据库层使用VARCHAR
+        - 重点：UserCollectionSubscription表关联collection_marketplace_id而不是collection_id
     - [ ] 运行 `make makemigration` 生成新的数据库迁移脚本
     - [ ] 检查生成的迁移脚本（位于 `aperag/migration/versions/`）确保 SQL 语法正确性和索引创建
     - [ ] 运行 `make migrate` 将数据库 schema 变更应用到开发环境
@@ -1122,8 +1124,8 @@ if (isReadOnly) {
         - 处理重复发布的情况（如果已经是 PUBLISHED 状态，应返回成功但不执行任何操作）
     - [ ] 实现 `unpublish_collection(user_id: str, collection_id: str)` 方法：
         - 验证用户是 Collection 所有者
-        - 将 collection_marketplace 记录状态更新为 DRAFT，同时手动设置 `gmt_updated = datetime.utcnow()`
-        - 批量失效所有相关订阅（批量设置 `gmt_deleted = datetime.utcnow()`）
+        - 软删除 collection_marketplace 记录（设置 `gmt_deleted = datetime.utcnow()`）
+        - 关联的订阅通过外键关系自动失效，无需额外处理
         - 使用数据库事务确保数据一致性
     - [ ] 实现 `get_sharing_status(collection_id: str)` 方法：
         - 返回指定 Collection 的分享状态信息
@@ -1136,14 +1138,15 @@ if (isReadOnly) {
         - 计算当前用户的订阅状态（通过subscription_id字段）
     - [ ] 实现订阅相关方法：
         - `subscribe_collection(user_id: str, collection_id: str)` 方法：
-            - 验证 Collection 已发布 (status = 'PUBLISHED')
+            - 查找Collection对应的已发布marketplace记录 (status = 'PUBLISHED', gmt_deleted IS NULL)
             - 验证用户不是 Collection 所有者，如果是则抛出 SelfSubscriptionError
-            - 检查是否已订阅，防止重复订阅
-            - 创建用户订阅记录
+            - 检查是否已订阅该marketplace实例，防止重复订阅
+            - 创建用户订阅记录（关联collection_marketplace_id）
         - `unsubscribe_collection(user_id: str, collection_id: str)` 方法：
             - 验证用户已订阅该 Collection
             - 软删除订阅记录（设置 gmt_deleted = current_timestamp）
         - `get_user_subscription(user_id: str, collection_id: str)` 方法：
+            - 通过collection_id查找已发布的marketplace记录，再查找对应的订阅记录
             - 获取用户对指定 Collection 的活跃订阅状态（`WHERE gmt_deleted IS NULL`）
             - 供权限检查函数调用，返回 None 表示未订阅或已取消订阅
         - `list_user_subscribed_collections(user_id: str, page: int, page_size: int)` 方法：
