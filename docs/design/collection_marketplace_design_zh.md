@@ -219,7 +219,7 @@ CREATE INDEX idx_user_subscription_gmt_deleted ON user_collection_subscription(g
                  └─ 操作限制: 隐藏所有编辑、删除、上传按钮
 ```
 
-**流程3a: Collection接口权限检查流程**
+**流程3a: Collection接口权限检查流程（所有者专用）**
 ```
 用户请求访问 /api/v1/collections/{id}
     │
@@ -229,6 +229,8 @@ CREATE INDEX idx_user_subscription_gmt_deleted ON user_collection_subscription(g
            │   └─ 是 → 完全访问权限（读写） ✅
            │
            └─ 否 → 403 "Access denied" ❌
+           
+注意：非所有者用户应该使用 /api/v1/shared-collections/{id} 接口
 ```
 
 **流程3b: SharedCollection接口权限检查流程**
@@ -265,7 +267,7 @@ CREATE INDEX idx_user_subscription_gmt_deleted ON user_collection_subscription(g
     │
     ├─ 3. 立即失去访问权限
     │     │
-    │     ├─ 权限检查: _check_read_access() 立即返回403
+    │     ├─ 权限检查: shared-collections接口的 _check_subscription_access() 立即返回403
     │     ├─ 前端处理: 自动跳转到市场页面或首页
     │     └─ 提示消息: "已成功取消订阅"
     │
@@ -303,7 +305,7 @@ CREATE INDEX idx_user_subscription_gmt_deleted ON user_collection_subscription(g
     │
     ├─ 4. 所有订阅用户失去访问权限
     │     │
-    │     ├─ 权限检查: _check_read_access() 对所有非所有者返回403
+    │     ├─ 权限检查: shared-collections接口的 _check_subscription_access() 对所有订阅用户返回403
     │     ├─ 活跃连接: 正在使用的用户会在下次请求时收到403错误
     │     ├─ 前端处理: 订阅用户的Collection列表自动移除该项
     │     └─ 通知机制: (可选) 向订阅用户发送取消发布通知
@@ -490,91 +492,36 @@ class MarketplaceService:
 ```python
 class CollectionService:
     
-    async def _check_read_access(self, user_id: str, collection_id: str) -> db_models.Collection:
+    async def _check_ownership_access(self, user_id: str, collection_id: str) -> db_models.Collection:
         """
-        检查用户是否有权限读取指定的Collection
+        检查用户是否为Collection所有者（简化权限检查）
         
-        权限规则（Subscribe模式）：
-        1. Collection所有者有完全读权限
-        2. 非所有者必须订阅已发布的Collection才能读取
-        3. 未订阅的用户无法访问任何非自有的Collection
-        """
-        collection = await self.db_ops.query_collection_by_id(collection_id)
-            if not collection:
-                raise HTTPException(status_code=404, detail="Collection not found")
-
-        # 1. 所有者有完全访问权限
-            if collection.user == user_id:
-                return collection
-
-        # 2. 非所有者需要检查订阅状态
-        from aperag.service.marketplace_service import marketplace_service
-        
-        # 首先检查Collection是否已发布
-            sharing_info = await marketplace_service.get_raw_sharing_status(collection_id)
-        is_published = sharing_info and sharing_info.status == "PUBLISHED"
-
-        if not is_published:
-            raise HTTPException(status_code=403, detail="Collection not published")
-        
-        # 检查用户是否已订阅该Collection
-        subscription = await marketplace_service.get_user_subscription(user_id, collection_id)
-        if not subscription or subscription.gmt_deleted is not None:
-            # 区分未订阅和订阅已失效的情况
-            if not subscription:
-                raise HTTPException(
-                    status_code=403, 
-                    detail="Access denied. Please subscribe to this collection first."
-                )
-            else:
-                raise HTTPException(
-                    status_code=403, 
-                    detail="Access denied. Your subscription to this collection has expired."
-                )
-        
-        return collection
-
-    async def _check_write_access(self, user_id: str, collection_id: str) -> db_models.Collection:
-        """
-        检查用户是否有权限修改指定的Collection
-        
-        权限规则（Subscribe模式）：
-        1. 只有Collection所有者有写权限
-        2. 订阅的Collection对订阅者严格只读
-        3. 非所有者和非订阅者无任何访问权限
+        权限规则：
+        - Collection接口只允许所有者访问
+        - 非所有者用户应使用 shared-collections 接口
         """
         collection = await self.db_ops.query_collection_by_id(collection_id)
         if not collection:
             raise HTTPException(status_code=404, detail="Collection not found")
 
-        # 只有所有者才有写权限
-        if collection.user == user_id:
-                return collection
+        if collection.user != user_id:
+            raise HTTPException(status_code=403, detail="Access denied. Only collection owner can access this endpoint.")
             
-        # 检查是否为共享Collection，提供更具体的错误信息
-        from aperag.service.marketplace_service import marketplace_service
-        sharing_info = await marketplace_service.get_raw_sharing_status(collection_id)
-        is_published = sharing_info and sharing_info.status == "PUBLISHED"
-
-        if is_published:
-            raise HTTPException(
-                status_code=403, 
-                detail="Permission denied. This is a read-only shared collection."
-            )
-        else:
-            raise HTTPException(status_code=403, detail="Permission denied")
+        return collection
 
     # 使用示例：
     async def get_collection(self, user_id: str, collection_id: str):
-        collection = await self._check_read_access(user_id, collection_id)
-        # ... 构建响应数据
+        collection = await self._check_ownership_access(user_id, collection_id)
+        # 添加分享状态信息
+        is_published, published_at = await marketplace_service.get_sharing_status(collection_id)
+        # ... 构建响应数据，包含 is_published 和 published_at
         
     async def update_collection(self, user_id: str, collection_id: str, updates: dict):
-        collection = await self._check_write_access(user_id, collection_id)
+        collection = await self._check_ownership_access(user_id, collection_id)
         # ... 执行更新逻辑
         
-        async def delete_collection(self, user_id: str, collection_id: str):
-        collection = await self._check_write_access(user_id, collection_id)
+    async def delete_collection(self, user_id: str, collection_id: str):
+        collection = await self._check_ownership_access(user_id, collection_id)
         # ... 执行删除逻辑
         # 注意：删除Collection时需要级联软删除相关记录：
         # 1. 软删除collection_marketplace记录 (设置gmt_deleted)
@@ -582,14 +529,32 @@ class CollectionService:
         # 3. 使用事务确保数据一致性
 ```
 
-**4.2.3 其他相关服务的权限集成:**
+**4.2.3 接口权限分离策略:**
 
-- **`aperag/service/document_service.py`**: 所有涉及Collection内文档的读取操作（如`list_documents`, `get_document`）必须调用`collection_service._check_read_access`
-- **`aperag/service/document_service.py`**: 所有涉及Collection内文档的写操作（如`create_document`, `update_document`, `delete_document`）必须调用`collection_service._check_write_access`
-- **`aperag/service/graph_service.py`**: 图相关的读取操作（如`get_graph`）必须调用`collection_service._check_read_access`
-- **`aperag/service/chat_service.py`**: 聊天查询操作必须调用`collection_service._check_read_access`
-- **`aperag/service/bot_service.py`**: Bot相关操作必须检查关联Collection的权限
-- **`aperag/service/search_service.py`**: 搜索相关操作必须调用权限检查函数
+由于采用了"专门接口分离"的设计，权限检查变得简单明确：
+
+**Collection接口族** (`/api/v1/collections/*`)：
+- **权限策略**: 仅允许Collection所有者访问
+- **权限检查**: 所有相关服务调用 `collection_service._check_ownership_access`
+- **适用服务**: 
+  - `document_service`: 文档CRUD操作
+  - `graph_service`: 图编辑操作  
+  - `chat_service`: 聊天配置管理
+  - `bot_service`: Bot配置管理
+
+**SharedCollection接口族** (`/api/v1/shared-collections/*`)：
+- **权限策略**: 仅允许有效订阅用户只读访问
+- **权限检查**: 在 `shared_collection_service._check_subscription_access` 中统一处理
+- **适用功能**: 
+  - 文档列表查看和预览
+  - 知识图谱只读浏览
+  - 聊天Bot查询（如果支持）
+
+**核心优势**：
+- ✅ **职责清晰**: 每个接口族有明确的权限边界
+- ✅ **代码简洁**: 避免复杂的权限判断逻辑
+- ✅ **安全可靠**: 权限检查在接口层面就被分离，不会出现权限混淆
+- ✅ **易于扩展**: 新增功能时只需要选择对应的接口族
 
 #### 4.3. API 端点设计 (View 层)
 
@@ -907,36 +872,58 @@ const subscribeCollection = async (collectionId: string) => {
         });
         ```
 
-**C. 修改 Collection 详情页**
+**C. Collection详情页面（所有者专用）**
 
-- **路由**: `/collections/{collection_id}` (复用现有路由)
+- **路由**: `/collections/{collection_id}` (保持现有路由)
 - **文件位置**: `frontend/src/pages/collections/$collectionId/index.tsx`
-- **API调用**: `GET /api/v1/collections/{collection_id}` (现有接口)
-- **权限检查**: 后端 `_check_read_access()` 验证用户是否有权限访问
-- **响应类型区分**:
-    ```typescript
-    // 根据用户权限返回不同类型
-    type CollectionDetailResponse = Collection | SharedCollection;
-    
-    // 前端类型守卫
-    function isSharedCollection(data: any): data is SharedCollection {
-      return 'owner_username' in data;
-    }
-    ```
-- **功能增强**:
-    - **所有者模式** (响应类型为 `Collection`):
-        - 显示SharingControl组件（发布/取消发布开关）
-        - 显示完整的编辑功能
-        - 可查看分享状态信息（通过 `is_published` 和 `published_at` 字段）
-    - **共享模式** (响应类型为 `SharedCollection`):
-        - 页面顶部显示ReadOnlyBanner组件
-        - 显示订阅信息："来自 @{owner_username} 的共享知识库"
-        - 提供取消订阅按钮（如果 `subscription_id` 有值）
-        - 隐藏所有编辑按钮：编辑Collection、上传文档、删除文档、重建索引
-        - 隐藏设置页面入口
-        - 文档列表只显示查看、预览按钮
-        - 图谱页面隐藏合并节点等编辑功能
-        - 聊天Bot可正常使用（只读查询）
+- **API调用**: `GET /api/v1/collections/{collection_id}` (仅限所有者)
+- **权限检查**: 后端 `_check_ownership_access()` 验证用户是否为Collection所有者
+- **功能特性**:
+    - 显示SharingControl组件（发布/取消发布开关）
+    - 显示完整的编辑功能（文档管理、设置、删除等）
+    - 可查看分享状态信息（通过 `is_published` 和 `published_at` 字段）
+    - 如果Collection已发布，显示订阅用户数量（可选功能）
+
+**D. SharedCollection详情页面（订阅用户专用）**
+
+- **路由**: `/shared-collections/{collection_id}` (新增专门路由)
+- **文件位置**: `frontend/src/pages/shared-collections/$collectionId/index.tsx`
+- **API调用**: `GET /api/v1/shared-collections/{collection_id}` (仅限订阅用户)
+- **权限检查**: 后端 `_check_subscription_access()` 验证用户是否已订阅
+- **功能特性**:
+    - 页面顶部显示ReadOnlyBanner组件
+    - 显示订阅信息："来自 @{owner_username} 的共享知识库"
+    - 提供取消订阅按钮
+    - 隐藏所有编辑按钮：编辑Collection、上传文档、删除文档、重建索引
+    - 隐藏设置页面入口
+    - 文档列表只显示查看、预览按钮
+    - 图谱页面隐藏合并节点等编辑功能
+    - 聊天Bot可正常使用（只读查询）
+
+**路由跳转逻辑**：
+```typescript
+// 从市场页面点击Collection卡片
+const handleCollectionClick = (collection: SharedCollection) => {
+  if (collection.subscription_id) {
+    // 已订阅 → 跳转到SharedCollection页面
+    navigate(`/shared-collections/${collection.id}`);
+  } else {
+    // 未订阅 → 跳转到市场详情页或直接订阅
+    handleSubscribe(collection.id);
+  }
+};
+
+// 从Collection列表点击
+const handleCollectionClick = (item: CollectionListItem) => {
+  if (item.type === 'owned') {
+    // 自有Collection → 跳转到Collection页面
+    navigate(`/collections/${item.collection.id}`);
+  } else {
+    // 订阅Collection → 跳转到SharedCollection页面
+    navigate(`/shared-collections/${item.collection.id}`);
+  }
+};
+```
 
 #### 6.2. 组件设计
 
@@ -1309,20 +1296,22 @@ const CollectionDetail: React.FC = () => {
         - `GraphViewReadOnly`: 只读图谱查看组件
         - `CollectionInfoReadOnly`: 只读基本信息展示
 
-- [ ] **3.3. Collection 详情页 - 分享功能实现**
+- [ ] **3.3. Collection 详情页 - 分享功能实现（所有者专用）**
     - [ ] 创建 `SharingControl` 组件（`frontend/src/components/SharingControl.tsx`）：
-        - 使用 Switch 组件控制发布状态
-        - 显示当前分享状态标签
-        - 仅在用户是所有者时显示该组件
+        - 使用 Switch 组件控制发布状态（基于 `collection.is_published`）
+        - 显示当前分享状态标签和发布时间（使用 `collection.published_at`）
+        - 仅在Collection详情页面（`/collections/{id}`）中显示
     - [ ] 实现分享操作确认对话框：
         - 发布确认：说明发布后其他用户可以访问
         - 下架确认：说明下架后其他用户将无法访问
         - 使用 Ant Design Modal 组件
     - [ ] 集成分享状态管理：
         - 在 Collection model 中添加相关 Effects
-        - 实现发布/取消发布的 API 调用
+        - 实现发布/取消发布的 API 调用（调用 `/api/v1/collections/{id}/sharing`）
         - 处理操作成功/失败的反馈提示
     - [ ] 在 Collection 详情页面中集成 SharingControl：
         - 在Collection标题右侧区域展示分享控制组件
-        - 根据用户权限控制组件可见性
+        - 确保只有在Collection接口（所有者模式）下才显示
         - 实现状态变更后的页面刷新
+
+**注意**：SharedCollection详情页面（`/shared-collections/{id}`）不需要SharingControl组件，它们有专门的ReadOnlyBanner和取消订阅功能。
