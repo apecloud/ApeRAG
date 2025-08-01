@@ -47,16 +47,11 @@ CREATE TABLE collection_marketplace (
 -- 在SQLModel中更新记录时，手动设置: gmt_updated = datetime.utcnow()
 
 -- 索引优化
-CREATE INDEX idx_collection_marketplace_status ON collection_marketplace(status) 
-    WHERE gmt_deleted IS NULL;
-CREATE INDEX idx_collection_marketplace_published ON collection_marketplace(gmt_created) 
-    WHERE status = 'PUBLISHED' AND gmt_deleted IS NULL;
+CREATE INDEX idx_collection_marketplace_status ON collection_marketplace(status);
+CREATE INDEX idx_collection_marketplace_gmt_deleted ON collection_marketplace(gmt_deleted);
+CREATE INDEX idx_collection_marketplace_collection_id ON collection_marketplace(collection_id);
 -- 查询市场列表时的复合索引
-CREATE INDEX idx_collection_marketplace_list ON collection_marketplace(status, gmt_created DESC) 
-    WHERE gmt_deleted IS NULL;
--- Collection关联查询索引
-CREATE INDEX idx_collection_marketplace_collection_id ON collection_marketplace(collection_id) 
-    WHERE gmt_deleted IS NULL;
+CREATE INDEX idx_collection_marketplace_list ON collection_marketplace(status, gmt_created DESC);
 ```
 
 **表2: `user_collection_subscription` - 用户订阅表**
@@ -73,35 +68,31 @@ CREATE TABLE user_collection_subscription (
     gmt_subscribed TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     gmt_deleted TIMESTAMP WITH TIME ZONE NULL,  -- 软删除：NULL表示活跃订阅
     
-    -- 注意：活跃订阅的唯一性通过部分唯一索引实现，而非表级约束
+    -- 注意：活跃订阅的唯一性通过复合唯一索引实现，包含gmt_deleted字段
     -- 级联删除逻辑需要在应用代码中处理，删除Collection时同时删除相关订阅记录
 );
 
 -- 索引优化
-CREATE UNIQUE INDEX idx_user_marketplace_active_unique ON user_collection_subscription(user_id, collection_marketplace_id) 
-    WHERE gmt_deleted IS NULL;  -- 部分唯一索引：确保活跃订阅唯一性
-CREATE INDEX idx_user_subscription_marketplace ON user_collection_subscription(collection_marketplace_id) 
-    WHERE gmt_deleted IS NULL;
-CREATE INDEX idx_user_subscription_user ON user_collection_subscription(user_id) 
-    WHERE gmt_deleted IS NULL;
-CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_deleted) 
-    WHERE gmt_deleted IS NOT NULL;
+CREATE UNIQUE INDEX idx_user_marketplace_history_unique ON user_collection_subscription(user_id, collection_marketplace_id, gmt_deleted);  -- 允许多条历史记录，但活跃订阅(gmt_deleted=NULL)保持唯一
+CREATE INDEX idx_user_subscription_marketplace ON user_collection_subscription(collection_marketplace_id);
+CREATE INDEX idx_user_subscription_user ON user_collection_subscription(user_id);
+CREATE INDEX idx_user_subscription_gmt_deleted ON user_collection_subscription(gmt_deleted);
 ```
 
 #### 2.2. 数据库约束说明
 
 **业务约束:**
 1. **唯一性约束**: 每个 Collection 只能有一条分享记录
-2. **订阅约束**: 一个用户对同一发布实例（collection_marketplace）只能有一个活跃订阅
+2. **订阅约束**: 一个用户对同一发布实例（collection_marketplace）只能有一个活跃订阅，但可以保留多条历史记录
 3. **所有权约束**: 用户无法订阅自己是所有者的 Collection（业务逻辑禁止）
 4. **应用层级联**: Collection 删除时，需要在代码中同时软删除相关的分享和订阅记录
 5. **状态检查**: 分享状态只能是 'DRAFT' 或 'PUBLISHED'（应用层校验）
 6. **发布实例绑定**: 订阅关系与具体的发布实例绑定，Collection重新发布时旧订阅自动失效
 
 **性能优化:**
-1. **部分索引**: 只为活跃记录（`gmt_deleted IS NULL`）创建索引，大幅减少索引空间
+1. **简单索引策略**: 使用常规索引，与项目现有表保持一致，降低维护复杂度
 2. **复合索引**: 
-   - 用户+Collection 组合查询优化（订阅检查场景）
+   - 用户+Collection+删除状态组合查询优化（订阅检查场景）
    - 状态+时间复合索引（市场列表查询场景）
    - Collection关联查询索引（按collection_id查询优化）
 3. **应用层更新**: `gmt_updated` 字段在代码中手动更新，保持项目一致性
@@ -341,9 +332,9 @@ CREATE INDEX idx_user_subscription_deleted ON user_collection_subscription(gmt_d
 #### 3.4. 性能考虑
 
 **数据库优化:**
-1. **索引策略**: 为高频查询场景创建专门索引
+1. **索引策略**: 为高频查询场景创建专门索引，使用简单一致的索引设计
 2. **分页查询**: 所有列表接口支持分页，避免大数据量查询
-3. **部分索引**: 只为活跃记录创建索引，节省存储空间
+3. **复合索引**: 针对多字段查询场景创建复合索引，提升查询效率
 
 
 **查询优化:**
