@@ -205,13 +205,13 @@ CREATE INDEX idx_user_subscription_gmt_deleted ON user_collection_subscription(g
            │     │   └─ GET /api/v1/marketplace/collections/subscriptions (获取订阅Collection)
            │     ├─ 前端合并: 两个接口响应合并显示在同一页面
            │     ├─ 区分显示: 订阅Collection显示"已订阅"标签，自有Collection显示"我的"标签
-           │     └─ 点击进入: 路由到 /collections/{collection_id}
+           │     └─ 点击进入: 智能路由（根据用户关系跳转到不同页面）
            │
 
-           └─ 3b. SharedCollection详情页只读访问
+           └─ 3b. MarketplaceCollection详情页只读访问
                  │
-                 ├─ 页面: /shared-collections/{collection_id}
-                 ├─ API: GET /api/v1/shared-collections/{collection_id}
+                 ├─ 页面: /marketplace/collections/{collection_id}
+                 ├─ API: GET /api/v1/marketplace/collections/{collection_id}
                  ├─ 权限检查: _check_subscription_access() 验证订阅状态
                  ├─ 响应类型: SharedCollection（专用只读接口）
                  ├─ UI显示: 顶部显示只读Banner
@@ -219,9 +219,9 @@ CREATE INDEX idx_user_subscription_gmt_deleted ON user_collection_subscription(g
                  └─ 操作限制: 隐藏所有编辑、删除、上传按钮
 ```
 
-**流程3: SharedCollection接口权限检查流程（新增）**
+**流程3: MarketplaceCollection接口权限检查流程（新增）**
 ```
-用户请求访问 /api/v1/shared-collections/{id}
+用户请求访问 /api/v1/marketplace/collections/{id}
     │
     └─ _check_subscription_access()
            │
@@ -238,9 +238,9 @@ CREATE INDEX idx_user_subscription_gmt_deleted ON user_collection_subscription(g
 ```
 用户B (已订阅用户)
     │
-    ├─ 1. 在SharedCollection详情页点击"取消订阅"
+    ├─ 1. 在MarketplaceCollection详情页点击"取消订阅"
     │     │
-    │     ├─ 页面: /shared-collections/{collection_id}
+    │     ├─ 页面: /marketplace/collections/{collection_id}
     │     ├─ UI元素: 详情页面显示"取消订阅"按钮
     │     └─ 确认对话框: "确定要取消订阅此知识库吗？"
     │
@@ -253,7 +253,7 @@ CREATE INDEX idx_user_subscription_gmt_deleted ON user_collection_subscription(g
     │
     ├─ 3. 立即失去访问权限
     │     │
-    │     ├─ 权限检查: shared-collections接口的 _check_subscription_access() 立即返回403
+    │     ├─ 权限检查: marketplace/collections接口的 _check_subscription_access() 立即返回403
     │     ├─ 前端处理: 自动跳转到市场页面或首页
     │     └─ 提示消息: "已成功取消订阅"
     │
@@ -291,7 +291,7 @@ CREATE INDEX idx_user_subscription_gmt_deleted ON user_collection_subscription(g
     │
     ├─ 4. 所有订阅用户失去访问权限
     │     │
-    │     ├─ 权限检查: shared-collections接口的 _check_subscription_access() 对所有订阅用户返回403
+    │     ├─ 权限检查: marketplace/collections接口的 _check_subscription_access() 对所有订阅用户返回403
     │     ├─ 活跃连接: 正在使用的用户会在下次请求时收到403错误
     │     ├─ 前端处理: 订阅用户的Collection列表自动移除该项
     │     └─ 通知机制: (可选) 向订阅用户发送取消发布通知
@@ -496,9 +496,9 @@ async def delete_collection(self, user_id: str, collection_id: str):
 - 保持现有权限逻辑不变
 - 只需在Collection model响应中添加 `is_published` 和 `published_at` 字段
 
-**新增SharedCollection接口族** (`/api/v1/shared-collections/*`)：
+**新增MarketplaceCollection接口族** (`/api/v1/marketplace/collections/*`)：
 - **权限策略**: 仅允许有效订阅用户只读访问
-- **权限检查**: 在 `shared_collection_service._check_subscription_access` 中统一处理
+- **权限检查**: 在 `marketplace_collection_service._check_subscription_access` 中统一处理
 - **适用功能**: 
   - 文档列表查看和预览
   - 知识图谱只读浏览
@@ -570,7 +570,37 @@ async def delete_collection(self, user_id: str, collection_id: str):
     - **分页**: 支持 `page` 和 `page_size` 参数
     - **设计理念**: 资源层级更清晰，subscriptions作为collections的子资源
 
-**4.3.2 SharedCollection 专用 API 接口**
+**4.3.2 完整API结构概览**
+
+采用方案B的RESTful API设计，marketplace作为资源命名空间：
+
+```
+# Marketplace 相关API（新增）
+GET    /api/v1/marketplace/collections                    # 市场列表
+GET    /api/v1/marketplace/collections/subscriptions     # 用户订阅列表
+POST   /api/v1/marketplace/collections/{id}/subscribe    # 订阅Collection
+DELETE /api/v1/marketplace/collections/{id}/subscribe    # 取消订阅
+GET    /api/v1/marketplace/collections/{id}              # 订阅Collection详情（只读）
+GET    /api/v1/marketplace/collections/{id}/documents    # 订阅Collection的文档列表（只读）
+GET    /api/v1/marketplace/collections/{id}/documents/{doc_id}/preview  # 文档预览（只读）
+GET    /api/v1/marketplace/collections/{id}/graph        # 知识图谱（只读）
+
+# Collection 管理API（现有，增强）
+GET    /api/v1/collections                               # 用户自有Collection列表
+GET    /api/v1/collections/{id}                          # Collection详情（含分享状态）
+POST   /api/v1/collections/{id}/sharing                  # 发布到市场
+DELETE /api/v1/collections/{id}/sharing                  # 从市场下架
+GET    /api/v1/collections/{id}/sharing                  # 查询分享状态
+# ... 其他现有Collection管理接口保持不变
+```
+
+**API设计优势**：
+- ✅ **命名空间清晰**: `/marketplace/` 明确表示市场功能
+- ✅ **RESTful规范**: 资源层级结构合理
+- ✅ **职责分离**: 管理和浏览功能完全分开
+- ✅ **扩展性好**: 便于后续添加其他marketplace功能
+
+**4.3.3 MarketplaceCollection 专用 API 接口**
 
 为了确保数据隔离和API语义清晰，我们为SharedCollection（订阅的Collection）设计专门的只读API接口。这些接口：
 - 只返回订阅者需要的字段，避免敏感信息泄露
@@ -582,9 +612,9 @@ async def delete_collection(self, user_id: str, collection_id: str):
 - **权限简单**: 只需验证用户是否有有效订阅，无需复杂的所有者判断
 - **功能专注**: 只提供内容浏览必需的4个核心接口
 
-**SharedCollection 专用接口列表**：
+**MarketplaceCollection 专用接口列表**：
 
-- **`GET /api/v1/shared-collections/{collection_id}`**: 获取SharedCollection详情
+- **`GET /api/v1/marketplace/collections/{collection_id}`**: 获取MarketplaceCollection详情
     - **功能**: 返回订阅者视角的Collection信息
     - **权限检查**: 验证当前用户是否已订阅该Collection（`user_collection_subscription.gmt_deleted IS NULL`）
     - **响应类型**: `SharedCollection`
@@ -596,27 +626,27 @@ async def delete_collection(self, user_id: str, collection_id: str):
         - Collection不存在: `404 Not Found`
         - Collection未发布: `403 Forbidden "This collection is no longer available"`
 
-- **`GET /api/v1/shared-collections/{collection_id}/documents`**: 获取SharedCollection的文档列表
+- **`GET /api/v1/marketplace/collections/{collection_id}/documents`**: 获取MarketplaceCollection的文档列表
     - **功能**: 返回文档基本信息列表（只读模式）
     - **权限检查**: 验证订阅关系
     - **响应格式**: 标准文档列表，但隐藏创建者、编辑历史等内部信息
     - **分页支持**: `page`, `page_size` 参数
     - **过滤支持**: `search`, `file_type` 等基础过滤
 
-- **`GET /api/v1/shared-collections/{collection_id}/documents/{document_id}/preview`**: 预览SharedCollection中的文档
+- **`GET /api/v1/marketplace/collections/{collection_id}/documents/{document_id}/preview`**: 预览MarketplaceCollection中的文档
     - **功能**: 获取文档内容预览（与原接口相同的预览功能）
     - **权限检查**: 验证订阅关系
     - **响应格式**: 文档预览数据，格式与原接口相同
     - **支持格式**: 所有原有支持的文档格式（PDF、Word、图片等）
 
-- **`GET /api/v1/shared-collections/{collection_id}/graph`**: 获取SharedCollection的知识图谱
+- **`GET /api/v1/marketplace/collections/{collection_id}/graph`**: 获取MarketplaceCollection的知识图谱
     - **功能**: 返回知识图谱数据（只读模式）
     - **权限检查**: 验证订阅关系  
     - **响应格式**: 图谱节点和边的数据，与原接口格式相同
     - **查询参数**: 支持 `node_limit`, `depth` 等图谱查询参数
     - **注意**: 不提供图谱编辑相关的接口（如合并建议、节点编辑等）
 
-**权限验证逻辑**（所有SharedCollection接口通用）：
+**权限验证逻辑**（所有MarketplaceCollection接口通用）：
 
 ```python
 async def _check_subscription_access(user_id: str, collection_id: str) -> bool:
@@ -643,7 +673,7 @@ async def _check_subscription_access(user_id: str, collection_id: str) -> bool:
 | **权限** | 验证所有权 | 验证订阅关系 |
 | **功能** | 完整CRUD + 高级功能 | 仅内容浏览（4个接口） |
 | **数据** | 完整字段，包含配置和统计 | 精简字段，隐藏敏感信息 |
-| **路径** | `/api/v1/collections/{id}` | `/api/v1/shared-collections/{id}` |
+| **路径** | `/api/v1/collections/{id}` | `/api/v1/marketplace/collections/{id}` |
 
 ### 5. 错误处理策略
 
@@ -838,11 +868,11 @@ const subscribeCollection = async (collectionId: string) => {
     - 可查看分享状态信息（通过 `is_published` 和 `published_at` 字段）
     - 如果Collection已发布，显示订阅用户数量（可选功能）
 
-**D. SharedCollection详情页面（订阅用户专用）**
+**D. MarketplaceCollection详情页面（订阅用户专用）**
 
-- **路由**: `/shared-collections/{collection_id}` (新增专门路由)
-- **文件位置**: `frontend/src/pages/shared-collections/$collectionId/index.tsx`
-- **API调用**: `GET /api/v1/shared-collections/{collection_id}` (仅限订阅用户)
+- **路由**: `/marketplace/collections/{collection_id}` (新增专门路由)
+- **文件位置**: `frontend/src/pages/marketplace/collections/$collectionId/index.tsx`
+- **API调用**: `GET /api/v1/marketplace/collections/{collection_id}` (仅限订阅用户)
 - **权限检查**: 后端 `_check_subscription_access()` 验证用户是否已订阅
 - **功能特性**:
     - 页面顶部显示ReadOnlyBanner组件
@@ -856,25 +886,28 @@ const subscribeCollection = async (collectionId: string) => {
 
 **路由跳转逻辑**：
 ```typescript
-// 从市场页面点击Collection卡片
-const handleCollectionClick = (collection: SharedCollection) => {
-  if (collection.subscription_id) {
-    // 已订阅 → 跳转到SharedCollection页面
-    navigate(`/shared-collections/${collection.id}`);
+// 智能路由跳转逻辑
+const handleCollectionClick = (collection: SharedCollection, currentUser: User) => {
+  if (collection.owner_user_id === currentUser.id) {
+    // 自己的Collection → 所有者管理页面
+    navigate(`/collections/${collection.id}`);
+  } else if (collection.subscription_id) {
+    // 已订阅的Collection → Marketplace详情页面
+    navigate(`/marketplace/collections/${collection.id}`);
   } else {
-    // 未订阅 → 跳转到市场详情页或直接订阅
-    handleSubscribe(collection.id);
+    // 未订阅的Collection → 显示订阅对话框
+    showSubscribeModal(collection.id);
   }
 };
 
-// 从Collection列表点击
+// 从Collection列表点击（工作台页面）
 const handleCollectionClick = (item: CollectionListItem) => {
   if (item.type === 'owned') {
-    // 自有Collection → 跳转到Collection页面
+    // 自有Collection → 所有者管理页面
     navigate(`/collections/${item.collection.id}`);
   } else {
-    // 订阅Collection → 跳转到SharedCollection页面
-    navigate(`/shared-collections/${item.collection.id}`);
+    // 订阅Collection → Marketplace详情页面
+    navigate(`/marketplace/collections/${item.collection.id}`);
   }
 };
 ```
@@ -1178,13 +1211,13 @@ const CollectionDetail: React.FC = () => {
         - 为每个端点添加用户身份验证、所有权验证和异常错误处理
     - [ ] 在 `aperag/app.py` 中注册新的路由：
         - 添加 `marketplace` 路由组，tag 设为 "marketplace"
-        - 添加 `shared-collections` 路由组，tag 设为 "shared-collections"
+        - 添加 `marketplace-collections` 路由组，tag 设为 "marketplace-collections"
         - 集成到主应用的路由配置中
-    - [ ] 创建 `aperag/views/shared_collections.py` 文件：
-        - 实现 `get_shared_collection_view`: 获取SharedCollection详情
-        - 实现 `list_shared_collection_documents_view`: 获取文档列表
-        - 实现 `get_shared_collection_document_preview_view`: 文档预览
-        - 实现 `get_shared_collection_graph_view`: 知识图谱
+    - [ ] 创建 `aperag/views/marketplace_collections.py` 文件：
+        - 实现 `get_marketplace_collection_view`: 获取MarketplaceCollection详情
+        - 实现 `list_marketplace_collection_documents_view`: 获取文档列表
+        - 实现 `get_marketplace_collection_document_preview_view`: 文档预览
+        - 实现 `get_marketplace_collection_graph_view`: 知识图谱
         - 为每个端点添加订阅权限验证和异常错误处理
 
 - [ ] **2.2. 前端 - 生成 SDK 与状态管理**
@@ -1230,9 +1263,9 @@ const CollectionDetail: React.FC = () => {
         - 设置市场图标（如ShopOutlined）和路由链接
 
 - [ ] **3.2. SharedCollection 专用页面开发**
-    - [ ] 创建 `frontend/src/pages/shared-collections/$collectionId/index.tsx`：
+    - [ ] 创建 `frontend/src/pages/marketplace/collections/$collectionId/index.tsx`：
         - 实现SharedCollection详情页面基础结构
-        - 使用专用的shared-collections API接口
+        - 使用专用的marketplace/collections API接口
         - 显示只读模式Banner和取消订阅功能
     - [ ] 创建 `ReadOnlyBanner` 组件（`frontend/src/components/ReadOnlyBanner.tsx`）：
         - 使用 Ant Design Alert 组件
@@ -1268,4 +1301,4 @@ const CollectionDetail: React.FC = () => {
         - 确保只有在Collection接口（所有者模式）下才显示
         - 实现状态变更后的页面刷新
 
-**注意**：SharedCollection详情页面（`/shared-collections/{id}`）不需要SharingControl组件，它们有专门的ReadOnlyBanner和取消订阅功能。
+**注意**：MarketplaceCollection详情页面（`/marketplace/collections/{id}`）不需要SharingControl组件，它们有专门的ReadOnlyBanner和取消订阅功能。
