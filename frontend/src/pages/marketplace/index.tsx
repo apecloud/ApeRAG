@@ -132,14 +132,14 @@ export default () => {
     if (searchKeyword && filteredCollections.length === 0) {
       return (
         <div style={{ 
-          background: 'linear-gradient(135deg, #fff5f5 0%, #fed7e2 100%)',
+          background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)',
           borderRadius: 16,
           padding: '60px 40px',
           textAlign: 'center',
           margin: '40px 0',
         }}>
           <Result
-            icon={<SearchOutlined style={{ fontSize: '48px', color: '#ff7875' }} />}
+            icon={<SearchOutlined style={{ fontSize: '48px', color: '#9ca3af' }} />}
             title={
               <span style={{ fontSize: '20px', fontWeight: 600, color: '#262626' }}>
                 {formatMessage({ id: 'common.search.no.results' })}
