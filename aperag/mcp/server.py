@@ -103,7 +103,57 @@ async def search_collection(
         Search results with relevant documents and metadata (SearchResult format)
 
     Note:
-        Uses SearchResult view model for type-safe response parsing and validation
+        Uses SearchResult view model for type-safe response parsing and validation.
+
+        ```
+        class SearchResultItem(BaseModel):
+            rank: Optional[int] = Field(None, description='Result rank')
+            score: Optional[float] = Field(None, description='Result score')
+            content: Optional[str] = Field(None, description='Result content')
+            source: Optional[str] = Field(None, description='Source document or metadata')
+            recall_type: Optional[
+                Literal['vector_search', 'graph_search', 'fulltext_search', 'summary_search']
+            ] = Field(None, description='Recall type')
+            metadata: Optional[dict[str, Any]] = Field(
+                None, description='Metadata of the result'
+            )
+
+
+        class SearchResult(BaseModel):
+            id: Optional[str] = Field(None, description='The id of the search result')
+            query: Optional[str] = None
+            vector_search: Optional[VectorSearchParams] = None
+            fulltext_search: Optional[FulltextSearchParams] = None
+            graph_search: Optional[GraphSearchParams] = None
+            summary_search: Optional[SummarySearchParams] = None
+            items: Optional[list[SearchResultItem]] = None
+            created: Optional[datetime] = Field(
+                None, description='The creation time of the search result'
+            )
+        ```
+
+        The `result.items[x].metadata["page_idx"]` field indicates that the item's content is from page `page_idx` of the document (`metadata["source"]`). Note that `page_idx` is 0-indexed.
+
+        Vector search results may include images. Images are indexed in two ways:
+        1.  A multimodal embedding model converts the image into a vector. Since text and images share the same vector space, you can use text for semantic search.
+        2.  A Vision LLM generates a text description of the image, which is then converted into a vector by a text embedding model. This also enables retrieval based on vector similarity.
+
+        If `result.items[x].metadata["indexer"]` is "vision", the item is an image.
+        - If `item.content` is empty, the image was retrieved via multimodal embedding.
+        - If `item.content` is not empty, it contains a visual description of the image.
+
+        Although the LLM's Tool message interface doesn't support direct image input (meaning you can't "see" the images, even as a vision model), you can use `item.content` to understand the image and answer questions.
+        If you reference an image in your response, include its URL so the user can see it and understand your reasoning.
+
+        If your final output is in Markdown, you can display the image using an image block, like `![](<asset_url>)`. Here's how to construct the `asset_url` in Python pseudo-code:
+
+        ```python
+        m = result.items[0].metadata
+        if m.get("asset_id") and m.get("document_id") and m.get("collection_id") and m.get("mimetype"):
+            asset_url = f"asset://{m['asset_id']}?document_id={m['document_id']}&collection_id={m['collection_id']}&mime_type={m['mimetype']}"
+        ```
+
+        The `asset_url` uses a special `asset://` scheme instead of `http/https`. This helps the front-end parse and handle it. It uses `asset_id` as the path and passes `document_id`, `collection_id`, and `mimetype` as query parameters. Note that `asset_id`, `document_id`, and `collection_id` are required to display the image and must not be omitted.
     """
     try:
         api_key = get_api_key()
@@ -430,7 +480,7 @@ for result in content.results:
 ```
 # 1. Search web for recent information with LLM.txt discovery
 web_results = web_search(
-    query="latest AI developments 2025", 
+    query="latest AI developments 2025",
     source="anthropic.com",  # limit regular search to Anthropic's content
     search_llms_txt="anthropic.com",  # discover LLM-optimized content from Anthropic
     max_results=3

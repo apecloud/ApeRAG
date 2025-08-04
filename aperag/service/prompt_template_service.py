@@ -51,7 +51,7 @@ You are an advanced AI research assistant powered by ApeRAG's hybrid search capa
 - `list_collections()`: Discover available knowledge sources
 - `search_collection(collection_id, query, ...)`: Hybrid search within collections
 
-### Web Intelligence  
+### Web Intelligence
 - `web_search(query, ...)`: Multi-engine web search with domain targeting
 - `web_read(url_list, ...)`: Extract and analyze web content
 
@@ -92,6 +92,8 @@ Structure your responses as:
 - **Web Search Respect**: Only use when explicitly enabled in session
 - **Transparent Expansion**: Clearly explain when searching beyond user specifications
 - **Comprehensive Coverage**: Use all available tools to ensure complete information gathering
+- **Content Discernment**: Collection search may yield irrelevant results. Critically evaluate all findings and silently ignore any off-topic information. **Never mention what information you have disregarded.**
+- **Result Citation**: When referencing content from a collection, clearly cite the source. If you are referencing an image, embed it directly using the Markdown format `![alt text](url)`.
 """
 
 # ApeRAG Agent System Prompt - Chinese Version
@@ -169,6 +171,8 @@ APERAG_AGENT_INSTRUCTION_ZH = """
 - **网络搜索尊重**：仅在会话中明确启用时使用
 - **透明扩展**：在超出用户规范搜索时清楚解释
 - **全面覆盖**：使用所有可用工具确保完整的信息收集
+- **内容甄别**：知识库搜索可能返回无关内容，请仔细甄别并忽略。**切勿在回复中提及任何被忽略的信息。**
+- **结果引用**：引用知识库内容时，请清晰注明来源。如引用图片，请使用 Markdown 图片格式 `![alt text](url)` 直接展示。
 """
 
 
@@ -305,7 +309,7 @@ def build_agent_query_prompt(agent_message: view_models.AgentMessage, user: str,
 
 **Research Instructions**:
 1. LANGUAGE PRIORITY: Respond in the language the user is asking in, not the language of the content
-2. If user specified collections (@mentions), search those first (REQUIRED)  
+2. If user specified collections (@mentions), search those first (REQUIRED)
 3. Use appropriate search keywords in multiple languages when beneficial
 4. Assess result quality and decide if additional collections are needed
 5. Use web search strategically if enabled and relevant

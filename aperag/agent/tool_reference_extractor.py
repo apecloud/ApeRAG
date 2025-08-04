@@ -192,8 +192,14 @@ def _format_search_reference(tool_result: str, args: Dict[str, Any]) -> Optional
                 for item in items:
                     content = item.get("content", "")
                     metadata = item.get("metadata", {})
-                    combined_text += f"Document: {metadata.get('title', 'Untitled')}\n"
+                    combined_text += f"Document: {metadata.get('source', 'Untitled')}\n\n"
                     combined_text += f"Content: {content}\n\n"
+
+                    if metadata.get("asset_id") and metadata.get("document_id") and metadata.get("collection_id"):
+                        asset_url = f"asset://{metadata.get('asset_id')}?document_id={metadata.get('document_id')}&collection_id={metadata.get('collection_id')}"
+                        if metadata.get("mimetype"):
+                            asset_url = asset_url + "&mime_type=" + metadata.get("mimetype")
+                        combined_text += f"![]({asset_url})\n\n"
 
                 return {
                     "text": combined_text.strip(),

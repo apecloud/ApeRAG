@@ -35,9 +35,123 @@ import {
 } from 'antd';
 import _ from 'lodash';
 import moment from 'moment';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { BsRobot } from 'react-icons/bs';
 import { css, styled, useIntl } from 'umi';
+
+export const CollapseResult = ({
+  title,
+  children,
+}: {
+  title: string;
+  children?: React.ReactNode;
+}) => {
+  const { token } = theme.useToken();
+  const [open, setOpen] = useState<boolean>(false);
+
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <Space
+        style={{
+          background: token.controlItemBgHover,
+          cursor: 'pointer',
+          padding: '4px 8px',
+          borderRadius: 100,
+          alignItems: 'center',
+          fontSize: '0.75rem',
+        }}
+        onClick={() => setOpen(!open)}
+      >
+        <CaretRightOutlined
+          style={{
+            transitionDuration: '0.3s',
+            transform: `rotate(${open ? 90 : 0}deg)`,
+          }}
+        />
+        {title}
+      </Space>
+      {open && (
+        <div
+          style={{
+            padding: 12,
+            border: `1px dashed ${token.colorBorder}`,
+            borderRadius: 4,
+            background: token.colorBgLayout,
+            marginTop: 4,
+          }}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const MessageContent = React.memo(
+  ({ isAi, parts }: { isAi: boolean; parts: ChatMessage[] }) => {
+    const parseToolCallTitle = (
+      content: string,
+    ): { title: string; body: string } => {
+      const lines = content.split('\n');
+      const firstLine = lines[0] || '';
+
+      // Check if first line has **title** format
+      const titleMatch = firstLine.match(/^\*\*(.*?)\*\*$/);
+      if (titleMatch) {
+        const title = titleMatch[1].trim();
+        const body = lines.slice(1).join('\n').trim();
+        return { title, body };
+      }
+
+      // Fallback to default title
+      return { title: 'Tool call', body: content };
+    };
+
+    return !isAi
+      ? parts[0].data
+      : parts.map((part, index) => {
+          switch (part.type) {
+            case 'tool_call_result': {
+              const { title, body } = parseToolCallTitle(part.data || '');
+              return (
+                <CollapseResult key={index} title={title}>
+                  <ApeMarkdown isAgent>{body}</ApeMarkdown>
+                </CollapseResult>
+              );
+            }
+            case 'thinking':
+              return (
+                <CollapseResult key={index} title="Thinking">
+                  <ApeMarkdown isAgent>{part.data}</ApeMarkdown>
+                </CollapseResult>
+              );
+            case 'message':
+              return (
+                <ApeMarkdown isAgent key={index}>
+                  {part.data}
+                </ApeMarkdown>
+              );
+            case 'error':
+              return <Alert key={index} message={part.data} type="error" />;
+            case 'start':
+              return parts.length === 1 && <TypingAnimate key={index} />;
+            case 'stop':
+            case 'welcome':
+            case 'references':
+              return null;
+            default:
+              return 'unknown part type';
+          }
+        });
+  },
+  (prevProps, nextProps) => {
+    // Deep comparison to prevent re-renders when parent re-renders.
+    return (
+      prevProps.isAi === nextProps.isAi &&
+      _.isEqual(prevProps.parts, nextProps.parts)
+    );
+  },
+);
 
 export const StyledMessage = styled('div').withConfig({
   shouldForwardProp: (prop) => !['isAi'].includes(prop),
@@ -110,54 +224,6 @@ export const StyledMessageInfo = styled('div').withConfig({
   }}
 `;
 
-export const CollapseResult = ({
-  title,
-  children,
-}: {
-  title: string;
-  children?: React.ReactNode;
-}) => {
-  const { token } = theme.useToken();
-  const [open, setOpen] = useState<boolean>(false);
-
-  return (
-    <div style={{ marginBottom: 8 }}>
-      <Space
-        style={{
-          background: token.controlItemBgHover,
-          cursor: 'pointer',
-          padding: '4px 8px',
-          borderRadius: 100,
-          alignItems: 'center',
-          fontSize: '0.75rem',
-        }}
-        onClick={() => setOpen(!open)}
-      >
-        <CaretRightOutlined
-          style={{
-            transitionDuration: '0.3s',
-            transform: `rotate(${open ? 90 : 0}deg)`,
-          }}
-        />
-        {title}
-      </Space>
-      {open && (
-        <div
-          style={{
-            padding: 12,
-            border: `1px dashed ${token.colorBorder}`,
-            borderRadius: 4,
-            background: token.colorBgLayout,
-            marginTop: 4,
-          }}
-        >
-          {children}
-        </div>
-      )}
-    </div>
-  );
-};
-
 export const ChatMessageItem = ({
   loading = false,
   parts,
@@ -178,24 +244,6 @@ export const ChatMessageItem = ({
     useState<boolean>(false);
   const [feedbackTag, setFeedbackTag] = useState<FeedbackTagEnum>();
   const [feedbackMessage, setFeedbackMessage] = useState<string>();
-
-  const parseToolCallTitle = (
-    content: string,
-  ): { title: string; body: string } => {
-    const lines = content.split('\n');
-    const firstLine = lines[0] || '';
-
-    // Check if first line has **title** format
-    const titleMatch = firstLine.match(/^\*\*(.*?)\*\*$/);
-    if (titleMatch) {
-      const title = titleMatch[1].trim();
-      const body = lines.slice(1).join('\n').trim();
-      return { title, body };
-    }
-
-    // Fallback to default title
-    return { title: 'Tool call', body: content };
-  };
 
   const getReferences: () => CollapseProps['items'] = () =>
     parts
@@ -281,44 +329,7 @@ export const ChatMessageItem = ({
         )}
         <StyledMessageBody ref={hoverRef}>
           <StyledMessageContent token={token} isAi={isAi}>
-            {!isAi
-              ? parts[0].data
-              : parts.map((part, index) => {
-                  switch (part.type) {
-                    case 'tool_call_result': {
-                      const { title, body } = parseToolCallTitle(
-                        part.data || '',
-                      );
-                      return (
-                        <CollapseResult key={index} title={title}>
-                          <ApeMarkdown>{body}</ApeMarkdown>
-                        </CollapseResult>
-                      );
-                    }
-                    case 'thinking':
-                      return (
-                        <CollapseResult key={index} title="Thinking">
-                          <ApeMarkdown>{part.data}</ApeMarkdown>
-                        </CollapseResult>
-                      );
-                    case 'message':
-                      return <ApeMarkdown key={index}>{part.data}</ApeMarkdown>;
-                    case 'error':
-                      return (
-                        <Alert key={index} message={part.data} type="error" />
-                      );
-                    case 'start':
-                      return (
-                        parts.length === 1 && <TypingAnimate key={index} />
-                      );
-                    case 'stop':
-                    case 'welcome':
-                    case 'references':
-                      return '';
-                    default:
-                      return 'unknow part type';
-                  }
-                })}
+            <MessageContent isAi={isAi} parts={parts} />
           </StyledMessageContent>
           <StyledMessageInfo token={token} isAi={isAi}>
             {moment(

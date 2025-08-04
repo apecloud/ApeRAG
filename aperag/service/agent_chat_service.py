@@ -157,7 +157,9 @@ class AgentChatService:
             await self._handle_single_message(websocket, agent_message, user, chat_id)
 
     @trace_async_function("name=handle_single_websocket_message", new_trace=True)
-    async def _handle_single_message(self, websocket: WebSocket, agent_message, user: str, chat_id: str):
+    async def _handle_single_message(
+        self, websocket: WebSocket, agent_message: view_models.AgentMessage, user: str, chat_id: str
+    ):
         """Handle a single WebSocket message with its own trace"""
         trace_id = None
         try:

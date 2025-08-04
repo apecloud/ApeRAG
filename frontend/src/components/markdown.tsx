@@ -12,9 +12,11 @@ import remarkGfm from 'remark-gfm';
 import remarkGithubAdmonitionsToDirectives from 'remark-github-admonitions-to-directives';
 import { css, styled } from 'umi';
 import { v4 as uuidV4 } from 'uuid';
+import { AuthAssetImage } from './AuthAssetImage';
 
 type MarkdownProps = {
   children?: string;
+  isAgent?: boolean;
 };
 
 const StyledMarkdown = styled('div').withConfig({
@@ -152,10 +154,10 @@ export const CollapseResult = ({
   );
 };
 
-export const ApeMarkdown = ({ children }: MarkdownProps) => {
+export const ApeMarkdown = ({ children, isAgent = false }: MarkdownProps) => {
   const { token } = theme.useToken();
 
-  const processedValue = useMemo(() => {
+  let processedValue = useMemo(() => {
     return children
       ?.replace(/<think>/g, '<div class="think">')
       .replace(/<\/think>/g, '</div>')
@@ -180,7 +182,23 @@ export const ApeMarkdown = ({ children }: MarkdownProps) => {
           remarkGithubAdmonitionsToDirectives,
           remarkDirective,
         ]}
+        urlTransform={(url) =>
+          url.startsWith('asset://')
+            ? url
+            : new URL(url, window.location.href).href
+        }
         components={{
+          img: (props) => {
+            if (props.src?.startsWith('asset://')) {
+              return (
+                <AuthAssetImage
+                  src={props.src}
+                  style={isAgent ? { maxHeight: 400 } : {}}
+                />
+              );
+            }
+            return <img {...props} />;
+          },
           a: (props) => <a {...props} target="_blank" />,
           code: ({ className, children }) => {
             const match = /language-(\w+)/.exec(className || '');
