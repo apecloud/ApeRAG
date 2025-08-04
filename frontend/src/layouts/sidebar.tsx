@@ -133,23 +133,21 @@ export const Sidebar = ({ topbar }: { topbar: boolean }) => {
           })}
         </div>
       </div>
-      {user?.role === 'admin' && (
-        <Tooltip
-          title={formatMessage({ id: 'action.settings' })}
-          placement="right"
-        >
-          <div>
-            <StyledSidebarLink
-              token={token}
-              active={new UrlPattern(`/settings*`).match(location.pathname)}
-              to="/settings"
-            >
-              <BsGear />
-              <div>{formatMessage({ id: 'action.settings' })}</div>
-            </StyledSidebarLink>
-          </div>
-        </Tooltip>
-      )}
+      <Tooltip
+        title={formatMessage({ id: 'action.settings' })}
+        placement="right"
+      >
+        <div>
+          <StyledSidebarLink
+            token={token}
+            active={new UrlPattern(`/settings*`).match(location.pathname)}
+            to="/settings"
+          >
+            <BsGear />
+            <div>{formatMessage({ id: 'action.settings' })}</div>
+          </StyledSidebarLink>
+        </div>
+      </Tooltip>
     </StyledSidebar>
   );
 };
