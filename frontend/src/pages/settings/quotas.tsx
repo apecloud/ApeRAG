@@ -267,7 +267,7 @@ export default () => {
       dataIndex: 'quota_type',
       width: 200,
       render: (quotaType: string) => (
-        <div style={{ height: '40px', display: 'flex', alignItems: 'center' }}>
+        <div style={{ height: '32px', display: 'flex', alignItems: 'center' }}>
           {getQuotaTypeName(quotaType)}
         </div>
       ),
@@ -279,7 +279,7 @@ export default () => {
         const percentage = record.quota_limit > 0 ? (record.current_usage / record.quota_limit) * 100 : 0;
         const status = percentage >= 100 ? 'exception' : percentage >= 80 ? 'active' : 'normal';
         return (
-          <div style={{ height: '40px', display: 'flex', alignItems: 'center' }}>
+          <div style={{ height: '32px', display: 'flex', alignItems: 'center' }}>
             <Progress
               percent={Math.min(percentage, 100)}
               status={status}
@@ -296,7 +296,7 @@ export default () => {
       width: 120,
       align: 'right',
       render: (value: number) => (
-        <div style={{ height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+        <div style={{ height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
           {value}
         </div>
       ),
@@ -307,7 +307,7 @@ export default () => {
       width: 120,
       align: 'right',
       render: (value: number, record: EditableQuotaInfo) => (
-        <div style={{ height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+        <div style={{ height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
           {isTableEditMode && record.editable ? (
             <InputNumber
               value={value}
