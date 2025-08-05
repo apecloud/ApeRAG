@@ -1,4 +1,4 @@
-import { QuotaInfo, UserQuotaInfo, SystemDefaultQuotas, SystemDefaultQuotasResponse } from '@/api';
+import { QuotaInfo, UserQuotaInfo, UserQuotaList, SystemDefaultQuotas, SystemDefaultQuotasResponse } from '@/api';
 import { PageContainer, PageHeader, RefreshButton } from '@/components';
 import { quotasApi } from '@/services';
 import { EditOutlined, ReloadOutlined, SettingOutlined, SearchOutlined, ClearOutlined } from '@ant-design/icons';
@@ -28,6 +28,7 @@ export default () => {
   const userModel = useModel('user');
   const [currentUserQuota, setCurrentUserQuota] = useState<UserQuotaInfo>();
   const [searchedUserQuota, setSearchedUserQuota] = useState<UserQuotaInfo>();
+  const [searchResults, setSearchResults] = useState<UserQuotaInfo[]>();
   const [systemDefaultQuotas, setSystemDefaultQuotas] = useState<SystemDefaultQuotas>();
   const [loading, setLoading] = useState<boolean>(false);
   const [searchLoading, setSearchLoading] = useState<boolean>(false);
@@ -67,18 +68,30 @@ export default () => {
   const searchUserQuotas = useCallback(async (searchTerm: string) => {
     if (!searchTerm.trim()) {
       setSearchedUserQuota(undefined);
+      setSearchResults(undefined);
       return;
     }
 
     setSearchLoading(true);
     // Clear previous search result immediately when starting new search
     setSearchedUserQuota(undefined);
+    setSearchResults(undefined);
     
     try {
       // Search by username, email, or user ID
       const res = await quotasApi.quotasGet({ search: searchTerm });
-      const userQuota = res.data as UserQuotaInfo;
-      setSearchedUserQuota(userQuota);
+      const data = res.data;
+      
+      // Check if it's a single user or multiple users
+      if ((data as UserQuotaList).items) {
+        // Multiple results
+        const userList = data as UserQuotaList;
+        setSearchResults(userList.items);
+      } else {
+        // Single result
+        const userQuota = data as UserQuotaInfo;
+        setSearchedUserQuota(userQuota);
+      }
     } catch (error: any) {
       if (error?.response?.status === 404) {
         message.warning(formatMessage({ id: 'quota.user_not_found' }));
@@ -86,6 +99,7 @@ export default () => {
         message.error(formatMessage({ id: 'quota.search_error' }));
       }
       setSearchedUserQuota(undefined);
+      setSearchResults(undefined);
     } finally {
       setSearchLoading(false);
     }
@@ -101,6 +115,18 @@ export default () => {
   const clearSearch = () => {
     setSearchValue('');
     setSearchedUserQuota(undefined);
+    setSearchResults(undefined);
+  };
+
+  const handleSelectUser = async (userId: string) => {
+    try {
+      const res = await quotasApi.quotasGet({ userId });
+      const userQuota = res.data as UserQuotaInfo;
+      setSearchedUserQuota(userQuota);
+      setSearchResults(undefined);
+    } catch (error) {
+      message.error(formatMessage({ id: 'quota.fetch_error' }));
+    }
   };
 
   const handleEditQuota = (user: UserQuotaInfo) => {
@@ -357,6 +383,57 @@ export default () => {
         )}
 
 
+        {/* Multiple search results selection */}
+        {searchResults && searchResults.length > 0 && (
+          <Card 
+            title={formatMessage({ id: 'quota.search_results' })}
+            style={{ marginBottom: 16 }}
+          >
+            <Typography.Paragraph type="secondary">
+              <FormattedMessage 
+                id="quota.multiple_results_found" 
+                values={{ count: searchResults.length }}
+              />
+            </Typography.Paragraph>
+            <Table
+              rowKey="user_id"
+              columns={[
+                {
+                  title: formatMessage({ id: 'quota.username' }),
+                  dataIndex: 'username',
+                },
+                {
+                  title: formatMessage({ id: 'quota.user_id' }),
+                  dataIndex: 'user_id',
+                },
+                {
+                  title: formatMessage({ id: 'quota.email' }),
+                  dataIndex: 'email',
+                  render: (email) => email || formatMessage({ id: 'quota.not_set' }),
+                },
+                {
+                  title: formatMessage({ id: 'quota.role' }),
+                  dataIndex: 'role',
+                },
+                {
+                  title: formatMessage({ id: 'action.name' }),
+                  render: (_, record) => (
+                    <Button
+                      type="link"
+                      onClick={() => handleSelectUser(record.user_id)}
+                    >
+                      <FormattedMessage id="quota.select_user" />
+                    </Button>
+                  ),
+                },
+              ]}
+              dataSource={searchResults}
+              pagination={false}
+              size="small"
+            />
+          </Card>
+        )}
+
         {/* User quota display */}
         {shouldShowUser && displayUser && (
           <div>
@@ -437,7 +514,7 @@ export default () => {
         )}
 
         {/* No data state */}
-        {!shouldShowUser && !loading && !searchLoading && (
+        {!shouldShowUser && !searchResults && !loading && !searchLoading && (
           <Card>
             <div style={{ textAlign: 'center', padding: 40 }}>
               <Typography.Text type="secondary">

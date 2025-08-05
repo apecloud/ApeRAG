@@ -2967,7 +2967,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/userQuotaInfo'
+                oneOf:
+                  - $ref: '#/components/schemas/userQuotaInfo'
+                  - $ref: '#/components/schemas/userQuotaList'
         '401':
           description: Unauthorized
           content:
@@ -6163,6 +6165,17 @@ components:
         - username
         - role
         - quotas
+    userQuotaList:
+      type: object
+      description: List of user quota information (admin view)
+      properties:
+        items:
+          type: array
+          description: List of user quota information
+          items:
+            $ref: '#/components/schemas/userQuotaInfo'
+      required:
+        - items
     quotaUpdateRequest:
       type: object
       description: Request to update user quota

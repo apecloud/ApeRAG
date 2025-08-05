@@ -398,6 +398,9 @@ export default {
   'quota.email': 'Email',
   'quota.role': 'Role',
   'quota.not_set': 'Not Set',
+  'quota.search_results': 'Search Results',
+  'quota.multiple_results_found': 'Found {count} matching users',
+  'quota.select_user': 'Select User',
 
   // Quota error messages
   'quota.error.exceeded': 'Quota exceeded',

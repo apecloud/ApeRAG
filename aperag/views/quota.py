@@ -25,6 +25,7 @@ from aperag.schema.view_models import (
     QuotaUpdateRequest,
     QuotaUpdateResponse,
     UserQuotaInfo,
+    UserQuotaList,
     SystemDefaultQuotas,
     SystemDefaultQuotasResponse,
     SystemDefaultQuotasUpdateRequest,
@@ -51,9 +52,9 @@ def _convert_quota_dict_to_list(quota_dict: dict) -> List[QuotaInfo]:
     ]
 
 
-@router.get("/quotas", response_model=UserQuotaInfo)
+@router.get("/quotas", response_model=Union[UserQuotaInfo, UserQuotaList])
 async def get_quotas(
-    user_id: str = Query(None, description="User ID to get quotas for (admin only)"),
+    user_id: str = Query(None, description="User ID to get quotas for (admin only, defaults to current user)"),
     search: str = Query(None, description="Search term for username, email, or user ID (admin only)"),
     current_user: User = Depends(current_user)
 ):
@@ -70,7 +71,21 @@ async def get_quotas(
             if not all_user_quotas:
                 raise HTTPException(status_code=404, detail="User not found")
             
-            # Return the first matching user (since search should be specific)
+            # If multiple results, return list for user to choose
+            if len(all_user_quotas) > 1:
+                items = []
+                for user_quota in all_user_quotas:
+                    quota_list = _convert_quota_dict_to_list(user_quota['quotas'])
+                    items.append(UserQuotaInfo(
+                        user_id=user_quota['user_id'],
+                        username=user_quota['username'],
+                        email=user_quota['email'],
+                        role=user_quota['role'],
+                        quotas=quota_list
+                    ))
+                return UserQuotaList(items=items)
+            
+            # Single result, return directly
             user_quota = all_user_quotas[0]
             quota_list = _convert_quota_dict_to_list(user_quota['quotas'])
             

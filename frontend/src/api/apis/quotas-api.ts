@@ -28,6 +28,8 @@ import type { QuotaUpdateRequest } from '../models';
 // @ts-ignore
 import type { QuotaUpdateResponse } from '../models';
 // @ts-ignore
+import type { QuotasGet200Response } from '../models';
+// @ts-ignore
 import type { QuotasUserIdRecalculatePost200Response } from '../models';
 // @ts-ignore
 import type { SystemDefaultQuotasResponse } from '../models';
@@ -35,8 +37,6 @@ import type { SystemDefaultQuotasResponse } from '../models';
 import type { SystemDefaultQuotasUpdateRequest } from '../models';
 // @ts-ignore
 import type { SystemDefaultQuotasUpdateResponse } from '../models';
-// @ts-ignore
-import type { UserQuotaInfo } from '../models';
 /**
  * QuotasApi - axios parameter creator
  * @export
@@ -241,7 +241,7 @@ export const QuotasApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async quotasGet(userId?: string, search?: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<UserQuotaInfo>> {
+        async quotasGet(userId?: string, search?: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<QuotasGet200Response>> {
             const localVarAxiosArgs = await localVarAxiosParamCreator.quotasGet(userId, search, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['QuotasApi.quotasGet']?.[localVarOperationServerIndex]?.url;
@@ -316,7 +316,7 @@ export const QuotasApiFactory = function (configuration?: Configuration, basePat
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        quotasGet(requestParameters: QuotasApiQuotasGetRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<UserQuotaInfo> {
+        quotasGet(requestParameters: QuotasApiQuotasGetRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<QuotasGet200Response> {
             return localVarFp.quotasGet(requestParameters.userId, requestParameters.search, options).then((request) => request(axios, basePath));
         },
         /**
@@ -375,7 +375,7 @@ export interface QuotasApiInterface {
      * @throws {RequiredError}
      * @memberof QuotasApiInterface
      */
-    quotasGet(requestParameters?: QuotasApiQuotasGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<UserQuotaInfo>;
+    quotasGet(requestParameters?: QuotasApiQuotasGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<QuotasGet200Response>;
 
     /**
      * Update quota limit for a specific user (admin only)

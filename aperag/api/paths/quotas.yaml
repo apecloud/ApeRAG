@@ -25,7 +25,9 @@ quotas:
         content:
           application/json:
             schema:
-              $ref: '../components/schemas/quota.yaml#/userQuotaInfo'
+              oneOf:
+                - $ref: '../components/schemas/quota.yaml#/userQuotaInfo'
+                - $ref: '../components/schemas/quota.yaml#/userQuotaList'
       '401':
         description: Unauthorized
         content:
