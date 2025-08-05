@@ -69,6 +69,24 @@ class DefaultModelService:
 
         return view_models.DefaultModelsResponse(items=default_configs)
 
+    async def get_default_rerank_config(self, user_id: str) -> tuple:
+        """Get default rerank model configuration"""
+        # Get all default models using existing method
+        default_models = await self.get_default_models(user_id)
+
+        # Find the rerank model configuration
+        for config in default_models.items:
+            if config.scenario == "default_for_rerank":
+                if config.provider_name and config.model:
+                    # Return configuration tuple: (model, model_service_provider, custom_llm_provider)
+                    return (config.model, config.provider_name, config.provider_name)
+                else:
+                    # No valid rerank model found
+                    return (None, None, None)
+
+        # Should not reach here since get_default_models includes all scenarios
+        return (None, None, None)
+
     async def update_default_models(
         self, user_id: str, update_request: view_models.DefaultModelsUpdateRequest
     ) -> view_models.DefaultModelsResponse:

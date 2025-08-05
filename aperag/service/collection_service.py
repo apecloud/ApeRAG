@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from typing import Optional
 
 import httpx
@@ -36,6 +37,8 @@ from aperag.service.marketplace_collection_service import marketplace_collection
 from aperag.utils.constant import QuotaType
 from aperag.views.utils import validate_source_connect_config
 from config.celery_tasks import collection_delete_task, collection_init_task
+
+logger = logging.getLogger(__name__)
 
 
 class CollectionService:
@@ -277,8 +280,8 @@ class CollectionService:
         # Build flow for search execution
         nodes = {}
         edges = []
-        end_node_id = "merge"
-        end_node_values = {
+        merge_node_id = "merge"
+        merge_node_values = {
             "merge_strategy": "union",
             "deduplicate": True,
         }
@@ -297,8 +300,8 @@ class CollectionService:
                     "collection_ids": [collection_id],
                 },
             )
-            end_node_values["vector_search_docs"] = "{{ nodes.vector_search.output.docs }}"
-            edges.append(Edge(source=node_id, target=end_node_id))
+            merge_node_values["vector_search_docs"] = "{{ nodes.vector_search.output.docs }}"
+            edges.append(Edge(source=node_id, target=merge_node_id))
 
         if data.fulltext_search:
             node_id = "fulltext_search"
@@ -312,8 +315,8 @@ class CollectionService:
                     "keywords": data.fulltext_search.keywords,
                 },
             )
-            end_node_values["fulltext_search_docs"] = "{{ nodes.fulltext_search.output.docs }}"
-            edges.append(Edge(source=node_id, target=end_node_id))
+            merge_node_values["fulltext_search_docs"] = "{{ nodes.fulltext_search.output.docs }}"
+            edges.append(Edge(source=node_id, target=merge_node_id))
 
         if data.graph_search:
             nodes["graph_search"] = NodeInstance(
@@ -325,8 +328,8 @@ class CollectionService:
                     "collection_ids": [collection_id],
                 },
             )
-            end_node_values["graph_search_docs"] = "{{ nodes.graph_search.output.docs }}"
-            edges.append(Edge(source="graph_search", target=end_node_id))
+            merge_node_values["graph_search_docs"] = "{{ nodes.graph_search.output.docs }}"
+            edges.append(Edge(source="graph_search", target=merge_node_id))
 
         if data.summary_search:
             node_id = "summary_search"
@@ -340,14 +343,41 @@ class CollectionService:
                     "collection_ids": [collection_id],
                 },
             )
-            end_node_values["summary_search_docs"] = "{{ nodes.summary_search.output.docs }}"
-            edges.append(Edge(source=node_id, target=end_node_id))
+            merge_node_values["summary_search_docs"] = "{{ nodes.summary_search.output.docs }}"
+            edges.append(Edge(source=node_id, target=merge_node_id))
 
-        nodes[end_node_id] = NodeInstance(
-            id=end_node_id,
+        nodes[merge_node_id] = NodeInstance(
+            id=merge_node_id,
             type="merge",
-            input_values=end_node_values,
+            input_values=merge_node_values,
         )
+
+        # Add rerank node to flow
+        from aperag.service.default_model_service import default_model_service
+
+        if data.rerank:
+            model, model_service_provider, custom_llm_provider = await default_model_service.get_default_rerank_config(
+                search_user_id
+            )
+            use_rerank_service = model is not None
+        else:
+            model, model_service_provider, custom_llm_provider = None, None, None
+            use_rerank_service = False
+
+        rerank_node_id = "rerank"
+        nodes[rerank_node_id] = NodeInstance(
+            id=rerank_node_id,
+            type="rerank",
+            input_values={
+                "use_rerank_service": use_rerank_service,
+                "model": model,
+                "model_service_provider": model_service_provider,
+                "custom_llm_provider": custom_llm_provider,
+                "docs": "{{ nodes.merge.output.docs }}",
+            },
+        )
+        # Add edge from merge to rerank
+        edges.append(Edge(source=merge_node_id, target=rerank_node_id))
 
         # Execute search flow
         flow = FlowInstance(
@@ -364,8 +394,8 @@ class CollectionService:
         if not result:
             raise Exception("Failed to execute flow")
 
-        # Process search results
-        docs = result.get(end_node_id, {}).docs
+        # Process search results from rerank node
+        docs = result.get(rerank_node_id, {}).docs
         items = []
         for idx, doc in enumerate(docs):
             items.append(

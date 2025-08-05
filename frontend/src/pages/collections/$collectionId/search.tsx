@@ -65,12 +65,20 @@ export default () => {
   const onSearch = async () => {
     if (!collectionId) return;
     const values = await form.validateFields();
+    
+    // Ensure save_to_history and rerank are included in the request
+    const searchRequest: SearchRequest = {
+      ...values,
+      save_to_history: true,  // Default save to history
+      rerank: true,           // Default enable rerank
+    };
+    
     setLoading(true);
     api
       .collectionsCollectionIdSearchesPost(
         {
           collectionId,
-          searchRequest: values,
+          searchRequest,
         },
         {
           timeout: 30 * 1000,
@@ -288,7 +296,7 @@ export default () => {
         similarity: 0.7,
       },
       save_to_history: true,
-      rerank: false,
+      rerank: true,
     });
   }, []);
 
