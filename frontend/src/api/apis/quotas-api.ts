@@ -31,6 +31,12 @@ import type { QuotaUpdateResponse } from '../models';
 import type { QuotasGet200Response } from '../models';
 // @ts-ignore
 import type { QuotasUserIdRecalculatePost200Response } from '../models';
+// @ts-ignore
+import type { SystemDefaultQuotasResponse } from '../models';
+// @ts-ignore
+import type { SystemDefaultQuotasUpdateRequest } from '../models';
+// @ts-ignore
+import type { SystemDefaultQuotasUpdateResponse } from '../models';
 /**
  * QuotasApi - axios parameter creator
  * @export
@@ -156,6 +162,72 @@ export const QuotasApiAxiosParamCreator = function (configuration?: Configuratio
                 options: localVarRequestOptions,
             };
         },
+        /**
+         * Get system default quota configuration (admin only)
+         * @summary Get system default quotas
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        systemDefaultQuotasGet: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/system/default-quotas`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Update system default quota configuration (admin only)
+         * @summary Update system default quotas
+         * @param {SystemDefaultQuotasUpdateRequest} systemDefaultQuotasUpdateRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        systemDefaultQuotasPut: async (systemDefaultQuotasUpdateRequest: SystemDefaultQuotasUpdateRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'systemDefaultQuotasUpdateRequest' is not null or undefined
+            assertParamExists('systemDefaultQuotasPut', 'systemDefaultQuotasUpdateRequest', systemDefaultQuotasUpdateRequest)
+            const localVarPath = `/system/default-quotas`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'PUT', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(systemDefaultQuotasUpdateRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
     }
 };
 
@@ -208,6 +280,31 @@ export const QuotasApiFp = function(configuration?: Configuration) {
             const localVarOperationServerBasePath = operationServerMap['QuotasApi.quotasUserIdRecalculatePost']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
+        /**
+         * Get system default quota configuration (admin only)
+         * @summary Get system default quotas
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async systemDefaultQuotasGet(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SystemDefaultQuotasResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.systemDefaultQuotasGet(options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['QuotasApi.systemDefaultQuotasGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Update system default quota configuration (admin only)
+         * @summary Update system default quotas
+         * @param {SystemDefaultQuotasUpdateRequest} systemDefaultQuotasUpdateRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async systemDefaultQuotasPut(systemDefaultQuotasUpdateRequest: SystemDefaultQuotasUpdateRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SystemDefaultQuotasUpdateResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.systemDefaultQuotasPut(systemDefaultQuotasUpdateRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['QuotasApi.systemDefaultQuotasPut']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
     }
 };
 
@@ -248,6 +345,25 @@ export const QuotasApiFactory = function (configuration?: Configuration, basePat
         quotasUserIdRecalculatePost(requestParameters: QuotasApiQuotasUserIdRecalculatePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<QuotasUserIdRecalculatePost200Response> {
             return localVarFp.quotasUserIdRecalculatePost(requestParameters.userId, options).then((request) => request(axios, basePath));
         },
+        /**
+         * Get system default quota configuration (admin only)
+         * @summary Get system default quotas
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        systemDefaultQuotasGet(options?: RawAxiosRequestConfig): AxiosPromise<SystemDefaultQuotasResponse> {
+            return localVarFp.systemDefaultQuotasGet(options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Update system default quota configuration (admin only)
+         * @summary Update system default quotas
+         * @param {QuotasApiSystemDefaultQuotasPutRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        systemDefaultQuotasPut(requestParameters: QuotasApiSystemDefaultQuotasPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<SystemDefaultQuotasUpdateResponse> {
+            return localVarFp.systemDefaultQuotasPut(requestParameters.systemDefaultQuotasUpdateRequest, options).then((request) => request(axios, basePath));
+        },
     };
 };
 
@@ -286,6 +402,25 @@ export interface QuotasApiInterface {
      * @memberof QuotasApiInterface
      */
     quotasUserIdRecalculatePost(requestParameters: QuotasApiQuotasUserIdRecalculatePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<QuotasUserIdRecalculatePost200Response>;
+
+    /**
+     * Get system default quota configuration (admin only)
+     * @summary Get system default quotas
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof QuotasApiInterface
+     */
+    systemDefaultQuotasGet(options?: RawAxiosRequestConfig): AxiosPromise<SystemDefaultQuotasResponse>;
+
+    /**
+     * Update system default quota configuration (admin only)
+     * @summary Update system default quotas
+     * @param {QuotasApiSystemDefaultQuotasPutRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof QuotasApiInterface
+     */
+    systemDefaultQuotasPut(requestParameters: QuotasApiSystemDefaultQuotasPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<SystemDefaultQuotasUpdateResponse>;
 
 }
 
@@ -353,6 +488,20 @@ export interface QuotasApiQuotasUserIdRecalculatePostRequest {
 }
 
 /**
+ * Request parameters for systemDefaultQuotasPut operation in QuotasApi.
+ * @export
+ * @interface QuotasApiSystemDefaultQuotasPutRequest
+ */
+export interface QuotasApiSystemDefaultQuotasPutRequest {
+    /**
+     * 
+     * @type {SystemDefaultQuotasUpdateRequest}
+     * @memberof QuotasApiSystemDefaultQuotasPut
+     */
+    readonly systemDefaultQuotasUpdateRequest: SystemDefaultQuotasUpdateRequest
+}
+
+/**
  * QuotasApi - object-oriented interface
  * @export
  * @class QuotasApi
@@ -393,6 +542,29 @@ export class QuotasApi extends BaseAPI implements QuotasApiInterface {
      */
     public quotasUserIdRecalculatePost(requestParameters: QuotasApiQuotasUserIdRecalculatePostRequest, options?: RawAxiosRequestConfig) {
         return QuotasApiFp(this.configuration).quotasUserIdRecalculatePost(requestParameters.userId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Get system default quota configuration (admin only)
+     * @summary Get system default quotas
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof QuotasApi
+     */
+    public systemDefaultQuotasGet(options?: RawAxiosRequestConfig) {
+        return QuotasApiFp(this.configuration).systemDefaultQuotasGet(options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Update system default quota configuration (admin only)
+     * @summary Update system default quotas
+     * @param {QuotasApiSystemDefaultQuotasPutRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof QuotasApi
+     */
+    public systemDefaultQuotasPut(requestParameters: QuotasApiSystemDefaultQuotasPutRequest, options?: RawAxiosRequestConfig) {
+        return QuotasApiFp(this.configuration).systemDefaultQuotasPut(requestParameters.systemDefaultQuotasUpdateRequest, options).then((request) => request(this.axios, this.basePath));
     }
 }
 

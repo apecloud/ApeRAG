@@ -1,4 +1,4 @@
-import { QuotaInfo, UserQuotaInfo, UserQuotaList } from '@/api';
+import { QuotaInfo, UserQuotaInfo, UserQuotaList, SystemDefaultQuotas, SystemDefaultQuotasResponse } from '@/api';
 import { PageContainer, PageHeader, RefreshButton } from '@/components';
 import { quotasApi } from '@/services';
 import { EditOutlined, ReloadOutlined, SettingOutlined, SearchOutlined, ClearOutlined } from '@ant-design/icons';
@@ -22,13 +22,6 @@ import {
 } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { FormattedMessage, useIntl, useModel } from 'umi';
-
-interface SystemDefaultQuotas {
-  max_collection_count: number;
-  max_document_count: number;
-  max_document_count_per_collection: number;
-  max_bot_count: number;
-}
 
 export default () => {
   const { formatMessage } = useIntl();
@@ -176,20 +169,9 @@ export default () => {
     
     setSystemQuotasLoading(true);
     try {
-      // Use the same request configuration as other API calls
-      const response = await fetch('/api/v1/system/default-quotas', {
-        credentials: 'include', // Include cookies for authentication
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setSystemDefaultQuotas(data.quotas);
-      } else {
-        throw new Error('Failed to fetch system default quotas');
-      }
+      const res = await quotasApi.systemDefaultQuotasGet();
+      const response = res.data as SystemDefaultQuotasResponse;
+      setSystemDefaultQuotas(response.quotas);
     } catch (error) {
       message.error(formatMessage({ id: 'quota.system_fetch_error' }));
     } finally {
@@ -206,23 +188,14 @@ export default () => {
 
   const handleUpdateSystemQuotas = async (values: SystemDefaultQuotas) => {
     try {
-      // Use the same request configuration as other API calls
-      const response = await fetch('/api/v1/system/default-quotas', {
-        method: 'PUT',
-        credentials: 'include', // Include cookies for authentication
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ quotas: values }),
+      await quotasApi.systemDefaultQuotasPut({
+        systemDefaultQuotasUpdateRequest: {
+          quotas: values
+        }
       });
-      
-      if (response.ok) {
-        message.success(formatMessage({ id: 'quota.system_update_success' }));
-        setSystemQuotasModalVisible(false);
-        getSystemDefaultQuotas();
-      } else {
-        throw new Error('Failed to update system default quotas');
-      }
+      message.success(formatMessage({ id: 'quota.system_update_success' }));
+      setSystemQuotasModalVisible(false);
+      getSystemDefaultQuotas();
     } catch (error) {
       message.error(formatMessage({ id: 'quota.system_update_error' }));
     }

@@ -160,3 +160,77 @@ quota_recalculate:
           application/json:
             schema:
               $ref: '../components/schemas/common.yaml#/failResponse'
+
+system_default_quotas:
+  get:
+    summary: Get system default quotas
+    description: Get system default quota configuration (admin only)
+    tags:
+      - quotas
+    responses:
+      '200':
+        description: System default quotas retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/quota.yaml#/systemDefaultQuotasResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '403':
+        description: Forbidden - Admin access required
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+  put:
+    summary: Update system default quotas
+    description: Update system default quota configuration (admin only)
+    tags:
+      - quotas
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/quota.yaml#/systemDefaultQuotasUpdateRequest'
+    responses:
+      '200':
+        description: System default quotas updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/quota.yaml#/systemDefaultQuotasUpdateResponse'
+      '400':
+        description: Invalid request data
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '403':
+        description: Forbidden - Admin access required
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'

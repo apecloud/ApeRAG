@@ -165,6 +165,8 @@ paths:
     $ref: './paths/quotas.yaml#/quota'
   /quotas/{user_id}/recalculate:
     $ref: './paths/quotas.yaml#/quota_recalculate'
+  /system/default-quotas:
+    $ref: './paths/quotas.yaml#/system_default_quotas'
 
   # web services
   /web/search:

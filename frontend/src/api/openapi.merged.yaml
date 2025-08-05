@@ -3100,6 +3100,79 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
+  /system/default-quotas:
+    get:
+      summary: Get system default quotas
+      description: Get system default quota configuration (admin only)
+      tags:
+        - quotas
+      responses:
+        '200':
+          description: System default quotas retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/systemDefaultQuotasResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '403':
+          description: Forbidden - Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+    put:
+      summary: Update system default quotas
+      description: Update system default quota configuration (admin only)
+      tags:
+        - quotas
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/systemDefaultQuotasUpdateRequest'
+      responses:
+        '200':
+          description: System default quotas updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/systemDefaultQuotasUpdateResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '403':
+          description: Forbidden - Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
   /web/search:
     post:
       summary: Web search
@@ -6166,6 +6239,69 @@ components:
         - quota_type
         - old_limit
         - new_limit
+    systemDefaultQuotas:
+      type: object
+      description: System default quota configuration
+      properties:
+        max_collection_count:
+          type: integer
+          description: Default maximum collection count
+          example: 10
+          minimum: 0
+        max_document_count:
+          type: integer
+          description: Default maximum document count
+          example: 1000
+          minimum: 0
+        max_document_count_per_collection:
+          type: integer
+          description: Default maximum documents per collection
+          example: 100
+          minimum: 0
+        max_bot_count:
+          type: integer
+          description: Default maximum bot count
+          example: 5
+          minimum: 0
+      required:
+        - max_collection_count
+        - max_document_count
+        - max_document_count_per_collection
+        - max_bot_count
+    systemDefaultQuotasResponse:
+      type: object
+      description: Response containing system default quotas
+      properties:
+        quotas:
+          $ref: '#/components/schemas/systemDefaultQuotas'
+      required:
+        - quotas
+    systemDefaultQuotasUpdateRequest:
+      type: object
+      description: Request to update system default quotas
+      properties:
+        quotas:
+          $ref: '#/components/schemas/systemDefaultQuotas'
+      required:
+        - quotas
+    systemDefaultQuotasUpdateResponse:
+      type: object
+      description: Response after updating system default quotas
+      properties:
+        success:
+          type: boolean
+          description: Whether the update was successful
+          example: true
+        message:
+          type: string
+          description: Status message
+          example: System default quotas updated successfully
+        quotas:
+          $ref: '#/components/schemas/systemDefaultQuotas'
+      required:
+        - success
+        - message
+        - quotas
     webSearchRequest:
       type: object
       description: Web search request
