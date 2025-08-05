@@ -138,7 +138,6 @@ export const collection = {
   'collection.marketplace.load.failed': '加载知识库市场失败',
   'collection.marketplace.empty.title': '暂无已发布的知识库',
   'collection.marketplace.empty.description': '还没有用户发布知识库到市场',
-  'collection.marketplace.loading': '正在加载知识库...',
   'collection.marketplace.search.placeholder': '搜索知识库...',
   'collection.marketplace.stats.total': '{total} 个已发布的知识库',
   'collection.marketplace.discover.subtitle': '发现和订阅社区共享的优质知识库，扩展您的知识边界',

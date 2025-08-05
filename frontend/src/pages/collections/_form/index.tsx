@@ -297,7 +297,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
           <ModelSelect
             model="embedding"
             disabled={action === 'edit'}
-            tagFilters={[
+            tagfilters={[
               {
                 operation: 'OR',
                 tags: ['enable_for_collection'],
@@ -325,7 +325,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
             <ModelSelect
               model="completion"
               disabled={action === 'edit'}
-              tagFilters={[
+              tagfilters={[
                 {
                   operation: 'OR',
                   tags: ['enable_for_collection'],

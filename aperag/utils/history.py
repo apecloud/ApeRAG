@@ -14,6 +14,7 @@
 
 import json
 import logging
+import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
@@ -26,7 +27,6 @@ from aperag.chat.history import (
     message_to_storage_dict,
     storage_dict_to_message,
 )
-from aperag.utils.utils import now_unix_milliseconds
 
 logger = logging.getLogger(__name__)
 
@@ -263,7 +263,7 @@ def success_response(message_id, data):
             "type": "message",
             "id": message_id,
             "data": data,
-            "timestamp": now_unix_milliseconds(),
+            "timestamp": int(time.time()),
         }
     )
 
@@ -274,7 +274,7 @@ def fail_response(message_id, error):
             "type": "error",
             "id": message_id,
             "data": error,
-            "timestamp": now_unix_milliseconds(),
+            "timestamp": int(time.time()),
         }
     )
 
@@ -284,7 +284,7 @@ def start_response(message_id):
         {
             "type": "start",
             "id": message_id,
-            "timestamp": now_unix_milliseconds(),
+            "timestamp": int(time.time()),
         }
     )
 
@@ -299,7 +299,7 @@ def references_response(message_id, references, memory_count=0, urls=[]):
             "data": references,
             "memoryCount": memory_count,
             "urls": urls,
-            "timestamp": now_unix_milliseconds(),
+            "timestamp": int(time.time()),
         }
     )
 
@@ -309,7 +309,7 @@ def stop_response(message_id):
         {
             "type": "stop",
             "id": message_id,
-            "timestamp": now_unix_milliseconds(),
+            "timestamp": int(time.time()),
         }
     )
 

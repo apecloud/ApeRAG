@@ -14,9 +14,8 @@
 
 """Stream message formatters for agent responses."""
 
+import time
 from typing import Any, Dict, List
-
-from aperag.utils.utils import now_unix_milliseconds
 
 from .i18n import ERROR_MESSAGES
 from .response_types import (
@@ -50,7 +49,7 @@ def format_i18n_error(error_key: str, language: str = "en-US", **kwargs) -> Agen
         type="error",
         id="error",
         data=error_message,
-        timestamp=now_unix_milliseconds(),
+        timestamp=int(time.time()),
     )
 
 
@@ -60,7 +59,7 @@ def format_stream_start(msg_id: str) -> AgentStartResponse:
     return AgentStartResponse(
         type="start",
         id=msg_id,
-        timestamp=now_unix_milliseconds(),
+        timestamp=int(time.time()),
     )
 
 
@@ -70,7 +69,7 @@ def format_stream_content(msg_id: str, content: str) -> AgentMessageResponse:
         type="message",
         id=msg_id,
         data=content,
-        timestamp=now_unix_milliseconds(),
+        timestamp=int(time.time()),
     )
 
 
@@ -88,7 +87,7 @@ def format_stream_end(
         id=msg_id,
         data=references,
         urls=urls,
-        timestamp=now_unix_milliseconds(),
+        timestamp=int(time.time()),
     )
 
 
@@ -98,7 +97,7 @@ def format_thinking(msg_id: str, content: str) -> AgentThinkingResponse:
         type="thinking",
         id=msg_id,
         data=content,
-        timestamp=now_unix_milliseconds(),
+        timestamp=int(time.time()),
     )
 
 
@@ -109,7 +108,7 @@ def format_tool_call_result(msg_id: str, data: str, tool_name: str, result: Any)
         data=data,
         tool_name=tool_name,
         result=result,
-        timestamp=now_unix_milliseconds(),
+        timestamp=int(time.time()),
     )
 
 
@@ -119,7 +118,7 @@ def format_agent_start_message(trace_id: str, language: str = "en-US") -> Dict[s
     return {
         "type": "start",
         "id": trace_id,
-        "timestamp": now_unix_milliseconds(),
+        "timestamp": int(time.time()),
     }
 
 
@@ -130,7 +129,7 @@ def format_agent_stop_message(trace_id: str, references: list = None, urls: list
         "id": trace_id,
         "data": references or [],
         "urls": urls or [],
-        "timestamp": now_unix_milliseconds(),
+        "timestamp": int(time.time()),
     }
 
 
@@ -140,7 +139,7 @@ def format_agent_thinking_message(trace_id: str, thinking_content: str) -> Dict[
         "type": "thinking",
         "id": trace_id,
         "data": thinking_content,
-        "timestamp": now_unix_milliseconds(),
+        "timestamp": int(time.time()),
     }
 
 
@@ -150,5 +149,5 @@ def format_agent_message(trace_id: str, content: str) -> Dict[str, Any]:
         "type": "message",
         "id": trace_id,
         "data": content,
-        "timestamp": now_unix_milliseconds(),
+        "timestamp": int(time.time()),
     }

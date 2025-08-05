@@ -40,6 +40,7 @@ import {
 } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useIntl, useModel } from 'umi';
+import DefaultModelsModal from './_defaultModelsModal';
 
 const { Title, Text } = Typography;
 
@@ -84,6 +85,9 @@ export default () => {
   );
   // Model search state
   const [modelSearchText, setModelSearchText] = useState<string>('');
+
+  // Default models modal state
+  const [defaultModelsVisible, setDefaultModelsVisible] = useState(false);
 
   const [modal, contextHolder] = Modal.useModal();
 
@@ -681,6 +685,9 @@ export default () => {
         <Button type="primary" onClick={handleCreateProvider}>
           {formatMessage({ id: 'model.provider.add' })}
         </Button>
+        <Button onClick={() => setDefaultModelsVisible(true)}>
+          {formatMessage({ id: 'default.models.button' })}
+        </Button>
         <RefreshButton onClick={() => fetchConfiguration()} loading={loading} />
       </PageHeader>
 
@@ -1144,6 +1151,16 @@ export default () => {
           </div>
         )}
       </Modal>
+
+      {/* Default Models Modal */}
+      <DefaultModelsModal
+        visible={defaultModelsVisible}
+        onCancel={() => setDefaultModelsVisible(false)}
+        onSuccess={() => {
+          setDefaultModelsVisible(false);
+          fetchConfiguration(); // Refresh configuration
+        }}
+      />
     </PageContainer>
   );
 };

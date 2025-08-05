@@ -105,6 +105,8 @@ paths:
   # models
   /available_models:
     $ref: './paths/models.yaml#/availableModels'
+  /default_models:
+    $ref: './paths/default_models.yaml#/defaultModels'
 
   # llm configuration
   /llm_configuration:

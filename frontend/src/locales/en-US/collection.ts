@@ -145,7 +145,6 @@ export const collection = {
   'collection.marketplace.load.failed': 'Failed to load marketplace collections',
   'collection.marketplace.empty.title': 'No published collections',
   'collection.marketplace.empty.description': 'No users have published collections to the marketplace yet',
-  'collection.marketplace.loading': 'Loading collections...',
   'collection.marketplace.search.placeholder': 'Search collections...',
   'collection.marketplace.stats.total': '{total} published collections',
   'collection.marketplace.discover.subtitle': 'Discover and subscribe to quality knowledge collections shared by community, expand your knowledge boundaries',

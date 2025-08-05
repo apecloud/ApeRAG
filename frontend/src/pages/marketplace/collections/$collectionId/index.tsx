@@ -1,5 +1,5 @@
 import { SharedCollection } from '@/api';
-import { PageContainer, ReadOnlyBanner } from '@/components';
+import { PageContainer } from '@/components';
 
 import { ShareAltOutlined } from '@ant-design/icons';
 import { useRequest } from 'ahooks';
@@ -21,6 +21,7 @@ import {
 } from 'umi';
 import { MarketplaceDocuments } from './documents';
 import { MarketplaceGraphs } from './graphs';
+import ReadOnlyBanner from './ReadOnlyBanner';
 
 const { Title, Text } = Typography;
 

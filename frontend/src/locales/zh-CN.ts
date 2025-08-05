@@ -1,7 +1,7 @@
 import { apiKeys } from './zh-CN/apiKeys';
 import { bot } from './zh-CN/bots';
 import { collection } from './zh-CN/collection';
-import { model, model_provider } from './zh-CN/models';
+import { model, model_provider, model_configuration } from './zh-CN/models';
 import { settings } from './zh-CN/settings';
 import { user, users } from './zh-CN/users';
 
@@ -11,6 +11,7 @@ export default {
   ...bot,
   ...model,
   ...model_provider,
+  ...model_configuration,
   ...collection,
   ...apiKeys,
   ...settings,

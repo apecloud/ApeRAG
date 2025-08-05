@@ -68,6 +68,10 @@ import type { Config } from '../models';
 // @ts-ignore
 import type { DebugFlowRequest } from '../models';
 // @ts-ignore
+import type { DefaultModelsResponse } from '../models';
+// @ts-ignore
+import type { DefaultModelsUpdateRequest } from '../models';
+// @ts-ignore
 import type { Document } from '../models';
 // @ts-ignore
 import type { DocumentCreate } from '../models';
@@ -1736,6 +1740,72 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             setSearchParams(localVarUrlObj, localVarQueryParameter);
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Get current default model settings for different scenarios
+         * @summary Get default model configurations
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        defaultModelsGet: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/default_models`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Update default model settings for different scenarios
+         * @summary Update default model configurations
+         * @param {DefaultModelsUpdateRequest} defaultModelsUpdateRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        defaultModelsPut: async (defaultModelsUpdateRequest: DefaultModelsUpdateRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'defaultModelsUpdateRequest' is not null or undefined
+            assertParamExists('defaultModelsPut', 'defaultModelsUpdateRequest', defaultModelsUpdateRequest)
+            const localVarPath = `/default_models`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'PUT', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(defaultModelsUpdateRequest, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -3456,6 +3526,31 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Get current default model settings for different scenarios
+         * @summary Get default model configurations
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async defaultModelsGet(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<DefaultModelsResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.defaultModelsGet(options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.defaultModelsGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Update default model settings for different scenarios
+         * @summary Update default model configurations
+         * @param {DefaultModelsUpdateRequest} defaultModelsUpdateRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async defaultModelsPut(defaultModelsUpdateRequest: DefaultModelsUpdateRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<DefaultModelsResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.defaultModelsPut(defaultModelsUpdateRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.defaultModelsPut']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Get an object from a specific document
          * @summary Get document object
          * @param {string} collectionId 
@@ -4279,6 +4374,25 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.configGet(options).then((request) => request(axios, basePath));
         },
         /**
+         * Get current default model settings for different scenarios
+         * @summary Get default model configurations
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        defaultModelsGet(options?: RawAxiosRequestConfig): AxiosPromise<DefaultModelsResponse> {
+            return localVarFp.defaultModelsGet(options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Update default model settings for different scenarios
+         * @summary Update default model configurations
+         * @param {DefaultApiDefaultModelsPutRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        defaultModelsPut(requestParameters: DefaultApiDefaultModelsPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<DefaultModelsResponse> {
+            return localVarFp.defaultModelsPut(requestParameters.defaultModelsUpdateRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Get an object from a specific document
          * @summary Get document object
          * @param {DefaultApiGetDocumentObjectRequest} requestParameters Request parameters.
@@ -4987,6 +5101,25 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     configGet(options?: RawAxiosRequestConfig): AxiosPromise<Config>;
+
+    /**
+     * Get current default model settings for different scenarios
+     * @summary Get default model configurations
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    defaultModelsGet(options?: RawAxiosRequestConfig): AxiosPromise<DefaultModelsResponse>;
+
+    /**
+     * Update default model settings for different scenarios
+     * @summary Update default model configurations
+     * @param {DefaultApiDefaultModelsPutRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    defaultModelsPut(requestParameters: DefaultApiDefaultModelsPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<DefaultModelsResponse>;
 
     /**
      * Get an object from a specific document
@@ -6011,6 +6144,20 @@ export interface DefaultApiCollectionsPostRequest {
 }
 
 /**
+ * Request parameters for defaultModelsPut operation in DefaultApi.
+ * @export
+ * @interface DefaultApiDefaultModelsPutRequest
+ */
+export interface DefaultApiDefaultModelsPutRequest {
+    /**
+     * 
+     * @type {DefaultModelsUpdateRequest}
+     * @memberof DefaultApiDefaultModelsPut
+     */
+    readonly defaultModelsUpdateRequest: DefaultModelsUpdateRequest
+}
+
+/**
  * Request parameters for getDocumentObject operation in DefaultApi.
  * @export
  * @interface DefaultApiGetDocumentObjectRequest
@@ -6943,6 +7090,29 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      */
     public configGet(options?: RawAxiosRequestConfig) {
         return DefaultApiFp(this.configuration).configGet(options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Get current default model settings for different scenarios
+     * @summary Get default model configurations
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public defaultModelsGet(options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).defaultModelsGet(options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Update default model settings for different scenarios
+     * @summary Update default model configurations
+     * @param {DefaultApiDefaultModelsPutRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public defaultModelsPut(requestParameters: DefaultApiDefaultModelsPutRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).defaultModelsPut(requestParameters.defaultModelsUpdateRequest, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
