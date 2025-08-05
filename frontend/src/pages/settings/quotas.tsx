@@ -1,4 +1,4 @@
-import { QuotaInfo, UserQuotaInfo, UserQuotaList, SystemDefaultQuotas, SystemDefaultQuotasResponse } from '@/api';
+import { QuotaInfo, UserQuotaInfo, SystemDefaultQuotas, SystemDefaultQuotasResponse } from '@/api';
 import { PageContainer, PageHeader, RefreshButton } from '@/components';
 import { quotasApi } from '@/services';
 import { EditOutlined, ReloadOutlined, SettingOutlined, SearchOutlined, ClearOutlined } from '@ant-design/icons';
@@ -75,24 +75,16 @@ export default () => {
     setSearchedUserQuota(undefined);
     
     try {
-      // Use backend search functionality
-      const res = await quotasApi.quotasGet({ allUsers: true, search: searchTerm });
-      const quotaList = res.data as UserQuotaList;
-      
-      if (quotaList.items.length === 1) {
-        // Found exactly one user
-        setSearchedUserQuota(quotaList.items[0]);
-      } else if (quotaList.items.length === 0) {
-        // No users found
+      // Search by username, email, or user ID
+      const res = await quotasApi.quotasGet({ search: searchTerm });
+      const userQuota = res.data as UserQuotaInfo;
+      setSearchedUserQuota(userQuota);
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
         message.warning(formatMessage({ id: 'quota.user_not_found' }));
-        setSearchedUserQuota(undefined);
       } else {
-        // Multiple users found (shouldn't happen with exact search, but just in case)
-        setSearchedUserQuota(quotaList.items[0]);
+        message.error(formatMessage({ id: 'quota.search_error' }));
       }
-    } catch (error) {
-      message.error(formatMessage({ id: 'quota.search_error' }));
-      // Clear search result on error as well
       setSearchedUserQuota(undefined);
     } finally {
       setSearchLoading(false);

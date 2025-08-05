@@ -25,7 +25,6 @@ from aperag.schema.view_models import (
     QuotaUpdateRequest,
     QuotaUpdateResponse,
     UserQuotaInfo,
-    UserQuotaList,
     SystemDefaultQuotas,
     SystemDefaultQuotasResponse,
     SystemDefaultQuotasUpdateRequest,
@@ -52,34 +51,36 @@ def _convert_quota_dict_to_list(quota_dict: dict) -> List[QuotaInfo]:
     ]
 
 
-@router.get("/quotas", response_model=Union[UserQuotaInfo, UserQuotaList])
+@router.get("/quotas", response_model=UserQuotaInfo)
 async def get_quotas(
     user_id: str = Query(None, description="User ID to get quotas for (admin only)"),
-    all_users: bool = Query(False, description="Get quotas for all users (admin only)"),
     search: str = Query(None, description="Search term for username, email, or user ID (admin only)"),
     current_user: User = Depends(current_user)
 ):
-    """Get quota information for the current user or all users (admin only)"""
+    """Get quota information for the current user or specific user (admin only)"""
     try:
-        if all_users:
-            # Admin only - get all users' quotas
+        if search:
+            # Admin only - search for users
             if current_user.role != Role.ADMIN:
                 raise HTTPException(status_code=403, detail="Admin access required")
             
+            # Use the search functionality to find users
             all_user_quotas = await quota_service.get_all_users_quotas(search_term=search)
             
-            items = []
-            for user_quota in all_user_quotas:
-                quota_list = _convert_quota_dict_to_list(user_quota['quotas'])
-                items.append(UserQuotaInfo(
-                    user_id=user_quota['user_id'],
-                    username=user_quota['username'],
-                    email=user_quota['email'],
-                    role=user_quota['role'],
-                    quotas=quota_list
-                ))
+            if not all_user_quotas:
+                raise HTTPException(status_code=404, detail="User not found")
             
-            return UserQuotaList(items=items)
+            # Return the first matching user (since search should be specific)
+            user_quota = all_user_quotas[0]
+            quota_list = _convert_quota_dict_to_list(user_quota['quotas'])
+            
+            return UserQuotaInfo(
+                user_id=user_quota['user_id'],
+                username=user_quota['username'],
+                email=user_quota['email'],
+                role=user_quota['role'],
+                quotas=quota_list
+            )
         
         elif user_id:
             # Admin only - get specific user's quotas

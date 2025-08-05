@@ -2943,7 +2943,7 @@ paths:
   /quotas:
     get:
       summary: Get user quotas
-      description: Get quota information for the current user or all users (admin only)
+      description: Get quota information for the current user or specific user (admin only)
       tags:
         - quotas
       parameters:
@@ -2954,13 +2954,6 @@ paths:
           schema:
             type: string
             example: user123
-        - name: all_users
-          in: query
-          description: Get quotas for all users (admin only)
-          required: false
-          schema:
-            type: boolean
-            default: false
         - name: search
           in: query
           description: Search term for username, email, or user ID (admin only)
@@ -2974,9 +2967,7 @@ paths:
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: '#/components/schemas/userQuotaInfo'
-                  - $ref: '#/components/schemas/userQuotaList'
+                $ref: '#/components/schemas/userQuotaInfo'
         '401':
           description: Unauthorized
           content:
@@ -6172,17 +6163,6 @@ components:
         - username
         - role
         - quotas
-    userQuotaList:
-      type: object
-      description: List of user quota information (admin view)
-      properties:
-        items:
-          type: array
-          description: List of user quota information
-          items:
-            $ref: '#/components/schemas/userQuotaInfo'
-      required:
-        - items
     quotaUpdateRequest:
       type: object
       description: Request to update user quota

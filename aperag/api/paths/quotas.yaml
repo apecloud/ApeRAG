@@ -1,7 +1,7 @@
 quotas:
   get:
     summary: Get user quotas
-    description: Get quota information for the current user or all users (admin only)
+    description: Get quota information for the current user or specific user (admin only)
     tags:
       - quotas
     parameters:
@@ -12,13 +12,6 @@ quotas:
         schema:
           type: string
           example: "user123"
-      - name: all_users
-        in: query
-        description: Get quotas for all users (admin only)
-        required: false
-        schema:
-          type: boolean
-          default: false
       - name: search
         in: query
         description: Search term for username, email, or user ID (admin only)
@@ -32,9 +25,7 @@ quotas:
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: '../components/schemas/quota.yaml#/userQuotaInfo'
-                - $ref: '../components/schemas/quota.yaml#/userQuotaList'
+              $ref: '../components/schemas/quota.yaml#/userQuotaInfo'
       '401':
         description: Unauthorized
         content:
