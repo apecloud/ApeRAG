@@ -16,6 +16,7 @@ import asyncio
 import json
 import logging
 import os
+import time
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -230,6 +231,43 @@ class AgentChatService:
             )
         return trace_id
 
+    async def _stream_message_content(
+        self, message: Dict[str, Any], websocket: WebSocket, chunk_size: int = 5, delay: float = 0.01
+    ) -> None:
+        """
+        Stream message content in small chunks to simulate typing effect.
+
+        Args:
+            message: The message dict with type="message"
+            websocket: WebSocket connection to send chunks
+            chunk_size: Number of characters per chunk
+            delay: Delay in seconds between chunks
+        """
+        content = message.get("data", "")
+        if not content:
+            # If no content, send the original message
+            await websocket.send_text(json.dumps(message))
+            return
+
+        # Split content into chunks
+        chunks = [content[i : i + chunk_size] for i in range(0, len(content), chunk_size)]
+
+        for i, chunk in enumerate(chunks):
+            # Create a chunk message with same structure but partial content
+            chunk_message = {
+                "type": "message",
+                "id": message.get("id"),
+                "data": chunk,
+                "timestamp": message.get("timestamp", int(time.time())),
+            }
+
+            await websocket.send_text(json.dumps(chunk_message))
+            logger.debug(f"Sent message chunk {i + 1}/{len(chunks)}: {len(chunk)} chars")
+
+            # Add delay between chunks (except for the last one)
+            if i < len(chunks) - 1:
+                await asyncio.sleep(delay)
+
     async def _consume_messages_from_queue(
         self, chat_id: str, message_id: str, trace_id: str, message_queue: AgentMessageQueue, websocket: WebSocket
     ) -> List[AgentToolCallResultResponse]:
@@ -256,9 +294,14 @@ class AgentChatService:
                 if isinstance(message, dict) and message.get("type") == "tool_call_result":
                     tool_call_results.append(message)
 
-                # Send message to WebSocket (preserve original functionality)
-                await websocket.send_text(json.dumps(message))
-                logger.debug(f"Sent message to WebSocket: {message.get('type', 'unknown')}")
+                # Special handling for type="message" - stream it in chunks
+                if isinstance(message, dict) and message.get("type") == "message":
+                    await self._stream_message_content(message, websocket)
+                    logger.debug(f"Streamed message content: {message.get('type', 'unknown')}")
+                else:
+                    # Send other message types normally (start, stop, tool_call_result, etc.)
+                    await websocket.send_text(json.dumps(message))
+                    logger.debug(f"Sent message to WebSocket: {message.get('type', 'unknown')}")
 
             return tool_call_results
 
