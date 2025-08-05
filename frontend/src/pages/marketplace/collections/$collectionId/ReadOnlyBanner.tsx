@@ -1,4 +1,8 @@
-import { InfoCircleOutlined, UserOutlined, HeartOutlined } from '@ant-design/icons';
+import {
+  HeartOutlined,
+  InfoCircleOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
 import { Alert, Button, Space, Typography } from 'antd';
 import { useCallback, useState } from 'react';
 import { FormattedMessage } from 'umi';
@@ -22,7 +26,7 @@ export const ReadOnlyBanner: React.FC<ReadOnlyBannerProps> = ({
 
   const handleSubscribe = useCallback(async () => {
     if (!onSubscribe) return;
-    
+
     setActionLoading(true);
     try {
       await onSubscribe();
@@ -32,8 +36,6 @@ export const ReadOnlyBanner: React.FC<ReadOnlyBannerProps> = ({
       setActionLoading(false);
     }
   }, [onSubscribe]);
-
-
 
   const description = (
     <Space direction="vertical" size={12} style={{ width: '100%' }}>
@@ -47,7 +49,7 @@ export const ReadOnlyBanner: React.FC<ReadOnlyBannerProps> = ({
           />
         </Text>
       </Space>
-      
+
       <Space>
         {!isSubscribed && onSubscribe && (
           <Button
@@ -56,12 +58,10 @@ export const ReadOnlyBanner: React.FC<ReadOnlyBannerProps> = ({
             icon={<HeartOutlined />}
             onClick={handleSubscribe}
             loading={actionLoading || loading}
-            style={{ 
+            style={{
               borderRadius: 6,
               fontSize: '12px',
               height: '28px',
-              background: '#1890ff',
-              borderColor: '#1890ff',
             }}
           >
             <FormattedMessage
@@ -87,9 +87,6 @@ export const ReadOnlyBanner: React.FC<ReadOnlyBannerProps> = ({
       description={description}
       style={{
         marginBottom: 16,
-        borderRadius: 8,
-        border: '1px solid #91d5ff',
-        backgroundColor: '#f6ffed',
       }}
       closable={false}
     />
