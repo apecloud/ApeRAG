@@ -14,6 +14,7 @@
 
 import json
 import logging
+import time
 import uuid
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
@@ -38,7 +39,6 @@ from aperag.utils.history import (
     stop_response,
     success_response,
 )
-from aperag.utils.utils import now_unix_milliseconds
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ class FrontendFormatter:
         return {
             "type": "start",
             "id": msg_id,
-            "timestamp": now_unix_milliseconds(),
+            "timestamp": int(time.time()),
         }
 
     @staticmethod
@@ -62,7 +62,7 @@ class FrontendFormatter:
             "type": "message",
             "id": msg_id,
             "data": content,
-            "timestamp": now_unix_milliseconds(),
+            "timestamp": int(time.time()),
         }
 
     @staticmethod
@@ -84,7 +84,7 @@ class FrontendFormatter:
             "data": references,
             "memoryCount": memory_count,
             "urls": urls,
-            "timestamp": now_unix_milliseconds(),
+            "timestamp": int(time.time()),
         }
 
     @staticmethod
@@ -94,7 +94,7 @@ class FrontendFormatter:
             "type": "message",
             "id": msg_id,
             "data": content,
-            "timestamp": now_unix_milliseconds(),
+            "timestamp": int(time.time()),
         }
 
     @staticmethod
@@ -104,7 +104,7 @@ class FrontendFormatter:
             "type": "error",
             "id": str(uuid.uuid4()),
             "data": error,
-            "timestamp": now_unix_milliseconds(),
+            "timestamp": int(time.time()),
         }
 
 

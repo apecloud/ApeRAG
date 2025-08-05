@@ -73,7 +73,7 @@ export default () => {
 
   const onSubmit: ChatInputProps['onSubmit'] = useCallback(
     async (params) => {
-      const timestamp = new Date().getTime();
+      const timestamp = Math.floor(new Date().getTime() / 1000);
       const msg: ChatMessage = {
         type: 'message',
         role: 'human',
