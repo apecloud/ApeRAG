@@ -136,7 +136,7 @@ export default () => {
     if (searchKeyword && filteredCollections.length === 0) {
       return (
         <Result
-          icon={<UndrawEmpty primaryColor={token.colorPrimary} height={240} />}
+          icon={<UndrawEmpty primaryColor={token.colorPrimary} height="240px" />}
           title={formatMessage({ id: 'common.search.no.results' })}
           subTitle={formatMessage({
             id: 'common.search.try.different.keywords',
@@ -148,7 +148,7 @@ export default () => {
     if (!marketplaceCollections || marketplaceCollections.length === 0) {
       return (
         <Result
-          icon={<UndrawEmpty primaryColor={token.colorPrimary} height={240} />}
+          icon={<UndrawEmpty primaryColor={token.colorPrimary} height="240px" />}
           title={formatMessage({ id: 'collection.marketplace.empty.title' })}
           subTitle={formatMessage({
             id: 'collection.marketplace.empty.description',
