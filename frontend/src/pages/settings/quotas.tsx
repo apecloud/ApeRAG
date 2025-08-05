@@ -265,49 +265,66 @@ export default () => {
     {
       title: formatMessage({ id: 'quota.name' }),
       dataIndex: 'quota_type',
-      render: (quotaType: string) => getQuotaTypeName(quotaType),
+      width: 200,
+      render: (quotaType: string) => (
+        <div style={{ height: '40px', display: 'flex', alignItems: 'center' }}>
+          {getQuotaTypeName(quotaType)}
+        </div>
+      ),
+    },
+    {
+      title: formatMessage({ id: 'quota.usage_rate' }),
+      width: 150,
+      render: (_, record) => {
+        const percentage = record.quota_limit > 0 ? (record.current_usage / record.quota_limit) * 100 : 0;
+        const status = percentage >= 100 ? 'exception' : percentage >= 80 ? 'active' : 'normal';
+        return (
+          <div style={{ height: '40px', display: 'flex', alignItems: 'center' }}>
+            <Progress
+              percent={Math.min(percentage, 100)}
+              status={status}
+              size="small"
+              format={() => `${Math.round(percentage)}%`}
+            />
+          </div>
+        );
+      },
+    },
+    {
+      title: formatMessage({ id: 'quota.current_usage' }),
+      dataIndex: 'current_usage',
+      width: 120,
+      align: 'right',
+      render: (value: number) => (
+        <div style={{ height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+          {value}
+        </div>
+      ),
     },
     {
       title: formatMessage({ id: 'quota.max_limit' }),
       dataIndex: 'quota_limit',
+      width: 120,
       align: 'right',
-      render: (value: number, record: EditableQuotaInfo) => {
-        if (isTableEditMode && record.editable) {
-          return (
+      render: (value: number, record: EditableQuotaInfo) => (
+        <div style={{ height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+          {isTableEditMode && record.editable ? (
             <InputNumber
               value={value}
               min={0}
-              style={{ width: '100%' }}
+              size="small"
+              style={{ width: '100px' }}
               onChange={(newValue) => {
                 if (newValue !== null) {
                   updateEditableQuota(record.quota_type, newValue);
                 }
               }}
             />
-          );
-        }
-        return value;
-      },
-    },
-    {
-      title: formatMessage({ id: 'quota.current_usage' }),
-      dataIndex: 'current_usage',
-      align: 'right',
-    },
-    {
-      title: formatMessage({ id: 'quota.usage_rate' }),
-      render: (_, record) => {
-        const percentage = record.quota_limit > 0 ? (record.current_usage / record.quota_limit) * 100 : 0;
-        const status = percentage >= 100 ? 'exception' : percentage >= 80 ? 'active' : 'normal';
-        return (
-          <Progress
-            percent={Math.min(percentage, 100)}
-            status={status}
-            size="small"
-            format={() => `${Math.round(percentage)}%`}
-          />
-        );
-      },
+          ) : (
+            value
+          )}
+        </div>
+      ),
     },
   ];
 
@@ -529,16 +546,6 @@ export default () => {
               </Row>
             </Card>
 
-            {/* 表格编辑模式提示 */}
-            {isTableEditMode && (
-              <Alert
-                message={formatMessage({ id: 'quota.table_edit_mode' })}
-                description={formatMessage({ id: 'quota.table_edit_tip' })}
-                type="info"
-                showIcon
-                style={{ marginBottom: 16 }}
-              />
-            )}
 
             {/* 配额信息卡片 */}
             <Card 
@@ -566,15 +573,12 @@ export default () => {
                     ) : (
                       <>
                         <Button
-                          type="primary"
                           icon={<EditOutlined />}
                           onClick={() => enterTableEditMode(displayUser)}
                         >
                           <FormattedMessage id="action.edit" />
                         </Button>
                         <Button
-                          type="link"
-                          size="small"
                           icon={<ReloadOutlined />}
                           onClick={() => handleRecalculateUsage(displayUser.user_id)}
                         >
@@ -586,15 +590,41 @@ export default () => {
                 )
               }
             >
-              <Table
-                rowKey="quota_type"
-                bordered
-                columns={userQuotaColumns}
-                dataSource={isTableEditMode ? editableQuotas : displayUser.quotas}
-                loading={loading || searchLoading}
-                pagination={false}
-                size="middle"
-              />
+              <div className="quota-table-container">
+                <style>
+                  {`
+                    .quota-table-container .ant-table-tbody > tr {
+                      height: 54px !important;
+                    }
+                    .quota-table-container .ant-table-tbody > tr > td {
+                      height: 54px !important;
+                      vertical-align: middle !important;
+                      padding: 8px 16px !important;
+                      line-height: 38px !important;
+                    }
+                    .quota-table-container .ant-input-number {
+                      height: 32px !important;
+                      line-height: 30px !important;
+                    }
+                    .quota-table-container .ant-input-number-input {
+                      height: 30px !important;
+                      line-height: 30px !important;
+                    }
+                    .quota-table-container .ant-progress {
+                      margin: 0 !important;
+                    }
+                  `}
+                </style>
+                <Table
+                  rowKey="quota_type"
+                  bordered
+                  columns={userQuotaColumns}
+                  dataSource={isTableEditMode ? editableQuotas : displayUser.quotas}
+                  loading={loading || searchLoading}
+                  pagination={false}
+                  size="middle"
+                />
+              </div>
             </Card>
           </div>
         )}
