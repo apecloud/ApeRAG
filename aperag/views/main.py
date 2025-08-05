@@ -21,6 +21,7 @@ from aperag.db.models import User
 from aperag.schema import view_models
 from aperag.service.bot_service import bot_service
 from aperag.service.chat_service import chat_service_global
+from aperag.service.default_model_service import default_model_service
 from aperag.service.flow_service import flow_service_global
 from aperag.service.llm_available_model_service import llm_available_model_service
 from aperag.service.llm_provider_service import (
@@ -155,6 +156,22 @@ async def get_available_models_view(
         tag_filter_request = view_models.TagFilterRequest()
 
     return await llm_available_model_service.get_available_models(str(user.id), tag_filter_request)
+
+
+@router.get("/default_models", tags=["default_models"])
+async def get_default_models_view(
+    request: Request, user: User = Depends(current_user)
+) -> view_models.DefaultModelsResponse:
+    """Get default model configurations for different scenarios"""
+    return await default_model_service.get_default_models(str(user.id))
+
+
+@router.put("/default_models", tags=["default_models"])
+async def update_default_models_view(
+    request: Request, update_request: view_models.DefaultModelsUpdateRequest, user: User = Depends(current_user)
+) -> view_models.DefaultModelsResponse:
+    """Update default model configurations for different scenarios"""
+    return await default_model_service.update_default_models(str(user.id), update_request)
 
 
 @router.post("/chat/completions/frontend", tags=["chats"])

@@ -1985,6 +1985,51 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
+  /default_models:
+    get:
+      summary: Get default model configurations
+      description: Get current default model settings for different scenarios
+      responses:
+        '200':
+          description: Default models configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/defaultModelsResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+    put:
+      summary: Update default model configurations
+      description: Update default model settings for different scenarios
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/defaultModelsUpdateRequest'
+      responses:
+        '200':
+          description: Successfully updated default models
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/defaultModelsResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
   /llm_configuration:
     get:
       summary: Get complete LLM configuration
@@ -5084,6 +5129,57 @@ components:
             $ref: '#/components/schemas/modelConfig'
         pageResult:
           $ref: '#/components/schemas/pageResult'
+    defaultModelConfig:
+      type: object
+      properties:
+        scenario:
+          type: string
+          enum:
+            - default_for_collection_completion
+            - default_for_agent_completion
+            - default_for_embedding
+            - default_for_rerank
+          description: The scenario for which this default model is configured
+          example: default_for_embedding
+        provider_name:
+          type: string
+          nullable: true
+          description: The name of the model provider
+          example: openai
+        model:
+          type: string
+          nullable: true
+          description: The name of the model
+          example: text-embedding-3-small
+      required:
+        - scenario
+    defaultModelsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/defaultModelConfig'
+          description: List of default model configurations for different scenarios
+      required:
+        - items
+    defaultModelsUpdateRequest:
+      type: object
+      properties:
+        defaults:
+          type: array
+          items:
+            $ref: '#/components/schemas/defaultModelConfig'
+          description: List of default model configurations to update
+          example:
+            - scenario: default_for_embedding
+              provider_name: openai
+              model: text-embedding-3-small
+            - scenario: default_for_collection_completion
+              provider_name: openai
+              model: gpt-4o-mini
+      required:
+        - defaults
     llmProvider:
       type: object
       properties:

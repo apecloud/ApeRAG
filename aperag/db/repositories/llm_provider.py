@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+from typing import List, Optional
 
 from sqlalchemy import select
 
@@ -733,3 +733,126 @@ class AsyncLlmProviderRepositoryMixin(AsyncRepositoryProtocol):
             return {"providers": providers, "models": models}
 
         return await self._execute_query(_query)
+
+    async def find_models_by_tag(self, user_id: str, tag: str) -> List[LLMProviderModel]:
+        """Find models with specific tag that user can access"""
+
+        async def _query(session):
+            # Get providers that user can access
+            provider_conditions = []
+            provider_conditions.append(LLMProvider.user_id == "public")
+            if user_id:
+                provider_conditions.append(LLMProvider.user_id == user_id)
+
+            # Query models with tag from accessible providers
+            # Cast json to jsonb for @> operator support
+            from sqlalchemy import cast
+            from sqlalchemy.dialects.postgresql import JSONB
+
+            stmt = (
+                select(LLMProviderModel)
+                .join(LLMProvider, LLMProviderModel.provider_name == LLMProvider.name)
+                .where(
+                    LLMProvider.gmt_deleted.is_(None),
+                    LLMProviderModel.gmt_deleted.is_(None),
+                    cast(LLMProviderModel.tags, JSONB).op("@>")(cast([tag], JSONB)),
+                )
+            )
+
+            if provider_conditions:
+                from sqlalchemy import or_
+
+                stmt = stmt.where(or_(*provider_conditions))
+
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+        return await self._execute_query(_query)
+
+    async def remove_tag_from_all_models(self, user_id: str, tag: str):
+        """Remove specific tag from all models that user can access"""
+
+        async def _operation(session):
+            # Get models with the tag that user can access
+            models = await self.find_models_by_tag_in_session(session, user_id, tag)
+
+            for model in models:
+                if model.tags and tag in model.tags:
+                    model.tags.remove(tag)
+                    model.gmt_updated = utc_now()
+                    session.add(model)
+
+        return await self.execute_with_transaction(_operation)
+
+    async def add_tag_to_model(self, provider_name: str, api: str, model: str, tag: str):
+        """Add tag to specific model if user can access it"""
+
+        async def _operation(session):
+            # Check if user can access the provider
+            provider_conditions = []
+            provider_conditions.append(LLMProvider.user_id == "public")
+
+            # Query the specific model
+            stmt = (
+                select(LLMProviderModel)
+                .join(LLMProvider, LLMProviderModel.provider_name == LLMProvider.name)
+                .where(
+                    LLMProvider.gmt_deleted.is_(None),
+                    LLMProviderModel.gmt_deleted.is_(None),
+                    LLMProviderModel.provider_name == provider_name,
+                    LLMProviderModel.api == api,
+                    LLMProviderModel.model == model,
+                )
+            )
+
+            if provider_conditions:
+                from sqlalchemy import or_
+
+                stmt = stmt.where(or_(*provider_conditions))
+
+            result = await session.execute(stmt)
+            model_obj = result.scalars().first()
+
+            if model_obj:
+                if model_obj.tags is None:
+                    model_obj.tags = []
+                if tag not in model_obj.tags:
+                    model_obj.tags.append(tag)
+                    model_obj.gmt_updated = utc_now()
+                    session.add(model_obj)
+                return True  # Return True whether tag was added or already exists
+            return False
+
+        return await self.execute_with_transaction(_operation)
+
+    async def find_models_by_tag_in_session(self, session, user_id: str, tag: str) -> List[LLMProviderModel]:
+        """Find models with specific tag in existing session"""
+
+        # Get providers that user can access
+        provider_conditions = []
+        provider_conditions.append(LLMProvider.user_id == "public")
+        if user_id:
+            provider_conditions.append(LLMProvider.user_id == user_id)
+
+        # Query models with tag from accessible providers
+        # Cast json to jsonb for @> operator support
+        from sqlalchemy import cast
+        from sqlalchemy.dialects.postgresql import JSONB
+
+        stmt = (
+            select(LLMProviderModel)
+            .join(LLMProvider, LLMProviderModel.provider_name == LLMProvider.name)
+            .where(
+                LLMProvider.gmt_deleted.is_(None),
+                LLMProviderModel.gmt_deleted.is_(None),
+                cast(LLMProviderModel.tags, JSONB).op("@>")(cast([tag], JSONB)),
+            )
+        )
+
+        if provider_conditions:
+            from sqlalchemy import or_
+
+            stmt = stmt.where(or_(*provider_conditions))
+
+        result = await session.execute(stmt)
+        return result.scalars().all()

@@ -426,3 +426,57 @@ tagFilterRequest:
           tags: ["openai", "gpt"]
   description: "Tag filtering request. Empty request body or empty tag_filters returns recommend models by default."
 
+defaultModelConfig:
+  type: object
+  properties:
+    scenario:
+      type: string
+      enum: 
+        - default_for_collection_completion
+        - default_for_agent_completion
+        - default_for_embedding
+        - default_for_rerank
+      description: The scenario for which this default model is configured
+      example: "default_for_embedding"
+    provider_name:
+      type: string
+      nullable: true
+      description: The name of the model provider
+      example: "openai"
+    model:
+      type: string
+      nullable: true  
+      description: The name of the model
+      example: "text-embedding-3-small"
+  required:
+    - scenario
+
+defaultModelsResponse:
+  type: object
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/defaultModelConfig'
+      description: List of default model configurations for different scenarios
+  required:
+    - items
+
+defaultModelsUpdateRequest:
+  type: object
+  properties:
+    defaults:
+      type: array
+      items:
+        $ref: '#/defaultModelConfig'
+      description: List of default model configurations to update
+      example:
+        - scenario: "default_for_embedding"
+          provider_name: "openai"
+          model: "text-embedding-3-small"
+        - scenario: "default_for_collection_completion"
+          provider_name: "openai"
+          model: "gpt-4o-mini"
+  required:
+    - defaults
+

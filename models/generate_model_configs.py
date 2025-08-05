@@ -591,11 +591,9 @@ def create_alibabacloud_config():
     embedding_tag_rules = {
         'enable_for_collection': ['text-embedding-v4'],
         'multimodal': ['multimodal-embedding-v1'],
-        'default_for_embedding': ['text-embedding-v4'],
     }
     rerank_tag_rules = {
         'enable_for_collection': ['*'],
-        'default_for_rerank': ['gte-rerank-v2'],
     }
 
     # Setup file paths - now that the script is in models directory, use current directory
@@ -860,8 +858,6 @@ def create_openrouter_config():
             'google/gemini-2.5-flash',
             'google/gemini-2.5-pro',
         ],
-        'default_for_indexing': ['google/gemini-2.5-flash'],
-        'default_for_generation': ['google/gemini-2.5-pro'],
     }
     embedding_tag_rules = {
         'enable_for_collection': ['*']
