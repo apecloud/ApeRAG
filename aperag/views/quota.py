@@ -72,31 +72,17 @@ async def get_quotas(
                 raise HTTPException(status_code=404, detail="User not found")
             
             # If multiple results, return list for user to choose
-            if len(all_user_quotas) > 1:
-                items = []
-                for user_quota in all_user_quotas:
-                    quota_list = _convert_quota_dict_to_list(user_quota['quotas'])
-                    items.append(UserQuotaInfo(
-                        user_id=user_quota['user_id'],
-                        username=user_quota['username'],
-                        email=user_quota['email'],
-                        role=user_quota['role'],
-                        quotas=quota_list
-                    ))
-                return UserQuotaList(items=items)
-            
-            # Single result, return directly
-            user_quota = all_user_quotas[0]
-            quota_list = _convert_quota_dict_to_list(user_quota['quotas'])
-            
-            return UserQuotaInfo(
-                user_id=user_quota['user_id'],
-                username=user_quota['username'],
-                email=user_quota['email'],
-                role=user_quota['role'],
-                quotas=quota_list
-            )
-        
+            items = []
+            for user_quota in all_user_quotas:
+                quota_list = _convert_quota_dict_to_list(user_quota['quotas'])
+                items.append(UserQuotaInfo(
+                    user_id=user_quota['user_id'],
+                    username=user_quota['username'],
+                    email=user_quota['email'],
+                    role=user_quota['role'],
+                    quotas=quota_list
+                ))
+            return UserQuotaList(items=items)
         elif user_id:
             # Admin only - get specific user's quotas
             if current_user.role != Role.ADMIN:
