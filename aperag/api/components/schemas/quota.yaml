@@ -70,29 +70,36 @@ userQuotaList:
 
 quotaUpdateRequest:
   type: object
-  description: Request to update user quota
+  description: Request to update user quotas (supports both single and batch updates)
   properties:
-    quota_type:
-      type: string
-      description: Type of quota to update
-      example: "max_collection_count"
-      enum:
-        - "max_collection_count"
-        - "max_document_count"
-        - "max_document_count_per_collection"
-        - "max_bot_count"
-    new_limit:
+    max_collection_count:
       type: integer
-      description: New quota limit
-      example: 20
+      description: New limit for collection count
       minimum: 0
-  required:
-    - quota_type
-    - new_limit
+      nullable: true
+    max_document_count:
+      type: integer
+      description: New limit for document count
+      minimum: 0
+      nullable: true
+    max_document_count_per_collection:
+      type: integer
+      description: New limit for documents per collection
+      minimum: 0
+      nullable: true
+    max_bot_count:
+      type: integer
+      description: New limit for bot count
+      minimum: 0
+      nullable: true
+  example:
+    max_collection_count: 20
+    max_document_count: 2000
+    max_bot_count: 10
 
 quotaUpdateResponse:
   type: object
-  description: Response after updating user quota
+  description: Response after updating user quotas (supports both single and batch updates)
   properties:
     success:
       type: boolean
@@ -101,30 +108,39 @@ quotaUpdateResponse:
     message:
       type: string
       description: Status message
-      example: "Quota updated successfully"
+      example: "Quotas updated successfully"
     user_id:
       type: string
       description: User ID that was updated
       example: "user123"
-    quota_type:
-      type: string
-      description: Type of quota that was updated
-      example: "max_collection_count"
-    old_limit:
-      type: integer
-      description: Previous quota limit
-      example: 10
-    new_limit:
-      type: integer
-      description: New quota limit
-      example: 20
+    updated_quotas:
+      type: array
+      description: List of updated quotas
+      items:
+        type: object
+        properties:
+          quota_type:
+            type: string
+            description: Type of quota that was updated
+            example: "max_collection_count"
+          old_limit:
+            type: integer
+            description: Previous quota limit
+            example: 10
+          new_limit:
+            type: integer
+            description: New quota limit
+            example: 20
+        required:
+          - quota_type
+          - old_limit
+          - new_limit
   required:
     - success
     - message
     - user_id
-    - quota_type
-    - old_limit
-    - new_limit
+    - updated_quotas
+
 
 systemDefaultQuotas:
   type: object

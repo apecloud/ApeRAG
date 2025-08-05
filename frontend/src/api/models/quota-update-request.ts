@@ -15,32 +15,34 @@
 
 
 /**
- * Request to update user quota
+ * Request to update user quotas (supports both single and batch updates)
  * @export
  * @interface QuotaUpdateRequest
  */
 export interface QuotaUpdateRequest {
     /**
-     * Type of quota to update
-     * @type {string}
-     * @memberof QuotaUpdateRequest
-     */
-    'quota_type': QuotaUpdateRequestQuotaTypeEnum;
-    /**
-     * New quota limit
+     * New limit for collection count
      * @type {number}
      * @memberof QuotaUpdateRequest
      */
-    'new_limit': number;
+    'max_collection_count'?: number;
+    /**
+     * New limit for document count
+     * @type {number}
+     * @memberof QuotaUpdateRequest
+     */
+    'max_document_count'?: number;
+    /**
+     * New limit for documents per collection
+     * @type {number}
+     * @memberof QuotaUpdateRequest
+     */
+    'max_document_count_per_collection'?: number;
+    /**
+     * New limit for bot count
+     * @type {number}
+     * @memberof QuotaUpdateRequest
+     */
+    'max_bot_count'?: number;
 }
-
-export const QuotaUpdateRequestQuotaTypeEnum = {
-    max_collection_count: 'max_collection_count',
-    max_document_count: 'max_document_count',
-    max_document_count_per_collection: 'max_document_count_per_collection',
-    max_bot_count: 'max_bot_count'
-} as const;
-
-export type QuotaUpdateRequestQuotaTypeEnum = typeof QuotaUpdateRequestQuotaTypeEnum[keyof typeof QuotaUpdateRequestQuotaTypeEnum];
-
 

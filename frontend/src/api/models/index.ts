@@ -98,6 +98,7 @@ export * from './prompt-template-list';
 export * from './quota-info';
 export * from './quota-update-request';
 export * from './quota-update-response';
+export * from './quota-update-response-updated-quotas-inner';
 export * from './quotas-get200-response';
 export * from './quotas-user-id-recalculate-post200-response';
 export * from './rebuild-indexes-request';

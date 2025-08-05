@@ -13,9 +13,12 @@
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { QuotaUpdateResponseUpdatedQuotasInner } from './quota-update-response-updated-quotas-inner';
 
 /**
- * Response after updating user quota
+ * Response after updating user quotas (supports both single and batch updates)
  * @export
  * @interface QuotaUpdateResponse
  */
@@ -39,22 +42,10 @@ export interface QuotaUpdateResponse {
      */
     'user_id': string;
     /**
-     * Type of quota that was updated
-     * @type {string}
+     * List of updated quotas
+     * @type {Array<QuotaUpdateResponseUpdatedQuotasInner>}
      * @memberof QuotaUpdateResponse
      */
-    'quota_type': string;
-    /**
-     * Previous quota limit
-     * @type {number}
-     * @memberof QuotaUpdateResponse
-     */
-    'old_limit': number;
-    /**
-     * New quota limit
-     * @type {number}
-     * @memberof QuotaUpdateResponse
-     */
-    'new_limit': number;
+    'updated_quotas': Array<QuotaUpdateResponseUpdatedQuotasInner>;
 }
 

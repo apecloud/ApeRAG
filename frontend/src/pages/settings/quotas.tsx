@@ -1,7 +1,7 @@
-import { QuotaInfo, UserQuotaInfo, UserQuotaList, SystemDefaultQuotas, SystemDefaultQuotasResponse } from '@/api';
+import { QuotaInfo, UserQuotaInfo, UserQuotaList, SystemDefaultQuotas, SystemDefaultQuotasResponse, QuotaUpdateRequest } from '@/api';
 import { PageContainer, PageHeader, RefreshButton } from '@/components';
 import { quotasApi } from '@/services';
-import { EditOutlined, ReloadOutlined, SettingOutlined, SearchOutlined, ClearOutlined } from '@ant-design/icons';
+import { EditOutlined, ReloadOutlined, SettingOutlined, SearchOutlined, ClearOutlined, SaveOutlined, CloseOutlined } from '@ant-design/icons';
 import { 
   Button, 
   Card, 
@@ -12,16 +12,21 @@ import {
   Modal, 
   Progress, 
   Row, 
-  Select, 
   Table, 
   TableProps, 
   Typography, 
   message,
   Tabs,
-  Space 
+  Space,
+  Alert 
 } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { FormattedMessage, useIntl, useModel } from 'umi';
+
+interface EditableQuotaInfo extends QuotaInfo {
+  editable?: boolean;
+  originalLimit?: number;
+}
 
 export default () => {
   const { formatMessage } = useIntl();
@@ -33,21 +38,23 @@ export default () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [searchLoading, setSearchLoading] = useState<boolean>(false);
   const [systemQuotasLoading, setSystemQuotasLoading] = useState<boolean>(false);
-  const [editModalVisible, setEditModalVisible] = useState<boolean>(false);
   const [systemQuotasModalVisible, setSystemQuotasModalVisible] = useState<boolean>(false);
-  const [editingUser, setEditingUser] = useState<UserQuotaInfo>();
   const [searchValue, setSearchValue] = useState<string>('');
-  const [form] = Form.useForm();
   const [systemQuotasForm] = Form.useForm();
+  
+  // 表格编辑模式状态
+  const [isTableEditMode, setIsTableEditMode] = useState<boolean>(false);
+  const [editableQuotas, setEditableQuotas] = useState<EditableQuotaInfo[]>([]);
+  const [updateLoading, setUpdateLoading] = useState<boolean>(false);
 
   const isAdmin = (userModel as any)?.user?.role === 'admin';
 
   const getQuotaTypeName = (quotaType: string) => {
     const typeMap: Record<string, string> = {
-      'max_collection_count': formatMessage({ id: 'quota.max_collection_count' }),
-      'max_document_count': formatMessage({ id: 'quota.max_document_count' }),
-      'max_document_count_per_collection': formatMessage({ id: 'quota.max_document_count_per_collection' }),
-      'max_bot_count': formatMessage({ id: 'quota.max_bot_count' }),
+      'max_collection_count': formatMessage({ id: 'quota.collection_count' }),
+      'max_document_count': formatMessage({ id: 'quota.document_count_overall' }),
+      'max_document_count_per_collection': formatMessage({ id: 'quota.document_count_per_collection' }),
+      'max_bot_count': formatMessage({ id: 'quota.bot_count' }),
     };
     return typeMap[quotaType] || quotaType;
   };
@@ -73,22 +80,17 @@ export default () => {
     }
 
     setSearchLoading(true);
-    // Clear previous search result immediately when starting new search
     setSearchedUserQuota(undefined);
     setSearchResults(undefined);
     
     try {
-      // Search by username, email, or user ID
       const res = await quotasApi.quotasGet({ search: searchTerm });
       const data = res.data;
       
-      // Check if it's a single user or multiple users
       if ((data as UserQuotaList).items) {
-        // Multiple results
         const userList = data as UserQuotaList;
         setSearchResults(userList.items);
       } else {
-        // Single result
         const userQuota = data as UserQuotaInfo;
         setSearchedUserQuota(userQuota);
       }
@@ -116,6 +118,8 @@ export default () => {
     setSearchValue('');
     setSearchedUserQuota(undefined);
     setSearchResults(undefined);
+    setIsTableEditMode(false);
+    setEditableQuotas([]);
   };
 
   const handleSelectUser = async (userId: string) => {
@@ -124,41 +128,10 @@ export default () => {
       const userQuota = res.data as UserQuotaInfo;
       setSearchedUserQuota(userQuota);
       setSearchResults(undefined);
+      setIsTableEditMode(false);
+      setEditableQuotas([]);
     } catch (error) {
       message.error(formatMessage({ id: 'quota.fetch_error' }));
-    }
-  };
-
-  const handleEditQuota = (user: UserQuotaInfo) => {
-    setEditingUser(user);
-    setEditModalVisible(true);
-    form.resetFields();
-  };
-
-  const handleUpdateQuota = async (values: { quota_type: string; new_limit: number }) => {
-    if (!editingUser) return;
-
-    try {
-      await quotasApi.quotasUserIdPut({
-        userId: editingUser.user_id,
-        quotaUpdateRequest: {
-          quota_type: values.quota_type as any,
-          new_limit: values.new_limit
-        }
-      });
-      message.success(formatMessage({ id: 'quota.update_success' }));
-      setEditModalVisible(false);
-      
-      // Refresh the data
-      if (searchedUserQuota && searchedUserQuota.user_id === editingUser.user_id) {
-        // If we're viewing a searched user, refresh their data
-        searchUserQuotas(searchValue);
-      } else {
-        // Otherwise refresh current user data
-        getCurrentUserQuotas();
-      }
-    } catch (error) {
-      message.error(formatMessage({ id: 'quota.update_error' }));
     }
   };
 
@@ -167,19 +140,88 @@ export default () => {
       await quotasApi.quotasUserIdRecalculatePost({
         userId: userId
       });
-      message.success(formatMessage({ id: 'quota.recalculate_success' }));
+      message.success(formatMessage({ id: 'quota.recalculate.success' }));
       
-      // Refresh the data
       if (searchedUserQuota && searchedUserQuota.user_id === userId) {
-        // If we're viewing a searched user, refresh their data
         searchUserQuotas(searchValue);
       } else {
-        // Otherwise refresh current user data
         getCurrentUserQuotas();
       }
     } catch (error) {
       message.error(formatMessage({ id: 'quota.recalculate_error' }));
     }
+  };
+
+  // 进入表格编辑模式
+  const enterTableEditMode = (user: UserQuotaInfo) => {
+    const editableData = user.quotas.map(quota => ({
+      ...quota,
+      editable: true,
+      originalLimit: quota.quota_limit
+    }));
+    setEditableQuotas(editableData);
+    setIsTableEditMode(true);
+  };
+
+  // 退出表格编辑模式
+  const exitTableEditMode = () => {
+    setIsTableEditMode(false);
+    setEditableQuotas([]);
+  };
+
+  // 保存更改
+  const handleSave = async () => {
+    const displayUser = searchedUserQuota || currentUserQuota;
+    if (!displayUser) return;
+
+    setUpdateLoading(true);
+    try {
+      // 构建更新请求
+      const quotaUpdates: any = {};
+      editableQuotas.forEach(quota => {
+        if (quota.quota_limit !== quota.originalLimit) {
+          quotaUpdates[quota.quota_type] = quota.quota_limit;
+        }
+      });
+
+      // 如果没有更改，直接退出编辑模式
+      if (Object.keys(quotaUpdates).length === 0) {
+        exitTableEditMode();
+        return;
+      }
+
+      const request: QuotaUpdateRequest = quotaUpdates;
+
+      await quotasApi.quotasUserIdPut({
+        userId: displayUser.user_id,
+        quotaUpdateRequest: request
+      });
+
+      message.success(formatMessage({ id: 'quota.update.success' }));
+      exitTableEditMode();
+      
+      // 刷新数据
+      if (searchedUserQuota) {
+        searchUserQuotas(searchValue);
+      } else {
+        getCurrentUserQuotas();
+      }
+    } catch (error) {
+      message.error(formatMessage({ id: 'quota.update_error' }));
+    } finally {
+      setUpdateLoading(false);
+    }
+  };
+
+  // 更新可编辑配额的值
+  const updateEditableQuota = (quotaType: string, newLimit: number) => {
+    setEditableQuotas(prev => 
+      prev.map(quota => 
+        quota.quota_type === quotaType 
+          ? { ...quota, quota_limit: newLimit }
+          : quota
+      )
+    );
   };
 
   const getSystemDefaultQuotas = useCallback(async () => {
@@ -219,8 +261,7 @@ export default () => {
     }
   };
 
-
-  const userQuotaColumns: TableProps<QuotaInfo>['columns'] = [
+  const userQuotaColumns: TableProps<EditableQuotaInfo>['columns'] = [
     {
       title: formatMessage({ id: 'quota.name' }),
       dataIndex: 'quota_type',
@@ -230,6 +271,23 @@ export default () => {
       title: formatMessage({ id: 'quota.max_limit' }),
       dataIndex: 'quota_limit',
       align: 'right',
+      render: (value: number, record: EditableQuotaInfo) => {
+        if (isTableEditMode && record.editable) {
+          return (
+            <InputNumber
+              value={value}
+              min={0}
+              style={{ width: '100%' }}
+              onChange={(newValue) => {
+                if (newValue !== null) {
+                  updateEditableQuota(record.quota_type, newValue);
+                }
+              }}
+            />
+          );
+        }
+        return value;
+      },
     },
     {
       title: formatMessage({ id: 'quota.current_usage' }),
@@ -334,8 +392,6 @@ export default () => {
   );
 
   const renderUserQuotasTab = () => {
-    // Determine which user data to display
-    // If admin is searching and has search value but no search result, don't show any user
     const shouldShowUser = isAdmin ? 
       (searchValue ? !!searchedUserQuota : !!currentUserQuota) : 
       !!currentUserQuota;
@@ -344,7 +400,7 @@ export default () => {
 
     return (
       <div>
-        {/* Search bar for admin users */}
+        {/* 管理员搜索栏 */}
         {isAdmin && (
           <Card style={{ marginBottom: 16 }}>
             <Space.Compact style={{ width: '100%' }}>
@@ -382,8 +438,7 @@ export default () => {
           </Card>
         )}
 
-
-        {/* Multiple search results selection */}
+        {/* 多个搜索结果选择 */}
         {searchResults && searchResults.length > 0 && (
           <Card 
             title={formatMessage({ id: 'quota.search_results' })}
@@ -434,10 +489,10 @@ export default () => {
           </Card>
         )}
 
-        {/* User quota display */}
+        {/* 用户配额显示 */}
         {shouldShowUser && displayUser && (
           <div>
-            {/* User Information Card */}
+            {/* 用户信息卡片 */}
             <Card 
               title={formatMessage({ id: 'quota.user_info' })}
               style={{ marginBottom: 16 }}
@@ -474,28 +529,59 @@ export default () => {
               </Row>
             </Card>
 
-            {/* Quota Information Card */}
+            {/* 表格编辑模式提示 */}
+            {isTableEditMode && (
+              <Alert
+                message={formatMessage({ id: 'quota.table_edit_mode' })}
+                description={formatMessage({ id: 'quota.table_edit_tip' })}
+                type="info"
+                showIcon
+                style={{ marginBottom: 16 }}
+              />
+            )}
+
+            {/* 配额信息卡片 */}
             <Card 
               title={formatMessage({ id: 'quota.quota_info' })}
               extra={
                 isAdmin && displayUser && (
                   <Space>
-                    <Button
-                      type="link"
-                      size="small"
-                      icon={<EditOutlined />}
-                      onClick={() => handleEditQuota(displayUser)}
-                    >
-                      <FormattedMessage id="action.edit" />
-                    </Button>
-                    <Button
-                      type="link"
-                      size="small"
-                      icon={<ReloadOutlined />}
-                      onClick={() => handleRecalculateUsage(displayUser.user_id)}
-                    >
-                      <FormattedMessage id="quota.recalculate" />
-                    </Button>
+                    {isTableEditMode ? (
+                      <>
+                        <Button
+                          type="primary"
+                          icon={<SaveOutlined />}
+                          onClick={handleSave}
+                          loading={updateLoading}
+                        >
+                          <FormattedMessage id="quota.save_changes" />
+                        </Button>
+                        <Button
+                          icon={<CloseOutlined />}
+                          onClick={exitTableEditMode}
+                        >
+                          <FormattedMessage id="quota.cancel_edit" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          type="primary"
+                          icon={<EditOutlined />}
+                          onClick={() => enterTableEditMode(displayUser)}
+                        >
+                          <FormattedMessage id="action.edit" />
+                        </Button>
+                        <Button
+                          type="link"
+                          size="small"
+                          icon={<ReloadOutlined />}
+                          onClick={() => handleRecalculateUsage(displayUser.user_id)}
+                        >
+                          <FormattedMessage id="quota.recalculate" />
+                        </Button>
+                      </>
+                    )}
                   </Space>
                 )
               }
@@ -504,7 +590,7 @@ export default () => {
                 rowKey="quota_type"
                 bordered
                 columns={userQuotaColumns}
-                dataSource={displayUser.quotas}
+                dataSource={isTableEditMode ? editableQuotas : displayUser.quotas}
                 loading={loading || searchLoading}
                 pagination={false}
                 size="middle"
@@ -513,7 +599,7 @@ export default () => {
           </div>
         )}
 
-        {/* No data state */}
+        {/* 无数据状态 */}
         {!shouldShowUser && !searchResults && !loading && !searchLoading && (
           <Card>
             <div style={{ textAlign: 'center', padding: 40 }}>
@@ -567,55 +653,6 @@ export default () => {
       ) : (
         renderUserQuotasTab()
       )}
-
-      <Modal
-        title={formatMessage({ id: 'quota.edit_quota' })}
-        open={editModalVisible}
-        onCancel={() => setEditModalVisible(false)}
-        onOk={() => form.submit()}
-        destroyOnClose
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleUpdateQuota}
-        >
-          <Form.Item
-            name="quota_type"
-            label={formatMessage({ id: 'quota.type' })}
-            rules={[{ required: true }]}
-          >
-            <Select placeholder={formatMessage({ id: 'quota.select_type' })}>
-              <Select.Option value="max_collection_count">
-                {getQuotaTypeName('max_collection_count')}
-              </Select.Option>
-              <Select.Option value="max_document_count">
-                {getQuotaTypeName('max_document_count')}
-              </Select.Option>
-              <Select.Option value="max_document_count_per_collection">
-                {getQuotaTypeName('max_document_count_per_collection')}
-              </Select.Option>
-              <Select.Option value="max_bot_count">
-                {getQuotaTypeName('max_bot_count')}
-              </Select.Option>
-            </Select>
-          </Form.Item>
-          <Form.Item
-            name="new_limit"
-            label={formatMessage({ id: 'quota.new_limit' })}
-            rules={[
-              { required: true },
-              { type: 'number', min: 0 }
-            ]}
-          >
-            <InputNumber
-              min={0}
-              style={{ width: '100%' }}
-              placeholder={formatMessage({ id: 'quota.enter_new_limit' })}
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
 
       <Modal
         title={formatMessage({ id: 'quota.edit_system_defaults' })}

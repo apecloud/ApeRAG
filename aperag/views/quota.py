@@ -147,34 +147,28 @@ async def update_quota(
     request: QuotaUpdateRequest,
     current_user: User = Depends(current_user)
 ):
-    """Update quota limit for a specific user (admin only)"""
+    """Update quota limits for a specific user (admin only) - supports both single and batch updates"""
     try:
         # Only admin users can update quotas
         if current_user.role != Role.ADMIN:
             raise HTTPException(status_code=403, detail="Admin access required")
         
-        # Get current quota to return old limit
-        user_quotas = await quota_service.get_user_quotas(user_id)
-        old_limit = user_quotas.get(request.quota_type, {}).get('quota_limit', 0)
+        # Convert request to dict format for the service
+        quota_updates = {}
+        for field_name, field_value in request.dict().items():
+            if field_value is not None:
+                quota_updates[field_name] = field_value
         
-        # Update the quota
-        success = await quota_service.update_user_quota(
+        if not quota_updates:
+            raise HTTPException(status_code=400, detail="No quota updates provided")
+        
+        # Update the quotas using the service
+        result = await quota_service.update_user_quota(
             user_id=user_id,
-            quota_type=request.quota_type,
-            new_limit=request.new_limit
+            quota_updates=quota_updates
         )
         
-        if not success:
-            raise HTTPException(status_code=400, detail="Failed to update quota")
-        
-        return QuotaUpdateResponse(
-            success=True,
-            message="Quota updated successfully",
-            user_id=user_id,
-            quota_type=request.quota_type,
-            old_limit=old_limit,
-            new_limit=request.new_limit
-        )
+        return QuotaUpdateResponse(**result)
         
     except HTTPException:
         raise

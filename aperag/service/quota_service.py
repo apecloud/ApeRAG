@@ -102,39 +102,59 @@ class QuotaService:
         
         return await self.db_ops._execute_query(_query)
 
-    async def update_user_quota(self, user_id: str, quota_type: str, new_limit: int) -> bool:
-        """Update quota limit for a user."""
+    async def update_user_quota(self, user_id: str, quota_updates: Dict[str, int]) -> Dict[str, any]:
+        """Update quota limits for a user (supports both single and batch updates)."""
         async def _operation(session):
             from aperag.db.models import UserQuota
             from sqlalchemy import select
             from aperag.utils.utils import utc_now
             
-            stmt = select(UserQuota).where(
-                UserQuota.user == user_id,
-                UserQuota.key == quota_type
-            )
-            result = await session.execute(stmt)
-            quota = result.scalars().first()
+            updated_quotas = []
             
-            if not quota:
-                # Create new quota if it doesn't exist
-                quota = UserQuota(
-                    user=user_id,
-                    key=quota_type,
-                    quota_limit=new_limit,
-                    current_usage=0,
-                    gmt_created=utc_now(),
-                    gmt_updated=utc_now()
+            for quota_type, new_limit in quota_updates.items():
+                if new_limit is None:
+                    continue  # Skip null values
+                    
+                stmt = select(UserQuota).where(
+                    UserQuota.user == user_id,
+                    UserQuota.key == quota_type
                 )
-                session.add(quota)
-            else:
-                quota.quota_limit = new_limit
-                quota.gmt_updated = utc_now()
+                result = await session.execute(stmt)
+                quota = result.scalars().first()
+                
+                old_limit = 0
+                if not quota:
+                    # Create new quota if it doesn't exist
+                    quota = UserQuota(
+                        user=user_id,
+                        key=quota_type,
+                        quota_limit=new_limit,
+                        current_usage=0,
+                        gmt_created=utc_now(),
+                        gmt_updated=utc_now()
+                    )
+                    session.add(quota)
+                else:
+                    old_limit = quota.quota_limit
+                    quota.quota_limit = new_limit
+                    quota.gmt_updated = utc_now()
+                
+                updated_quotas.append({
+                    'quota_type': quota_type,
+                    'old_limit': old_limit,
+                    'new_limit': new_limit
+                })
             
             await session.flush()
-            return True
+            return {
+                "success": True,
+                "message": "Quotas updated successfully",
+                "user_id": user_id,
+                "updated_quotas": updated_quotas
+            }
         
         return await self.db_ops.execute_with_transaction(_operation)
+
 
     async def recalculate_user_usage(self, user_id: str) -> Dict[str, int]:
         """Recalculate actual usage for all quotas of a user."""
