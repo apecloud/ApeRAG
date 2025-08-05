@@ -7,16 +7,16 @@ import { FormattedMessage, useModel } from 'umi';
 
 type ModelSelectProps = {
   model: 'embedding' | 'completion' | 'rerank';
-  tagFilters?: any[]; // Optional tag filters for this model select
+  tagfilters?: any[]; // Optional tag filters for this model select
 };
 
 export const ModelSelect = (props: SelectProps & ModelSelectProps) => {
   const { token } = theme.useToken();
   const { availableModels, getProviderByModelName } = useModel('models');
 
-  // Filter models based on tagFilters if provided
-  const filterModelsByTags = (models: any[], tagFilters?: any[]) => {
-    if (!tagFilters || tagFilters.length === 0) {
+  // Filter models based on tagfilters if provided
+  const filterModelsByTags = (models: any[], tagfilters?: any[]) => {
+    if (!tagfilters || tagfilters.length === 0) {
       return models;
     }
 
@@ -26,7 +26,7 @@ export const ModelSelect = (props: SelectProps & ModelSelectProps) => {
       }
 
       // Apply tag filters logic
-      return tagFilters.some((filter) => {
+      return tagfilters.some((filter) => {
         const { operation, tags } = filter;
         if (operation === 'OR') {
           return tags.some((tag: string) => model.tags.includes(tag));
@@ -42,7 +42,7 @@ export const ModelSelect = (props: SelectProps & ModelSelectProps) => {
     () =>
       _.map(availableModels, (provider) => {
         const models = provider[props.model] || [];
-        const filteredModels = filterModelsByTags(models, props.tagFilters);
+        const filteredModels = filterModelsByTags(models, props.tagfilters);
 
         return {
           label: (
@@ -65,7 +65,7 @@ export const ModelSelect = (props: SelectProps & ModelSelectProps) => {
           }),
         };
       }).filter((item) => !_.isEmpty(item.options)),
-    [availableModels, props.model, props.tagFilters],
+    [availableModels, props.model, props.tagfilters],
   );
 
   const { provider } = getProviderByModelName(props.value, props.model);

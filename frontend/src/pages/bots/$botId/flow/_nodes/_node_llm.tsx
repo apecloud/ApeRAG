@@ -95,7 +95,7 @@ export const ApeNodeLlm = ({ node }: { node: ApeNode }) => {
                         );
                         applyChanges();
                       }}
-                      tagFilters={[
+                      tagfilters={[
                         {
                           operation: 'OR',
                           tags: ['enable_for_agent'],

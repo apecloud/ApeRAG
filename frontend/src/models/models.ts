@@ -9,11 +9,11 @@ export default () => {
   const [availableModels, setAvailableModels] = useState<ModelConfig[]>([]);
 
   // get available models with optional tag filtering
-  const getAvailableModels = async (tagFilters?: any[]) => {
+  const getAvailableModels = async (tagfilters?: any[]) => {
     setLoading(true);
     const requestParameters =
-      tagFilters && tagFilters.length > 0
-        ? { tagFilterRequest: { tag_filters: tagFilters } }
+      tagfilters && tagfilters.length > 0
+        ? { tagFilterRequest: { tag_filters: tagfilters } }
         : {};
     const res = await api.availableModelsPost(requestParameters);
     setLoading(false);
