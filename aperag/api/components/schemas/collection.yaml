@@ -291,6 +291,74 @@ collection:
     updated:
       type: string
       format: date-time
+    is_published:
+      type: boolean
+      description: Whether the collection is published to marketplace
+      default: false
+    published_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: Publication time, null when not published
+
+collectionView:
+  type: object
+  description: Lightweight collection information for lists, MCP and agents
+  properties:
+    id:
+      type: string
+    title:
+      type: string
+    description:
+      type: string
+    type:
+      type: string
+    status:
+      type: string
+      enum:
+        - ACTIVE
+        - INACTIVE
+        - DELETED
+    created:
+      type: string
+      format: date-time
+    updated:
+      type: string
+      format: date-time
+    is_published:
+      type: boolean
+      default: false
+    published_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: Publication time, null when not published
+    owner_user_id:
+      type: string
+      description: Collection owner user ID
+    owner_username:
+      type: string
+      description: Collection owner username
+    subscription_id:
+      type: string
+      nullable: true
+      description: Subscription ID if this is a subscribed collection, null for owned collections
+    subscribed_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: Subscription time, null for owned collections
+
+collectionViewList:
+  type: object
+  description: A list of collection views
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/collectionView'
+    pageResult:
+      $ref: './common.yaml#/pageResult'
 
 collectionList:
   type: object
@@ -360,6 +428,16 @@ searchRequest:
       $ref: '#/graphSearchParams'
     summary_search:
       $ref: '#/summarySearchParams'
+    save_to_history:
+      type: boolean
+      description: Whether to save search result to database history
+      default: false
+      example: true
+    rerank:
+      type: boolean
+      description: Whether to enable rerank for search results
+      default: false
+      example: true
 
 searchResultItem:
   type: object

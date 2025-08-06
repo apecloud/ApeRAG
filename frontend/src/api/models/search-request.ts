@@ -62,5 +62,17 @@ export interface SearchRequest {
      * @memberof SearchRequest
      */
     'summary_search'?: SummarySearchParams;
+    /**
+     * Whether to save search result to database history
+     * @type {boolean}
+     * @memberof SearchRequest
+     */
+    'save_to_history'?: boolean;
+    /**
+     * Whether to enable rerank for search results
+     * @type {boolean}
+     * @memberof SearchRequest
+     */
+    'rerank'?: boolean;
 }
 

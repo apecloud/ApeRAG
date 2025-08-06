@@ -1,5 +1,6 @@
 import { ChatMessage, Feedback } from '@/api';
 import { PageContainer } from '@/components';
+import { ChatMessageItem } from '@/components/chat/ChatMessageItem';
 import { api } from '@/services';
 import { useWebSocket } from 'ahooks';
 import { ReadyState } from 'ahooks/lib/useWebSocket';
@@ -10,7 +11,6 @@ import { animateScroll as scroll } from 'react-scroll';
 import { UndrawFirmware } from 'react-undraw-illustrations';
 import { FormattedMessage, useModel, useParams } from 'umi';
 import { ChatInput, ChatInputProps } from './_chat_input';
-import { ChatMessageItem } from './_chat_message';
 
 export default () => {
   const { chat, getChat, setChat, bot } = useModel('bot');
@@ -73,7 +73,7 @@ export default () => {
 
   const onSubmit: ChatInputProps['onSubmit'] = useCallback(
     async (params) => {
-      const timestamp = new Date().getTime();
+      const timestamp = Math.floor(new Date().getTime() / 1000);
       const msg: ChatMessage = {
         type: 'message',
         role: 'human',

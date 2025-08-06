@@ -51,7 +51,7 @@ You are an advanced AI research assistant powered by ApeRAG's hybrid search capa
 - `list_collections()`: Discover available knowledge sources
 - `search_collection(collection_id, query, ...)`: Hybrid search within collections
 
-### Web Intelligence  
+### Web Intelligence
 - `web_search(query, ...)`: Multi-engine web search with domain targeting
 - `web_read(url_list, ...)`: Extract and analyze web content
 
@@ -67,11 +67,8 @@ Structure your responses as:
 [Detailed explanation with context and insights]
 
 ## Sources
-**User-Specified Collections** (if any):
-- @[Collection]: [Key findings]
-
-**Additional Collections**:
-- [Collection]: [Relevance and insights]
+- [User-Specified Collections Name(if any)]: [Key findings]
+- [Additional Collections Name(if any)]: [Key findings]
 
 **Web Sources** (if enabled):
 - [Title] ([Domain]) - [Key points]
@@ -92,6 +89,8 @@ Structure your responses as:
 - **Web Search Respect**: Only use when explicitly enabled in session
 - **Transparent Expansion**: Clearly explain when searching beyond user specifications
 - **Comprehensive Coverage**: Use all available tools to ensure complete information gathering
+- **Content Discernment**: Collection search may yield irrelevant results. Critically evaluate all findings and silently ignore any off-topic information. **Never mention what information you have disregarded.**
+- **Result Citation**: When referencing content from a collection, always cite using the collection's **title/name** rather than ID. If you are referencing an image, embed it directly using the Markdown format `![alt text](url)`.
 """
 
 # ApeRAG Agent System Prompt - Chinese Version
@@ -144,11 +143,8 @@ APERAG_AGENT_INSTRUCTION_ZH = """
 [包含上下文和见解的详细解释]
 
 ## 支持证据
-**用户指定知识库**（如有）：
-- @[知识库]：[关键发现]
-
-**其他知识库**：
-- [知识库]：[相关性和见解]
+- [用户@的知识库（如有）]：[关键发现]
+- [其他知识库（如有）]：[关键发现]
 
 **网络来源**（如启用）：
 - [标题]（[域名]）- [要点]
@@ -169,6 +165,8 @@ APERAG_AGENT_INSTRUCTION_ZH = """
 - **网络搜索尊重**：仅在会话中明确启用时使用
 - **透明扩展**：在超出用户规范搜索时清楚解释
 - **全面覆盖**：使用所有可用工具确保完整的信息收集
+- **内容甄别**：知识库搜索可能返回无关内容，请仔细甄别并忽略。**切勿在回复中提及任何被忽略的信息。**
+- **结果引用**：引用知识库内容时，始终使用知识库的**标题/名称**而非ID。如引用图片，请使用 Markdown 图片格式 `![alt text](url)` 直接展示。
 """
 
 
@@ -229,33 +227,19 @@ def build_agent_query_prompt(agent_message: view_models.AgentMessage, user: str,
     # Determine collection context
     if agent_message.collections:
         if language == "zh-CN":
-            collection_context = ", ".join(
-                [
-                    " ".join(
-                        [
-                            f"知识库标题={c.title}" if c.title else "",
-                            f"知识库ID={c.id}" if c.id else "",
-                        ]
-                    ).strip()
-                    for c in agent_message.collections
-                ]
-            )
-            collection_instruction = "优先级：首先搜索这些知识库，然后决定是否需要额外来源"
+            collection_list = []
+            for c in agent_message.collections:
+                title = c.title or f"知识库{c.id}"
+                collection_list.append(f"- {title} (ID: {c.id})")
+            collection_context = "\n".join(collection_list)
+            collection_instruction = "优先级：首先搜索这些用户指定的知识库"
         else:
-            collection_context = ", ".join(
-                [
-                    " ".join(
-                        [
-                            f"collection_title={c.title}" if c.title else "",
-                            f"collection_id={c.id}" if c.id else "",
-                        ]
-                    ).strip()
-                    for c in agent_message.collections
-                ]
-            )
-            collection_instruction = (
-                "PRIORITY: Search these collections first, then decide if additional sources are needed"
-            )
+            collection_list = []
+            for c in agent_message.collections:
+                title = c.title or f"Collection {c.id}"
+                collection_list.append(f"- {title} (ID: {c.id})")
+            collection_context = "\n".join(collection_list)
+            collection_instruction = "PRIORITY: Search these user-specified collections first"
     else:
         if language == "zh-CN":
             collection_context = "用户未指定"
@@ -294,6 +278,7 @@ def build_agent_query_prompt(agent_message: view_models.AgentMessage, user: str,
 5. 如果启用且相关，战略性地使用网络搜索
 6. 提供全面、结构良好的回应，并清楚标注来源
 7. 在回应中区分用户指定和额外的来源
+8. **重要**：引用知识库时，使用知识库名称而非ID
 
 请提供一个彻底、经过充分研究的答案，基于以上上下文充分利用所有适当的搜索工具。"""
     else:
@@ -305,12 +290,13 @@ def build_agent_query_prompt(agent_message: view_models.AgentMessage, user: str,
 
 **Research Instructions**:
 1. LANGUAGE PRIORITY: Respond in the language the user is asking in, not the language of the content
-2. If user specified collections (@mentions), search those first (REQUIRED)  
+2. If user specified collections (@mentions), search those first (REQUIRED)
 3. Use appropriate search keywords in multiple languages when beneficial
 4. Assess result quality and decide if additional collections are needed
 5. Use web search strategically if enabled and relevant
 6. Provide comprehensive, well-structured response with clear source attribution
 7. Distinguish between user-specified and additional sources in your response
+8. **IMPORTANT**: When citing collections, use collection names not IDs
 
 Please provide a thorough, well-researched answer that leverages all appropriate search tools based on the context above."""
 

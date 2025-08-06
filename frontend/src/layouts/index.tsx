@@ -39,6 +39,8 @@ const config: {
   ),
   '/collections(/*)': <Layout />,
 
+  '/marketplace(/*)': <Layout />,
+
   '/settings(/*)': <Layout navbar={<NavbarSettings />} />,
 
   '*': <Layout auth={false} sidebar={false} />,

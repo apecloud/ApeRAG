@@ -15,28 +15,18 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { Collection } from './collection';
+import type { QuotaInfo } from './quota-info';
 // May contain unused imports in some cases
 // @ts-ignore
-import type { PageResult } from './page-result';
+import type { UserQuotaInfo } from './user-quota-info';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { UserQuotaList } from './user-quota-list';
 
 /**
- * A list of collections
+ * @type QuotasGet200Response
  * @export
- * @interface CollectionList
  */
-export interface CollectionList {
-    /**
-     * 
-     * @type {Array<Collection>}
-     * @memberof CollectionList
-     */
-    'items'?: Array<Collection>;
-    /**
-     * 
-     * @type {PageResult}
-     * @memberof CollectionList
-     */
-    'pageResult'?: PageResult;
-}
+export type QuotasGet200Response = UserQuotaInfo | UserQuotaList;
+
 

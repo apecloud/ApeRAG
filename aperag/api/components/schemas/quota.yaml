@@ -1,0 +1,210 @@
+quotaInfo:
+  type: object
+  description: Quota information for a specific quota type
+  properties:
+    quota_type:
+      type: string
+      description: Type of quota
+      example: "max_collection_count"
+    quota_limit:
+      type: integer
+      description: Maximum allowed usage
+      example: 10
+    current_usage:
+      type: integer
+      description: Current usage count
+      example: 3
+    remaining:
+      type: integer
+      description: Remaining quota available
+      example: 7
+  required:
+    - quota_type
+    - quota_limit
+    - current_usage
+    - remaining
+
+userQuotaInfo:
+  type: object
+  description: Complete quota information for a user
+  properties:
+    user_id:
+      type: string
+      description: User ID
+      example: "user123"
+    username:
+      type: string
+      description: Username
+      example: "john_doe"
+    email:
+      type: string
+      description: User email
+      example: "john@example.com"
+      nullable: true
+    role:
+      type: string
+      description: User role
+      example: "rw"
+    quotas:
+      type: array
+      description: List of quota information
+      items:
+        $ref: '#/quotaInfo'
+  required:
+    - user_id
+    - username
+    - role
+    - quotas
+
+userQuotaList:
+  type: object
+  description: List of user quota information (admin view)
+  properties:
+    items:
+      type: array
+      description: List of user quota information
+      items:
+        $ref: '#/userQuotaInfo'
+  required:
+    - items
+
+quotaUpdateRequest:
+  type: object
+  description: Request to update user quotas (supports both single and batch updates)
+  properties:
+    max_collection_count:
+      type: integer
+      description: New limit for collection count
+      minimum: 0
+      nullable: true
+    max_document_count:
+      type: integer
+      description: New limit for document count
+      minimum: 0
+      nullable: true
+    max_document_count_per_collection:
+      type: integer
+      description: New limit for documents per collection
+      minimum: 0
+      nullable: true
+    max_bot_count:
+      type: integer
+      description: New limit for bot count
+      minimum: 0
+      nullable: true
+  example:
+    max_collection_count: 20
+    max_document_count: 2000
+    max_bot_count: 10
+
+quotaUpdateResponse:
+  type: object
+  description: Response after updating user quotas (supports both single and batch updates)
+  properties:
+    success:
+      type: boolean
+      description: Whether the update was successful
+      example: true
+    message:
+      type: string
+      description: Status message
+      example: "Quotas updated successfully"
+    user_id:
+      type: string
+      description: User ID that was updated
+      example: "user123"
+    updated_quotas:
+      type: array
+      description: List of updated quotas
+      items:
+        type: object
+        properties:
+          quota_type:
+            type: string
+            description: Type of quota that was updated
+            example: "max_collection_count"
+          old_limit:
+            type: integer
+            description: Previous quota limit
+            example: 10
+          new_limit:
+            type: integer
+            description: New quota limit
+            example: 20
+        required:
+          - quota_type
+          - old_limit
+          - new_limit
+  required:
+    - success
+    - message
+    - user_id
+    - updated_quotas
+
+
+systemDefaultQuotas:
+  type: object
+  description: System default quota configuration
+  properties:
+    max_collection_count:
+      type: integer
+      description: Default maximum collection count
+      example: 10
+      minimum: 0
+    max_document_count:
+      type: integer
+      description: Default maximum document count
+      example: 1000
+      minimum: 0
+    max_document_count_per_collection:
+      type: integer
+      description: Default maximum documents per collection
+      example: 100
+      minimum: 0
+    max_bot_count:
+      type: integer
+      description: Default maximum bot count
+      example: 5
+      minimum: 0
+  required:
+    - max_collection_count
+    - max_document_count
+    - max_document_count_per_collection
+    - max_bot_count
+
+systemDefaultQuotasResponse:
+  type: object
+  description: Response containing system default quotas
+  properties:
+    quotas:
+      $ref: '#/systemDefaultQuotas'
+  required:
+    - quotas
+
+systemDefaultQuotasUpdateRequest:
+  type: object
+  description: Request to update system default quotas
+  properties:
+    quotas:
+      $ref: '#/systemDefaultQuotas'
+  required:
+    - quotas
+
+systemDefaultQuotasUpdateResponse:
+  type: object
+  description: Response after updating system default quotas
+  properties:
+    success:
+      type: boolean
+      description: Whether the update was successful
+      example: true
+    message:
+      type: string
+      description: Status message
+      example: "System default quotas updated successfully"
+    quotas:
+      $ref: '#/systemDefaultQuotas'
+  required:
+    - success
+    - message
+    - quotas

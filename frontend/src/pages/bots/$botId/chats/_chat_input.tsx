@@ -235,7 +235,7 @@ export const ChatInput = ({
                   style={{ width: 220 }}
                   value={modelName}
                   onChange={setModelName}
-                  tagFilters={[
+                  tagfilters={[
                     {
                       operation: 'OR',
                       tags: ['enable_for_agent'],

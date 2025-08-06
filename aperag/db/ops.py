@@ -33,6 +33,8 @@ from aperag.db.repositories.llm_provider import (
     AsyncLlmProviderRepositoryMixin,
     LlmProviderRepositoryMixin,
 )
+from aperag.db.repositories.marketplace import AsyncMarketplaceRepositoryMixin
+from aperag.db.repositories.marketplace_collection import AsyncMarketplaceCollectionRepositoryMixin
 from aperag.db.repositories.merge_suggestion import MergeSuggestionRepository
 from aperag.db.repositories.search import AsyncSearchRepositoryMixin
 from aperag.db.repositories.setting import (
@@ -66,6 +68,8 @@ class AsyncDatabaseOps(
     AsyncChatRepositoryMixin,
     AsyncUserRepositoryMixin,
     AsyncLlmProviderRepositoryMixin,
+    AsyncMarketplaceRepositoryMixin,
+    AsyncMarketplaceCollectionRepositoryMixin,
     AsyncSystemRepositoryMixin,
     AsyncSearchRepositoryMixin,
     MergeSuggestionRepository,

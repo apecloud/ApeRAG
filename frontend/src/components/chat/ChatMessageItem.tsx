@@ -35,11 +35,11 @@ import {
 } from 'antd';
 import _ from 'lodash';
 import moment from 'moment';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { BsRobot } from 'react-icons/bs';
 import { css, styled, useIntl } from 'umi';
 
-export const StyledMessage = styled('div').withConfig({
+const StyledMessage = styled('div').withConfig({
   shouldForwardProp: (prop) => !['isAi'].includes(prop),
 })<{ isAi: boolean }>`
   ${({ isAi }) => {
@@ -54,7 +54,7 @@ export const StyledMessage = styled('div').withConfig({
   }}
 `;
 
-export const StyledMessageAvatar = styled(Avatar).withConfig({
+const StyledMessageAvatar = styled(Avatar).withConfig({
   shouldForwardProp: (prop) => !['token'].includes(prop),
 })<{ token: GlobalToken }>`
   ${({ token }) => {
@@ -66,7 +66,7 @@ export const StyledMessageAvatar = styled(Avatar).withConfig({
   }}
 `;
 
-export const StyledMessageBody = styled('div')`
+const StyledMessageBody = styled('div')`
   ${() => {
     return css`
       max-width: 75%;
@@ -78,7 +78,7 @@ export const StyledMessageBody = styled('div')`
   }}
 `;
 
-export const StyledMessageContent = styled('div').withConfig({
+const StyledMessageContent = styled('div').withConfig({
   shouldForwardProp: (prop) => !['isAi', 'token'].includes(prop),
 })<{ isAi: boolean; token: GlobalToken }>`
   ${({ isAi, token }) => {
@@ -93,7 +93,7 @@ export const StyledMessageContent = styled('div').withConfig({
   }}
 `;
 
-export const StyledMessageInfo = styled('div').withConfig({
+const StyledMessageInfo = styled('div').withConfig({
   shouldForwardProp: (prop) => !['token', 'isAi'].includes(prop),
 })<{ token: GlobalToken; isAi: boolean }>`
   ${({ token, isAi }) => {
@@ -110,7 +110,7 @@ export const StyledMessageInfo = styled('div').withConfig({
   }}
 `;
 
-export const CollapseResult = ({
+const CollapseResult = ({
   title,
   children,
 }: {
@@ -118,7 +118,7 @@ export const CollapseResult = ({
   children?: React.ReactNode;
 }) => {
   const { token } = theme.useToken();
-  const [open, setOpen] = useState<boolean>(true);
+  const [open, setOpen] = useState<boolean>(false);
 
   return (
     <div style={{ marginBottom: 8 }}>
@@ -158,6 +158,72 @@ export const CollapseResult = ({
   );
 };
 
+const MessageContent = ({
+  isAi,
+  parts,
+}: {
+  isAi: boolean;
+  parts: ChatMessage[];
+}) => {
+  const { token } = theme.useToken();
+  const parseToolCallTitle = useCallback(
+    (content: string): { title: string; body: string } => {
+      const lines = content.split('\n');
+      const firstLine = lines[0] || '';
+      const titleMatch = firstLine.match(/^\*\*(.*?)\*\*$/);
+      if (titleMatch) {
+        const title = titleMatch[1].trim();
+        const body = lines.slice(1).join('\n').trim();
+        return { title, body };
+      }
+      return { title: 'Tool call', body: content };
+    },
+    [],
+  );
+
+  return (
+    <StyledMessageContent token={token} isAi={isAi}>
+      {!isAi
+        ? parts[0].data
+        : parts.map((part, index) => {
+            console.log(part);
+            switch (part.type) {
+              case 'tool_call_result': {
+                const { title, body } = parseToolCallTitle(part.data || '');
+                return (
+                  <CollapseResult key={index} title={title}>
+                    <ApeMarkdown isAgent>{body}</ApeMarkdown>
+                  </CollapseResult>
+                );
+              }
+              case 'thinking':
+                return (
+                  <CollapseResult key={index} title="Thinking">
+                    <ApeMarkdown isAgent>{part.data}</ApeMarkdown>
+                  </CollapseResult>
+                );
+              case 'message':
+                return (
+                  <ApeMarkdown isAgent key={index}>
+                    {part.data}
+                  </ApeMarkdown>
+                );
+              case 'error':
+                return <Alert key={index} message={part.data} type="error" />;
+              case 'start':
+                return parts.length === 1 && <TypingAnimate key={index} />;
+              case 'stop':
+              case 'welcome':
+              case 'references':
+                return null;
+              default:
+                return 'unknown part type';
+            }
+          })}
+    </StyledMessageContent>
+  );
+};
+
 export const ChatMessageItem = ({
   loading = false,
   parts,
@@ -182,92 +248,42 @@ export const ChatMessageItem = ({
   const getReferences: () => CollapseProps['items'] = () =>
     parts
       .find((p) => p.type === 'references')
-      ?.references?.map((reference, index) => {
-        if (reference.image_uri) {
-          return {
-            key: index,
-            label: (
-              <Typography.Text
-                style={{ maxWidth: 400, color: token.colorPrimary }}
-                ellipsis
-              >
-                {index + 1}.{' '}
-                {reference.metadata?.name ||
-                  reference.metadata?.source ||
-                  reference.metadata?.query ||
-                  reference.metadata?.type ||
-                  'Image Reference'}
-              </Typography.Text>
-            ),
-            children: (
-              <div
-                style={{
-                  borderTop: `1px solid ${token.colorBorderSecondary}`,
-                  paddingTop: 16,
-                }}
-              >
-                <img
-                  src={reference.image_uri}
-                  alt="Reference"
-                  style={{ maxWidth: '100%' }}
-                />
-                {reference.text && (
-                  <div style={{ marginTop: 16 }}>
-                    <ApeMarkdown>{reference.text}</ApeMarkdown>
-                  </div>
-                )}
-              </div>
-            ),
-            extra: (
-              <Space>
-                <BulbOutlined />
-                {reference.score}
-              </Space>
-            ),
-            style: {
-              marginBottom: 24,
-              borderRadius: token.borderRadiusLG,
-              border: `1px solid ${token.colorBorderSecondary}`,
-            },
-          };
-        }
-        return {
-          key: index,
-          label: (
-            <Typography.Text
-              style={{ maxWidth: 400, color: token.colorPrimary }}
-              ellipsis
-            >
-              {index + 1}.{' '}
-              {reference.metadata?.name ||
-                reference.metadata?.source ||
-                reference.metadata?.query ||
-                reference.metadata?.type}
-            </Typography.Text>
-          ),
-          children: (
-            <div
-              style={{
-                borderTop: `1px solid ${token.colorBorderSecondary}`,
-                paddingTop: 16,
-              }}
-            >
-              <ApeMarkdown>{reference.text || ''}</ApeMarkdown>
-            </div>
-          ),
-          extra: (
-            <Space>
-              <BulbOutlined />
-              {reference.score}
-            </Space>
-          ),
-          style: {
-            marginBottom: 24,
-            borderRadius: token.borderRadiusLG,
-            border: `1px solid ${token.colorBorderSecondary}`,
-          },
-        };
-      });
+      ?.references?.map((reference, index) => ({
+        key: index,
+        label: (
+          <Typography.Text
+            style={{ maxWidth: 400, color: token.colorPrimary }}
+            ellipsis
+          >
+            {index + 1}.{' '}
+            {reference.metadata?.name ||
+              reference.metadata?.source ||
+              reference.metadata?.query ||
+              reference.metadata?.type}
+          </Typography.Text>
+        ),
+        children: (
+          <div
+            style={{
+              borderTop: `1px solid ${token.colorBorderSecondary}`,
+              paddingTop: 16,
+            }}
+          >
+            <ApeMarkdown>{reference.text}</ApeMarkdown>
+          </div>
+        ),
+        extra: (
+          <Space>
+            <BulbOutlined />
+            {reference.score}
+          </Space>
+        ),
+        style: {
+          marginBottom: 24,
+          borderRadius: token.borderRadiusLG,
+          border: `1px solid ${token.colorBorderSecondary}`,
+        },
+      }));
 
   const partReference = useMemo(() => {
     return parts.find((p) => p.type === 'references');
@@ -312,42 +328,7 @@ export const ChatMessageItem = ({
           />
         )}
         <StyledMessageBody ref={hoverRef}>
-          <StyledMessageContent token={token} isAi={isAi}>
-            {!isAi
-              ? parts[0].data
-              : parts.map((part, index) => {
-                  switch (part.type) {
-                    case 'tool_call_result':
-                      return (
-                        <CollapseResult key={index} title="Tool call">
-                          <ApeMarkdown>{part.data}</ApeMarkdown>
-                        </CollapseResult>
-                      );
-                    case 'thinking':
-                      return (
-                        <CollapseResult key={index} title="Thinking">
-                          <ApeMarkdown>{part.data}</ApeMarkdown>
-                        </CollapseResult>
-                      );
-                    case 'message':
-                      return <ApeMarkdown key={index}>{part.data}</ApeMarkdown>;
-                    case 'error':
-                      return (
-                        <Alert key={index} message={part.data} type="error" />
-                      );
-                    case 'start':
-                      return (
-                        parts.length === 1 && <TypingAnimate key={index} />
-                      );
-                    case 'stop':
-                    case 'welcome':
-                    case 'references':
-                      return '';
-                    default:
-                      return 'unknow part type';
-                  }
-                })}
-          </StyledMessageContent>
+          <MessageContent isAi={isAi} parts={parts} />
           <StyledMessageInfo token={token} isAi={isAi}>
             {moment(
               parts?.[0]?.timestamp ? parts?.[0]?.timestamp * 1000 : undefined,

@@ -42,11 +42,14 @@ from aperag.views.api_key import router as api_key_router
 from aperag.views.audit import router as audit_router
 from aperag.views.auth import router as auth_router
 from aperag.views.chat_completion import router as chat_completion_router
+from aperag.views.collections import router as collections_router
 from aperag.views.config import router as config_router
 from aperag.views.flow import router as flow_router
 from aperag.views.graph import router as graph_router
 from aperag.views.llm import router as llm_router
 from aperag.views.main import router as main_router
+from aperag.views.marketplace import router as marketplace_router
+from aperag.views.marketplace_collections import router as marketplace_collections_router
 from aperag.views.settings import router as settings_router
 from aperag.views.web import router as web_router
 
@@ -90,11 +93,14 @@ async def health_check():
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(main_router, prefix="/api/v1")
+app.include_router(collections_router, prefix="/api/v1")  # Add collections router
 app.include_router(api_key_router, prefix="/api/v1")
 app.include_router(audit_router, prefix="/api/v1")  # Add audit router
 app.include_router(flow_router, prefix="/api/v1")
 app.include_router(llm_router, prefix="/api/v1")
 app.include_router(graph_router, prefix="/api/v1")
+app.include_router(marketplace_router, prefix="/api/v1")  # Add marketplace router
+app.include_router(marketplace_collections_router, prefix="/api/v1")  # Add marketplace collections router
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(web_router, prefix="/api/v1")  # Add web search router
 app.include_router(chat_completion_router, prefix="/v1")

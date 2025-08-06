@@ -10,7 +10,7 @@ import { animateScroll as scroll } from 'react-scroll';
 import { UndrawFirmware } from 'react-undraw-illustrations';
 import { FormattedMessage, useModel, useParams } from 'umi';
 import { ChatInput, ChatInputProps } from './_chat_input';
-import { ChatMessageItem } from './_chat_message';
+import { ChatMessageItem } from '@/components/chat/ChatMessageItem';
 
 export default () => {
   const { chat, getChat, setChat, bot } = useModel('bot');
@@ -73,7 +73,7 @@ export default () => {
 
   const onSubmit: ChatInputProps['onSubmit'] = useCallback(
     async (params) => {
-      const timestamp = new Date().getTime();
+      const timestamp = Math.floor(new Date().getTime() / 1000);
       const msg: ChatMessage = {
         type: 'message',
         role: 'human',

@@ -30,9 +30,79 @@ class AsyncUserRepositoryMixin(AsyncRepositoryProtocol):
             stmt = select(UserQuota).where(UserQuota.user == user, UserQuota.key == key)
             result = await session.execute(stmt)
             uq = result.scalars().first()
-            return uq.value if uq else None
+            return uq.quota_limit if uq else None
 
         return await self._execute_query(_query)
+
+    async def query_user_quota_with_usage(self, user: str, key: str):
+        """Query user quota with both limit and current usage"""
+
+        async def _query(session):
+            stmt = select(UserQuota).where(UserQuota.user == user, UserQuota.key == key)
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
+
+    async def query_all_user_quotas(self, user: str):
+        """Query all quotas for a user"""
+
+        async def _query(session):
+            stmt = select(UserQuota).where(UserQuota.user == user)
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+        return await self._execute_query(_query)
+
+    async def create_or_update_user_quota(self, user: str, key: str, quota_limit: int, current_usage: int = 0):
+        """Create or update user quota"""
+
+        async def _operation(session):
+            stmt = select(UserQuota).where(UserQuota.user == user, UserQuota.key == key)
+            result = await session.execute(stmt)
+            quota = result.scalars().first()
+
+            if quota:
+                quota.quota_limit = quota_limit
+                quota.current_usage = current_usage
+                quota.gmt_updated = func.now()
+            else:
+                from aperag.utils.utils import utc_now
+
+                quota = UserQuota(
+                    user=user,
+                    key=key,
+                    quota_limit=quota_limit,
+                    current_usage=current_usage,
+                    gmt_created=utc_now(),
+                    gmt_updated=utc_now(),
+                )
+                session.add(quota)
+
+            await session.flush()
+            await session.refresh(quota)
+            return quota
+
+        return await self.execute_with_transaction(_operation)
+
+    async def update_quota_usage(self, user: str, key: str, usage_delta: int):
+        """Update quota usage atomically"""
+
+        async def _operation(session):
+            from sqlalchemy import update
+
+            from aperag.utils.utils import utc_now
+
+            stmt = (
+                update(UserQuota)
+                .where(UserQuota.user == user, UserQuota.key == key)
+                .values(current_usage=UserQuota.current_usage + usage_delta, gmt_updated=utc_now())
+            )
+
+            result = await session.execute(stmt)
+            return result.rowcount > 0
+
+        return await self.execute_with_transaction(_operation)
 
     async def query_user_by_username(self, username: str):
         async def _query(session):
@@ -45,6 +115,14 @@ class AsyncUserRepositoryMixin(AsyncRepositoryProtocol):
     async def query_user_by_email(self, email: str):
         async def _query(session):
             stmt = select(User).where(User.email == email)
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
+
+    async def query_user_by_id(self, user_id: str):
+        async def _query(session):
+            stmt = select(User).where(User.id == user_id)
             result = await session.execute(stmt)
             return result.scalars().first()
 

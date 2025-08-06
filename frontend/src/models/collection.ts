@@ -1,4 +1,4 @@
-import { Collection } from '@/api';
+import { Collection, CollectionView, CollectionViewList, SharingStatusResponse, SharedCollection, SharedCollectionList } from '@/api';
 import { DOCUMENT_DEFAULT_CONFIG } from '@/constants';
 import { api } from '@/services';
 import _ from 'lodash';
@@ -10,8 +10,21 @@ export default () => {
   const [collection, setCollection] = useState<Collection>();
   const [collectionLoading, setCollectionLoading] = useState<boolean>(false);
 
-  const [collections, setCollections] = useState<Collection[]>();
+  const [collections, setCollections] = useState<CollectionView[]>();
   const [collectionsLoading, setCollectionsLoading] = useState<boolean>(false);
+
+  // sharing status
+  const [sharingStatus, setSharingStatus] = useState<SharingStatusResponse>();
+  const [sharingLoading, setSharingLoading] = useState<boolean>(false);
+
+  // marketplace collections
+  const [marketplaceCollections, setMarketplaceCollections] = useState<SharedCollection[]>();
+  const [marketplaceLoading, setMarketplaceLoading] = useState<boolean>(false);
+  const [marketplacePagination, setMarketplacePagination] = useState({
+    current: 1,
+    pageSize: 12,
+    total: 0,
+  });
 
   // collections
   const getCollections = useCallback(async () => {
@@ -79,6 +92,107 @@ export default () => {
     [collection],
   );
 
+  // sharing effects
+  const getSharingStatus = useCallback(async (collectionId: string) => {
+    setSharingLoading(true);
+    try {
+      const res = await api.collectionsCollectionIdSharingGet({ collectionId });
+      setSharingStatus(res.data);
+      return res.data;
+    } catch (error) {
+      console.error('Failed to get sharing status:', error);
+    } finally {
+      setSharingLoading(false);
+    }
+  }, []);
+
+  const publishCollection = useCallback(async (collectionId: string): Promise<boolean> => {
+    setSharingLoading(true);
+    try {
+      const res = await api.collectionsCollectionIdSharingPost({ collectionId });
+      const success = res.status === 204;
+      if (success) {
+        // Refresh sharing status
+        await getSharingStatus(collectionId);
+      }
+      return success;
+    } catch (error) {
+      console.error('Failed to publish collection:', error);
+      return false;
+    } finally {
+      setSharingLoading(false);
+    }
+  }, [getSharingStatus]);
+
+  const unpublishCollection = useCallback(async (collectionId: string): Promise<boolean> => {
+    setSharingLoading(true);
+    try {
+      const res = await api.collectionsCollectionIdSharingDelete({ collectionId });
+      const success = res.status === 204;
+      if (success) {
+        // Refresh sharing status
+        await getSharingStatus(collectionId);
+      }
+      return success;
+    } catch (error) {
+      console.error('Failed to unpublish collection:', error);
+      return false;
+    } finally {
+      setSharingLoading(false);
+    }
+  }, [getSharingStatus]);
+
+  // marketplace effects
+  const getMarketplaceCollections = useCallback(async (page: number = 1, pageSize: number = 12) => {
+    setMarketplaceLoading(true);
+    try {
+      const res = await api.marketplaceCollectionsGet({ page, pageSize });
+      const data = res.data;
+      setMarketplaceCollections(data.items || []);
+      setMarketplacePagination({
+        current: data.page || 1,
+        pageSize: data.page_size || 12,
+        total: data.total || 0,
+      });
+      return data;
+    } catch (error) {
+      console.error('Failed to get marketplace collections:', error);
+      setMarketplaceCollections([]);
+    } finally {
+      setMarketplaceLoading(false);
+    }
+  }, []);
+
+  const subscribeToCollection = useCallback(async (collectionId: string): Promise<boolean> => {
+    try {
+      const res = await api.marketplaceCollectionsCollectionIdSubscribePost({ collectionId });
+      const success = res.status === 200;
+      if (success) {
+        // Refresh marketplace collections to update subscription status
+        await getMarketplaceCollections(marketplacePagination.current, marketplacePagination.pageSize);
+      }
+      return success;
+    } catch (error) {
+      console.error('Failed to subscribe to collection:', error);
+      return false;
+    }
+  }, [getMarketplaceCollections, marketplacePagination]);
+
+  const unsubscribeFromCollection = useCallback(async (collectionId: string): Promise<boolean> => {
+    try {
+      const res = await api.marketplaceCollectionsCollectionIdSubscribeDelete({ collectionId });
+      const success = res.status === 200;
+      if (success) {
+        // Refresh marketplace collections to update subscription status
+        await getMarketplaceCollections(marketplacePagination.current, marketplacePagination.pageSize);
+      }
+      return success;
+    } catch (error) {
+      console.error('Failed to unsubscribe from collection:', error);
+      return false;
+    }
+  }, [getMarketplaceCollections, marketplacePagination]);
+
   return {
     collections,
     collectionsLoading,
@@ -92,5 +206,23 @@ export default () => {
     createCollection,
     updateCollection,
     deleteCollection,
+
+    // sharing
+    sharingStatus,
+    sharingLoading,
+    getSharingStatus,
+    setSharingStatus,
+    publishCollection,
+    unpublishCollection,
+
+    // marketplace
+    marketplaceCollections,
+    marketplaceLoading,
+    marketplacePagination,
+    getMarketplaceCollections,
+    setMarketplaceCollections,
+    setMarketplacePagination,
+    subscribeToCollection,
+    unsubscribeFromCollection,
   };
 };

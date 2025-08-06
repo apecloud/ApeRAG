@@ -80,6 +80,18 @@ export interface Collection {
      * @memberof Collection
      */
     'updated'?: string;
+    /**
+     * Whether the collection is published to marketplace
+     * @type {boolean}
+     * @memberof Collection
+     */
+    'is_published'?: boolean;
+    /**
+     * Publication time, null when not published
+     * @type {string}
+     * @memberof Collection
+     */
+    'published_at'?: string;
 }
 
 export const CollectionStatusEnum = {

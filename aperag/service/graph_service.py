@@ -428,6 +428,19 @@ class GraphService:
 
         return db_collection
 
+    async def export_for_kg_eval(
+        self, user_id: str, collection_id: str, sample_size: int = 100000, include_source_texts: bool = True
+    ) -> Dict[str, Any]:
+        """Export collection knowledge graph data in KG-Eval framework format"""
+        db_collection = await self._get_and_validate_collection(user_id, collection_id)
+
+        rag = await lightrag_manager.create_lightrag_instance(db_collection)
+        try:
+            result = await rag.export_for_kg_eval(sample_size=sample_size, include_source_texts=include_source_texts)
+            return result
+        finally:
+            await rag.finalize_storages()
+
 
 # Global service instance
 graph_service = GraphService()

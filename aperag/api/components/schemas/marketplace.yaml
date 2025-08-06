@@ -1,0 +1,82 @@
+# Marketplace related schemas for Collection sharing and subscription
+
+CollectionMarketplaceStatusEnum:
+  type: string
+  enum:
+    - DRAFT
+    - PUBLISHED
+  description: Collection marketplace sharing status
+
+SharedCollection:
+  type: object
+  description: Shared Collection information for marketplace users
+  properties:
+    id:
+      type: string
+      description: Collection ID
+    title:
+      type: string
+      description: Collection title
+    description:
+      type: string
+      nullable: true
+      description: Collection description
+    owner_user_id:
+      type: string
+      description: Original owner user ID
+    owner_username:
+      type: string
+      description: Original owner username
+    subscription_id:
+      type: string
+      nullable: true
+      description: Subscription record ID (has value if subscribed, null if not subscribed)
+    gmt_subscribed:
+      type: string
+      format: date-time
+      nullable: true
+      description: Subscription time (only has value when subscribed)
+  required:
+    - id
+    - title
+    - owner_user_id
+    - owner_username
+
+SharedCollectionList:
+  type: object
+  description: Shared Collection list response
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/SharedCollection'
+      description: List of shared Collections
+    total:
+      type: integer
+      description: Total count (for pagination)
+    page:
+      type: integer
+      description: Current page number
+    page_size:
+      type: integer
+      description: Page size
+  required:
+    - items
+    - total
+    - page
+    - page_size
+
+SharingStatusResponse:
+  type: object
+  description: Simple sharing status response
+  properties:
+    is_published:
+      type: boolean
+      description: Whether published to marketplace
+    published_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: Publication time, null when not published
+  required:
+    - is_published

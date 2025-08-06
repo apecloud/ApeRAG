@@ -14,9 +14,9 @@
 
 from typing import List, Optional
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import and_, desc, func, select
 
-from aperag.db.models import Collection, CollectionStatus
+from aperag.db.models import Collection, CollectionMarketplace, CollectionStatus, User
 from aperag.db.repositories.base import (
     AsyncRepositoryProtocol,
     SyncRepositoryProtocol,
@@ -135,6 +135,41 @@ class AsyncCollectionRepositoryMixin(AsyncRepositoryProtocol):
             )
             result = await session.execute(stmt)
             return result.scalars().all()
+
+        return await self._execute_query(_query)
+
+    async def query_collections_with_marketplace_info(self, user_id: str):
+        """Query user's collections with marketplace publication information"""
+
+        async def _query(session):
+            stmt = (
+                select(
+                    Collection.id,
+                    Collection.title,
+                    Collection.description,
+                    Collection.type,
+                    Collection.status,
+                    Collection.gmt_created,
+                    Collection.gmt_updated,
+                    Collection.user,
+                    User.username.label("owner_username"),
+                    CollectionMarketplace.status.label("marketplace_status"),
+                    CollectionMarketplace.gmt_created.label("published_at"),
+                )
+                .select_from(Collection)
+                .join(User, Collection.user == User.id)
+                .outerjoin(
+                    CollectionMarketplace,
+                    and_(
+                        CollectionMarketplace.collection_id == Collection.id,
+                        CollectionMarketplace.gmt_deleted.is_(None),
+                    ),
+                )
+                .where(Collection.user == user_id, Collection.status != CollectionStatus.DELETED)
+                .order_by(desc(Collection.gmt_created))
+            )
+            result = await session.execute(stmt)
+            return result.fetchall()
 
         return await self._execute_query(_query)
 

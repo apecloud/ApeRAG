@@ -1,6 +1,6 @@
 import { SIDEBAR_WIDTH, TOPBAR_HEIGHT } from '@/constants';
 import { getLogo } from '@/utils';
-import { AppstoreOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, ShopOutlined } from '@ant-design/icons';
 import { GlobalToken, Image, theme, Tooltip } from 'antd';
 import { BsChatText, BsFiletypeDoc, BsGear } from 'react-icons/bs';
 import { css, Link, styled, useIntl, useLocation, useModel } from 'umi';
@@ -92,6 +92,11 @@ export const Sidebar = ({ topbar }: { topbar: boolean }) => {
       icon: <BsFiletypeDoc />,
       label: formatMessage({ id: 'collection.name' }),
     },
+    {
+      path: '/marketplace',
+      icon: <ShopOutlined />,
+      label: formatMessage({ id: 'collection.marketplace.title' }),
+    },
   ];
 
   return (
@@ -128,23 +133,21 @@ export const Sidebar = ({ topbar }: { topbar: boolean }) => {
           })}
         </div>
       </div>
-      {user?.role === 'admin' && (
-        <Tooltip
-          title={formatMessage({ id: 'action.settings' })}
-          placement="right"
-        >
-          <div>
-            <StyledSidebarLink
-              token={token}
-              active={new UrlPattern(`/settings*`).match(location.pathname)}
-              to="/settings"
-            >
-              <BsGear />
-              <div>{formatMessage({ id: 'action.settings' })}</div>
-            </StyledSidebarLink>
-          </div>
-        </Tooltip>
-      )}
+      <Tooltip
+        title={formatMessage({ id: 'action.settings' })}
+        placement="right"
+      >
+        <div>
+          <StyledSidebarLink
+            token={token}
+            active={new UrlPattern(`/settings*`).match(location.pathname)}
+            to="/settings"
+          >
+            <BsGear />
+            <div>{formatMessage({ id: 'action.settings' })}</div>
+          </StyledSidebarLink>
+        </div>
+      </Tooltip>
     </StyledSidebar>
   );
 };

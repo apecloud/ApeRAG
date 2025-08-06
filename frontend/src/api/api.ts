@@ -18,5 +18,6 @@ export * from './apis/audit-api';
 export * from './apis/default-api';
 export * from './apis/graph-api';
 export * from './apis/llmapi';
+export * from './apis/quotas-api';
 export * from './apis/web-api';
 

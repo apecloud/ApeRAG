@@ -25,20 +25,34 @@ export default () => {
 
   const getUser = async () => {
     setUserLoading(true);
-    const res = await api.userGet();
-    setUser({
-      username: oidcUser?.profile.nickname || oidcUser?.profile.name || 'Guest',
-      email: oidcUser?.profile.email,
-      ...res.data,
-    });
+    try {
+      const res = await api.userGet();
+      console.log('API response:', res.data); // Debug log
+      setUser({
+        username: oidcUser?.profile.nickname || oidcUser?.profile.name || res.data.username || 'Guest',
+        email: oidcUser?.profile.email || res.data.email,
+        ...res.data,
+      });
+    } catch (error) {
+      console.error('Failed to get user:', error);
+    }
     setUserLoading(false);
   };
 
   useEffect(() => {
-    if (!oidcUser) return;
-    id_token = oidcUser?.id_token;
+    // Try to get user info regardless of OIDC status
+    // This handles cookie-based authentication
     getUser();
+    
+    if (oidcUser) {
+      id_token = oidcUser?.id_token;
+    }
   }, [oidcUser]);
+
+  // Also try to get user on component mount
+  useEffect(() => {
+    getUser();
+  }, []);
 
   useEffect(() => setLoading(userLoading), [userLoading]);
 

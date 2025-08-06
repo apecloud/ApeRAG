@@ -1,4 +1,4 @@
-import { Collection } from '@/api';
+import { Collection, CollectionView } from '@/api';
 import { ModelSelect } from '@/components';
 import { NAVIGATION_WIDTH, SIDEBAR_WIDTH } from '@/constants';
 import {
@@ -80,7 +80,7 @@ export const ChatInput = ({
 }: ChatInputProps) => {
   const { token } = theme.useToken();
   const { collections, getCollections } = useModel('collection');
-  const [selectedCollections, setSelectedCollections] = useState<Collection[]>(
+  const [selectedCollections, setSelectedCollections] = useState<CollectionView[]>(
     [],
   );
   const { getAvailableModels, getProviderByModelName } = useModel('models');
@@ -109,7 +109,7 @@ export const ChatInput = ({
     [collections, selectedCollections],
   );
 
-  const handleCollectionRemove = useCallback((collection: Collection) => {
+  const handleCollectionRemove = useCallback((collection: CollectionView) => {
     setSelectedCollections((cs) => cs.filter((c) => c.id !== collection.id));
   }, []);
 
@@ -235,7 +235,7 @@ export const ChatInput = ({
                   style={{ width: 220 }}
                   value={modelName}
                   onChange={setModelName}
-                  tagFilters={[
+                  tagfilters={[
                     {
                       operation: 'OR',
                       tags: ['enable_for_agent'],

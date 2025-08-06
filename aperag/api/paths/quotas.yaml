@@ -1,0 +1,230 @@
+quotas:
+  get:
+    summary: Get user quotas
+    description: Get quota information for the current user or specific user (admin only)
+    tags:
+      - quotas
+    parameters:
+      - name: user_id
+        in: query
+        description: User ID to get quotas for (admin only, defaults to current user)
+        required: false
+        schema:
+          type: string
+          example: "user123"
+      - name: search
+        in: query
+        description: Search term for username, email, or user ID (admin only)
+        required: false
+        schema:
+          type: string
+          example: "john"
+    responses:
+      '200':
+        description: Quota information retrieved successfully
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '../components/schemas/quota.yaml#/userQuotaInfo'
+                - $ref: '../components/schemas/quota.yaml#/userQuotaList'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '403':
+        description: Forbidden - Admin access required for other users
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: User not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
+quota:
+  put:
+    summary: Update user quota
+    description: Update quota limit for a specific user (admin only)
+    tags:
+      - quotas
+    parameters:
+      - name: user_id
+        in: path
+        description: User ID to update quota for
+        required: true
+        schema:
+          type: string
+          example: "user123"
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/quota.yaml#/quotaUpdateRequest'
+    responses:
+      '200':
+        description: Quota updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/quota.yaml#/quotaUpdateResponse'
+      '400':
+        description: Invalid request data
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '403':
+        description: Forbidden - Admin access required
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: User not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
+quota_recalculate:
+  post:
+    summary: Recalculate user quota usage
+    description: Recalculate and update current usage for all quota types for a user (admin only)
+    tags:
+      - quotas
+    parameters:
+      - name: user_id
+        in: path
+        description: User ID to recalculate quotas for
+        required: true
+        schema:
+          type: string
+          example: "user123"
+    responses:
+      '200':
+        description: Quota usage recalculated successfully
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+                  example: true
+                message:
+                  type: string
+                  example: "Quota usage recalculated successfully"
+                updated_usage:
+                  type: object
+                  additionalProperties:
+                    type: integer
+                  example:
+                    max_collection_count: 3
+                    max_document_count: 25
+                    max_bot_count: 2
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '403':
+        description: Forbidden - Admin access required
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: User not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+
+
+system_default_quotas:
+  get:
+    summary: Get system default quotas
+    description: Get system default quota configuration (admin only)
+    tags:
+      - quotas
+    responses:
+      '200':
+        description: System default quotas retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/quota.yaml#/systemDefaultQuotasResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '403':
+        description: Forbidden - Admin access required
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+  put:
+    summary: Update system default quotas
+    description: Update system default quota configuration (admin only)
+    tags:
+      - quotas
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/quota.yaml#/systemDefaultQuotasUpdateRequest'
+    responses:
+      '200':
+        description: System default quotas updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/quota.yaml#/systemDefaultQuotasUpdateResponse'
+      '400':
+        description: Invalid request data
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '403':
+        description: Forbidden - Admin access required
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        description: Internal server error
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'

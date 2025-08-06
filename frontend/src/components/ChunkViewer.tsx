@@ -28,6 +28,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 interface ChunkViewerProps {
   document: ApeDocument;
   collectionId: string;
+  isMarketplace?: boolean; // Add marketplace mode flag
 }
 
 // A rehype plugin to add line number IDs to block-level elements
@@ -56,6 +57,7 @@ const processLongText = (text: string) => {
 export const ChunkViewer = ({
   document: initialDoc,
   collectionId,
+  isMarketplace = false,
 }: ChunkViewerProps) => {
   const [viewMode, setViewMode] = useState<
     'markdown' | 'pdf' | 'image' | 'unsupported' | 'determining'
@@ -107,10 +109,19 @@ export const ChunkViewer = ({
   const { loading: previewLoading, error: previewError } = useRequest(
     () => {
       if (!initialDoc.id || !collectionId) return Promise.resolve(null);
-      return api.getDocumentPreview({
-        collectionId,
-        documentId: initialDoc.id,
-      });
+      
+      // Use different API endpoint for marketplace mode
+      if (isMarketplace) {
+        return api.marketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGet({
+          collectionId,
+          documentId: initialDoc.id,
+        });
+      } else {
+        return api.getDocumentPreview({
+          collectionId,
+          documentId: initialDoc.id,
+        });
+      }
     },
     {
       ready: !!initialDoc.id && !!collectionId,

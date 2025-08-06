@@ -17,7 +17,7 @@
 import json
 from typing import Any, Dict, Optional, Tuple
 
-from aperag.schema.view_models import CollectionList, SearchResult, WebReadResponse, WebSearchResponse
+from aperag.schema.view_models import CollectionViewList, SearchResult, WebReadResponse, WebSearchResponse
 
 from .i18n import TOOL_USE_EVENT_MESSAGES
 
@@ -57,7 +57,7 @@ class ToolResultFormatter:
 
             # CollectionList: has 'items' but no 'query'
             elif "items" in content:
-                return "list_collections", CollectionList.model_validate(content)
+                return "list_collections", CollectionViewList.model_validate(content)
 
             # WebReadResponse: has 'results' but no 'query', and has 'successful' field
             elif "results" in content and "successful" in content:
@@ -166,7 +166,7 @@ class ToolResultFormatter:
 
         return f"{execution}\n\n{results}"
 
-    def _format_list_collections(self, result: CollectionList) -> str:
+    def _format_list_collections(self, result: CollectionViewList) -> str:
         """Format list collections result"""
         count = len(result.items or [])
 
