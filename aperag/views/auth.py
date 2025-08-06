@@ -35,6 +35,7 @@ from aperag.db.ops import async_db_ops
 from aperag.schema import view_models
 from aperag.utils.audit_decorator import audit
 from aperag.utils.utils import utc_now
+from aperag.views.utils import is_github_oauth_enabled, is_google_oauth_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -208,24 +209,8 @@ async def get_current_admin(user: User = Depends(get_current_active_user)) -> Us
 router = APIRouter()
 
 
-# --- Login Methods Endpoint ---
-class LoginMethodsResponse(BaseModel):
-    methods: List[str]
-
-
-@router.get("/auth/methods", response_model=LoginMethodsResponse, tags=["auth"])
-async def get_login_methods():
-    """Returns the list of enabled login methods."""
-    methods = ["local"]
-    if settings.google_oauth_client_id and settings.google_oauth_client_secret:
-        methods.append("google")
-    if settings.github_oauth_client_id and settings.github_oauth_client_secret:
-        methods.append("github")
-    return {"methods": methods}
-
-
 # --- Conditional OAuth Routers ---
-if settings.google_oauth_client_id and settings.google_oauth_client_secret:
+if is_google_oauth_enabled():
     google_oauth_client = GoogleOAuth2(
         settings.google_oauth_client_id, settings.google_oauth_client_secret
     )
@@ -241,7 +226,7 @@ if settings.google_oauth_client_id and settings.google_oauth_client_secret:
     )
     router.include_router(google_oauth_router, prefix="/auth/google", tags=["auth"])
 
-if settings.github_oauth_client_id and settings.github_oauth_client_secret:
+if is_github_oauth_enabled():
     github_oauth_client = GitHubOAuth2(
         settings.github_oauth_client_id, settings.github_oauth_client_secret
     )

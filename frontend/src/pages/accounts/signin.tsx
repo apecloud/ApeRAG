@@ -27,12 +27,12 @@ export default () => {
   const [loginMethods, setLoginMethods] = useState<string[]>([]);
 
   useEffect(() => {
-    // Fetch available login methods from the backend
-    fetch('/api/v1/auth/methods')
+    // Fetch available login methods from the backend config
+    fetch('/api/v1/config')
       .then((res) => res.json())
       .then((data) => {
-        if (data && Array.isArray(data.methods)) {
-          setLoginMethods(data.methods);
+        if (data && Array.isArray(data.login_methods)) {
+          setLoginMethods(data.login_methods);
         }
       })
       .catch(() => {

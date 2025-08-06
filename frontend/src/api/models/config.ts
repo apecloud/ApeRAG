@@ -35,5 +35,11 @@ export interface Config {
      * @memberof Config
      */
     'auth'?: ConfigAuth;
+    /**
+     * Available login methods
+     * @type {Array<string>}
+     * @memberof Config
+     */
+    'login_methods'?: Array<string>;
 }
 

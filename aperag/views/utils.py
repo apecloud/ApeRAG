@@ -132,3 +132,40 @@ def generate_random_provider_name() -> str:
     # Generate a short UUID (first 8 characters)
     short_uuid = str(uuid.uuid4()).replace("-", "")[:8]
     return f"provider_{short_uuid}"
+
+
+def is_google_oauth_enabled() -> bool:
+    """
+    Check if Google OAuth is enabled based on configuration.
+    
+    Returns:
+        bool: True if Google OAuth is enabled, False otherwise
+    """
+    from aperag.config import settings
+    return bool(settings.google_oauth_client_id and settings.google_oauth_client_secret)
+
+
+def is_github_oauth_enabled() -> bool:
+    """
+    Check if GitHub OAuth is enabled based on configuration.
+    
+    Returns:
+        bool: True if GitHub OAuth is enabled, False otherwise
+    """
+    from aperag.config import settings
+    return bool(settings.github_oauth_client_id and settings.github_oauth_client_secret)
+
+
+def get_available_login_methods() -> list[str]:
+    """
+    Get list of available login methods based on configuration.
+    
+    Returns:
+        list[str]: List of available login methods
+    """
+    methods = ["local"]
+    if is_google_oauth_enabled():
+        methods.append("google")
+    if is_github_oauth_enabled():
+        methods.append("github")
+    return methods
