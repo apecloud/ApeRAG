@@ -163,7 +163,7 @@ async def search_collection(
             search_data["graph_search"] = {"topk": topk}
 
         if use_summary_index:
-            search_data["summary_search"] = {"topk": topk}
+            search_data["summary_search"] = {"topk": topk, "similarity": 0.2}
 
         # Ensure at least one search type is enabled
         if not any([use_vector_index, use_fulltext_index, use_graph_index, use_summary_index]):

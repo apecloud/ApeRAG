@@ -337,7 +337,7 @@ class CollectionService:
                 input_values={
                     "query": query,
                     "top_k": data.vector_search.topk if data.vector_search else 5,
-                    "similarity_threshold": data.vector_search.similarity if data.vector_search else 0.7,
+                    "similarity_threshold": data.vector_search.similarity if data.vector_search else 0.2,
                     "collection_ids": [collection_id],
                 },
             )
@@ -380,7 +380,7 @@ class CollectionService:
                 input_values={
                     "query": query,
                     "top_k": data.summary_search.topk if data.summary_search else 5,
-                    "similarity_threshold": data.summary_search.similarity if data.summary_search else 0.7,
+                    "similarity_threshold": data.summary_search.similarity if data.summary_search else 0.2,
                     "collection_ids": [collection_id],
                 },
             )
