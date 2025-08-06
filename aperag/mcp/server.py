@@ -70,21 +70,23 @@ async def search_collection(
     collection_id: str,
     query: str,
     use_vector_index: bool = True,
-    use_fulltext_index: bool = False,
+    use_fulltext_index: bool = True,
     use_graph_index: bool = True,
+    use_summary_index: bool = True,
     rerank: bool = True,
     topk: int = 5,
     query_keywords: list[str] = None,
 ) -> Dict[str, Any]:
-    """Search for knowledge in a specific collection using vector, full-text, and/or graph search.
+    """Search for knowledge in a specific collection using vector, full-text, graph, and/or summary search.
 
     Args:
         collection_id: The ID of the collection to search in
         query: The search query
         query_keywords: The keywords extracted from query to use for fulltext search (optional), only effective when use_fulltext_index is True.
         use_vector_index: Whether to use vector/semantic search (default: True)
-        use_fulltext_index: Whether to use full-text keyword search (default: False)
+        use_fulltext_index: Whether to use full-text keyword search (default: True)
         use_graph_index: Whether to use knowledge graph search (default: True)
+        use_summary_index: Whether to use summary search (default: True)
         rerank: Whether to enable reranking of search results for better relevance (default: True)
         topk: Maximum number of results to return per search type (default: 5)
 
@@ -160,8 +162,11 @@ async def search_collection(
         if use_graph_index:
             search_data["graph_search"] = {"topk": topk}
 
+        if use_summary_index:
+            search_data["summary_search"] = {"topk": topk}
+
         # Ensure at least one search type is enabled
-        if not any([use_vector_index, use_fulltext_index, use_graph_index]):
+        if not any([use_vector_index, use_fulltext_index, use_graph_index, use_summary_index]):
             return {"error": "At least one search type must be enabled"}
 
         # Use longer timeout for search operations (graph search can be time-consuming)
@@ -353,13 +358,14 @@ The server will automatically try both methods in order of preference.
 ## Search Types:
 You can enable/disable any combination of search methods:
 - **Vector search** (use_vector_index): Semantic similarity search using embeddings (default: True)
-- **Full-text search** (use_fulltext_index): Traditional keyword-based text search (default: False)
+- **Full-text search** (use_fulltext_index): Traditional keyword-based text search (default: True)
 - **Graph search** (use_graph_index): Knowledge graph-based search (default: True)
+- **Summary search** (use_summary_index): Search through document summaries (default: True)
 - **Reranking** (rerank): AI-powered reranking for improved result relevance (default: True)
 
 ⚠️ **Important**: Full-text search can return large amounts of text content which may cause context window overflow with smaller LLM models. Use with caution and consider reducing topk when enabling fulltext search.
 
-By default, vector search, graph search, and reranking are enabled for optimal balance of quality and context size.
+By default, vector search, full-text search, graph search, summary search, and reranking are enabled for comprehensive search coverage.
 
 ## Example Workflow:
 ```
@@ -370,13 +376,14 @@ collections = list_collections()
 # (collections.items contains collection ID, title, and description)
 collection_id = collections.items[0].id
 
-# Step 3: Search with default methods (vector + graph + rerank)
+# Step 3: Search with default methods (vector + fulltext + graph + summary + rerank)
 results = search_collection(
     collection_id=collection_id,
     query="How to deploy applications?",
     use_vector_index=True,
-    use_fulltext_index=False,
+    use_fulltext_index=True,
     use_graph_index=True,
+    use_summary_index=True,
     rerank=True,
     topk=5
 )
@@ -392,15 +399,16 @@ vector_only = search_collection(
     topk=10
 )
 
-# Enable fulltext search with caution (may cause context overflow)
-fulltext_search = search_collection(
+# Enable summary search for high-level document overviews
+summary_search = search_collection(
     collection_id=collection_id,
-    query="specific keywords",
+    query="project overview",
     use_vector_index=True,
-    use_fulltext_index=True,  # Enable with caution
+    use_fulltext_index=True,
     use_graph_index=True,
-    rerank=True,  # Rerank for optimal result ordering
-    topk=3  # Use smaller topk to manage context size
+    use_summary_index=True,  # Enable summary search
+    rerank=True,
+    topk=5
 )
 ```
 
