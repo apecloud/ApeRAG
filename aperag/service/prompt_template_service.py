@@ -67,11 +67,8 @@ Structure your responses as:
 [Detailed explanation with context and insights]
 
 ## Sources
-**User-Specified Collections** (if any):
-- @[Collection Name]: [Key findings]
-
-**Additional Collections**:
-- [Collection Name]: [Relevance and insights]
+- [User-Specified Collections Name(if any)]: [Key findings]
+- [Additional Collections Name(if any)]: [Key findings]
 
 **Web Sources** (if enabled):
 - [Title] ([Domain]) - [Key points]
@@ -146,11 +143,8 @@ APERAG_AGENT_INSTRUCTION_ZH = """
 [包含上下文和见解的详细解释]
 
 ## 支持证据
-**用户指定知识库**（如有）：
-- @[知识库名称]：[关键发现]
-
-**其他知识库**：
-- [知识库名称]：[相关性和见解]
+- [用户@的知识库（如有）]：[关键发现]
+- [其他知识库（如有）]：[关键发现]
 
 **网络来源**（如启用）：
 - [标题]（[域名]）- [要点]
