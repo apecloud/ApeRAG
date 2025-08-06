@@ -377,7 +377,9 @@ async def register_view(
         await quota_service.initialize_user_quotas(str(user.id))
 
         # Create a system API key for the user (not visible to user)
-        await async_db_ops.create_api_key(user=str(user.id), description="aperag", is_system=True)
+        await async_db_ops.create_api_key(user=str(user.id), description="system", is_system=True)
+        # Create a normal API key for the user (visible to user)
+        await async_db_ops.create_api_key(user=str(user.id), description="default", is_system=False)
 
         # Create a default bot for the user (skip quota check for system bot)
         bot_create = BotCreate(
