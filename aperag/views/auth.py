@@ -18,6 +18,7 @@ from datetime import timedelta
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, WebSocket
+from fastapi.responses import RedirectResponse
 from fastapi_users import BaseUserManager, FastAPIUsers
 from fastapi_users.authentication import (
     AuthenticationBackend,
@@ -27,6 +28,12 @@ from fastapi_users.authentication import (
 from fastapi_users.db import SQLAlchemyUserDatabase
 from httpx_oauth.clients.github import GitHubOAuth2
 from httpx_oauth.clients.google import GoogleOAuth2
+from httpx_oauth.integrations.fastapi import OAuth2AuthorizeCallback
+from fastapi_users.router.oauth import generate_state_token, STATE_TOKEN_AUDIENCE
+from fastapi_users.jwt import decode_jwt
+from fastapi_users.exceptions import UserAlreadyExists
+from fastapi_users.router.common import ErrorCode
+import jwt
 from pydantic import BaseModel
 
 from aperag.config import AsyncSessionDep, settings
@@ -209,20 +216,103 @@ async def get_current_admin(user: User = Depends(get_current_active_user)) -> Us
 router = APIRouter()
 
 
+# --- Custom OAuth Implementation with Redirect ---
+def create_oauth_router_with_redirect(oauth_client, backend, state_secret, associate_by_email=False, is_verified_by_default=False):
+    """Create OAuth router that redirects to frontend after successful auth"""
+    oauth_router = APIRouter()
+    callback_route_name = f"oauth:{oauth_client.name}.{backend.name}.callback"
+    
+    oauth2_authorize_callback = OAuth2AuthorizeCallback(
+        oauth_client,
+        route_name=callback_route_name,
+    )
+
+    @oauth_router.get("/authorize", name=f"oauth:{oauth_client.name}.{backend.name}.authorize")
+    async def authorize(request: Request):
+        authorize_redirect_url = str(request.url_for(callback_route_name))
+        state_data = {}
+        state = generate_state_token(state_data, state_secret)
+        authorization_url = await oauth_client.get_authorization_url(
+            authorize_redirect_url,
+            state,
+            None,
+        )
+        return {"authorization_url": authorization_url}
+
+    @oauth_router.get("/callback", name=callback_route_name)
+    async def callback(
+        request: Request,
+        access_token_state: tuple = Depends(oauth2_authorize_callback),
+        user_manager: UserManager = Depends(get_user_manager),
+        strategy = Depends(backend.get_strategy),
+    ):
+        token, state = access_token_state
+        account_id, account_email = await oauth_client.get_id_email(token["access_token"])
+
+        if account_email is None:
+            return RedirectResponse(url=f"{settings.oauth_redirect_url}?error=no_email")
+
+        try:
+            decode_jwt(state, state_secret, [STATE_TOKEN_AUDIENCE])
+        except jwt.DecodeError:
+            return RedirectResponse(url=f"{settings.oauth_redirect_url}?error=invalid_state")
+
+        try:
+            user = await user_manager.oauth_callback(
+                oauth_client.name,
+                token["access_token"],
+                account_id,
+                account_email,
+                token.get("expires_at"),
+                token.get("refresh_token"),
+                request,
+                associate_by_email=associate_by_email,
+                is_verified_by_default=is_verified_by_default,
+            )
+        except UserAlreadyExists:
+            return RedirectResponse(url=f"{settings.oauth_redirect_url}?error=user_exists")
+
+        if not user.is_active:
+            return RedirectResponse(url=f"{settings.oauth_redirect_url}?error=inactive_user")
+
+        # Authenticate and set cookie
+        response = await backend.login(strategy, user)
+        await user_manager.on_after_login(user, request, response)
+        
+        # Create redirect response with cookie
+        redirect_response = RedirectResponse(url=settings.oauth_redirect_url)
+        
+        # Copy the authentication cookie from the login response
+        if hasattr(response, 'headers') and 'set-cookie' in response.headers:
+            for cookie in response.headers.getlist('set-cookie'):
+                if 'session=' in cookie:
+                    redirect_response.headers.append('set-cookie', cookie)
+        else:
+            # Manually set the cookie
+            token_value = await strategy.write_token(user)
+            redirect_response.set_cookie(
+                key="session", 
+                value=token_value, 
+                max_age=COOKIE_MAX_AGE, 
+                httponly=True, 
+                samesite="lax"
+            )
+        
+        return redirect_response
+
+    return oauth_router
+
 # --- Conditional OAuth Routers ---
 if is_google_oauth_enabled():
     google_oauth_client = GoogleOAuth2(
         settings.google_oauth_client_id, settings.google_oauth_client_secret
     )
-    # Set redirect_url to frontend OAuth callback page
-    google_redirect_url = settings.oauth_redirect_url
-    google_oauth_router = fastapi_users.get_oauth_router(
+    google_oauth_router = create_oauth_router_with_redirect(
         google_oauth_client,
         auth_backend,
         settings.jwt_secret,
         associate_by_email=True,
         is_verified_by_default=True,
-        redirect_url=google_redirect_url,
     )
     router.include_router(google_oauth_router, prefix="/auth/google", tags=["auth"])
 
@@ -230,15 +320,12 @@ if is_github_oauth_enabled():
     github_oauth_client = GitHubOAuth2(
         settings.github_oauth_client_id, settings.github_oauth_client_secret
     )
-    # Set redirect_url to frontend OAuth callback page
-    github_redirect_url = settings.oauth_redirect_url
-    github_oauth_router = fastapi_users.get_oauth_router(
+    github_oauth_router = create_oauth_router_with_redirect(
         github_oauth_client,
         auth_backend,
         settings.jwt_secret,
         associate_by_email=True,
         is_verified_by_default=True,
-        redirect_url=github_redirect_url,
     )
     router.include_router(github_oauth_router, prefix="/auth/github", tags=["auth"])
 
