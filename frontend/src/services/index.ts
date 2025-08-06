@@ -36,11 +36,15 @@ request.interceptors.response.use(
     // Any status codes that falls outside the range of 2xx cause this function to trigger
     // Do something with response error
     if (err.status === 401) {
-      history.replace(
-        `/accounts/signin?redirectUri=${encodeURIComponent(
-          window.location.href,
-        )}`,
-      );
+      // Don't redirect if we're already on the signin page to avoid infinite redirects
+      const currentPath = window.location.pathname;
+      if (!currentPath.includes('/accounts/signin')) {
+        history.replace(
+          `/accounts/signin?redirectUri=${encodeURIComponent(
+            window.location.href,
+          )}`,
+        );
+      }
     } else {
       // Handle quota exceeded errors with friendly messages
       const errorData = err.response?.data;

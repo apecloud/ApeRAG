@@ -28,8 +28,16 @@ export default () => {
 
   useEffect(() => {
     // Fetch available login methods from the backend config
-    fetch('/api/v1/config')
-      .then((res) => res.json())
+    // Use native fetch to avoid axios interceptors that might cause redirects
+    fetch('/api/v1/config', {
+      credentials: 'include', // Include cookies if any
+    })
+      .then((res) => {
+        if (res.ok) {
+          return res.json();
+        }
+        throw new Error('Failed to fetch config');
+      })
       .then((data) => {
         if (data && Array.isArray(data.login_methods)) {
           setLoginMethods(data.login_methods);
