@@ -14,11 +14,19 @@
 
 
 
-export * from './apis/audit-api';
-export * from './apis/default-api';
-export * from './apis/evaluation-api';
-export * from './apis/graph-api';
-export * from './apis/llmapi';
-export * from './apis/quotas-api';
-export * from './apis/web-api';
+/**
+ * Question type enumeration
+ * @export
+ * @enum {string}
+ */
+
+export const QuestionType = {
+    FACTUAL: 'FACTUAL',
+    INFERENTIAL: 'INFERENTIAL',
+    USER_DEFINED: 'USER_DEFINED'
+} as const;
+
+export type QuestionType = typeof QuestionType[keyof typeof QuestionType];
+
+
 

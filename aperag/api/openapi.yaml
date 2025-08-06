@@ -183,5 +183,24 @@ paths:
     $ref: './paths/web.yaml#/webSearch'
   /web/read:
     $ref: './paths/web.yaml#/webRead'
+
+  # evaluation
+  /question-sets:
+    $ref: './paths/evaluations.yaml#/question_sets'
+  /question-sets/upload:
+    $ref: './paths/evaluations.yaml#/uploadQuestionSet'
+  /question-sets/generate:
+    $ref: './paths/evaluations.yaml#/generateQuestionSet'
+  /question-sets/{qs_id}:
+    $ref: './paths/evaluations.yaml#/question_set'
+  /question-sets/{qs_id}/questions:
+    $ref: './paths/evaluations.yaml#/question_set_questions'
+  /question-sets/{qs_id}/questions/{q_id}:
+    $ref: './paths/evaluations.yaml#/question'
+  /evaluations:
+    $ref: './paths/evaluations.yaml#/evaluations'
+  /evaluations/{eval_id}:
+    $ref: './paths/evaluations.yaml#/evaluation'
+
   /agent/message:
     $ref: './paths/agent.yaml'

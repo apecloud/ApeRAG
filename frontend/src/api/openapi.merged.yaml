@@ -3655,6 +3655,291 @@ paths:
                   value:
                     code: '500'
                     message: 'Content reading failed: Provider error'
+  /question-sets:
+    get:
+      tags:
+        - evaluation
+      summary: List all question sets for the current user
+      operationId: list_question_sets_api_v1_question_sets_get
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionSetList'
+    post:
+      tags:
+        - evaluation
+      summary: Create a new question set
+      operationId: create_question_set_api_v1_question_sets_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionSetCreate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionSet'
+  /question-sets/upload:
+    post:
+      tags:
+        - evaluation
+      summary: Upload a file to create a question set
+      operationId: upload_question_set_api_v1_question_sets_upload_post
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionSet'
+  /question-sets/generate:
+    post:
+      tags:
+        - evaluation
+      summary: Generate a question set from a collection
+      operationId: generate_question_set_api_v1_question_sets_generate_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionSetGenerate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionSet'
+  /question-sets/{qs_id}:
+    get:
+      tags:
+        - evaluation
+      summary: Get details of a question set
+      operationId: get_question_set_api_v1_question_sets__qs_id__get
+      parameters:
+        - name: qs_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionSetDetail'
+    put:
+      tags:
+        - evaluation
+      summary: Update a question set
+      operationId: update_question_set_api_v1_question_sets__qs_id__put
+      parameters:
+        - name: qs_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionSetUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionSet'
+    delete:
+      tags:
+        - evaluation
+      summary: Delete a question set
+      operationId: delete_question_set_api_v1_question_sets__qs_id__delete
+      parameters:
+        - name: qs_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Successful Response
+  /question-sets/{qs_id}/questions:
+    post:
+      tags:
+        - evaluation
+      summary: Add a question to a question set
+      operationId: add_question_api_v1_question_sets__qs_id__questions_post
+      parameters:
+        - name: qs_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Question'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Question'
+  /question-sets/{qs_id}/questions/{q_id}:
+    put:
+      tags:
+        - evaluation
+      summary: Update a question
+      operationId: update_question_api_v1_question_sets__qs_id__questions__q_id__put
+      parameters:
+        - name: qs_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: q_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Question'
+    delete:
+      tags:
+        - evaluation
+      summary: Delete a question
+      operationId: delete_question_api_v1_question_sets__qs_id__questions__q_id__delete
+      parameters:
+        - name: qs_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: q_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Successful Response
+  /evaluations:
+    get:
+      tags:
+        - evaluation
+      summary: List all evaluation tasks
+      operationId: list_evaluations_api_v1_evaluations_get
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluationList'
+    post:
+      tags:
+        - evaluation
+      summary: Create and start a new evaluation task
+      operationId: create_evaluation_api_v1_evaluations_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvaluationCreate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Evaluation'
+  /evaluations/{eval_id}:
+    get:
+      tags:
+        - evaluation
+      summary: Get details of an evaluation task
+      operationId: get_evaluation_api_v1_evaluations__eval_id__get
+      parameters:
+        - name: eval_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluationDetail'
+    delete:
+      tags:
+        - evaluation
+      summary: Delete an evaluation task
+      operationId: delete_evaluation_api_v1_evaluations__eval_id__delete
+      parameters:
+        - name: eval_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Successful Response
   /agent/message:
     post:
       summary: (Doc Only) Agent message format for WebSocket/SSE
@@ -6919,6 +7204,267 @@ components:
         - total_urls
         - successful
         - failed
+    QuestionSet:
+      type: object
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        collection_id:
+          type: string
+          nullable: true
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        gmt_created:
+          type: string
+          format: date-time
+        gmt_updated:
+          type: string
+          format: date-time
+    QuestionSetList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuestionSet'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+    QuestionSetCreate:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        collection_id:
+          type: string
+    QuestionSetGenerate:
+      type: object
+      required:
+        - collection_id
+        - name
+      properties:
+        collection_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+    QuestionType:
+      type: string
+      enum:
+        - FACTUAL
+        - INFERENTIAL
+        - USER_DEFINED
+      description: Question type enumeration
+    Question:
+      type: object
+      properties:
+        id:
+          type: string
+        question_set_id:
+          type: string
+        question_type:
+          $ref: '#/components/schemas/QuestionType'
+        question_text:
+          type: string
+        ground_truth:
+          type: string
+        gmt_created:
+          type: string
+          format: date-time
+        gmt_updated:
+          type: string
+          format: date-time
+    QuestionSetDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        collection_id:
+          type: string
+          nullable: true
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Question'
+        gmt_created:
+          type: string
+          format: date-time
+        gmt_updated:
+          type: string
+          format: date-time
+    QuestionSetUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+    QuestionUpdate:
+      type: object
+      properties:
+        question_text:
+          type: string
+        ground_truth:
+          type: string
+        question_type:
+          $ref: '#/components/schemas/QuestionType'
+    EvaluationStatus:
+      type: string
+      enum:
+        - PENDING
+        - RUNNING
+        - PAUSED
+        - COMPLETED
+        - FAILED
+      description: Evaluation task lifecycle status
+    Evaluation:
+      type: object
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        name:
+          type: string
+        collection_id:
+          type: string
+        question_set_id:
+          type: string
+        agent_llm_config:
+          type: object
+        judge_llm_config:
+          type: object
+        status:
+          $ref: '#/components/schemas/EvaluationStatus'
+        total_questions:
+          type: integer
+        completed_questions:
+          type: integer
+        average_score:
+          type: number
+          format: float
+          nullable: true
+        gmt_created:
+          type: string
+          format: date-time
+        gmt_updated:
+          type: string
+          format: date-time
+    EvaluationList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Evaluation'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+    EvaluationCreate:
+      type: object
+      required:
+        - name
+        - collection_id
+        - question_set_id
+        - agent_llm_config
+        - judge_llm_config
+      properties:
+        name:
+          type: string
+        collection_id:
+          type: string
+        question_set_id:
+          type: string
+        agent_llm_config:
+          type: object
+        judge_llm_config:
+          type: object
+    EvaluationResult:
+      type: object
+      properties:
+        id:
+          type: string
+        evaluation_id:
+          type: string
+        question_id:
+          type: string
+          nullable: true
+        question_text:
+          type: string
+        ground_truth:
+          type: string
+        rag_answer:
+          type: string
+          nullable: true
+        rag_answer_details:
+          type: object
+          nullable: true
+        llm_judge_score:
+          type: integer
+          nullable: true
+        llm_judge_reasoning:
+          type: string
+          nullable: true
+        gmt_created:
+          type: string
+          format: date-time
+        gmt_updated:
+          type: string
+          format: date-time
+    EvaluationDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          $ref: '#/components/schemas/EvaluationStatus'
+        average_score:
+          type: number
+          format: float
+          nullable: true
+        config:
+          type: object
+          properties:
+            collection_id:
+              type: string
+            question_set_id:
+              type: string
+            agent_llm_config:
+              type: object
+            judge_llm_config:
+              type: object
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvaluationResult'
+        gmt_created:
+          type: string
+          format: date-time
     AgentMessage:
       type: object
       description: Message format for agent-type bots with additional capabilities

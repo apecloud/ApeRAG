@@ -1,0 +1,298 @@
+# ==================================================
+# Question Set Management
+# ==================================================
+question_sets:
+  get:
+    tags:
+      - evaluation
+    summary: List all question sets for the current user
+    operationId: list_question_sets_api_v1_question_sets_get
+    parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          default: 1
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+          default: 10
+    responses:
+      '200':
+        description: Successful Response
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evaluation.yaml#/QuestionSetList'
+  post:
+    tags:
+      - evaluation
+    summary: Create a new question set
+    operationId: create_question_set_api_v1_question_sets_post
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/evaluation.yaml#/QuestionSetCreate'
+    responses:
+      '200':
+        description: Successful Response
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evaluation.yaml#/QuestionSet'
+
+uploadQuestionSet:
+  post:
+    tags:
+      - evaluation
+    summary: Upload a file to create a question set
+    operationId: upload_question_set_api_v1_question_sets_upload_post
+    requestBody:
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required:
+              - file
+            properties:
+              file:
+                type: string
+                format: binary
+    responses:
+      '200':
+        description: Successful Response
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evaluation.yaml#/QuestionSet'
+
+generateQuestionSet:
+  post:
+    tags:
+      - evaluation
+    summary: Generate a question set from a collection
+    operationId: generate_question_set_api_v1_question_sets_generate_post
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/evaluation.yaml#/QuestionSetGenerate'
+    responses:
+      '200':
+        description: Successful Response
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evaluation.yaml#/QuestionSet'
+
+question_set:
+  get:
+    tags:
+      - evaluation
+    summary: Get details of a question set
+    operationId: get_question_set_api_v1_question_sets__qs_id__get
+    parameters:
+      - name: qs_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Successful Response
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evaluation.yaml#/QuestionSetDetail'
+  put:
+    tags:
+      - evaluation
+    summary: Update a question set
+    operationId: update_question_set_api_v1_question_sets__qs_id__put
+    parameters:
+      - name: qs_id
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/evaluation.yaml#/QuestionSetUpdate'
+    responses:
+      '200':
+        description: Successful Response
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evaluation.yaml#/QuestionSet'
+  delete:
+    tags:
+      - evaluation
+    summary: Delete a question set
+    operationId: delete_question_set_api_v1_question_sets__qs_id__delete
+    parameters:
+      - name: qs_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Successful Response
+
+question_set_questions:
+  post:
+    tags:
+      - evaluation
+    summary: Add a question to a question set
+    operationId: add_question_api_v1_question_sets__qs_id__questions_post
+    parameters:
+      - name: qs_id
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/evaluation.yaml#/Question'
+    responses:
+      '200':
+        description: Successful Response
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evaluation.yaml#/Question'
+
+question:
+  put:
+    tags:
+      - evaluation
+    summary: Update a question
+    operationId: update_question_api_v1_question_sets__qs_id__questions__q_id__put
+    parameters:
+      - name: qs_id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: q_id
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/evaluation.yaml#/QuestionUpdate'
+    responses:
+      '200':
+        description: Successful Response
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evaluation.yaml#/Question'
+  delete:
+    tags:
+      - evaluation
+    summary: Delete a question
+    operationId: delete_question_api_v1_question_sets__qs_id__questions__q_id__delete
+    parameters:
+      - name: qs_id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: q_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Successful Response
+
+# ==================================================
+# Evaluation Management
+# ==================================================
+evaluations:
+  get:
+    tags:
+      - evaluation
+    summary: List all evaluation tasks
+    operationId: list_evaluations_api_v1_evaluations_get
+    parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          default: 1
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+          default: 10
+    responses:
+      '200':
+        description: Successful Response
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evaluation.yaml#/EvaluationList'
+  post:
+    tags:
+      - evaluation
+    summary: Create and start a new evaluation task
+    operationId: create_evaluation_api_v1_evaluations_post
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/evaluation.yaml#/EvaluationCreate'
+    responses:
+      '200':
+        description: Successful Response
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evaluation.yaml#/Evaluation'
+
+evaluation:
+  get:
+    tags:
+      - evaluation
+    summary: Get details of an evaluation task
+    operationId: get_evaluation_api_v1_evaluations__eval_id__get
+    parameters:
+      - name: eval_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Successful Response
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evaluation.yaml#/EvaluationDetail'
+  delete:
+    tags:
+      - evaluation
+    summary: Delete an evaluation task
+    operationId: delete_evaluation_api_v1_evaluations__eval_id__delete
+    parameters:
+      - name: eval_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '204':
+        description: Successful Response

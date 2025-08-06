@@ -2206,6 +2206,141 @@ class WebReadResponse(BaseModel):
     )
 
 
+class QuestionSet(BaseModel):
+    id: Optional[str] = None
+    user_id: Optional[str] = None
+    collection_id: Optional[str] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    gmt_created: Optional[datetime] = None
+    gmt_updated: Optional[datetime] = None
+
+
+class QuestionSetList(BaseModel):
+    items: Optional[list[QuestionSet]] = None
+    total: Optional[int] = None
+    page: Optional[int] = None
+    page_size: Optional[int] = None
+
+
+class QuestionSetCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    collection_id: Optional[str] = None
+
+
+class QuestionSetGenerate(BaseModel):
+    collection_id: str
+    name: str
+    description: Optional[str] = None
+
+
+class QuestionType(BaseModel):
+    __root__: Literal['FACTUAL', 'INFERENTIAL', 'USER_DEFINED'] = Field(
+        ..., description='Question type enumeration'
+    )
+
+
+class Question(BaseModel):
+    id: Optional[str] = None
+    question_set_id: Optional[str] = None
+    question_type: Optional[QuestionType] = None
+    question_text: Optional[str] = None
+    ground_truth: Optional[str] = None
+    gmt_created: Optional[datetime] = None
+    gmt_updated: Optional[datetime] = None
+
+
+class QuestionSetDetail(BaseModel):
+    id: Optional[str] = None
+    user_id: Optional[str] = None
+    collection_id: Optional[str] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    questions: Optional[list[Question]] = None
+    gmt_created: Optional[datetime] = None
+    gmt_updated: Optional[datetime] = None
+
+
+class QuestionSetUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+class QuestionUpdate(BaseModel):
+    question_text: Optional[str] = None
+    ground_truth: Optional[str] = None
+    question_type: Optional[QuestionType] = None
+
+
+class EvaluationStatus(BaseModel):
+    __root__: Literal['PENDING', 'RUNNING', 'PAUSED', 'COMPLETED', 'FAILED'] = Field(
+        ..., description='Evaluation task lifecycle status'
+    )
+
+
+class Evaluation(BaseModel):
+    id: Optional[str] = None
+    user_id: Optional[str] = None
+    name: Optional[str] = None
+    collection_id: Optional[str] = None
+    question_set_id: Optional[str] = None
+    agent_llm_config: Optional[dict[str, Any]] = None
+    judge_llm_config: Optional[dict[str, Any]] = None
+    status: Optional[EvaluationStatus] = None
+    total_questions: Optional[int] = None
+    completed_questions: Optional[int] = None
+    average_score: Optional[float] = None
+    gmt_created: Optional[datetime] = None
+    gmt_updated: Optional[datetime] = None
+
+
+class EvaluationList(BaseModel):
+    items: Optional[list[Evaluation]] = None
+    total: Optional[int] = None
+    page: Optional[int] = None
+    page_size: Optional[int] = None
+
+
+class EvaluationCreate(BaseModel):
+    name: str
+    collection_id: str
+    question_set_id: str
+    agent_llm_config: dict[str, Any]
+    judge_llm_config: dict[str, Any]
+
+
+class EvaluationResult(BaseModel):
+    id: Optional[str] = None
+    evaluation_id: Optional[str] = None
+    question_id: Optional[str] = None
+    question_text: Optional[str] = None
+    ground_truth: Optional[str] = None
+    rag_answer: Optional[str] = None
+    rag_answer_details: Optional[dict[str, Any]] = None
+    llm_judge_score: Optional[int] = None
+    llm_judge_reasoning: Optional[str] = None
+    gmt_created: Optional[datetime] = None
+    gmt_updated: Optional[datetime] = None
+
+
+class Config1(BaseModel):
+    collection_id: Optional[str] = None
+    question_set_id: Optional[str] = None
+    agent_llm_config: Optional[dict[str, Any]] = None
+    judge_llm_config: Optional[dict[str, Any]] = None
+
+
+class EvaluationDetail(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    status: Optional[EvaluationStatus] = None
+    average_score: Optional[float] = None
+    config: Optional[Config1] = None
+    results: Optional[list[EvaluationResult]] = None
+    gmt_created: Optional[datetime] = None
+
+
 class AgentMessage(BaseModel):
     """
     Message format for agent-type bots with additional capabilities

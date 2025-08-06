@@ -44,6 +44,7 @@ from aperag.views.auth import router as auth_router
 from aperag.views.chat_completion import router as chat_completion_router
 from aperag.views.collections import router as collections_router
 from aperag.views.config import router as config_router
+from aperag.views.evaluation import router as evaluation_router
 from aperag.views.flow import router as flow_router
 from aperag.views.graph import router as graph_router
 from aperag.views.llm import router as llm_router
@@ -103,6 +104,7 @@ app.include_router(marketplace_router, prefix="/api/v1")  # Add marketplace rout
 app.include_router(marketplace_collections_router, prefix="/api/v1")  # Add marketplace collections router
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(web_router, prefix="/api/v1")  # Add web search router
+app.include_router(evaluation_router, prefix="/api/v1")
 app.include_router(chat_completion_router, prefix="/v1")
 app.include_router(config_router, prefix="/api/v1/config")
 

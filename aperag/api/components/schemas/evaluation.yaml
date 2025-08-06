@@ -1,0 +1,280 @@
+# OpenAPI Schemas for Evaluation Feature
+
+# Enums
+QuestionType:
+  type: string
+  enum:
+    - FACTUAL
+    - INFERENTIAL
+    - USER_DEFINED
+  description: "Question type enumeration"
+
+EvaluationStatus:
+  type: string
+  enum:
+    - PENDING
+    - RUNNING
+    - PAUSED
+    - COMPLETED
+    - FAILED
+  description: "Evaluation task lifecycle status"
+
+# Base Models
+Question:
+  type: object
+  properties:
+    id:
+      type: string
+    question_set_id:
+      type: string
+    question_type:
+      $ref: './evaluation.yaml#/QuestionType'
+    question_text:
+      type: string
+    ground_truth:
+      type: string
+    gmt_created:
+      type: string
+      format: date-time
+    gmt_updated:
+      type: string
+      format: date-time
+
+QuestionSet:
+  type: object
+  properties:
+    id:
+      type: string
+    user_id:
+      type: string
+    collection_id:
+      type: string
+      nullable: true
+    name:
+      type: string
+    description:
+      type: string
+      nullable: true
+    gmt_created:
+      type: string
+      format: date-time
+    gmt_updated:
+      type: string
+      format: date-time
+
+Evaluation:
+  type: object
+  properties:
+    id:
+      type: string
+    user_id:
+      type: string
+    name:
+      type: string
+    collection_id:
+      type: string
+    question_set_id:
+      type: string
+    agent_llm_config:
+      type: object
+    judge_llm_config:
+      type: object
+    status:
+      $ref: './evaluation.yaml#/EvaluationStatus'
+    total_questions:
+      type: integer
+    completed_questions:
+      type: integer
+    average_score:
+      type: number
+      format: float
+      nullable: true
+    gmt_created:
+      type: string
+      format: date-time
+    gmt_updated:
+      type: string
+      format: date-time
+
+EvaluationResult:
+  type: object
+  properties:
+    id:
+      type: string
+    evaluation_id:
+      type: string
+    question_id:
+      type: string
+      nullable: true
+    question_text:
+      type: string
+    ground_truth:
+      type: string
+    rag_answer:
+      type: string
+      nullable: true
+    rag_answer_details:
+      type: object
+      nullable: true
+    llm_judge_score:
+      type: integer
+      nullable: true
+    llm_judge_reasoning:
+      type: string
+      nullable: true
+    gmt_created:
+      type: string
+      format: date-time
+    gmt_updated:
+      type: string
+      format: date-time
+
+# Request/Response Models
+QuestionSetCreate:
+  type: object
+  required:
+    - name
+  properties:
+    name:
+      type: string
+    description:
+      type: string
+    collection_id:
+      type: string
+
+QuestionSetGenerate:
+  type: object
+  required:
+    - collection_id
+    - name
+  properties:
+    collection_id:
+      type: string
+    name:
+      type: string
+    description:
+      type: string
+
+QuestionSetUpdate:
+  type: object
+  properties:
+    name:
+      type: string
+    description:
+      type: string
+
+QuestionUpdate:
+  type: object
+  properties:
+    question_text:
+      type: string
+    ground_truth:
+      type: string
+    question_type:
+      $ref: './evaluation.yaml#/QuestionType'
+
+EvaluationCreate:
+  type: object
+  required:
+    - name
+    - collection_id
+    - question_set_id
+    - agent_llm_config
+    - judge_llm_config
+  properties:
+    name:
+      type: string
+    collection_id:
+      type: string
+    question_set_id:
+      type: string
+    agent_llm_config:
+      type: object
+    judge_llm_config:
+      type: object
+
+QuestionSetDetail:
+  type: object
+  properties:
+    id:
+      type: string
+    user_id:
+      type: string
+    collection_id:
+      type: string
+      nullable: true
+    name:
+      type: string
+    description:
+      type: string
+      nullable: true
+    questions:
+      type: array
+      items:
+        $ref: './evaluation.yaml#/Question'
+    gmt_created:
+      type: string
+      format: date-time
+    gmt_updated:
+      type: string
+      format: date-time
+
+QuestionSetList:
+  type: object
+  properties:
+    items:
+      type: array
+      items:
+        $ref: './evaluation.yaml#/QuestionSet'
+    total:
+      type: integer
+    page:
+      type: integer
+    page_size:
+      type: integer
+
+EvaluationDetail:
+  type: object
+  properties:
+    id:
+      type: string
+    name:
+      type: string
+    status:
+      $ref: './evaluation.yaml#/EvaluationStatus'
+    average_score:
+      type: number
+      format: float
+      nullable: true
+    config:
+      type: object
+      properties:
+        collection_id:
+          type: string
+        question_set_id:
+          type: string
+        agent_llm_config:
+          type: object
+        judge_llm_config:
+          type: object
+    results:
+      type: array
+      items:
+        $ref: './evaluation.yaml#/EvaluationResult'
+    gmt_created:
+      type: string
+      format: date-time
+
+EvaluationList:
+  type: object
+  properties:
+    items:
+      type: array
+      items:
+        $ref: './evaluation.yaml#/Evaluation'
+    total:
+      type: integer
+    page:
+      type: integer
+    page_size:
+      type: integer

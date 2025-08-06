@@ -88,6 +88,102 @@ def _get_completion_service(
         ) from e
 
 
+def get_completion_service(
+    model_name: str,
+    model_service_provider: str,
+    custom_llm_provider: str,
+    user_id: str,
+    temperature: float = 0.1,
+) -> CompletionService:
+    """
+    Get completion service by model name and provider.
+
+    Args:
+        model_name: The completion model name.
+        model_service_provider: The model service provider.
+        custom_llm_provider: The custom LLM provider.
+        user_id: The user ID for retrieving API key.
+        temperature: Temperature for completion.
+
+    Returns:
+        CompletionService instance
+
+    Raises:
+        ProviderNotFoundError: If the completion provider is not found
+        ModelNotFoundError: If the completion model is not found
+        InvalidConfigurationError: If configuration is invalid
+        CompletionError: If completion service creation fails
+    """
+    logger.info("get_completion_service %s %s", model_service_provider, model_name)
+
+    # Validate configuration fields
+    if not model_service_provider:
+        raise InvalidConfigurationError(
+            "model_service_provider", model_service_provider, "Model service provider cannot be empty"
+        )
+
+    if not model_name:
+        raise InvalidConfigurationError("model_name", model_name, "Model name cannot be empty")
+
+    if not custom_llm_provider:
+        raise InvalidConfigurationError(
+            "custom_llm_provider", custom_llm_provider, "Custom LLM provider cannot be empty"
+        )
+
+    completion_service_api_key = db_ops.query_provider_api_key(model_service_provider, user_id)
+    if not completion_service_api_key:
+        raise InvalidConfigurationError(
+            "api_key", None, f"API KEY not found for LLM Provider: {model_service_provider}"
+        )
+
+    try:
+        llm_provider = db_ops.query_llm_provider_by_name(model_service_provider)
+        if not llm_provider:
+            raise ModelNotFoundError(model_name, model_service_provider, "Completion")
+        completion_service_url = llm_provider.base_url
+    except Exception as e:
+        logger.error(f"Failed to query LLM provider '{model_service_provider}': {str(e)}")
+        raise ProviderNotFoundError(model_service_provider, "Completion") from e
+
+    if not completion_service_url:
+        raise InvalidConfigurationError(
+            "base_url", completion_service_url, f"Base URL not configured for provider '{model_service_provider}'"
+        )
+
+    logger.info("get_completion_service with url %s", completion_service_url)
+
+    try:
+        is_vision_model = False
+        model_info = db_ops.query_llm_provider_model(model_service_provider, APIType.COMPLETION.value, model_name)
+        if model_info:
+            is_vision_model = model_info.has_tag("vision")
+    except Exception as e:
+        logger.error(f"Failed to query LLM provider model '{model_name}': {str(e)}")
+        raise
+
+    try:
+        return _get_completion_service(
+            completion_provider=custom_llm_provider,
+            completion_model=model_name,
+            completion_service_url=completion_service_url,
+            completion_service_api_key=completion_service_api_key,
+            temperature=temperature,
+            vision=is_vision_model,
+        )
+    except CompletionError:
+        # Re-raise completion errors
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get completion service: {str(e)}")
+        raise CompletionError(
+            f"Failed to get completion service: {str(e)}",
+            {
+                "provider": model_service_provider,
+                "model": model_name,
+            },
+        ) from e
+
+
 def get_collection_completion_service_sync(collection) -> CompletionService:
     """
     Get completion service for a collection synchronously.
@@ -117,70 +213,10 @@ def get_collection_completion_service_sync(collection) -> CompletionService:
     custom_llm_provider = config.completion.custom_llm_provider
     temperature = config.completion.temperature or 0.1
 
-    logger.info("get_collection_completion_service_sync %s %s", completion_msp, completion_model_name)
-
-    # Validate configuration fields
-    if not completion_msp:
-        raise InvalidConfigurationError(
-            "completion.model_service_provider", completion_msp, "Model service provider cannot be empty"
-        )
-
-    if not completion_model_name:
-        raise InvalidConfigurationError("completion.model", completion_model_name, "Model name cannot be empty")
-
-    if not custom_llm_provider:
-        raise InvalidConfigurationError(
-            "completion.custom_llm_provider", custom_llm_provider, "Custom LLM provider cannot be empty"
-        )
-
-    completion_service_api_key = db_ops.query_provider_api_key(completion_msp, collection.user)
-    if not completion_service_api_key:
-        raise InvalidConfigurationError("api_key", None, f"API KEY not found for LLM Provider: {completion_msp}")
-
-    try:
-        llm_provider = db_ops.query_llm_provider_by_name(completion_msp)
-        if not llm_provider:
-            raise ModelNotFoundError(completion_model_name, completion_msp, "Completion")
-        completion_service_url = llm_provider.base_url
-    except Exception as e:
-        logger.error(f"Failed to query LLM provider '{completion_msp}': {str(e)}")
-        raise ProviderNotFoundError(completion_msp, "Completion") from e
-
-    if not completion_service_url:
-        raise InvalidConfigurationError(
-            "base_url", completion_service_url, f"Base URL not configured for provider '{completion_msp}'"
-        )
-
-    logger.info("get_collection_completion_service %s", completion_service_url)
-
-    try:
-        is_vision_model = False
-        model_info = db_ops.query_llm_provider_model(completion_msp, APIType.COMPLETION.value, completion_model_name)
-        if model_info:
-            is_vision_model = model_info.has_tag("vision")
-    except Exception as e:
-        logger.error(f"Failed to query LLM provider model '{completion_model_name}': {str(e)}")
-        raise
-
-    try:
-        return _get_completion_service(
-            completion_provider=custom_llm_provider,
-            completion_model=completion_model_name,
-            completion_service_url=completion_service_url,
-            completion_service_api_key=completion_service_api_key,
-            temperature=temperature,
-            vision=is_vision_model,
-        )
-    except CompletionError:
-        # Re-raise completion errors
-        raise
-    except Exception as e:
-        logger.error(f"Failed to get completion service for collection: {str(e)}")
-        raise CompletionError(
-            f"Failed to get completion service for collection: {str(e)}",
-            {
-                "collection_id": getattr(collection, "id", "unknown"),
-                "provider": completion_msp,
-                "model": completion_model_name,
-            },
-        ) from e
+    return get_completion_service(
+        model_name=completion_model_name,
+        model_service_provider=completion_msp,
+        custom_llm_provider=custom_llm_provider,
+        user_id=collection.user,
+        temperature=temperature,
+    )
