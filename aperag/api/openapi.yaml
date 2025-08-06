@@ -77,6 +77,8 @@ paths:
     $ref: './paths/collections.yaml#/graph_merge_suggestions'
   /collections/{collection_id}/graphs/merge-suggestions/{suggestion_id}/action:
     $ref: './paths/collections.yaml#/graph_suggestion_action'
+  /collections/{collection_id}/graphs/export/kg-eval:
+    $ref: './paths/collections.yaml#/graph_export_kg_eval'
   /collections/{collection_id}/sharing:
     $ref: './paths/collections.yaml#/sharing'
 

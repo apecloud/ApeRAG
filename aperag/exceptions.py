@@ -155,28 +155,28 @@ class QuotaExceededException(BusinessException):
     def __init__(self, resource_type: str, limit: int, current_usage: int = None):
         # Map resource types to appropriate error codes
         error_code_map = {
-            'max_collection_count': ErrorCode.COLLECTION_QUOTA_EXCEEDED,
-            'max_document_count': ErrorCode.DOCUMENT_QUOTA_EXCEEDED,
-            'max_document_count_per_collection': ErrorCode.DOCUMENT_QUOTA_EXCEEDED,
-            'max_bot_count': ErrorCode.BOT_QUOTA_EXCEEDED,
+            "max_collection_count": ErrorCode.COLLECTION_QUOTA_EXCEEDED,
+            "max_document_count": ErrorCode.DOCUMENT_QUOTA_EXCEEDED,
+            "max_document_count_per_collection": ErrorCode.DOCUMENT_QUOTA_EXCEEDED,
+            "max_bot_count": ErrorCode.BOT_QUOTA_EXCEEDED,
         }
-        
+
         error_code = error_code_map.get(resource_type, ErrorCode.COLLECTION_QUOTA_EXCEEDED)
-        
+
         # Create a more user-friendly message
         if current_usage is not None:
             message = f"已达到{resource_type}的配额限制。当前使用量: {current_usage}/{limit}"
         else:
             message = f"已达到{resource_type}的配额限制 ({limit})"
-        
+
         # Add details for better error handling
         details = {
-            'quota_type': resource_type,
-            'quota_limit': limit,
-            'current_usage': current_usage,
-            'quota_exceeded': True
+            "quota_type": resource_type,
+            "quota_limit": limit,
+            "current_usage": current_usage,
+            "quota_exceeded": True,
         }
-        
+
         super().__init__(error_code, message, details)
 
 
@@ -237,6 +237,8 @@ class NotFoundException(BusinessException):
 
     def __init__(self, message: str):
         super().__init__(ErrorCode.RESOURCE_NOT_FOUND, message)
+
+
 # Marketplace related exceptions
 class MarketplaceError(BusinessException):
     """Base class for marketplace-related errors"""

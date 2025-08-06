@@ -17,20 +17,17 @@ from typing import List, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.config import settings
 from aperag.db import models as db_models
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.exceptions import (
     CollectionInactiveException,
-    QuotaExceededException,
     ResourceNotFoundException,
     invalid_param,
 )
 from aperag.schema import view_models
 from aperag.schema.view_models import Bot, BotList
-from aperag.utils.constant import QuotaType
-from aperag.views.utils import validate_bot_config
 from aperag.service.quota_service import quota_service
+from aperag.views.utils import validate_bot_config
 
 
 class BotService:
@@ -56,7 +53,9 @@ class BotService:
             updated=bot.gmt_updated.isoformat(),
         )
 
-    async def create_bot(self, user: str, bot_in: view_models.BotCreate, skip_quota_check: bool = False) -> view_models.Bot:
+    async def create_bot(
+        self, user: str, bot_in: view_models.BotCreate, skip_quota_check: bool = False
+    ) -> view_models.Bot:
         # Validate collections before starting transaction
         collection_ids = []
         if bot_in.collection_ids is not None:

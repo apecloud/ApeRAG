@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 
@@ -130,6 +130,30 @@ async def merge_suggestions_view(
         )
 
         return view_models.MergeSuggestionsResponse(**result)
+    except CollectionNotFoundException:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/collections/{collection_id}/graphs/export/kg-eval", tags=["graph"])
+async def export_kg_eval_view(
+    request: Request,
+    collection_id: str,
+    sample_size: int = 100000,
+    include_source_texts: bool = True,
+    user: User = Depends(current_user),
+) -> Dict[str, Any]:
+    """Export collection knowledge graph data in KG-Eval framework format"""
+    from aperag.service.graph_service import graph_service
+
+    # Validate parameters
+    if not (1 <= sample_size <= 1000000):
+        raise HTTPException(status_code=400, detail="sample_size must be between 1 and 1000000")
+
+    try:
+        result = await graph_service.export_for_kg_eval(str(user.id), collection_id, sample_size, include_source_texts)
+        return result
     except CollectionNotFoundException:
         raise HTTPException(status_code=404, detail="Collection not found")
     except ValueError as e:

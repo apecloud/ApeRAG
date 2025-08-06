@@ -18,10 +18,10 @@ from typing import Optional
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.config import get_async_session, settings
+from aperag.config import get_async_session
 from aperag.db import models as db_models
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
-from aperag.exceptions import QuotaExceededException, ValidationException
+from aperag.exceptions import ValidationException
 from aperag.flow.base.models import Edge, FlowInstance, NodeInstance
 from aperag.flow.engine import FlowEngine
 from aperag.schema import view_models
@@ -33,7 +33,6 @@ from aperag.schema.view_models import (
     SearchResultList,
 )
 from aperag.service.collection_summary_service import collection_summary_service
-from aperag.service.quota_service import QuotaService
 from aperag.service.marketplace_collection_service import marketplace_collection_service
 from aperag.utils.constant import QuotaType
 from aperag.views.utils import validate_source_connect_config
@@ -77,16 +76,16 @@ class CollectionService:
         # Create collection and consume quota in a single transaction
         async def _create_collection_with_quota(session):
             from aperag.service.quota_service import quota_service
-            
+
             # Check and consume quota within the transaction
             await quota_service.check_and_consume_quota(user, "max_collection_count", 1, session)
-            
+
             # Create collection within the same transaction
             config_str = dumpCollectionConfig(collection_config) if collection.config is not None else None
-            
+
             from aperag.db.models import Collection, CollectionStatus
             from aperag.utils.utils import utc_now
-            
+
             instance = Collection(
                 user=user,
                 title=collection.title,
@@ -95,12 +94,12 @@ class CollectionService:
                 status=CollectionStatus.ACTIVE,
                 config=config_str,
                 gmt_created=utc_now(),
-                gmt_updated=utc_now()
+                gmt_updated=utc_now(),
             )
             session.add(instance)
             await session.flush()
             await session.refresh(instance)
-            
+
             return instance
 
         instance = await self.db_ops.execute_with_transaction(_create_collection_with_quota)
@@ -260,32 +259,32 @@ class CollectionService:
 
         # Delete collection and release quota in a single transaction
         async def _delete_collection_with_quota(session):
-            from aperag.service.quota_service import quota_service
-            from aperag.db.models import CollectionStatus
-            from aperag.utils.utils import utc_now
             from sqlalchemy import select
-            
+
+            from aperag.db.models import CollectionStatus
+            from aperag.service.quota_service import quota_service
+            from aperag.utils.utils import utc_now
+
             # Get collection within transaction
             stmt = select(db_models.Collection).where(
-                db_models.Collection.id == collection_id,
-                db_models.Collection.user == user
+                db_models.Collection.id == collection_id, db_models.Collection.user == user
             )
             result = await session.execute(stmt)
             collection_to_delete = result.scalars().first()
-            
+
             if not collection_to_delete:
                 return None
-            
+
             # Mark collection as deleted
             collection_to_delete.status = CollectionStatus.DELETED
             collection_to_delete.gmt_deleted = utc_now()
-            
+
             # Release quota within the same transaction
             await quota_service.release_quota(user, "max_collection_count", 1, session)
-            
+
             await session.flush()
             await session.refresh(collection_to_delete)
-            
+
             return collection_to_delete
 
         deleted_instance = await self.db_ops.execute_with_transaction(_delete_collection_with_quota)

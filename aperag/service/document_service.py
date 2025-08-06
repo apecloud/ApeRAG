@@ -39,8 +39,6 @@ from aperag.index.manager import document_index_manager
 from aperag.objectstore.base import get_async_object_store
 from aperag.schema import view_models
 from aperag.schema.view_models import Chunk, DocumentList, DocumentPreview, VisionChunk
-from aperag.service.quota_service import QuotaService
-from aperag.utils.constant import QuotaType
 from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
 from aperag.utils.utils import generate_vector_db_collection_name, utc_now
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
@@ -240,26 +238,28 @@ class DocumentService:
 
             # Check and consume quotas first within the transaction
             await quota_service.check_and_consume_quota(user, "max_document_count", len(files), session)
-            
+
             # Check per-collection quota by counting existing documents in this collection
-            from sqlalchemy import select, func
-            stmt = select(func.count()).select_from(Document).where(
-                Document.collection_id == collection_id,
-                Document.status != DocumentStatus.DELETED
+            from sqlalchemy import func, select
+
+            stmt = (
+                select(func.count())
+                .select_from(Document)
+                .where(Document.collection_id == collection_id, Document.status != DocumentStatus.DELETED)
             )
             existing_doc_count = await session.scalar(stmt)
-            
+
             # Get per-collection quota limit
             from aperag.db.models import UserQuota
-            stmt = select(UserQuota).where(
-                UserQuota.user == user,
-                UserQuota.key == "max_document_count_per_collection"
-            )
+
+            stmt = select(UserQuota).where(UserQuota.user == user, UserQuota.key == "max_document_count_per_collection")
             result = await session.execute(stmt)
             per_collection_quota = result.scalars().first()
-            
+
             if per_collection_quota and (existing_doc_count + len(files)) > per_collection_quota.quota_limit:
-                raise QuotaExceededException("max_document_count_per_collection", per_collection_quota.quota_limit, existing_doc_count)
+                raise QuotaExceededException(
+                    "max_document_count_per_collection", per_collection_quota.quota_limit, existing_doc_count
+                )
 
             documents_created = []
             async_obj_store = get_async_object_store()
@@ -383,11 +383,12 @@ class DocumentService:
         document.status = db_models.DocumentStatus.DELETED
         document.gmt_deleted = utc_now()
         session.add(document)
-        
+
         # Release quota within the same transaction
         from aperag.service.quota_service import quota_service
+
         await quota_service.release_quota(user, "max_document_count", 1, session)
-        
+
         await session.flush()
         logger.info(f"Successfully marked document {document.id} as deleted.")
 

@@ -36,6 +36,7 @@ class AsyncUserRepositoryMixin(AsyncRepositoryProtocol):
 
     async def query_user_quota_with_usage(self, user: str, key: str):
         """Query user quota with both limit and current usage"""
+
         async def _query(session):
             stmt = select(UserQuota).where(UserQuota.user == user, UserQuota.key == key)
             result = await session.execute(stmt)
@@ -45,6 +46,7 @@ class AsyncUserRepositoryMixin(AsyncRepositoryProtocol):
 
     async def query_all_user_quotas(self, user: str):
         """Query all quotas for a user"""
+
         async def _query(session):
             stmt = select(UserQuota).where(UserQuota.user == user)
             result = await session.execute(stmt)
@@ -54,6 +56,7 @@ class AsyncUserRepositoryMixin(AsyncRepositoryProtocol):
 
     async def create_or_update_user_quota(self, user: str, key: str, quota_limit: int, current_usage: int = 0):
         """Create or update user quota"""
+
         async def _operation(session):
             stmt = select(UserQuota).where(UserQuota.user == user, UserQuota.key == key)
             result = await session.execute(stmt)
@@ -65,6 +68,7 @@ class AsyncUserRepositoryMixin(AsyncRepositoryProtocol):
                 quota.gmt_updated = func.now()
             else:
                 from aperag.utils.utils import utc_now
+
                 quota = UserQuota(
                     user=user,
                     key=key,
@@ -83,18 +87,18 @@ class AsyncUserRepositoryMixin(AsyncRepositoryProtocol):
 
     async def update_quota_usage(self, user: str, key: str, usage_delta: int):
         """Update quota usage atomically"""
+
         async def _operation(session):
             from sqlalchemy import update
+
             from aperag.utils.utils import utc_now
-            
-            stmt = update(UserQuota).where(
-                UserQuota.user == user,
-                UserQuota.key == key
-            ).values(
-                current_usage=UserQuota.current_usage + usage_delta,
-                gmt_updated=utc_now()
+
+            stmt = (
+                update(UserQuota)
+                .where(UserQuota.user == user, UserQuota.key == key)
+                .values(current_usage=UserQuota.current_usage + usage_delta, gmt_updated=utc_now())
             )
-            
+
             result = await session.execute(stmt)
             return result.rowcount > 0
 

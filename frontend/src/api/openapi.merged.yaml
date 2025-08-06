@@ -1371,6 +1371,91 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
+  /collections/{collection_id}/graphs/export/kg-eval:
+    get:
+      summary: Export collection knowledge graph for KG-Eval framework
+      description: |
+        Export the collection's knowledge graph data in KG-Eval framework format for evaluation.
+
+        This endpoint extracts entities, relationships, and optionally source texts from the 
+        collection's knowledge graph and formats them according to the KG-Eval evaluation 
+        framework structure.
+
+        The export includes:
+        - Entities with their names, types, and descriptions
+        - Relationships between entities with descriptions, keywords, and weights  
+        - Source texts that link back to the entities and relationships (optional)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Collection ID to export
+        - name: sample_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000000
+            default: 100000
+          description: Number of entities to sample for export (default 100000)
+        - name: include_source_texts
+          in: query
+          schema:
+            type: boolean
+            default: true
+          description: Whether to include source texts in the export (default true)
+      responses:
+        '200':
+          description: KG-Eval export data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                description: KG-Eval framework format export data
+                properties:
+                  entities:
+                    type: array
+                    description: List of entities in KG-Eval format
+                    items:
+                      type: object
+                  relationships:
+                    type: array
+                    description: List of relationships in KG-Eval format
+                    items:
+                      type: object
+                  source_texts:
+                    type: array
+                    description: List of source texts with linked entities/edges (optional)
+                    items:
+                      type: object
+        '400':
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
   /collections/{collection_id}/sharing:
     get:
       summary: Get collection sharing status

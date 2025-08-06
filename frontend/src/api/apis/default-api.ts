@@ -62,6 +62,8 @@ import type { CollectionUpdate } from '../models';
 // @ts-ignore
 import type { CollectionViewList } from '../models';
 // @ts-ignore
+import type { CollectionsCollectionIdGraphsExportKgEvalGet200Response } from '../models';
+// @ts-ignore
 import type { CollectionsCollectionIdSummaryGeneratePost200Response } from '../models';
 // @ts-ignore
 import type { Config } from '../models';
@@ -1291,6 +1293,54 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             // authentication BearerAuth required
             // http bearer authentication required
             await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Export the collection\'s knowledge graph data in KG-Eval framework format for evaluation.  This endpoint extracts entities, relationships, and optionally source texts from the  collection\'s knowledge graph and formats them according to the KG-Eval evaluation  framework structure.  The export includes: - Entities with their names, types, and descriptions - Relationships between entities with descriptions, keywords, and weights   - Source texts that link back to the entities and relationships (optional) 
+         * @summary Export collection knowledge graph for KG-Eval framework
+         * @param {string} collectionId Collection ID to export
+         * @param {number} [sampleSize] Number of entities to sample for export (default 100000)
+         * @param {boolean} [includeSourceTexts] Whether to include source texts in the export (default true)
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdGraphsExportKgEvalGet: async (collectionId: string, sampleSize?: number, includeSourceTexts?: boolean, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('collectionsCollectionIdGraphsExportKgEvalGet', 'collectionId', collectionId)
+            const localVarPath = `/collections/{collection_id}/graphs/export/kg-eval`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            if (sampleSize !== undefined) {
+                localVarQueryParameter['sample_size'] = sampleSize;
+            }
+
+            if (includeSourceTexts !== undefined) {
+                localVarQueryParameter['include_source_texts'] = includeSourceTexts;
+            }
 
 
     
@@ -3379,6 +3429,21 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Export the collection\'s knowledge graph data in KG-Eval framework format for evaluation.  This endpoint extracts entities, relationships, and optionally source texts from the  collection\'s knowledge graph and formats them according to the KG-Eval evaluation  framework structure.  The export includes: - Entities with their names, types, and descriptions - Relationships between entities with descriptions, keywords, and weights   - Source texts that link back to the entities and relationships (optional) 
+         * @summary Export collection knowledge graph for KG-Eval framework
+         * @param {string} collectionId Collection ID to export
+         * @param {number} [sampleSize] Number of entities to sample for export (default 100000)
+         * @param {boolean} [includeSourceTexts] Whether to include source texts in the export (default true)
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async collectionsCollectionIdGraphsExportKgEvalGet(collectionId: string, sampleSize?: number, includeSourceTexts?: boolean, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<CollectionsCollectionIdGraphsExportKgEvalGet200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdGraphsExportKgEvalGet(collectionId, sampleSize, includeSourceTexts, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdGraphsExportKgEvalGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Update a collection
          * @summary Update a collection
          * @param {string} collectionId 
@@ -4265,6 +4330,16 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.collectionsCollectionIdGet(requestParameters.collectionId, options).then((request) => request(axios, basePath));
         },
         /**
+         * Export the collection\'s knowledge graph data in KG-Eval framework format for evaluation.  This endpoint extracts entities, relationships, and optionally source texts from the  collection\'s knowledge graph and formats them according to the KG-Eval evaluation  framework structure.  The export includes: - Entities with their names, types, and descriptions - Relationships between entities with descriptions, keywords, and weights   - Source texts that link back to the entities and relationships (optional) 
+         * @summary Export collection knowledge graph for KG-Eval framework
+         * @param {DefaultApiCollectionsCollectionIdGraphsExportKgEvalGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdGraphsExportKgEvalGet(requestParameters: DefaultApiCollectionsCollectionIdGraphsExportKgEvalGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<CollectionsCollectionIdGraphsExportKgEvalGet200Response> {
+            return localVarFp.collectionsCollectionIdGraphsExportKgEvalGet(requestParameters.collectionId, requestParameters.sampleSize, requestParameters.includeSourceTexts, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Update a collection
          * @summary Update a collection
          * @param {DefaultApiCollectionsCollectionIdPutRequest} requestParameters Request parameters.
@@ -4992,6 +5067,16 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     collectionsCollectionIdGet(requestParameters: DefaultApiCollectionsCollectionIdGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<Collection>;
+
+    /**
+     * Export the collection\'s knowledge graph data in KG-Eval framework format for evaluation.  This endpoint extracts entities, relationships, and optionally source texts from the  collection\'s knowledge graph and formats them according to the KG-Eval evaluation  framework structure.  The export includes: - Entities with their names, types, and descriptions - Relationships between entities with descriptions, keywords, and weights   - Source texts that link back to the entities and relationships (optional) 
+     * @summary Export collection knowledge graph for KG-Eval framework
+     * @param {DefaultApiCollectionsCollectionIdGraphsExportKgEvalGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    collectionsCollectionIdGraphsExportKgEvalGet(requestParameters: DefaultApiCollectionsCollectionIdGraphsExportKgEvalGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<CollectionsCollectionIdGraphsExportKgEvalGet200Response>;
 
     /**
      * Update a collection
@@ -5966,6 +6051,34 @@ export interface DefaultApiCollectionsCollectionIdGetRequest {
      * @memberof DefaultApiCollectionsCollectionIdGet
      */
     readonly collectionId: string
+}
+
+/**
+ * Request parameters for collectionsCollectionIdGraphsExportKgEvalGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiCollectionsCollectionIdGraphsExportKgEvalGetRequest
+ */
+export interface DefaultApiCollectionsCollectionIdGraphsExportKgEvalGetRequest {
+    /**
+     * Collection ID to export
+     * @type {string}
+     * @memberof DefaultApiCollectionsCollectionIdGraphsExportKgEvalGet
+     */
+    readonly collectionId: string
+
+    /**
+     * Number of entities to sample for export (default 100000)
+     * @type {number}
+     * @memberof DefaultApiCollectionsCollectionIdGraphsExportKgEvalGet
+     */
+    readonly sampleSize?: number
+
+    /**
+     * Whether to include source texts in the export (default true)
+     * @type {boolean}
+     * @memberof DefaultApiCollectionsCollectionIdGraphsExportKgEvalGet
+     */
+    readonly includeSourceTexts?: boolean
 }
 
 /**
@@ -6959,6 +7072,18 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      */
     public collectionsCollectionIdGet(requestParameters: DefaultApiCollectionsCollectionIdGetRequest, options?: RawAxiosRequestConfig) {
         return DefaultApiFp(this.configuration).collectionsCollectionIdGet(requestParameters.collectionId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Export the collection\'s knowledge graph data in KG-Eval framework format for evaluation.  This endpoint extracts entities, relationships, and optionally source texts from the  collection\'s knowledge graph and formats them according to the KG-Eval evaluation  framework structure.  The export includes: - Entities with their names, types, and descriptions - Relationships between entities with descriptions, keywords, and weights   - Source texts that link back to the entities and relationships (optional) 
+     * @summary Export collection knowledge graph for KG-Eval framework
+     * @param {DefaultApiCollectionsCollectionIdGraphsExportKgEvalGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public collectionsCollectionIdGraphsExportKgEvalGet(requestParameters: DefaultApiCollectionsCollectionIdGraphsExportKgEvalGetRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).collectionsCollectionIdGraphsExportKgEvalGet(requestParameters.collectionId, requestParameters.sampleSize, requestParameters.includeSourceTexts, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
