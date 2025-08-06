@@ -341,32 +341,23 @@ class SummaryIndexer(BaseIndexer):
             if is_chunk:
                 prompt = f"""Summarize this text chunk concisely. Requirements:
 1. Use the same language as the original text for the summary
-2. The summary length should not exceed the original text length
-3. Extract the most important core information and key factual data
-4. Preserve critical factual information such as dates, times, numbers, names, locations, diagnoses, measurements, etc.
-5. Stay objective and accurate, do not add content not present in the original text
-6. For medical documents: retain patient info, dates, diagnoses, test results, medications
-7. For technical documents: retain specifications, versions, configurations, metrics
-8. For legal documents: retain dates, parties, amounts, terms, references
-9. Output ONLY the summary content, no additional text, explanations, or formatting
+2. Keep it within 1-2 sentences
+3. Extract only the most important core information
+4. Stay objective and accurate, do not add content not present in the original text
+5. Output ONLY the summary content, no additional text, explanations, or formatting
 
 Text content:
 {text}
 
 Summary:"""
             else:
-                prompt = f"""Generate a comprehensive summary of this document. Requirements:
+                prompt = f"""Generate a concise summary of this document. Requirements:
 1. Use the same language as the original text for the summary
-2. The summary length should not exceed the original text length
-3. Summarize the main topic, key insights, and important factual information
-4. Preserve all critical factual data including dates, times, numbers, names, locations, measurements, etc.
-5. Stay objective and accurate, do not add content not present in the original text
-6. For medical documents: include patient demographics, admission/discharge dates, diagnoses, treatments, test results, medications, vital signs
-7. For technical documents: include specifications, versions, configurations, performance metrics, technical parameters
-8. For legal documents: include dates, parties involved, amounts, key terms, legal references
-9. For business documents: include dates, figures, key decisions, stakeholders, outcomes
-10. Maintain logical structure and ensure all important details are captured
-11. Output ONLY the summary content, no additional text, explanations, or formatting
+2. Keep it within 2-3 sentences
+3. Summarize the main topic and key insights of the document
+4. Stay objective and accurate, do not add content not present in the original text
+5. If it's a technical document, highlight the technical points
+6. Output ONLY the summary content, no additional text, explanations, or formatting
 
 Document content:
 {text}
@@ -395,17 +386,12 @@ Summary:"""
         try:
             prompt = f"""Combine these section summaries into a comprehensive final document summary. Requirements:
 1. Use the same language as the original summaries for the final summary
-2. The final summary length should not exceed the combined summaries length
+2. Keep it within 3-4 sentences
 3. Integrate the core content from all sections into a coherent overall summary
-4. Preserve all critical factual information from the section summaries including dates, times, numbers, names, locations, measurements, etc.
-5. Highlight the main topic and most important insights of the document
-6. Maintain logical clarity and avoid repetitive content
-7. For medical documents: ensure all key patient info, dates, diagnoses, treatments, and test results are retained
-8. For technical documents: maintain accuracy of technical terminology, specifications, and metrics
-9. For legal documents: preserve all dates, parties, amounts, and key terms
-10. For business documents: retain all dates, figures, decisions, and outcomes
-11. Ensure the summary flows logically and tells the complete story of the document
-12. Output ONLY the final summary content, no additional text, explanations, or formatting
+4. Highlight the main topic and most important insights of the document
+5. Maintain logical clarity and avoid repetitive content
+6. If technical content is involved, maintain accuracy of technical terminology
+7. Output ONLY the final summary content, no additional text, explanations, or formatting
 
 Section summaries:
 {combined_summaries}
