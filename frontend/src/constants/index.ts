@@ -33,6 +33,7 @@ import GmailIcon from '@/assets/collection_source/gmail.png';
 import OutlookIcon from '@/assets/collection_source/outlook.png';
 import QQGmailIcon from '@/assets/collection_source/qq.png';
 
+import iconAgent from '@/assets/bots/agent.svg';
 import iconCommon from '@/assets/bots/common.svg';
 import iconKnowledge from '@/assets/bots/knowledge.svg';
 
@@ -96,6 +97,7 @@ export const MODEL_PROVIDER_ICON: {
 export const BOT_TYPE_ICON: { [key in BotTypeEnum]: React.ReactNode } = {
   knowledge: iconKnowledge,
   common: iconCommon,
+  agent: iconAgent,
 };
 
 export const COLLECTION_SOURCE: {
@@ -188,7 +190,6 @@ export const UI_COLLECTION_STATUS: {
   ACTIVE: 'success',
   INACTIVE: 'error',
   DELETED: 'error',
-  SUMMARY_GENERATING: 'processing',
 };
 
 export const UI_DOCUMENT_STATUS: {
@@ -205,7 +206,6 @@ export const UI_DOCUMENT_STATUS: {
   COMPLETE: 'success',
   DELETED: 'default',
   DELETING: 'warning',
-  WARNING: 'warning',
 };
 
 export const UI_INDEX_STATUS: {
@@ -213,13 +213,7 @@ export const UI_INDEX_STATUS: {
     | DocumentVectorIndexStatusEnum
     | DocumentFulltextIndexStatusEnum
     | DocumentGraphIndexStatusEnum
-    | string // 新增，兼容 summary
-  ]:
-    | 'success'
-    | 'processing'
-    | 'error'
-    | 'default'
-    | 'warning';
+    | string]: 'success' | 'processing' | 'error' | 'default' | 'warning'; // 新增，兼容 summary
 } = {
   PENDING: 'warning',
   CREATING: 'processing',

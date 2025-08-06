@@ -95,6 +95,12 @@ export const ApeNodeLlm = ({ node }: { node: ApeNode }) => {
                         );
                         applyChanges();
                       }}
+                      tagfilters={[
+                        {
+                          operation: 'OR',
+                          tags: ['enable_for_agent'],
+                        },
+                      ]}
                     />
                   </Form.Item>
                   <Form.Item

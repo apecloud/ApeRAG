@@ -14,6 +14,7 @@
 
 import json
 import logging
+import time
 import uuid
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
@@ -33,11 +34,11 @@ from aperag.utils.history import (
     RedisChatMessageHistory,
     fail_response,
     get_async_redis_client,
+    references_response,
     start_response,
     stop_response,
     success_response,
 )
-from aperag.utils.utils import now_unix_milliseconds
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ class FrontendFormatter:
         return {
             "type": "start",
             "id": msg_id,
-            "timestamp": now_unix_milliseconds(),
+            "timestamp": int(time.time()),
         }
 
     @staticmethod
@@ -61,7 +62,7 @@ class FrontendFormatter:
             "type": "message",
             "id": msg_id,
             "data": content,
-            "timestamp": now_unix_milliseconds(),
+            "timestamp": int(time.time()),
         }
 
     @staticmethod
@@ -83,7 +84,7 @@ class FrontendFormatter:
             "data": references,
             "memoryCount": memory_count,
             "urls": urls,
-            "timestamp": now_unix_milliseconds(),
+            "timestamp": int(time.time()),
         }
 
     @staticmethod
@@ -93,7 +94,7 @@ class FrontendFormatter:
             "type": "message",
             "id": msg_id,
             "data": content,
-            "timestamp": now_unix_milliseconds(),
+            "timestamp": int(time.time()),
         }
 
     @staticmethod
@@ -103,7 +104,7 @@ class FrontendFormatter:
             "type": "error",
             "id": str(uuid.uuid4()),
             "data": error,
-            "timestamp": now_unix_milliseconds(),
+            "timestamp": int(time.time()),
         }
 
 
@@ -149,7 +150,7 @@ class ChatService:
 
     async def get_chat(self, user: str, bot_id: str, chat_id: str) -> view_models.ChatDetails:
         # Import here to avoid circular imports
-        from aperag.views.utils import query_chat_messages
+        from aperag.utils.history import query_chat_messages
 
         chat = await self.db_ops.query_chat(user, bot_id, chat_id)
         if chat is None:
@@ -345,9 +346,25 @@ class ChatService:
         """Handle WebSocket chat connections and message streaming"""
         await websocket.accept()
 
-        history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
-
         try:
+            # Get bot configuration first to determine bot type
+            bot = await self.db_ops.query_bot(user, bot_id)
+            if not bot:
+                await websocket.send_text(fail_response("error", "Bot not found"))
+                return
+
+            # Route to appropriate service based on bot type
+            if bot.type == db_models.BotType.AGENT:
+                # Use AgentChatService for agent-type bots
+                from aperag.service.agent_chat_service import AgentChatService
+
+                agent_service = AgentChatService()
+                await agent_service.handle_websocket_agent_chat(websocket, user, bot_id, chat_id)
+                return
+
+            # Continue with existing flow for knowledge and common bots
+            history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
+
             while True:
                 # Receive message from client
                 text_data = await websocket.receive_text()
@@ -363,12 +380,6 @@ class ChatService:
                 message_id = str(uuid.uuid4())
 
                 try:
-                    # Get bot configuration
-                    bot = await self.db_ops.query_bot(user, bot_id)
-                    if not bot:
-                        await websocket.send_text(fail_response(message_id, "Bot not found"))
-                        continue
-
                     # Get or create chat session
                     try:
                         await self.db_ops.query_chat(user, bot_id, chat_id)
@@ -440,7 +451,8 @@ class ChatService:
 
                     # Send stop message with references and URLs
                     memory_count = 0  # You might want to implement memory counting if needed
-                    await websocket.send_text(stop_response(message_id, references, memory_count, urls))
+                    await websocket.send_text(references_response(message_id, references, memory_count, urls))
+                    await websocket.send_text(stop_response(message_id))
 
                 except Exception as e:
                     logger.exception(f"Error processing WebSocket message: {e}")

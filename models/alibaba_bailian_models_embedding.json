@@ -19,23 +19,14 @@
 							"description":"是通义实验室基于Qwen3训练的多语言文本统一向量模型，相较V3版本在文本检索、聚类、分类性能大幅提升；在MTEB多语言、中英、Code检索等评测任务上效果提升15%~40%；支持64~2048维用户自定义向量维度。",
 							"provider":"aliyun",
 							"permissions":{
-								"fineTune":true,
-								"inference":true,
-								"deploy":true
-							},
-							"quota":{
-								"quotaInitTotal":1000000.0,
-								"recentQuotaInitTotal":1000000.0,
-								"recentQuotaTotal":1000000.0,
-								"quotaValidityPeriod":1765183780995,
-								"quotaTotal":1000000.0,
-								"quotaStatus":"VALID"
+								"inference":true
 							},
 							"scope":"PUBLIC",
-							"maxContextWindow":0,
-							"limit":{
-								"message":"model not exist"
+							"quota":{
+								"quotaStatus":"UNKNOWN"
 							},
+							"maxContextWindow":0,
+							"minContextWindow":0,
 							"supports":{
 								"app":false,
 								"fineTune":false,
@@ -47,12 +38,11 @@
 								"experience":false,
 								"displayQpmLimit":true,
 								"deploy":false,
-								"tokenizer":false,
 								"sellingByQpm":false,
+								"tokenizer":false,
 								"eval":false,
 								"experienceUpcoming":false
 							},
-							"minContextWindow":0,
 							"model":"text-embedding-v4",
 							"prices":[
 								{
@@ -107,21 +97,11 @@
 									"license":{},
 									"provider":"aliyun",
 									"permissions":{
-										"fineTune":true,
-										"inference":true,
-										"deploy":true
-									},
-									"quota":{
-										"quotaInitTotal":1000000.0,
-										"recentQuotaInitTotal":1000000.0,
-										"recentQuotaTotal":1000000.0,
-										"quotaValidityPeriod":1765183780995,
-										"quotaTotal":1000000.0,
-										"quotaStatus":"VALID"
+										"inference":true
 									},
 									"scope":"PUBLIC",
-									"limit":{
-										"message":"model not exist"
+									"quota":{
+										"quotaStatus":"UNKNOWN"
 									},
 									"docUrl":"https://help.aliyun.com/document_detail/2842587.html",
 									"needApply":false,
@@ -137,8 +117,8 @@
 										"experience":false,
 										"displayQpmLimit":true,
 										"deploy":false,
-										"tokenizer":false,
 										"sellingByQpm":false,
+										"tokenizer":false,
 										"eval":false,
 										"experienceUpcoming":false
 									},
@@ -181,23 +161,14 @@
 							"description":"通用文本向量，是通义实验室基于LLM底座的多语言文本统一向量模型，面向全球多个主流语种，提供高水准的向量服务，帮助开发者将文本数据快速转换为高质量的向量数据。",
 							"provider":"aliyun",
 							"permissions":{
-								"fineTune":true,
-								"inference":true,
-								"deploy":true
-							},
-							"quota":{
-								"quotaInitTotal":500000.0,
-								"recentQuotaInitTotal":500000.0,
-								"recentQuotaTotal":500000.0,
-								"quotaValidityPeriod":1765183780604,
-								"quotaTotal":500000.0,
-								"quotaStatus":"VALID"
+								"inference":true
 							},
 							"scope":"PUBLIC",
-							"maxContextWindow":0,
-							"limit":{
-								"message":"model not exist"
+							"quota":{
+								"quotaStatus":"UNKNOWN"
 							},
+							"maxContextWindow":0,
+							"minContextWindow":0,
 							"supports":{
 								"app":false,
 								"fineTune":false,
@@ -209,12 +180,11 @@
 								"experience":false,
 								"displayQpmLimit":true,
 								"deploy":false,
-								"tokenizer":false,
 								"sellingByQpm":false,
+								"tokenizer":false,
 								"eval":false,
 								"experienceUpcoming":false
 							},
-							"minContextWindow":0,
 							"model":"text-embedding-v3",
 							"prices":[
 								{
@@ -268,21 +238,11 @@
 									"license":{},
 									"provider":"aliyun",
 									"permissions":{
-										"fineTune":true,
-										"inference":true,
-										"deploy":true
-									},
-									"quota":{
-										"quotaInitTotal":500000.0,
-										"recentQuotaInitTotal":500000.0,
-										"recentQuotaTotal":500000.0,
-										"quotaValidityPeriod":1765183780604,
-										"quotaTotal":500000.0,
-										"quotaStatus":"VALID"
+										"inference":true
 									},
 									"scope":"PUBLIC",
-									"limit":{
-										"message":"model not exist"
+									"quota":{
+										"quotaStatus":"UNKNOWN"
 									},
 									"docUrl":"https://help.aliyun.com/document_detail/2712515.html",
 									"needApply":false,
@@ -298,8 +258,8 @@
 										"experience":false,
 										"displayQpmLimit":true,
 										"deploy":false,
-										"tokenizer":false,
 										"sellingByQpm":false,
+										"tokenizer":false,
 										"eval":false,
 										"experienceUpcoming":false
 									},
@@ -341,18 +301,14 @@
 							"description":"通义实验室基于预训练多模态大模型构建的多模态向量模型。该模型根据用户的输入生成高维连续向量，这些输入可以是文本、图片或视频。多模态向量在可应用于图片搜索、文搜图、视频搜索、图片分类和视频内容审核等下游任务中。",
 							"provider":"aliyun",
 							"permissions":{
-								"fineTune":true,
-								"inference":true,
-								"deploy":true
-							},
-							"quota":{
-								"quotaStatus":"VALID"
+								"inference":true
 							},
 							"scope":"PUBLIC",
-							"maxContextWindow":0,
-							"limit":{
-								"message":"model not exist"
+							"quota":{
+								"quotaStatus":"UNKNOWN"
 							},
+							"maxContextWindow":0,
+							"minContextWindow":0,
 							"supports":{
 								"app":false,
 								"fineTune":false,
@@ -364,12 +320,11 @@
 								"experience":false,
 								"displayQpmLimit":true,
 								"deploy":false,
-								"tokenizer":false,
 								"sellingByQpm":false,
+								"tokenizer":false,
 								"eval":false,
 								"experienceUpcoming":false
 							},
-							"minContextWindow":0,
 							"model":"multimodal-embedding-v1",
 							"prices":[
 								{
@@ -415,22 +370,34 @@
 							"name":"通用多模态向量",
 							"items":[
 								{
+									"capabilities":[
+										"TR"
+									],
+									"set":"OTHER",
 									"openSource":false,
 									"updateAt":1734954931000,
 									"description":"通义实验室基于预训练多模态大模型构建的多模态向量模型。该模型根据用户的输入生成高维连续向量，这些输入可以是文本、图片或视频。多模态向量在可应用于图片搜索、文搜图、视频搜索、图片分类和视频内容审核等下游任务中。",
+									"modelAlias":"",
+									"versionTag":"MAJOR",
+									"shortDescription":"通义实验室基于预训练多模态大模型构建的多模态向量模型。该模型根据用户的输入生成高维连续向量，这些输入可以是文本、图片或视频。多模态向量在可应用于图片搜索、文搜图、视频搜索、图片分类和视频内容审核等下游任务中。",
+									"maxOutputTokens":0,
+									"tags":[
+										"new-rd"
+									],
+									"contextWindow":0,
+									"maxInputTokens":512,
+									"license":{},
 									"provider":"aliyun",
 									"permissions":{
-										"fineTune":true,
-										"inference":true,
-										"deploy":true
-									},
-									"quota":{
-										"quotaStatus":"VALID"
+										"inference":true
 									},
 									"scope":"PUBLIC",
-									"limit":{
-										"message":"model not exist"
+									"quota":{
+										"quotaStatus":"UNKNOWN"
 									},
+									"docUrl":"https://help.aliyun.com/document_detail/2712517.html",
+									"needApply":false,
+									"name":"通用多模态向量",
 									"supports":{
 										"app":false,
 										"fineTune":false,
@@ -442,8 +409,8 @@
 										"experience":false,
 										"displayQpmLimit":true,
 										"deploy":false,
-										"tokenizer":false,
 										"sellingByQpm":false,
+										"tokenizer":false,
 										"eval":false,
 										"experienceUpcoming":false
 									},
@@ -471,24 +438,7 @@
 											"usage_limit_period":60,
 											"type":"model-default"
 										}
-									},
-									"capabilities":[
-										"TR"
-									],
-									"set":"OTHER",
-									"modelAlias":"",
-									"versionTag":"MAJOR",
-									"shortDescription":"通义实验室基于预训练多模态大模型构建的多模态向量模型。该模型根据用户的输入生成高维连续向量，这些输入可以是文本、图片或视频。多模态向量在可应用于图片搜索、文搜图、视频搜索、图片分类和视频内容审核等下游任务中。",
-									"maxOutputTokens":0,
-									"tags":[
-										"new-rd"
-									],
-									"contextWindow":0,
-									"maxInputTokens":512,
-									"license":{},
-									"docUrl":"https://help.aliyun.com/document_detail/2712517.html",
-									"needApply":false,
-									"name":"通用多模态向量"
+									}
 								}
 							],
 							"providers":[
@@ -496,28 +446,30 @@
 							]
 						},
 						{
+							"capabilities":[
+								"TR"
+							],
+							"set":"embedding",
 							"openSource":false,
 							"updateAt":1712653528000,
 							"description":"通用文本向量的批处理接口，通过这个接口客户可以以文本方式一次性的提交大批量的向量计算请求，在系统完成所有的计算之后，大模型服务平台会将结果信息存储在结果文件中供客户下载解析。",
+							"versionTag":"MAJOR",
+							"shortDescription":"通用文本向量的批处理接口，通过这个接口客户可以以文本方式一次性的提交大批量的向量计算请求，在系统完成所有的计算之后，大模型服务平台会将结果信息存储在结果文件中供客户下载解析。",
+							"tags":[],
+							"license":{},
 							"provider":"aliyun",
 							"permissions":{
-								"fineTune":true,
-								"inference":true,
-								"deploy":true
-							},
-							"quota":{
-								"quotaInitTotal":2.0E+7,
-								"recentQuotaInitTotal":2.0E+7,
-								"recentQuotaTotal":2.0E+7,
-								"quotaValidityPeriod":1765183780619,
-								"quotaTotal":2.0E+7,
-								"quotaStatus":"VALID"
+								"inference":true
 							},
 							"scope":"PUBLIC",
-							"maxContextWindow":0,
-							"limit":{
-								"message":"model not exist"
+							"quota":{
+								"quotaStatus":"UNKNOWN"
 							},
+							"maxContextWindow":0,
+							"docUrl":"https://help.aliyun.com/document_detail/2712516.html",
+							"needApply":false,
+							"name":"通用文本向量-async-v2",
+							"minContextWindow":0,
 							"supports":{
 								"app":false,
 								"fineTune":false,
@@ -529,12 +481,11 @@
 								"experience":false,
 								"displayQpmLimit":false,
 								"deploy":false,
-								"tokenizer":false,
 								"sellingByQpm":false,
+								"tokenizer":false,
 								"eval":false,
 								"experienceUpcoming":false
 							},
-							"minContextWindow":0,
 							"model":"text-embedding-async-v2",
 							"prices":[
 								{
@@ -543,18 +494,6 @@
 									"type":"INFERENCE_OUTPUT"
 								}
 							],
-							"group":false,
-							"capabilities":[
-								"TR"
-							],
-							"set":"embedding",
-							"versionTag":"MAJOR",
-							"shortDescription":"通用文本向量的批处理接口，通过这个接口客户可以以文本方式一次性的提交大批量的向量计算请求，在系统完成所有的计算之后，大模型服务平台会将结果信息存储在结果文件中供客户下载解析。",
-							"tags":[],
-							"license":{},
-							"docUrl":"https://help.aliyun.com/document_detail/2712516.html",
-							"needApply":false,
-							"name":"通用文本向量-async-v2",
 							"items":[
 								{
 									"capabilities":[
@@ -570,21 +509,11 @@
 									"license":{},
 									"provider":"aliyun",
 									"permissions":{
-										"fineTune":true,
-										"inference":true,
-										"deploy":true
-									},
-									"quota":{
-										"quotaInitTotal":2.0E+7,
-										"recentQuotaInitTotal":2.0E+7,
-										"recentQuotaTotal":2.0E+7,
-										"quotaValidityPeriod":1765183780619,
-										"quotaTotal":2.0E+7,
-										"quotaStatus":"VALID"
+										"inference":true
 									},
 									"scope":"PUBLIC",
-									"limit":{
-										"message":"model not exist"
+									"quota":{
+										"quotaStatus":"UNKNOWN"
 									},
 									"docUrl":"https://help.aliyun.com/document_detail/2712516.html",
 									"needApply":false,
@@ -600,8 +529,8 @@
 										"experience":false,
 										"displayQpmLimit":false,
 										"deploy":false,
-										"tokenizer":false,
 										"sellingByQpm":false,
+										"tokenizer":false,
 										"eval":false,
 										"experienceUpcoming":false
 									},
@@ -617,31 +546,34 @@
 							],
 							"providers":[
 								"aliyun"
-							]
+							],
+							"group":false
 						},
 						{
+							"capabilities":[
+								"TR"
+							],
+							"set":"embedding",
 							"openSource":false,
 							"updateAt":1712653481000,
 							"description":"通用文本向量的批处理接口，通过这个接口客户可以以文本方式一次性的提交大批量的向量计算请求，在系统完成所有的计算之后，大模型服务平台会将结果信息存储在结果文件中供客户下载解析。",
+							"versionTag":"MAJOR",
+							"shortDescription":"通用文本向量的批处理接口，通过这个接口客户可以以文本方式一次性的提交大批量的向量计算请求，在系统完成所有的计算之后，大模型服务平台会将结果信息存储在结果文件中供客户下载解析。",
+							"tags":[],
+							"license":{},
 							"provider":"aliyun",
 							"permissions":{
-								"fineTune":true,
-								"inference":true,
-								"deploy":true
-							},
-							"quota":{
-								"quotaInitTotal":2.0E+7,
-								"recentQuotaInitTotal":2.0E+7,
-								"recentQuotaTotal":2.0E+7,
-								"quotaValidityPeriod":1765183780615,
-								"quotaTotal":2.0E+7,
-								"quotaStatus":"VALID"
+								"inference":true
 							},
 							"scope":"PUBLIC",
-							"maxContextWindow":0,
-							"limit":{
-								"message":"model not exist"
+							"quota":{
+								"quotaStatus":"UNKNOWN"
 							},
+							"maxContextWindow":0,
+							"docUrl":"https://help.aliyun.com/document_detail/2712516.html",
+							"needApply":false,
+							"name":"通用文本向量-async-v1",
+							"minContextWindow":0,
 							"supports":{
 								"app":false,
 								"fineTune":false,
@@ -653,12 +585,11 @@
 								"experience":false,
 								"displayQpmLimit":false,
 								"deploy":false,
-								"tokenizer":false,
 								"sellingByQpm":false,
+								"tokenizer":false,
 								"eval":false,
 								"experienceUpcoming":false
 							},
-							"minContextWindow":0,
 							"model":"text-embedding-async-v1",
 							"prices":[
 								{
@@ -667,18 +598,6 @@
 									"type":"INFERENCE_OUTPUT"
 								}
 							],
-							"group":false,
-							"capabilities":[
-								"TR"
-							],
-							"set":"embedding",
-							"versionTag":"MAJOR",
-							"shortDescription":"通用文本向量的批处理接口，通过这个接口客户可以以文本方式一次性的提交大批量的向量计算请求，在系统完成所有的计算之后，大模型服务平台会将结果信息存储在结果文件中供客户下载解析。",
-							"tags":[],
-							"license":{},
-							"docUrl":"https://help.aliyun.com/document_detail/2712516.html",
-							"needApply":false,
-							"name":"通用文本向量-async-v1",
 							"items":[
 								{
 									"capabilities":[
@@ -694,21 +613,11 @@
 									"license":{},
 									"provider":"aliyun",
 									"permissions":{
-										"fineTune":true,
-										"inference":true,
-										"deploy":true
-									},
-									"quota":{
-										"quotaInitTotal":2.0E+7,
-										"recentQuotaInitTotal":2.0E+7,
-										"recentQuotaTotal":2.0E+7,
-										"quotaValidityPeriod":1765183780615,
-										"quotaTotal":2.0E+7,
-										"quotaStatus":"VALID"
+										"inference":true
 									},
 									"scope":"PUBLIC",
-									"limit":{
-										"message":"model not exist"
+									"quota":{
+										"quotaStatus":"UNKNOWN"
 									},
 									"docUrl":"https://help.aliyun.com/document_detail/2712516.html",
 									"needApply":false,
@@ -724,8 +633,8 @@
 										"experience":false,
 										"displayQpmLimit":false,
 										"deploy":false,
-										"tokenizer":false,
 										"sellingByQpm":false,
+										"tokenizer":false,
 										"eval":false,
 										"experienceUpcoming":false
 									},
@@ -741,7 +650,8 @@
 							],
 							"providers":[
 								"aliyun"
-							]
+							],
+							"group":false
 						},
 						{
 							"openSource":false,
@@ -749,23 +659,14 @@
 							"description":"通用文本向量，是通义实验室基于LLM底座的多语言文本统一向量模型，面向全球多个主流语种，提供高水准的向量服务，帮助开发者将文本数据快速转换为高质量的向量数据。",
 							"provider":"aliyun",
 							"permissions":{
-								"fineTune":true,
-								"inference":true,
-								"deploy":true
-							},
-							"quota":{
-								"quotaInitTotal":500000.0,
-								"recentQuotaInitTotal":500000.0,
-								"recentQuotaTotal":500000.0,
-								"quotaValidityPeriod":1765183780608,
-								"quotaTotal":500000.0,
-								"quotaStatus":"VALID"
+								"inference":true
 							},
 							"scope":"PUBLIC",
-							"maxContextWindow":0,
-							"limit":{
-								"message":"model not exist"
+							"quota":{
+								"quotaStatus":"UNKNOWN"
 							},
+							"maxContextWindow":0,
+							"minContextWindow":0,
 							"supports":{
 								"app":false,
 								"fineTune":false,
@@ -777,12 +678,11 @@
 								"experience":false,
 								"displayQpmLimit":true,
 								"deploy":false,
-								"tokenizer":false,
 								"sellingByQpm":false,
+								"tokenizer":false,
 								"eval":false,
 								"experienceUpcoming":false
 							},
-							"minContextWindow":0,
 							"model":"text-embedding-v2",
 							"prices":[
 								{
@@ -836,21 +736,11 @@
 									"license":{},
 									"provider":"aliyun",
 									"permissions":{
-										"fineTune":true,
-										"inference":true,
-										"deploy":true
-									},
-									"quota":{
-										"quotaInitTotal":500000.0,
-										"recentQuotaInitTotal":500000.0,
-										"recentQuotaTotal":500000.0,
-										"quotaValidityPeriod":1765183780608,
-										"quotaTotal":500000.0,
-										"quotaStatus":"VALID"
+										"inference":true
 									},
 									"scope":"PUBLIC",
-									"limit":{
-										"message":"model not exist"
+									"quota":{
+										"quotaStatus":"UNKNOWN"
 									},
 									"docUrl":"https://help.aliyun.com/document_detail/2712515.html",
 									"needApply":false,
@@ -866,8 +756,8 @@
 										"experience":false,
 										"displayQpmLimit":true,
 										"deploy":false,
-										"tokenizer":false,
 										"sellingByQpm":false,
+										"tokenizer":false,
 										"eval":false,
 										"experienceUpcoming":false
 									},
@@ -909,23 +799,14 @@
 							"description":"通用文本向量，是通义实验室基于LLM底座的多语言文本统一向量模型，面向全球多个主流语种，提供高水准的向量服务，帮助开发者将文本数据快速转换为高质量的向量数据。",
 							"provider":"aliyun",
 							"permissions":{
-								"fineTune":true,
-								"inference":true,
-								"deploy":true
-							},
-							"quota":{
-								"quotaInitTotal":500000.0,
-								"recentQuotaInitTotal":500000.0,
-								"recentQuotaTotal":500000.0,
-								"quotaValidityPeriod":1765183780611,
-								"quotaTotal":500000.0,
-								"quotaStatus":"VALID"
+								"inference":true
 							},
 							"scope":"PUBLIC",
-							"maxContextWindow":0,
-							"limit":{
-								"message":"model not exist"
+							"quota":{
+								"quotaStatus":"UNKNOWN"
 							},
+							"maxContextWindow":0,
+							"minContextWindow":0,
 							"supports":{
 								"app":false,
 								"fineTune":false,
@@ -937,12 +818,11 @@
 								"experience":false,
 								"displayQpmLimit":true,
 								"deploy":false,
-								"tokenizer":false,
 								"sellingByQpm":false,
+								"tokenizer":false,
 								"eval":false,
 								"experienceUpcoming":false
 							},
-							"minContextWindow":0,
 							"model":"text-embedding-v1",
 							"prices":[
 								{
@@ -996,21 +876,11 @@
 									"license":{},
 									"provider":"aliyun",
 									"permissions":{
-										"fineTune":true,
-										"inference":true,
-										"deploy":true
-									},
-									"quota":{
-										"quotaInitTotal":500000.0,
-										"recentQuotaInitTotal":500000.0,
-										"recentQuotaTotal":500000.0,
-										"quotaValidityPeriod":1765183780611,
-										"quotaTotal":500000.0,
-										"quotaStatus":"VALID"
+										"inference":true
 									},
 									"scope":"PUBLIC",
-									"limit":{
-										"message":"model not exist"
+									"quota":{
+										"quotaStatus":"UNKNOWN"
 									},
 									"docUrl":"https://help.aliyun.com/document_detail/2712515.html",
 									"needApply":false,
@@ -1026,8 +896,8 @@
 										"experience":false,
 										"displayQpmLimit":true,
 										"deploy":false,
-										"tokenizer":false,
 										"sellingByQpm":false,
+										"tokenizer":false,
 										"eval":false,
 										"experienceUpcoming":false
 									},
@@ -1077,6 +947,6 @@
 		"errorMsg":""
 	},
 	"httpStatusCode":"200",
-	"requestId":"93128c03-14e0-414e-bb2c-e105717faf8d",
+	"requestId":"7577de40-f57d-4f9c-a020-4221248e477a",
 	"successResponse":true
 }

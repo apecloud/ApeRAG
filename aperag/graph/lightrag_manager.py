@@ -138,6 +138,17 @@ async def _process_document_async(
     try:
         logger.info(f"Processing document {doc_id}")
 
+        if not content:
+            # The parser couldn't extract any text content from the document;
+            # it might be a purely image-based document.
+            return {
+                "status": "success",
+                "doc_id": doc_id,
+                "chunks_created": 0,
+                "entities_extracted": 0,
+                "relations_extracted": 0,
+            }
+
         # Insert and chunk document
         chunk_result = await rag.ainsert_and_chunk_document(
             documents=[content], doc_ids=[doc_id], file_paths=[file_path]
@@ -278,7 +289,9 @@ async def _gen_llm_func(collection: Collection) -> Callable[..., Awaitable[str]]
             if history_messages:
                 messages.extend(history_messages)
 
-            full_response = await completion_service.agenerate(history=messages, prompt=prompt, memory=bool(messages))
+            full_response = await completion_service.agenerate(
+                history=messages, prompt=prompt, images=[], memory=bool(messages)
+            )
 
             return full_response
 

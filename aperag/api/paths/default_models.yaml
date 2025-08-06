@@ -1,0 +1,45 @@
+defaultModels:
+  get:
+    summary: Get default model configurations
+    description: Get current default model settings for different scenarios
+    responses:
+      '200':
+        description: Default models configuration
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/model.yaml#/defaultModelsResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+  put:
+    summary: Update default model configurations  
+    description: Update default model settings for different scenarios
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/model.yaml#/defaultModelsUpdateRequest'
+    responses:
+      '200':
+        description: Successfully updated default models
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/model.yaml#/defaultModelsResponse'
+      '400':
+        description: Bad request
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'

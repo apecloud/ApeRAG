@@ -22,6 +22,10 @@ import { DUMMY_BASE_URL, assertParamExists, setApiKeyToObject, setBasicAuthToObj
 // @ts-ignore
 import { BASE_PATH, COLLECTION_FORMATS, type RequestArgs, BaseAPI, RequiredError, operationServerMap } from '../base';
 // @ts-ignore
+import type { AgentMessage } from '../models';
+// @ts-ignore
+import type { AgentMessagePost200Response } from '../models';
+// @ts-ignore
 import type { ApiKey } from '../models';
 // @ts-ignore
 import type { ApiKeyCreate } from '../models';
@@ -54,15 +58,21 @@ import type { Collection } from '../models';
 // @ts-ignore
 import type { CollectionCreate } from '../models';
 // @ts-ignore
-import type { CollectionList } from '../models';
-// @ts-ignore
 import type { CollectionUpdate } from '../models';
+// @ts-ignore
+import type { CollectionViewList } from '../models';
+// @ts-ignore
+import type { CollectionsCollectionIdGraphsExportKgEvalGet200Response } from '../models';
 // @ts-ignore
 import type { CollectionsCollectionIdSummaryGeneratePost200Response } from '../models';
 // @ts-ignore
 import type { Config } from '../models';
 // @ts-ignore
 import type { DebugFlowRequest } from '../models';
+// @ts-ignore
+import type { DefaultModelsResponse } from '../models';
+// @ts-ignore
+import type { DefaultModelsUpdateRequest } from '../models';
 // @ts-ignore
 import type { Document } from '../models';
 // @ts-ignore
@@ -100,6 +110,10 @@ import type { LlmProviderUpdateWithApiKey } from '../models';
 // @ts-ignore
 import type { Login } from '../models';
 // @ts-ignore
+import type { MarketplaceCollectionsCollectionIdGraphGet200Response } from '../models';
+// @ts-ignore
+import type { MarketplaceCollectionsCollectionIdSubscribeDelete200Response } from '../models';
+// @ts-ignore
 import type { ModelConfigList } from '../models';
 // @ts-ignore
 import type { PromptTemplateList } from '../models';
@@ -114,6 +128,18 @@ import type { SearchResult } from '../models';
 // @ts-ignore
 import type { SearchResultList } from '../models';
 // @ts-ignore
+import type { Settings } from '../models';
+// @ts-ignore
+import type { SettingsTestMineruTokenPost200Response } from '../models';
+// @ts-ignore
+import type { SettingsTestMineruTokenPostRequest } from '../models';
+// @ts-ignore
+import type { SharedCollection } from '../models';
+// @ts-ignore
+import type { SharedCollectionList } from '../models';
+// @ts-ignore
+import type { SharingStatusResponse } from '../models';
+// @ts-ignore
 import type { TagFilterRequest } from '../models';
 // @ts-ignore
 import type { User } from '../models';
@@ -127,6 +153,42 @@ import type { WorkflowDefinition } from '../models';
  */
 export const DefaultApiAxiosParamCreator = function (configuration?: Configuration) {
     return {
+        /**
+         * This endpoint is for documentation and model generation only. Actual communication should use WebSocket or SSE. 
+         * @summary (Doc Only) Agent message format for WebSocket/SSE
+         * @param {AgentMessage} agentMessage 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        agentMessagePost: async (agentMessage: AgentMessage, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'agentMessage' is not null or undefined
+            assertParamExists('agentMessagePost', 'agentMessage', agentMessage)
+            const localVarPath = `/agent/message`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(agentMessage, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
         /**
          * Delete API key
          * @summary Delete API key
@@ -1244,6 +1306,54 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
+         * Export the collection\'s knowledge graph data in KG-Eval framework format for evaluation.  This endpoint extracts entities, relationships, and optionally source texts from the  collection\'s knowledge graph and formats them according to the KG-Eval evaluation  framework structure.  The export includes: - Entities with their names, types, and descriptions - Relationships between entities with descriptions, keywords, and weights   - Source texts that link back to the entities and relationships (optional) 
+         * @summary Export collection knowledge graph for KG-Eval framework
+         * @param {string} collectionId Collection ID to export
+         * @param {number} [sampleSize] Number of entities to sample for export (default 100000)
+         * @param {boolean} [includeSourceTexts] Whether to include source texts in the export (default true)
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdGraphsExportKgEvalGet: async (collectionId: string, sampleSize?: number, includeSourceTexts?: boolean, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('collectionsCollectionIdGraphsExportKgEvalGet', 'collectionId', collectionId)
+            const localVarPath = `/collections/{collection_id}/graphs/export/kg-eval`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            if (sampleSize !== undefined) {
+                localVarQueryParameter['sample_size'] = sampleSize;
+            }
+
+            if (includeSourceTexts !== undefined) {
+                localVarQueryParameter['include_source_texts'] = includeSourceTexts;
+            }
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Update a collection
          * @summary Update a collection
          * @param {string} collectionId 
@@ -1412,6 +1522,120 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
+         * Remove a collection from the public marketplace (owner only)
+         * @summary Unpublish collection from marketplace
+         * @param {string} collectionId Collection ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdSharingDelete: async (collectionId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('collectionsCollectionIdSharingDelete', 'collectionId', collectionId)
+            const localVarPath = `/collections/{collection_id}/sharing`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'DELETE', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Get the sharing status of a collection (owner only)
+         * @summary Get collection sharing status
+         * @param {string} collectionId Collection ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdSharingGet: async (collectionId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('collectionsCollectionIdSharingGet', 'collectionId', collectionId)
+            const localVarPath = `/collections/{collection_id}/sharing`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Publish a collection to the public marketplace (owner only)
+         * @summary Publish collection to marketplace
+         * @param {string} collectionId Collection ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdSharingPost: async (collectionId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('collectionsCollectionIdSharingPost', 'collectionId', collectionId)
+            const localVarPath = `/collections/{collection_id}/sharing`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Trigger collection summary generation as background task
          * @summary Generate collection summary
          * @param {string} collectionId 
@@ -1450,14 +1674,15 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
-         * Get a list of collections
+         * Get a list of collections (owned and optionally subscribed)
          * @summary List collections
          * @param {number} [page] 
          * @param {number} [pageSize] 
+         * @param {boolean} [includeSubscribed] Whether to include subscribed collections in results
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        collectionsGet: async (page?: number, pageSize?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        collectionsGet: async (page?: number, pageSize?: number, includeSubscribed?: boolean, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             const localVarPath = `/collections`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
@@ -1480,6 +1705,10 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
 
             if (pageSize !== undefined) {
                 localVarQueryParameter['page_size'] = pageSize;
+            }
+
+            if (includeSubscribed !== undefined) {
+                localVarQueryParameter['include_subscribed'] = includeSubscribed;
             }
 
 
@@ -1561,6 +1790,72 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             setSearchParams(localVarUrlObj, localVarQueryParameter);
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Get current default model settings for different scenarios
+         * @summary Get default model configurations
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        defaultModelsGet: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/default_models`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Update default model settings for different scenarios
+         * @summary Update default model configurations
+         * @param {DefaultModelsUpdateRequest} defaultModelsUpdateRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        defaultModelsPut: async (defaultModelsUpdateRequest: DefaultModelsUpdateRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'defaultModelsUpdateRequest' is not null or undefined
+            assertParamExists('defaultModelsPut', 'defaultModelsUpdateRequest', defaultModelsUpdateRequest)
+            const localVarPath = `/default_models`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'PUT', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(defaultModelsUpdateRequest, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -2164,6 +2459,309 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
+         * Get document preview for a subscribed Collection (read-only mode)
+         * @summary Preview document in MarketplaceCollection (read-only)
+         * @param {string} collectionId Collection ID
+         * @param {string} documentId Document ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGet: async (collectionId: string, documentId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('marketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGet', 'collectionId', collectionId)
+            // verify required parameter 'documentId' is not null or undefined
+            assertParamExists('marketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGet', 'documentId', documentId)
+            const localVarPath = `/marketplace/collections/{collection_id}/documents/{document_id}/preview`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)))
+                .replace(`{${"document_id"}}`, encodeURIComponent(String(documentId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Get document list for a subscribed Collection (read-only mode)
+         * @summary List documents in MarketplaceCollection (read-only)
+         * @param {string} collectionId Collection ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceCollectionsCollectionIdDocumentsGet: async (collectionId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('marketplaceCollectionsCollectionIdDocumentsGet', 'collectionId', collectionId)
+            const localVarPath = `/marketplace/collections/{collection_id}/documents`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Get details of a subscribed Collection (read-only access)
+         * @summary Get MarketplaceCollection details (read-only)
+         * @param {string} collectionId Collection ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceCollectionsCollectionIdGet: async (collectionId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('marketplaceCollectionsCollectionIdGet', 'collectionId', collectionId)
+            const localVarPath = `/marketplace/collections/{collection_id}`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Get knowledge graph data for a subscribed Collection (read-only mode)
+         * @summary Get knowledge graph for MarketplaceCollection (read-only)
+         * @param {string} collectionId Collection ID
+         * @param {string} [label] Node label filter
+         * @param {number} [maxNodes] Maximum number of nodes
+         * @param {number} [maxDepth] Graph traversal depth
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceCollectionsCollectionIdGraphGet: async (collectionId: string, label?: string, maxNodes?: number, maxDepth?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('marketplaceCollectionsCollectionIdGraphGet', 'collectionId', collectionId)
+            const localVarPath = `/marketplace/collections/{collection_id}/graph`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (label !== undefined) {
+                localVarQueryParameter['label'] = label;
+            }
+
+            if (maxNodes !== undefined) {
+                localVarQueryParameter['max_nodes'] = maxNodes;
+            }
+
+            if (maxDepth !== undefined) {
+                localVarQueryParameter['max_depth'] = maxDepth;
+            }
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Remove subscription to a Collection
+         * @summary Unsubscribe from a Collection
+         * @param {string} collectionId Collection ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceCollectionsCollectionIdSubscribeDelete: async (collectionId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('marketplaceCollectionsCollectionIdSubscribeDelete', 'collectionId', collectionId)
+            const localVarPath = `/marketplace/collections/{collection_id}/subscribe`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'DELETE', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Subscribe to a published Collection
+         * @summary Subscribe to a Collection
+         * @param {string} collectionId Collection ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceCollectionsCollectionIdSubscribePost: async (collectionId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('marketplaceCollectionsCollectionIdSubscribePost', 'collectionId', collectionId)
+            const localVarPath = `/marketplace/collections/{collection_id}/subscribe`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Returns all Collections that are published to marketplace with current user\'s subscription status
+         * @summary List all published Collections in marketplace
+         * @param {number} [page] Page number
+         * @param {number} [pageSize] Page size
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceCollectionsGet: async (page?: number, pageSize?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/marketplace/collections`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (page !== undefined) {
+                localVarQueryParameter['page'] = page;
+            }
+
+            if (pageSize !== undefined) {
+                localVarQueryParameter['page_size'] = pageSize;
+            }
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Returns all Collections that current user has subscribed to
+         * @summary Get user\'s subscribed Collections
+         * @param {number} [page] Page number
+         * @param {number} [pageSize] Page size
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceCollectionsSubscriptionsGet: async (page?: number, pageSize?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/marketplace/collections/subscriptions`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (page !== undefined) {
+                localVarQueryParameter['page'] = page;
+            }
+
+            if (pageSize !== undefined) {
+                localVarQueryParameter['page_size'] = pageSize;
+            }
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Get prompt templates
          * @summary Get prompt templates
          * @param {*} [options] Override http request option.
@@ -2223,6 +2821,118 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
             localVarRequestOptions.data = serializeDataIfNeeded(register, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Retrieve all application settings
+         * @summary Get all settings
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        settingsGet: async (options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/settings`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Update one or more application settings
+         * @summary Update settings
+         * @param {Settings} settings 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        settingsPut: async (settings: Settings, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'settings' is not null or undefined
+            assertParamExists('settingsPut', 'settings', settings)
+            const localVarPath = `/settings`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'PUT', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(settings, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Test the connectivity of the MinerU API Token
+         * @summary Test MinerU API Token
+         * @param {SettingsTestMineruTokenPostRequest} [settingsTestMineruTokenPostRequest] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        settingsTestMineruTokenPost: async (settingsTestMineruTokenPostRequest?: SettingsTestMineruTokenPostRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/settings/test_mineru_token`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(settingsTestMineruTokenPostRequest, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -2333,6 +3043,19 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
 export const DefaultApiFp = function(configuration?: Configuration) {
     const localVarAxiosParamCreator = DefaultApiAxiosParamCreator(configuration)
     return {
+        /**
+         * This endpoint is for documentation and model generation only. Actual communication should use WebSocket or SSE. 
+         * @summary (Doc Only) Agent message format for WebSocket/SSE
+         * @param {AgentMessage} agentMessage 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async agentMessagePost(agentMessage: AgentMessage, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<AgentMessagePost200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.agentMessagePost(agentMessage, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.agentMessagePost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
         /**
          * Delete API key
          * @summary Delete API key
@@ -2706,6 +3429,21 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Export the collection\'s knowledge graph data in KG-Eval framework format for evaluation.  This endpoint extracts entities, relationships, and optionally source texts from the  collection\'s knowledge graph and formats them according to the KG-Eval evaluation  framework structure.  The export includes: - Entities with their names, types, and descriptions - Relationships between entities with descriptions, keywords, and weights   - Source texts that link back to the entities and relationships (optional) 
+         * @summary Export collection knowledge graph for KG-Eval framework
+         * @param {string} collectionId Collection ID to export
+         * @param {number} [sampleSize] Number of entities to sample for export (default 100000)
+         * @param {boolean} [includeSourceTexts] Whether to include source texts in the export (default true)
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async collectionsCollectionIdGraphsExportKgEvalGet(collectionId: string, sampleSize?: number, includeSourceTexts?: boolean, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<CollectionsCollectionIdGraphsExportKgEvalGet200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdGraphsExportKgEvalGet(collectionId, sampleSize, includeSourceTexts, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdGraphsExportKgEvalGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Update a collection
          * @summary Update a collection
          * @param {string} collectionId 
@@ -2761,6 +3499,45 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Remove a collection from the public marketplace (owner only)
+         * @summary Unpublish collection from marketplace
+         * @param {string} collectionId Collection ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async collectionsCollectionIdSharingDelete(collectionId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<void>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdSharingDelete(collectionId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdSharingDelete']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Get the sharing status of a collection (owner only)
+         * @summary Get collection sharing status
+         * @param {string} collectionId Collection ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async collectionsCollectionIdSharingGet(collectionId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SharingStatusResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdSharingGet(collectionId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdSharingGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Publish a collection to the public marketplace (owner only)
+         * @summary Publish collection to marketplace
+         * @param {string} collectionId Collection ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async collectionsCollectionIdSharingPost(collectionId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<void>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdSharingPost(collectionId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdSharingPost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Trigger collection summary generation as background task
          * @summary Generate collection summary
          * @param {string} collectionId 
@@ -2774,15 +3551,16 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Get a list of collections
+         * Get a list of collections (owned and optionally subscribed)
          * @summary List collections
          * @param {number} [page] 
          * @param {number} [pageSize] 
+         * @param {boolean} [includeSubscribed] Whether to include subscribed collections in results
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async collectionsGet(page?: number, pageSize?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<CollectionList>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsGet(page, pageSize, options);
+        async collectionsGet(page?: number, pageSize?: number, includeSubscribed?: boolean, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<CollectionViewList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsGet(page, pageSize, includeSubscribed, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsGet']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -2810,6 +3588,31 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             const localVarAxiosArgs = await localVarAxiosParamCreator.configGet(options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['DefaultApi.configGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Get current default model settings for different scenarios
+         * @summary Get default model configurations
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async defaultModelsGet(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<DefaultModelsResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.defaultModelsGet(options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.defaultModelsGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Update default model settings for different scenarios
+         * @summary Update default model configurations
+         * @param {DefaultModelsUpdateRequest} defaultModelsUpdateRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async defaultModelsPut(defaultModelsUpdateRequest: DefaultModelsUpdateRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<DefaultModelsResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.defaultModelsPut(defaultModelsUpdateRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.defaultModelsPut']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
@@ -3028,6 +3831,116 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Get document preview for a subscribed Collection (read-only mode)
+         * @summary Preview document in MarketplaceCollection (read-only)
+         * @param {string} collectionId Collection ID
+         * @param {string} documentId Document ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async marketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGet(collectionId: string, documentId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<DocumentPreview>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.marketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGet(collectionId, documentId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.marketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Get document list for a subscribed Collection (read-only mode)
+         * @summary List documents in MarketplaceCollection (read-only)
+         * @param {string} collectionId Collection ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async marketplaceCollectionsCollectionIdDocumentsGet(collectionId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<DocumentList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.marketplaceCollectionsCollectionIdDocumentsGet(collectionId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.marketplaceCollectionsCollectionIdDocumentsGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Get details of a subscribed Collection (read-only access)
+         * @summary Get MarketplaceCollection details (read-only)
+         * @param {string} collectionId Collection ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async marketplaceCollectionsCollectionIdGet(collectionId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SharedCollection>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.marketplaceCollectionsCollectionIdGet(collectionId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.marketplaceCollectionsCollectionIdGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Get knowledge graph data for a subscribed Collection (read-only mode)
+         * @summary Get knowledge graph for MarketplaceCollection (read-only)
+         * @param {string} collectionId Collection ID
+         * @param {string} [label] Node label filter
+         * @param {number} [maxNodes] Maximum number of nodes
+         * @param {number} [maxDepth] Graph traversal depth
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async marketplaceCollectionsCollectionIdGraphGet(collectionId: string, label?: string, maxNodes?: number, maxDepth?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<MarketplaceCollectionsCollectionIdGraphGet200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.marketplaceCollectionsCollectionIdGraphGet(collectionId, label, maxNodes, maxDepth, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.marketplaceCollectionsCollectionIdGraphGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Remove subscription to a Collection
+         * @summary Unsubscribe from a Collection
+         * @param {string} collectionId Collection ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async marketplaceCollectionsCollectionIdSubscribeDelete(collectionId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<MarketplaceCollectionsCollectionIdSubscribeDelete200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.marketplaceCollectionsCollectionIdSubscribeDelete(collectionId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.marketplaceCollectionsCollectionIdSubscribeDelete']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Subscribe to a published Collection
+         * @summary Subscribe to a Collection
+         * @param {string} collectionId Collection ID
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async marketplaceCollectionsCollectionIdSubscribePost(collectionId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SharedCollection>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.marketplaceCollectionsCollectionIdSubscribePost(collectionId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.marketplaceCollectionsCollectionIdSubscribePost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Returns all Collections that are published to marketplace with current user\'s subscription status
+         * @summary List all published Collections in marketplace
+         * @param {number} [page] Page number
+         * @param {number} [pageSize] Page size
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async marketplaceCollectionsGet(page?: number, pageSize?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SharedCollectionList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.marketplaceCollectionsGet(page, pageSize, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.marketplaceCollectionsGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Returns all Collections that current user has subscribed to
+         * @summary Get user\'s subscribed Collections
+         * @param {number} [page] Page number
+         * @param {number} [pageSize] Page size
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async marketplaceCollectionsSubscriptionsGet(page?: number, pageSize?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SharedCollectionList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.marketplaceCollectionsSubscriptionsGet(page, pageSize, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.marketplaceCollectionsSubscriptionsGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Get prompt templates
          * @summary Get prompt templates
          * @param {*} [options] Override http request option.
@@ -3050,6 +3963,44 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             const localVarAxiosArgs = await localVarAxiosParamCreator.registerPost(register, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['DefaultApi.registerPost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Retrieve all application settings
+         * @summary Get all settings
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async settingsGet(options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<Settings>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.settingsGet(options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.settingsGet']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Update one or more application settings
+         * @summary Update settings
+         * @param {Settings} settings 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async settingsPut(settings: Settings, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<void>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.settingsPut(settings, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.settingsPut']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * Test the connectivity of the MinerU API Token
+         * @summary Test MinerU API Token
+         * @param {SettingsTestMineruTokenPostRequest} [settingsTestMineruTokenPostRequest] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async settingsTestMineruTokenPost(settingsTestMineruTokenPostRequest?: SettingsTestMineruTokenPostRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<SettingsTestMineruTokenPost200Response>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.settingsTestMineruTokenPost(settingsTestMineruTokenPostRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.settingsTestMineruTokenPost']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
@@ -3099,6 +4050,16 @@ export const DefaultApiFp = function(configuration?: Configuration) {
 export const DefaultApiFactory = function (configuration?: Configuration, basePath?: string, axios?: AxiosInstance) {
     const localVarFp = DefaultApiFp(configuration)
     return {
+        /**
+         * This endpoint is for documentation and model generation only. Actual communication should use WebSocket or SSE. 
+         * @summary (Doc Only) Agent message format for WebSocket/SSE
+         * @param {DefaultApiAgentMessagePostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        agentMessagePost(requestParameters: DefaultApiAgentMessagePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<AgentMessagePost200Response> {
+            return localVarFp.agentMessagePost(requestParameters.agentMessage, options).then((request) => request(axios, basePath));
+        },
         /**
          * Delete API key
          * @summary Delete API key
@@ -3369,6 +4330,16 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.collectionsCollectionIdGet(requestParameters.collectionId, options).then((request) => request(axios, basePath));
         },
         /**
+         * Export the collection\'s knowledge graph data in KG-Eval framework format for evaluation.  This endpoint extracts entities, relationships, and optionally source texts from the  collection\'s knowledge graph and formats them according to the KG-Eval evaluation  framework structure.  The export includes: - Entities with their names, types, and descriptions - Relationships between entities with descriptions, keywords, and weights   - Source texts that link back to the entities and relationships (optional) 
+         * @summary Export collection knowledge graph for KG-Eval framework
+         * @param {DefaultApiCollectionsCollectionIdGraphsExportKgEvalGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdGraphsExportKgEvalGet(requestParameters: DefaultApiCollectionsCollectionIdGraphsExportKgEvalGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<CollectionsCollectionIdGraphsExportKgEvalGet200Response> {
+            return localVarFp.collectionsCollectionIdGraphsExportKgEvalGet(requestParameters.collectionId, requestParameters.sampleSize, requestParameters.includeSourceTexts, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Update a collection
          * @summary Update a collection
          * @param {DefaultApiCollectionsCollectionIdPutRequest} requestParameters Request parameters.
@@ -3409,6 +4380,36 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.collectionsCollectionIdSearchesSearchIdDelete(requestParameters.collectionId, requestParameters.searchId, options).then((request) => request(axios, basePath));
         },
         /**
+         * Remove a collection from the public marketplace (owner only)
+         * @summary Unpublish collection from marketplace
+         * @param {DefaultApiCollectionsCollectionIdSharingDeleteRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdSharingDelete(requestParameters: DefaultApiCollectionsCollectionIdSharingDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<void> {
+            return localVarFp.collectionsCollectionIdSharingDelete(requestParameters.collectionId, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Get the sharing status of a collection (owner only)
+         * @summary Get collection sharing status
+         * @param {DefaultApiCollectionsCollectionIdSharingGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdSharingGet(requestParameters: DefaultApiCollectionsCollectionIdSharingGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<SharingStatusResponse> {
+            return localVarFp.collectionsCollectionIdSharingGet(requestParameters.collectionId, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Publish a collection to the public marketplace (owner only)
+         * @summary Publish collection to marketplace
+         * @param {DefaultApiCollectionsCollectionIdSharingPostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        collectionsCollectionIdSharingPost(requestParameters: DefaultApiCollectionsCollectionIdSharingPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<void> {
+            return localVarFp.collectionsCollectionIdSharingPost(requestParameters.collectionId, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Trigger collection summary generation as background task
          * @summary Generate collection summary
          * @param {DefaultApiCollectionsCollectionIdSummaryGeneratePostRequest} requestParameters Request parameters.
@@ -3419,14 +4420,14 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.collectionsCollectionIdSummaryGeneratePost(requestParameters.collectionId, options).then((request) => request(axios, basePath));
         },
         /**
-         * Get a list of collections
+         * Get a list of collections (owned and optionally subscribed)
          * @summary List collections
          * @param {DefaultApiCollectionsGetRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        collectionsGet(requestParameters: DefaultApiCollectionsGetRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<CollectionList> {
-            return localVarFp.collectionsGet(requestParameters.page, requestParameters.pageSize, options).then((request) => request(axios, basePath));
+        collectionsGet(requestParameters: DefaultApiCollectionsGetRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<CollectionViewList> {
+            return localVarFp.collectionsGet(requestParameters.page, requestParameters.pageSize, requestParameters.includeSubscribed, options).then((request) => request(axios, basePath));
         },
         /**
          * Create a new collection
@@ -3446,6 +4447,25 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
          */
         configGet(options?: RawAxiosRequestConfig): AxiosPromise<Config> {
             return localVarFp.configGet(options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Get current default model settings for different scenarios
+         * @summary Get default model configurations
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        defaultModelsGet(options?: RawAxiosRequestConfig): AxiosPromise<DefaultModelsResponse> {
+            return localVarFp.defaultModelsGet(options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Update default model settings for different scenarios
+         * @summary Update default model configurations
+         * @param {DefaultApiDefaultModelsPutRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        defaultModelsPut(requestParameters: DefaultApiDefaultModelsPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<DefaultModelsResponse> {
+            return localVarFp.defaultModelsPut(requestParameters.defaultModelsUpdateRequest, options).then((request) => request(axios, basePath));
         },
         /**
          * Get an object from a specific document
@@ -3605,6 +4625,86 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.logoutPost(options).then((request) => request(axios, basePath));
         },
         /**
+         * Get document preview for a subscribed Collection (read-only mode)
+         * @summary Preview document in MarketplaceCollection (read-only)
+         * @param {DefaultApiMarketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGet(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<DocumentPreview> {
+            return localVarFp.marketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGet(requestParameters.collectionId, requestParameters.documentId, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Get document list for a subscribed Collection (read-only mode)
+         * @summary List documents in MarketplaceCollection (read-only)
+         * @param {DefaultApiMarketplaceCollectionsCollectionIdDocumentsGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceCollectionsCollectionIdDocumentsGet(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdDocumentsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<DocumentList> {
+            return localVarFp.marketplaceCollectionsCollectionIdDocumentsGet(requestParameters.collectionId, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Get details of a subscribed Collection (read-only access)
+         * @summary Get MarketplaceCollection details (read-only)
+         * @param {DefaultApiMarketplaceCollectionsCollectionIdGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceCollectionsCollectionIdGet(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<SharedCollection> {
+            return localVarFp.marketplaceCollectionsCollectionIdGet(requestParameters.collectionId, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Get knowledge graph data for a subscribed Collection (read-only mode)
+         * @summary Get knowledge graph for MarketplaceCollection (read-only)
+         * @param {DefaultApiMarketplaceCollectionsCollectionIdGraphGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceCollectionsCollectionIdGraphGet(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdGraphGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<MarketplaceCollectionsCollectionIdGraphGet200Response> {
+            return localVarFp.marketplaceCollectionsCollectionIdGraphGet(requestParameters.collectionId, requestParameters.label, requestParameters.maxNodes, requestParameters.maxDepth, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Remove subscription to a Collection
+         * @summary Unsubscribe from a Collection
+         * @param {DefaultApiMarketplaceCollectionsCollectionIdSubscribeDeleteRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceCollectionsCollectionIdSubscribeDelete(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdSubscribeDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<MarketplaceCollectionsCollectionIdSubscribeDelete200Response> {
+            return localVarFp.marketplaceCollectionsCollectionIdSubscribeDelete(requestParameters.collectionId, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Subscribe to a published Collection
+         * @summary Subscribe to a Collection
+         * @param {DefaultApiMarketplaceCollectionsCollectionIdSubscribePostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceCollectionsCollectionIdSubscribePost(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdSubscribePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<SharedCollection> {
+            return localVarFp.marketplaceCollectionsCollectionIdSubscribePost(requestParameters.collectionId, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Returns all Collections that are published to marketplace with current user\'s subscription status
+         * @summary List all published Collections in marketplace
+         * @param {DefaultApiMarketplaceCollectionsGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceCollectionsGet(requestParameters: DefaultApiMarketplaceCollectionsGetRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<SharedCollectionList> {
+            return localVarFp.marketplaceCollectionsGet(requestParameters.page, requestParameters.pageSize, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Returns all Collections that current user has subscribed to
+         * @summary Get user\'s subscribed Collections
+         * @param {DefaultApiMarketplaceCollectionsSubscriptionsGetRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        marketplaceCollectionsSubscriptionsGet(requestParameters: DefaultApiMarketplaceCollectionsSubscriptionsGetRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<SharedCollectionList> {
+            return localVarFp.marketplaceCollectionsSubscriptionsGet(requestParameters.page, requestParameters.pageSize, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Get prompt templates
          * @summary Get prompt templates
          * @param {*} [options] Override http request option.
@@ -3622,6 +4722,35 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
          */
         registerPost(requestParameters: DefaultApiRegisterPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<User> {
             return localVarFp.registerPost(requestParameters.register, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Retrieve all application settings
+         * @summary Get all settings
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        settingsGet(options?: RawAxiosRequestConfig): AxiosPromise<Settings> {
+            return localVarFp.settingsGet(options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Update one or more application settings
+         * @summary Update settings
+         * @param {DefaultApiSettingsPutRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        settingsPut(requestParameters: DefaultApiSettingsPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<void> {
+            return localVarFp.settingsPut(requestParameters.settings, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * Test the connectivity of the MinerU API Token
+         * @summary Test MinerU API Token
+         * @param {DefaultApiSettingsTestMineruTokenPostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        settingsTestMineruTokenPost(requestParameters: DefaultApiSettingsTestMineruTokenPostRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<SettingsTestMineruTokenPost200Response> {
+            return localVarFp.settingsTestMineruTokenPost(requestParameters.settingsTestMineruTokenPostRequest, options).then((request) => request(axios, basePath));
         },
         /**
          * Get user info
@@ -3660,6 +4789,16 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
  * @interface DefaultApi
  */
 export interface DefaultApiInterface {
+    /**
+     * This endpoint is for documentation and model generation only. Actual communication should use WebSocket or SSE. 
+     * @summary (Doc Only) Agent message format for WebSocket/SSE
+     * @param {DefaultApiAgentMessagePostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    agentMessagePost(requestParameters: DefaultApiAgentMessagePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<AgentMessagePost200Response>;
+
     /**
      * Delete API key
      * @summary Delete API key
@@ -3930,6 +5069,16 @@ export interface DefaultApiInterface {
     collectionsCollectionIdGet(requestParameters: DefaultApiCollectionsCollectionIdGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<Collection>;
 
     /**
+     * Export the collection\'s knowledge graph data in KG-Eval framework format for evaluation.  This endpoint extracts entities, relationships, and optionally source texts from the  collection\'s knowledge graph and formats them according to the KG-Eval evaluation  framework structure.  The export includes: - Entities with their names, types, and descriptions - Relationships between entities with descriptions, keywords, and weights   - Source texts that link back to the entities and relationships (optional) 
+     * @summary Export collection knowledge graph for KG-Eval framework
+     * @param {DefaultApiCollectionsCollectionIdGraphsExportKgEvalGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    collectionsCollectionIdGraphsExportKgEvalGet(requestParameters: DefaultApiCollectionsCollectionIdGraphsExportKgEvalGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<CollectionsCollectionIdGraphsExportKgEvalGet200Response>;
+
+    /**
      * Update a collection
      * @summary Update a collection
      * @param {DefaultApiCollectionsCollectionIdPutRequest} requestParameters Request parameters.
@@ -3970,6 +5119,36 @@ export interface DefaultApiInterface {
     collectionsCollectionIdSearchesSearchIdDelete(requestParameters: DefaultApiCollectionsCollectionIdSearchesSearchIdDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
 
     /**
+     * Remove a collection from the public marketplace (owner only)
+     * @summary Unpublish collection from marketplace
+     * @param {DefaultApiCollectionsCollectionIdSharingDeleteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    collectionsCollectionIdSharingDelete(requestParameters: DefaultApiCollectionsCollectionIdSharingDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
+
+    /**
+     * Get the sharing status of a collection (owner only)
+     * @summary Get collection sharing status
+     * @param {DefaultApiCollectionsCollectionIdSharingGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    collectionsCollectionIdSharingGet(requestParameters: DefaultApiCollectionsCollectionIdSharingGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<SharingStatusResponse>;
+
+    /**
+     * Publish a collection to the public marketplace (owner only)
+     * @summary Publish collection to marketplace
+     * @param {DefaultApiCollectionsCollectionIdSharingPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    collectionsCollectionIdSharingPost(requestParameters: DefaultApiCollectionsCollectionIdSharingPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
+
+    /**
      * Trigger collection summary generation as background task
      * @summary Generate collection summary
      * @param {DefaultApiCollectionsCollectionIdSummaryGeneratePostRequest} requestParameters Request parameters.
@@ -3980,14 +5159,14 @@ export interface DefaultApiInterface {
     collectionsCollectionIdSummaryGeneratePost(requestParameters: DefaultApiCollectionsCollectionIdSummaryGeneratePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<CollectionsCollectionIdSummaryGeneratePost200Response>;
 
     /**
-     * Get a list of collections
+     * Get a list of collections (owned and optionally subscribed)
      * @summary List collections
      * @param {DefaultApiCollectionsGetRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof DefaultApiInterface
      */
-    collectionsGet(requestParameters?: DefaultApiCollectionsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<CollectionList>;
+    collectionsGet(requestParameters?: DefaultApiCollectionsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<CollectionViewList>;
 
     /**
      * Create a new collection
@@ -4007,6 +5186,25 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     configGet(options?: RawAxiosRequestConfig): AxiosPromise<Config>;
+
+    /**
+     * Get current default model settings for different scenarios
+     * @summary Get default model configurations
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    defaultModelsGet(options?: RawAxiosRequestConfig): AxiosPromise<DefaultModelsResponse>;
+
+    /**
+     * Update default model settings for different scenarios
+     * @summary Update default model configurations
+     * @param {DefaultApiDefaultModelsPutRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    defaultModelsPut(requestParameters: DefaultApiDefaultModelsPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<DefaultModelsResponse>;
 
     /**
      * Get an object from a specific document
@@ -4166,6 +5364,86 @@ export interface DefaultApiInterface {
     logoutPost(options?: RawAxiosRequestConfig): AxiosPromise<void>;
 
     /**
+     * Get document preview for a subscribed Collection (read-only mode)
+     * @summary Preview document in MarketplaceCollection (read-only)
+     * @param {DefaultApiMarketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    marketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGet(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<DocumentPreview>;
+
+    /**
+     * Get document list for a subscribed Collection (read-only mode)
+     * @summary List documents in MarketplaceCollection (read-only)
+     * @param {DefaultApiMarketplaceCollectionsCollectionIdDocumentsGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    marketplaceCollectionsCollectionIdDocumentsGet(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdDocumentsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<DocumentList>;
+
+    /**
+     * Get details of a subscribed Collection (read-only access)
+     * @summary Get MarketplaceCollection details (read-only)
+     * @param {DefaultApiMarketplaceCollectionsCollectionIdGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    marketplaceCollectionsCollectionIdGet(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<SharedCollection>;
+
+    /**
+     * Get knowledge graph data for a subscribed Collection (read-only mode)
+     * @summary Get knowledge graph for MarketplaceCollection (read-only)
+     * @param {DefaultApiMarketplaceCollectionsCollectionIdGraphGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    marketplaceCollectionsCollectionIdGraphGet(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdGraphGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<MarketplaceCollectionsCollectionIdGraphGet200Response>;
+
+    /**
+     * Remove subscription to a Collection
+     * @summary Unsubscribe from a Collection
+     * @param {DefaultApiMarketplaceCollectionsCollectionIdSubscribeDeleteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    marketplaceCollectionsCollectionIdSubscribeDelete(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdSubscribeDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<MarketplaceCollectionsCollectionIdSubscribeDelete200Response>;
+
+    /**
+     * Subscribe to a published Collection
+     * @summary Subscribe to a Collection
+     * @param {DefaultApiMarketplaceCollectionsCollectionIdSubscribePostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    marketplaceCollectionsCollectionIdSubscribePost(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdSubscribePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<SharedCollection>;
+
+    /**
+     * Returns all Collections that are published to marketplace with current user\'s subscription status
+     * @summary List all published Collections in marketplace
+     * @param {DefaultApiMarketplaceCollectionsGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    marketplaceCollectionsGet(requestParameters?: DefaultApiMarketplaceCollectionsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<SharedCollectionList>;
+
+    /**
+     * Returns all Collections that current user has subscribed to
+     * @summary Get user\'s subscribed Collections
+     * @param {DefaultApiMarketplaceCollectionsSubscriptionsGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    marketplaceCollectionsSubscriptionsGet(requestParameters?: DefaultApiMarketplaceCollectionsSubscriptionsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<SharedCollectionList>;
+
+    /**
      * Get prompt templates
      * @summary Get prompt templates
      * @param {*} [options] Override http request option.
@@ -4183,6 +5461,35 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     registerPost(requestParameters: DefaultApiRegisterPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<User>;
+
+    /**
+     * Retrieve all application settings
+     * @summary Get all settings
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    settingsGet(options?: RawAxiosRequestConfig): AxiosPromise<Settings>;
+
+    /**
+     * Update one or more application settings
+     * @summary Update settings
+     * @param {DefaultApiSettingsPutRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    settingsPut(requestParameters: DefaultApiSettingsPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
+
+    /**
+     * Test the connectivity of the MinerU API Token
+     * @summary Test MinerU API Token
+     * @param {DefaultApiSettingsTestMineruTokenPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    settingsTestMineruTokenPost(requestParameters?: DefaultApiSettingsTestMineruTokenPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<SettingsTestMineruTokenPost200Response>;
 
     /**
      * Get user info
@@ -4212,6 +5519,20 @@ export interface DefaultApiInterface {
      */
     usersUserIdDelete(requestParameters: DefaultApiUsersUserIdDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
 
+}
+
+/**
+ * Request parameters for agentMessagePost operation in DefaultApi.
+ * @export
+ * @interface DefaultApiAgentMessagePostRequest
+ */
+export interface DefaultApiAgentMessagePostRequest {
+    /**
+     * 
+     * @type {AgentMessage}
+     * @memberof DefaultApiAgentMessagePost
+     */
+    readonly agentMessage: AgentMessage
 }
 
 /**
@@ -4733,6 +6054,34 @@ export interface DefaultApiCollectionsCollectionIdGetRequest {
 }
 
 /**
+ * Request parameters for collectionsCollectionIdGraphsExportKgEvalGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiCollectionsCollectionIdGraphsExportKgEvalGetRequest
+ */
+export interface DefaultApiCollectionsCollectionIdGraphsExportKgEvalGetRequest {
+    /**
+     * Collection ID to export
+     * @type {string}
+     * @memberof DefaultApiCollectionsCollectionIdGraphsExportKgEvalGet
+     */
+    readonly collectionId: string
+
+    /**
+     * Number of entities to sample for export (default 100000)
+     * @type {number}
+     * @memberof DefaultApiCollectionsCollectionIdGraphsExportKgEvalGet
+     */
+    readonly sampleSize?: number
+
+    /**
+     * Whether to include source texts in the export (default true)
+     * @type {boolean}
+     * @memberof DefaultApiCollectionsCollectionIdGraphsExportKgEvalGet
+     */
+    readonly includeSourceTexts?: boolean
+}
+
+/**
  * Request parameters for collectionsCollectionIdPut operation in DefaultApi.
  * @export
  * @interface DefaultApiCollectionsCollectionIdPutRequest
@@ -4810,6 +6159,48 @@ export interface DefaultApiCollectionsCollectionIdSearchesSearchIdDeleteRequest 
 }
 
 /**
+ * Request parameters for collectionsCollectionIdSharingDelete operation in DefaultApi.
+ * @export
+ * @interface DefaultApiCollectionsCollectionIdSharingDeleteRequest
+ */
+export interface DefaultApiCollectionsCollectionIdSharingDeleteRequest {
+    /**
+     * Collection ID
+     * @type {string}
+     * @memberof DefaultApiCollectionsCollectionIdSharingDelete
+     */
+    readonly collectionId: string
+}
+
+/**
+ * Request parameters for collectionsCollectionIdSharingGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiCollectionsCollectionIdSharingGetRequest
+ */
+export interface DefaultApiCollectionsCollectionIdSharingGetRequest {
+    /**
+     * Collection ID
+     * @type {string}
+     * @memberof DefaultApiCollectionsCollectionIdSharingGet
+     */
+    readonly collectionId: string
+}
+
+/**
+ * Request parameters for collectionsCollectionIdSharingPost operation in DefaultApi.
+ * @export
+ * @interface DefaultApiCollectionsCollectionIdSharingPostRequest
+ */
+export interface DefaultApiCollectionsCollectionIdSharingPostRequest {
+    /**
+     * Collection ID
+     * @type {string}
+     * @memberof DefaultApiCollectionsCollectionIdSharingPost
+     */
+    readonly collectionId: string
+}
+
+/**
  * Request parameters for collectionsCollectionIdSummaryGeneratePost operation in DefaultApi.
  * @export
  * @interface DefaultApiCollectionsCollectionIdSummaryGeneratePostRequest
@@ -4842,6 +6233,13 @@ export interface DefaultApiCollectionsGetRequest {
      * @memberof DefaultApiCollectionsGet
      */
     readonly pageSize?: number
+
+    /**
+     * Whether to include subscribed collections in results
+     * @type {boolean}
+     * @memberof DefaultApiCollectionsGet
+     */
+    readonly includeSubscribed?: boolean
 }
 
 /**
@@ -4856,6 +6254,20 @@ export interface DefaultApiCollectionsPostRequest {
      * @memberof DefaultApiCollectionsPost
      */
     readonly collectionCreate: CollectionCreate
+}
+
+/**
+ * Request parameters for defaultModelsPut operation in DefaultApi.
+ * @export
+ * @interface DefaultApiDefaultModelsPutRequest
+ */
+export interface DefaultApiDefaultModelsPutRequest {
+    /**
+     * 
+     * @type {DefaultModelsUpdateRequest}
+     * @memberof DefaultApiDefaultModelsPut
+     */
+    readonly defaultModelsUpdateRequest: DefaultModelsUpdateRequest
 }
 
 /**
@@ -5111,6 +6523,160 @@ export interface DefaultApiLoginPostRequest {
 }
 
 /**
+ * Request parameters for marketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiMarketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGetRequest
+ */
+export interface DefaultApiMarketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGetRequest {
+    /**
+     * Collection ID
+     * @type {string}
+     * @memberof DefaultApiMarketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGet
+     */
+    readonly collectionId: string
+
+    /**
+     * Document ID
+     * @type {string}
+     * @memberof DefaultApiMarketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGet
+     */
+    readonly documentId: string
+}
+
+/**
+ * Request parameters for marketplaceCollectionsCollectionIdDocumentsGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiMarketplaceCollectionsCollectionIdDocumentsGetRequest
+ */
+export interface DefaultApiMarketplaceCollectionsCollectionIdDocumentsGetRequest {
+    /**
+     * Collection ID
+     * @type {string}
+     * @memberof DefaultApiMarketplaceCollectionsCollectionIdDocumentsGet
+     */
+    readonly collectionId: string
+}
+
+/**
+ * Request parameters for marketplaceCollectionsCollectionIdGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiMarketplaceCollectionsCollectionIdGetRequest
+ */
+export interface DefaultApiMarketplaceCollectionsCollectionIdGetRequest {
+    /**
+     * Collection ID
+     * @type {string}
+     * @memberof DefaultApiMarketplaceCollectionsCollectionIdGet
+     */
+    readonly collectionId: string
+}
+
+/**
+ * Request parameters for marketplaceCollectionsCollectionIdGraphGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiMarketplaceCollectionsCollectionIdGraphGetRequest
+ */
+export interface DefaultApiMarketplaceCollectionsCollectionIdGraphGetRequest {
+    /**
+     * Collection ID
+     * @type {string}
+     * @memberof DefaultApiMarketplaceCollectionsCollectionIdGraphGet
+     */
+    readonly collectionId: string
+
+    /**
+     * Node label filter
+     * @type {string}
+     * @memberof DefaultApiMarketplaceCollectionsCollectionIdGraphGet
+     */
+    readonly label?: string
+
+    /**
+     * Maximum number of nodes
+     * @type {number}
+     * @memberof DefaultApiMarketplaceCollectionsCollectionIdGraphGet
+     */
+    readonly maxNodes?: number
+
+    /**
+     * Graph traversal depth
+     * @type {number}
+     * @memberof DefaultApiMarketplaceCollectionsCollectionIdGraphGet
+     */
+    readonly maxDepth?: number
+}
+
+/**
+ * Request parameters for marketplaceCollectionsCollectionIdSubscribeDelete operation in DefaultApi.
+ * @export
+ * @interface DefaultApiMarketplaceCollectionsCollectionIdSubscribeDeleteRequest
+ */
+export interface DefaultApiMarketplaceCollectionsCollectionIdSubscribeDeleteRequest {
+    /**
+     * Collection ID
+     * @type {string}
+     * @memberof DefaultApiMarketplaceCollectionsCollectionIdSubscribeDelete
+     */
+    readonly collectionId: string
+}
+
+/**
+ * Request parameters for marketplaceCollectionsCollectionIdSubscribePost operation in DefaultApi.
+ * @export
+ * @interface DefaultApiMarketplaceCollectionsCollectionIdSubscribePostRequest
+ */
+export interface DefaultApiMarketplaceCollectionsCollectionIdSubscribePostRequest {
+    /**
+     * Collection ID
+     * @type {string}
+     * @memberof DefaultApiMarketplaceCollectionsCollectionIdSubscribePost
+     */
+    readonly collectionId: string
+}
+
+/**
+ * Request parameters for marketplaceCollectionsGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiMarketplaceCollectionsGetRequest
+ */
+export interface DefaultApiMarketplaceCollectionsGetRequest {
+    /**
+     * Page number
+     * @type {number}
+     * @memberof DefaultApiMarketplaceCollectionsGet
+     */
+    readonly page?: number
+
+    /**
+     * Page size
+     * @type {number}
+     * @memberof DefaultApiMarketplaceCollectionsGet
+     */
+    readonly pageSize?: number
+}
+
+/**
+ * Request parameters for marketplaceCollectionsSubscriptionsGet operation in DefaultApi.
+ * @export
+ * @interface DefaultApiMarketplaceCollectionsSubscriptionsGetRequest
+ */
+export interface DefaultApiMarketplaceCollectionsSubscriptionsGetRequest {
+    /**
+     * Page number
+     * @type {number}
+     * @memberof DefaultApiMarketplaceCollectionsSubscriptionsGet
+     */
+    readonly page?: number
+
+    /**
+     * Page size
+     * @type {number}
+     * @memberof DefaultApiMarketplaceCollectionsSubscriptionsGet
+     */
+    readonly pageSize?: number
+}
+
+/**
  * Request parameters for registerPost operation in DefaultApi.
  * @export
  * @interface DefaultApiRegisterPostRequest
@@ -5122,6 +6688,34 @@ export interface DefaultApiRegisterPostRequest {
      * @memberof DefaultApiRegisterPost
      */
     readonly register: Register
+}
+
+/**
+ * Request parameters for settingsPut operation in DefaultApi.
+ * @export
+ * @interface DefaultApiSettingsPutRequest
+ */
+export interface DefaultApiSettingsPutRequest {
+    /**
+     * 
+     * @type {Settings}
+     * @memberof DefaultApiSettingsPut
+     */
+    readonly settings: Settings
+}
+
+/**
+ * Request parameters for settingsTestMineruTokenPost operation in DefaultApi.
+ * @export
+ * @interface DefaultApiSettingsTestMineruTokenPostRequest
+ */
+export interface DefaultApiSettingsTestMineruTokenPostRequest {
+    /**
+     * 
+     * @type {SettingsTestMineruTokenPostRequest}
+     * @memberof DefaultApiSettingsTestMineruTokenPost
+     */
+    readonly settingsTestMineruTokenPostRequest?: SettingsTestMineruTokenPostRequest
 }
 
 /**
@@ -5145,6 +6739,18 @@ export interface DefaultApiUsersUserIdDeleteRequest {
  * @extends {BaseAPI}
  */
 export class DefaultApi extends BaseAPI implements DefaultApiInterface {
+    /**
+     * This endpoint is for documentation and model generation only. Actual communication should use WebSocket or SSE. 
+     * @summary (Doc Only) Agent message format for WebSocket/SSE
+     * @param {DefaultApiAgentMessagePostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public agentMessagePost(requestParameters: DefaultApiAgentMessagePostRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).agentMessagePost(requestParameters.agentMessage, options).then((request) => request(this.axios, this.basePath));
+    }
+
     /**
      * Delete API key
      * @summary Delete API key
@@ -5469,6 +7075,18 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
     }
 
     /**
+     * Export the collection\'s knowledge graph data in KG-Eval framework format for evaluation.  This endpoint extracts entities, relationships, and optionally source texts from the  collection\'s knowledge graph and formats them according to the KG-Eval evaluation  framework structure.  The export includes: - Entities with their names, types, and descriptions - Relationships between entities with descriptions, keywords, and weights   - Source texts that link back to the entities and relationships (optional) 
+     * @summary Export collection knowledge graph for KG-Eval framework
+     * @param {DefaultApiCollectionsCollectionIdGraphsExportKgEvalGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public collectionsCollectionIdGraphsExportKgEvalGet(requestParameters: DefaultApiCollectionsCollectionIdGraphsExportKgEvalGetRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).collectionsCollectionIdGraphsExportKgEvalGet(requestParameters.collectionId, requestParameters.sampleSize, requestParameters.includeSourceTexts, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Update a collection
      * @summary Update a collection
      * @param {DefaultApiCollectionsCollectionIdPutRequest} requestParameters Request parameters.
@@ -5517,6 +7135,42 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
     }
 
     /**
+     * Remove a collection from the public marketplace (owner only)
+     * @summary Unpublish collection from marketplace
+     * @param {DefaultApiCollectionsCollectionIdSharingDeleteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public collectionsCollectionIdSharingDelete(requestParameters: DefaultApiCollectionsCollectionIdSharingDeleteRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).collectionsCollectionIdSharingDelete(requestParameters.collectionId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Get the sharing status of a collection (owner only)
+     * @summary Get collection sharing status
+     * @param {DefaultApiCollectionsCollectionIdSharingGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public collectionsCollectionIdSharingGet(requestParameters: DefaultApiCollectionsCollectionIdSharingGetRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).collectionsCollectionIdSharingGet(requestParameters.collectionId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Publish a collection to the public marketplace (owner only)
+     * @summary Publish collection to marketplace
+     * @param {DefaultApiCollectionsCollectionIdSharingPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public collectionsCollectionIdSharingPost(requestParameters: DefaultApiCollectionsCollectionIdSharingPostRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).collectionsCollectionIdSharingPost(requestParameters.collectionId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Trigger collection summary generation as background task
      * @summary Generate collection summary
      * @param {DefaultApiCollectionsCollectionIdSummaryGeneratePostRequest} requestParameters Request parameters.
@@ -5529,7 +7183,7 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
     }
 
     /**
-     * Get a list of collections
+     * Get a list of collections (owned and optionally subscribed)
      * @summary List collections
      * @param {DefaultApiCollectionsGetRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -5537,7 +7191,7 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      * @memberof DefaultApi
      */
     public collectionsGet(requestParameters: DefaultApiCollectionsGetRequest = {}, options?: RawAxiosRequestConfig) {
-        return DefaultApiFp(this.configuration).collectionsGet(requestParameters.page, requestParameters.pageSize, options).then((request) => request(this.axios, this.basePath));
+        return DefaultApiFp(this.configuration).collectionsGet(requestParameters.page, requestParameters.pageSize, requestParameters.includeSubscribed, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -5561,6 +7215,29 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      */
     public configGet(options?: RawAxiosRequestConfig) {
         return DefaultApiFp(this.configuration).configGet(options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Get current default model settings for different scenarios
+     * @summary Get default model configurations
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public defaultModelsGet(options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).defaultModelsGet(options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Update default model settings for different scenarios
+     * @summary Update default model configurations
+     * @param {DefaultApiDefaultModelsPutRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public defaultModelsPut(requestParameters: DefaultApiDefaultModelsPutRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).defaultModelsPut(requestParameters.defaultModelsUpdateRequest, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -5753,6 +7430,102 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
     }
 
     /**
+     * Get document preview for a subscribed Collection (read-only mode)
+     * @summary Preview document in MarketplaceCollection (read-only)
+     * @param {DefaultApiMarketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public marketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGet(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGetRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).marketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGet(requestParameters.collectionId, requestParameters.documentId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Get document list for a subscribed Collection (read-only mode)
+     * @summary List documents in MarketplaceCollection (read-only)
+     * @param {DefaultApiMarketplaceCollectionsCollectionIdDocumentsGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public marketplaceCollectionsCollectionIdDocumentsGet(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdDocumentsGetRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).marketplaceCollectionsCollectionIdDocumentsGet(requestParameters.collectionId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Get details of a subscribed Collection (read-only access)
+     * @summary Get MarketplaceCollection details (read-only)
+     * @param {DefaultApiMarketplaceCollectionsCollectionIdGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public marketplaceCollectionsCollectionIdGet(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdGetRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).marketplaceCollectionsCollectionIdGet(requestParameters.collectionId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Get knowledge graph data for a subscribed Collection (read-only mode)
+     * @summary Get knowledge graph for MarketplaceCollection (read-only)
+     * @param {DefaultApiMarketplaceCollectionsCollectionIdGraphGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public marketplaceCollectionsCollectionIdGraphGet(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdGraphGetRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).marketplaceCollectionsCollectionIdGraphGet(requestParameters.collectionId, requestParameters.label, requestParameters.maxNodes, requestParameters.maxDepth, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Remove subscription to a Collection
+     * @summary Unsubscribe from a Collection
+     * @param {DefaultApiMarketplaceCollectionsCollectionIdSubscribeDeleteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public marketplaceCollectionsCollectionIdSubscribeDelete(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdSubscribeDeleteRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).marketplaceCollectionsCollectionIdSubscribeDelete(requestParameters.collectionId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Subscribe to a published Collection
+     * @summary Subscribe to a Collection
+     * @param {DefaultApiMarketplaceCollectionsCollectionIdSubscribePostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public marketplaceCollectionsCollectionIdSubscribePost(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdSubscribePostRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).marketplaceCollectionsCollectionIdSubscribePost(requestParameters.collectionId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Returns all Collections that are published to marketplace with current user\'s subscription status
+     * @summary List all published Collections in marketplace
+     * @param {DefaultApiMarketplaceCollectionsGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public marketplaceCollectionsGet(requestParameters: DefaultApiMarketplaceCollectionsGetRequest = {}, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).marketplaceCollectionsGet(requestParameters.page, requestParameters.pageSize, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Returns all Collections that current user has subscribed to
+     * @summary Get user\'s subscribed Collections
+     * @param {DefaultApiMarketplaceCollectionsSubscriptionsGetRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public marketplaceCollectionsSubscriptionsGet(requestParameters: DefaultApiMarketplaceCollectionsSubscriptionsGetRequest = {}, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).marketplaceCollectionsSubscriptionsGet(requestParameters.page, requestParameters.pageSize, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
      * Get prompt templates
      * @summary Get prompt templates
      * @param {*} [options] Override http request option.
@@ -5773,6 +7546,41 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      */
     public registerPost(requestParameters: DefaultApiRegisterPostRequest, options?: RawAxiosRequestConfig) {
         return DefaultApiFp(this.configuration).registerPost(requestParameters.register, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Retrieve all application settings
+     * @summary Get all settings
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public settingsGet(options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).settingsGet(options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Update one or more application settings
+     * @summary Update settings
+     * @param {DefaultApiSettingsPutRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public settingsPut(requestParameters: DefaultApiSettingsPutRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).settingsPut(requestParameters.settings, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Test the connectivity of the MinerU API Token
+     * @summary Test MinerU API Token
+     * @param {DefaultApiSettingsTestMineruTokenPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public settingsTestMineruTokenPost(requestParameters: DefaultApiSettingsTestMineruTokenPostRequest = {}, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).settingsTestMineruTokenPost(requestParameters.settingsTestMineruTokenPostRequest, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

@@ -1,4 +1,5 @@
 import { GraphNode } from '@/api';
+import { ApeMarkdown } from '@/components';
 import { CloseOutlined } from '@ant-design/icons';
 import { Button, Card, theme } from 'antd';
 
@@ -44,7 +45,15 @@ export const NodeDetail = ({
         },
       }}
     >
-      {node?.properties.description}
+      <ApeMarkdown>{node?.properties.description}</ApeMarkdown>
+      {/* <pre
+        style={{
+          whiteSpace: 'pre-wrap',
+          fontSize: '0.9rem',
+          margin: 0,
+          fontFamily: 'inherit',
+        }}
+      ></pre> */}
     </Card>
   );
 };

@@ -19,9 +19,6 @@ import type { CrontabConfig } from './crontab-config';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { ModelSpec } from './model-spec';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { ParserConfig } from './parser-config';
 
 /**
  * 
@@ -42,17 +39,35 @@ export interface CollectionConfig {
      */
     'crontab'?: CrontabConfig;
     /**
-     * Whether to enable knowledge graph
+     * Whether to enable vector index
+     * @type {boolean}
+     * @memberof CollectionConfig
+     */
+    'enable_vector'?: boolean;
+    /**
+     * Whether to enable fulltext index
+     * @type {boolean}
+     * @memberof CollectionConfig
+     */
+    'enable_fulltext'?: boolean;
+    /**
+     * Whether to enable knowledge graph index
      * @type {boolean}
      * @memberof CollectionConfig
      */
     'enable_knowledge_graph'?: boolean;
     /**
-     * Whether to enable summary generation
+     * Whether to enable summary index
      * @type {boolean}
      * @memberof CollectionConfig
      */
     'enable_summary'?: boolean;
+    /**
+     * Whether to enable vision index
+     * @type {boolean}
+     * @memberof CollectionConfig
+     */
+    'enable_vision'?: boolean;
     /**
      * 
      * @type {ModelSpec}
@@ -65,12 +80,6 @@ export interface CollectionConfig {
      * @memberof CollectionConfig
      */
     'completion'?: ModelSpec;
-    /**
-     * 
-     * @type {ParserConfig}
-     * @memberof CollectionConfig
-     */
-    'parser'?: ParserConfig;
     /**
      * Path for local and ftp sources
      * @type {string}

@@ -1,4 +1,4 @@
-import { ModelConfig, ModelDefinition, PromptTemplate } from '@/api';
+import { ModelConfig, ModelSpec, PromptTemplate } from '@/api';
 import { api } from '@/services';
 import { useState } from 'react';
 import { useModel } from 'umi';
@@ -8,10 +8,14 @@ export default () => {
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>();
   const [availableModels, setAvailableModels] = useState<ModelConfig[]>([]);
 
-  // get available models (recommend only by default)
-  const getAvailableModels = async () => {
+  // get available models with optional tag filtering
+  const getAvailableModels = async (tagfilters?: any[]) => {
     setLoading(true);
-    const res = await api.availableModelsPost({});
+    const requestParameters =
+      tagfilters && tagfilters.length > 0
+        ? { tagFilterRequest: { tag_filters: tagfilters } }
+        : {};
+    const res = await api.availableModelsPost(requestParameters);
     setLoading(false);
     setAvailableModels(res.data.items || []);
   };
@@ -70,7 +74,7 @@ export default () => {
   const getProviderByModelName = (
     name: string = '',
     type: 'embedding' | 'completion' | 'rerank',
-  ): { provider?: ModelConfig; model?: ModelDefinition } => {
+  ): { provider?: ModelConfig; model?: ModelSpec } => {
     let provider;
     let model;
     availableModels.forEach((p) => {

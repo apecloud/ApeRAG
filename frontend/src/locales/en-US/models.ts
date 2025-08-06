@@ -2,8 +2,7 @@ export const model = {
   'model.name': 'Models',
   'model.configuration': 'Model Configuration',
   'model.configuration.description': 'Configure LLM providers and models',
-  'model.configuration.admin_only':
-    '👤 Admin Notice: Only globally shared models with "recommend" tag are visible to regular users. Private user providers/models are not affected by this restriction.',
+
   'model.prompt_template': 'Prompt Template',
   'model.llm.tips': 'Large language chat model',
   'model.rerank.tips':
@@ -104,6 +103,25 @@ export const model = {
   'model.save.failed': 'Failed to save model',
   'model.delete.failed': 'Failed to delete model',
   'model.configuration.fetch.failed': 'Failed to fetch LLM configuration',
+
+  // Use cases
+  'model.usecase.collection': 'Collection',
+  'model.usecase.agent': 'Agent',
+
+  // Default models configuration
+  'default.models.button': 'Configure Default Models',
+  'default.models.modal.title': 'Configure Default Models',
+  'default.models.collection.completion': 'Collection Default Model',
+  'default.models.agent.completion': 'Agent Default Model',
+  'default.models.embedding': 'Embedding Default Model',
+  'default.models.rerank': 'Rerank Default Model',
+  'default.models.select.placeholder': 'Please select a model',
+  'default.models.clear.hint': 'Clearing selection will delete the default model configuration for this scenario',
+  'default.models.save.success': 'Default model configuration saved successfully',
+  'default.models.save.error': 'Failed to save configuration',
+  'default.models.fetch.error': 'Failed to fetch default model configuration',
+  'default.models.provider.not.public': 'Provider is not public and cannot be set as default model',
+  'default.models.provider.not.found': 'Model provider not found',
 };
 
 export const model_provider = {

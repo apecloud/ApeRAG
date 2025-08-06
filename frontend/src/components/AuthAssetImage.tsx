@@ -5,9 +5,11 @@ import { useEffect, useRef, useState } from 'react';
 
 interface AuthAssetImageProps {
   src: string;
-  collectionId: string;
-  documentId: string;
+  collectionId?: string;
+  documentId?: string;
   onLoad?: () => void;
+  isDirectUrl?: boolean;
+  style?: React.CSSProperties;
 }
 
 export const AuthAssetImage = ({
@@ -15,13 +17,20 @@ export const AuthAssetImage = ({
   collectionId,
   documentId,
   onLoad,
+  isDirectUrl = false,
+  style,
 }: AuthAssetImageProps) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isIntersecting, setIntersecting] = useState(false);
   const placeholderRef = useRef<HTMLDivElement>(null);
 
   const { run: fetchImage, loading } = useRequest(
-    async (assetPath: string) => {
+    async (params: {
+      assetPath: string;
+      collectionId: string;
+      documentId: string;
+    }) => {
+      const { assetPath, collectionId, documentId } = params;
       return api.getDocumentObject(
         {
           collectionId,
@@ -35,7 +44,6 @@ export const AuthAssetImage = ({
     },
     {
       manual: true,
-      // Cache requests to prevent fetching the same image multiple times
       cacheKey: `auth-image-${src}`,
       onSuccess: (response: any) => {
         if (response && response.data) {
@@ -83,12 +91,37 @@ export const AuthAssetImage = ({
   // Fetch the image only when it becomes visible.
   useEffect(() => {
     if (isIntersecting) {
-      if (src && src.startsWith('asset://')) {
-        const assetId = src.substring('asset://'.length).split('?')[0];
-        fetchImage('assets/' + assetId);
+      if (isDirectUrl) {
+        setImageUrl(src);
+      } else if (src && src.startsWith('asset://')) {
+        try {
+          // Manually parse the custom URL since new URL() doesn't support custom schemes
+          const pathAndQuery = src.substring('asset://'.length);
+          const [path, queryString] = pathAndQuery.split('?');
+          const params = new URLSearchParams(queryString);
+
+          const assetId = path;
+          const docId = params.get('document_id') || documentId;
+          const collId = params.get('collection_id') || collectionId;
+
+          if (docId && collId) {
+            fetchImage({
+              assetPath: 'assets/' + assetId,
+              collectionId: collId,
+              documentId: docId,
+            });
+          } else {
+            console.error(
+              'Missing document_id or collection_id in asset URL',
+              src,
+            );
+          }
+        } catch (error) {
+          console.error('Invalid asset URL:', src, error);
+        }
       }
     }
-  }, [isIntersecting, src, fetchImage]);
+  }, [isIntersecting, src, fetchImage, isDirectUrl, collectionId, documentId]);
 
   // Effect to handle the lifecycle of the blob URL.
   useEffect(() => {
@@ -105,8 +138,9 @@ export const AuthAssetImage = ({
       <Image
         src={imageUrl}
         alt={src}
-        style={{ maxWidth: '100%' }}
+        style={{ maxWidth: '100%', ...style }}
         onLoad={onLoad}
+        preview={!isDirectUrl} // Disable preview for direct URLs like the main image view
       />
     );
   }

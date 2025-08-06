@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright 2025 ApeCloud, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -70,12 +71,25 @@ class ErrorCode(Enum):
     # LLM Provider errors (1800-1899)
     LLM_PROVIDER_ALREADY_EXISTS = ("LLM_PROVIDER_ALREADY_EXISTS", 1801, HTTPStatus.CONFLICT)
     LLM_MODEL_NOT_FOUND = ("LLM_MODEL_NOT_FOUND", 1802, HTTPStatus.NOT_FOUND)
+    PROVIDER_NOT_PUBLIC = ("PROVIDER_NOT_PUBLIC", 1803, HTTPStatus.BAD_REQUEST)
 
     # Graph errors (1900-1999)
     GRAPH_SERVICE_ERROR = ("GRAPH_SERVICE_ERROR", 1901, HTTPStatus.INTERNAL_SERVER_ERROR)
 
+    # Agent errors (2000-2099)
+    AGENT_ERROR = ("AGENT_ERROR", 2000, HTTPStatus.INTERNAL_SERVER_ERROR)
+    MCP_CONNECTION_ERROR = ("MCP_CONNECTION_ERROR", 2001, HTTPStatus.SERVICE_UNAVAILABLE)
+    MCP_APP_INIT_ERROR = ("MCP_APP_INIT_ERROR", 2002, HTTPStatus.INTERNAL_SERVER_ERROR)
+    TOOL_EXECUTION_ERROR = ("TOOL_EXECUTION_ERROR", 2003, HTTPStatus.BAD_REQUEST)
+    EVENT_LISTENER_ERROR = ("EVENT_LISTENER_ERROR", 2004, HTTPStatus.INTERNAL_SERVER_ERROR)
+    STREAM_FORMATTING_ERROR = ("STREAM_FORMATTING_ERROR", 2005, HTTPStatus.INTERNAL_SERVER_ERROR)
+    AGENT_CONFIG_ERROR = ("AGENT_CONFIG_ERROR", 2006, HTTPStatus.BAD_REQUEST)
+    TOOL_REFERENCE_EXTRACTION_ERROR = ("TOOL_REFERENCE_EXTRACTION_ERROR", 2007, HTTPStatus.INTERNAL_SERVER_ERROR)
+    JSON_PARSING_ERROR = ("JSON_PARSING_ERROR", 2008, HTTPStatus.BAD_REQUEST)
+    AGENT_TIMEOUT_ERROR = ("AGENT_TIMEOUT_ERROR", 2009, HTTPStatus.REQUEST_TIMEOUT)
+
     # Future resources can use ranges:
-    # 2000-2099: Reserved for future resource type 2
+    # 2100-2199: Reserved for future resource type 3
     # ... and so on
 
     def __init__(self, name: str, code: int, http_status: HTTPStatus):
@@ -138,10 +152,32 @@ class CollectionInactiveException(BusinessException):
 class QuotaExceededException(BusinessException):
     """Quota exceeded exception"""
 
-    def __init__(self, resource_type: str, limit: int):
-        super().__init__(
-            ErrorCode.COLLECTION_QUOTA_EXCEEDED, f"{resource_type} number has reached the limit of {limit}"
-        )
+    def __init__(self, resource_type: str, limit: int, current_usage: int = None):
+        # Map resource types to appropriate error codes
+        error_code_map = {
+            "max_collection_count": ErrorCode.COLLECTION_QUOTA_EXCEEDED,
+            "max_document_count": ErrorCode.DOCUMENT_QUOTA_EXCEEDED,
+            "max_document_count_per_collection": ErrorCode.DOCUMENT_QUOTA_EXCEEDED,
+            "max_bot_count": ErrorCode.BOT_QUOTA_EXCEEDED,
+        }
+
+        error_code = error_code_map.get(resource_type, ErrorCode.COLLECTION_QUOTA_EXCEEDED)
+
+        # Create a more user-friendly message
+        if current_usage is not None:
+            message = f"已达到{resource_type}的配额限制。当前使用量: {current_usage}/{limit}"
+        else:
+            message = f"已达到{resource_type}的配额限制 ({limit})"
+
+        # Add details for better error handling
+        details = {
+            "quota_type": resource_type,
+            "quota_limit": limit,
+            "current_usage": current_usage,
+            "quota_exceeded": True,
+        }
+
+        super().__init__(error_code, message, details)
 
 
 class BotNotFoundException(BusinessException):
@@ -196,6 +232,72 @@ class PermissionDeniedError(BusinessException):
         super().__init__(ErrorCode.FORBIDDEN, message or "Permission denied")
 
 
+class NotFoundException(BusinessException):
+    """Not found exception"""
+
+    def __init__(self, message: str):
+        super().__init__(ErrorCode.RESOURCE_NOT_FOUND, message)
+
+
+# Marketplace related exceptions
+class MarketplaceError(BusinessException):
+    """Base class for marketplace-related errors"""
+
+    pass
+
+
+class CollectionNotPublishedError(MarketplaceError):
+    """Exception raised when trying to access an unpublished collection"""
+
+    def __init__(self, collection_id: str = None):
+        message = "Collection is not published to marketplace"
+        if collection_id:
+            message += f" (ID: {collection_id})"
+        super().__init__(ErrorCode.INVALID_PARAMETER, message)
+
+
+class AlreadySubscribedError(MarketplaceError):
+    """Exception raised when user tries to subscribe to an already subscribed collection"""
+
+    def __init__(self, collection_id: str = None):
+        message = "Already subscribed to this collection"
+        if collection_id:
+            message += f" (ID: {collection_id})"
+        super().__init__(ErrorCode.INVALID_PARAMETER, message)
+
+
+class SubscriptionNotFoundError(MarketplaceError):
+    """Exception raised when subscription is not found"""
+
+    def __init__(self, collection_id: str = None):
+        message = "Subscription not found"
+        if collection_id:
+            message += f" for collection (ID: {collection_id})"
+        super().__init__(ErrorCode.NOT_FOUND, message)
+
+
+class SelfSubscriptionError(MarketplaceError):
+    """Exception raised when user tries to subscribe to their own collection"""
+
+    def __init__(self, collection_id: str = None):
+        message = "Cannot subscribe to your own collection"
+        if collection_id:
+            message += f" (ID: {collection_id})"
+        super().__init__(ErrorCode.INVALID_PARAMETER, message)
+
+
+class CollectionMarketplaceAccessDeniedError(MarketplaceError):
+    """Exception raised when user doesn't have subscription access to marketplace collection"""
+
+    def __init__(self, collection_id: str = None, reason: str = None):
+        message = "Access denied to marketplace collection"
+        if collection_id:
+            message += f" (ID: {collection_id})"
+        if reason:
+            message += f" - {reason}"
+        super().__init__(ErrorCode.FORBIDDEN, message)
+
+
 # Convenience functions for common exceptions
 def not_found(resource_type: str, resource_id: str = None) -> ResourceNotFoundException:
     """Create a resource not found exception"""
@@ -207,9 +309,9 @@ def invalid_param(parameter_name: str, reason: str = None) -> InvalidParameterEx
     return InvalidParameterException(parameter_name, reason)
 
 
-def quota_exceeded(resource_type: str, limit: int) -> QuotaExceededException:
+def quota_exceeded(resource_type: str, limit: int, current_usage: int = None) -> QuotaExceededException:
     """Create a quota exceeded exception"""
-    return QuotaExceededException(resource_type, limit)
+    return QuotaExceededException(resource_type, limit, current_usage)
 
 
 def validation_error(message: str, details: Dict[str, Any] = None) -> ValidationException:

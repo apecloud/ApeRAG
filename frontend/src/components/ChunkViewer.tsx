@@ -1,9 +1,9 @@
-import { DocumentPreview } from '@/api';
+import { DocumentPreview, VisionChunk } from '@/api';
 import { getAuthorizationHeader } from '@/models/user';
 import { api } from '@/services';
 import { ApeDocument, Chunk } from '@/types';
 import { useDebounceFn, useRequest } from 'ahooks';
-import { Col, Empty, List, Row, Segmented, Spin, Typography } from 'antd';
+import { Col, Empty, List, Row, Segmented, Spin } from 'antd';
 import 'katex/dist/katex.min.css'; // Import katex css
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown, { Components } from 'react-markdown';
@@ -28,6 +28,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 interface ChunkViewerProps {
   document: ApeDocument;
   collectionId: string;
+  isMarketplace?: boolean; // Add marketplace mode flag
 }
 
 // A rehype plugin to add line number IDs to block-level elements
@@ -43,21 +44,46 @@ const rehypeAddLineIds = () => {
   };
 };
 
+const processLongText = (text: string) => {
+  // Manually insert zero-width spaces to force wrapping and prevent excessively long text (e.g., thousands of '.' in a row),
+  // which can cause the browser's UI thread to hang during rendering.
+  // TODO: avoid inserting characters into an inlined image (e.g., "![](data:image/png;base64,xxxxxx)")
+  const processedText = (text || '').replace(/\S{400,}/g, (word: string) => {
+    return word.replace(/(.{400})/g, '$1\u200B'); // Insert zero-width space every 400 characters
+  });
+  return processedText;
+};
+
 export const ChunkViewer = ({
   document: initialDoc,
   collectionId,
+  isMarketplace = false,
 }: ChunkViewerProps) => {
   const [viewMode, setViewMode] = useState<
-    'markdown' | 'pdf' | 'unsupported' | 'determining'
+    'markdown' | 'pdf' | 'image' | 'unsupported' | 'determining'
   >('determining');
+  const [rightViewMode, setRightViewMode] = useState<'chunks' | 'vision'>(
+    'chunks',
+  );
+  const [rightPaneOptions, setRightPaneOptions] = useState<
+    { label: string; value: 'chunks' | 'vision' }[]
+  >([]);
   const [previewData, setPreviewData] = useState<DocumentPreview | null>(null);
   const [adaptedChunks, setAdaptedChunks] = useState<Chunk[]>([]);
-  const [highlightedChunk, setHighlightedChunk] = useState<Chunk | null>(null);
+  const [visionChunks, setVisionChunks] = useState<VisionChunk[]>([]);
+  const [highlightedChunk, setHighlightedChunk] = useState<
+    Chunk | VisionChunk | null
+  >(null);
   const [scrolledToChunkId, setScrolledToChunkId] = useState<string | null>(
     null,
   );
   const [numPages, setNumPages] = useState<number>(0);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [leftPaneOptions, setLeftPaneOptions] = useState<
+    { label: string; value: 'pdf' | 'markdown' | 'image' }[]
+  >([]);
+  const [leftPaneContentUrl, setLeftPaneContentUrl] = useState<string | null>(
+    null,
+  );
   const pdfContainerRef = useRef<HTMLDivElement>(null);
   const markdownContainerRef = useRef<HTMLDivElement>(null);
   const chunkListRef = useRef<HTMLDivElement>(null);
@@ -83,10 +109,19 @@ export const ChunkViewer = ({
   const { loading: previewLoading, error: previewError } = useRequest(
     () => {
       if (!initialDoc.id || !collectionId) return Promise.resolve(null);
-      return api.getDocumentPreview({
-        collectionId,
-        documentId: initialDoc.id,
-      });
+      
+      // Use different API endpoint for marketplace mode
+      if (isMarketplace) {
+        return api.marketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGet({
+          collectionId,
+          documentId: initialDoc.id,
+        });
+      } else {
+        return api.getDocumentPreview({
+          collectionId,
+          documentId: initialDoc.id,
+        });
+      }
     },
     {
       ready: !!initialDoc.id && !!collectionId,
@@ -94,61 +129,130 @@ export const ChunkViewer = ({
         if (response) {
           const data = response.data as DocumentPreview | null;
           setPreviewData(data);
-          if (data && data.chunks) {
-            const chunks = data.chunks.map((chunk) => ({
-              id: chunk.id || '',
-              text: chunk.text || '',
-              metadata: chunk.metadata || {},
-            }));
-            setAdaptedChunks(chunks);
+          if (data) {
+            setAdaptedChunks(
+              data.chunks?.map((chunk) => ({
+                id: chunk.id || '',
+                text: chunk.text || '',
+                metadata: chunk.metadata || {},
+              })) || [],
+            );
+            setVisionChunks(
+              data.vision_chunks?.map((chunk) => ({
+                id: chunk.id || '',
+                asset_id: chunk.asset_id || '',
+                text: chunk.text || '',
+                metadata: chunk.metadata || {},
+              })) || [],
+            );
           } else {
             setAdaptedChunks([]);
+            setVisionChunks([]);
           }
         }
       },
     },
   );
 
+  const isOriginalImage = useMemo(() => {
+    const filename = previewData?.doc_filename?.toLowerCase();
+    if (!filename) return false;
+    return [
+      '.jpg',
+      '.jpeg',
+      '.png',
+      '.bmp',
+      '.gif',
+      '.webp',
+      '.tiff',
+      '.tif',
+    ].some((ext) => filename.endsWith(ext));
+  }, [previewData?.doc_filename]);
+
   const canShowPdfPreview = useMemo(() => {
     if (!previewData) return false;
-    const hasPdfSourceMap = adaptedChunks.some(
-      (c) => c.metadata?.pdf_source_map,
-    );
-    if (!hasPdfSourceMap) return false;
-
-    const isPdfFilename = previewData.doc_filename
-      ?.toLowerCase()
-      .endsWith('.pdf');
-    return (
-      !!previewData.converted_pdf_object_path ||
-      (isPdfFilename && !!previewData.doc_object_path)
-    );
-  }, [previewData, adaptedChunks]);
+    return !!previewData.converted_pdf_object_path;
+  }, [previewData]);
 
   // Determine the best initial view mode once preview data is loaded
   useEffect(() => {
     if (previewData) {
-      if (canShowPdfPreview) {
-        setViewMode('pdf');
-      } else if (previewData.markdown_content) {
-        setViewMode('markdown');
+      const options: { label: string; value: 'pdf' | 'markdown' | 'image' }[] =
+        [];
+      if (isOriginalImage) {
+        options.push({ label: 'Image', value: 'image' });
+      } else if (canShowPdfPreview) {
+        // Only show PDF option if it's not an original image
+        options.push({ label: 'PDF', value: 'pdf' });
+      }
+      if (previewData.markdown_content) {
+        options.push({ label: 'Markdown', value: 'markdown' });
+      }
+
+      setLeftPaneOptions(options);
+
+      if (options.length > 0) {
+        const priority = ['image', 'pdf', 'markdown'];
+        for (const p of priority) {
+          if (options.some((o) => o.value === p)) {
+            setViewMode(p as 'image' | 'pdf' | 'markdown');
+            break;
+          }
+        }
       } else {
         setViewMode('unsupported');
       }
-    }
-  }, [previewData, canShowPdfPreview]);
 
-  // Determine the PDF URL when view mode is switched to PDF
-  useEffect(() => {
-    if (viewMode === 'pdf' && canShowPdfPreview && previewData) {
-      const pdfPath =
-        previewData.converted_pdf_object_path || previewData.doc_object_path;
-      if (pdfPath) {
-        const url = `/api/v1/collections/${collectionId}/documents/${initialDoc.id!}/object?path=${encodeURIComponent(pdfPath)}`;
-        setPdfUrl(url);
+      // Determine right pane options and default view
+      const rightOptions: { label: string; value: 'chunks' | 'vision' }[] = [];
+      const hasChunks = adaptedChunks.length > 0;
+      const hasVisionChunks = visionChunks.length > 0;
+
+      if (hasChunks) {
+        rightOptions.push({ label: 'Chunks', value: 'chunks' });
+      }
+      if (hasVisionChunks) {
+        rightOptions.push({ label: 'Visual Descriptions', value: 'vision' });
+      }
+      setRightPaneOptions(rightOptions);
+
+      if (hasVisionChunks && !hasChunks) {
+        setRightViewMode('vision');
+      } else {
+        setRightViewMode('chunks');
       }
     }
-  }, [viewMode, canShowPdfPreview, previewData, collectionId, initialDoc.id]);
+  }, [
+    previewData,
+    canShowPdfPreview,
+    isOriginalImage,
+    adaptedChunks.length,
+    visionChunks.length,
+  ]);
+
+  // Determine the PDF or Image URL when view mode is switched
+  useEffect(() => {
+    if (!previewData || !initialDoc.id) return;
+
+    let objectPath: string | undefined;
+    if (viewMode === 'pdf' && canShowPdfPreview) {
+      objectPath = previewData.converted_pdf_object_path;
+    } else if (viewMode === 'image' && isOriginalImage) {
+      objectPath = previewData.doc_object_path;
+    }
+
+    if (objectPath) {
+      const url = `/api/v1/collections/${collectionId}/documents/${initialDoc.id}/object?path=${encodeURIComponent(objectPath)}`;
+      setLeftPaneContentUrl(url);
+    }
+  }, [
+    viewMode,
+    canShowPdfPreview,
+    isOriginalImage,
+    previewData,
+    collectionId,
+    initialDoc.id,
+  ]);
 
   const pdfOptions = useMemo(() => {
     return {
@@ -214,7 +318,12 @@ export const ChunkViewer = ({
         }
       };
 
-      if (viewMode === 'markdown' && highlightedChunk.metadata?.md_source_map) {
+      if (
+        viewMode === 'markdown' &&
+        highlightedChunk.metadata &&
+        'md_source_map' in highlightedChunk.metadata &&
+        highlightedChunk.metadata.md_source_map
+      ) {
         const [start_line, end_line] = highlightedChunk.metadata.md_source_map;
         const linesToHighlight = Array.from(
           { length: end_line - start_line + 1 },
@@ -241,9 +350,28 @@ export const ChunkViewer = ({
         }
       } else if (
         viewMode === 'pdf' &&
-        highlightedChunk.metadata?.pdf_source_map
+        highlightedChunk.metadata &&
+        'page_idx' in highlightedChunk.metadata &&
+        !('pdf_source_map' in highlightedChunk.metadata)
       ) {
-        const sourceMaps = highlightedChunk.metadata.pdf_source_map;
+        const pageNumber = (highlightedChunk.metadata.page_idx as number) + 1;
+        const pageElement = pageRefs.current.get(pageNumber);
+        const containerElement = pdfContainerRef.current;
+
+        if (pageElement && containerElement) {
+          scrollIfNeeded(
+            containerElement,
+            pageElement.offsetTop,
+            pageElement.offsetTop + pageElement.offsetHeight,
+          );
+        }
+      } else if (
+        viewMode === 'pdf' &&
+        highlightedChunk.metadata &&
+        'pdf_source_map' in highlightedChunk.metadata &&
+        highlightedChunk.metadata.pdf_source_map
+      ) {
+        const sourceMaps = highlightedChunk.metadata.pdf_source_map as any[];
         if (!sourceMaps || sourceMaps.length === 0) return;
 
         const containerElement = pdfContainerRef.current;
@@ -314,13 +442,32 @@ export const ChunkViewer = ({
       if (!container) return;
 
       const containerScrollTop = container.scrollTop;
-      let focusChunkId = null;
+      let focusChunkId: string | null = null;
 
-      for (const chunk of adaptedChunks) {
+      const currentDataSource =
+        rightViewMode === 'chunks' ? adaptedChunks : visionChunks;
+
+      for (const chunk of currentDataSource) {
         let top = Infinity;
 
-        if (viewMode === 'pdf' && chunk.metadata?.pdf_source_map) {
-          chunk.metadata.pdf_source_map.forEach((sourceMap: any) => {
+        if (
+          viewMode === 'pdf' &&
+          chunk.metadata &&
+          'page_idx' in chunk.metadata &&
+          !('pdf_source_map' in chunk.metadata)
+        ) {
+          const pageNumber = (chunk.metadata.page_idx as number) + 1;
+          const pageElement = pageRefs.current.get(pageNumber);
+          if (pageElement) {
+            top = pageElement.offsetTop;
+          }
+        } else if (
+          viewMode === 'pdf' &&
+          chunk.metadata &&
+          'pdf_source_map' in chunk.metadata &&
+          chunk.metadata.pdf_source_map
+        ) {
+          (chunk.metadata.pdf_source_map as any[]).forEach((sourceMap: any) => {
             const pageNumber = sourceMap.page_idx + 1;
             const pageElement = pageRefs.current.get(pageNumber);
             const pageDim = pageDimensions.get(pageNumber);
@@ -332,7 +479,12 @@ export const ChunkViewer = ({
               if (bboxTop < top) top = bboxTop;
             }
           });
-        } else if (viewMode === 'markdown' && chunk.metadata?.md_source_map) {
+        } else if (
+          viewMode === 'markdown' &&
+          chunk.metadata &&
+          'md_source_map' in chunk.metadata &&
+          chunk.metadata.md_source_map
+        ) {
           const [start_line] = chunk.metadata.md_source_map;
           const el = document.getElementById(`line-${start_line + 1}`);
           if (el) {
@@ -343,7 +495,7 @@ export const ChunkViewer = ({
         if (top === Infinity) continue;
 
         if (top > containerScrollTop) {
-          focusChunkId = chunk.id;
+          focusChunkId = chunk.id || null;
           break;
         }
       }
@@ -352,8 +504,9 @@ export const ChunkViewer = ({
         container.scrollTop + container.clientHeight >=
         container.scrollHeight - 2
       ) {
-        if (adaptedChunks.length > 0) {
-          focusChunkId = adaptedChunks[adaptedChunks.length - 1].id;
+        if (currentDataSource.length > 0) {
+          focusChunkId =
+            currentDataSource[currentDataSource.length - 1].id || null;
         }
       }
 
@@ -420,7 +573,9 @@ export const ChunkViewer = ({
   const renderPdfHighlight = (pageNumber: number) => {
     if (
       !highlightedChunk ||
-      !highlightedChunk.metadata?.pdf_source_map ||
+      !highlightedChunk.metadata ||
+      !('pdf_source_map' in highlightedChunk.metadata) ||
+      !highlightedChunk.metadata.pdf_source_map ||
       viewMode !== 'pdf'
     ) {
       return null;
@@ -432,7 +587,7 @@ export const ChunkViewer = ({
     }
 
     const highlights = [];
-    for (const sourceMap of highlightedChunk.metadata.pdf_source_map) {
+    for (const sourceMap of highlightedChunk.metadata.pdf_source_map as any[]) {
       if (sourceMap.page_idx === pageNumber - 1) {
         const [x1, y1, x2, y2] = sourceMap.bbox;
         const { width, height } = pageDim;
@@ -510,7 +665,8 @@ export const ChunkViewer = ({
           overflowY: 'auto',
           border: '1px solid #f0f0f0',
           padding: '16px',
-          whiteSpace: 'pre-wrap',
+          overflowWrap: 'break-word',
+          wordBreak: 'break-word',
         }}
       >
         <ReactMarkdown
@@ -529,8 +685,47 @@ export const ChunkViewer = ({
     );
   };
 
+  const renderImageView = () => {
+    if (!leftPaneContentUrl) {
+      return (
+        <div
+          style={{
+            height: '80vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Spin />
+        </div>
+      );
+    }
+    return (
+      <div
+        ref={markdownContainerRef} // Using markdown ref for simplicity as it's also a container
+        className={styles.markdownContainer}
+        style={{
+          position: 'relative',
+          height: '80vh',
+          overflowY: 'auto',
+          border: '1px solid #f0f0f0',
+          padding: '16px',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <img
+          src={leftPaneContentUrl}
+          alt={previewData?.doc_filename || 'Document Image'}
+          style={{ maxWidth: '100%', maxHeight: '100%' }}
+        />
+      </div>
+    );
+  };
+
   const renderPdfView = () => {
-    if (!pdfUrl) {
+    if (!leftPaneContentUrl) {
       return (
         <div
           style={{
@@ -556,7 +751,7 @@ export const ChunkViewer = ({
         }}
       >
         <Document
-          file={pdfUrl}
+          file={leftPaneContentUrl}
           options={pdfOptions}
           onLoadSuccess={onDocumentLoadSuccess}
         >
@@ -606,11 +801,42 @@ export const ChunkViewer = ({
   }
 
   const renderContent = () => {
+    // Always render the container, even if empty, to maintain layout
+    const hasContent =
+      (viewMode === 'markdown' && !!previewData?.markdown_content) ||
+      (viewMode === 'pdf' && canShowPdfPreview) ||
+      (viewMode === 'image' && isOriginalImage);
+
+    if (!hasContent && viewMode !== 'determining') {
+      return (
+        <div
+          style={{
+            height: '80vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: '1px solid #f0f0f0',
+          }}
+        >
+          <Empty
+            description={
+              <FormattedMessage
+                id="chunk.viewer.unsupported"
+                defaultMessage="This document format is not supported for preview."
+              />
+            }
+          />
+        </div>
+      );
+    }
+
     switch (viewMode) {
       case 'markdown':
         return <div key="markdown-view">{renderMarkdownView()}</div>;
       case 'pdf':
         return <div key="pdf-view">{renderPdfView()}</div>;
+      case 'image':
+        return <div key="image-view">{renderImageView()}</div>;
       case 'determining':
         return (
           <div
@@ -649,26 +875,36 @@ export const ChunkViewer = ({
 
   return (
     <div>
-      {canShowPdfPreview && (
-        <Segmented
-          options={[
-            { label: 'PDF', value: 'pdf' },
-            { label: 'Markdown', value: 'markdown' },
-          ]}
-          value={viewMode}
-          onChange={(value) => setViewMode(value as 'markdown' | 'pdf')}
-          style={{ marginBottom: 16 }}
-        />
-      )}
+      <Row gutter={16} style={{ marginBottom: 16 }}>
+        <Col span={12}>
+          {leftPaneOptions.length > 0 && (
+            <Segmented
+              options={leftPaneOptions}
+              value={viewMode}
+              onChange={(value) =>
+                setViewMode(value as 'markdown' | 'pdf' | 'image')
+              }
+            />
+          )}
+        </Col>
+        <Col span={12}>
+          {rightPaneOptions.length > 0 && (
+            <Segmented
+              options={rightPaneOptions}
+              value={rightViewMode}
+              onChange={(value) =>
+                setRightViewMode(value as 'chunks' | 'vision')
+              }
+            />
+          )}
+        </Col>
+      </Row>
       <Row gutter={16}>
         <Col span={12}>{renderContent()}</Col>
         <Col span={12}>
           <div
             ref={chunkListRef}
             onMouseLeave={() => setHighlightedChunk(null)}
-            // Detect user-initiated scrolling on the right pane.
-            // This sets a flag to prevent the left pane from syncing,
-            // which avoids conflicts and improves the user's scrolling experience.
             onWheel={() => {
               isUserScrollingRight.current = true;
               if (userScrollTimeout.current) {
@@ -681,59 +917,94 @@ export const ChunkViewer = ({
             }}
             style={{ height: '80vh', overflowY: 'auto' }}
           >
-            <List
-              header={
-                <Typography.Title level={5}>
-                  <FormattedMessage
-                    id="chunk.viewer.chunks.title"
-                    defaultMessage="Chunks"
-                  />
-                </Typography.Title>
-              }
-              bordered
-              dataSource={adaptedChunks}
-              renderItem={(item: Chunk) => {
-                const isHighlighted = highlightedChunk?.id === item.id;
-                return (
-                  <List.Item
-                    ref={(el) => {
-                      if (el) chunkItemRefs.current.set(item.id, el);
-                      else chunkItemRefs.current.delete(item.id);
-                    }}
-                    onMouseEnter={() => {
-                      // The check for `isRightPaneScrolling` was removed here.
-                      // While it prevented loops, it also caused a regression where highlighting
-                      // wouldn't trigger during user scrolling. The new `onWheel` logic on the
-                      // parent container is a more robust solution that handles this correctly.
-                      setHighlightedChunk(item);
-                    }}
-                    className={styles.chunkListItem}
-                    style={{
-                      cursor: 'pointer',
-                      backgroundColor: isHighlighted
-                        ? '#e6f7ff'
-                        : 'transparent',
-                      transition: 'background-color 0.3s ease',
-                    }}
-                  >
-                    <div className={styles.markdownContainer}>
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm, remarkMath]}
-                        rehypePlugins={[rehypeRaw, rehypeKatex]}
-                        components={markdownComponents}
-                        urlTransform={(url) =>
-                          url.startsWith('asset://')
-                            ? url
-                            : new URL(url, window.location.href).href
-                        }
+            {adaptedChunks.length > 0 || visionChunks.length > 0 ? (
+              <List
+                bordered
+                dataSource={
+                  rightViewMode === 'chunks' ? adaptedChunks : visionChunks
+                }
+                renderItem={(item: Chunk | VisionChunk) => {
+                  const isHighlighted = highlightedChunk?.id === item.id;
+                  const pageIdx =
+                    item.metadata && 'page_idx' in item.metadata
+                      ? (item.metadata.page_idx as number)
+                      : null;
+
+                  return (
+                    <List.Item
+                      ref={(el) => {
+                        if (el) chunkItemRefs.current.set(item.id || '', el);
+                        else chunkItemRefs.current.delete(item.id || '');
+                      }}
+                      onMouseEnter={() => {
+                        setHighlightedChunk(item);
+                      }}
+                      className={styles.chunkListItem}
+                      style={{
+                        cursor: 'pointer',
+                        backgroundColor: isHighlighted
+                          ? '#e6f7ff'
+                          : 'transparent',
+                        transition: 'background-color 0.3s ease',
+                        display: 'block', // Allow block-level elements inside
+                      }}
+                    >
+                      {rightViewMode === 'vision' && pageIdx !== null && (
+                        <div
+                          style={{
+                            fontWeight: 'bold',
+                            marginBottom: '8px',
+                            paddingBottom: '8px',
+                            borderBottom: '1px solid #f0f0f0',
+                          }}
+                        >
+                          Page: {pageIdx + 1}
+                        </div>
+                      )}
+                      <div
+                        className={styles.markdownContainer}
+                        style={{
+                          overflowWrap: 'break-word',
+                          wordBreak: 'break-word',
+                        }}
                       >
-                        {item.text}
-                      </ReactMarkdown>
-                    </div>
-                  </List.Item>
-                );
-              }}
-            />
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm, remarkMath]}
+                          rehypePlugins={[rehypeRaw, rehypeKatex]}
+                          components={markdownComponents}
+                          urlTransform={(url) =>
+                            url.startsWith('asset://')
+                              ? url
+                              : new URL(url, window.location.href).href
+                          }
+                        >
+                          {processLongText(item.text || '')}
+                        </ReactMarkdown>
+                      </div>
+                    </List.Item>
+                  );
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  border: '1px solid #f0f0f0',
+                }}
+              >
+                <Empty
+                  description={
+                    <FormattedMessage
+                      id="chunk.viewer.chunks.empty"
+                      defaultMessage="No chunks available for this document."
+                    />
+                  }
+                />
+              </div>
+            )}
           </div>
         </Col>
       </Row>

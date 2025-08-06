@@ -39,49 +39,16 @@ class LlmAvailableModelService:
         available_providers = providers_and_models_data["providers"]
         provider_models = providers_and_models_data["models"]
 
-        # Build provider configs and separate by type
+        # Build provider configs
         provider_configs = self._build_provider_configs_from_data(available_providers, provider_models)
 
-        # Separate public and user-created providers
-        public_providers = []
-        user_created_providers = []
-
-        for provider_config in provider_configs:
-            # Find the original provider data to check user_id
-            provider_name = provider_config.name
-            original_provider = next((p for p in available_providers if p.name == provider_name), None)
-
-            if original_provider and original_provider.user_id == "public":
-                public_providers.append(provider_config)
-            else:
-                user_created_providers.append(provider_config)
-
-        # Apply filtering logic
-        filtered_providers = []
-
-        # Handle public providers with default recommend filter
-        if public_providers:
-            if tag_filter_request.tag_filters is None or len(tag_filter_request.tag_filters) == 0:
-                # Default to showing only models with 'recommend' tag for public providers
-                default_filter = [view_models.TagFilterCondition(tags=["recommend"], operation="AND")]
-                filtered_public_providers = filter_providers_by_tags(public_providers, default_filter)
-            else:
-                # Apply user-specified filters to public providers
-                filtered_public_providers = filter_providers_by_tags(public_providers, tag_filter_request.tag_filters)
-
-            filtered_providers.extend(filtered_public_providers)
-
-        # Handle user-created providers (only affected by user input, no default filter)
-        if user_created_providers:
-            if tag_filter_request.tag_filters is None or len(tag_filter_request.tag_filters) == 0:
-                # For user-created providers, show all models if no filter is specified
-                filtered_providers.extend(user_created_providers)
-            else:
-                # Apply user-specified filters to user-created providers
-                filtered_user_providers = filter_providers_by_tags(
-                    user_created_providers, tag_filter_request.tag_filters
-                )
-                filtered_providers.extend(filtered_user_providers)
+        # Apply filtering logic uniformly to all providers
+        if tag_filter_request.tag_filters is None or len(tag_filter_request.tag_filters) == 0:
+            # Show all providers if no filter is specified
+            filtered_providers = provider_configs
+        else:
+            # Apply user-specified filters to all providers
+            filtered_providers = filter_providers_by_tags(provider_configs, tag_filter_request.tag_filters)
 
         return view_models.ModelConfigList(items=filtered_providers, pageResult=None)
 

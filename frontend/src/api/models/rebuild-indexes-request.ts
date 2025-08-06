@@ -32,7 +32,8 @@ export const RebuildIndexesRequestIndexTypesEnum = {
     VECTOR: 'VECTOR',
     FULLTEXT: 'FULLTEXT',
     GRAPH: 'GRAPH',
-    SUMMARY: 'SUMMARY'
+    SUMMARY: 'SUMMARY',
+    VISION: 'VISION'
 } as const;
 
 export type RebuildIndexesRequestIndexTypesEnum = typeof RebuildIndexesRequestIndexTypesEnum[keyof typeof RebuildIndexesRequestIndexTypesEnum];

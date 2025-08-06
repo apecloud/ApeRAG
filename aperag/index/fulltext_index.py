@@ -119,6 +119,9 @@ class FulltextIndexer(BaseIndexer):
     def create_index(self, document_id: int, content: str, doc_parts: List[Any], collection, **kwargs) -> IndexResult:
         """Create fulltext index for document chunks"""
         try:
+            # Filter out non-text parts
+            doc_parts = [part for part in doc_parts if hasattr(part, "content") and part.content]
+
             if not doc_parts:
                 logger.info(f"No doc_parts to index for document {document_id}")
                 return IndexResult(
@@ -158,6 +161,9 @@ class FulltextIndexer(BaseIndexer):
                 logger.debug(f"Removed old fulltext chunks for document {document_id}")
             except Exception as e:
                 logger.warning(f"Failed to remove old fulltext chunks for document {document_id}: {str(e)}")
+
+            # Filter out non-text parts
+            doc_parts = [part for part in doc_parts if hasattr(part, "content") and part.content]
 
             # Create new chunks if there are doc_parts
             if doc_parts:

@@ -21,23 +21,26 @@ from aperag.db.repositories.base import AsyncRepositoryProtocol
 
 
 class AsyncApiKeyRepositoryMixin(AsyncRepositoryProtocol):
-    async def query_api_keys(self, user: str):
+    async def query_api_keys(self, user: str, is_system=False):
         """List all active API keys for a user"""
 
         async def _query(session):
             stmt = select(ApiKey).where(
-                ApiKey.user == user, ApiKey.status == ApiKeyStatus.ACTIVE, ApiKey.gmt_deleted.is_(None)
+                ApiKey.user == user,
+                ApiKey.status == ApiKeyStatus.ACTIVE,
+                ApiKey.gmt_deleted.is_(None),
+                ApiKey.is_system == is_system,
             )
             result = await session.execute(stmt)
             return result.scalars().all()
 
         return await self._execute_query(_query)
 
-    async def create_api_key(self, user: str, description: Optional[str] = None) -> ApiKey:
+    async def create_api_key(self, user: str, description: Optional[str] = None, is_system=False) -> ApiKey:
         """Create a new API key for a user"""
 
         async def _operation(session):
-            api_key = ApiKey(user=user, description=description, status=ApiKeyStatus.ACTIVE)
+            api_key = ApiKey(user=user, description=description, status=ApiKeyStatus.ACTIVE, is_system=is_system)
             session.add(api_key)
             await session.flush()
             await session.refresh(api_key)

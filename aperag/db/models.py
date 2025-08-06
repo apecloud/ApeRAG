@@ -84,6 +84,13 @@ class CollectionType(str, Enum):
     DOCUMENT = "document"
 
 
+class CollectionMarketplaceStatusEnum(str, Enum):
+    """Collection marketplace sharing status enumeration"""
+
+    DRAFT = "DRAFT"  # Not published, only owner can see
+    PUBLISHED = "PUBLISHED"  # Published to marketplace, publicly visible
+
+
 class DocumentStatus(str, Enum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"
@@ -99,6 +106,7 @@ class DocumentIndexType(str, Enum):
     FULLTEXT = "FULLTEXT"
     GRAPH = "GRAPH"
     SUMMARY = "SUMMARY"
+    VISION = "VISION"
 
 
 class DocumentIndexStatus(str, Enum):
@@ -120,6 +128,7 @@ class BotStatus(str, Enum):
 class BotType(str, Enum):
     KNOWLEDGE = "knowledge"
     COMMON = "common"
+    AGENT = "agent"
 
 
 class Role(str, Enum):
@@ -244,6 +253,61 @@ class CollectionSummary(Base):
         self.gmt_updated = utc_now()
 
 
+class CollectionMarketplace(Base):
+    """Collection sharing status table"""
+
+    __tablename__ = "collection_marketplace"
+    __table_args__ = (
+        UniqueConstraint("collection_id", name="uq_collection_marketplace_collection"),
+        Index("idx_collection_marketplace_status", "status"),
+        Index("idx_collection_marketplace_gmt_deleted", "gmt_deleted"),
+        Index("idx_collection_marketplace_collection_id", "collection_id"),
+        Index("idx_collection_marketplace_list", "status", "gmt_created"),
+    )
+
+    id = Column(String(24), primary_key=True, default=lambda: "market_" + random_id()[:16])
+    collection_id = Column(String(24), nullable=False)
+
+    # Sharing status: use VARCHAR storage, not database enum type, validated at application layer
+    status = Column(String(20), nullable=False, default=CollectionMarketplaceStatusEnum.DRAFT.value)
+
+    # Timestamp fields
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)  # Updated in code layer
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
+
+    def __repr__(self):
+        return f"<CollectionMarketplace(id={self.id}, collection_id={self.collection_id}, status={self.status})>"
+
+
+class UserCollectionSubscription(Base):
+    """User subscription to published collections table"""
+
+    __tablename__ = "user_collection_subscription"
+    __table_args__ = (
+        # Allow multiple history records, but active subscription (gmt_deleted=NULL) must be unique
+        UniqueConstraint(
+            "user_id", "collection_marketplace_id", "gmt_deleted", name="idx_user_marketplace_history_unique"
+        ),
+        Index("idx_user_subscription_marketplace", "collection_marketplace_id"),
+        Index("idx_user_subscription_user", "user_id"),
+        Index("idx_user_subscription_gmt_deleted", "gmt_deleted"),
+    )
+
+    id = Column(String(24), primary_key=True, default=lambda: "sub_" + random_id()[:16])
+    user_id = Column(String(24), nullable=False)  # Related to users table, maintained at application layer
+    collection_marketplace_id = Column(
+        String(24), nullable=False
+    )  # Related to collection_marketplace table, maintained at application layer
+
+    # Timestamp fields
+    gmt_subscribed = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True)  # Soft delete: NULL means active subscription
+
+    def __repr__(self):
+        return f"<UserCollectionSubscription(id={self.id}, user_id={self.user_id}, marketplace_id={self.collection_marketplace_id})>"
+
+
 class Document(Base):
     __tablename__ = "document"
     __table_args__ = (
@@ -365,10 +429,19 @@ class UserQuota(Base):
 
     user = Column(String(256), primary_key=True)
     key = Column(String(256), primary_key=True)
-    value = Column(Integer, default=0, nullable=False)
+    quota_limit = Column(Integer, default=0, nullable=False)  # Renamed from 'value' for clarity
+    current_usage = Column(Integer, default=0, nullable=False)  # New field to track current usage
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True)
+
+    def is_quota_exceeded(self, additional_usage: int = 1) -> bool:
+        """Check if adding additional usage would exceed the quota limit"""
+        return (self.current_usage + additional_usage) > self.quota_limit
+
+    def can_consume(self, amount: int = 1) -> bool:
+        """Check if the specified amount can be consumed without exceeding quota"""
+        return not self.is_quota_exceeded(amount)
 
 
 class Chat(Base):
@@ -452,6 +525,7 @@ class ApiKey(Base):
     user = Column(String(256), nullable=False, index=True)  # Add index for user queries
     description = Column(String(256), nullable=True)
     status = Column(EnumColumn(ApiKeyStatus), nullable=False, index=True)  # Add index for status queries
+    is_system = Column(Boolean, default=False, nullable=False, index=True)  # Mark system-generated API keys
     last_used_at = Column(DateTime(timezone=True), nullable=True)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
@@ -645,6 +719,7 @@ class SearchHistory(Base):
     vector_search = Column(JSON, default=lambda: {}, nullable=True)
     fulltext_search = Column(JSON, default=lambda: {}, nullable=True)
     graph_search = Column(JSON, default=lambda: {}, nullable=True)
+    summary_search = Column(JSON, default=lambda: {}, nullable=True)
     items = Column(JSON, default=lambda: [], nullable=True)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
@@ -870,20 +945,19 @@ class MergeSuggestionStatus(str, Enum):
     PENDING = "PENDING"
     ACCEPTED = "ACCEPTED"
     REJECTED = "REJECTED"
-    EXPIRED = "EXPIRED"
 
 
 class MergeSuggestion(Base):
-    """Merge suggestion storage model for knowledge graph node merging"""
+    """Active merge suggestions for knowledge graph node merging (PENDING only)"""
 
     __tablename__ = "graph_index_merge_suggestions"
     __table_args__ = (
-        # Prevent duplicate suggestions for the same entity combination
-        UniqueConstraint("collection_id", "entity_ids_hash", "gmt_deleted", name="uq_graph_index_merge_suggestion"),
-        Index("idx_graph_index_merge_suggestion_collection_status", "collection_id", "status"),
-        Index("idx_graph_index_merge_suggestion_batch", "collection_id", "suggestion_batch_id"),
-        Index("idx_graph_index_merge_suggestion_created", "gmt_created"),
-        Index("idx_graph_index_merge_suggestion_expires", "expires_at"),
+        # Only allow one active suggestion per entity combination per collection
+        UniqueConstraint("collection_id", "entity_ids_hash", name="uq_graph_index_merge_suggestions"),
+        Index("idx_graph_index_merge_suggestions_collection", "collection_id"),
+        Index("idx_graph_index_merge_suggestions_created", "gmt_created"),
+        Index("idx_graph_index_merge_suggestions_batch", "collection_id", "suggestion_batch_id"),
+        Index("idx_graph_index_merge_suggestions_confidence", "confidence_score"),
     )
 
     id = Column(String(24), primary_key=True, default=lambda: "msug" + random_id())
@@ -901,7 +975,7 @@ class MergeSuggestion(Base):
     merge_reason = Column(Text, nullable=False)  # LLM-generated reason for merging
     suggested_target_entity = Column(JSON, nullable=False)  # Suggested target entity {entity_name, entity_type}
 
-    # Status and lifecycle
+    # Status (always PENDING for active suggestions)
     status = Column(
         EnumColumn(MergeSuggestionStatus), nullable=False, default=MergeSuggestionStatus.PENDING, index=True
     )
@@ -909,11 +983,6 @@ class MergeSuggestion(Base):
     # Timestamps
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)
-    expires_at = Column(DateTime(timezone=True), nullable=False)  # Suggestion expiration time, default 7 days
-
-    # User operation tracking
-    operated_at = Column(DateTime(timezone=True), nullable=True)  # User operation timestamp
 
     @classmethod
     def generate_entity_ids_hash(cls, entity_ids: list) -> str:
@@ -924,4 +993,66 @@ class MergeSuggestion(Base):
         return hashlib.md5(":".join(sorted_ids).encode()).hexdigest()
 
     def __repr__(self):
-        return f"<MergeSuggestion(id={self.id}, collection_id={self.collection_id}, status={self.status})>"
+        return f"<MergeSuggestion(id={self.id}, collection_id={self.collection_id}, entities={len(self.entity_ids)})>"
+
+
+class MergeSuggestionHistory(Base):
+    """History of processed merge suggestions for knowledge graph node merging"""
+
+    __tablename__ = "graph_index_merge_suggestions_history"
+    __table_args__ = (
+        Index("idx_graph_index_merge_suggestions_history_collection", "collection_id"),
+        Index("idx_graph_index_merge_suggestions_history_collection_status", "collection_id", "status"),
+        Index("idx_graph_index_merge_suggestions_history_operated_at", "operated_at"),
+        Index("idx_graph_index_merge_suggestions_history_original_id", "original_suggestion_id"),
+        Index("idx_graph_index_merge_suggestions_history_batch", "suggestion_batch_id"),
+    )
+
+    id = Column(String(24), primary_key=True, default=lambda: "hsug" + random_id())
+    original_suggestion_id = Column(String(24), nullable=False, index=True)  # ID from active suggestions
+    collection_id = Column(String(24), nullable=False, index=True)
+
+    # Suggestion batch (same batch_id for suggestions generated in the same LLM call)
+    suggestion_batch_id = Column(String(24), nullable=False, index=True)
+
+    # Entity combination for merging
+    entity_ids = Column(ARRAY(String), nullable=False)  # Entity IDs suggested for merging
+    entity_ids_hash = Column(String(64), nullable=False)  # Hash of entity ID combination for uniqueness
+
+    # LLM analysis results
+    confidence_score = Column(Numeric(3, 2), nullable=False)  # 0.00-1.00
+    merge_reason = Column(Text, nullable=False)  # LLM-generated reason for merging
+    suggested_target_entity = Column(JSON, nullable=False)  # Suggested target entity {entity_name, entity_type}
+
+    # Status (ACCEPTED or REJECTED only)
+    status = Column(EnumColumn(MergeSuggestionStatus), nullable=False, index=True)
+
+    # Timestamps
+    gmt_created = Column(DateTime(timezone=True), nullable=False)  # Original creation time
+    operated_at = Column(DateTime(timezone=True), nullable=False)  # When the action was taken
+
+    # User operation tracking
+    operated_by = Column(String(24), nullable=True)  # User ID who performed the action
+
+    @classmethod
+    def generate_entity_ids_hash(cls, entity_ids: list) -> str:
+        """Generate hash for entity ID combination"""
+        import hashlib
+
+        sorted_ids = sorted(entity_ids)
+        return hashlib.md5(":".join(sorted_ids).encode()).hexdigest()
+
+    def __repr__(self):
+        return (
+            f"<MergeSuggestionHistory(id={self.id}, original_id={self.original_suggestion_id}, status={self.status})>"
+        )
+
+
+class Setting(Base):
+    __tablename__ = "setting"
+
+    key = Column(String(256), primary_key=True)
+    value = Column(Text, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True)

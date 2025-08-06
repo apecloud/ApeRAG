@@ -21,6 +21,9 @@ import type { FulltextSearchParams } from './fulltext-search-params';
 import type { GraphSearchParams } from './graph-search-params';
 // May contain unused imports in some cases
 // @ts-ignore
+import type { SummarySearchParams } from './summary-search-params';
+// May contain unused imports in some cases
+// @ts-ignore
 import type { VectorSearchParams } from './vector-search-params';
 
 /**
@@ -53,5 +56,23 @@ export interface SearchRequest {
      * @memberof SearchRequest
      */
     'graph_search'?: GraphSearchParams;
+    /**
+     * 
+     * @type {SummarySearchParams}
+     * @memberof SearchRequest
+     */
+    'summary_search'?: SummarySearchParams;
+    /**
+     * Whether to save search result to database history
+     * @type {boolean}
+     * @memberof SearchRequest
+     */
+    'save_to_history'?: boolean;
+    /**
+     * Whether to enable rerank for search results
+     * @type {boolean}
+     * @memberof SearchRequest
+     */
+    'rerank'?: boolean;
 }
 

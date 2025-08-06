@@ -375,7 +375,23 @@ class LightRAG:
             KnowledgeGraph: Knowledge graph containing nodes and edges
         """
 
-        return await self.chunk_entity_relation_graph.get_knowledge_graph(node_label, max_depth, max_nodes)
+        kg = await self.chunk_entity_relation_graph.get_knowledge_graph(node_label, max_depth, max_nodes)
+
+        # Clean up descriptions in nodes by replacing GRAPH_FIELD_SEP with double newlines
+        if kg.nodes and len(kg.nodes) > 0:
+            for node in kg.nodes:
+                if node.properties.get("description"):
+                    # Replace <SEP> with double newlines for better readability
+                    node.properties["description"] = node.properties["description"].replace(GRAPH_FIELD_SEP, "\n\n")
+
+        # Clean up descriptions in edges by replacing GRAPH_FIELD_SEP with double newlines
+        if kg.edges and len(kg.edges) > 0:
+            for edge in kg.edges:
+                if edge.properties.get("description"):
+                    # Replace <SEP> with double newlines for better readability
+                    edge.properties["description"] = edge.properties["description"].replace(GRAPH_FIELD_SEP, "\n\n")
+
+        return kg
 
     def _get_storage_class(self, storage_name: str) -> Callable[..., Any]:
         # Direct class lookup from registry instead of dynamic import
@@ -764,7 +780,7 @@ class LightRAG:
         param: QueryParam = QueryParam(),
     ):
         param.original_query = query
-        entities_context, relations_context, text_units_context = await build_query_context(
+        context_data = await build_query_context(
             query.strip(),
             self.chunk_entity_relation_graph,
             self.entities_vdb,
@@ -776,6 +792,11 @@ class LightRAG:
             self.addon_params,
             chunks_vdb=self.chunks_vdb,
         )
+
+        if context_data is None:
+            return ""
+
+        entities_context, relations_context, text_units_context = context_data
 
         # Remove file_path from all contexts before serialization
         def remove_file_path_from_context(context_list):

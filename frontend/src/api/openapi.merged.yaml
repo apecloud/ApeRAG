@@ -399,7 +399,7 @@ paths:
   /collections:
     get:
       summary: List collections
-      description: Get a list of collections
+      description: Get a list of collections (owned and optionally subscribed)
       security:
         - BearerAuth: []
       parameters:
@@ -413,13 +413,19 @@ paths:
           schema:
             type: integer
             default: 10
+        - name: include_subscribed
+          in: query
+          schema:
+            type: boolean
+            default: true
+          description: Whether to include subscribed collections in results
       responses:
         '200':
           description: List of collections
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/collectionList'
+                $ref: '#/components/schemas/collectionViewList'
         '401':
           description: Unauthorized
           content:
@@ -875,6 +881,78 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
+  /settings:
+    get:
+      summary: Get all settings
+      description: Retrieve all application settings
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: A list of all settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+    put:
+      summary: Update settings
+      description: Update one or more application settings
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Settings'
+      responses:
+        '204':
+          description: Settings updated successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /settings/test_mineru_token:
+    post:
+      summary: Test MinerU API Token
+      description: Test the connectivity of the MinerU API Token
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+      responses:
+        '200':
+          description: Token test result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status_code:
+                    type: integer
+                  data:
+                    type: object
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
   /collections/{collection_id}/graphs/labels:
     get:
       summary: Get knowledge graph labels
@@ -1293,6 +1371,535 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
+  /collections/{collection_id}/graphs/export/kg-eval:
+    get:
+      summary: Export collection knowledge graph for KG-Eval framework
+      description: |
+        Export the collection's knowledge graph data in KG-Eval framework format for evaluation.
+
+        This endpoint extracts entities, relationships, and optionally source texts from the 
+        collection's knowledge graph and formats them according to the KG-Eval evaluation 
+        framework structure.
+
+        The export includes:
+        - Entities with their names, types, and descriptions
+        - Relationships between entities with descriptions, keywords, and weights  
+        - Source texts that link back to the entities and relationships (optional)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Collection ID to export
+        - name: sample_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000000
+            default: 100000
+          description: Number of entities to sample for export (default 100000)
+        - name: include_source_texts
+          in: query
+          schema:
+            type: boolean
+            default: true
+          description: Whether to include source texts in the export (default true)
+      responses:
+        '200':
+          description: KG-Eval export data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                description: KG-Eval framework format export data
+                properties:
+                  entities:
+                    type: array
+                    description: List of entities in KG-Eval format
+                    items:
+                      type: object
+                  relationships:
+                    type: array
+                    description: List of relationships in KG-Eval format
+                    items:
+                      type: object
+                  source_texts:
+                    type: array
+                    description: List of source texts with linked entities/edges (optional)
+                    items:
+                      type: object
+        '400':
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /collections/{collection_id}/sharing:
+    get:
+      summary: Get collection sharing status
+      description: Get the sharing status of a collection (owner only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Collection ID
+      responses:
+        '200':
+          description: Collection sharing status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharingStatusResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '403':
+          description: Permission denied (not collection owner)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+    post:
+      summary: Publish collection to marketplace
+      description: Publish a collection to the public marketplace (owner only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Collection ID
+      responses:
+        '204':
+          description: Collection published successfully
+        '400':
+          description: Bad request (e.g., collection already published)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '403':
+          description: Permission denied (not collection owner)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+    delete:
+      summary: Unpublish collection from marketplace
+      description: Remove a collection from the public marketplace (owner only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Collection ID
+      responses:
+        '204':
+          description: Collection unpublished successfully
+        '400':
+          description: Bad request (e.g., collection not published)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '403':
+          description: Permission denied (not collection owner)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /marketplace/collections:
+    get:
+      summary: List all published Collections in marketplace
+      description: Returns all Collections that are published to marketplace with current user's subscription status
+      parameters:
+        - name: page
+          in: query
+          description: Page number
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          description: Page size
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 12
+      responses:
+        '200':
+          description: List of published Collections
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedCollectionList'
+        '401':
+          $ref: '#/components/responses/failResponse'
+        '500':
+          $ref: '#/components/responses/failResponse'
+  /marketplace/collections/subscriptions:
+    get:
+      summary: Get user's subscribed Collections
+      description: Returns all Collections that current user has subscribed to
+      parameters:
+        - name: page
+          in: query
+          description: Page number
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          description: Page size
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 12
+      responses:
+        '200':
+          description: List of subscribed Collections
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedCollectionList'
+        '401':
+          $ref: '#/components/responses/failResponse'
+        '500':
+          $ref: '#/components/responses/failResponse'
+  /marketplace/collections/{collection_id}/subscribe:
+    post:
+      summary: Subscribe to a Collection
+      description: Subscribe to a published Collection
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          description: Collection ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully subscribed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedCollection'
+        '400':
+          description: Bad request (e.g., Collection not published, self-subscription)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          $ref: '#/components/responses/failResponse'
+        '404':
+          description: Collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '409':
+          description: Already subscribed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          $ref: '#/components/responses/failResponse'
+    delete:
+      summary: Unsubscribe from a Collection
+      description: Remove subscription to a Collection
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          description: Collection ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully unsubscribed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Successfully unsubscribed
+        '401':
+          $ref: '#/components/responses/failResponse'
+        '404':
+          description: Subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          $ref: '#/components/responses/failResponse'
+  /marketplace/collections/{collection_id}:
+    get:
+      summary: Get MarketplaceCollection details (read-only)
+      description: Get details of a subscribed Collection (read-only access)
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          description: Collection ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: MarketplaceCollection details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedCollection'
+        '401':
+          $ref: '#/components/responses/failResponse'
+        '403':
+          description: Access denied (need subscription)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          $ref: '#/components/responses/failResponse'
+  /marketplace/collections/{collection_id}/documents:
+    get:
+      summary: List documents in MarketplaceCollection (read-only)
+      description: Get document list for a subscribed Collection (read-only mode)
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          description: Collection ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document list (read-only)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/documentList'
+        '401':
+          $ref: '#/components/responses/failResponse'
+        '403':
+          description: Access denied (need subscription)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          $ref: '#/components/responses/failResponse'
+  /marketplace/collections/{collection_id}/documents/{document_id}/preview:
+    get:
+      summary: Preview document in MarketplaceCollection (read-only)
+      description: Get document preview for a subscribed Collection (read-only mode)
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          description: Collection ID
+          schema:
+            type: string
+        - name: document_id
+          in: path
+          required: true
+          description: Document ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document preview (read-only)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/documentPreview'
+        '401':
+          $ref: '#/components/responses/failResponse'
+        '403':
+          description: Access denied (need subscription)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          $ref: '#/components/responses/failResponse'
+  /marketplace/collections/{collection_id}/graph:
+    get:
+      summary: Get knowledge graph for MarketplaceCollection (read-only)
+      description: Get knowledge graph data for a subscribed Collection (read-only mode)
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          description: Collection ID
+          schema:
+            type: string
+        - name: label
+          in: query
+          description: Node label filter
+          schema:
+            type: string
+            default: '*'
+        - name: max_nodes
+          in: query
+          description: Maximum number of nodes
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10000
+            default: 1000
+        - name: max_depth
+          in: query
+          description: Graph traversal depth
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10
+            default: 3
+      responses:
+        '200':
+          description: Knowledge graph data (read-only)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nodes:
+                    type: array
+                    items:
+                      type: object
+                  edges:
+                    type: array
+                    items:
+                      type: object
+                  collection_id:
+                    type: string
+                  read_only:
+                    type: boolean
+        '401':
+          $ref: '#/components/responses/failResponse'
+        '403':
+          description: Access denied (need subscription)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          $ref: '#/components/responses/failResponse'
   /apikeys:
     get:
       summary: Get API keys
@@ -1453,6 +2060,51 @@ paths:
                 $ref: '#/components/schemas/modelConfigList'
         '400':
           description: Invalid tag filter format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /default_models:
+    get:
+      summary: Get default model configurations
+      description: Get current default model settings for different scenarios
+      responses:
+        '200':
+          description: Default models configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/defaultModelsResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+    put:
+      summary: Update default model configurations
+      description: Update default model settings for different scenarios
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/defaultModelsUpdateRequest'
+      responses:
+        '200':
+          description: Successfully updated default models
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/defaultModelsResponse'
+        '400':
+          description: Bad request
           content:
             application/json:
               schema:
@@ -2418,6 +3070,232 @@ paths:
       responses:
         '200':
           description: User deleted successfully
+  /quotas:
+    get:
+      summary: Get user quotas
+      description: Get quota information for the current user or specific user (admin only)
+      tags:
+        - quotas
+      parameters:
+        - name: user_id
+          in: query
+          description: User ID to get quotas for (admin only, defaults to current user)
+          required: false
+          schema:
+            type: string
+            example: user123
+        - name: search
+          in: query
+          description: Search term for username, email, or user ID (admin only)
+          required: false
+          schema:
+            type: string
+            example: john
+      responses:
+        '200':
+          description: Quota information retrieved successfully
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/userQuotaInfo'
+                  - $ref: '#/components/schemas/userQuotaList'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '403':
+          description: Forbidden - Admin access required for other users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /quotas/{user_id}:
+    put:
+      summary: Update user quota
+      description: Update quota limit for a specific user (admin only)
+      tags:
+        - quotas
+      parameters:
+        - name: user_id
+          in: path
+          description: User ID to update quota for
+          required: true
+          schema:
+            type: string
+            example: user123
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/quotaUpdateRequest'
+      responses:
+        '200':
+          description: Quota updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/quotaUpdateResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '403':
+          description: Forbidden - Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /quotas/{user_id}/recalculate:
+    post:
+      summary: Recalculate user quota usage
+      description: Recalculate and update current usage for all quota types for a user (admin only)
+      tags:
+        - quotas
+      parameters:
+        - name: user_id
+          in: path
+          description: User ID to recalculate quotas for
+          required: true
+          schema:
+            type: string
+            example: user123
+      responses:
+        '200':
+          description: Quota usage recalculated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Quota usage recalculated successfully
+                  updated_usage:
+                    type: object
+                    additionalProperties:
+                      type: integer
+                    example:
+                      max_collection_count: 3
+                      max_document_count: 25
+                      max_bot_count: 2
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '403':
+          description: Forbidden - Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /system/default-quotas:
+    get:
+      summary: Get system default quotas
+      description: Get system default quota configuration (admin only)
+      tags:
+        - quotas
+      responses:
+        '200':
+          description: System default quotas retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/systemDefaultQuotasResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '403':
+          description: Forbidden - Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+    put:
+      summary: Update system default quotas
+      description: Update system default quota configuration (admin only)
+      tags:
+        - quotas
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/systemDefaultQuotasUpdateRequest'
+      responses:
+        '200':
+          description: System default quotas updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/systemDefaultQuotasUpdateResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '403':
+          description: Forbidden - Admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
   /web/search:
     post:
       summary: Web search
@@ -2636,6 +3514,27 @@ paths:
                   value:
                     code: '500'
                     message: 'Content reading failed: Provider error'
+  /agent/message:
+    post:
+      summary: (Doc Only) Agent message format for WebSocket/SSE
+      description: |
+        This endpoint is for documentation and model generation only. Actual communication should use WebSocket or SSE.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentMessage'
+      responses:
+        '200':
+          description: Dummy response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: string
 components:
   securitySchemes:
     BearerAuth:
@@ -2664,6 +3563,7 @@ components:
           enum:
             - knowledge
             - common
+            - agent
         config:
           type: string
         collection_ids:
@@ -2722,6 +3622,7 @@ components:
           enum:
             - knowledge
             - common
+            - agent
         config:
           type: string
         collection_ids:
@@ -2742,6 +3643,7 @@ components:
           enum:
             - knowledge
             - common
+            - agent
         config:
           type: string
         collection_ids:
@@ -3041,8 +3943,11 @@ components:
           type: number
         text:
           type: string
+        image_uri:
+          type: string
         metadata:
           type: object
+          additionalProperties: true
     feedback:
       type: object
       properties:
@@ -3066,6 +3971,8 @@ components:
       properties:
         id:
           type: string
+        part_id:
+          type: string
         type:
           type: string
           enum:
@@ -3074,6 +3981,9 @@ components:
             - start
             - stop
             - error
+            - tool_call_result
+            - thinking
+            - references
         timestamp:
           type: number
         role:
@@ -3115,8 +4025,12 @@ components:
             - dingtalk
         history:
           type: array
+          description: Array of conversation turns, where each turn is an array of message parts
           items:
-            $ref: '#/components/schemas/chatMessage'
+            type: array
+            description: A conversation turn containing multiple message parts (thinking, content, references, etc.)
+            items:
+              $ref: '#/components/schemas/chatMessage'
         status:
           type: string
           enum:
@@ -3133,6 +4047,63 @@ components:
       properties:
         title:
           type: string
+    collectionView:
+      type: object
+      description: Lightweight collection information for lists, MCP and agents
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+          enum:
+            - ACTIVE
+            - INACTIVE
+            - DELETED
+        created:
+          type: string
+          format: date-time
+        updated:
+          type: string
+          format: date-time
+        is_published:
+          type: boolean
+          default: false
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Publication time, null when not published
+        owner_user_id:
+          type: string
+          description: Collection owner user ID
+        owner_username:
+          type: string
+          description: Collection owner username
+        subscription_id:
+          type: string
+          nullable: true
+          description: Subscription ID if this is a subscribed collection, null for owned collections
+        subscribed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Subscription time, null for owned collections
+    collectionViewList:
+      type: object
+      description: A list of collection views
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/collectionView'
+        pageResult:
+          $ref: '#/components/schemas/pageResult'
     crontabConfig:
       type: object
       properties:
@@ -3208,15 +4179,6 @@ components:
             - free
             - recommend
           default: []
-    parserConfig:
-      type: object
-      properties:
-        use_mineru:
-          type: boolean
-          description: Whether to use MinerU parser
-        mineru_api_token:
-          type: string
-          description: MinerU API token
     collectionConfig:
       type: object
       properties:
@@ -3226,18 +4188,30 @@ components:
           example: system
         crontab:
           $ref: '#/components/schemas/crontabConfig'
+        enable_vector:
+          type: boolean
+          description: Whether to enable vector index
+          default: true
+        enable_fulltext:
+          type: boolean
+          description: Whether to enable fulltext index
+          default: true
         enable_knowledge_graph:
           type: boolean
-          description: Whether to enable knowledge graph
+          description: Whether to enable knowledge graph index
+          default: true
         enable_summary:
           type: boolean
-          description: Whether to enable summary generation
+          description: Whether to enable summary index
+          default: false
+        enable_vision:
+          type: boolean
+          description: Whether to enable vision index
+          default: false
         embedding:
           $ref: '#/components/schemas/modelSpec'
         completion:
           $ref: '#/components/schemas/modelSpec'
-        parser:
-          $ref: '#/components/schemas/parserConfig'
         path:
           type: string
           description: Path for local and ftp sources
@@ -3415,6 +4389,19 @@ components:
               type: string
             target_format:
               type: string
+    collectionCreate:
+      type: object
+      properties:
+        title:
+          type: string
+        config:
+          $ref: '#/components/schemas/collectionConfig'
+        type:
+          type: string
+        description:
+          type: string
+        source:
+          $ref: '#/components/schemas/collectionSource'
     collection:
       description: Collection is a collection of documents
       properties:
@@ -3442,29 +4429,15 @@ components:
         updated:
           type: string
           format: date-time
-    collectionList:
-      type: object
-      description: A list of collections
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/collection'
-        pageResult:
-          $ref: '#/components/schemas/pageResult'
-    collectionCreate:
-      type: object
-      properties:
-        title:
+        is_published:
+          type: boolean
+          description: Whether the collection is published to marketplace
+          default: false
+        published_at:
           type: string
-        config:
-          $ref: '#/components/schemas/collectionConfig'
-        type:
-          type: string
-        description:
-          type: string
-        source:
-          $ref: '#/components/schemas/collectionSource'
+          format: date-time
+          nullable: true
+          description: Publication time, null when not published
     collectionUpdate:
       type: object
       properties:
@@ -3532,6 +4505,16 @@ components:
             - DELETION_IN_PROGRESS
             - FAILED
             - SKIPPED
+        vision_index_status:
+          type: string
+          enum:
+            - PENDING
+            - CREATING
+            - ACTIVE
+            - DELETING
+            - DELETION_IN_PROGRESS
+            - FAILED
+            - SKIPPED
         vector_index_updated:
           type: string
           format: date-time
@@ -3548,6 +4531,10 @@ components:
           type: string
           format: date-time
           description: Summary index last updated time
+        vision_index_updated:
+          type: string
+          format: date-time
+          description: Vision index last updated time
         summary:
           type: string
           description: Summary of the document
@@ -3594,10 +4581,22 @@ components:
               - FULLTEXT
               - GRAPH
               - SUMMARY
+              - VISION
           description: Types of indexes to rebuild
           minItems: 1
       required:
         - index_types
+    visionChunk:
+      type: object
+      properties:
+        id:
+          type: string
+        asset_id:
+          type: string
+        text:
+          type: string
+        metadata:
+          type: object
     documentPreview:
       type: object
       properties:
@@ -3626,6 +4625,10 @@ components:
                 type: string
               metadata:
                 type: object
+        vision_chunks:
+          type: array
+          items:
+            $ref: '#/components/schemas/visionChunk'
     vectorSearchParams:
       type: object
       properties:
@@ -3654,6 +4657,17 @@ components:
         topk:
           type: integer
           description: Top K results
+    summarySearchParams:
+      type: object
+      properties:
+        topk:
+          type: integer
+          description: Top K results
+        similarity:
+          type: number
+          description: Similarity threshold
+          minimum: 0
+          maximum: 1
     searchResultItem:
       type: object
       properties:
@@ -3676,6 +4690,10 @@ components:
             - vector_search
             - graph_search
             - fulltext_search
+            - summary_search
+        metadata:
+          type: object
+          description: Metadata of the result
     searchResult:
       type: object
       properties:
@@ -3690,6 +4708,8 @@ components:
           $ref: '#/components/schemas/fulltextSearchParams'
         graph_search:
           $ref: '#/components/schemas/graphSearchParams'
+        summary_search:
+          $ref: '#/components/schemas/summarySearchParams'
         items:
           type: array
           items:
@@ -3718,6 +4738,27 @@ components:
           $ref: '#/components/schemas/fulltextSearchParams'
         graph_search:
           $ref: '#/components/schemas/graphSearchParams'
+        summary_search:
+          $ref: '#/components/schemas/summarySearchParams'
+        save_to_history:
+          type: boolean
+          description: Whether to save search result to database history
+          default: false
+          example: true
+        rerank:
+          type: boolean
+          description: Whether to enable rerank for search results
+          default: false
+          example: true
+    Settings:
+      type: object
+      properties:
+        use_mineru:
+          type: boolean
+          description: Whether to use MinerU
+        mineru_api_token:
+          type: string
+          description: API token for MinerU
     graphLabelsResponse:
       type: object
       description: Response containing available graph labels
@@ -4083,11 +5124,6 @@ components:
           format: date-time
           description: Creation timestamp
           example: '2025-01-07T10:00:00Z'
-        expires_at:
-          type: string
-          format: date-time
-          description: Expiration timestamp
-          example: '2025-01-14T10:00:00Z'
         operated_at:
           type: string
           format: date-time
@@ -4104,7 +5140,6 @@ components:
         - suggested_target_entity
         - status
         - created
-        - expires_at
     mergeSuggestionsResponse:
       type: object
       description: Response containing node merge suggestions
@@ -4155,11 +5190,6 @@ components:
           description: Number of rejected suggestions
           example: 1
           minimum: 0
-        expired_count:
-          type: integer
-          description: Number of expired suggestions
-          example: 0
-          minimum: 0
       required:
         - suggestions
         - total_analyzed_nodes
@@ -4170,7 +5200,6 @@ components:
         - pending_count
         - accepted_count
         - rejected_count
-        - expired_count
     suggestionActionRequest:
       type: object
       description: Request to take action on a merge suggestion
@@ -4225,6 +5254,77 @@ components:
         - message
         - suggestion_id
         - action
+    SharingStatusResponse:
+      type: object
+      description: Simple sharing status response
+      properties:
+        is_published:
+          type: boolean
+          description: Whether published to marketplace
+        published_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Publication time, null when not published
+      required:
+        - is_published
+    SharedCollection:
+      type: object
+      description: Shared Collection information for marketplace users
+      properties:
+        id:
+          type: string
+          description: Collection ID
+        title:
+          type: string
+          description: Collection title
+        description:
+          type: string
+          nullable: true
+          description: Collection description
+        owner_user_id:
+          type: string
+          description: Original owner user ID
+        owner_username:
+          type: string
+          description: Original owner username
+        subscription_id:
+          type: string
+          nullable: true
+          description: Subscription record ID (has value if subscribed, null if not subscribed)
+        gmt_subscribed:
+          type: string
+          format: date-time
+          nullable: true
+          description: Subscription time (only has value when subscribed)
+      required:
+        - id
+        - title
+        - owner_user_id
+        - owner_username
+    SharedCollectionList:
+      type: object
+      description: Shared Collection list response
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SharedCollection'
+          description: List of shared Collections
+        total:
+          type: integer
+          description: Total count (for pagination)
+        page:
+          type: integer
+          description: Current page number
+        page_size:
+          type: integer
+          description: Page size
+      required:
+        - items
+        - total
+        - page
+        - page_size
     apiKey:
       type: object
       properties:
@@ -4340,6 +5440,57 @@ components:
             $ref: '#/components/schemas/modelConfig'
         pageResult:
           $ref: '#/components/schemas/pageResult'
+    defaultModelConfig:
+      type: object
+      properties:
+        scenario:
+          type: string
+          enum:
+            - default_for_collection_completion
+            - default_for_agent_completion
+            - default_for_embedding
+            - default_for_rerank
+          description: The scenario for which this default model is configured
+          example: default_for_embedding
+        provider_name:
+          type: string
+          nullable: true
+          description: The name of the model provider
+          example: openai
+        model:
+          type: string
+          nullable: true
+          description: The name of the model
+          example: text-embedding-3-small
+      required:
+        - scenario
+    defaultModelsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/defaultModelConfig'
+          description: List of default model configurations for different scenarios
+      required:
+        - items
+    defaultModelsUpdateRequest:
+      type: object
+      properties:
+        defaults:
+          type: array
+          items:
+            $ref: '#/components/schemas/defaultModelConfig'
+          description: List of default model configurations to update
+          example:
+            - scenario: default_for_embedding
+              provider_name: openai
+              model: text-embedding-3-small
+            - scenario: default_for_collection_completion
+              provider_name: openai
+              model: gpt-4o-mini
+      required:
+        - defaults
     llmProvider:
       type: object
       properties:
@@ -5139,6 +6290,207 @@ components:
         new_password:
           type: string
           description: The new password of the user
+    quotaInfo:
+      type: object
+      description: Quota information for a specific quota type
+      properties:
+        quota_type:
+          type: string
+          description: Type of quota
+          example: max_collection_count
+        quota_limit:
+          type: integer
+          description: Maximum allowed usage
+          example: 10
+        current_usage:
+          type: integer
+          description: Current usage count
+          example: 3
+        remaining:
+          type: integer
+          description: Remaining quota available
+          example: 7
+      required:
+        - quota_type
+        - quota_limit
+        - current_usage
+        - remaining
+    userQuotaInfo:
+      type: object
+      description: Complete quota information for a user
+      properties:
+        user_id:
+          type: string
+          description: User ID
+          example: user123
+        username:
+          type: string
+          description: Username
+          example: john_doe
+        email:
+          type: string
+          description: User email
+          example: john@example.com
+          nullable: true
+        role:
+          type: string
+          description: User role
+          example: rw
+        quotas:
+          type: array
+          description: List of quota information
+          items:
+            $ref: '#/components/schemas/quotaInfo'
+      required:
+        - user_id
+        - username
+        - role
+        - quotas
+    userQuotaList:
+      type: object
+      description: List of user quota information (admin view)
+      properties:
+        items:
+          type: array
+          description: List of user quota information
+          items:
+            $ref: '#/components/schemas/userQuotaInfo'
+      required:
+        - items
+    quotaUpdateRequest:
+      type: object
+      description: Request to update user quotas (supports both single and batch updates)
+      properties:
+        max_collection_count:
+          type: integer
+          description: New limit for collection count
+          minimum: 0
+          nullable: true
+        max_document_count:
+          type: integer
+          description: New limit for document count
+          minimum: 0
+          nullable: true
+        max_document_count_per_collection:
+          type: integer
+          description: New limit for documents per collection
+          minimum: 0
+          nullable: true
+        max_bot_count:
+          type: integer
+          description: New limit for bot count
+          minimum: 0
+          nullable: true
+      example:
+        max_collection_count: 20
+        max_document_count: 2000
+        max_bot_count: 10
+    quotaUpdateResponse:
+      type: object
+      description: Response after updating user quotas (supports both single and batch updates)
+      properties:
+        success:
+          type: boolean
+          description: Whether the update was successful
+          example: true
+        message:
+          type: string
+          description: Status message
+          example: Quotas updated successfully
+        user_id:
+          type: string
+          description: User ID that was updated
+          example: user123
+        updated_quotas:
+          type: array
+          description: List of updated quotas
+          items:
+            type: object
+            properties:
+              quota_type:
+                type: string
+                description: Type of quota that was updated
+                example: max_collection_count
+              old_limit:
+                type: integer
+                description: Previous quota limit
+                example: 10
+              new_limit:
+                type: integer
+                description: New quota limit
+                example: 20
+            required:
+              - quota_type
+              - old_limit
+              - new_limit
+      required:
+        - success
+        - message
+        - user_id
+        - updated_quotas
+    systemDefaultQuotas:
+      type: object
+      description: System default quota configuration
+      properties:
+        max_collection_count:
+          type: integer
+          description: Default maximum collection count
+          example: 10
+          minimum: 0
+        max_document_count:
+          type: integer
+          description: Default maximum document count
+          example: 1000
+          minimum: 0
+        max_document_count_per_collection:
+          type: integer
+          description: Default maximum documents per collection
+          example: 100
+          minimum: 0
+        max_bot_count:
+          type: integer
+          description: Default maximum bot count
+          example: 5
+          minimum: 0
+      required:
+        - max_collection_count
+        - max_document_count
+        - max_document_count_per_collection
+        - max_bot_count
+    systemDefaultQuotasResponse:
+      type: object
+      description: Response containing system default quotas
+      properties:
+        quotas:
+          $ref: '#/components/schemas/systemDefaultQuotas'
+      required:
+        - quotas
+    systemDefaultQuotasUpdateRequest:
+      type: object
+      description: Request to update system default quotas
+      properties:
+        quotas:
+          $ref: '#/components/schemas/systemDefaultQuotas'
+      required:
+        - quotas
+    systemDefaultQuotasUpdateResponse:
+      type: object
+      description: Response after updating system default quotas
+      properties:
+        success:
+          type: boolean
+          description: Whether the update was successful
+          example: true
+        message:
+          type: string
+          description: Status message
+          example: System default quotas updated successfully
+        quotas:
+          $ref: '#/components/schemas/systemDefaultQuotas'
+      required:
+        - success
+        - message
+        - quotas
     webSearchRequest:
       type: object
       description: Web search request
@@ -5321,3 +6673,62 @@ components:
         - total_urls
         - successful
         - failed
+    AgentMessage:
+      type: object
+      description: Message format for agent-type bots with additional capabilities
+      properties:
+        query:
+          type: string
+          description: User query
+          example: Tell me about ApeRAG features
+        collections:
+          type: array
+          items:
+            $ref: '#/components/schemas/collection'
+          description: List of collection objects to search in
+          example:
+            - id: col_123
+              title: Example Collection
+            - id: col_456
+              title: Another Collection
+        completion:
+          $ref: '#/components/schemas/modelSpec'
+          nullable: true
+          description: Model specification for completion including provider and model details
+        web_search_enabled:
+          type: boolean
+          description: Whether to enable web search
+          example: true
+          default: false
+        language:
+          type: string
+          description: Language preference for the response
+          example: en-US
+          default: en-US
+          enum:
+            - en-US
+            - zh-CN
+            - zh-TW
+            - ja-JP
+            - ko-KR
+            - fr-FR
+            - de-DE
+            - es-ES
+            - it-IT
+            - pt-BR
+            - ru-RU
+      required:
+        - query
+        - collections
+  responses:
+    failResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Error code
+          example: '400'
+        message:
+          type: string
+          description: Error message
+          example: Invalid request

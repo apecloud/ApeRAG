@@ -1,0 +1,20 @@
+post:
+  summary: (Doc Only) Agent message format for WebSocket/SSE
+  description: |
+    This endpoint is for documentation and model generation only. Actual communication should use WebSocket or SSE.
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../components/schemas/agent.yaml#/AgentMessage'
+  responses:
+    '200':
+      description: Dummy response
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              result:
+                type: string 

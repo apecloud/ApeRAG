@@ -1,4 +1,4 @@
-import { BotCreate } from '@/api';
+import { Bot, BotCreate } from '@/api';
 
 import {
   CheckCard,
@@ -8,7 +8,11 @@ import {
 } from '@/components';
 import { BOT_TYPE_ICON } from '@/constants';
 import { api } from '@/services';
-import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import {
+  DeleteOutlined,
+  PlusOutlined,
+  SearchOutlined,
+} from '@ant-design/icons';
 import {
   Avatar,
   Button,
@@ -27,12 +31,120 @@ import {
 } from 'antd';
 import _ from 'lodash';
 import moment from 'moment';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { UndrawEmpty } from 'react-undraw-illustrations';
-import { FormattedMessage, history, Link, useIntl, useModel } from 'umi';
+import { FormattedMessage, history, useIntl, useModel } from 'umi';
 
 type BotSearchParams = {
   title?: string;
+};
+
+const BotCard = ({ bot }: { bot: Bot }) => {
+  const { formatMessage } = useIntl();
+  const [modal, contextHolder] = Modal.useModal();
+  const { getBots } = useModel('bot');
+  const [isHover, setIsHover] = useState<boolean>(false);
+
+  const { setLoading } = useModel('global');
+  const onDeleteBot = useCallback(async (bot: Bot) => {
+    if (!bot.id) return;
+    const confirmed = await modal.confirm({
+      title: formatMessage({ id: 'action.confirm' }),
+      content: formatMessage(
+        { id: 'bot.delete_confirm' },
+        { name: bot?.title },
+      ),
+      okButtonProps: {
+        danger: true,
+      },
+    });
+    if (confirmed) {
+      setLoading(true);
+      await api.botsBotIdDelete({ botId: bot.id });
+      setLoading(false);
+      getBots();
+    }
+  }, []);
+  return (
+    <>
+      {contextHolder}
+      <Card
+        hoverable
+        size="small"
+        onMouseEnter={() => setIsHover(true)}
+        onMouseLeave={() => setIsHover(false)}
+        onClick={() => {
+          history.push(`/bots/${bot.id}/chats`);
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            gap: 8,
+            alignItems: 'center',
+          }}
+        >
+          <Avatar
+            size={40}
+            src={bot.type && BOT_TYPE_ICON[bot.type]}
+            shape="square"
+          />
+          <div style={{ flex: 1 }}>
+            <Typography.Text ellipsis strong>
+              {bot.title}
+            </Typography.Text>
+          </div>
+          {isHover && (
+            <Tooltip
+              title={formatMessage({ id: 'bot.delete' })}
+              placement="right"
+            >
+              <Button
+                type="text"
+                danger
+                shape="circle"
+                size="small"
+                icon={<DeleteOutlined />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  onDeleteBot(bot);
+                }}
+              />
+            </Tooltip>
+          )}
+        </div>
+        <Divider style={{ marginBlock: 8 }} />
+        <div
+          style={{
+            display: 'flex',
+            gap: 8,
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <Typography.Text
+            ellipsis
+            type="secondary"
+            style={{ fontSize: '0.9em', width: '40%' }}
+          >
+            <FormattedMessage id={`bot.type_${bot.type}`} />
+          </Typography.Text>
+          <Typography.Text
+            ellipsis
+            type="secondary"
+            style={{
+              fontSize: '0.9em',
+              width: '60%',
+              textAlign: 'right',
+            }}
+          >
+            {moment(bot.created).fromNow()}
+          </Typography.Text>
+        </div>
+      </Card>
+    </>
+  );
 };
 
 export default () => {
@@ -68,18 +180,25 @@ export default () => {
         chatCreate: { title: '' },
       });
       setCreateVisible(false);
-      history.push(`/bots/${botRes.data.id}/flow`);
+
+      if (values.type === 'agent') {
+        history.push(`/bots/${botRes.data.id}/chats`);
+      } else {
+        history.push(`/bots/${botRes.data.id}/flow`);
+      }
     }
   };
 
   const _bots = useMemo(
     () =>
-      bots?.filter((item) => {
-        const titleMatch = searchParams?.title
-          ? item.title?.includes(searchParams.title)
-          : true;
-        return titleMatch;
-      }),
+      bots
+        ?.filter((item) => item.type !== 'agent')
+        .filter((item) => {
+          const titleMatch = searchParams?.title
+            ? item.title?.includes(searchParams.title)
+            : true;
+          return titleMatch;
+        }),
     [bots, searchParams],
   );
 
@@ -138,59 +257,9 @@ export default () => {
           {_bots?.map((bot) => {
             return (
               <Col key={bot.id} xs={24} sm={12} md={8} lg={6} xl={6} xxl={6}>
-                <Link to={`/bots/${bot.id}/chats`}>
-                  <Tooltip title={bot.description}>
-                    <Card hoverable size="small">
-                      <div
-                        style={{
-                          display: 'flex',
-                          gap: 8,
-                          alignItems: 'center',
-                        }}
-                      >
-                        <Avatar
-                          style={{ flex: 'none' }}
-                          size={40}
-                          src={bot.type && BOT_TYPE_ICON[bot.type]}
-                          shape="square"
-                        />
-                        <div style={{ flex: 'auto', maxWidth: '75%' }}>
-                          <Typography.Text ellipsis strong>
-                            {bot.title}
-                          </Typography.Text>
-                        </div>
-                      </div>
-                      <Divider style={{ marginBlock: 8 }} />
-                      <div
-                        style={{
-                          display: 'flex',
-                          gap: 8,
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                        }}
-                      >
-                        <Typography.Text
-                          ellipsis
-                          type="secondary"
-                          style={{ fontSize: '0.9em', width: '60%' }}
-                        >
-                          <FormattedMessage id={`bot.type_${bot.type}`} />
-                        </Typography.Text>
-                        <Typography.Text
-                          ellipsis
-                          type="secondary"
-                          style={{
-                            fontSize: '0.9em',
-                            width: '40%',
-                            textAlign: 'right',
-                          }}
-                        >
-                          {moment(bot.created).fromNow()}
-                        </Typography.Text>
-                      </div>
-                    </Card>
-                  </Tooltip>
-                </Link>
+                <Tooltip title={bot.description}>
+                  <BotCard bot={bot} />
+                </Tooltip>
               </Col>
             );
           })}
@@ -243,6 +312,11 @@ export default () => {
                   icon: BOT_TYPE_ICON['common'],
                   value: 'common',
                 },
+                // {
+                //   label: <FormattedMessage id="bot.type_agent" />,
+                //   icon: BOT_TYPE_ICON['agent'],
+                //   value: 'agent',
+                // },
               ]}
             />
           </Form.Item>

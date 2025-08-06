@@ -2,6 +2,7 @@ import { apiKeys } from './en-US/apiKeys';
 import { bot } from './en-US/bots';
 import { collection } from './en-US/collection';
 import { model, model_provider } from './en-US/models';
+import { settings } from './en-US/settings';
 import { user, users } from './en-US/users';
 
 export default {
@@ -12,6 +13,7 @@ export default {
   ...model_provider,
   ...collection,
   ...apiKeys,
+  ...settings,
 
   // Audit logs
   'audit.logs.title': 'Audit Logs',
@@ -43,6 +45,10 @@ export default {
 
   // Common
   'common.search': 'Search',
+  'common.search.placeholder': 'Search collections...',
+  'common.search.no.results': 'No matching results found',
+  'common.search.try.different.keywords': 'Please try different keywords',
+  'common.total.items': 'Total {total} items',
   'common.actions': 'Actions',
   'common.detail': 'Detail',
   'common.system': 'System',
@@ -245,6 +251,7 @@ export default {
   'document.index.type.fulltext': 'Fulltext Index',
   'document.index.type.graph': 'Graph Index',
   'document.index.type.summary': 'Summary Index',
+  'document.index.type.vision': 'Vision Index',
   'document.index.rebuild': 'Rebuild Index',
   'document.index.rebuild.title': 'Rebuild Index',
   'document.index.rebuild.description': 'Select index types to rebuild',
@@ -252,6 +259,15 @@ export default {
   'document.index.rebuild.confirm': 'Confirm Rebuild',
   'document.index.rebuild.success': 'Index rebuild task initiated',
   'document.index.rebuild.failed': 'Index rebuild failed',
+  'document.index.rebuild.failed.button': 'Rebuild Failed Indexes',
+  'document.index.rebuild.failed.confirm.title': 'Rebuild Failed Indexes',
+  'document.index.rebuild.failed.confirm.content':
+    'Are you sure you want to rebuild all failed indexes? This will rebuild failed indexes for {count} documents.',
+  'document.index.rebuild.failed.success':
+    'Successfully initiated rebuild for {success} of {total} documents',
+  'document.index.rebuild.failed.partial':
+    'Failed to rebuild indexes for {failed} of {total} documents',
+  'document.index.rebuild.noFailedIndexes': 'No failed indexes found',
   'document.view.title': 'View: {name}',
   'document.view.unsupportedFormat':
     'This file format is not supported for viewing.',
@@ -321,6 +337,75 @@ export default {
   system: '------------------------------',
   'system.management': 'Settings',
 
+  settings: '------------------------------',
+  'settings.miscellaneous': 'Miscellaneous',
+
+  quota: '------------------------------',
+  'quota.management': 'Quota Management',
+  'quota.management_tips': 'Manage user quotas and usage',
+  'quota.title': 'Quota Management',
+  'quota.user': 'User',
+  'quota.type': 'Quota Type',
+  'quota.limit': 'Quota Limit',
+  'quota.usage': 'Usage',
+  'quota.available': 'Available Quota',
+  'quota.edit': 'Edit',
+  'quota.recalculate': 'Recalculate',
+  'quota.update.success': 'Quota updated successfully',
+  'quota.update.failed': 'Failed to update quota',
+  'quota.recalculate.success': 'Quota recalculated successfully',
+  'quota.recalculate.failed': 'Failed to recalculate quota',
+  'quota.collection_count': 'Collection Count',
+  'quota.document_count_overall': 'Documents Overall',
+  'quota.document_count_per_collection': 'Documents per Collection',
+  'quota.bot_count': 'Bot Count',
+  'quota.fetch_error': 'Failed to fetch quota information',
+  'quota.update_error': 'Failed to update quota',
+  'quota.recalculate_error': 'Failed to recalculate quota',
+  'quota.name': 'Quota Name',
+  'quota.max_limit': 'Limit',
+  'quota.current_usage': 'Current Usage',
+  'quota.usage_rate': 'Usage Rate',
+  'quota.user_quotas': 'User Quotas',
+  'quota.system_defaults': 'System Defaults',
+  'quota.system_default_quotas': 'System Default Quotas',
+  'quota.edit_system_defaults': 'Edit System Defaults',
+  'quota.enter_default_limit': 'Enter default limit',
+  'quota.system_fetch_error': 'Failed to fetch system default quotas',
+  'quota.system_update_success': 'System default quotas updated successfully',
+  'quota.system_update_error': 'Failed to update system default quotas',
+  'quota.system_loading': 'Loading...',
+  'quota.search_placeholder': 'Search by username, email or user ID',
+  'quota.search_error': 'Failed to search users',
+  'quota.user_not_found': 'User not found',
+  'quota.search_tip': 'Searching: {searchTerm}',
+  'quota.no_search_results': 'No matching users found',
+  'quota.no_data': 'No data available',
+  'quota.user_info': 'User Information',
+  'quota.quota_info': 'Quota Information',
+  'quota.clear': 'Clear',
+  'quota.username': 'Username',
+  'quota.user_id': 'User ID',
+  'quota.email': 'Email',
+  'quota.role': 'Role',
+  'quota.not_set': 'Not set',
+  'quota.search_results': 'Search Results',
+  'quota.multiple_results_found': 'Found {count} matching users',
+  'quota.select_user': 'Select User',
+  'quota.save_changes': 'Save Changes',
+  'quota.cancel_edit': 'Cancel Edit',
+  'quota.table_edit_mode': 'Table Edit Mode',
+  'quota.table_edit_tip': 'Edit quota values directly in the table, then click Save Changes',
+
+  // Quota error messages
+  'quota.error.exceeded': 'Quota exceeded',
+  'quota.error.collection_exceeded': 'Collection limit reached',
+  'quota.error.document_exceeded': 'Document limit reached',
+  'quota.error.bot_exceeded': 'Bot limit reached',
+  'quota.error.exceeded_detail': 'Current usage: {current}/{limit}',
+  'quota.error.upgrade_hint': 'Please contact administrator or upgrade your account for more quota',
+  'quota.error.current_usage': 'Currently using {current} of {limit}',
+
   feedback: '---------------',
   'feedback.bad.title': "What's wrong with this response?",
   'feedback.bad.description': 'Please select a reason for your feedback',
@@ -338,10 +423,13 @@ export default {
   'search.type.vector_search': 'Vector Search',
   'search.type.fulltext_search': 'Fulltext Search',
   'search.type.graph_search': 'Graph Search',
+  'search.type.summary_search': 'Summary Search',
   'search.similarityThreshold': 'Similarity Threshold',
   'search.vectorTopK': 'Vector TopK',
   'search.fulltextTopK': 'Fulltext TopK',
   'search.graphsearchTopK': 'Graph TopK',
+  'search.summaryTopK': 'Summary TopK',
+  'search.summarySimilarityThreshold': 'Summary Similarity Threshold',
   'search.searchResults': 'Search Results',
   'search.searchResults.detail': 'There are {count} search results in total',
   'search.searchResults.empty': 'No search results',
@@ -368,8 +456,13 @@ export default {
     'The maximum output token length supported by the model',
   'model.field.tags': 'Tags',
   'model.field.tags.tooltip':
-    'Set tags for the model for easy classification and identification (e.g., free, recommend)',
+    'Tags are automatically managed by the use case selection above, no manual editing required',
   'model.field.action': 'Action',
+  'model.field.useCases': 'Use Cases',
+  'model.field.useCases.tooltip':
+    'Select applicable business scenarios for the model, corresponding tags will be added automatically',
+  'model.useCase.update.success': 'Use case updated successfully',
+  'model.useCase.update.failed': 'Failed to update use case',
 
   // API Key Management
   'api_key.title': 'API Key Management',

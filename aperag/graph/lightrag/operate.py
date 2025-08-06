@@ -318,12 +318,20 @@ async def _merge_nodes_then_upsert(
     if num_fragment > 1:
         # 5.1. Check if LLM summarization threshold is met
         if num_fragment >= force_llm_summary_on_merge:
-            # 5.1.1. Log that LLM summarization was deliberately skipped by design
-            lightrag_logger.log_entity_merge(entity_name, num_fragment, num_new_fragment, is_llm_summary=False)
+            # 5.1.1. Log LLM summarization decision
+            lightrag_logger.log_entity_merge(entity_name, num_fragment, num_new_fragment, is_llm_summary=True)
 
-            # 5.1.2. Skip LLM summarization to save cost and time
-            # Previously: description = await _handle_entity_relation_summary(...)
-            # Now: keep the concatenated description as-is
+            # 5.1.2. Use LLM to summarize lengthy descriptions
+            description = await _handle_entity_relation_summary(
+                entity_name,
+                description,
+                llm_model_func,
+                tokenizer,
+                llm_model_max_token_size,
+                summary_to_max_tokens,
+                language,
+                lightrag_logger,
+            )
         else:
             # 5.2. Simple merge without LLM summarization (fragment count below threshold)
             lightrag_logger.log_entity_merge(entity_name, num_fragment, num_new_fragment, is_llm_summary=False)
@@ -440,11 +448,18 @@ async def _merge_edges_then_upsert(
 
     if num_fragment > 1:
         if num_fragment >= force_llm_summary_on_merge:
-            lightrag_logger.log_relation_merge(src_id, tgt_id, num_fragment, num_new_fragment, is_llm_summary=False)
+            lightrag_logger.log_relation_merge(src_id, tgt_id, num_fragment, num_new_fragment, is_llm_summary=True)
 
-            # Skip LLM summarization to save cost and time
-            # Previously: description = await _handle_entity_relation_summary(...)
-            # Now: keep the concatenated description as-is
+            description = await _handle_entity_relation_summary(
+                f"({src_id}, {tgt_id})",
+                description,
+                llm_model_func,
+                tokenizer,
+                llm_model_max_token_size,
+                summary_to_max_tokens,
+                language,
+                lightrag_logger,
+            )
         else:
             lightrag_logger.log_relation_merge(src_id, tgt_id, num_fragment, num_new_fragment, is_llm_summary=False)
 

@@ -51,12 +51,14 @@ const SuggestionItem = ({
 }) => {
   const { token } = theme.useToken();
   const [hover, setHover] = useState<boolean>(false);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState<{[key in SuggestionActionRequestActionEnum]: boolean}>();
 
   const handleSuggestionAction = useCallback(
     async (action: SuggestionActionRequestActionEnum) => {
-      setLoading(true);
+      setLoading({
+        accept: action === 'accept',
+        reject: action === 'reject',
+      })
       const res =
         await graphApi.collectionsCollectionIdGraphsMergeSuggestionsSuggestionIdActionPost(
           {
@@ -69,14 +71,17 @@ const SuggestionItem = ({
           },
         );
       if (res.data.status === 'success' && action === 'reject') {
-        afterRejectMergeSuggestion();
+        await afterRejectMergeSuggestion();
       }
       if (res.data.status === 'success' && action === 'accept') {
-        afterAcceptMergeSuggestion();
+        await afterAcceptMergeSuggestion();
       }
-      setLoading(false);
+      setLoading({
+        accept: false,
+        reject: false,
+      })
     },
-    [],
+    [item],
   );
 
   return (
@@ -116,7 +121,7 @@ const SuggestionItem = ({
                 <Button
                   type="link"
                   size="small"
-                  // disabled={loading}
+                  loading={loading?.accept}
                   icon={<CheckOutlined />}
                   onClick={() => handleSuggestionAction('accept')}
                 />
@@ -126,7 +131,7 @@ const SuggestionItem = ({
                   type="link"
                   size="small"
                   icon={<CloseOutlined />}
-                  // disabled={loading}
+                  loading={loading?.reject}
                   onClick={() => handleSuggestionAction('reject')}
                 />
               </Tooltip>
@@ -195,20 +200,11 @@ export const MergeSuggestion = ({
                 id: 'collection.merge_suggestion.status.REJECTED',
               }),
             },
-            {
-              key: MergeSuggestionItemStatusEnum.EXPIRED,
-              label: formatMessage({
-                id: 'collection.merge_suggestion.status.EXPIRED',
-              }),
-            },
           ]}
         />
       }
       extra={
         <Space>
-          <Button shape="circle" type="text" onClick={onRefresh}>
-            <Loading3QuartersOutlined />
-          </Button>
           <Button shape="circle" type="text" onClick={onClose}>
             <CloseOutlined />
           </Button>

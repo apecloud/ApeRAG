@@ -17,6 +17,8 @@
   "dependencies": {
     "@ant-design/icons": "^6.0.0",
     "@dagrejs/dagre": "^1.1.4",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
     "@types/d3": "^7.4.3",
     "@umijs/plugins": "^4.4.6",
     "@xyflow/react": "^12.5.5",
@@ -74,6 +76,7 @@
     "@types/react-scroll": "^1.8.10",
     "@types/react-stickynode": "^4.0.3",
     "@types/react-transition-group": "^4.4.12",
+    "@types/react-window": "^1.8.8",
     "@types/uniqid": "^5.3.4",
     "@umijs/lint": "^4.4.6",
     "eslint": "^8",

@@ -60,6 +60,12 @@ paths:
   /collections/{collection_id}/searches/{search_id}:
     $ref: './paths/collections.yaml#/search_detail'
 
+  # settings
+  /settings:
+    $ref: './paths/settings.yaml#/settings'
+  /settings/test_mineru_token:
+    $ref: './paths/misc.yaml#/test_mineru_token'
+
   # graphs
   /collections/{collection_id}/graphs/labels:
     $ref: './paths/collections.yaml#/graph_labels'
@@ -71,6 +77,26 @@ paths:
     $ref: './paths/collections.yaml#/graph_merge_suggestions'
   /collections/{collection_id}/graphs/merge-suggestions/{suggestion_id}/action:
     $ref: './paths/collections.yaml#/graph_suggestion_action'
+  /collections/{collection_id}/graphs/export/kg-eval:
+    $ref: './paths/collections.yaml#/graph_export_kg_eval'
+  /collections/{collection_id}/sharing:
+    $ref: './paths/collections.yaml#/sharing'
+
+  # marketplace
+  /marketplace/collections:
+    $ref: './paths/marketplace.yaml#/marketplaceCollections'
+  /marketplace/collections/subscriptions:
+    $ref: './paths/marketplace.yaml#/marketplaceCollectionsSubscriptions'
+  /marketplace/collections/{collection_id}/subscribe:
+    $ref: './paths/marketplace.yaml#/marketplaceCollectionSubscribe'
+  /marketplace/collections/{collection_id}:
+    $ref: './paths/marketplace.yaml#/marketplaceCollection'
+  /marketplace/collections/{collection_id}/documents:
+    $ref: './paths/marketplace.yaml#/marketplaceCollectionDocuments'
+  /marketplace/collections/{collection_id}/documents/{document_id}/preview:
+    $ref: './paths/marketplace.yaml#/marketplaceCollectionDocumentPreview'
+  /marketplace/collections/{collection_id}/graph:
+    $ref: './paths/marketplace.yaml#/marketplaceCollectionGraph'
 
   # apikeys
   /apikeys:
@@ -81,6 +107,8 @@ paths:
   # models
   /available_models:
     $ref: './paths/models.yaml#/availableModels'
+  /default_models:
+    $ref: './paths/default_models.yaml#/defaultModels'
 
   # llm configuration
   /llm_configuration:
@@ -134,8 +162,20 @@ paths:
   /users/{user_id}:
     $ref: './paths/auth.yaml#/deleteUser'
 
+  # quotas
+  /quotas:
+    $ref: './paths/quotas.yaml#/quotas'
+  /quotas/{user_id}:
+    $ref: './paths/quotas.yaml#/quota'
+  /quotas/{user_id}/recalculate:
+    $ref: './paths/quotas.yaml#/quota_recalculate'
+  /system/default-quotas:
+    $ref: './paths/quotas.yaml#/system_default_quotas'
+
   # web services
   /web/search:
     $ref: './paths/web.yaml#/webSearch'
   /web/read:
     $ref: './paths/web.yaml#/webRead'
+  /agent/message:
+    $ref: './paths/agent.yaml'

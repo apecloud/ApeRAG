@@ -1,18 +1,22 @@
-import { CopyOutlined } from '@ant-design/icons';
-import { GlobalToken, theme } from 'antd';
+import { CaretRightOutlined, CopyOutlined } from '@ant-design/icons';
+import { Collapse, GlobalToken, Space, theme } from 'antd';
 import 'highlight.js/styles/github-dark.css';
+import { useMemo } from 'react';
 import Markdown from 'react-markdown';
 import { toast } from 'react-toastify';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeHighlightLines from 'rehype-highlight-code-lines';
+import rehypeRaw from 'rehype-raw';
 import remarkDirective from 'remark-directive';
 import remarkGfm from 'remark-gfm';
 import remarkGithubAdmonitionsToDirectives from 'remark-github-admonitions-to-directives';
 import { css, styled } from 'umi';
 import { v4 as uuidV4 } from 'uuid';
+import { AuthAssetImage } from './AuthAssetImage';
 
 type MarkdownProps = {
   children?: string;
+  isAgent?: boolean;
 };
 
 const StyledMarkdown = styled('div').withConfig({
@@ -77,6 +81,16 @@ const StyledMarkdown = styled('div').withConfig({
           display: block;
         }
       }
+
+      .ape-collapse {
+        margin-bottom: 12px;
+      }
+      .ape-collapse-content-box {
+        border: 1px dashed ${token.colorBorderSecondary};
+        background: ${token.colorBgLayout};
+        padding: 12px !important;
+        border-radius: 4px;
+      }
     `;
   }}
 `;
@@ -111,8 +125,45 @@ const StyledCopyButton = styled('div').withConfig({
   }}
 `;
 
-export const ApeMarkdown = ({ children }: MarkdownProps) => {
+export const CollapseResult = ({
+  title,
+  className,
+  children,
+}: {
+  title: string;
+  className?: string;
+  children?: string;
+}) => {
+  return (
+    <Collapse
+      expandIcon={({ isActive }) => (
+        <CaretRightOutlined rotate={isActive ? 90 : 0} />
+      )}
+      defaultActiveKey={['conent']}
+      style={{ background: 'none' }}
+      bordered={false}
+      className={className}
+      items={[
+        {
+          key: 'conent',
+          label: <Space>💡 {title}</Space>,
+          children,
+        },
+      ]}
+    />
+  );
+};
+
+export const ApeMarkdown = ({ children, isAgent = false }: MarkdownProps) => {
   const { token } = theme.useToken();
+
+  let processedValue = useMemo(() => {
+    return children
+      ?.replace(/<think>/g, '<div class="think">')
+      .replace(/<\/think>/g, '</div>')
+      .replace(/<tool_call_result>/g, '<div class="tool_call_result">')
+      .replace(/<\/tool_call_result>/g, '</div>');
+  }, [children]);
 
   const onCopy = async (id: string) => {
     const text = document.getElementById(id)?.innerText || '';
@@ -125,13 +176,29 @@ export const ApeMarkdown = ({ children }: MarkdownProps) => {
   return (
     <StyledMarkdown token={token}>
       <Markdown
-        rehypePlugins={[rehypeHighlight, rehypeHighlightLines]}
+        rehypePlugins={[rehypeHighlight, rehypeHighlightLines, rehypeRaw]}
         remarkPlugins={[
           remarkGfm,
           remarkGithubAdmonitionsToDirectives,
           remarkDirective,
         ]}
+        urlTransform={(url) =>
+          url.startsWith('asset://')
+            ? url
+            : new URL(url, window.location.href).href
+        }
         components={{
+          img: (props) => {
+            if (props.src?.startsWith('asset://')) {
+              return (
+                <AuthAssetImage
+                  src={props.src}
+                  style={isAgent ? { maxHeight: 400 } : {}}
+                />
+              );
+            }
+            return <img {...props} />;
+          },
           a: (props) => <a {...props} target="_blank" />,
           code: ({ className, children }) => {
             const match = /language-(\w+)/.exec(className || '');
@@ -139,7 +206,6 @@ export const ApeMarkdown = ({ children }: MarkdownProps) => {
             if (match?.length) {
               return (
                 <code id={id} className={className + ' copy-to-clipboard'}>
-                  {/* @ts-ignore */}
                   <StyledCopyButton
                     className="copy-to-clipboard-trigger"
                     token={token}
@@ -154,9 +220,28 @@ export const ApeMarkdown = ({ children }: MarkdownProps) => {
               return <code>{children}</code>;
             }
           },
+          div: (props: any) => {
+            const className = props?.className || '';
+            const children = props?.children || '';
+            if (/think/.exec(className)?.length) {
+              return (
+                <CollapseResult title="Thinking" className={className}>
+                  {children}
+                </CollapseResult>
+              );
+            }
+            if (/tool_call_result/.exec(className)?.length) {
+              return (
+                <CollapseResult title="Tool call" className={className}>
+                  {children}
+                </CollapseResult>
+              );
+            }
+            return <div {...props} />;
+          },
         }}
       >
-        {children}
+        {processedValue}
       </Markdown>
     </StyledMarkdown>
   );

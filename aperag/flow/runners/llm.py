@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import json
+import logging
 import uuid
 from typing import Dict, List, Optional, Tuple
 
-from langchain.schema import AIMessage, HumanMessage
 from litellm import BaseModel
 from pydantic import Field
 
@@ -25,10 +26,13 @@ from aperag.db.ops import async_db_ops
 from aperag.flow.base.models import BaseNodeRunner, SystemInput, register_node_runner
 from aperag.llm.completion.completion_service import CompletionService
 from aperag.llm.llm_error_types import InvalidConfigurationError
+from aperag.objectstore.base import get_async_object_store
 from aperag.query.query import DocumentWithScore
+from aperag.schema.view_models import Reference
 from aperag.utils.constant import DOC_QA_REFERENCES
 from aperag.utils.history import BaseChatMessageHistory
-from aperag.utils.utils import now_unix_milliseconds
+
+logger = logging.getLogger(__name__)
 
 # Character to token estimation ratio for Chinese/mixed content
 # Conservative estimate: 1.5 characters = 1 token
@@ -40,48 +44,27 @@ DEFAULT_OUTPUT_TOKENS = 1000
 # Fallback max context length if model context_window is not available
 FALLBACK_MAX_CONTEXT_LENGTH = 50000
 
-
-class Message(BaseModel):
-    id: str
-    query: Optional[str] = None
-    timestamp: Optional[int] = None
-    response: Optional[str] = None
-    urls: Optional[List[str]] = None
-    references: Optional[List[Dict]] = None
-
-
-def new_ai_message(message, message_id, response, references, urls):
-    return Message(
-        id=message_id,
-        query=message,
-        response=response,
-        timestamp=now_unix_milliseconds(),
-        references=references,
-        urls=urls,
-    )
-
-
-def new_human_message(message, message_id):
-    return Message(
-        id=message_id,
-        query=message,
-        timestamp=now_unix_milliseconds(),
-    )
+# Max images to feed to LLM
+MAX_IMAGES_PER_QUERY = 5
 
 
 async def add_human_message(history: BaseChatMessageHistory, message, message_id):
     if not message_id:
         message_id = str(uuid.uuid4())
-
-    human_msg = new_human_message(message, message_id)
-    human_msg = human_msg.model_dump_json(exclude_none=True)
-    await history.add_message(HumanMessage(content=human_msg, additional_kwargs={"role": "human"}))
+    await history.add_user_message(message, message_id)
 
 
 async def add_ai_message(history: BaseChatMessageHistory, message, message_id, response, references, urls):
-    ai_msg = new_ai_message(message, message_id, response, references, urls)
-    ai_msg = ai_msg.model_dump_json(exclude_none=True)
-    await history.add_message(AIMessage(content=ai_msg, additional_kwargs={"role": "ai"}))
+    await history.add_ai_message(
+        content=response,
+        chat_id=history.session_id,
+        message_id=message_id,
+        tool_use_list=None,
+        references=references,
+        urls=urls,
+        trace_id=None,
+        metadata=None,
+    )
 
 
 class LLMInput(BaseModel):
@@ -161,6 +144,21 @@ async def calculate_model_token_limits(
     return max_allowed_input, reserved_output_tokens
 
 
+async def is_vision_model(
+    model_service_provider: str,
+    model_name: str,
+) -> bool:
+    try:
+        model_config = await async_db_ops.query_llm_provider_model(
+            provider_name=model_service_provider, api=APIType.COMPLETION.value, model=model_name
+        )
+        if model_config:
+            return model_config.has_tag("vision")
+        return False
+    except Exception:
+        return False
+
+
 # Database operations interface
 class LLMRepository:
     """Repository interface for LLM database operations"""
@@ -207,18 +205,42 @@ class LLMService:
             model_name=model_name,
         )
 
+        vision_model = await is_vision_model(model_service_provider, model_name)
+
         # Build context and references from documents
         max_input_chars = max_input_tokens * TOKEN_TO_CHAR_RATIO
         context = ""
-        references = []
+        references: List[Reference] = []
+        image_docs: List[DocumentWithScore] = []
         if docs:
+            # Filter out image content
+            text_docs: List[DocumentWithScore] = []
             for doc in docs:
+                if doc.metadata.get("indexer", "") == "vision":
+                    image_docs.append(doc)
+                    if doc.metadata.get("index_method", "") == "vision_to_text":
+                        # If the index_method is "vision_to_text", the doc is also contains text content,
+                        # which is useful if the current LLM doesn't support image input.
+                        if not vision_model and doc.text and doc.text.strip():
+                            metadata = ""
+                            if doc.metadata.get("source"):
+                                metadata += "Source: " + doc.metadata["source"] + "\n"
+                            if doc.metadata.get("page_idx") is not None:
+                                metadata += "Page: " + str(int(doc.metadata["page_idx"]) + 1) + "\n"
+
+                            doc.text = f"\n------ IMAGE DESCRIPTION BEGIN ------ \n{metadata}Description:\n{doc.text}\n------ IMAGE DESCRIPTION END ------\n"
+                            text_docs.append(doc)
+                else:
+                    text_docs.append(doc)
+
+            for doc in text_docs:
                 # Estimate final prompt length: template + query + current context + new doc
                 estimated_prompt_length = len(prompt_template) + len(query) + len(context) + len(doc.text)
                 if estimated_prompt_length > max_input_chars:
                     break
                 context += doc.text
-                references.append({"text": doc.text, "metadata": doc.metadata, "score": doc.score})
+                ref_obj = Reference(text=doc.text, metadata=doc.metadata, score=doc.score)
+                references.append(ref_obj)
 
         prompt = prompt_template.format(query=query, context=context)
         if len(prompt) > max_input_chars:
@@ -227,11 +249,64 @@ class LLMService:
                 f"input limit of {max_input_chars} characters"
             )
 
-        cs = CompletionService(custom_llm_provider, model_name, base_url, api_key, temperature, max_output_tokens)
+        images = []
+        if vision_model and image_docs:
+            base_path_cache: Dict[Tuple[str, str], str] = {}
+            object_store = get_async_object_store()
+            for doc_with_score in image_docs:
+                asset_id = doc_with_score.metadata.get("asset_id", None)
+                mime_type = doc_with_score.metadata.get("mimetype", None)
+                coll_id = doc_with_score.metadata.get("collection_id", None)
+                doc_id = doc_with_score.metadata.get("document_id", None)
+                if not (asset_id and mime_type and coll_id and doc_id):
+                    continue
+
+                try:
+                    cache_key = (coll_id, doc_id)
+                    if cache_key in base_path_cache:
+                        base_path = base_path_cache[cache_key]
+                    else:
+                        doc = await async_db_ops.query_document(user=user, collection_id=coll_id, document_id=doc_id)
+                        if not doc:
+                            logger.warning(f"Document not found for collection_id={coll_id}, document_id={doc_id}")
+                            continue
+                        base_path = doc.object_store_base_path()
+                        base_path_cache[cache_key] = base_path
+
+                    asset_path = f"{base_path}/assets/{asset_id}"
+                    image_stream_tuple = await object_store.get(asset_path)
+                    if not image_stream_tuple:
+                        logger.warning(f"Image not found in object store at path: {asset_path}")
+                        continue
+
+                    image_stream, _ = image_stream_tuple
+                    image_bytes = b"".join([chunk async for chunk in image_stream])
+                    encoded_string = base64.b64encode(image_bytes).decode("utf-8")
+                    image_uri = f"data:{mime_type};base64,{encoded_string}"
+                    images.append(image_uri)
+                    ref_obj = Reference(
+                        text=doc_with_score.text,
+                        image_uri=image_uri,
+                        metadata=doc_with_score.metadata,
+                        score=doc_with_score.score,
+                    )
+                    references.append(ref_obj)
+
+                    if len(images) > MAX_IMAGES_PER_QUERY:
+                        break
+                except Exception as e:
+                    logger.error(f"Failed to process image asset {asset_id}: {e}", exc_info=True)
+
+        cs = CompletionService(
+            custom_llm_provider, model_name, base_url, api_key, temperature, max_output_tokens, vision=vision_model
+        )
+
+        # Convert to plain dict objects
+        references = [ref.model_dump() for ref in references]
 
         async def async_generator():
             response = ""
-            async for chunk in cs.agenerate_stream([], prompt, False):
+            async for chunk in cs.agenerate_stream([], prompt, images, False):
                 if not chunk:
                     continue
                 yield chunk

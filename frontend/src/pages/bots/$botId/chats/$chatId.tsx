@@ -1,4 +1,4 @@
-import { ChatMessage, Feedback, Reference } from '@/api';
+import { ChatMessage, Feedback } from '@/api';
 import { PageContainer } from '@/components';
 import { api } from '@/services';
 import { useWebSocket } from 'ahooks';
@@ -9,15 +9,17 @@ import { useCallback, useEffect, useState } from 'react';
 import { animateScroll as scroll } from 'react-scroll';
 import { UndrawFirmware } from 'react-undraw-illustrations';
 import { FormattedMessage, useModel, useParams } from 'umi';
-import { ChatInput } from './_chat_input';
-import { ChatMessageItem } from './_chat_message';
+import { ChatInput, ChatInputProps } from './_chat_input';
+import { ChatMessageItem } from '@/components/chat/ChatMessageItem';
 
 export default () => {
-  const { chat, getChat, setChat } = useModel('bot');
+  const { chat, getChat, setChat, bot } = useModel('bot');
   const { botId, chatId } = useParams();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[][]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const { token } = theme.useToken();
+
+  const isAgent = bot?.type === 'agent';
   const protocol = window.location.protocol === 'http:' ? 'ws://' : 'wss://';
   const host = window.location.host;
 
@@ -26,66 +28,71 @@ export default () => {
     {
       onMessage: (message) => {
         const fragment = JSON.parse(message.data) as ChatMessage;
-
         if (fragment.type === 'start') {
-          setMessages((msgs) =>
-            msgs.concat({
-              ...fragment,
-              role: 'ai',
-            }),
-          );
           setLoading(true);
         }
-
-        if (fragment.type === 'message') {
-          setMessages((msgs) => {
-            const last = msgs.findLast((m) => m.id === fragment.id);
-            if (last) {
-              last.data = (last.data || '') + (fragment.data || '');
-            }
-            return [...msgs];
-          });
-        }
-
         if (fragment.type === 'stop') {
-          const references = fragment.data as unknown as Reference[];
-          if (references) {
-            setMessages((msgs) => {
-              const last = msgs.findLast((m) => m.id === fragment.id);
-              if (last) {
-                last.references = references;
-              }
-              return [...msgs];
-            });
-          }
           setLoading(false);
         }
 
-        if (fragment.type === 'error') {
-          setMessages((msgs) => {
-            const last = msgs.findLast((m) => m.id === fragment.id);
-            if (last) {
-              last.data = fragment.data;
-            }
-            return [...msgs];
+        setMessages((msgs) => {
+          const parts = msgs.findLast((parts) => {
+            return Boolean(
+              parts.find(
+                (part) => part.id === fragment.id && part.role === 'ai',
+              ),
+            );
           });
-          setLoading(false);
-        }
+
+          if (parts) {
+            const part = parts.find((p) => {
+              if (fragment.type === 'message') {
+                return p.type === 'message';
+              } else {
+                return fragment.part_id && fragment.part_id === p.part_id;
+              }
+            });
+            if (part) {
+              part.data = (part.data || '') + fragment.data;
+            } else {
+              parts.push(fragment);
+            }
+          } else {
+            msgs.push([
+              {
+                ...fragment,
+                role: 'ai',
+              },
+            ]);
+          }
+          return [...msgs];
+        });
       },
     },
   );
 
-  const onSubmit = useCallback(async (data: string) => {
-    const timestamp = new Date().getTime();
-    const msg: ChatMessage = {
-      type: 'message',
-      role: 'human',
-      data,
-      timestamp,
-    };
-    setMessages((msgs) => msgs?.concat(msg));
-    sendMessage(JSON.stringify(msg));
-  }, []);
+  const onSubmit: ChatInputProps['onSubmit'] = useCallback(
+    async (params) => {
+      const timestamp = Math.floor(new Date().getTime() / 1000);
+      const msg: ChatMessage = {
+        type: 'message',
+        role: 'human',
+        data: params.query,
+        timestamp,
+      };
+      setMessages((msgs) => {
+        msgs?.push([msg]);
+        return [...msgs];
+      });
+
+      if (isAgent) {
+        sendMessage(JSON.stringify(params));
+      } else {
+        sendMessage(JSON.stringify(msg));
+      }
+    },
+    [isAgent],
+  );
 
   const handleCancel = useCallback(() => {
     disconnect();
@@ -104,10 +111,13 @@ export default () => {
     });
     if (res.status === 200) {
       setMessages((msgs) => {
-        const index = msgs.findIndex(
-          (m) => m.id === item.id && m.role === 'ai',
+        const parts = msgs.find((parts) =>
+          parts.find((p) => p.id === item.id && p.type === 'references'),
         );
-        if (index !== -1) msgs.splice(index, 1, { ...item, feedback });
+        const referencePart = parts?.find((p) => p.type === 'references');
+        if (referencePart) {
+          referencePart.feedback = feedback;
+        }
         return [...msgs];
       });
     }
@@ -138,18 +148,15 @@ export default () => {
           subTitle={<FormattedMessage id="chat.empty_description" />}
         />
       ) : (
-        messages?.map((item, index) => {
+        messages?.map((parts, index) => {
+          const isAi = Boolean(parts.find((p) => p.role === 'ai'));
           return (
             <ChatMessageItem
               onVote={onVote}
-              loading={
-                item.role === 'ai' &&
-                _.size(messages) === index + 1 &&
-                loading &&
-                _.isEmpty(item.data)
-              }
-              item={item}
+              isAi={isAi}
+              parts={parts}
               key={index}
+              loading={isAi && loading && index + 1 === messages.length}
             />
           );
         })

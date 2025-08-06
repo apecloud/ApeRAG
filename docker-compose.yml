@@ -196,6 +196,21 @@ services:
     command: bash /usr/share/elasticsearch/bin/init-es.sh
     restart: on-failure
 
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    container_name: aperag-jaeger
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14268:14268"  # HTTP collector
+      - "14250:14250"  # gRPC collector
+      - "6831:6831/udp"  # UDP agent
+      - "6832:6832/udp"  # UDP agent
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - LOG_LEVEL=info
+    restart: unless-stopped
+    profiles: ["jaeger"]
+
   # ==============================================
   # Optional Services
   # ==============================================

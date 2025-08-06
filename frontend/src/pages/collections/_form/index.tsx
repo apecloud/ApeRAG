@@ -1,42 +1,20 @@
 import { Collection } from '@/api';
-import { ApeMarkdown, CheckCard, ModelSelect } from '@/components';
-import { COLLECTION_SOURCE, COLLECTION_SOURCE_EMAIL } from '@/constants';
+import { IndexTypeSelector, ModelSelect } from '@/components';
 
-import { CollectionConfigSource, CollectionEmailSource } from '@/types';
+import { QuestionCircleOutlined } from '@ant-design/icons';
 import {
-  Alert,
-  Avatar,
   Button,
   Card,
-  Col,
   Divider,
   Form,
   FormInstance,
   Input,
-  Row,
-  Segmented,
-  Space,
-  Switch,
-  Typography,
-  message,
-  Tag,
-  Spin,
   Tooltip,
+  Typography,
   theme,
 } from 'antd';
-import _ from 'lodash';
-import { useEffect, useState } from 'react';
-import { FormattedMessage, useIntl, useModel } from 'umi';
-import DocumentCloudFormItems from './DocumentCloudFormItems';
-import DocumentEmailFormItems from './DocumentEmailFormItems';
-import DocumentFeishuFormItems from './DocumentFeishuFormItems';
-import DocumentFtpFormItems from './DocumentFtpFormItems';
-import DocumentGithubFormItems from './DocumentGithubFormItems';
-import DocumentLocalFormItems from './DocumentLocalFormItems';
-import moment from 'moment';
-import { toast } from 'react-toastify';
-import { api } from '@/services';
-import { QuestionCircleOutlined } from '@ant-design/icons';
+import { useEffect } from 'react';
+import { useIntl, useModel } from 'umi';
 
 type Props = {
   action: 'add' | 'edit';
@@ -45,8 +23,15 @@ type Props = {
   onSubmit: (data: Collection) => void;
 };
 
-const configSourceKey = ['config', 'source'];
+// Index types configuration
+const configIndexTypesKey = ['config', 'index_types'];
+const configEnableVectorKey = ['config', 'enable_vector'];
+const configEnableFulltextKey = ['config', 'enable_fulltext'];
+const configEnableKnowledgeGraphKey = ['config', 'enable_knowledge_graph'];
+const configEnableSummaryKey = ['config', 'enable_summary'];
+const configEnableVisionKey = ['config', 'enable_vision'];
 
+// Model configuration
 const configEmbeddingModelKey = ['config', 'embedding', 'model'];
 const configEmbeddingModelServiceProviderKey = [
   'config',
@@ -59,9 +44,6 @@ const configEmbeddingCustomLlmProviderKey = [
   'custom_llm_provider',
 ];
 
-const configEnableKnowledgeGraphKey = ['config', 'enable_knowledge_graph'];
-const configEnableSummaryKey = ['config', 'enable_summary'];
-
 const configCompletionModelKey = ['config', 'completion', 'model'];
 const configCompletionModelServiceProviderKey = [
   'config',
@@ -73,15 +55,8 @@ const configCompletionCustomLlmProviderKey = [
   'completion',
   'custom_llm_provider',
 ];
-
-const configEmailSourceKey = ['config', 'email_source'];
-const configParserUseMineruKey = ['config', 'parser', 'use_mineru'];
-const configParserMineruApiTokenKey = ['config', 'parser', 'mineru_api_token'];
-
 export default ({ onSubmit, action, values, form }: Props) => {
   const { formatMessage } = useIntl();
-  const { collection, getCollection } = useModel('collection');
-  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const { token } = theme.useToken();
 
   const {
@@ -97,95 +72,15 @@ export default ({ onSubmit, action, values, form }: Props) => {
   };
 
   // form field watch
-  const source = Form.useWatch(configSourceKey, form);
-  const emailSource: CollectionEmailSource | undefined = Form.useWatch(
-    configEmailSourceKey,
-    form,
-  );
+  const indexTypes =
+    Form.useWatch(configIndexTypesKey, form) ||
+    (action === 'add' ? ['vector', 'fulltext', 'graph'] : []);
   const embeddingModel = Form.useWatch(configEmbeddingModelKey, form);
-
-  const enableKnowledgeGraph = Form.useWatch(
-    configEnableKnowledgeGraphKey,
-    form,
-  );
-
-  const enableSummary = Form.useWatch(configEnableSummaryKey, form);
-
-  const useMineru = Form.useWatch(configParserUseMineruKey, form);
-  const mineruApiToken = Form.useWatch(configParserMineruApiTokenKey, form);
-  const [isTesting, setIsTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{
-    type: 'success' | 'danger';
-    message: string;
-  } | null>(null);
-
   const completionModel = Form.useWatch(configCompletionModelKey, form);
 
-  const handleTestMineruToken = async () => {
-    setIsTesting(true);
-    setTestResult(null);
-    const token = form.getFieldValue(configParserMineruApiTokenKey);
-    if (!token) {
-      message.error(
-        formatMessage({ id: 'collection.mineru_api_token.required' }),
-      );
-      setIsTesting(false);
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/v1/collections/test-mineru-token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ token }),
-      });
-      const result = await response.json();
-      const { status_code, data: res } = result;
-
-      if (status_code === 401) {
-        if (res && res.msgCode === 'A0211') {
-          setTestResult({
-            type: 'danger',
-            message: formatMessage({
-              id: 'collection.mineru_api_token.test.expired',
-            }),
-          });
-        } else {
-          setTestResult({
-            type: 'danger',
-            message: formatMessage({
-              id: 'collection.mineru_api_token.test.invalid',
-            }),
-          });
-        }
-      } else if (status_code === 404 || (res && res.code === -60012)) {
-        setTestResult({
-          type: 'success',
-          message: formatMessage({
-            id: 'collection.mineru_api_token.test.valid',
-          }),
-        });
-      } else {
-        setTestResult({
-          type: 'danger',
-          message: `${formatMessage({
-            id: 'collection.mineru_api_token.test.error',
-          })}: ${res.msg || 'Unknown error'}`,
-        });
-      }
-    } catch (error) {
-      setTestResult({
-        type: 'danger',
-        message: formatMessage({
-          id: 'collection.mineru_api_token.test.fetch_error',
-        }),
-      });
-    } finally {
-      setIsTesting(false);
-    }
-  };
+  const enableKnowledgeGraph = indexTypes.includes('graph');
+  const enableSummary = indexTypes.includes('summary');
+  const enableVision = indexTypes.includes('vision');
 
   // Set default models for new collection when availableModels are loaded
   useEffect(() => {
@@ -245,29 +140,43 @@ export default ({ onSubmit, action, values, form }: Props) => {
     }
   }, [completionModel, availableModels]);
 
+  // Update individual index type flags when indexTypes changes
   useEffect(() => {
-    if (source === 'ftp') {
-      form.setFieldValue(['config', 'port'], 21);
+    if (indexTypes) {
+      form.setFieldValue(configEnableVectorKey, indexTypes.includes('vector'));
+      form.setFieldValue(
+        configEnableFulltextKey,
+        indexTypes.includes('fulltext'),
+      );
+      form.setFieldValue(
+        configEnableKnowledgeGraphKey,
+        indexTypes.includes('graph'),
+      );
+      form.setFieldValue(
+        configEnableSummaryKey,
+        indexTypes.includes('summary'),
+      );
+      form.setFieldValue(configEnableVisionKey, indexTypes.includes('vision'));
     }
-    if (source === 'email') {
-      if (!emailSource) {
-        form.setFieldValue(configEmailSourceKey, 'gmail');
-      } else {
-        form.setFieldValue(
-          ['config', 'pop_server'],
-          COLLECTION_SOURCE_EMAIL[emailSource].pop_server,
-        );
-        form.setFieldValue(
-          ['config', 'port'],
-          COLLECTION_SOURCE_EMAIL[emailSource].port,
-        );
-      }
-    }
-  }, [source, emailSource]);
+  }, [indexTypes, form]);
 
   useEffect(() => {
     getAvailableModels();
   }, []);
+
+  // Set initial index types based on config values in edit mode
+  useEffect(() => {
+    if (action === 'edit' && values?.config) {
+      const indexTypes = [];
+      if (values.config.enable_vector) indexTypes.push('vector');
+      if (values.config.enable_fulltext) indexTypes.push('fulltext');
+      if (values.config.enable_knowledge_graph) indexTypes.push('graph');
+      if (values.config.enable_summary) indexTypes.push('summary');
+      if (values.config.enable_vision) indexTypes.push('vision');
+
+      form.setFieldValue(configIndexTypesKey, indexTypes);
+    }
+  }, [action, values, form]);
 
   return (
     <Form
@@ -297,291 +206,172 @@ export default ({ onSubmit, action, values, form }: Props) => {
               {formatMessage({ id: 'text.description' })}
               <Tooltip
                 title={
-                  <div style={{
-                    maxWidth: 400,
-                    whiteSpace: 'pre-line',
-                    color: '#fff',
-                    fontSize: token.fontSize
-                  }}>
+                  <div
+                    style={{
+                      maxWidth: 400,
+                      whiteSpace: 'pre-line',
+                      color: '#fff',
+                      fontSize: token.fontSize,
+                    }}
+                  >
                     {formatMessage({ id: 'collection.description.tips' })}
                   </div>
                 }
                 overlayStyle={{
-                  maxWidth: 400
+                  maxWidth: 400,
                 }}
                 overlayInnerStyle={{
                   backgroundColor: token.colorBgSpotlight,
                   color: '#fff',
                   borderRadius: token.borderRadius,
-                  padding: '8px 12px'
+                  padding: '8px 12px',
                 }}
               >
-                <QuestionCircleOutlined style={{ marginLeft: 6, color: token.colorTextSecondary }} />
+                <QuestionCircleOutlined
+                  style={{ marginLeft: 6, color: token.colorTextSecondary }}
+                />
               </Tooltip>
             </span>
           }
         >
-          <Input.TextArea
-            maxLength={300}
-            rows={3}
-            readOnly={enableSummary}
-            style={{
-              color: token.colorText,
-              backgroundColor: token.colorBgContainer,
-              cursor: enableSummary ? 'default' : 'text'
-            }}
-          />
+          <div>
+            <Input.TextArea
+              maxLength={300}
+              rows={3}
+              readOnly={enableSummary}
+              placeholder={
+                enableSummary
+                  ? formatMessage({
+                      id: 'collection.description.auto_generated.placeholder',
+                    })
+                  : undefined
+              }
+              style={{
+                color: enableSummary
+                  ? token.colorTextDisabled
+                  : token.colorText,
+                backgroundColor: enableSummary
+                  ? token.colorBgContainerDisabled
+                  : token.colorBgContainer,
+                cursor: enableSummary ? 'default' : 'text',
+              }}
+            />
+          </div>
         </Form.Item>
 
-        <Row gutter={24}>
-          <Col
-            {...{
-              xs: 24,
-              sm: 24,
-              md: 12,
-              lg: 12,
-              xl: 12,
-              xxl: 12,
-            }}
-          >
-            <Form.Item
-              name={configEmbeddingModelKey}
-              rules={[
-                {
-                  required: true,
-                  message: formatMessage({
-                    id: 'collection.embedding_model.required',
-                  }),
-                },
-              ]}
-              className="form-item-wrap"
-              label={formatMessage({ id: 'collection.embedding_model' })}
-            >
-              <ModelSelect model="embedding" disabled={action === 'edit'} />
-            </Form.Item>
-
-            <Form.Item name={configEmbeddingModelServiceProviderKey} hidden>
-              <Input hidden />
-            </Form.Item>
-            <Form.Item name={configEmbeddingCustomLlmProviderKey} hidden>
-              <Input hidden />
-            </Form.Item>
-          </Col>
-          <Col
-            {...{
-              xs: 24,
-              sm: 24,
-              md: 12,
-              lg: 12,
-              xl: 12,
-              xxl: 12,
-            }}
-          >
-            <Form.Item
-              label={formatMessage({ id: 'collection.enable_knowledge_graph' })}
-              valuePropName="checked"
-              name={configEnableKnowledgeGraphKey}
-            >
-              <Switch />
-            </Form.Item>
-          </Col>
-        </Row>
-
-        <Row gutter={24}>
-          <Col
-            {...{
-              xs: 24,
-              sm: 24,
-              md: 12,
-              lg: 12,
-              xl: 12,
-              xxl: 12,
-            }}
-          >
-            <Form.Item
-              label={formatMessage({ id: 'collection.enable_auto_summary' })}
-              valuePropName="checked"
-              name={configEnableSummaryKey}
-            >
-              <Switch />
-            </Form.Item>
-          </Col>
-        </Row>
-
-        {(enableKnowledgeGraph || enableSummary) ? (
-          <>
-            <Form.Item
-              label={formatMessage({
-                id: 'collection.completion_model',
-              })}
-              name={configCompletionModelKey}
-              required
-              rules={[
-                {
-                  required: true,
-                  message: formatMessage({
-                    id: 'collection.completion_model.required',
-                  }),
-                },
-              ]}
-            >
-              <ModelSelect model="completion" />
-            </Form.Item>
-            <Form.Item name={configCompletionModelServiceProviderKey} hidden>
-              <Input hidden />
-            </Form.Item>
-            <Form.Item name={configCompletionCustomLlmProviderKey} hidden>
-              <Input hidden />
-            </Form.Item>
-          </>
-        ) : null}
-
+        {/* Index Types Selector */}
         <Form.Item
-          name={configSourceKey}
-          required
-          label={formatMessage({ id: 'collection.source' })}
+          name={configIndexTypesKey}
+          initialValue={
+            action === 'add' ? ['vector', 'fulltext', 'graph'] : undefined
+          }
+        >
+          <IndexTypeSelector disabled={action === 'edit'} />
+        </Form.Item>
+
+        {/* Model Configuration */}
+        <div style={{ marginTop: 32, marginBottom: 24 }}>
+          <Typography.Title level={4} style={{ marginBottom: 16 }}>
+            {formatMessage({ id: 'collection.advanced_settings' })}
+          </Typography.Title>
+          <Typography.Paragraph
+            style={{ marginBottom: 24, color: token.colorTextSecondary }}
+          >
+            {formatMessage({ id: 'collection.model_settings.description' })}
+          </Typography.Paragraph>
+        </div>
+
+        {/* Embedding Model - Always required */}
+        <Form.Item
+          name={configEmbeddingModelKey}
           rules={[
             {
               required: true,
-              message: formatMessage({ id: 'collection.source.required' }),
+              message: formatMessage({
+                id: 'collection.embedding_model.required',
+              }),
             },
           ]}
+          label={formatMessage({ id: 'collection.embedding_model' })}
         >
-          <CheckCard
-            options={Object.keys(COLLECTION_SOURCE).map((key) => {
-              const config = values?.config;
-              return {
-                label: formatMessage({ id: `collection.source.${key}` }),
-                value: key,
-                icon: COLLECTION_SOURCE[key as CollectionConfigSource].icon,
-                disabled:
-                  !COLLECTION_SOURCE[key as CollectionConfigSource].enabled ||
-                  (action === 'edit' && key !== config?.source),
-              };
-            })}
+          <ModelSelect
+            model="embedding"
+            disabled={action === 'edit'}
+            tagfilters={[
+              {
+                operation: 'OR',
+                tags: ['enable_for_collection'],
+              },
+            ]}
           />
         </Form.Item>
 
-        {source === 'local' ? <DocumentLocalFormItems /> : null}
+        {/* Completion Model - Required for graph, summary, or vision */}
+        {(enableKnowledgeGraph || enableSummary || enableVision) && (
+          <Form.Item
+            label={formatMessage({
+              id: 'collection.completion_model',
+            })}
+            name={configCompletionModelKey}
+            rules={[
+              {
+                required: true,
+                message: formatMessage({
+                  id: 'collection.completion_model.required',
+                }),
+              },
+            ]}
+          >
+            <ModelSelect
+              model="completion"
+              disabled={action === 'edit'}
+              tagfilters={[
+                {
+                  operation: 'OR',
+                  tags: ['enable_for_collection'],
+                },
+              ]}
+            />
+          </Form.Item>
+        )}
 
-        {source === 'email' ? (
-          <>
-            <Form.Item
-              required
-              label={formatMessage({ id: 'email.source' })}
-              name={configEmailSourceKey}
-            >
-              <Segmented
-                size="small"
-                block
-                options={_.map(COLLECTION_SOURCE_EMAIL, (conf, key) => ({
-                  label: (
-                    <Space style={{ padding: 10 }}>
-                      <Avatar shape="square" src={conf.icon} size={24} />
-                      <Typography.Text>
-                        <FormattedMessage id={`email.${key}`} />
-                      </Typography.Text>
-                    </Space>
-                  ),
-                  value: key,
-                }))}
-              />
-            </Form.Item>
-            <DocumentEmailFormItems />
-            {emailSource ? (
-              <Form.Item label="">
-                <Alert
-                  message={formatMessage({
-                    id: `email.${emailSource}.tips.title`,
-                  })}
-                  description={
-                    <ApeMarkdown>
-                      {formatMessage({
-                        id: `email.${emailSource}.tips.description`,
-                      })}
-                    </ApeMarkdown>
-                  }
-                  type="info"
-                  showIcon
-                />
-              </Form.Item>
-            ) : null}
-          </>
-        ) : null}
-
-        {source === 's3' || source === 'oss' ? (
-          <DocumentCloudFormItems />
-        ) : null}
-
-        {source === 'ftp' ? <DocumentFtpFormItems /> : null}
-
-        {source === 'feishu' ? <DocumentFeishuFormItems /> : null}
-
-        {source === 'github' ? <DocumentGithubFormItems /> : null}
-
-        <Form.Item
-          label={formatMessage({ id: 'collection.use_mineru' })}
-          name={configParserUseMineruKey}
-          valuePropName="checked"
-          initialValue={true}
-          extra={formatMessage({ id: 'collection.use_mineru.extra' })}
-        >
-          <Switch />
+        {/* Hidden fields for model providers */}
+        <Form.Item name={configEmbeddingModelServiceProviderKey} hidden>
+          <Input hidden />
+        </Form.Item>
+        <Form.Item name={configEmbeddingCustomLlmProviderKey} hidden>
+          <Input hidden />
+        </Form.Item>
+        <Form.Item name={configCompletionModelServiceProviderKey} hidden>
+          <Input hidden />
+        </Form.Item>
+        <Form.Item name={configCompletionCustomLlmProviderKey} hidden>
+          <Input hidden />
         </Form.Item>
 
-        {useMineru ? (
-          <>
-            <Form.Item
-              label="MinerU API Token"
-              required
-              extra={
-                <>
-                  <div>
-                    {formatMessage({ id: 'collection.mineru_api_token.extra' })}
-                  </div>
-                  {testResult && (
-                    <Typography.Text type={testResult.type}>
-                      {testResult.message}
-                    </Typography.Text>
-                  )}
-                </>
-              }
-            >
-              <Space.Compact style={{ width: '100%' }}>
-                <Form.Item
-                  name={configParserMineruApiTokenKey}
-                  noStyle
-                  rules={[
-                    {
-                      required: true,
-                      message: formatMessage({
-                        id: 'collection.mineru_api_token.required',
-                      }),
-                    },
-                  ]}
-                >
-                  <Input.Password
-                    placeholder={formatMessage({
-                      id: 'collection.mineru_api_token.placeholder',
-                    })}
-                    autoComplete="off"
-                    onChange={() => setTestResult(null)}
-                  />
-                </Form.Item>
-                <Button
-                  type="primary"
-                  loading={isTesting}
-                  disabled={!mineruApiToken}
-                  onClick={handleTestMineruToken}
-                >
-                  {formatMessage({
-                    id: 'collection.mineru_api_token.test.btn',
-                  })}
-                </Button>
-              </Space.Compact>
-            </Form.Item>
-          </>
-        ) : null}
+        {/* Hidden index type flags */}
+        <Form.Item name={configEnableVectorKey} hidden>
+          <Input hidden />
+        </Form.Item>
+        <Form.Item name={configEnableFulltextKey} hidden>
+          <Input hidden />
+        </Form.Item>
+        <Form.Item name={configEnableKnowledgeGraphKey} hidden>
+          <Input hidden />
+        </Form.Item>
+        <Form.Item name={configEnableSummaryKey} hidden>
+          <Input hidden />
+        </Form.Item>
+        <Form.Item name={configEnableVisionKey} hidden>
+          <Input hidden />
+        </Form.Item>
+
+        {/* Set source to 'system' for file upload only */}
+        <Form.Item name={['config', 'source']} initialValue="system" hidden>
+          <Input hidden />
+        </Form.Item>
+
+
 
         <br />
         <Divider />

@@ -15,6 +15,7 @@
 import logging
 from threading import Lock
 
+from aperag.db.models import APIType
 from aperag.db.ops import db_ops
 from aperag.llm.completion.completion_service import CompletionService
 from aperag.llm.llm_error_types import (
@@ -46,6 +47,7 @@ def _get_completion_service(
     completion_service_api_key: str,
     temperature: float = 0.1,
     max_tokens: int = None,
+    vision: bool = False,
 ) -> CompletionService:
     """
     Create and configure a completion service instance.
@@ -72,6 +74,7 @@ def _get_completion_service(
             api_key=completion_service_api_key,
             temperature=temperature,
             max_tokens=max_tokens,
+            vision=vision,
         )
         return completion_svc
     except CompletionError:
@@ -151,12 +154,22 @@ def get_collection_completion_service_sync(collection) -> CompletionService:
     logger.info("get_collection_completion_service %s", completion_service_url)
 
     try:
+        is_vision_model = False
+        model_info = db_ops.query_llm_provider_model(completion_msp, APIType.COMPLETION.value, completion_model_name)
+        if model_info:
+            is_vision_model = model_info.has_tag("vision")
+    except Exception as e:
+        logger.error(f"Failed to query LLM provider model '{completion_model_name}': {str(e)}")
+        raise
+
+    try:
         return _get_completion_service(
             completion_provider=custom_llm_provider,
             completion_model=completion_model_name,
             completion_service_url=completion_service_url,
             completion_service_api_key=completion_service_api_key,
             temperature=temperature,
+            vision=is_vision_model,
         )
     except CompletionError:
         # Re-raise completion errors

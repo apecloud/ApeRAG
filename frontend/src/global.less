@@ -14,3 +14,33 @@ body.no-animate * {
   padding: 12px !important;
   border-radius: 4px !important;
 }
+
+// input bar button and select styles for better theme adaptation
+.input-bar-btn {
+  &:hover {
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  &:focus {
+    border: none !important;
+    box-shadow: none !important;
+  }
+}
+
+.input-bar-select {
+  .ant-select-selector {
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  &:hover .ant-select-selector {
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  &.ant-select-focused .ant-select-selector {
+    border: none !important;
+    box-shadow: none !important;
+  }
+}

@@ -20,6 +20,7 @@ from aperag.db.models import MergeSuggestionStatus
 from aperag.db.ops import async_db_ops
 from aperag.exceptions import CollectionNotFoundException
 from aperag.graph import lightrag_manager
+from aperag.graph.lightrag.types import KnowledgeGraph
 from aperag.schema import view_models
 from aperag.utils.utils import utc_now
 
@@ -92,7 +93,7 @@ class GraphService:
                 mode_description = f"subgraph from '{label}'"
 
             # Get knowledge graph
-            kg = await rag.get_knowledge_graph(
+            kg: KnowledgeGraph = await rag.get_knowledge_graph(
                 node_label=node_label,
                 max_depth=max_depth,
                 max_nodes=query_max_nodes,
@@ -158,7 +159,7 @@ class GraphService:
         max_concurrent_llm_calls: int = 4,
         force_refresh: bool = False,
     ) -> dict[str, Any]:
-        """Get cached suggestions or generate new ones"""
+        """Get cached active suggestions or generate new ones"""
         await self._get_and_validate_collection(user_id, collection_id)
 
         # Use collection-specific lock to prevent concurrent generation for the same collection
@@ -166,72 +167,48 @@ class GraphService:
         lock = get_or_create_lock(lock_name)
 
         try:
-            async with lock_context(lock, timeout=120.0):  # 120 seconds timeout
-                logger.info(f"Acquired lock '{lock_name}' for merge suggestions generation")
+            async with lock_context(lock, timeout=120.0):
+                logger.debug(f"Acquired lock '{lock_name}' for merge suggestions generation")
 
-                # Check cache first (double-check pattern after acquiring lock)
                 if not force_refresh:
-                    cached_suggestions = await self.db_ops.get_valid_suggestions(collection_id)
-                    if cached_suggestions:
-                        logger.info(
-                            f"Found {len(cached_suggestions)} cached suggestions for collection {collection_id}"
-                        )
-                        return self._format_suggestions_response(cached_suggestions, from_cache=True)
+                    active_suggestions = await self.db_ops.get_active_suggestions(collection_id)
+                    if active_suggestions:  # If there are active suggestions
+                        return await self.get_merge_suggestions(collection_id, from_cache=True)
 
-                # Generate new suggestions
-                logger.info(f"Generating new merge suggestions for collection {collection_id}")
-                llm_result = await self.generate_merge_suggestions(
-                    user_id, collection_id, max_suggestions, max_concurrent_llm_calls
-                )
+                # Generate and store new suggestions
+                await self.generate_merge_suggestions(user_id, collection_id, max_suggestions, max_concurrent_llm_calls)
 
-                # Prepare suggestion data
-                suggestion_data = [
-                    {
-                        "collection_id": collection_id,
-                        "entity_ids": [entity["entity_id"] for entity in suggestion["entities"]],
-                        "confidence_score": suggestion["confidence_score"],
-                        "merge_reason": suggestion["merge_reason"],
-                        "suggested_target_entity": suggestion["suggested_target_entity"],
-                    }
-                    for suggestion in llm_result.get("suggestions", [])
-                ]
-
-                if suggestion_data:
-                    # Always delete existing suggestions before storing new ones to prevent duplicates
-                    # This fixes the concurrent issue where multiple requests create different batches
-                    deleted_count = await self.db_ops.delete_all_suggestions_for_collection(collection_id)
-                    if deleted_count > 0:
-                        logger.info(
-                            f"Deleted {deleted_count} existing suggestions for collection {collection_id} "
-                            f"(force_refresh={force_refresh})"
-                        )
-
-                    # Store new suggestions
-                    stored_suggestions = await self.db_ops.batch_create_suggestions(suggestion_data)
-                    logger.info(f"Stored {len(stored_suggestions)} new suggestions for collection {collection_id}")
-                    # Extract metadata from llm_result, excluding 'suggestions' to avoid parameter conflict
-                    llm_metadata = {k: v for k, v in llm_result.items() if k != "suggestions"}
-                    return self._format_suggestions_response(stored_suggestions, from_cache=False, **llm_metadata)
-
-                # Extract metadata from llm_result, excluding 'suggestions' to avoid parameter conflict
-                llm_metadata = {k: v for k, v in llm_result.items() if k != "suggestions"}
-                return self._format_suggestions_response([], from_cache=False, **llm_metadata)
-
+                return await self.get_merge_suggestions(collection_id, from_cache=False)
         except TimeoutError:
             logger.warning(f"Failed to acquire lock '{lock_name}' within timeout, falling back to cache")
-            # Fallback: return cached suggestions if available
-            cached_suggestions = await self.db_ops.get_valid_suggestions(collection_id)
-            if cached_suggestions:
-                logger.info(f"Returning {len(cached_suggestions)} cached suggestions due to lock timeout")
-                return self._format_suggestions_response(cached_suggestions, from_cache=True)
-            else:
-                # No cache available, return empty result
-                logger.warning(f"No cached suggestions available for collection {collection_id}")
-                return self._format_suggestions_response([], from_cache=False)
+            # Fallback: return existing suggestions
+            return await self.get_merge_suggestions(collection_id, from_cache=True)
 
-    def _format_suggestions_response(self, suggestions: List, from_cache: bool = False, **kwargs) -> dict[str, Any]:
-        """Format suggestions response with statistics"""
-        suggestion_items = [
+    async def _update_active_suggestions(self, collection_id: str, suggestions: List[dict]) -> None:
+        """Update active suggestions (clear old ones and store new ones)"""
+        # Always clear existing active suggestions when generating new ones
+        cleared_count = await self.db_ops.clear_active_suggestions(collection_id)
+        if cleared_count > 0:
+            logger.info(f"Cleared {cleared_count} existing active suggestions for collection {collection_id}")
+
+        # Store new suggestions if any
+        if suggestions and len(suggestions) > 0:
+            await self.db_ops.create_active_suggestions(suggestions)
+        else:
+            logger.debug("No new suggestions to store")
+
+    async def get_merge_suggestions(self, collection_id: str, from_cache: bool = False, **kwargs) -> dict[str, Any]:
+        """Get complete suggestions response with active and history suggestions combined"""
+        # Get active suggestions and history suggestions in parallel for efficiency
+        import asyncio
+
+        active_suggestions, history_suggestions = await asyncio.gather(
+            self.db_ops.get_active_suggestions(collection_id),
+            self.db_ops.get_suggestion_history(collection_id, limit=100),  # Get recent history
+        )
+
+        # Format active suggestions (always PENDING, no operated_at)
+        active_items = [
             {
                 "id": suggestion.id,
                 "collection_id": suggestion.collection_id,
@@ -240,30 +217,48 @@ class GraphService:
                 "confidence_score": float(suggestion.confidence_score),
                 "merge_reason": suggestion.merge_reason,
                 "suggested_target_entity": suggestion.suggested_target_entity,
-                "status": suggestion.status,
+                "status": str(suggestion.status),  # Convert enum to string
                 "created": suggestion.gmt_created,
-                "expires_at": suggestion.expires_at,
-                "operated_at": suggestion.operated_at,
+                "operated_at": None,  # Active suggestions don't have operated_at
             }
-            for suggestion in suggestions
+            for suggestion in active_suggestions
         ]
 
-        # Count by status
-        status_counts = {"PENDING": 0, "ACCEPTED": 0, "REJECTED": 0, "EXPIRED": 0}
-        for suggestion in suggestions:
-            status_counts[suggestion.status] += 1
+        # Format history suggestions (ACCEPTED/REJECTED, has operated_at)
+        history_items = [
+            {
+                "id": suggestion.id,
+                "collection_id": suggestion.collection_id,
+                "suggestion_batch_id": suggestion.suggestion_batch_id,
+                "entity_ids": suggestion.entity_ids,
+                "confidence_score": float(suggestion.confidence_score),
+                "merge_reason": suggestion.merge_reason,
+                "suggested_target_entity": suggestion.suggested_target_entity,
+                "status": str(suggestion.status),  # Convert enum to string
+                "created": suggestion.gmt_created,
+                "operated_at": suggestion.operated_at,
+            }
+            for suggestion in history_suggestions
+        ]
+
+        # Combine: active first, then history
+        all_suggestions = active_items + history_items
+
+        # Calculate statistics from the actual data
+        pending_count = len(active_items)
+        accepted_count = sum(1 for item in history_items if item["status"] == "ACCEPTED")
+        rejected_count = sum(1 for item in history_items if item["status"] == "REJECTED")
 
         return {
-            "suggestions": suggestion_items,
+            "suggestions": all_suggestions,
             "total_analyzed_nodes": kwargs.get("total_analyzed_nodes", 0),
             "processing_time_seconds": kwargs.get("processing_time_seconds", 0.0),
             "from_cache": from_cache,
             "generated_at": utc_now(),
-            "total_suggestions": len(suggestion_items),
-            "pending_count": status_counts["PENDING"],
-            "accepted_count": status_counts["ACCEPTED"],
-            "rejected_count": status_counts["REJECTED"],
-            "expired_count": status_counts["EXPIRED"],
+            "total_suggestions": len(all_suggestions),
+            "pending_count": pending_count,
+            "accepted_count": accepted_count,
+            "rejected_count": rejected_count,
         }
 
     async def generate_merge_suggestions(
@@ -273,12 +268,13 @@ class GraphService:
         max_suggestions: int = 10,
         max_concurrent_llm_calls: int = 4,
     ) -> dict[str, Any]:
-        """Generate node merge suggestions using LLM analysis"""
+        """Generate node merge suggestions using LLM analysis and store them"""
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
+        # Generate suggestions using LightRAG
         rag = await lightrag_manager.create_lightrag_instance(db_collection)
         try:
-            return await rag.agenerate_merge_suggestions(
+            llm_result = await rag.agenerate_merge_suggestions(
                 max_suggestions=max_suggestions,
                 entity_types=None,  # Default to None (consider all entity types)
                 debug_mode=False,  # Default to False
@@ -286,6 +282,26 @@ class GraphService:
             )
         finally:
             await rag.finalize_storages()
+
+        # Prepare suggestion data for storage
+        suggestion_data = [
+            {
+                "collection_id": collection_id,
+                "entity_ids": [entity["entity_id"] for entity in suggestion["entities"]],
+                "confidence_score": suggestion["confidence_score"],
+                "merge_reason": suggestion["merge_reason"],
+                "suggested_target_entity": suggestion["suggested_target_entity"],
+            }
+            for suggestion in llm_result.get("suggestions", [])
+        ]
+
+        # Store suggestions if any were generated
+        if suggestion_data:
+            await self._update_active_suggestions(collection_id, suggestion_data)
+            logger.info(f"Stored {len(suggestion_data)} new active suggestions for collection {collection_id}")
+
+        # Return the LLM result with metadata for response formatting
+        return llm_result
 
     async def merge_nodes(
         self,
@@ -326,22 +342,22 @@ class GraphService:
 
         db_collection = await self._get_and_validate_collection(user_id, collection_id)
 
-        # Get and validate suggestion
-        suggestions = await self.db_ops.get_suggestions_by_ids([suggestion_id])
-        if not suggestions:
-            raise ValueError(f"Suggestion not found: {suggestion_id}")
-
-        suggestion = suggestions[0]
-
-        if suggestion.status != MergeSuggestionStatus.PENDING:
-            raise ValueError(f"Cannot act on suggestion with status: {suggestion.status}")
+        # Get and validate active suggestion
+        suggestion = await self.db_ops.get_active_suggestion_by_id(suggestion_id)
+        if not suggestion:
+            raise ValueError(f"Active suggestion not found: {suggestion_id}")
 
         if suggestion.collection_id != collection_id:
             raise ValueError(f"Suggestion {suggestion_id} does not belong to collection {collection_id}")
 
+        # Determine the status for history record
+        history_status = (
+            MergeSuggestionStatus.ACCEPTED if normalized_action == "accept" else MergeSuggestionStatus.REJECTED
+        )
+
         if normalized_action == "reject":
-            # Simple rejection - just update status
-            await self.db_ops.update_suggestion_status(suggestion_id, MergeSuggestionStatus.REJECTED, utc_now())
+            # Move to history and remove from active suggestions
+            await self.db_ops.move_to_history(suggestion, history_status, user_id)
 
             logger.info(f"Suggestion {suggestion_id} has been rejected")
             return {
@@ -363,8 +379,8 @@ class GraphService:
                 target_entity_data=merge_target_data,
             )
 
-            # Update suggestion status to ACCEPTED
-            await self.db_ops.update_suggestion_status(suggestion_id, MergeSuggestionStatus.ACCEPTED, utc_now())
+            # Move to history and remove from active suggestions
+            await self.db_ops.move_to_history(suggestion, history_status, user_id)
 
             logger.info(f"Suggestion {suggestion_id} has been accepted and merge completed")
             return {
@@ -411,6 +427,19 @@ class GraphService:
             raise CollectionNotFoundException(collection_id)
 
         return db_collection
+
+    async def export_for_kg_eval(
+        self, user_id: str, collection_id: str, sample_size: int = 100000, include_source_texts: bool = True
+    ) -> Dict[str, Any]:
+        """Export collection knowledge graph data in KG-Eval framework format"""
+        db_collection = await self._get_and_validate_collection(user_id, collection_id)
+
+        rag = await lightrag_manager.create_lightrag_instance(db_collection)
+        try:
+            result = await rag.export_for_kg_eval(sample_size=sample_size, include_source_texts=include_source_texts)
+            return result
+        finally:
+            await rag.finalize_storages()
 
 
 # Global service instance

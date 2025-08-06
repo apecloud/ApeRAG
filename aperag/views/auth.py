@@ -258,136 +258,12 @@ if settings.github_oauth_client_id and settings.github_oauth_client_secret:
     router.include_router(github_oauth_router, prefix="/auth/github", tags=["auth"])
 
 
-# --- Standard API Implementation ---
-@router.post("/register", tags=["auth"])
-@audit(resource_type="user", api_name="RegisterUser")
-async def register_view(
-    request: Request,
-    data: view_models.Register,
-    session: AsyncSessionDep,
-    user_manager: UserManager = Depends(get_user_manager),
-) -> view_models.User:
-    from sqlalchemy import select
-
-    is_first_user = not await async_db_ops.query_first_user_exists()
-    need_invitation = settings.register_mode == "invitation" and not is_first_user
-    invitation = None
-    if need_invitation:
-        if not data.token:
-            raise HTTPException(status_code=400, detail="Invitation token is required")
-        if not data.email:
-            raise HTTPException(status_code=400, detail="Email is required when using invitation")
-        result = await session.execute(select(Invitation).where(Invitation.token == data.token))
-        invitation = result.scalars().first()
-        if not invitation or not invitation.is_valid():
-            raise HTTPException(status_code=400, detail="Invalid or expired invitation")
-        if invitation.email != data.email:
-            raise HTTPException(status_code=400, detail="Email does not match invitation")
-    # Check if username exists (only if provided)
-    if data.username:
-        result = await session.execute(select(User).where(User.username == data.username))
-        if result.scalars().first():
-            raise HTTPException(status_code=400, detail="Username already exists")
-
-    # Email is now required, so always check for duplicates
-    if not data.email:
-        raise HTTPException(status_code=400, detail="Email is required")
-    result = await session.execute(select(User).where(User.email == data.email))
-    if result.scalars().first():
-        raise HTTPException(status_code=400, detail="Email already exists")
-    user_create = {
-        "username": data.username,
-        "email": data.email,
-        "password": data.password,
-        "role": invitation.role if invitation else Role.ADMIN if is_first_user else Role.RO,
-        "is_active": True,
-        "is_verified": True,
-        "date_joined": utc_now(),
-    }
-    user = User(**user_create)
-    user.hashed_password = user_manager.password_helper.hash(data.password)
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
-    if invitation:
-        invitation.is_used = True
-        invitation.used_at = utc_now()
-        session.add(invitation)
-        await session.commit()
-    return view_models.User(
-        id=str(user.id),
-        username=user.username,
-        email=user.email,
-        role=user.role,
-        is_active=user.is_active,
-        date_joined=user.date_joined.isoformat(),
-    )
-
-
-@router.post("/login", tags=["auth"])
-async def login_view(
-    request: Request,
-    response: Response,
-    data: view_models.Login,
-    session: AsyncSessionDep,
-    user_manager: UserManager = Depends(get_user_manager),
-) -> view_models.User:
-    from sqlalchemy import select
-
-    result = await session.execute(select(User).where(User.username == data.username))
-    user = result.scalars().first()
-    if not user:
-        raise HTTPException(status_code=400, detail="Invalid credentials")
-    verified, updated_password_hash = user_manager.password_helper.verify_and_update(
-        data.password, user.hashed_password
-    )
-    if not verified:
-        raise HTTPException(status_code=400, detail="Invalid credentials")
-    if updated_password_hash:
-        user.hashed_password = updated_password_hash
-        session.add(user)
-        await session.commit()
-    strategy = get_jwt_strategy()
-    token = await strategy.write_token(user)
-    response.set_cookie(key="session", value=token, max_age=COOKIE_MAX_AGE, httponly=True, samesite="lax")
-    return view_models.User(
-        id=str(user.id),
-        username=user.username,
-        email=user.email,
-        role=user.role,
-        is_active=user.is_active,
-        date_joined=user.date_joined.isoformat(),
-    )
-
-
-@router.post("/logout", tags=["auth"])
-async def logout_view(response: Response):
-    response.delete_cookie(key="session")
-    return {"success": True}
-
-
-@router.get("/user", tags=["users"])
-async def get_user_view(user: Optional[User] = Depends(current_user)):
-    if not user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    return view_models.User(
-        id=str(user.id),
-        username=user.username,
-        email=user.email,
-        role=user.role,
-        is_active=user.is_active,
-        date_joined=user.date_joined.isoformat(),
-    )
-
-
 @router.get("/users", tags=["users"])
 async def list_users_view(
     session: AsyncSessionDep, user: Optional[User] = Depends(current_user)
 ) -> view_models.UserList:
     from sqlalchemy import select
 
-    if not user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
     if user.role == Role.ADMIN:
         result = await session.execute(select(User))
     else:
@@ -404,53 +280,6 @@ async def list_users_view(
         for u in result.scalars()
     ]
     return view_models.UserList(items=users)
-
-
-@router.post("/change-password", tags=["auth"])
-@audit(resource_type="user", api_name="ChangePassword")
-async def change_password_view(
-    request: Request,
-    data: view_models.ChangePassword,
-    session: AsyncSessionDep,
-    user_manager: UserManager = Depends(get_user_manager),
-):
-    user = await async_db_ops.query_user_by_username(data.username)
-    if not user:
-        raise HTTPException(status_code=400, detail="User not found")
-    verified, _ = user_manager.password_helper.verify_and_update(data.old_password, user.hashed_password)
-    if not verified:
-        raise HTTPException(status_code=400, detail="Current password is incorrect")
-    user.hashed_password = user_manager.password_helper.hash(data.new_password)
-    session.add(user)
-    await session.commit()
-    return view_models.User(
-        id=str(user.id),
-        username=user.username,
-        email=user.email,
-        role=user.role,
-        is_active=user.is_active,
-        date_joined=user.date_joined.isoformat(),
-    )
-
-
-@router.delete("/users/{user_id}", tags=["users"])
-@audit(resource_type="user", api_name="DeleteUser")
-async def delete_user_view(
-    request: Request, user_id: str, session: AsyncSessionDep, user: User = Depends(get_current_admin)
-):
-    from sqlalchemy import select
-
-    result = await session.execute(select(User).where(User.id == user_id))
-    target = result.scalars().first()
-    if not target:
-        raise HTTPException(status_code=404, detail="User not found")
-    admin_count = await async_db_ops.query_admin_count()
-    if target.role == Role.ADMIN and admin_count <= 1:
-        raise HTTPException(status_code=400, detail="Cannot delete the last admin user")
-    if target.id == user.id:
-        raise HTTPException(status_code=400, detail="Cannot delete your own account")
-    await async_db_ops.delete_user(session, target)
-    return {"message": "User deleted successfully"}
 
 
 @router.post("/invite", tags=["invitations"])
@@ -517,3 +346,244 @@ async def list_invitations_view(
             )
         )
     return view_models.InvitationList(items=invitations)
+
+
+@router.post("/register", tags=["auth"])
+@audit(resource_type="user", api_name="RegisterUser")
+async def register_view(
+    request: Request,
+    data: view_models.Register,
+    session: AsyncSessionDep,
+    user_manager: UserManager = Depends(get_user_manager),
+) -> view_models.User:
+    from sqlalchemy import select
+
+    is_first_user = not await async_db_ops.query_first_user_exists()
+    need_invitation = settings.register_mode == "invitation" and not is_first_user
+    invitation = None
+    if need_invitation:
+        if not data.token:
+            raise HTTPException(status_code=400, detail="Invitation token is required")
+        if not data.email:
+            raise HTTPException(status_code=400, detail="Email is required when using invitation")
+
+        result = await session.execute(select(Invitation).where(Invitation.token == data.token))
+        invitation = result.scalars().first()
+        if not invitation or not invitation.is_valid():
+            raise HTTPException(status_code=400, detail="Invalid or expired invitation")
+        if invitation.email != data.email:
+            raise HTTPException(status_code=400, detail="Email does not match invitation")
+
+    # Check if user already exists
+    result = await session.execute(select(User).where(User.username == data.username))
+    if result.scalars().first():
+        raise HTTPException(status_code=400, detail="Username already exists")
+
+    # Only check email uniqueness if email is provided
+    if data.email:
+        result = await session.execute(select(User).where(User.email == data.email))
+        if result.scalars().first():
+            raise HTTPException(status_code=400, detail="Email already exists")
+
+    # Create user using fastapi-users
+    user_create = {
+        "username": data.username,
+        "email": data.email,
+        "password": data.password,
+        "role": invitation.role if invitation else Role.ADMIN if is_first_user else Role.RO,
+        "is_active": True,
+        "is_verified": True,
+        "date_joined": utc_now(),
+    }
+
+    user = User(**user_create)
+    user.hashed_password = user_manager.password_helper.hash(data.password)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    if invitation:
+        invitation.is_used = True
+        invitation.used_at = utc_now()
+        session.add(invitation)
+        await session.commit()
+
+    # Create default API key, bot, and initialize quotas for the new user
+    try:
+        from aperag.db.models import BotType
+        from aperag.schema.view_models import BotCreate
+        from aperag.service.bot_service import bot_service
+        from aperag.service.quota_service import quota_service
+
+        # Initialize user quotas first
+        await quota_service.initialize_user_quotas(str(user.id))
+
+        # Create a system API key for the user (not visible to user)
+        await async_db_ops.create_api_key(user=str(user.id), description="system", is_system=True)
+        # Create a normal API key for the user (visible to user)
+        await async_db_ops.create_api_key(user=str(user.id), description="default", is_system=False)
+
+        # Create a default bot for the user (skip quota check for system bot)
+        bot_create = BotCreate(
+            title="Default Agent Bot",
+            type=BotType.AGENT,
+            description="Default agent bot created on registration.",
+            collection_ids=[],
+        )
+        await bot_service.create_bot(user=str(user.id), bot_in=bot_create, skip_quota_check=True)
+
+        logger.info(f"Created default quotas, bot and api key for user {user.username} ({user.id})")
+    except Exception as e:
+        logger.error(f"Failed to create default quotas, bot and api key for user {user.username} ({user.id}): {e}")
+
+    return view_models.User(
+        id=str(user.id),
+        username=user.username,
+        email=user.email,
+        role=user.role,
+        is_active=user.is_active,
+        date_joined=user.date_joined.isoformat(),
+    )
+
+
+@router.post("/login", tags=["auth"])
+async def login_view(
+    request: Request,
+    response: Response,
+    data: view_models.Login,
+    session: AsyncSessionDep,
+    user_manager: UserManager = Depends(get_user_manager),
+) -> view_models.User:
+    from sqlalchemy import select
+
+    result = await session.execute(select(User).where(User.username == data.username))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid credentials")
+
+    # Use fastapi-users correct password verification method
+    verified, updated_password_hash = user_manager.password_helper.verify_and_update(
+        data.password, user.hashed_password
+    )
+    if not verified:
+        raise HTTPException(status_code=400, detail="Invalid credentials")
+    if updated_password_hash:
+        user.hashed_password = updated_password_hash
+        session.add(user)
+        await session.commit()
+
+    # Generate JWT token and set cookie
+    strategy = get_jwt_strategy()
+    token = await strategy.write_token(user)
+
+    # Set cookie
+    response.set_cookie(key="session", value=token, max_age=COOKIE_MAX_AGE, httponly=True, samesite="lax")
+
+    return view_models.User(
+        id=str(user.id),
+        username=user.username,
+        email=user.email,
+        role=user.role,
+        is_active=user.is_active,
+        date_joined=user.date_joined.isoformat(),
+    )
+
+
+@router.post("/logout", tags=["auth"])
+async def logout_view(response: Response):
+    # Clear authentication cookie
+    response.delete_cookie(key="session")
+    return {"success": True}
+
+
+@router.get("/user", tags=["users"])
+async def get_user_view(request: Request, session: AsyncSessionDep, user: Optional[User] = Depends(current_user)):
+    """Get user info, return 401 if not authenticated"""
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    return view_models.User(
+        id=str(user.id),
+        username=user.username,
+        email=user.email,
+        role=user.role,
+        is_active=user.is_active,
+        date_joined=user.date_joined.isoformat(),
+    )
+
+
+@router.get("/users", tags=["users"])
+async def list_users_view(
+    session: AsyncSessionDep, user: Optional[User] = Depends(current_user)
+) -> view_models.UserList:
+    from sqlalchemy import select
+
+    if user.role == Role.ADMIN:
+        result = await session.execute(select(User))
+    else:
+        result = await session.execute(select(User).where(User.id == user.id))
+
+    users = [
+        view_models.User(
+            id=str(u.id),
+            username=u.username,
+            email=u.email,
+            role=u.role,
+            is_active=u.is_active,
+            date_joined=u.date_joined.isoformat(),
+        )
+        for u in result.scalars()
+    ]
+    return view_models.UserList(items=users)
+
+
+@router.post("/change-password", tags=["auth"])
+@audit(resource_type="user", api_name="ChangePassword")
+async def change_password_view(
+    request: Request,
+    data: view_models.ChangePassword,
+    session: AsyncSessionDep,
+    user_manager: UserManager = Depends(get_user_manager),
+):
+    user = await async_db_ops.query_user_by_username(data.username)
+    if not user:
+        raise HTTPException(status_code=400, detail="User not found")
+
+    # Verify old password - use correct fastapi-users API
+    verified, _ = user_manager.password_helper.verify_and_update(data.old_password, user.hashed_password)
+    if not verified:
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+
+    # Set new password
+    user.hashed_password = user_manager.password_helper.hash(data.new_password)
+    session.add(user)
+    await session.commit()
+
+    return view_models.User(
+        id=str(user.id),
+        username=user.username,
+        email=user.email,
+        role=user.role,
+        is_active=user.is_active,
+        date_joined=user.date_joined.isoformat(),
+    )
+
+
+@router.delete("/users/{user_id}", tags=["users"])
+@audit(resource_type="user", api_name="DeleteUser")
+async def delete_user_view(
+    request: Request, user_id: str, session: AsyncSessionDep, user: User = Depends(get_current_admin)
+):
+    from sqlalchemy import select
+
+    result = await session.execute(select(User).where(User.id == user_id))
+    target = result.scalars().first()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    admin_count = await async_db_ops.query_admin_count()
+    if target.role == Role.ADMIN and admin_count <= 1:
+        raise HTTPException(status_code=400, detail="Cannot delete the last admin user")
+    if target.id == user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+    await async_db_ops.delete_user(session, target)
+    return {"message": "User deleted successfully"}

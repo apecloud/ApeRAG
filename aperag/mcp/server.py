@@ -21,7 +21,7 @@ from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_headers
 
 # Import view models for type safety
-from aperag.schema.view_models import CollectionList, SearchResult, WebReadResponse, WebSearchResponse
+from aperag.schema.view_models import CollectionViewList, SearchResult, WebReadResponse, WebSearchResponse
 
 logger = logging.getLogger(__name__)
 
@@ -41,32 +41,19 @@ async def list_collections() -> Dict[str, Any]:
         for security and optimized LLM search.
 
     Note:
-        Uses CollectionList view model for type-safe response parsing but filters
+        Uses CollectionViewList view model for type-safe response parsing but filters
         sensitive and unnecessary information.
     """
     try:
         api_key = get_api_key()
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(
                 f"{API_BASE_URL}/api/v1/collections", headers={"Authorization": f"Bearer {api_key}"}
             )
             if response.status_code == 200:
                 try:
                     # Parse response using view model for type safety
-                    collection_list = CollectionList.model_validate(response.json())
-                    
-                    # Filter collection data to only include essential information
-                    # by directly modifying the CollectionList object and setting unneeded fields to None
-                    if collection_list.items:
-                        for collection in collection_list.items:
-                            # Keep essential fields and set sensitive fields to None
-                            # This preserves the original object structure for better maintainability
-                            collection.config = None
-                            collection.created = None
-                            collection.updated = None
-                            collection.source = None
-                            # Type and status are kept for compatibility and filtering
-                    
+                    collection_list = CollectionViewList.model_validate(response.json())
                     # Return the modified object using model_dump()
                     return collection_list.model_dump()
                 except Exception as e:
@@ -85,10 +72,12 @@ async def search_collection(
     use_vector_index: bool = True,
     use_fulltext_index: bool = True,
     use_graph_index: bool = True,
+    use_summary_index: bool = True,
+    rerank: bool = True,
     topk: int = 5,
     query_keywords: list[str] = None,
 ) -> Dict[str, Any]:
-    """Search for knowledge in a specific collection using vector, full-text, and/or graph search.
+    """Search for knowledge in a specific collection using vector, full-text, graph, and/or summary search.
 
     Args:
         collection_id: The ID of the collection to search in
@@ -97,19 +86,71 @@ async def search_collection(
         use_vector_index: Whether to use vector/semantic search (default: True)
         use_fulltext_index: Whether to use full-text keyword search (default: True)
         use_graph_index: Whether to use knowledge graph search (default: True)
-        topk: Maximum number of results to return per search type (default: 10)
+        use_summary_index: Whether to use summary search (default: True)
+        rerank: Whether to enable reranking of search results for better relevance (default: True)
+        topk: Maximum number of results to return per search type (default: 5)
 
     Returns:
         Search results with relevant documents and metadata (SearchResult format)
 
     Note:
-        Uses SearchResult view model for type-safe response parsing and validation
+        Uses SearchResult view model for type-safe response parsing and validation.
+
+        ```
+        class SearchResultItem(BaseModel):
+            rank: Optional[int] = Field(None, description='Result rank')
+            score: Optional[float] = Field(None, description='Result score')
+            content: Optional[str] = Field(None, description='Result content')
+            source: Optional[str] = Field(None, description='Source document or metadata')
+            recall_type: Optional[
+                Literal['vector_search', 'graph_search', 'fulltext_search', 'summary_search']
+            ] = Field(None, description='Recall type')
+            metadata: Optional[dict[str, Any]] = Field(
+                None, description='Metadata of the result'
+            )
+
+
+        class SearchResult(BaseModel):
+            id: Optional[str] = Field(None, description='The id of the search result')
+            query: Optional[str] = None
+            vector_search: Optional[VectorSearchParams] = None
+            fulltext_search: Optional[FulltextSearchParams] = None
+            graph_search: Optional[GraphSearchParams] = None
+            summary_search: Optional[SummarySearchParams] = None
+            items: Optional[list[SearchResultItem]] = None
+            created: Optional[datetime] = Field(
+                None, description='The creation time of the search result'
+            )
+        ```
+
+        The `result.items[x].metadata["page_idx"]` field indicates that the item's content is from page `page_idx` of the document (`metadata["source"]`). Note that `page_idx` is 0-indexed.
+
+        Vector search results may include images. Images are indexed in two ways:
+        1.  A multimodal embedding model converts the image into a vector. Since text and images share the same vector space, you can use text for semantic search.
+        2.  A Vision LLM generates a text description of the image, which is then converted into a vector by a text embedding model. This also enables retrieval based on vector similarity.
+
+        If `result.items[x].metadata["indexer"]` is "vision", the item is an image.
+        - If `item.content` is empty, the image was retrieved via multimodal embedding.
+        - If `item.content` is not empty, it contains a visual description of the image.
+
+        Although the LLM's Tool message interface doesn't support direct image input (meaning you can't "see" the images, even as a vision model), you can use `item.content` to understand the image and answer questions.
+        If you reference an image in your response, include its URL so the user can see it and understand your reasoning.
+
+        If your final output is in Markdown, you can display the image using an image block, like `![](<asset_url>)`. Here's how to construct the `asset_url` in Python pseudo-code:
+
+        ```python
+        m = result.items[0].metadata
+        if m.get("asset_id") and m.get("document_id") and m.get("collection_id") and m.get("mimetype"):
+            asset_url = f"asset://{m['asset_id']}?document_id={m['document_id']}&collection_id={m['collection_id']}&mime_type={m['mimetype']}"
+        ```
+
+        The `asset_url` uses a special `asset://` scheme instead of `http/https`. This helps the front-end parse and handle it. It uses `asset_id` as the path and passes `document_id`, `collection_id`, and `mimetype` as query parameters. Note that `asset_id`, `document_id`, and `collection_id` are required to display the image and must not be omitted.
     """
     try:
         api_key = get_api_key()
 
         # Build search request based on enabled search types
-        search_data = {"query": query}
+        search_data = {"query": query, "rerank": rerank}
 
         # Add search configurations for enabled types
         if use_vector_index:
@@ -121,11 +162,15 @@ async def search_collection(
         if use_graph_index:
             search_data["graph_search"] = {"topk": topk}
 
+        if use_summary_index:
+            search_data["summary_search"] = {"topk": topk, "similarity": 0.2}
+
         # Ensure at least one search type is enabled
-        if not any([use_vector_index, use_fulltext_index, use_graph_index]):
+        if not any([use_vector_index, use_fulltext_index, use_graph_index, use_summary_index]):
             return {"error": "At least one search type must be enabled"}
 
-        async with httpx.AsyncClient() as client:
+        # Use longer timeout for search operations (graph search can be time-consuming)
+        async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
                 f"{API_BASE_URL}/api/v1/collections/{collection_id}/searches",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
@@ -204,7 +249,8 @@ async def web_search(
         if search_llms_txt and search_llms_txt.strip():
             search_data["search_llms_txt"] = search_llms_txt.strip()
 
-        async with httpx.AsyncClient() as client:
+        # Use longer timeout for web search operations
+        async with httpx.AsyncClient(timeout=90.0) as client:
             response = await client.post(
                 f"{API_BASE_URL}/api/v1/web/search",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
@@ -260,7 +306,8 @@ async def web_read(
             "max_concurrent": max_concurrent,
         }
 
-        async with httpx.AsyncClient() as client:
+        # Use longer timeout for web content reading operations
+        async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 f"{API_BASE_URL}/api/v1/web/read",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
@@ -306,15 +353,19 @@ The server will automatically try both methods in order of preference.
 1. First, get available collections with essential information: `list_collections()`
 2. Choose a collection from the list
 3. Search the collection: `search_collection(collection_id="abc123", query="your question")`
-   (By default, all search types are enabled for comprehensive results)
+   (By default, vector search, graph search, and reranking are enabled for optimal performance)
 
 ## Search Types:
 You can enable/disable any combination of search methods:
-- **Vector search** (use_vector_index): Semantic similarity search using embeddings
-- **Full-text search** (use_fulltext_index): Traditional keyword-based text search
-- **Graph search** (use_graph_index): Knowledge graph-based search
+- **Vector search** (use_vector_index): Semantic similarity search using embeddings (default: True)
+- **Full-text search** (use_fulltext_index): Traditional keyword-based text search (default: True)
+- **Graph search** (use_graph_index): Knowledge graph-based search (default: True)
+- **Summary search** (use_summary_index): Search through document summaries (default: True)
+- **Reranking** (rerank): AI-powered reranking for improved result relevance (default: True)
 
-By default, all three search types are enabled for comprehensive results (hybrid search).
+⚠️ **Important**: Full-text search can return large amounts of text content which may cause context window overflow with smaller LLM models. Use with caution and consider reducing topk when enabling fulltext search.
+
+By default, vector search, full-text search, graph search, summary search, and reranking are enabled for comprehensive search coverage.
 
 ## Example Workflow:
 ```
@@ -325,13 +376,15 @@ collections = list_collections()
 # (collections.items contains collection ID, title, and description)
 collection_id = collections.items[0].id
 
-# Step 3: Search with all methods (hybrid search)
+# Step 3: Search with default methods (vector + fulltext + graph + summary + rerank)
 results = search_collection(
     collection_id=collection_id,
     query="How to deploy applications?",
     use_vector_index=True,
     use_fulltext_index=True,
     use_graph_index=True,
+    use_summary_index=True,
+    rerank=True,
     topk=5
 )
 
@@ -342,7 +395,20 @@ vector_only = search_collection(
     use_vector_index=True,
     use_fulltext_index=False,
     use_graph_index=False,
+    rerank=True,  # Rerank still enabled for better results
     topk=10
+)
+
+# Enable summary search for high-level document overviews
+summary_search = search_collection(
+    collection_id=collection_id,
+    query="project overview",
+    use_vector_index=True,
+    use_fulltext_index=True,
+    use_graph_index=True,
+    use_summary_index=True,  # Enable summary search
+    rerank=True,
+    topk=5
 )
 ```
 
@@ -415,7 +481,7 @@ for result in content.results:
 ```
 # 1. Search web for recent information with LLM.txt discovery
 web_results = web_search(
-    query="latest AI developments 2025", 
+    query="latest AI developments 2025",
     source="anthropic.com",  # limit regular search to Anthropic's content
     search_llms_txt="anthropic.com",  # discover LLM-optimized content from Anthropic
     max_results=3
@@ -433,6 +499,7 @@ if collections.items:
     internal_results = search_collection(
         collection_id=collections.items[0].id,
         query="AI developments",
+        rerank=True,  # Default rerank for better results
         topk=5
     )
 

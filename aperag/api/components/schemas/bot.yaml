@@ -26,6 +26,7 @@ botCreate:
       enum:
         - knowledge
         - common
+        - agent
     config:
       type: string
     collection_ids:
@@ -47,6 +48,7 @@ botUpdate:
       enum:
         - knowledge
         - common
+        - agent
     config:
       type: string
     collection_ids:
@@ -68,6 +70,7 @@ bot:
       enum:
         - knowledge
         - common
+        - agent
     config:
       type: string
     collection_ids:

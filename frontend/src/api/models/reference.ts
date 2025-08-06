@@ -34,9 +34,15 @@ export interface Reference {
     'text'?: string;
     /**
      * 
-     * @type {object}
+     * @type {string}
      * @memberof Reference
      */
-    'metadata'?: object;
+    'image_uri'?: string;
+    /**
+     * 
+     * @type {{ [key: string]: any; }}
+     * @memberof Reference
+     */
+    'metadata'?: { [key: string]: any; };
 }
 

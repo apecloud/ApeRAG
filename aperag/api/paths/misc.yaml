@@ -1,0 +1,33 @@
+test_mineru_token:
+  post:
+    summary: Test MinerU API Token
+    description: Test the connectivity of the MinerU API Token
+    security:
+      - BearerAuth: []
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              token:
+                type: string
+    responses:
+      '200':
+        description: Token test result
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status_code:
+                  type: integer
+                data:
+                  type: object
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'

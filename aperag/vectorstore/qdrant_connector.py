@@ -52,6 +52,7 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
         consistency = kwargs.get("consistency", "majority")
         search_params = kwargs.get("search_params")
         score_threshold = kwargs.get("score_threshold", 0.1)
+        filter_conditions = kwargs.get("filter")
 
         hits = self.client.query_points(
             collection_name=self.collection_name,
@@ -61,6 +62,7 @@ class QdrantVectorStoreConnector(VectorStoreConnector):
             consistency=consistency,
             search_params=search_params,
             score_threshold=score_threshold,
+            query_filter=filter_conditions,
         )
 
         results = [self._convert_scored_point_to_document_with_score(point) for point in hits.points]

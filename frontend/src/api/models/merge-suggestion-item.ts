@@ -78,12 +78,6 @@ export interface MergeSuggestionItem {
      */
     'created': string;
     /**
-     * Expiration timestamp
-     * @type {string}
-     * @memberof MergeSuggestionItem
-     */
-    'expires_at': string;
-    /**
      * User operation timestamp
      * @type {string}
      * @memberof MergeSuggestionItem

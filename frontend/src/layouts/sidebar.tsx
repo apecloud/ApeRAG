@@ -1,5 +1,6 @@
 import { SIDEBAR_WIDTH, TOPBAR_HEIGHT } from '@/constants';
 import { getLogo } from '@/utils';
+import { AppstoreOutlined, ShopOutlined } from '@ant-design/icons';
 import { GlobalToken, Image, theme, Tooltip } from 'antd';
 import { BsChatText, BsFiletypeDoc, BsGear } from 'react-icons/bs';
 import { css, Link, styled, useIntl, useLocation, useModel } from 'umi';
@@ -72,18 +73,29 @@ export const Sidebar = ({ topbar }: { topbar: boolean }) => {
   const { token } = theme.useToken();
   const { formatMessage } = useIntl();
   const { themeName } = useModel('global');
+  const { user } = useModel('user');
   const location = useLocation();
 
   const sidebar_items = [
     {
-      path: '/bots',
+      path: '/agent',
       icon: <BsChatText />,
+      label: formatMessage({ id: 'bot.type_agent' }),
+    },
+    {
+      path: '/bots',
+      icon: <AppstoreOutlined />,
       label: formatMessage({ id: 'bot.name_short' }),
     },
     {
       path: '/collections',
       icon: <BsFiletypeDoc />,
       label: formatMessage({ id: 'collection.name' }),
+    },
+    {
+      path: '/marketplace',
+      icon: <ShopOutlined />,
+      label: formatMessage({ id: 'collection.marketplace.title' }),
     },
   ];
 

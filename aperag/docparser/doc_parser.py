@@ -80,16 +80,19 @@ class DocParser(BaseParser):
         # Dynamically update parser configs based on collection settings
         for cfg in self.config:
             if cfg.name == MinerUParser.name:
-                use_mineru = parser_config.get("use_mineru", False)
-                if use_mineru:
-                    cfg.enabled = True
+                use_mineru = parser_config.get("use_mineru", False) or os.getenv("USE_MINERU_API", False)
+                if not use_mineru:
+                    cfg.enabled = False
+                    continue
 
-                token_from_env = os.getenv("MINERU_API_TOKEN")
-                token = parser_config.get("mineru_api_token") or token_from_env
-                if token is not None:
+                token = parser_config.get("mineru_api_token") or os.getenv("MINERU_API_TOKEN")
+                if token:
+                    cfg.enabled = True
                     if cfg.settings is None:
                         cfg.settings = {}
                     cfg.settings["api_token"] = token
+                else:
+                    cfg.enabled = False
 
         for cfg in self.config:
             if not cfg.enabled:

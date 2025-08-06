@@ -59,6 +59,15 @@ class VectorIndexer(BaseIndexer):
                 collection=generate_vector_db_collection_name(collection_id=collection.id)
             )
 
+            # Filter out non-text parts
+            doc_parts = [part for part in doc_parts if hasattr(part, "content") and part.content]
+
+            # Add indexer metadata to parts for proper identification
+            for part in doc_parts:
+                if not hasattr(part, "metadata"):
+                    part.metadata = {}
+                part.metadata["indexer"] = "vector"
+
             # Generate embeddings and store in vector database
             ctx_ids = create_embeddings_and_store(
                 parts=doc_parts,
@@ -74,7 +83,7 @@ class VectorIndexer(BaseIndexer):
             return IndexResult(
                 success=True,
                 index_type=self.index_type,
-                data={"context_ids": ctx_ids, "has_pdf_source_map": self.has_pdf_source_map(doc_parts)},
+                data={"context_ids": ctx_ids},
                 metadata={
                     "vector_count": len(ctx_ids),
                     "vector_size": vector_size,
@@ -131,6 +140,15 @@ class VectorIndexer(BaseIndexer):
                 vector_store_adaptor.connector.delete(ids=old_ctx_ids)
                 logger.info(f"Deleted {len(old_ctx_ids)} old vectors for document {document_id}")
 
+            # Filter out non-text parts
+            doc_parts = [part for part in doc_parts if hasattr(part, "content") and part.content]
+
+            # Add indexer metadata to parts for proper identification
+            for part in doc_parts:
+                if not hasattr(part, "metadata"):
+                    part.metadata = {}
+                part.metadata["indexer"] = "vector"
+
             # Create new vectors
             embedding_model, vector_size = get_collection_embedding_service_sync(collection)
             ctx_ids = create_embeddings_and_store(
@@ -147,7 +165,7 @@ class VectorIndexer(BaseIndexer):
             return IndexResult(
                 success=True,
                 index_type=self.index_type,
-                data={"context_ids": ctx_ids, "has_pdf_source_map": self.has_pdf_source_map(doc_parts)},
+                data={"context_ids": ctx_ids},
                 metadata={
                     "vector_count": len(ctx_ids),
                     "old_vector_count": len(old_ctx_ids),
@@ -217,13 +235,6 @@ class VectorIndexer(BaseIndexer):
             return IndexResult(
                 success=False, index_type=self.index_type, error=f"Vector index deletion failed: {str(e)}"
             )
-
-    def has_pdf_source_map(self, doc_parts: List[Any]) -> bool:
-        # HACK: This method is placed here for chunk visualization, for convenience.
-        for part in doc_parts:
-            if hasattr(part, "metadata") and part.metadata.get("pdf_source_map") is not None:
-                return True
-        return False
 
 
 # Global instance

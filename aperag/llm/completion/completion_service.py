@@ -34,6 +34,7 @@ class CompletionService:
         api_key: str,
         temperature: float = 0.1,
         max_tokens: Optional[int] = None,
+        vision: bool = False,
         caching: bool = True,
     ):
         super().__init__()
@@ -43,16 +44,36 @@ class CompletionService:
         self.api_key = api_key
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.vision = vision
         self.caching = caching
 
-    def _validate_inputs(self, prompt) -> None:
-        """Validate input parameters."""
-        if not prompt or not prompt.strip():
-            raise InvalidPromptError("Prompt cannot be empty", prompt[:100] if prompt else "")
+    def is_vision_model(self) -> bool:
+        return self.vision
 
-    def _build_messages(self, history, prompt, memory=False) -> List[Dict[str, str]]:
+    def _validate_inputs(self, prompt: Optional[str], images: Optional[List[str]] = None) -> None:
+        """Validate input parameters."""
+        if not self.vision:
+            images = []
+        if not images and (not prompt or not prompt.strip()):
+            raise InvalidPromptError(
+                "Prompt cannot be empty when no images are provided", prompt[:100] if prompt else ""
+            )
+
+    def _build_messages(
+        self, history: List[Dict], prompt: Optional[str], images: Optional[List[str]] = None, memory: bool = False
+    ) -> List[Dict]:
         """Build the messages array for the API call."""
-        return history + [{"role": "user", "content": prompt}] if memory else [{"role": "user", "content": prompt}]
+        if self.vision and images:
+            content: List[Dict[str, Any]] = []
+            if prompt:
+                content.append({"type": "text", "text": prompt})
+            for image_data in images:
+                content.append({"type": "image_url", "image_url": image_data})
+            user_message = {"role": "user", "content": content}
+        else:
+            user_message = {"role": "user", "content": prompt}
+
+        return history + [user_message] if memory else [user_message]
 
     def _extract_content_from_response(self, response: Any) -> str:
         """Extract content from non-streaming response."""
@@ -70,11 +91,13 @@ class CompletionService:
         else:
             raise CompletionError("No content in completion response")
 
-    async def _acompletion_non_stream(self, history, prompt, memory=False) -> str:
+    async def _acompletion_non_stream(
+        self, history: List[Dict], prompt: str, images: Optional[List[str]] = None, memory: bool = False
+    ) -> str:
         """Core async completion method for non-streaming responses."""
         try:
-            self._validate_inputs(prompt)
-            messages = self._build_messages(history, prompt, memory)
+            self._validate_inputs(prompt, images)
+            messages = self._build_messages(history, prompt, images, memory)
 
             response = await litellm.acompletion(
                 custom_llm_provider=self.provider,
@@ -97,11 +120,13 @@ class CompletionService:
             logger.error(f"Async completion generation failed: {str(e)}")
             raise wrap_litellm_error(e, "completion", self.provider, self.model) from e
 
-    async def _acompletion_stream_raw(self, history, prompt, memory=False) -> AsyncGenerator[str, None]:
+    async def _acompletion_stream_raw(
+        self, history: List[Dict], prompt: str, images: Optional[List[str]] = None, memory: bool = False
+    ) -> AsyncGenerator[str, None]:
         """Core async completion method for streaming responses."""
         try:
-            self._validate_inputs(prompt)
-            messages = self._build_messages(history, prompt, memory)
+            self._validate_inputs(prompt, images)
+            messages = self._build_messages(history, prompt, images, memory)
 
             response = await litellm.acompletion(
                 custom_llm_provider=self.provider,
@@ -137,11 +162,13 @@ class CompletionService:
             logger.error(f"Async streaming generation failed: {str(e)}")
             raise wrap_litellm_error(e, "completion", self.provider, self.model) from e
 
-    def _completion_core(self, history, prompt, memory=False) -> str:
+    def _completion_core(
+        self, history: List[Dict], prompt: str, images: Optional[List[str]] = None, memory: bool = False
+    ) -> str:
         """Core sync completion method (non-streaming only)."""
         try:
-            self._validate_inputs(prompt)
-            messages = self._build_messages(history, prompt, memory)
+            self._validate_inputs(prompt, images)
+            messages = self._build_messages(history, prompt, images, memory)
 
             response = litellm.completion(
                 custom_llm_provider=self.provider,
@@ -164,15 +191,21 @@ class CompletionService:
             logger.error(f"Sync completion generation failed: {str(e)}")
             raise wrap_litellm_error(e, "completion", self.provider, self.model) from e
 
-    async def agenerate_stream(self, history, prompt, memory=False) -> AsyncGenerator[str, None]:
+    async def agenerate_stream(
+        self, history: List[Dict], prompt: str, images: Optional[List[str]] = None, memory: bool = False
+    ) -> AsyncGenerator[str, None]:
         """Generate streaming response (async)."""
-        async for chunk in self._acompletion_stream_raw(history, prompt, memory):
+        async for chunk in self._acompletion_stream_raw(history, prompt, images, memory):
             yield chunk
 
-    async def agenerate(self, history, prompt, memory=False) -> str:
+    async def agenerate(
+        self, history: List[Dict], prompt: str, images: Optional[List[str]] = None, memory: bool = False
+    ) -> str:
         """Generate complete response (async, non-streaming)."""
-        return await self._acompletion_non_stream(history, prompt, memory)
+        return await self._acompletion_non_stream(history, prompt, images, memory)
 
-    def generate(self, history, prompt, memory=False) -> str:
+    def generate(
+        self, history: List[Dict], prompt: str, images: Optional[List[str]] = None, memory: bool = False
+    ) -> str:
         """Generate complete response (sync, non-streaming)."""
-        return self._completion_core(history, prompt, memory)
+        return self._completion_core(history, prompt, images, memory)

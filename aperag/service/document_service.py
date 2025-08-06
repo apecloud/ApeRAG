@@ -38,8 +38,7 @@ from aperag.exceptions import (
 from aperag.index.manager import document_index_manager
 from aperag.objectstore.base import get_async_object_store
 from aperag.schema import view_models
-from aperag.schema.view_models import Chunk, DocumentList, DocumentPreview
-from aperag.utils.constant import QuotaType
+from aperag.schema.view_models import Chunk, DocumentList, DocumentPreview, VisionChunk
 from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
 from aperag.utils.utils import generate_vector_db_collection_name, utc_now
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
@@ -133,7 +132,7 @@ class DocumentService:
                 if doc.id not in documents_dict:
                     documents_dict[doc.id] = doc
                     # Initialize index information for all types
-                    doc.indexes = {"VECTOR": None, "FULLTEXT": None, "GRAPH": None, "SUMMARY": None}
+                    doc.indexes = {"VECTOR": None, "FULLTEXT": None, "GRAPH": None, "SUMMARY": None, "VISION": None}
 
                 # Add index information if exists
                 if row.index_type:
@@ -155,7 +154,9 @@ class DocumentService:
         Build document response object with all index types information.
         """
         # Get all index information if available
-        indexes = getattr(document, "indexes", {"VECTOR": None, "FULLTEXT": None, "GRAPH": None, "SUMMARY": None})
+        indexes = getattr(
+            document, "indexes", {"VECTOR": None, "FULLTEXT": None, "GRAPH": None, "SUMMARY": None, "VISION": None}
+        )
 
         # Parse summary from SUMMARY index's index_data
         summary = None
@@ -184,6 +185,8 @@ class DocumentService:
             # Summary index information
             summary_index_status=indexes["SUMMARY"]["status"] if indexes.get("SUMMARY") else "SKIPPED",
             summary_index_updated=indexes["SUMMARY"]["updated_at"] if indexes.get("SUMMARY") else None,
+            vision_index_status=indexes["VISION"]["status"] if indexes.get("VISION") else "SKIPPED",
+            vision_index_updated=indexes["VISION"]["updated_at"] if indexes.get("VISION") else None,
             summary=summary,  # Parse from index_data
             size=document.size,
             created=document.gmt_created,
@@ -203,12 +206,7 @@ class DocumentService:
         if collection.status != db_models.CollectionStatus.ACTIVE:
             raise CollectionInactiveException(collection_id)
 
-        if settings.max_document_count:
-            document_limit = await self.db_ops.query_user_quota(user, QuotaType.MAX_DOCUMENT_COUNT)
-            if document_limit is None:
-                document_limit = settings.max_document_count
-            if await self.db_ops.query_documents_count(user, collection_id) >= document_limit:
-                raise QuotaExceededException("document", document_limit)
+        # Quota checks will be done within the transaction
 
         supported_file_extensions = DocParser().supported_extensions()
         supported_file_extensions += SUPPORTED_COMPRESSED_EXTENSIONS
@@ -236,6 +234,32 @@ class DocumentService:
         # Process all files in a single transaction for atomicity
         async def _create_documents_atomically(session):
             from aperag.db.models import Document, DocumentStatus
+            from aperag.service.quota_service import quota_service
+
+            # Check and consume quotas first within the transaction
+            await quota_service.check_and_consume_quota(user, "max_document_count", len(files), session)
+
+            # Check per-collection quota by counting existing documents in this collection
+            from sqlalchemy import func, select
+
+            stmt = (
+                select(func.count())
+                .select_from(Document)
+                .where(Document.collection_id == collection_id, Document.status != DocumentStatus.DELETED)
+            )
+            existing_doc_count = await session.scalar(stmt)
+
+            # Get per-collection quota limit
+            from aperag.db.models import UserQuota
+
+            stmt = select(UserQuota).where(UserQuota.user == user, UserQuota.key == "max_document_count_per_collection")
+            result = await session.execute(stmt)
+            per_collection_quota = result.scalars().first()
+
+            if per_collection_quota and (existing_doc_count + len(files)) > per_collection_quota.quota_limit:
+                raise QuotaExceededException(
+                    "max_document_count_per_collection", per_collection_quota.quota_limit, existing_doc_count
+                )
 
             documents_created = []
             async_obj_store = get_async_object_store()
@@ -278,6 +302,9 @@ class DocumentService:
 
                     if collection_config.get("enable_summary", False):
                         index_types.append(db_models.DocumentIndexType.SUMMARY)
+
+                    if collection_config.get("enable_vision", False):
+                        index_types.append(db_models.DocumentIndexType.VISION)
 
                     # Use index manager to create indexes with new status model
                     await document_index_manager.create_or_update_document_indexes(
@@ -356,6 +383,12 @@ class DocumentService:
         document.status = db_models.DocumentStatus.DELETED
         document.gmt_deleted = utc_now()
         session.add(document)
+
+        # Release quota within the same transaction
+        from aperag.service.quota_service import quota_service
+
+        await quota_service.release_quota(user, "max_document_count", 1, session)
+
         await session.flush()
         logger.info(f"Successfully marked document {document.id} as deleted.")
 
@@ -419,6 +452,8 @@ class DocumentService:
                 index_type_enums.append(DocumentIndexType.GRAPH)
             elif index_type == "SUMMARY":
                 index_type_enums.append(DocumentIndexType.SUMMARY)
+            elif index_type == "VISION":
+                index_type_enums.append(DocumentIndexType.VISION)
             else:
                 raise invalid_param("index_type", f"Invalid index type: {index_type}")
 
@@ -451,18 +486,7 @@ class DocumentService:
 
         # Use database operations with proper session management
         async def _get_document_chunks(session):
-            # 1. Get the document to verify ownership and get collection_id
-            stmt = select(db_models.Document).filter(
-                db_models.Document.id == document_id,
-                db_models.Document.collection_id == collection_id,
-                db_models.Document.user == user_id,
-            )
-            result = await session.execute(stmt)
-            document = result.scalars().first()
-            if not document:
-                raise DocumentNotFoundException(document_id)
-
-            # 2. Get the chunk IDs (ctx_ids) from the document_index table
+            # 1. Get the chunk IDs (ctx_ids) from the document_index table
             stmt = select(db_models.DocumentIndex).filter(
                 db_models.DocumentIndex.document_id == document_id,
                 db_models.DocumentIndex.index_type == db_models.DocumentIndexType.VECTOR,
@@ -482,9 +506,9 @@ class DocumentService:
             if not ctx_ids:
                 return []
 
-            # 3. Retrieve chunks from Qdrant
+            # 2. Retrieve chunks from Qdrant
             try:
-                collection_name = generate_vector_db_collection_name(collection_id=document.collection_id)
+                collection_name = generate_vector_db_collection_name(collection_id=collection_id)
                 ctx = json.loads(settings.vector_db_context)
                 ctx["collection"] = collection_name
                 vector_store_adaptor = VectorStoreConnectorAdaptor(settings.vector_db_type, ctx=ctx)
@@ -496,7 +520,7 @@ class DocumentService:
                     with_payload=True,
                 )
 
-                # 4. Format the response
+                # 3. Format the response
                 chunks = []
                 for point in points:
                     if point.payload:
@@ -534,6 +558,88 @@ class DocumentService:
         # Execute query with proper session management
         return await self.db_ops._execute_query(_get_document_chunks)
 
+    async def get_document_vision_chunks(self, user_id: str, collection_id: str, document_id: str) -> List[VisionChunk]:
+        """
+        Get all vision chunks of a document.
+        """
+
+        async def _get_document_vision_chunks(session):
+            # 1. Get the chunk IDs (ctx_ids) from the document_index table
+            stmt = select(db_models.DocumentIndex).filter(
+                db_models.DocumentIndex.document_id == document_id,
+                db_models.DocumentIndex.index_type == db_models.DocumentIndexType.VISION,
+            )
+            result = await session.execute(stmt)
+            doc_index = result.scalars().first()
+
+            if not doc_index or not doc_index.index_data:
+                return []
+
+            try:
+                index_data = json.loads(doc_index.index_data)
+                ctx_ids = index_data.get("context_ids", [])
+            except (json.JSONDecodeError, AttributeError):
+                return []
+
+            if not ctx_ids:
+                return []
+
+            # 2. Retrieve chunks from Qdrant
+            try:
+                collection_name = generate_vector_db_collection_name(collection_id=collection_id)
+                ctx = json.loads(settings.vector_db_context)
+                ctx["collection"] = collection_name
+                vector_store_adaptor = VectorStoreConnectorAdaptor(settings.vector_db_type, ctx=ctx)
+                qdrant_client = vector_store_adaptor.connector.client
+
+                points = qdrant_client.retrieve(
+                    collection_name=collection_name,
+                    ids=ctx_ids,
+                    with_payload=True,
+                )
+
+                # 3. Format the response
+                vision_chunks = []
+                for point in points:
+                    if point.payload:
+                        # In llama-index-0.10.13, the payload is stored in _node_content
+                        node_content = point.payload.get("_node_content")
+                        if node_content and isinstance(node_content, str):
+                            try:
+                                payload_data = json.loads(node_content)
+                                metadata = payload_data.get("metadata", {})
+                                if metadata.get("index_method") == "vision_to_text":
+                                    vision_chunks.append(
+                                        VisionChunk(
+                                            id=point.id,
+                                            asset_id=metadata.get("asset_id"),
+                                            text=payload_data.get("text", ""),
+                                            metadata=metadata,
+                                        )
+                                    )
+                            except json.JSONDecodeError:
+                                logger.warning(f"Could not parse _node_content for point {point.id}")
+                        else:
+                            # Fallback for older or different data structures
+                            metadata = point.payload.get("metadata", {})
+                            if metadata.get("index_method") == "vision_to_text":
+                                vision_chunks.append(
+                                    VisionChunk(
+                                        id=point.id,
+                                        asset_id=metadata.get("asset_id"),
+                                        text=point.payload.get("text", ""),
+                                        metadata=metadata,
+                                    )
+                                )
+                return vision_chunks
+            except Exception as e:
+                logger.error(
+                    f"Failed to retrieve vision chunks from vector store for document {document_id}: {e}", exc_info=True
+                )
+                raise HTTPException(status_code=500, detail="Failed to retrieve vision chunks from vector store")
+
+        return await self.db_ops._execute_query(_get_document_vision_chunks)
+
     async def get_document_preview(self, user_id: str, collection_id: str, document_id: str) -> DocumentPreview:
         """
         Get all preview-related information for a document.
@@ -552,15 +658,9 @@ class DocumentService:
             if not document:
                 raise DocumentNotFoundException(document_id)
 
-            index_stmt = select(db_models.DocumentIndex).filter(
-                db_models.DocumentIndex.document_id == document_id,
-                db_models.DocumentIndex.index_type == db_models.DocumentIndexType.VECTOR,
-            )
-            index_result = await session.execute(index_stmt)
-            doc_index = index_result.scalars().first()
-
             # 2. Get chunks
             chunks = await self.get_document_chunks(user_id, collection_id, document_id)
+            vision_chunks = await self.get_document_vision_chunks(user_id, collection_id, document_id)
 
             # 3. Get markdown content
             async_obj_store = get_async_object_store()
@@ -584,16 +684,13 @@ class DocumentService:
             if doc_object_path:
                 doc_object_path = os.path.basename(doc_object_path)
 
+            # Return the converted PDF if it's available.
             converted_pdf_object_path = None
-            index_data = json.loads(doc_index.index_data) if doc_index and doc_index.index_data else {}
-            if index_data.get("has_pdf_source_map"):
-                # If the parsing result contains pdf_source_map metadata,
-                # it means it is a PDF or has been converted to a PDF.
-                converted_pdf_name = "converted.pdf"
-                pdf_path = f"{document.object_store_base_path()}/{converted_pdf_name}"
-                exists = await async_obj_store.obj_exists(pdf_path)
-                if exists:
-                    converted_pdf_object_path = converted_pdf_name
+            converted_pdf_name = "converted.pdf"
+            pdf_path = f"{document.object_store_base_path()}/{converted_pdf_name}"
+            exists = await async_obj_store.obj_exists(pdf_path)
+            if exists:
+                converted_pdf_object_path = converted_pdf_name
 
             # 5. Construct and return response
             return DocumentPreview(
@@ -602,6 +699,7 @@ class DocumentService:
                 converted_pdf_object_path=converted_pdf_object_path,
                 markdown_content=markdown_content,
                 chunks=chunks,
+                vision_chunks=vision_chunks,
             )
 
         # Execute query with proper session management

@@ -72,6 +72,9 @@ class ParsedDocumentData:
             if hasattr(part, "to_dict"):
                 # If the part has a to_dict method, use it
                 serialized_parts.append(part.to_dict())
+            elif hasattr(part, "model_dump"):
+                # If the part has a model_dump() method (pydantic), use it
+                serialized_parts.append(part.model_dump())
             elif hasattr(part, "__dict__"):
                 # If it's an object with attributes, convert to dict
                 part_dict = {}

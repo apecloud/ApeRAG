@@ -27,8 +27,12 @@ export const LayoutCollection = () => {
   const [modal, contextHolder] = Modal.useModal();
   const { formatMessage } = useIntl();
   const { collectionId } = useParams();
-  const { collection, deleteCollection, getCollection, setCollection } =
-    useModel('collection');
+  const { 
+    collection, 
+    deleteCollection, 
+    getCollection, 
+    setCollection,
+  } = useModel('collection');
 
   const clearInterval = useInterval(() => {
     if (collectionId && collection?.status !== 'ACTIVE') {
@@ -52,6 +56,8 @@ export const LayoutCollection = () => {
       history.push('/collections');
     }
   }, [collection]);
+
+
 
   const config = useMemo(() => collection?.config, [collection]);
 
@@ -115,6 +121,7 @@ export const LayoutCollection = () => {
               />
             </div>
           </Tooltip>
+
           <Tooltip title={formatMessage({ id: 'collection.delete' })}>
             <Button
               icon={<DeleteOutlined />}

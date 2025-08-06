@@ -17,9 +17,8 @@
 import logging
 from threading import Lock
 
-from langchain_core.embeddings import Embeddings
-
 from aperag.config import settings
+from aperag.db.models import APIType
 from aperag.db.ops import db_ops
 from aperag.llm.embed.embedding_service import EmbeddingService
 from aperag.llm.llm_error_types import (
@@ -92,7 +91,8 @@ def _get_embedding_model(
     embedding_service_url: str,
     embedding_service_api_key: str,
     embedding_max_chunks_in_batch: int = settings.embedding_max_chunks_in_batch,
-) -> tuple[Embeddings | None, int]:
+    multimodal: bool = False,
+) -> tuple[EmbeddingService | None, int]:
     """
     Create and configure an embedding model instance.
 
@@ -116,6 +116,7 @@ def _get_embedding_model(
             embedding_service_url,
             embedding_service_api_key,
             embedding_max_chunks_in_batch,
+            multimodal=multimodal,
         )
         embedding_dim = _get_embedding_dimension(embedding_svc, embedding_provider, embedding_model)
         return embedding_svc, embedding_dim
@@ -130,7 +131,7 @@ def _get_embedding_model(
         ) from e
 
 
-def get_collection_embedding_service_sync(collection) -> tuple[Embeddings, int]:
+def get_collection_embedding_service_sync(collection) -> tuple[EmbeddingService, int]:
     """
     Get embedding service for a collection synchronously.
 
@@ -187,6 +188,15 @@ def get_collection_embedding_service_sync(collection) -> tuple[Embeddings, int]:
         logger.error(f"Failed to query LLM provider '{embedding_msp}': {str(e)}")
         raise ProviderNotFoundError(embedding_msp, "Embedding") from e
 
+    try:
+        multimodal = False
+        model = db_ops.query_llm_provider_model(embedding_msp, APIType.EMBEDDING.value, embedding_model_name)
+        if model:
+            multimodal = model.has_tag("multimodal")
+    except Exception:
+        logger.error(f"Failed to query embedding model '{embedding_msp}/{embedding_model_name}'", exc_info=True)
+        raise
+
     if not embedding_service_url:
         raise InvalidConfigurationError(
             "base_url", embedding_service_url, f"Base URL not configured for provider '{embedding_msp}'"
@@ -200,6 +210,7 @@ def get_collection_embedding_service_sync(collection) -> tuple[Embeddings, int]:
             embedding_model=embedding_model_name,
             embedding_service_url=embedding_service_url,
             embedding_service_api_key=embedding_service_api_key,
+            multimodal=multimodal,
         )
     except EmbeddingError:
         # Re-raise embedding errors

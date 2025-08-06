@@ -14,12 +14,19 @@
 
 import json
 import logging
+import time
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
-from langchain.schema.messages import AIMessage, BaseMessage, ChatMessage, FunctionMessage, HumanMessage, SystemMessage
+from langchain.schema import AIMessage, BaseMessage, ChatMessage, FunctionMessage, HumanMessage, SystemMessage
 
-from aperag.utils.utils import now_unix_milliseconds
+from aperag.chat.history import (
+    StoredChatMessage,
+    create_assistant_message,
+    create_user_message,
+    message_to_storage_dict,
+    storage_dict_to_message,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,37 +59,39 @@ class BaseChatMessageHistory(ABC):
                        f.write("[]")
     """
 
-    async def add_user_message(self, message: str) -> None:
+    async def add_user_message(self, message: str, message_id: str) -> None:
         """Convenience method for adding a human message string to the store.
 
         Args:
             message: The string contents of a human message.
         """
-        await self.add_message(HumanMessage(content=message))
+        raise NotImplementedError()
 
-    async def add_ai_message(self, message: str) -> None:
+    async def add_ai_message(
+        self,
+        content: str,
+        chat_id: str,
+        message_id: str = None,
+        tool_use_list: List = None,
+        references: List[Dict[str, Any]] = None,
+        urls: List[str] = None,
+        trace_id: Optional[str] = None,
+        metadata: Optional[Dict] = None,
+    ) -> None:
         """Convenience method for adding an AI message string to the store.
 
         Args:
             message: The string contents of an AI message.
-        """
-        await self.add_message(AIMessage(content=message))
-
-    @abstractmethod
-    async def add_message(self, message: BaseMessage) -> None:
-        """Add a Message object to the store.
-
-        Args:
-            message: A BaseMessage object to store.
         """
         raise NotImplementedError()
 
     @abstractmethod
     async def clear(self) -> None:
         """Remove all messages from the store"""
+        raise NotImplementedError()
 
     @property
-    async def messages(self) -> List[BaseMessage]:
+    async def messages(self) -> List[StoredChatMessage]:
         """Retrieve all messages from the store.
 
         Returns:
@@ -108,7 +117,7 @@ async def message_from_dict(message: dict) -> BaseMessage:
 
 
 class RedisChatMessageHistory:
-    """Chat message history stored in a Redis database."""
+    """Chat message history stored in a Redis database using ApeRAG StoredChatMessage format."""
 
     def __init__(
         self,
@@ -139,28 +148,59 @@ class RedisChatMessageHistory:
         return self.key_prefix + self.session_id
 
     @property
-    async def messages(self) -> List[BaseMessage]:
-        """Retrieve the messages from Redis"""
+    async def messages(self) -> List[StoredChatMessage]:
+        """Retrieve the messages from Redis as StoredChatMessage objects"""
         _items = await self.redis_client.lrange(self.key, 0, -1)
-        items = [json.loads(m.decode("utf-8")) for m in _items[::-1]]
+        items = [json.loads(m.decode("utf-8")) for m in _items[::-1]]  # Reverse to get chronological order
         messages = []
-        for m in items:
-            message = await message_from_dict(m)
-            messages.append(message)
+        for item in items:
+            try:
+                message = storage_dict_to_message(item)
+                messages.append(message)
+            except Exception as e:
+                logger.warning(f"Failed to parse message in history for {self.session_id}: {e}")
+                continue
         return messages
 
-    async def add_message(self, message: BaseMessage) -> None:
-        """Append the message to the record in Redis"""
-        message_json = json.dumps({"type": message.type, "data": message.model_dump()})
+    async def add_stored_message(self, message: StoredChatMessage) -> None:
+        """Add a StoredChatMessage directly to Redis"""
+        message_json = json.dumps(message_to_storage_dict(message))
         await self.redis_client.lpush(self.key, message_json)
         if self.ttl:
             await self.redis_client.expire(self.key, self.ttl)
 
-    async def add_user_message(self, message: str) -> None:
-        await self.add_message(HumanMessage(content=message))
+    async def add_user_message(self, message: str, message_id: str) -> None:
+        """Add a user message using new format"""
+        stored_message = create_user_message(
+            content=message,
+            chat_id=self.session_id,
+            message_id=message_id,
+        )
+        await self.add_stored_message(stored_message)
 
-    async def add_ai_message(self, message: str) -> None:
-        await self.add_message(AIMessage(content=message))
+    async def add_ai_message(
+        self,
+        content: str,
+        chat_id: str,
+        message_id: str = None,
+        tool_use_list: List = None,
+        references: List[Dict[str, Any]] = None,
+        urls: List[str] = None,
+        trace_id: Optional[str] = None,
+        metadata: Optional[Dict] = None,
+    ) -> None:
+        """Add an AI message using new format"""
+        stored_message = create_assistant_message(
+            content=content,
+            chat_id=self.session_id,
+            message_id=message_id,
+            tool_use_list=tool_use_list,
+            references=references,
+            urls=urls,
+            trace_id=trace_id,
+            metadata=metadata,
+        )
+        await self.add_stored_message(stored_message)
 
     async def clear(self) -> None:
         """Clear session memory from Redis"""
@@ -170,8 +210,108 @@ class RedisChatMessageHistory:
         await self.redis_client.close(close_connection_pool=True)
 
 
-async_redis_client = None
-sync_redis_client = None
+async def query_chat_messages(user: str, chat_id: str):
+    """
+    Query chat messages from Redis and convert to frontend format.
+
+    Returns:
+        Array of conversation turns, where each turn is an array of message parts
+        格式: [[turn1_parts], [turn2_parts], ...]
+    """
+    from aperag.db.ops import async_db_ops
+    from aperag.schema import view_models
+
+    try:
+        # Get all stored messages (each StoredChatMessage represents one conversation turn)
+        chat_history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
+        stored_messages = await chat_history.messages
+
+        if not stored_messages:
+            return []
+
+        # Get feedbacks for this chat
+        feedbacks = await async_db_ops.query_chat_feedbacks(user, chat_id)
+        feedback_map = {feedback.message_id: feedback for feedback in feedbacks}
+
+        # Convert each StoredChatMessage (conversation turn) to frontend format
+        conversation_turns = []
+        for stored_message in stored_messages:
+            # Convert this turn to frontend format (returns array of parts)
+            chat_message_list = stored_message.to_frontend_format()
+
+            # Add feedback data if available
+            for chat_msg in chat_message_list:
+                msg_id = chat_msg.id
+                feedback = feedback_map.get(msg_id)
+                if feedback and chat_msg.get("role") == "ai":
+                    chat_msg["feedback"] = view_models.Feedback(
+                        type=feedback.type, tag=feedback.tag, message=feedback.message
+                    )
+
+            conversation_turns.append(chat_message_list)
+
+        return conversation_turns
+
+    except Exception as e:
+        logger.error(f"Error querying chat messages: {e}")
+        return []
+
+
+def success_response(message_id, data):
+    return json.dumps(
+        {
+            "type": "message",
+            "id": message_id,
+            "data": data,
+            "timestamp": int(time.time()),
+        }
+    )
+
+
+def fail_response(message_id, error):
+    return json.dumps(
+        {
+            "type": "error",
+            "id": message_id,
+            "data": error,
+            "timestamp": int(time.time()),
+        }
+    )
+
+
+def start_response(message_id):
+    return json.dumps(
+        {
+            "type": "start",
+            "id": message_id,
+            "timestamp": int(time.time()),
+        }
+    )
+
+
+def references_response(message_id, references, memory_count=0, urls=[]):
+    if references is None:
+        references = []
+    return json.dumps(
+        {
+            "type": "references",
+            "id": message_id,
+            "data": references,
+            "memoryCount": memory_count,
+            "urls": urls,
+            "timestamp": int(time.time()),
+        }
+    )
+
+
+def stop_response(message_id):
+    return json.dumps(
+        {
+            "type": "stop",
+            "id": message_id,
+            "timestamp": int(time.time()),
+        }
+    )
 
 
 def get_async_redis_client():
@@ -185,59 +325,4 @@ def get_async_redis_client():
     return async_redis_client
 
 
-def get_sync_redis_client():
-    global sync_redis_client
-    if not sync_redis_client:
-        import redis
-
-        from aperag.config import settings
-
-        sync_redis_client = redis.Redis.from_url(settings.memory_redis_url)
-    return sync_redis_client
-
-
-def success_response(message_id, data):
-    return json.dumps(
-        {
-            "type": "message",
-            "id": message_id,
-            "data": data,
-            "timestamp": now_unix_milliseconds(),
-        }
-    )
-
-
-def fail_response(message_id, error):
-    return json.dumps(
-        {
-            "type": "error",
-            "id": message_id,
-            "data": error,
-            "timestamp": now_unix_milliseconds(),
-        }
-    )
-
-
-def start_response(message_id):
-    return json.dumps(
-        {
-            "type": "start",
-            "id": message_id,
-            "timestamp": now_unix_milliseconds(),
-        }
-    )
-
-
-def stop_response(message_id, references, memory_count=0, urls=[]):
-    if references is None:
-        references = []
-    return json.dumps(
-        {
-            "type": "stop",
-            "id": message_id,
-            "data": references,
-            "memoryCount": memory_count,
-            "urls": urls,
-            "timestamp": now_unix_milliseconds(),
-        }
-    )
+async_redis_client = None

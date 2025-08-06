@@ -22,6 +22,14 @@ from aperag.db.models import DocumentIndex, DocumentIndexStatus, DocumentIndexTy
 
 logger = logging.getLogger(__name__)
 
+all_index_types = [
+    DocumentIndexType.VECTOR,
+    DocumentIndexType.FULLTEXT,
+    DocumentIndexType.GRAPH,
+    DocumentIndexType.SUMMARY,
+    DocumentIndexType.VISION,
+]
+
 
 class DocumentIndexManager:
     """Simple manager for document index specs (frontend chain)"""
@@ -38,12 +46,7 @@ class DocumentIndexManager:
             index_types: List of index types to create (defaults to all)
         """
         if index_types is None:
-            index_types = [
-                DocumentIndexType.VECTOR,
-                DocumentIndexType.FULLTEXT,
-                DocumentIndexType.GRAPH,
-                DocumentIndexType.SUMMARY,
-            ]
+            index_types = all_index_types
 
         for index_type in index_types:
             # Check if index already exists
@@ -82,7 +85,7 @@ class DocumentIndexManager:
             index_types: List of index types to delete (defaults to all)
         """
         if index_types is None:
-            index_types = [DocumentIndexType.VECTOR, DocumentIndexType.FULLTEXT, DocumentIndexType.GRAPH]
+            index_types = all_index_types
 
         for index_type in index_types:
             stmt = select(DocumentIndex).where(

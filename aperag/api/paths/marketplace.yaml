@@ -1,0 +1,319 @@
+# Marketplace API endpoints for Collection sharing and subscription
+
+marketplaceCollections:
+  get:
+    summary: List all published Collections in marketplace
+    description: Returns all Collections that are published to marketplace with current user's subscription status
+    parameters:
+      - name: page
+        in: query
+        description: Page number
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: page_size
+        in: query
+        description: Page size
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 12
+    responses:
+      '200':
+        description: List of published Collections
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/marketplace.yaml#/SharedCollectionList'
+      '401':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+
+marketplaceCollectionsSubscriptions:
+  get:
+    summary: Get user's subscribed Collections
+    description: Returns all Collections that current user has subscribed to
+    parameters:
+      - name: page
+        in: query
+        description: Page number
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: page_size
+        in: query
+        description: Page size
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 12
+    responses:
+      '200':
+        description: List of subscribed Collections
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/marketplace.yaml#/SharedCollectionList'
+      '401':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+
+marketplaceCollectionSubscribe:
+  post:
+    summary: Subscribe to a Collection
+    description: Subscribe to a published Collection
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        description: Collection ID
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Successfully subscribed
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/marketplace.yaml#/SharedCollection'
+      '400':
+        description: Bad request (e.g., Collection not published, self-subscription)
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '401':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Collection not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '409':
+        description: Already subscribed
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+
+  delete:
+    summary: Unsubscribe from a Collection
+    description: Remove subscription to a Collection
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        description: Collection ID
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Successfully unsubscribed
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  example: "Successfully unsubscribed"
+      '401':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Subscription not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+
+marketplaceCollection:
+  get:
+    summary: Get MarketplaceCollection details (read-only)
+    description: Get details of a subscribed Collection (read-only access)
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        description: Collection ID
+        schema:
+          type: string
+    responses:
+      '200':
+        description: MarketplaceCollection details
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/marketplace.yaml#/SharedCollection'
+      '401':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+      '403':
+        description: Access denied (need subscription)
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Collection not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+
+marketplaceCollectionDocuments:
+  get:
+    summary: List documents in MarketplaceCollection (read-only)
+    description: Get document list for a subscribed Collection (read-only mode)
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        description: Collection ID
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Document list (read-only)
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/document.yaml#/documentList'
+      '401':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+      '403':
+        description: Access denied (need subscription)
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Collection not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+
+marketplaceCollectionDocumentPreview:
+  get:
+    summary: Preview document in MarketplaceCollection (read-only)
+    description: Get document preview for a subscribed Collection (read-only mode)
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        description: Collection ID
+        schema:
+          type: string
+      - name: document_id
+        in: path
+        required: true
+        description: Document ID
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Document preview (read-only)
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/document.yaml#/documentPreview'
+      '401':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+      '403':
+        description: Access denied (need subscription)
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Document not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+
+marketplaceCollectionGraph:
+  get:
+    summary: Get knowledge graph for MarketplaceCollection (read-only)
+    description: Get knowledge graph data for a subscribed Collection (read-only mode)
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        description: Collection ID
+        schema:
+          type: string
+      - name: label
+        in: query
+        description: Node label filter
+        schema:
+          type: string
+          default: "*"
+      - name: max_nodes
+        in: query
+        description: Maximum number of nodes
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 10000
+          default: 1000
+      - name: max_depth
+        in: query
+        description: Graph traversal depth
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 3
+    responses:
+      '200':
+        description: Knowledge graph data (read-only)
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nodes:
+                  type: array
+                  items:
+                    type: object
+                edges:
+                  type: array
+                  items:
+                    type: object
+                collection_id:
+                  type: string
+                read_only:
+                  type: boolean
+      '401':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+      '403':
+        description: Access denied (need subscription)
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Collection not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        $ref: '../components/schemas/common.yaml#/failResponse'

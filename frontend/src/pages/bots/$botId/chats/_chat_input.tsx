@@ -1,10 +1,26 @@
+import { Collection } from '@/api';
+import { ModelSelect } from '@/components';
 import { NAVIGATION_WIDTH, SIDEBAR_WIDTH } from '@/constants';
-import { PauseCircleFilled, PlayCircleFilled } from '@ant-design/icons';
-import { GlobalToken, Input, Space, theme } from 'antd';
+import {
+  CaretRightOutlined,
+  GlobalOutlined,
+  PauseOutlined,
+} from '@ant-design/icons';
+import { useLocalStorageState } from 'ahooks';
+import {
+  Button,
+  GlobalToken,
+  Mentions,
+  Space,
+  Tag,
+  theme,
+  Tooltip,
+  Typography,
+} from 'antd';
 import alpha from 'color-alpha';
 import _ from 'lodash';
-import { useState } from 'react';
-import { css, styled, useIntl } from 'umi';
+import { useCallback, useEffect, useState } from 'react';
+import { css, getLocale, styled, useIntl, useModel } from 'umi';
 
 export const StyledChatInputContainer = styled('div').withConfig({
   shouldForwardProp: (prop) => !['token'].includes(prop),
@@ -26,20 +42,6 @@ export const StyledChatInputContainer = styled('div').withConfig({
   }}
 `;
 
-export const StyledChatInput = styled(Input.TextArea).withConfig({
-  shouldForwardProp: (prop) => !['token'].includes(prop),
-})<{ token: GlobalToken }>`
-  ${() => {
-    return css`
-      background: none !important;
-      border: none !important;
-      box-shadow: none !important;
-      resize: none !important;
-      padding: 0;
-    `;
-  }}
-`;
-
 export const StyledChatInputOuter = styled('div').withConfig({
   shouldForwardProp: (prop) => !['token'].includes(prop),
 })<{ token: GlobalToken }>`
@@ -54,40 +56,118 @@ export const StyledChatInputOuter = styled('div').withConfig({
   }}
 `;
 
+export type ChatInputProps = {
+  disabled: boolean;
+  onCancel: () => void;
+  onSubmit: (params: {
+    query: string;
+    collections?: Collection[];
+    completion?: {
+      model?: string;
+      model_service_provider?: string;
+      custom_llm_provider?: string;
+    };
+    web_search_enabled?: boolean;
+  }) => void;
+  loading?: boolean;
+};
+
 export const ChatInput = ({
   onCancel,
   onSubmit,
   loading,
   disabled,
-}: {
-  disabled: boolean;
-  onCancel: () => void;
-  onSubmit: (v: string) => void;
-  loading?: boolean;
-}) => {
+}: ChatInputProps) => {
   const { token } = theme.useToken();
-  const [value, setValue] = useState<string>();
+  const { collections, getCollections } = useModel('collection');
+  const [selectedCollections, setSelectedCollections] = useState<Collection[]>(
+    [],
+  );
+  const { getAvailableModels, getProviderByModelName } = useModel('models');
+  const { bot } = useModel('bot');
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [modelName, setModelName] = useLocalStorageState<string | undefined>(
+    'model',
+  );
+
+  const [query, setQuery] = useState<string>();
   const [isComposing, setIsComposing] = useState<boolean>(false);
   const { formatMessage } = useIntl();
 
+  const handleCollectionSelect = useCallback(
+    (id?: string) => {
+      if (!id) return;
+      if (selectedCollections.find((item) => item.id === id)) {
+        return;
+      } else {
+        const c = collections?.find((item) => item.id === id);
+        if (c) {
+          setSelectedCollections((cs) => cs.concat(c));
+        }
+      }
+    },
+    [collections, selectedCollections],
+  );
+
+  const handleCollectionRemove = useCallback((collection: Collection) => {
+    setSelectedCollections((cs) => cs.filter((c) => c.id !== collection.id));
+  }, []);
+
   const onPressEnter = async () => {
     if (disabled || isComposing) return;
+    const _query = _.trim(query);
+    if (loading || _.isEmpty(_query)) return;
 
-    const data = _.trim(value);
-    if (loading || _.isEmpty(data)) return;
+    const data = {
+      query: _query,
+      language: getLocale(), // 所有Bot类型都添加当前用户语言偏好
+    };
+
+    if (bot?.type === 'agent') {
+      const { provider, model } = getProviderByModelName(
+        modelName,
+        'completion',
+      );
+      Object.assign(data, {
+        collections: selectedCollections,
+        completion: {
+          model: model?.model,
+          model_service_provider: provider?.name,
+          custom_llm_provider: model?.custom_llm_provider,
+        },
+        web_search_enabled: webSearchEnabled,
+      });
+    }
     onSubmit(data);
-    setValue(undefined);
+    setQuery(undefined);
   };
+
+  useEffect(() => {
+    getCollections();
+    getAvailableModels();
+  }, []);
 
   return (
     <StyledChatInputContainer token={token}>
       <StyledChatInputOuter token={token}>
-        <StyledChatInput
-          value={value}
-          onChange={(e) => setValue(e.currentTarget.value)}
-          token={token}
+        <Mentions
+          value={query}
+          onChange={(v) => setQuery(v)}
+          onSelect={(option) => {
+            handleCollectionSelect(option.value);
+            setQuery(query?.replace(/@$/g, ''));
+          }}
+          options={collections?.map((c) => ({
+            label: c.title,
+            value: c.id,
+          }))}
           onKeyDown={(e) => {
-            if (e.key !== 'Enter' || e.shiftKey) return;
+            if (
+              e.key !== 'Enter' ||
+              e.shiftKey ||
+              e.currentTarget.nextElementSibling
+            )
+              return;
             onPressEnter();
             e.preventDefault();
           }}
@@ -100,30 +180,86 @@ export const ChatInput = ({
           rows={2}
           autoSize={false}
           autoFocus
+          variant="borderless"
+          prefix={bot?.type !== 'agent' ? 'should_not_support_mentions' : '@'}
         />
-        <Space style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <div />
-          <div
-            onClick={() => {
-              if (disabled) return;
-
-              if (loading) {
-                onCancel();
-              } else {
-                onPressEnter();
-              }
-            }}
-            style={{
-              cursor: 'pointer',
-              color: disabled ? token.colorTextDisabled : token.colorPrimary,
-              fontSize: 32,
-              width: 32,
-              height: 32,
-              display: 'flex',
-            }}
-          >
-            {loading ? <PauseCircleFilled /> : <PlayCircleFilled />}
+        <Space
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            paddingTop: 4,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {bot?.type === 'agent' && (
+              <Tooltip title="Web search">
+                <Button
+                  type="text"
+                  onClick={() => setWebSearchEnabled(!webSearchEnabled)}
+                  style={{
+                    color: webSearchEnabled
+                      ? token.colorPrimary
+                      : token.colorText,
+                  }}
+                  shape="circle"
+                  icon={<GlobalOutlined />}
+                />
+              </Tooltip>
+            )}
+            {bot?.type === 'agent' &&
+              (selectedCollections.length ? (
+                selectedCollections.map((c) => (
+                  <Tag
+                    key={c.id}
+                    closable
+                    onClose={() => handleCollectionRemove(c)}
+                    style={{
+                      margin: 1,
+                    }}
+                  >
+                    {c.title}
+                  </Tag>
+                ))
+              ) : (
+                <Typography.Text type="secondary">
+                  Enter the @ symbol to select a collection
+                </Typography.Text>
+              ))}
           </div>
+          <Space style={{ display: 'flex', gap: 12 }}>
+            {bot?.type === 'agent' && (
+              <Tooltip title={modelName}>
+                <ModelSelect
+                  model="completion"
+                  showSearch
+                  style={{ width: 220 }}
+                  value={modelName}
+                  onChange={setModelName}
+                  tagfilters={[
+                    {
+                      operation: 'OR',
+                      tags: ['enable_for_agent'],
+                    },
+                  ]}
+                />
+              </Tooltip>
+            )}
+
+            <Button
+              onClick={() => {
+                if (disabled) return;
+
+                if (loading) {
+                  onCancel();
+                } else {
+                  onPressEnter();
+                }
+              }}
+              shape="circle"
+              type="primary"
+              icon={loading ? <PauseOutlined /> : <CaretRightOutlined />}
+            />
+          </Space>
         </Space>
       </StyledChatInputOuter>
     </StyledChatInputContainer>

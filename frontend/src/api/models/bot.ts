@@ -72,7 +72,8 @@ export interface Bot {
 
 export const BotTypeEnum = {
     knowledge: 'knowledge',
-    common: 'common'
+    common: 'common',
+    agent: 'agent'
 } as const;
 
 export type BotTypeEnum = typeof BotTypeEnum[keyof typeof BotTypeEnum];

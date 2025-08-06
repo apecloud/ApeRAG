@@ -77,11 +77,5 @@ export interface MergeSuggestionsResponse {
      * @memberof MergeSuggestionsResponse
      */
     'rejected_count': number;
-    /**
-     * Number of expired suggestions
-     * @type {number}
-     * @memberof MergeSuggestionsResponse
-     */
-    'expired_count': number;
 }
 

@@ -2,6 +2,7 @@ import {
   DocumentFulltextIndexStatusEnum,
   DocumentGraphIndexStatusEnum,
   DocumentVectorIndexStatusEnum,
+  RebuildIndexesRequestIndexTypesEnum,
 } from '@/api';
 import { ChunkViewer, RefreshButton } from '@/components';
 import {
@@ -18,7 +19,6 @@ import { parseConfig } from '@/utils';
 import {
   CopyOutlined,
   DeleteOutlined,
-  EyeOutlined,
   MoreOutlined,
   ReloadOutlined,
   SearchOutlined,
@@ -41,7 +41,6 @@ import {
   Typography,
   Upload,
   UploadProps,
-  Spin,
 } from 'antd';
 import byteSize from 'byte-size';
 import alpha from 'color-alpha';
@@ -66,9 +65,9 @@ export default () => {
   const [rebuildModalVisible, setRebuildModalVisible] = useState(false);
   const [rebuildSelectedDocument, setRebuildSelectedDocument] =
     useState<ApeDocument | null>(null);
-  const [rebuildSelectedTypes, setRebuildSelectedTypes] = useState<string[]>(
-    [],
-  );
+  const [rebuildSelectedTypes, setRebuildSelectedTypes] = useState<
+    RebuildIndexesRequestIndexTypesEnum[]
+  >([]);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewingDocument, setViewingDocument] = useState<ApeDocument | null>(
     null,
@@ -108,7 +107,13 @@ export default () => {
 
   const handleRebuildIndex = (document: ApeDocument) => {
     setRebuildSelectedDocument(document);
-    setRebuildSelectedTypes(['VECTOR', 'FULLTEXT', 'GRAPH', 'SUMMARY']);
+    setRebuildSelectedTypes([
+      RebuildIndexesRequestIndexTypesEnum.VECTOR,
+      RebuildIndexesRequestIndexTypesEnum.FULLTEXT,
+      RebuildIndexesRequestIndexTypesEnum.GRAPH,
+      RebuildIndexesRequestIndexTypesEnum.SUMMARY,
+      RebuildIndexesRequestIndexTypesEnum.VISION,
+    ]);
     setRebuildModalVisible(true);
   };
 
@@ -121,11 +126,7 @@ export default () => {
         collectionId: collectionId!,
         documentId: rebuildSelectedDocument.id!,
         rebuildIndexesRequest: {
-          index_types: rebuildSelectedTypes as (
-            | 'VECTOR'
-            | 'FULLTEXT'
-            | 'GRAPH'
-          )[],
+          index_types: rebuildSelectedTypes as any,
         },
       });
       toast.success(formatMessage({ id: 'document.index.rebuild.success' }));
@@ -133,6 +134,153 @@ export default () => {
       setRebuildSelectedDocument(null);
       setRebuildSelectedTypes([]);
       getDocuments();
+    } catch (error) {
+      toast.error(formatMessage({ id: 'document.index.rebuild.failed' }));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const documents = useMemo(
+    () =>
+      documentsRes?.data?.items
+        ?.map((document: any) => {
+          const item: ApeDocument = {
+            ...document,
+            config: parseConfig(document.config),
+          };
+          return item;
+        })
+        .filter((item: ApeDocument) => {
+          const titleMatch = searchParams?.name
+            ? item.name?.includes(searchParams.name)
+            : true;
+          return titleMatch;
+        }),
+    [documentsRes, searchParams],
+  );
+
+  // Get documents with failed indexes
+  const getDocumentsWithFailedIndexes = () => {
+    if (!documents) return [];
+
+    return documents.filter((doc) => {
+      const hasFailedVector = doc.vector_index_status === 'FAILED';
+      const hasFailedFulltext = doc.fulltext_index_status === 'FAILED';
+      const hasFailedGraph = doc.graph_index_status === 'FAILED';
+      const hasFailedSummary = doc.summary_index_status === 'FAILED';
+      const hasFailedVision = doc.vision_index_status === 'FAILED';
+
+      return (
+        hasFailedVector ||
+        hasFailedFulltext ||
+        hasFailedGraph ||
+        hasFailedSummary ||
+        hasFailedVision
+      );
+    });
+  };
+
+  // Get failed index types for a document
+  const getFailedIndexTypes = (
+    document: ApeDocument,
+  ): RebuildIndexesRequestIndexTypesEnum[] => {
+    const failedTypes: RebuildIndexesRequestIndexTypesEnum[] = [];
+
+    if (document.vector_index_status === 'FAILED') {
+      failedTypes.push(RebuildIndexesRequestIndexTypesEnum.VECTOR);
+    }
+    if (document.fulltext_index_status === 'FAILED') {
+      failedTypes.push(RebuildIndexesRequestIndexTypesEnum.FULLTEXT);
+    }
+    if (document.graph_index_status === 'FAILED') {
+      failedTypes.push(RebuildIndexesRequestIndexTypesEnum.GRAPH);
+    }
+    if (document.summary_index_status === 'FAILED') {
+      failedTypes.push(RebuildIndexesRequestIndexTypesEnum.SUMMARY);
+    }
+    if (document.vision_index_status === 'FAILED') {
+      failedTypes.push(RebuildIndexesRequestIndexTypesEnum.VISION);
+    }
+
+    return failedTypes;
+  };
+
+  // Handle rebuild failed indexes
+  const handleRebuildFailedIndexes = async () => {
+    const failedDocuments = getDocumentsWithFailedIndexes();
+
+    if (failedDocuments.length === 0) {
+      toast.info(
+        formatMessage({ id: 'document.index.rebuild.noFailedIndexes' }),
+      );
+      return;
+    }
+
+    const confirmed = await new Promise<boolean>((resolve) => {
+      modal.confirm({
+        title: formatMessage({
+          id: 'document.index.rebuild.failed.confirm.title',
+        }),
+        content: formatMessage(
+          { id: 'document.index.rebuild.failed.confirm.content' },
+          { count: failedDocuments.length },
+        ),
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false),
+      });
+    });
+
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+      let successCount = 0;
+      let failureCount = 0;
+
+      // Process documents sequentially to avoid overwhelming the server
+      for (const document of failedDocuments) {
+        try {
+          const failedIndexTypes = getFailedIndexTypes(document);
+          if (failedIndexTypes.length > 0) {
+            await api.collectionsCollectionIdDocumentsDocumentIdRebuildIndexesPost(
+              {
+                collectionId: collectionId!,
+                documentId: document.id!,
+                rebuildIndexesRequest: {
+                  index_types: failedIndexTypes as any,
+                },
+              },
+            );
+            successCount++;
+          }
+        } catch (error) {
+          failureCount++;
+          console.error(
+            `Failed to rebuild indexes for document ${document.id}:`,
+            error,
+          );
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(
+          formatMessage(
+            { id: 'document.index.rebuild.failed.success' },
+            { success: successCount, total: failedDocuments.length },
+          ),
+        );
+        getDocuments();
+      }
+
+      if (failureCount > 0) {
+        toast.warning(
+          formatMessage(
+            { id: 'document.index.rebuild.failed.partial' },
+            { failed: failureCount, total: failedDocuments.length },
+          ),
+        );
+      }
     } catch (error) {
       toast.error(formatMessage({ id: 'document.index.rebuild.failed' }));
     } finally {
@@ -163,6 +311,10 @@ export default () => {
     {
       label: formatMessage({ id: 'document.index.type.summary' }),
       value: 'SUMMARY',
+    },
+    {
+      label: formatMessage({ id: 'document.index.type.vision' }),
+      value: 'VISION',
     },
   ];
 
@@ -290,28 +442,33 @@ export default () => {
           status,
           record.summary_index_updated,
         );
-        
-        // 只有ACTIVE状态才显示查看图标
-        if (status === 'ACTIVE') {
+
+        // 只有ACTIVE状态才可以点击查看摘要
+        if (status === 'ACTIVE' && record.summary) {
           return (
-            <Space size={4}>
+            <div
+              style={{ cursor: 'pointer' }}
+              onClick={() => handleViewSummary(record)}
+            >
               {statusBadge}
-              <Tooltip title={formatMessage({ id: 'document.summary.view' })}>
-                <EyeOutlined
-                  style={{ 
-                    cursor: 'pointer', 
-                    color: '#1677ff',
-                    fontSize: '14px'
-                  }}
-                  onClick={() => handleViewSummary(record)}
-                />
-              </Tooltip>
-            </Space>
+            </div>
           );
         }
-        
-        // 其他状态只显示badge
+
+        // 其他状态只显示badge，不可点击
         return statusBadge;
+      },
+    },
+    {
+      title: formatMessage({ id: 'document.index.type.vision' }),
+      dataIndex: 'vision_index_status',
+      width: 120,
+      align: 'center',
+      render: (value, record) => {
+        return renderIndexStatus(
+          record.vision_index_status,
+          record.vision_index_updated,
+        );
       },
     },
     {
@@ -404,25 +561,6 @@ export default () => {
     [collectionId],
   );
 
-  const documents = useMemo(
-    () =>
-      documentsRes?.data?.items
-        ?.map((document: any) => {
-          const item: ApeDocument = {
-            ...document,
-            config: parseConfig(document.config),
-          };
-          return item;
-        })
-        .filter((item: ApeDocument) => {
-          const titleMatch = searchParams?.name
-            ? item.name?.includes(searchParams.name)
-            : true;
-          return titleMatch;
-        }),
-    [documentsRes, searchParams],
-  );
-
   useEffect(() => setLoading(documentsLoading), [documentsLoading]);
 
   return (
@@ -455,6 +593,30 @@ export default () => {
               </Button>
             </Upload>
           ) : null}
+          <Button
+            type="default"
+            onClick={handleRebuildFailedIndexes}
+            disabled={getDocumentsWithFailedIndexes().length === 0}
+            loading={documentsLoading}
+            style={{
+              borderColor:
+                getDocumentsWithFailedIndexes().length > 0
+                  ? '#ff4d4f'
+                  : undefined,
+              color:
+                getDocumentsWithFailedIndexes().length > 0
+                  ? '#ff4d4f'
+                  : undefined,
+            }}
+          >
+            <ReloadOutlined />
+            <FormattedMessage id="document.index.rebuild.failed.button" />
+            {getDocumentsWithFailedIndexes().length > 0 && (
+              <span style={{ marginLeft: 4, fontSize: '12px', opacity: 0.8 }}>
+                ({getDocumentsWithFailedIndexes().length})
+              </span>
+            )}
+          </Button>
           <RefreshButton
             loading={documentsLoading}
             onClick={() => collectionId && getDocuments()}
@@ -502,9 +664,13 @@ export default () => {
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(summaryContent);
-                  toast.success(formatMessage({ id: 'document.summary.copy.success' }));
+                  toast.success(
+                    formatMessage({ id: 'document.summary.copy.success' }),
+                  );
                 } catch (error) {
-                  toast.error(formatMessage({ id: 'document.summary.copy.failed' }));
+                  toast.error(
+                    formatMessage({ id: 'document.summary.copy.failed' }),
+                  );
                 }
               }}
             >
@@ -514,7 +680,13 @@ export default () => {
         }
       >
         {summaryDoc && (
-          <div style={{ marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid #f0f0f0' }}>
+          <div
+            style={{
+              marginBottom: 16,
+              paddingBottom: 16,
+              borderBottom: '1px solid #f0f0f0',
+            }}
+          >
             <Typography.Text strong style={{ fontSize: '16px' }}>
               {summaryDoc.name}
             </Typography.Text>
@@ -568,7 +740,10 @@ export default () => {
             onChange={(e) => {
               if (e.target.checked) {
                 setRebuildSelectedTypes(
-                  indexTypeOptions.map((option) => option.value),
+                  indexTypeOptions.map(
+                    (option) =>
+                      option.value as RebuildIndexesRequestIndexTypesEnum,
+                  ),
                 );
               } else {
                 setRebuildSelectedTypes([]);
@@ -582,7 +757,11 @@ export default () => {
         <Checkbox.Group
           options={indexTypeOptions}
           value={rebuildSelectedTypes}
-          onChange={(values) => setRebuildSelectedTypes(values as string[])}
+          onChange={(values) =>
+            setRebuildSelectedTypes(
+              values as RebuildIndexesRequestIndexTypesEnum[],
+            )
+          }
           style={{ display: 'flex', flexDirection: 'row', gap: 16 }}
         />
       </Modal>

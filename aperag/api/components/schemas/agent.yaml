@@ -1,0 +1,47 @@
+AgentMessage:
+  type: object
+  description: Message format for agent-type bots with additional capabilities
+  properties:
+    query:
+      type: string
+      description: User query
+      example: Tell me about ApeRAG features
+    collections:
+      type: array
+      items:
+        $ref: './collection.yaml#/collection'
+      description: List of collection objects to search in
+      example:
+        - id: col_123
+          title: Example Collection
+        - id: col_456
+          title: Another Collection
+    completion:
+      $ref: './model.yaml#/modelSpec'
+      nullable: true
+      description: Model specification for completion including provider and model details
+    web_search_enabled:
+      type: boolean
+      description: Whether to enable web search
+      example: true
+      default: false
+    language:
+      type: string
+      description: Language preference for the response
+      example: en-US
+      default: en-US
+      enum:
+        - en-US
+        - zh-CN
+        - zh-TW
+        - ja-JP
+        - ko-KR
+        - fr-FR
+        - de-DE
+        - es-ES
+        - it-IT
+        - pt-BR
+        - ru-RU
+  required:
+    - query
+    - collections
