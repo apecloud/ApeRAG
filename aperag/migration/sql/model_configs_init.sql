@@ -1,5 +1,5 @@
 -- Model configuration initialization SQL script
--- Generated directly from configuration data on 2025-08-06 10:01:33
+-- Generated directly from configuration data on 2025-08-06 12:57:51
 -- This script populates llm_provider and llm_provider_models tables
 
 BEGIN;
@@ -4883,7 +4883,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'deepseek/deepseek-chat', 'openrouter', 163840, NULL, NULL, '["enable_for_collection", "__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'deepseek/deepseek-chat', 'openrouter', 163840, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -7283,7 +7283,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'openai/gpt-4o-mini', 'openrouter', 128000, NULL, NULL, '["vision", "enable_for_collection", "__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'openai/gpt-4o-mini', 'openrouter', 128000, NULL, NULL, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -7358,7 +7358,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'openai/gpt-oss-120b', 'openrouter', 131072, NULL, NULL, '["__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'openai/gpt-oss-120b', 'openrouter', 131072, NULL, NULL, '["enable_for_collection", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -8796,6 +8796,6 @@ ON CONFLICT (provider_name, api, model) DO UPDATE SET
 
 COMMIT;
 
--- Script completed. Generated on 2025-08-06 10:01:33
+-- Script completed. Generated on 2025-08-06 12:57:51
 -- Total providers: 9
 -- Total models: 574

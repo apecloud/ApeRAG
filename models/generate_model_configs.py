@@ -851,8 +851,7 @@ def create_openrouter_config():
         'free': [':free'],  # Models ending with :free
         'enable_for_collection': [
             'google/gemini-2.5-flash',
-            'openai/gpt-4o-mini',
-            'deepseek/deepseek-chat',
+            'openai/gpt-oss-120b',
         ],
         'enable_for_agent': [
             'google/gemini-2.5-flash',
