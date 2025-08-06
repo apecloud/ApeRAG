@@ -78,6 +78,7 @@ dependencies = [
     "opentelemetry-instrumentation-fastapi>=0.41b0",
     "opentelemetry-instrumentation-sqlalchemy>=0.41b0",
     "pypdfium2>=4.30.0",
+    "httpx-oauth>=0.16.1",
 ]
 name = "aperag"
 version = "0.1.0"
