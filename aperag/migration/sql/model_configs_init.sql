@@ -1,5 +1,5 @@
 -- Model configuration initialization SQL script
--- Generated directly from configuration data on 2025-07-31 00:45:47
+-- Generated directly from configuration data on 2025-08-06 10:01:33
 -- This script populates llm_provider and llm_provider_models tables
 
 BEGIN;
@@ -1287,6 +1287,21 @@ INSERT INTO llm_provider_models (
     gmt_created, gmt_updated
 ) VALUES (
     'anthropic', 'completion', 'claude-4-sonnet-20250514', 'anthropic', 200000, 200000, 64000, '["vision", "__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'anthropic', 'completion', 'claude-opus-4-1-20250805', 'anthropic', 200000, 200000, 32000, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -3811,7 +3826,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'alibabacloud', 'embedding', 'text-embedding-v4', 'openai', NULL, NULL, NULL, '["enable_for_collection", "default_for_embedding", "__autogen__"]'::jsonb,
+    'alibabacloud', 'embedding', 'text-embedding-v4', 'openai', NULL, NULL, NULL, '["enable_for_collection", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -3827,7 +3842,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'alibabacloud', 'rerank', 'gte-rerank-v2', 'alibabacloud', 30000, 30000, NULL, '["enable_for_collection", "default_for_rerank", "__autogen__"]'::jsonb,
+    'alibabacloud', 'rerank', 'gte-rerank-v2', 'alibabacloud', 30000, 30000, NULL, '["enable_for_collection", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -4058,36 +4073,6 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', '01-ai/yi-large', 'openrouter', 32768, NULL, NULL, '["__autogen__"]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    context_window = EXCLUDED.context_window,
-    max_input_tokens = EXCLUDED.max_input_tokens,
-    max_output_tokens = EXCLUDED.max_output_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
-    'openrouter', 'completion', 'aetherwiing/mn-starcannon-12b', 'openrouter', 16384, NULL, NULL, '["__autogen__"]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    context_window = EXCLUDED.context_window,
-    max_input_tokens = EXCLUDED.max_input_tokens,
-    max_output_tokens = EXCLUDED.max_output_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
     'openrouter', 'completion', 'agentica-org/deepcoder-14b-preview', 'openrouter', 96000, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
@@ -4193,7 +4178,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'alfredpros/codellama-7b-instruct-solidity', 'openrouter', 4096, NULL, NULL, '["__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'alfredpros/codellama-7b-instruct-solidity', 'openrouter', 8192, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -4209,21 +4194,6 @@ INSERT INTO llm_provider_models (
     gmt_created, gmt_updated
 ) VALUES (
     'openrouter', 'completion', 'alpindale/goliath-120b', 'openrouter', 6144, NULL, NULL, '["__autogen__"]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    context_window = EXCLUDED.context_window,
-    max_input_tokens = EXCLUDED.max_input_tokens,
-    max_output_tokens = EXCLUDED.max_output_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
-    'openrouter', 'completion', 'alpindale/magnum-72b', 'openrouter', 16384, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -4373,21 +4343,6 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'anthropic/claude-3-sonnet', 'openrouter', 200000, NULL, NULL, '["vision", "__autogen__"]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    context_window = EXCLUDED.context_window,
-    max_input_tokens = EXCLUDED.max_input_tokens,
-    max_output_tokens = EXCLUDED.max_output_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
     'openrouter', 'completion', 'anthropic/claude-3.5-haiku', 'openrouter', 200000, NULL, NULL, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
@@ -4404,21 +4359,6 @@ INSERT INTO llm_provider_models (
     gmt_created, gmt_updated
 ) VALUES (
     'openrouter', 'completion', 'anthropic/claude-3.5-haiku-20241022', 'openrouter', 200000, NULL, NULL, '["vision", "__autogen__"]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    context_window = EXCLUDED.context_window,
-    max_input_tokens = EXCLUDED.max_input_tokens,
-    max_output_tokens = EXCLUDED.max_output_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
-    'openrouter', 'completion', 'anthropic/claude-3.5-haiku-20241022:beta', 'openrouter', 200000, NULL, NULL, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -4568,37 +4508,22 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
+    'openrouter', 'completion', 'anthropic/claude-opus-4.1', 'openrouter', 200000, NULL, NULL, '["vision", "__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
     'openrouter', 'completion', 'anthropic/claude-sonnet-4', 'openrouter', 200000, NULL, NULL, '["vision", "__autogen__"]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    context_window = EXCLUDED.context_window,
-    max_input_tokens = EXCLUDED.max_input_tokens,
-    max_output_tokens = EXCLUDED.max_output_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
-    'openrouter', 'completion', 'arcee-ai/arcee-blitz', 'openrouter', 32768, NULL, NULL, '["__autogen__"]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    context_window = EXCLUDED.context_window,
-    max_input_tokens = EXCLUDED.max_input_tokens,
-    max_output_tokens = EXCLUDED.max_output_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
-    'openrouter', 'completion', 'arcee-ai/caller-large', 'openrouter', 32768, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -4659,21 +4584,6 @@ INSERT INTO llm_provider_models (
     gmt_created, gmt_updated
 ) VALUES (
     'openrouter', 'completion', 'arcee-ai/virtuoso-large', 'openrouter', 131072, NULL, NULL, '["__autogen__"]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    context_window = EXCLUDED.context_window,
-    max_input_tokens = EXCLUDED.max_input_tokens,
-    max_output_tokens = EXCLUDED.max_output_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
-    'openrouter', 'completion', 'arcee-ai/virtuoso-medium-v2', 'openrouter', 131072, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -4778,6 +4688,21 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
+    'openrouter', 'completion', 'cognitivecomputations/dolphin3.0-mistral-24b', 'openrouter', 32768, NULL, NULL, '["__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
     'openrouter', 'completion', 'cognitivecomputations/dolphin3.0-mistral-24b:free', 'openrouter', 32768, NULL, NULL, '["free", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
@@ -4838,7 +4763,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'cohere/command-a', 'openrouter', 256000, NULL, NULL, '["__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'cohere/command-a', 'openrouter', 32768, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -4988,7 +4913,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'deepseek/deepseek-chat-v3-0324:free', 'openrouter', 32768, NULL, NULL, '["free", "__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'deepseek/deepseek-chat-v3-0324:free', 'openrouter', 163840, NULL, NULL, '["free", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -5228,37 +5153,22 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
+    'openrouter', 'completion', 'deepseek/deepseek-v3-base', 'openrouter', 163840, NULL, NULL, '["__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
     'openrouter', 'completion', 'eleutherai/llemma_7b', 'openrouter', 4096, NULL, NULL, '["__autogen__"]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    context_window = EXCLUDED.context_window,
-    max_input_tokens = EXCLUDED.max_input_tokens,
-    max_output_tokens = EXCLUDED.max_output_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
-    'openrouter', 'completion', 'eva-unit-01/eva-llama-3.33-70b', 'openrouter', 16384, NULL, NULL, '["__autogen__"]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    context_window = EXCLUDED.context_window,
-    max_input_tokens = EXCLUDED.max_input_tokens,
-    max_output_tokens = EXCLUDED.max_output_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
-    'openrouter', 'completion', 'eva-unit-01/eva-qwen-2.5-72b', 'openrouter', 16384, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -5333,7 +5243,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'google/gemini-2.5-flash', 'openrouter', 1048576, NULL, NULL, '["vision", "enable_for_collection", "enable_for_agent", "default_for_indexing", "__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'google/gemini-2.5-flash', 'openrouter', 1048576, NULL, NULL, '["vision", "enable_for_collection", "enable_for_agent", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -5378,7 +5288,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'google/gemini-2.5-pro', 'openrouter', 1048576, NULL, NULL, '["vision", "enable_for_agent", "default_for_generation", "__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'google/gemini-2.5-pro', 'openrouter', 1048576, NULL, NULL, '["vision", "enable_for_agent", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -5558,7 +5468,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'google/gemma-3-27b-it', 'openrouter', 131072, NULL, NULL, '["vision", "__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'google/gemma-3-27b-it', 'openrouter', 96000, NULL, NULL, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -5678,7 +5588,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'inception/mercury', 'openrouter', 32000, NULL, NULL, '["__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'inception/mercury', 'openrouter', 128000, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -5693,7 +5603,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'inception/mercury-coder', 'openrouter', 32000, NULL, NULL, '["__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'inception/mercury-coder', 'openrouter', 128000, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -5708,7 +5618,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'infermatic/mn-inferor-12b', 'openrouter', 16384, NULL, NULL, '["__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'infermatic/mn-inferor-12b', 'openrouter', 8192, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -6293,6 +6203,21 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
+    'openrouter', 'completion', 'mistralai/codestral-2508', 'openrouter', 256000, NULL, NULL, '["__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
     'openrouter', 'completion', 'mistralai/devstral-medium', 'openrouter', 131072, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
@@ -6398,7 +6323,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'mistralai/ministral-3b', 'openrouter', 131072, NULL, NULL, '["__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'mistralai/ministral-3b', 'openrouter', 32768, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -6653,7 +6578,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'mistralai/mistral-small-3.1-24b-instruct', 'openrouter', 96000, NULL, NULL, '["vision", "__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'mistralai/mistral-small-3.1-24b-instruct', 'openrouter', 131072, NULL, NULL, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -6683,7 +6608,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'mistralai/mistral-small-3.2-24b-instruct', 'openrouter', 128000, NULL, NULL, '["vision", "__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'mistralai/mistral-small-3.2-24b-instruct', 'openrouter', 131072, NULL, NULL, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -6698,7 +6623,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'mistralai/mistral-small-3.2-24b-instruct:free', 'openrouter', 96000, NULL, NULL, '["vision", "free", "__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'mistralai/mistral-small-3.2-24b-instruct:free', 'openrouter', 131072, NULL, NULL, '["vision", "free", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -6818,7 +6743,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'moonshotai/kimi-k2:free', 'openrouter', 65536, NULL, NULL, '["free", "__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'moonshotai/kimi-k2:free', 'openrouter', 32768, NULL, NULL, '["free", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -6863,7 +6788,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'morph/morph-v2', 'openrouter', 32000, NULL, NULL, '["__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'morph/morph-v3-fast', 'openrouter', 81920, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -6878,22 +6803,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'morph/morph-v3-fast', 'openrouter', 32000, NULL, NULL, '["__autogen__"]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    context_window = EXCLUDED.context_window,
-    max_input_tokens = EXCLUDED.max_input_tokens,
-    max_output_tokens = EXCLUDED.max_output_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
-    'openrouter', 'completion', 'morph/morph-v3-large', 'openrouter', 32000, NULL, NULL, '["__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'morph/morph-v3-large', 'openrouter', 81920, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -6923,7 +6833,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'neversleep/llama-3.1-lumimaid-8b', 'openrouter', 32768, NULL, NULL, '["__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'neversleep/llama-3.1-lumimaid-8b', 'openrouter', 8192, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -6938,22 +6848,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'neversleep/noromaid-20b', 'openrouter', 8192, NULL, NULL, '["__autogen__"]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    context_window = EXCLUDED.context_window,
-    max_input_tokens = EXCLUDED.max_input_tokens,
-    max_output_tokens = EXCLUDED.max_output_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
-    'openrouter', 'completion', 'nothingiisreal/mn-celeste-12b', 'openrouter', 16384, NULL, NULL, '["__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'neversleep/noromaid-20b', 'openrouter', 4096, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -7463,6 +7358,36 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
+    'openrouter', 'completion', 'openai/gpt-oss-120b', 'openrouter', 131072, NULL, NULL, '["__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'openrouter', 'completion', 'openai/gpt-oss-20b', 'openrouter', 131072, NULL, NULL, '["__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
     'openrouter', 'completion', 'openai/o1', 'openrouter', 200000, NULL, NULL, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
@@ -7494,36 +7419,6 @@ INSERT INTO llm_provider_models (
     gmt_created, gmt_updated
 ) VALUES (
     'openrouter', 'completion', 'openai/o1-mini-2024-09-12', 'openrouter', 128000, NULL, NULL, '["__autogen__"]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    context_window = EXCLUDED.context_window,
-    max_input_tokens = EXCLUDED.max_input_tokens,
-    max_output_tokens = EXCLUDED.max_output_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
-    'openrouter', 'completion', 'openai/o1-preview', 'openrouter', 128000, NULL, NULL, '["__autogen__"]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    context_window = EXCLUDED.context_window,
-    max_input_tokens = EXCLUDED.max_input_tokens,
-    max_output_tokens = EXCLUDED.max_output_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
-    'openrouter', 'completion', 'openai/o1-preview-2024-09-12', 'openrouter', 128000, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -7659,6 +7554,21 @@ INSERT INTO llm_provider_models (
     gmt_created, gmt_updated
 ) VALUES (
     'openrouter', 'completion', 'openrouter/auto', 'openrouter', 2000000, NULL, NULL, '["__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'openrouter', 'completion', 'openrouter/horizon-beta', 'openrouter', 256000, NULL, NULL, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -7823,7 +7733,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'qwen/qwen-2.5-7b-instruct', 'openrouter', 32768, NULL, NULL, '["__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'qwen/qwen-2.5-7b-instruct', 'openrouter', 65536, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -7958,7 +7868,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'qwen/qwen2.5-vl-32b-instruct', 'openrouter', 128000, NULL, NULL, '["vision", "__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'qwen/qwen2.5-vl-32b-instruct', 'openrouter', 16384, NULL, NULL, '["vision", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -8063,7 +7973,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'qwen/qwen3-235b-a22b-07-25', 'openrouter', 262144, NULL, NULL, '["__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'qwen/qwen3-235b-a22b-2507', 'openrouter', 262144, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -8078,7 +7988,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'qwen/qwen3-235b-a22b-07-25:free', 'openrouter', 262144, NULL, NULL, '["free", "__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'qwen/qwen3-235b-a22b-thinking-2507', 'openrouter', 262144, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -8109,6 +8019,21 @@ INSERT INTO llm_provider_models (
     gmt_created, gmt_updated
 ) VALUES (
     'openrouter', 'completion', 'qwen/qwen3-30b-a3b', 'openrouter', 40960, NULL, NULL, '["__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'openrouter', 'completion', 'qwen/qwen3-30b-a3b-instruct-2507', 'openrouter', 131072, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -8198,7 +8123,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'qwen/qwen3-coder', 'openrouter', 1000000, NULL, NULL, '["__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'qwen/qwen3-coder', 'openrouter', 262144, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -8259,21 +8184,6 @@ INSERT INTO llm_provider_models (
     gmt_created, gmt_updated
 ) VALUES (
     'openrouter', 'completion', 'raifle/sorcererlm-8x22b', 'openrouter', 16000, NULL, NULL, '["__autogen__"]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    context_window = EXCLUDED.context_window,
-    max_input_tokens = EXCLUDED.max_input_tokens,
-    max_output_tokens = EXCLUDED.max_output_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
-    'openrouter', 'completion', 'rekaai/reka-flash-3', 'openrouter', 32768, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -8364,21 +8274,6 @@ INSERT INTO llm_provider_models (
     gmt_created, gmt_updated
 ) VALUES (
     'openrouter', 'completion', 'sao10k/l3.3-euryale-70b', 'openrouter', 131072, NULL, NULL, '["__autogen__"]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    context_window = EXCLUDED.context_window,
-    max_input_tokens = EXCLUDED.max_input_tokens,
-    max_output_tokens = EXCLUDED.max_output_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
-    'openrouter', 'completion', 'sarvamai/sarvam-m', 'openrouter', 32768, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -8513,7 +8408,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'thedrummer/anubis-70b-v1.1', 'openrouter', 131072, NULL, NULL, '["__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'thedrummer/anubis-70b-v1.1', 'openrouter', 16384, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -8543,7 +8438,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'thedrummer/rocinante-12b', 'openrouter', 32768, NULL, NULL, '["__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'thedrummer/rocinante-12b', 'openrouter', 8192, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -8618,37 +8513,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'thudm/glm-4-32b:free', 'openrouter', 32768, NULL, NULL, '["free", "__autogen__"]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    context_window = EXCLUDED.context_window,
-    max_input_tokens = EXCLUDED.max_input_tokens,
-    max_output_tokens = EXCLUDED.max_output_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
     'openrouter', 'completion', 'thudm/glm-4.1v-9b-thinking', 'openrouter', 65536, NULL, NULL, '["vision", "__autogen__"]'::jsonb,
-    NOW(), NOW()
-)
-ON CONFLICT (provider_name, api, model) DO UPDATE SET
-    custom_llm_provider = EXCLUDED.custom_llm_provider,
-    context_window = EXCLUDED.context_window,
-    max_input_tokens = EXCLUDED.max_input_tokens,
-    max_output_tokens = EXCLUDED.max_output_tokens,
-    tags = EXCLUDED.tags,
-    gmt_updated = NOW();
-
-INSERT INTO llm_provider_models (
-    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
-    gmt_created, gmt_updated
-) VALUES (
-    'openrouter', 'completion', 'thudm/glm-z1-32b', 'openrouter', 32768, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -8678,7 +8543,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'tngtech/deepseek-r1t-chimera:free', 'openrouter', 163840, NULL, NULL, '["free", "__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'tngtech/deepseek-r1t-chimera', 'openrouter', 163840, NULL, NULL, '["__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -8693,7 +8558,7 @@ INSERT INTO llm_provider_models (
     provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
     gmt_created, gmt_updated
 ) VALUES (
-    'openrouter', 'completion', 'tngtech/deepseek-r1t2-chimera', 'openrouter', 163840, NULL, NULL, '["__autogen__"]'::jsonb,
+    'openrouter', 'completion', 'tngtech/deepseek-r1t-chimera:free', 'openrouter', 163840, NULL, NULL, '["free", "__autogen__"]'::jsonb,
     NOW(), NOW()
 )
 ON CONFLICT (provider_name, api, model) DO UPDATE SET
@@ -8869,8 +8734,68 @@ ON CONFLICT (provider_name, api, model) DO UPDATE SET
     tags = EXCLUDED.tags,
     gmt_updated = NOW();
 
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'openrouter', 'completion', 'z-ai/glm-4-32b', 'openrouter', 128000, NULL, NULL, '["__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'openrouter', 'completion', 'z-ai/glm-4.5', 'openrouter', 131072, NULL, NULL, '["__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'openrouter', 'completion', 'z-ai/glm-4.5-air', 'openrouter', 128000, NULL, NULL, '["__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
+INSERT INTO llm_provider_models (
+    provider_name, api, model, custom_llm_provider, context_window, max_input_tokens, max_output_tokens, tags,
+    gmt_created, gmt_updated
+) VALUES (
+    'openrouter', 'completion', 'z-ai/glm-4.5-air:free', 'openrouter', 131072, NULL, NULL, '["free", "__autogen__"]'::jsonb,
+    NOW(), NOW()
+)
+ON CONFLICT (provider_name, api, model) DO UPDATE SET
+    custom_llm_provider = EXCLUDED.custom_llm_provider,
+    context_window = EXCLUDED.context_window,
+    max_input_tokens = EXCLUDED.max_input_tokens,
+    max_output_tokens = EXCLUDED.max_output_tokens,
+    tags = EXCLUDED.tags,
+    gmt_updated = NOW();
+
 COMMIT;
 
--- Script completed. Generated on 2025-07-31 00:45:47
+-- Script completed. Generated on 2025-08-06 10:01:33
 -- Total providers: 9
--- Total models: 579
+-- Total models: 574
