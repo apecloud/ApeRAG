@@ -150,6 +150,7 @@ api:
   env:
     # Auth
     JWT_SECRET: "a-very-secret-key-that-you-should-change" # IMPORTANT: Change this in production
+    OAUTH_REDIRECT_URL: "http://127.0.0.1:3000/web/oauth-callback.html"
     GOOGLE_OAUTH_CLIENT_ID: ""
     GOOGLE_OAUTH_CLIENT_SECRET: ""
     GITHUB_OAUTH_CLIENT_ID: ""

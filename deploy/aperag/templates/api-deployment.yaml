@@ -46,6 +46,8 @@ spec:
               value: python
             - name: JWT_SECRET
               value: {{ .Values.api.env.JWT_SECRET | quote }}
+            - name: OAUTH_REDIRECT_URL
+              value: {{ .Values.api.env.OAUTH_REDIRECT_URL | quote }}
             - name: GOOGLE_OAUTH_CLIENT_ID
               value: {{ .Values.api.env.GOOGLE_OAUTH_CLIENT_ID | quote }}
             - name: GOOGLE_OAUTH_CLIENT_SECRET
