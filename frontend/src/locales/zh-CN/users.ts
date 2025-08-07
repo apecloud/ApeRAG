@@ -19,6 +19,8 @@ export const user = {
   'user.signout': '退出',
   'user.username': '用户名',
   'user.username_required': '请输入用户名',
+  'user.username_placeholder': '-',
+  'user.email_placeholder': '-',
   'user.password': '密码',
   'user.password_reset': '重置密码',
   'user.password_reset_success': '重置密码成功',

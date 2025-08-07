@@ -38,10 +38,28 @@ export default () => {
     {
       title: formatMessage({ id: 'user.username' }),
       dataIndex: 'username',
+      render: (value) => {
+        return value ? (
+          value
+        ) : (
+          <Typography.Text type="secondary" style={{ fontStyle: 'italic' }}>
+            {formatMessage({ id: 'user.username_placeholder' })}
+          </Typography.Text>
+        );
+      },
     },
     {
       title: formatMessage({ id: 'user.email' }),
       dataIndex: 'email',
+      render: (value) => {
+        return value ? (
+          value
+        ) : (
+          <Typography.Text type="secondary" style={{ fontStyle: 'italic' }}>
+            {formatMessage({ id: 'user.email_placeholder' })}
+          </Typography.Text>
+        );
+      },
     },
     {
       title: formatMessage({ id: 'user.role' }),
@@ -73,7 +91,15 @@ export default () => {
           github: { text: 'GitHub', color: 'purple' },
         };
         
-        const source = sourceMap[value] || { text: value || 'Unknown', color: 'default' };
+        if (!value) {
+          return (
+            <Typography.Text type="secondary" style={{ fontStyle: 'italic' }}>
+              {formatMessage({ id: 'user.source.local' })}
+            </Typography.Text>
+          );
+        }
+        
+        const source = sourceMap[value] || { text: value, color: 'default' };
         
         return (
           <Typography.Text type={source.color as any}>

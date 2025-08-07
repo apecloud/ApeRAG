@@ -19,6 +19,8 @@ export const user = {
   'user.signout': 'Logout',
   'user.username': 'Username',
   'user.username_required': 'Username is required',
+  'user.username_placeholder': '-',
+  'user.email_placeholder': '-',
   'user.password': 'Password',
   'user.password_reset': 'Reset Password',
   'user.password_reset_success': 'Password changed successful',
