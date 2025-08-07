@@ -3,7 +3,7 @@ import bgDark from '@/assets/page/signin-dark.svg';
 import bgLight from '@/assets/page/signin-light.svg';
 import { PageContainer } from '@/components';
 import { api } from '@/services';
-import { KeyOutlined, UserOutlined } from '@ant-design/icons';
+import { KeyOutlined, UserOutlined, GoogleOutlined, GithubOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Divider, Form, Input, Space, Typography } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
@@ -199,7 +199,7 @@ export default () => {
           <Space direction="vertical" style={{ width: '100%' }}>
             {loginMethods.includes('google') && (
               <Button
-                icon={<i className="ri-google-fill" />}
+                icon={<GoogleOutlined style={{ color: '#4285f4', fontSize: '16px' }} />}
                 block
                 onClick={async () => {
                   try {
@@ -225,7 +225,7 @@ export default () => {
             )}
             {loginMethods.includes('github') && (
               <Button
-                icon={<i className="ri-github-fill" />}
+                icon={<GithubOutlined style={{ color: themeName === 'dark' ? '#fff' : '#333', fontSize: '16px' }} />}
                 block
                 onClick={async () => {
                   try {
