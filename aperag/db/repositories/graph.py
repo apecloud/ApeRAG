@@ -353,7 +353,7 @@ class GraphRepositoryMixin:
             nodes = {}
 
             # Use scalars() to get the actual ORM objects
-            for node in result.scalars():
+            for node in result.unique().scalars():
                 # Convert to dict format matching the original interface
                 node_dict = {
                     "entity_id": node.entity_id,
@@ -450,7 +450,7 @@ class GraphRepositoryMixin:
                 }
 
             # Update with actual data found - use scalars() to get ORM objects
-            for edge in result.scalars():
+            for edge in result.unique().scalars():
                 pair = (edge.source_entity_id, edge.target_entity_id)
                 if pair in edges:
                     edges[pair] = {

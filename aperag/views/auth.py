@@ -266,7 +266,7 @@ async def list_users_view(
             is_active=u.is_active,
             date_joined=u.date_joined.isoformat(),
         )
-        for u in result.scalars()
+        for u in result.unique().scalars()
     ]
     return view_models.UserList(items=users)
 
@@ -321,7 +321,7 @@ async def list_invitations_view(
     else:
         result = await session.execute(select(Invitation))
     invitations = []
-    for invitation in result.scalars():
+    for invitation in result.unique().scalars():
         invitations.append(
             view_models.Invitation(
                 email=invitation.email,
@@ -521,7 +521,7 @@ async def list_users_view(
             is_active=u.is_active,
             date_joined=u.date_joined.isoformat(),
         )
-        for u in result.scalars()
+        for u in result.unique().scalars()
     ]
     return view_models.UserList(items=users)
 
