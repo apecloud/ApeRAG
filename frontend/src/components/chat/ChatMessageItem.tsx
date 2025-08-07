@@ -10,6 +10,7 @@ import { DATETIME_FORMAT } from '@/constants';
 import {
   BulbOutlined,
   CaretRightOutlined,
+  CopyOutlined,
   DislikeFilled,
   LikeFilled,
   LoadingOutlined,
@@ -37,6 +38,7 @@ import _ from 'lodash';
 import moment from 'moment';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { BsRobot } from 'react-icons/bs';
+import { toast } from 'react-toastify';
 import { css, styled, useIntl } from 'umi';
 
 const StyledMessage = styled('div').withConfig({
@@ -83,6 +85,7 @@ const StyledMessageContent = styled('div').withConfig({
 })<{ isAi: boolean; token: GlobalToken }>`
   ${({ isAi, token }) => {
     return css`
+      position: relative;
       background: ${!isAi ? token.colorPrimary : token.colorBgContainer};
       color: ${!isAi ? token.colorWhite : token.colorText};
       min-height: 54px;
@@ -159,9 +162,11 @@ const CollapseResult = ({
 };
 
 const MessageContent = ({
+  isHover,
   isAi,
   parts,
 }: {
+  isHover: boolean;
   isAi: boolean;
   parts: ChatMessage[];
 }) => {
@@ -180,6 +185,8 @@ const MessageContent = ({
     },
     [],
   );
+
+  const text = parts.map((p) => p.data).join('');
 
   return (
     <StyledMessageContent token={token} isAi={isAi}>
@@ -220,6 +227,19 @@ const MessageContent = ({
                 return 'unknown part type';
             }
           })}
+
+      {isAi && isHover && text && (
+        <Tooltip title="Copy">
+          <Button
+            style={{ position: 'absolute', right: 8, top: 12 }}
+            icon={<CopyOutlined style={{ color: token.colorTextSecondary }} />}
+            onClick={async () => {
+              await navigator.clipboard.writeText(text);
+              toast.success('Copied!');
+            }}
+          ></Button>
+        </Tooltip>
+      )}
     </StyledMessageContent>
   );
 };
@@ -328,7 +348,7 @@ export const ChatMessageItem = ({
           />
         )}
         <StyledMessageBody ref={hoverRef}>
-          <MessageContent isAi={isAi} parts={parts} />
+          <MessageContent isHover={isHovering} isAi={isAi} parts={parts} />
           <StyledMessageInfo token={token} isAi={isAi}>
             {moment(
               parts?.[0]?.timestamp ? parts?.[0]?.timestamp * 1000 : undefined,
