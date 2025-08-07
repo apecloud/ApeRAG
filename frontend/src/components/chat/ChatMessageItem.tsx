@@ -11,8 +11,8 @@ import {
   BulbOutlined,
   CaretRightOutlined,
   CopyOutlined,
-  DislikeFilled,
-  LikeFilled,
+  DislikeOutlined,
+  LikeOutlined,
   LoadingOutlined,
   UserOutlined,
 } from '@ant-design/icons';
@@ -105,7 +105,7 @@ const StyledMessageInfo = styled('div').withConfig({
       display: flex;
       justify-content: space-between;
       font-size: 12px;
-      gap: 16px;
+      gap: 4px;
       align-items: center;
       min-height: 32px;
       justify-content: ${!isAi ? 'flex-end' : 'flex-start'};
@@ -162,11 +162,9 @@ const CollapseResult = ({
 };
 
 const MessageContent = ({
-  isHover,
   isAi,
   parts,
 }: {
-  isHover: boolean;
   isAi: boolean;
   parts: ChatMessage[];
 }) => {
@@ -186,14 +184,11 @@ const MessageContent = ({
     [],
   );
 
-  const text = parts.map((p) => p.data).join('');
-
   return (
     <StyledMessageContent token={token} isAi={isAi}>
       {!isAi
         ? parts[0].data
         : parts.map((part, index) => {
-            console.log(part);
             switch (part.type) {
               case 'tool_call_result': {
                 const { title, body } = parseToolCallTitle(part.data || '');
@@ -227,19 +222,6 @@ const MessageContent = ({
                 return 'unknown part type';
             }
           })}
-
-      {isAi && isHover && text && (
-        <Tooltip title="Copy">
-          <Button
-            style={{ position: 'absolute', right: 8, top: 12 }}
-            icon={<CopyOutlined style={{ color: token.colorTextSecondary }} />}
-            onClick={async () => {
-              await navigator.clipboard.writeText(text);
-              toast.success('Copied!');
-            }}
-          ></Button>
-        </Tooltip>
-      )}
     </StyledMessageContent>
   );
 };
@@ -257,7 +239,7 @@ export const ChatMessageItem = ({
 }) => {
   const { token } = theme.useToken();
   const hoverRef = useRef(null);
-  const isHovering = useHover(hoverRef);
+  // const isHovering = useHover(hoverRef);
   const { formatMessage } = useIntl();
   const [referencesVisible, setReferencesVisible] = useState<boolean>(false);
   const [feedbackModalVisible, setFeedbackModalVisible] =
@@ -348,7 +330,7 @@ export const ChatMessageItem = ({
           />
         )}
         <StyledMessageBody ref={hoverRef}>
-          <MessageContent isHover={isHovering} isAi={isAi} parts={parts} />
+          <MessageContent isAi={isAi} parts={parts} />
           <StyledMessageInfo token={token} isAi={isAi}>
             {moment(
               parts?.[0]?.timestamp ? parts?.[0]?.timestamp * 1000 : undefined,
@@ -368,17 +350,17 @@ export const ChatMessageItem = ({
                 />
               </Tooltip>
             )}
-            {isHovering && partReference ? (
-              <Space>
+            {partReference ? (
+              <>
                 <Button
                   icon={
-                    <LikeFilled
+                    <LikeOutlined
                       style={{
                         color:
                           partReference?.feedback?.type ===
                           FeedbackTypeEnum.good
                             ? token.colorSuccess
-                            : token.colorTextDisabled,
+                            : token.colorTextSecondary,
                       }}
                     />
                   }
@@ -387,20 +369,36 @@ export const ChatMessageItem = ({
                 />
                 <Button
                   icon={
-                    <DislikeFilled
+                    <DislikeOutlined
                       style={{
                         color:
                           partReference?.feedback?.type === FeedbackTypeEnum.bad
                             ? token.colorError
-                            : token.colorTextDisabled,
+                            : token.colorTextSecondary,
                       }}
                     />
                   }
                   type="text"
                   onClick={() => handleFeedback(FeedbackTypeEnum.bad)}
                 />
-              </Space>
+              </>
             ) : null}
+            {isAi && (
+              <Tooltip title="Copy">
+                <Button
+                  type="text"
+                  icon={
+                    <CopyOutlined style={{ color: token.colorTextSecondary }} />
+                  }
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(
+                      parts.map((p) => p.data).join(''),
+                    );
+                    toast.success('Copied!');
+                  }}
+                ></Button>
+              </Tooltip>
+            )}
           </StyledMessageInfo>
         </StyledMessageBody>
         {!isAi && (
