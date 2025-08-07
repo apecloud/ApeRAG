@@ -1907,7 +1907,7 @@ class UserQuotaInfo(BaseModel):
     """
 
     user_id: str = Field(..., description='User ID', example='user123')
-    username: str = Field(..., description='Username', example='john_doe')
+    username: Optional[str] = Field(None, description='Username', example='john_doe')
     email: Optional[str] = Field(
         None, description='User email', example='john@example.com'
     )

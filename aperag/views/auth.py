@@ -50,7 +50,7 @@ class UserManager(BaseUserManager[User, str]):
 
     async def on_after_register(self, user: User, request: Optional[Request] = None):
         """
-        Set the first registered user as an admin.
+        Set the first registered user as an admin and initialize user resources.
         This works for both regular and OAuth registration.
         """
         user_count = await async_db_ops.query_user_count()
@@ -59,6 +59,34 @@ class UserManager(BaseUserManager[User, str]):
             self.user_db.session.add(user)
             await self.user_db.session.commit()
             await self.user_db.session.refresh(user)
+
+        # Initialize user resources for all new users (including OAuth users)
+        try:
+            from aperag.db.models import BotType
+            from aperag.schema.view_models import BotCreate
+            from aperag.service.bot_service import bot_service
+            from aperag.service.quota_service import quota_service
+
+            # Initialize user quotas first
+            await quota_service.initialize_user_quotas(str(user.id))
+
+            # Create a system API key for the user (not visible to user)
+            await async_db_ops.create_api_key(user=str(user.id), description="system", is_system=True)
+            # Create a normal API key for the user (visible to user)
+            await async_db_ops.create_api_key(user=str(user.id), description="default", is_system=False)
+
+            # Create a default bot for the user (skip quota check for system bot)
+            bot_create = BotCreate(
+                title="Default Agent Bot",
+                type=BotType.AGENT,
+                description="Default agent bot created on registration.",
+                collection_ids=[],
+            )
+            await bot_service.create_bot(user=str(user.id), bot_in=bot_create, skip_quota_check=True)
+
+            logger.info(f"Initialized resources for user {user.username or user.email} ({user.id})")
+        except Exception as e:
+            logger.error(f"Failed to initialize resources for user {user.username or user.email} ({user.id}): {e}")
 
     def parse_id(self, value: any) -> str:
         """Parse ID from any type to str"""
@@ -397,33 +425,9 @@ async def register_view(
         session.add(invitation)
         await session.commit()
 
-    # Create default API key, bot, and initialize quotas for the new user
-    try:
-        from aperag.db.models import BotType
-        from aperag.schema.view_models import BotCreate
-        from aperag.service.bot_service import bot_service
-        from aperag.service.quota_service import quota_service
-
-        # Initialize user quotas first
-        await quota_service.initialize_user_quotas(str(user.id))
-
-        # Create a system API key for the user (not visible to user)
-        await async_db_ops.create_api_key(user=str(user.id), description="system", is_system=True)
-        # Create a normal API key for the user (visible to user)
-        await async_db_ops.create_api_key(user=str(user.id), description="default", is_system=False)
-
-        # Create a default bot for the user (skip quota check for system bot)
-        bot_create = BotCreate(
-            title="Default Agent Bot",
-            type=BotType.AGENT,
-            description="Default agent bot created on registration.",
-            collection_ids=[],
-        )
-        await bot_service.create_bot(user=str(user.id), bot_in=bot_create, skip_quota_check=True)
-
-        logger.info(f"Created default quotas, bot and api key for user {user.username} ({user.id})")
-    except Exception as e:
-        logger.error(f"Failed to create default quotas, bot and api key for user {user.username} ({user.id}): {e}")
+    # Note: User resources (quotas, API keys, default bot) are now initialized 
+    # in the on_after_register method which is called automatically by fastapi-users
+    await user_manager.on_after_register(user, request)
 
     return view_models.User(
         id=str(user.id),
