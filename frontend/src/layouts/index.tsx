@@ -43,6 +43,9 @@ const config: {
 
   '/settings(/*)': <Layout navbar={<NavbarSettings />} />,
 
+  // OAuth callback page should not be wrapped in any layout to avoid auth checks
+  '/oauth-callback': <Outlet />,
+
   '*': <Layout auth={false} sidebar={false} />,
 };
 

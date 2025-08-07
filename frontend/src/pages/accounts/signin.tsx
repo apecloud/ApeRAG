@@ -167,13 +167,15 @@ export default () => {
                 block
                 onClick={async () => {
                   try {
-                    const response = await fetch(
-                      `/api/v1/auth/google/authorize?redirect_uri=${encodeURIComponent(
-                        redirectUri || window.location.origin,
-                      )}`,
-                    );
+                    // Store provider info for callback page
+                    localStorage.setItem('oauth_provider', 'google');
+                    console.log('Google OAuth - stored provider in localStorage');
+                    
+                    const response = await fetch('/api/v1/auth/google/authorize');
                     const data = await response.json();
+                    console.log('Google OAuth authorize response:', data);
                     if (data.authorization_url) {
+                      console.log('Redirecting to Google OAuth:', data.authorization_url);
                       window.location.href = data.authorization_url;
                     }
                   } catch (error) {
@@ -190,13 +192,15 @@ export default () => {
                 block
                 onClick={async () => {
                   try {
-                    const response = await fetch(
-                      `/api/v1/auth/github/authorize?redirect_uri=${encodeURIComponent(
-                        redirectUri || window.location.origin,
-                      )}`,
-                    );
+                    // Store provider info for callback page
+                    localStorage.setItem('oauth_provider', 'github');
+                    console.log('GitHub OAuth - stored provider in localStorage');
+                    
+                    const response = await fetch('/api/v1/auth/github/authorize');
                     const data = await response.json();
+                    console.log('GitHub OAuth authorize response:', data);
                     if (data.authorization_url) {
+                      console.log('Redirecting to GitHub OAuth:', data.authorization_url);
                       window.location.href = data.authorization_url;
                     }
                   } catch (error) {
