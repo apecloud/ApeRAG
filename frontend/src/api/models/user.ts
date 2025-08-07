@@ -56,5 +56,11 @@ export interface User {
      * @memberof User
      */
     'date_joined'?: string;
+    /**
+     * The registration source of the user (local, google, github, etc.)
+     * @type {string}
+     * @memberof User
+     */
+    'registration_source'?: string;
 }
 

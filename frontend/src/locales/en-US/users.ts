@@ -33,6 +33,8 @@ export const user = {
   'user.password_new_required': 'New password is required',
   'user.role': 'Role',
   'user.status': 'Status',
+  'user.registrationSource': 'Registration Source',
+  'user.source.local': 'Local',
   'user.signin_with_google': 'Sign in with Google',
   'user.signin_with_github': 'Sign in with GitHub',
   'user.or': 'or',

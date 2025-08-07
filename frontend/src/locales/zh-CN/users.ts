@@ -33,6 +33,8 @@ export const user = {
   'user.password_new_required': '请输入新密码',
   'user.role': '角色',
   'user.status': '状态',
+  'user.registrationSource': '注册来源',
+  'user.source.local': '本地注册',
   'user.signin_with_google': '使用 Google 登录',
   'user.signin_with_github': '使用 GitHub 登录',
   'user.or': '或',

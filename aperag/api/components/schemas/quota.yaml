@@ -52,7 +52,6 @@ userQuotaInfo:
         $ref: '#/quotaInfo'
   required:
     - user_id
-    - username
     - role
     - quotas
 

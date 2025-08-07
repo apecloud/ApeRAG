@@ -34,7 +34,7 @@ export interface UserQuotaInfo {
      * @type {string}
      * @memberof UserQuotaInfo
      */
-    'username': string;
+    'username'?: string;
     /**
      * User email
      * @type {string}

@@ -275,28 +275,6 @@ if is_github_oauth_enabled():
     router.include_router(github_oauth_router, prefix="/auth/github", tags=["auth"])
 
 
-@router.get("/users", tags=["users"])
-async def list_users_view(
-    session: AsyncSessionDep, user: Optional[User] = Depends(current_user)
-) -> view_models.UserList:
-    from sqlalchemy import select
-
-    if user.role == Role.ADMIN:
-        result = await session.execute(select(User))
-    else:
-        result = await session.execute(select(User).where(User.id == user.id))
-    users = [
-        view_models.User(
-            id=str(u.id),
-            username=u.username,
-            email=u.email,
-            role=u.role,
-            is_active=u.is_active,
-            date_joined=u.date_joined.isoformat(),
-        )
-        for u in result.unique().scalars()
-    ]
-    return view_models.UserList(items=users)
 
 
 @router.post("/invite", tags=["invitations"])
@@ -429,6 +407,12 @@ async def register_view(
     # in the on_after_register method which is called automatically by fastapi-users
     await user_manager.on_after_register(user, request)
 
+    # Determine registration source
+    registration_source = "local"  # Default to local registration
+    if hasattr(user, 'oauth_accounts') and user.oauth_accounts:
+        # If user has OAuth accounts, use the first one's provider name
+        registration_source = user.oauth_accounts[0].oauth_name
+
     return view_models.User(
         id=str(user.id),
         username=user.username,
@@ -436,6 +420,7 @@ async def register_view(
         role=user.role,
         is_active=user.is_active,
         date_joined=user.date_joined.isoformat(),
+        registration_source=registration_source,
     )
 
 
@@ -492,8 +477,23 @@ async def logout_view(response: Response):
 @router.get("/user", tags=["users"])
 async def get_user_view(request: Request, session: AsyncSessionDep, user: Optional[User] = Depends(current_user)):
     """Get user info, return 401 if not authenticated"""
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+    
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
+
+    # Load user with oauth_accounts to determine registration source
+    result = await session.execute(
+        select(User).options(selectinload(User.oauth_accounts)).where(User.id == user.id)
+    )
+    user_with_oauth = result.scalars().first()
+    
+    # Determine registration source
+    registration_source = "local"  # Default to local registration
+    if user_with_oauth and user_with_oauth.oauth_accounts:
+        # If user has OAuth accounts, use the first one's provider name
+        registration_source = user_with_oauth.oauth_accounts[0].oauth_name
 
     return view_models.User(
         id=str(user.id),
@@ -502,6 +502,7 @@ async def get_user_view(request: Request, session: AsyncSessionDep, user: Option
         role=user.role,
         is_active=user.is_active,
         date_joined=user.date_joined.isoformat(),
+        registration_source=registration_source,
     )
 
 
@@ -510,23 +511,32 @@ async def list_users_view(
     session: AsyncSessionDep, user: Optional[User] = Depends(current_user)
 ) -> view_models.UserList:
     from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
 
     if user.role == Role.ADMIN:
-        result = await session.execute(select(User))
+        result = await session.execute(select(User).options(selectinload(User.oauth_accounts)))
     else:
-        result = await session.execute(select(User).where(User.id == user.id))
+        result = await session.execute(select(User).options(selectinload(User.oauth_accounts)).where(User.id == user.id))
 
-    users = [
-        view_models.User(
-            id=str(u.id),
-            username=u.username,
-            email=u.email,
-            role=u.role,
-            is_active=u.is_active,
-            date_joined=u.date_joined.isoformat(),
+    users = []
+    for u in result.unique().scalars():
+        # Determine registration source
+        registration_source = "local"  # Default to local registration
+        if u.oauth_accounts:
+            # If user has OAuth accounts, use the first one's provider name
+            registration_source = u.oauth_accounts[0].oauth_name
+        
+        users.append(
+            view_models.User(
+                id=str(u.id),
+                username=u.username,
+                email=u.email,
+                role=u.role,
+                is_active=u.is_active,
+                date_joined=u.date_joined.isoformat(),
+                registration_source=registration_source,
+            )
         )
-        for u in result.unique().scalars()
-    ]
     return view_models.UserList(items=users)
 
 

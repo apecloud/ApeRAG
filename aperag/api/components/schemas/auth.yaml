@@ -100,6 +100,9 @@ user:
     date_joined:
       type: string
       description: The date and time the user joined the system
+    registration_source:
+      type: string
+      description: The registration source of the user (local, google, github, etc.)
 
 userList:
   type: object

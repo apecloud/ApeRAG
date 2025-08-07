@@ -63,6 +63,26 @@ export default () => {
       },
     },
     {
+      title: formatMessage({ id: 'user.registrationSource' }),
+      dataIndex: 'registration_source',
+      width: 120,
+      render: (value) => {
+        const sourceMap: Record<string, { text: string; color: string }> = {
+          local: { text: formatMessage({ id: 'user.source.local' }), color: 'default' },
+          google: { text: 'Google', color: 'blue' },
+          github: { text: 'GitHub', color: 'purple' },
+        };
+        
+        const source = sourceMap[value] || { text: value || 'Unknown', color: 'default' };
+        
+        return (
+          <Typography.Text type={source.color as any}>
+            {source.text}
+          </Typography.Text>
+        );
+      },
+    },
+    {
       title: formatMessage({ id: 'text.createdAt' }),
       dataIndex: 'date_joined',
       width: 180,
