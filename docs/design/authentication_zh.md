@@ -99,6 +99,8 @@ sequenceDiagram
     F->>U: 跳转到主页面
 ```
 
+参考：https://github.com/fastapi-users/fastapi-users/issues/434
+
 #### OAuth API说明
 
 OAuth认证涉及两个关键API，这些API由FastAPI-Users自动生成：
