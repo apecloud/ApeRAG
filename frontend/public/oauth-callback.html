@@ -131,12 +131,34 @@
                     }
 
                     // Handle error responses
-                    window.location.href = '/web/accounts/signin?error=oauth_failed';
+                    console.error('OAuth callback failed with status:', response.status);
+                    
+                    // Try to get error details from response
+                    let errorType = 'oauth_failed';
+                    try {
+                        const errorData = await response.text();
+                        console.error('OAuth callback error details:', errorData);
+                        
+                        // Check for specific error types based on status code
+                        if (response.status === 400) {
+                            errorType = 'oauth_invalid';
+                        } else if (response.status === 401 || response.status === 403) {
+                            errorType = 'oauth_unauthorized';
+                        } else if (response.status >= 500) {
+                            errorType = 'oauth_server_error';
+                        }
+                    } catch (parseError) {
+                        console.error('Failed to parse error response:', parseError);
+                    }
+                    
+                    window.location.href = `/web/accounts/signin?error=${errorType}`;
                 } catch (fetchError) {
+                    console.error('OAuth callback fetch error:', fetchError);
                     // Fallback: try direct navigation to the callback URL
                     window.location.href = callbackUrl;
                 }
             } catch (error) {
+                console.error('OAuth callback general error:', error);
                 window.location.href = '/web/accounts/signin?error=oauth_failed';
             }
         }

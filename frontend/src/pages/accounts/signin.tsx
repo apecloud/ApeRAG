@@ -4,7 +4,7 @@ import bgLight from '@/assets/page/signin-light.svg';
 import { PageContainer } from '@/components';
 import { api } from '@/services';
 import { KeyOutlined, UserOutlined } from '@ant-design/icons';
-import { Button, Card, Divider, Form, Input, Space, Typography } from 'antd';
+import { Alert, Button, Card, Divider, Form, Input, Space, Typography } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import {
@@ -25,6 +25,9 @@ export default () => {
     ? '?redirectUri=' + encodeURIComponent(redirectUri)
     : '';
   const [loginMethods, setLoginMethods] = useState<string[]>([]);
+  
+  // Check for OAuth error parameters
+  const oauthError = searchParams.get('error');
 
   useEffect(() => {
     // Fetch available login methods from the backend config
@@ -95,6 +98,39 @@ export default () => {
           )}
         </Space>
         <Divider />
+
+        {/* Display OAuth error messages */}
+        {oauthError && (
+          <>
+            <Alert
+              message={
+                oauthError === 'oauth_failed' 
+                  ? formatMessage({ id: 'user.oauth_callback_failed' })
+                  : oauthError === 'oauth_invalid'
+                  ? formatMessage({ id: 'user.oauth_invalid_params' })
+                  : oauthError === 'oauth_unauthorized'
+                  ? formatMessage({ id: 'user.oauth_unauthorized' })
+                  : oauthError === 'oauth_server_error'
+                  ? formatMessage({ id: 'user.oauth_server_error' })
+                  : formatMessage({ id: 'user.oauth_error' })
+              }
+              description={
+                oauthError === 'oauth_failed'
+                  ? formatMessage({ id: 'user.oauth_callback_failed_desc' })
+                  : oauthError === 'oauth_invalid'
+                  ? formatMessage({ id: 'user.oauth_invalid_params_desc' })
+                  : oauthError === 'oauth_unauthorized'
+                  ? formatMessage({ id: 'user.oauth_unauthorized_desc' })
+                  : oauthError === 'oauth_server_error'
+                  ? formatMessage({ id: 'user.oauth_server_error_desc' })
+                  : formatMessage({ id: 'user.oauth_error_desc' })
+              }
+              type="error"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+          </>
+        )}
 
         {hasLocalLogin && (
           <Form
@@ -180,6 +216,7 @@ export default () => {
                     }
                   } catch (error) {
                     console.error('Google OAuth error:', error);
+                    toast.error(formatMessage({ id: 'user.oauth_authorize_failed' }));
                   }
                 }}
               >
@@ -205,6 +242,7 @@ export default () => {
                     }
                   } catch (error) {
                     console.error('GitHub OAuth error:', error);
+                    toast.error(formatMessage({ id: 'user.oauth_authorize_failed' }));
                   }
                 }}
               >
