@@ -60,6 +60,9 @@ class UserManager(BaseUserManager[User, str]):
             await self.user_db.session.commit()
             await self.user_db.session.refresh(user)
 
+        # For GitHub OAuth users, fetch username from GitHub API
+        await self._fetch_github_username_if_needed(user)
+
         # Initialize user resources for all new users (including OAuth users)
         try:
             from aperag.db.models import BotType
@@ -87,6 +90,47 @@ class UserManager(BaseUserManager[User, str]):
             logger.info(f"Initialized resources for user {user.username or user.email} ({user.id})")
         except Exception as e:
             logger.error(f"Failed to initialize resources for user {user.username or user.email} ({user.id}): {e}")
+
+    async def _fetch_github_username_if_needed(self, user: User):
+        """
+        For GitHub OAuth users, fetch username from GitHub API using account_id
+        """
+        try:
+            # Check if user has GitHub OAuth account
+            github_oauth_account = None
+            for oauth_account in user.oauth_accounts:
+                if oauth_account.oauth_name == "github":
+                    github_oauth_account = oauth_account
+                    break
+            
+            if not github_oauth_account:
+                return  # Not a GitHub OAuth user
+            
+            if user.username:
+                return  # Username already set
+            
+            # Fetch username from GitHub API
+            import httpx
+            
+            github_user_id = github_oauth_account.account_id
+            github_api_url = f"https://api.github.com/user/{github_user_id}"
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.get(github_api_url)
+                if response.status_code == 200:
+                    github_user_data = response.json()
+                    github_username = github_user_data.get("login")
+                    
+                    if github_username:
+                        user.username = github_username
+                        self.user_db.session.add(user)
+                        await self.user_db.session.commit()
+                        await self.user_db.session.refresh(user)
+                        logger.info(f"Updated GitHub user {user.id} with username: {github_username}")
+                else:
+                    logger.warning(f"Failed to fetch GitHub user data for user {user.id}: HTTP {response.status_code}")
+        except Exception as e:
+            logger.error(f"Failed to fetch GitHub username for user {user.id}: {e}")
 
     def parse_id(self, value: any) -> str:
         """Parse ID from any type to str"""

@@ -84,7 +84,7 @@ export default () => {
       title: formatMessage({ id: 'user.registrationSource' }),
       dataIndex: 'registration_source',
       width: 120,
-      render: (value) => {
+      render: (value, record) => {
         const sourceMap: Record<string, { text: string; color: string }> = {
           local: { text: formatMessage({ id: 'user.source.local' }), color: 'default' },
           google: { text: 'Google', color: 'blue' },
@@ -100,6 +100,20 @@ export default () => {
         }
         
         const source = sourceMap[value] || { text: value, color: 'default' };
+        
+        // For GitHub users, make it clickable to jump to GitHub profile
+        if (value === 'github' && record.username) {
+          return (
+            <Typography.Link
+              href={`https://github.com/${record.username}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: source.color === 'purple' ? '#722ed1' : undefined }}
+            >
+              {source.text}
+            </Typography.Link>
+          );
+        }
         
         return (
           <Typography.Text type={source.color as any}>
