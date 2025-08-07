@@ -132,7 +132,13 @@ export default () => {
             </Typography.Text>
           </Space>
         </Link>
-        <Space className={styles.topnav}></Space>
+        <Space className={styles.topnav}>
+          <Link to="/marketplace">
+            <Button type="text">
+              {formatMessage({ id: 'collection.marketplace.title' })}
+            </Button>
+          </Link>
+        </Space>
         <Space>
           {APERAG_CONFIG.github && (
             <a href={APERAG_CONFIG.github} target="_blank" rel="noreferrer">

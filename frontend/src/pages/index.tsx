@@ -35,4 +35,4 @@
 
 import { Navigate } from 'umi';
 
-export default () => <Navigate to="/bots" replace />;
+export default () => <Navigate to="/marketplace" replace />;

@@ -1,6 +1,6 @@
 import { SIDEBAR_WIDTH, TOPBAR_HEIGHT } from '@/constants';
 import { getLogo } from '@/utils';
-import { AppstoreOutlined, ShopOutlined } from '@ant-design/icons';
+import { AppstoreOutlined } from '@ant-design/icons';
 import { GlobalToken, Image, theme, Tooltip } from 'antd';
 import { BsChatText, BsFiletypeDoc, BsGear } from 'react-icons/bs';
 import { css, Link, styled, useIntl, useLocation, useModel } from 'umi';
@@ -73,7 +73,6 @@ export const Sidebar = ({ topbar }: { topbar: boolean }) => {
   const { token } = theme.useToken();
   const { formatMessage } = useIntl();
   const { themeName } = useModel('global');
-  const { user } = useModel('user');
   const location = useLocation();
 
   const sidebar_items = [
@@ -91,11 +90,6 @@ export const Sidebar = ({ topbar }: { topbar: boolean }) => {
       path: '/collections',
       icon: <BsFiletypeDoc />,
       label: formatMessage({ id: 'collection.name' }),
-    },
-    {
-      path: '/marketplace',
-      icon: <ShopOutlined />,
-      label: formatMessage({ id: 'collection.marketplace.title' }),
     },
   ];
 
@@ -120,15 +114,12 @@ export const Sidebar = ({ topbar }: { topbar: boolean }) => {
             const pattern = new UrlPattern(`${item.path}*`);
             const active = pattern.match(location.pathname);
             return (
-              <StyledSidebarLink
-                key={index}
-                token={token}
-                active={active}
-                to={item.path}
-              >
-                {item.icon}
-                <div>{item.label}</div>
-              </StyledSidebarLink>
+              <Tooltip key={index} placement="right" arrow>
+                <StyledSidebarLink token={token} active={active} to={item.path}>
+                  {item.icon}
+                  <div>{item.label}</div>
+                </StyledSidebarLink>
+              </Tooltip>
             );
           })}
         </div>

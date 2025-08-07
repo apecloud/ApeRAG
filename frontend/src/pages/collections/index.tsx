@@ -53,47 +53,7 @@ export default () => {
       description={formatMessage({ id: 'collection.tips' })}
     >
       <Space>
-        <Select
-          style={{ width: 180 }}
-          placeholder={formatMessage({ id: 'collection.source' })}
-          options={Object.keys(COLLECTION_SOURCE).map((key) => {
-            return {
-              label: formatMessage({ id: `collection.source.${key}` }),
-              value: key,
-              disabled:
-                !COLLECTION_SOURCE[key as CollectionConfigSource].enabled,
-            };
-          })}
-          allowClear
-          onChange={(v) => {
-            setSearchParams({ ...searchParams, source: v });
-          }}
-          value={searchParams?.source}
-          labelRender={({ label, value }) => {
-            return (
-              <Space>
-                <Avatar
-                  size={20}
-                  shape="square"
-                  src={COLLECTION_SOURCE[value as CollectionConfigSource].icon}
-                />
-                {label}
-              </Space>
-            );
-          }}
-          optionRender={({ label, value }) => {
-            return (
-              <Space>
-                <Avatar
-                  size={20}
-                  shape="square"
-                  src={COLLECTION_SOURCE[value as CollectionConfigSource].icon}
-                />
-                {label}
-              </Space>
-            );
-          }}
-        />
+        
         <Input
           placeholder={formatMessage({ id: 'action.search' })}
           prefix={
