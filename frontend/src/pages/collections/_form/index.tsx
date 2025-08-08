@@ -161,7 +161,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
   }, [indexTypes, form]);
 
   useEffect(() => {
-    getAvailableModels();
+    getAvailableModels([{"operation":"AND","tags":["enable_for_collection"]}]);
   }, []);
 
   // Set initial index types based on config values in edit mode

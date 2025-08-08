@@ -143,7 +143,7 @@ export const ChatInput = ({
 
   useEffect(() => {
     getCollections();
-    getAvailableModels();
+    getAvailableModels([{"operation":"AND","tags":["enable_for_agent"]}]);
   }, []);
 
   return (
