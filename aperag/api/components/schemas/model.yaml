@@ -436,6 +436,7 @@ defaultModelConfig:
         - default_for_agent_completion
         - default_for_embedding
         - default_for_rerank
+        - default_for_background_task
       description: The scenario for which this default model is configured
       example: "default_for_embedding"
     provider_name:

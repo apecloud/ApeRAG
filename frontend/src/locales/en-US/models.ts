@@ -115,6 +115,7 @@ export const model = {
   'default.models.agent.completion': 'Agent Default Model',
   'default.models.embedding': 'Embedding Default Model',
   'default.models.rerank': 'Rerank Default Model',
+  'default.models.background_task': 'Background Task Default Model',
   'default.models.select.placeholder': 'Please select a model',
   'default.models.clear.hint': 'Clearing selection will delete the default model configuration for this scenario',
   'default.models.save.success': 'Default model configuration saved successfully',

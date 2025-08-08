@@ -137,6 +137,8 @@ export * from './tag-filter-condition';
 export * from './tag-filter-request';
 export * from './target-entity-data-request';
 export * from './target-entity-data-response';
+export * from './title-generate-request';
+export * from './title-generate-response';
 export * from './user';
 export * from './user-list';
 export * from './user-quota-info';

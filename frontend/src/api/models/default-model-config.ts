@@ -44,7 +44,8 @@ export const DefaultModelConfigScenarioEnum = {
     default_for_collection_completion: 'default_for_collection_completion',
     default_for_agent_completion: 'default_for_agent_completion',
     default_for_embedding: 'default_for_embedding',
-    default_for_rerank: 'default_for_rerank'
+    default_for_rerank: 'default_for_rerank',
+    default_for_background_task: 'default_for_background_task'
 } as const;
 
 export type DefaultModelConfigScenarioEnum = typeof DefaultModelConfigScenarioEnum[keyof typeof DefaultModelConfigScenarioEnum];

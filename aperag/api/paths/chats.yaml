@@ -167,6 +167,54 @@ chat:
             schema:
               $ref: '../components/schemas/common.yaml#/failResponse'
 
+chat_title_generate:
+  post:
+    summary: Generate a chat title
+    description: Generate a short title for the chat based on recent conversation content
+    security:
+      - BearerAuth: []
+    parameters:
+      - name: bot_id
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: chat_id
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/chat.yaml#/titleGenerateRequest'
+    responses:
+      '200':
+        description: Generated title
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/chat.yaml#/titleGenerateResponse'
+      '400':
+        description: Bad request
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '401':
+        description: Unauthorized
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Chat not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
 messages:
   get:
     summary: List messages

@@ -142,6 +142,10 @@ import type { SharingStatusResponse } from '../models';
 // @ts-ignore
 import type { TagFilterRequest } from '../models';
 // @ts-ignore
+import type { TitleGenerateRequest } from '../models';
+// @ts-ignore
+import type { TitleGenerateResponse } from '../models';
+// @ts-ignore
 import type { User } from '../models';
 // @ts-ignore
 import type { UserList } from '../models';
@@ -549,6 +553,54 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
             localVarRequestOptions.data = serializeDataIfNeeded(chatUpdate, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * Generate a short title for the chat based on recent conversation content
+         * @summary Generate a chat title
+         * @param {string} botId 
+         * @param {string} chatId 
+         * @param {TitleGenerateRequest} titleGenerateRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        botsBotIdChatsChatIdTitlePost: async (botId: string, chatId: string, titleGenerateRequest: TitleGenerateRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'botId' is not null or undefined
+            assertParamExists('botsBotIdChatsChatIdTitlePost', 'botId', botId)
+            // verify required parameter 'chatId' is not null or undefined
+            assertParamExists('botsBotIdChatsChatIdTitlePost', 'chatId', chatId)
+            // verify required parameter 'titleGenerateRequest' is not null or undefined
+            assertParamExists('botsBotIdChatsChatIdTitlePost', 'titleGenerateRequest', titleGenerateRequest)
+            const localVarPath = `/bots/{bot_id}/chats/{chat_id}/title`
+                .replace(`{${"bot_id"}}`, encodeURIComponent(String(botId)))
+                .replace(`{${"chat_id"}}`, encodeURIComponent(String(chatId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(titleGenerateRequest, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -3181,6 +3233,21 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Generate a short title for the chat based on recent conversation content
+         * @summary Generate a chat title
+         * @param {string} botId 
+         * @param {string} chatId 
+         * @param {TitleGenerateRequest} titleGenerateRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async botsBotIdChatsChatIdTitlePost(botId: string, chatId: string, titleGenerateRequest: TitleGenerateRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<TitleGenerateResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.botsBotIdChatsChatIdTitlePost(botId, chatId, titleGenerateRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.botsBotIdChatsChatIdTitlePost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Get a list of chats
          * @summary List chats
          * @param {string} botId 
@@ -4150,6 +4217,16 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.botsBotIdChatsChatIdPut(requestParameters.botId, requestParameters.chatId, requestParameters.chatUpdate, options).then((request) => request(axios, basePath));
         },
         /**
+         * Generate a short title for the chat based on recent conversation content
+         * @summary Generate a chat title
+         * @param {DefaultApiBotsBotIdChatsChatIdTitlePostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        botsBotIdChatsChatIdTitlePost(requestParameters: DefaultApiBotsBotIdChatsChatIdTitlePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<TitleGenerateResponse> {
+            return localVarFp.botsBotIdChatsChatIdTitlePost(requestParameters.botId, requestParameters.chatId, requestParameters.titleGenerateRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Get a list of chats
          * @summary List chats
          * @param {DefaultApiBotsBotIdChatsGetRequest} requestParameters Request parameters.
@@ -4887,6 +4964,16 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     botsBotIdChatsChatIdPut(requestParameters: DefaultApiBotsBotIdChatsChatIdPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<Chat>;
+
+    /**
+     * Generate a short title for the chat based on recent conversation content
+     * @summary Generate a chat title
+     * @param {DefaultApiBotsBotIdChatsChatIdTitlePostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    botsBotIdChatsChatIdTitlePost(requestParameters: DefaultApiBotsBotIdChatsChatIdTitlePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<TitleGenerateResponse>;
 
     /**
      * Get a list of chats
@@ -5701,6 +5788,34 @@ export interface DefaultApiBotsBotIdChatsChatIdPutRequest {
      * @memberof DefaultApiBotsBotIdChatsChatIdPut
      */
     readonly chatUpdate: ChatUpdate
+}
+
+/**
+ * Request parameters for botsBotIdChatsChatIdTitlePost operation in DefaultApi.
+ * @export
+ * @interface DefaultApiBotsBotIdChatsChatIdTitlePostRequest
+ */
+export interface DefaultApiBotsBotIdChatsChatIdTitlePostRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof DefaultApiBotsBotIdChatsChatIdTitlePost
+     */
+    readonly botId: string
+
+    /**
+     * 
+     * @type {string}
+     * @memberof DefaultApiBotsBotIdChatsChatIdTitlePost
+     */
+    readonly chatId: string
+
+    /**
+     * 
+     * @type {TitleGenerateRequest}
+     * @memberof DefaultApiBotsBotIdChatsChatIdTitlePost
+     */
+    readonly titleGenerateRequest: TitleGenerateRequest
 }
 
 /**
@@ -6856,6 +6971,18 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      */
     public botsBotIdChatsChatIdPut(requestParameters: DefaultApiBotsBotIdChatsChatIdPutRequest, options?: RawAxiosRequestConfig) {
         return DefaultApiFp(this.configuration).botsBotIdChatsChatIdPut(requestParameters.botId, requestParameters.chatId, requestParameters.chatUpdate, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Generate a short title for the chat based on recent conversation content
+     * @summary Generate a chat title
+     * @param {DefaultApiBotsBotIdChatsChatIdTitlePostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public botsBotIdChatsChatIdTitlePost(requestParameters: DefaultApiBotsBotIdChatsChatIdTitlePostRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).botsBotIdChatsChatIdTitlePost(requestParameters.botId, requestParameters.chatId, requestParameters.titleGenerateRequest, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

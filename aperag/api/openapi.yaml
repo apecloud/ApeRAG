@@ -35,6 +35,8 @@ paths:
     $ref: './paths/chats.yaml#/chats'
   /bots/{bot_id}/chats/{chat_id}:
     $ref: './paths/chats.yaml#/chat'
+  /bots/{bot_id}/chats/{chat_id}/title:
+    $ref: './paths/chats.yaml#/chat_title_generate'
   /bots/{bot_id}/chats/{chat_id}/messages/{message_id}:
     $ref: './paths/message.yaml#/message'
 

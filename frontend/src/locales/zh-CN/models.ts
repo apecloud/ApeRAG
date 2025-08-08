@@ -207,6 +207,7 @@ export const model_configuration = {
   'default.models.agent.completion': '智能代理默认模型', 
   'default.models.embedding': 'Embedding默认模型',
   'default.models.rerank': 'Rerank默认模型',
+  'default.models.background_task': '后台任务默认模型',
   'default.models.select.placeholder': '请选择模型',
   'default.models.clear.hint': '清空选择将删除该场景的默认模型配置',
   'default.models.save.success': '默认模型配置已保存',

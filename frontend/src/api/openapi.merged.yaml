@@ -367,6 +367,54 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
+  /bots/{bot_id}/chats/{chat_id}/title:
+    post:
+      summary: Generate a chat title
+      description: Generate a short title for the chat based on recent conversation content
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: bot_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: chat_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/titleGenerateRequest'
+      responses:
+        '200':
+          description: Generated title
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/titleGenerateResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Chat not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
   /bots/{bot_id}/chats/{chat_id}/messages/{message_id}:
     post:
       summary: Feedback a message
@@ -4047,6 +4095,35 @@ components:
       properties:
         title:
           type: string
+    titleGenerateRequest:
+      type: object
+      properties:
+        max_length:
+          type: integer
+          description: Maximum length of the generated title
+          default: 20
+          minimum: 6
+          maximum: 50
+        language:
+          type: string
+          description: Language for the title generation (IETF BCP 47 tag)
+          default: zh-CN
+          enum:
+            - zh-CN
+            - en-US
+        turns:
+          type: integer
+          description: Number of most recent conversation turns to consider
+          default: 1
+          minimum: 1
+    titleGenerateResponse:
+      type: object
+      properties:
+        title:
+          type: string
+          description: Generated title string
+      required:
+        - title
     collectionView:
       type: object
       description: Lightweight collection information for lists, MCP and agents
@@ -5450,6 +5527,7 @@ components:
             - default_for_agent_completion
             - default_for_embedding
             - default_for_rerank
+            - default_for_background_task
           description: The scenario for which this default model is configured
           example: default_for_embedding
         provider_name:

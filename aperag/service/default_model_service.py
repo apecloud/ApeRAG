@@ -38,6 +38,7 @@ class DefaultModelService:
             "default_for_agent_completion",
             "default_for_embedding",
             "default_for_rerank",
+            "default_for_background_task",
         ]
 
         default_configs = []
@@ -85,6 +86,20 @@ class DefaultModelService:
                     return (None, None, None)
 
         # Should not reach here since get_default_models includes all scenarios
+        return (None, None, None)
+
+    async def get_default_background_task_config(self, user_id: str) -> tuple:
+        """Get default background task (title generation) model configuration
+
+        Returns a tuple of (model, model_service_provider, custom_llm_provider). If not configured, returns (None, None, None).
+        """
+        default_models = await self.get_default_models(user_id)
+        for config in default_models.items:
+            if config.scenario == "default_for_background_task":
+                if config.provider_name and config.model:
+                    return (config.model, config.provider_name, config.provider_name)
+                else:
+                    return (None, None, None)
         return (None, None, None)
 
     async def update_default_models(
@@ -167,6 +182,8 @@ class DefaultModelService:
             return "embedding"
         elif scenario == "default_for_rerank":
             return "rerank"
+        elif scenario == "default_for_background_task":
+            return "completion"
         else:
             raise ValueError(f"Unknown scenario: {scenario}")
 

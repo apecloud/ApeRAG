@@ -51,6 +51,10 @@ const DefaultModelsModal: React.FC<DefaultModelsModalProps> = ({
       key: DefaultModelConfigScenarioEnum.default_for_rerank,
       label: formatMessage({ id: 'default.models.rerank' }),
     },
+    {
+      key: DefaultModelConfigScenarioEnum.default_for_background_task,
+      label: formatMessage({ id: 'default.models.background_task' }),
+    },
   ];
 
   // Fetch filtered models for different scenarios
@@ -93,6 +97,10 @@ const DefaultModelsModal: React.FC<DefaultModelsModalProps> = ({
     } else if (scenario === 'default_for_rerank') {
       modelData = collectionModels;
       modelType = 'rerank';
+    } else if (scenario === 'default_for_background_task') {
+      // Background task (e.g., auto title) uses completion models; prefer agent-enabled models
+      modelData = agentModels;
+      modelType = 'completion';
     }
 
     modelData?.forEach((provider) => {

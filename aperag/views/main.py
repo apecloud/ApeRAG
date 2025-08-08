@@ -18,9 +18,11 @@ from typing import Optional
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request, Response, WebSocket
 
 from aperag.db.models import User
+from aperag.exceptions import BusinessException
 from aperag.schema import view_models
 from aperag.service.bot_service import bot_service
 from aperag.service.chat_service import chat_service_global
+from aperag.service.chat_title_service import chat_title_service
 from aperag.service.default_model_service import default_model_service
 from aperag.service.flow_service import flow_service_global
 from aperag.service.llm_available_model_service import llm_available_model_service
@@ -39,7 +41,13 @@ from aperag.service.prompt_template_service import list_prompt_templates
 from aperag.utils.audit_decorator import audit
 
 # Import authentication dependencies
-from aperag.views.auth import UserManager, authenticate_websocket_user, current_user, get_user_manager
+from aperag.views.auth import (
+    UserManager,
+    authenticate_websocket_user,
+    current_user,
+    get_current_active_user,
+    get_user_manager,
+)
 from aperag.views.quota import router as quota_router
 
 logger = logging.getLogger(__name__)
@@ -214,6 +222,38 @@ async def websocket_chat_endpoint(
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     await chat_service_global.handle_websocket_chat(websocket, user_id, bot_id, chat_id)
+
+
+@router.post("/bots/{bot_id}/chats/{chat_id}/title", tags=["chats"])
+async def generate_chat_title_view(
+    request: Request,
+    bot_id: str,
+    chat_id: str,
+    user: User = Depends(get_current_active_user),
+):
+    try:
+        # Handle both empty request body and JSON request body
+        try:
+            body = await request.json()
+        except Exception:
+            # If JSON parsing fails (e.g., empty body), use empty dict
+            body = {}
+
+        max_length = int(body.get("max_length", 20))
+        language = body.get("language", "zh-CN")
+        turns = int(body.get("turns", 1))
+
+        title = await chat_title_service.generate_title(
+            user_id=str(user.id),
+            bot_id=bot_id,
+            chat_id=chat_id,
+            max_length=max_length,
+            language=language,
+            turns=turns,
+        )
+        return {"title": title}
+    except BusinessException as be:
+        raise HTTPException(status_code=400, detail={"error_code": be.error_code.name, "message": str(be)})
 
 
 # LLM Configuration API endpoints
