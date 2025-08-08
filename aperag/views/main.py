@@ -230,7 +230,7 @@ async def generate_chat_title_view(
     chat_id: str,
     request_body: view_models.TitleGenerateRequest = view_models.TitleGenerateRequest(),
     user: User = Depends(get_current_active_user),
-):
+) -> view_models.TitleGenerateResponse:
     try:
         title = await chat_title_service.generate_title(
             user_id=str(user.id),

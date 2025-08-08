@@ -101,16 +101,44 @@ class ChatTitleService:
 
     @staticmethod
     def _build_prompt(language: str, max_length: int) -> str:
-        if language == "en-US":
-            return (
-                "Generate a concise chat title summarizing the recent conversation. "
-                f"Only return the title text, no quotes, no punctuation at the end. Max {max_length} characters. The title is:"
-            )
-        # Default zh-CN
-        return (
-            "请基于最近的对话内容生成一个简短的中文标题。只返回标题文本，不要引号，末尾不要标点符号。"
-            f"最多 {max_length} 个字符。标题是:"
-        )
+        """Build language-specific prompt for title generation
+
+        Args:
+            language: Language code (zh-CN, en-US, etc.)
+            max_length: Maximum length of the title
+
+        Returns:
+            Formatted prompt string for the specified language
+        """
+        prompts = {
+            "en-US": (
+                "You MUST respond in English only. Create a concise English title that summarizes the conversation. "
+                f"Requirements: 1) MUST be in English, 2) Max {max_length} characters, 3) No quotes or punctuation at end, "
+                "4) Clear and descriptive. "
+                "Regardless of the conversation language, your response MUST be in English. Title:"
+            ),
+            "zh-CN": (
+                "你必须只用中文回答。基于最近的对话内容，生成一个简洁的中文标题。"
+                f"要求：1) 必须使用中文，2) 最多 {max_length} 个字符，3) 不要引号和末尾标点，"
+                "4) 清晰且具有描述性。"
+                "无论对话是什么语言，你的回答必须是中文。标题："
+            ),
+            "ja-JP": (
+                "日本語でのみ応答してください。会話を要約する簡潔な日本語タイトルを作成してください。"
+                f"要件：1) 必ず日本語で、2) 最大 {max_length} 文字、3) 引用符や末尾の句読点なし、"
+                "4) 明確で説明的。"
+                "会話がどの言語であっても、回答は必ず日本語でお願いします。タイトル："
+            ),
+            "ko-KR": (
+                "한국어로만 응답해야 합니다. 대화를 요약하는 간결한 한국어 제목을 만드세요. "
+                f"요구사항: 1) 반드시 한국어로, 2) 최대 {max_length}자, 3) 따옴표나 끝의 구두점 없음, "
+                "4) 명확하고 설명적. "
+                "대화가 어떤 언어든 상관없이 반드시 한국어로 응답하세요. 제목:"
+            ),
+        }
+
+        # Get prompt for specified language, fallback to zh-CN
+        return prompts.get(language, prompts["zh-CN"])
 
     @staticmethod
     def _postprocess_title(raw: str, max_length: int) -> str:

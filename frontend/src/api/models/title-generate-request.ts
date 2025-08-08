@@ -42,7 +42,9 @@ export interface TitleGenerateRequest {
 
 export const TitleGenerateRequestLanguageEnum = {
     zh_CN: 'zh-CN',
-    en_US: 'en-US'
+    en_US: 'en-US',
+    ja_JP: 'ja-JP',
+    ko_KR: 'ko-KR'
 } as const;
 
 export type TitleGenerateRequestLanguageEnum = typeof TitleGenerateRequestLanguageEnum[keyof typeof TitleGenerateRequestLanguageEnum];

@@ -167,7 +167,7 @@ titleGenerateRequest:
       type: string
       description: Language for the title generation (IETF BCP 47 tag)
       default: "zh-CN"
-      enum: ["zh-CN", "en-US"]
+      enum: ["zh-CN", "en-US", "ja-JP", "ko-KR"]
     turns:
       type: integer
       description: Number of most recent conversation turns to consider
