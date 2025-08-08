@@ -61,7 +61,7 @@ class UserManager(BaseUserManager[User, str]):
             await self.user_db.session.refresh(user)
 
         # For GitHub OAuth users, fetch username from GitHub API
-        await self._fetch_github_username_if_needed(user)
+        # await self._fetch_github_username_if_needed(user)
 
         # Initialize user resources for all new users (including OAuth users)
         try:
