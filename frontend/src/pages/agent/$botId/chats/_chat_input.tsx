@@ -15,6 +15,7 @@ import {
 import alpha from 'color-alpha';
 import _ from 'lodash';
 import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'react-toastify';
 import { css, getLocale, styled, useIntl, useModel } from 'umi';
 
 export const StyledChatInputContainer = styled('div').withConfig({
@@ -110,6 +111,13 @@ export const ChatInput = ({
 
   const onPressEnter = async () => {
     if (disabled || isComposing) return;
+    
+    const { provider, model } = getProviderByModelName(modelName, 'completion');
+    if(!model) {
+      toast.error(formatMessage({ id: 'default.models.select.placeholder' }));
+      return;
+    }
+
     const _query = _.trim(query);
     if (loading || _.isEmpty(_query)) return;
 
@@ -117,22 +125,18 @@ export const ChatInput = ({
       query: _query,
     };
 
-    if (bot?.type === 'agent') {
-      const { provider, model } = getProviderByModelName(
-        modelName,
-        'completion',
-      );
-      Object.assign(data, {
-        collections: selectedCollections,
-        completion: {
-          model: model?.model,
-          model_service_provider: provider?.name,
-          custom_llm_provider: model?.custom_llm_provider,
-        },
-        web_search_enabled: webSearchEnabled,
-        language: getLocale(),
-      });
-    }
+
+
+    Object.assign(data, {
+      collections: selectedCollections,
+      completion: {
+        model: model?.model,
+        model_service_provider: provider?.name,
+        custom_llm_provider: model?.custom_llm_provider,
+      },
+      web_search_enabled: webSearchEnabled,
+      language: getLocale(),
+    });
     onSubmit(data);
     setQuery(undefined);
   };
@@ -242,6 +246,7 @@ export const ChatInput = ({
                   style={{ width: 220 }}
                   value={modelName}
                   onChange={setModelName}
+                  placeholder={formatMessage({ id: 'default.models.select.placeholder' })}
                   tagfilters={[
                     {
                       operation: 'OR',

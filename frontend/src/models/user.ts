@@ -27,7 +27,6 @@ export default () => {
     setUserLoading(true);
     try {
       const res = await api.userGet();
-      console.log('API response:', res.data); // Debug log
       setUser({
         username: oidcUser?.profile.nickname || oidcUser?.profile.name || res.data.username || 'Guest',
         email: oidcUser?.profile.email || res.data.email,
