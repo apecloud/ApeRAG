@@ -226,30 +226,19 @@ async def websocket_chat_endpoint(
 
 @router.post("/bots/{bot_id}/chats/{chat_id}/title", tags=["chats"])
 async def generate_chat_title_view(
-    request: Request,
     bot_id: str,
     chat_id: str,
+    request_body: view_models.TitleGenerateRequest = view_models.TitleGenerateRequest(),
     user: User = Depends(get_current_active_user),
 ):
     try:
-        # Handle both empty request body and JSON request body
-        try:
-            body = await request.json()
-        except Exception:
-            # If JSON parsing fails (e.g., empty body), use empty dict
-            body = {}
-
-        max_length = int(body.get("max_length", 20))
-        language = body.get("language", "zh-CN")
-        turns = int(body.get("turns", 1))
-
         title = await chat_title_service.generate_title(
             user_id=str(user.id),
             bot_id=bot_id,
             chat_id=chat_id,
-            max_length=max_length,
-            language=language,
-            turns=turns,
+            max_length=request_body.max_length,
+            language=request_body.language,
+            turns=request_body.turns,
         )
         return {"title": title}
     except BusinessException as be:
