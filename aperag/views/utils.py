@@ -137,29 +137,31 @@ def generate_random_provider_name() -> str:
 def is_google_oauth_enabled() -> bool:
     """
     Check if Google OAuth is enabled based on configuration.
-    
+
     Returns:
         bool: True if Google OAuth is enabled, False otherwise
     """
     from aperag.config import settings
+
     return bool(settings.google_oauth_client_id and settings.google_oauth_client_secret)
 
 
 def is_github_oauth_enabled() -> bool:
     """
     Check if GitHub OAuth is enabled based on configuration.
-    
+
     Returns:
         bool: True if GitHub OAuth is enabled, False otherwise
     """
     from aperag.config import settings
+
     return bool(settings.github_oauth_client_id and settings.github_oauth_client_secret)
 
 
 def get_available_login_methods() -> list[str]:
     """
     Get list of available login methods based on configuration.
-    
+
     Returns:
         list[str]: List of available login methods
     """

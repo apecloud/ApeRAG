@@ -15,7 +15,7 @@
 import logging
 import secrets
 from datetime import timedelta
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, WebSocket
 from fastapi_users import BaseUserManager, FastAPIUsers
@@ -25,9 +25,9 @@ from fastapi_users.authentication import (
     JWTStrategy,
 )
 from fastapi_users.db import SQLAlchemyUserDatabase
+from fastapi_users.router.oauth import get_oauth_router
 from httpx_oauth.clients.github import GitHubOAuth2
 from httpx_oauth.clients.google import GoogleOAuth2
-from fastapi_users.router.oauth import get_oauth_router
 
 from aperag.config import AsyncSessionDep, settings
 from aperag.db.models import ApiKey, ApiKeyStatus, Invitation, OAuthAccount, Role, User
@@ -102,25 +102,25 @@ class UserManager(BaseUserManager[User, str]):
                 if oauth_account.oauth_name == "github":
                     github_oauth_account = oauth_account
                     break
-            
+
             if not github_oauth_account:
                 return  # Not a GitHub OAuth user
-            
+
             if user.username:
                 return  # Username already set
-            
+
             # Fetch username from GitHub API
             import httpx
-            
+
             github_user_id = github_oauth_account.account_id
             github_api_url = f"https://api.github.com/user/{github_user_id}"
-            
+
             async with httpx.AsyncClient() as client:
                 response = await client.get(github_api_url)
                 if response.status_code == 200:
                     github_user_data = response.json()
                     github_username = github_user_data.get("login")
-                    
+
                     if github_username:
                         user.username = github_username
                         self.user_db.session.add(user)
@@ -146,11 +146,11 @@ def get_jwt_strategy() -> JWTStrategy:
 
 # Transport methods
 cookie_transport = CookieTransport(
-    cookie_name="session", 
+    cookie_name="session",
     cookie_max_age=COOKIE_MAX_AGE,
     cookie_secure=False,  # Set to False for HTTP development environment
     cookie_httponly=True,
-    cookie_samesite="lax"
+    cookie_samesite="lax",
 )
 
 # Authentication backend
@@ -159,6 +159,7 @@ auth_backend = AuthenticationBackend(
     transport=cookie_transport,
     get_strategy=get_jwt_strategy,
 )
+
 
 # --- User Database and Manager Dependencies ---
 async def get_user_db(session: AsyncSessionDep):
@@ -289,9 +290,7 @@ router = APIRouter()
 
 # --- Conditional OAuth Routers ---
 if is_google_oauth_enabled():
-    google_oauth_client = GoogleOAuth2(
-        settings.google_oauth_client_id, settings.google_oauth_client_secret
-    )
+    google_oauth_client = GoogleOAuth2(settings.google_oauth_client_id, settings.google_oauth_client_secret)
     google_oauth_router = get_oauth_router(
         google_oauth_client,
         auth_backend,
@@ -304,9 +303,7 @@ if is_google_oauth_enabled():
     router.include_router(google_oauth_router, prefix="/auth/google", tags=["auth"])
 
 if is_github_oauth_enabled():
-    github_oauth_client = GitHubOAuth2(
-        settings.github_oauth_client_id, settings.github_oauth_client_secret
-    )
+    github_oauth_client = GitHubOAuth2(settings.github_oauth_client_id, settings.github_oauth_client_secret)
     github_oauth_router = get_oauth_router(
         github_oauth_client,
         auth_backend,
@@ -317,8 +314,6 @@ if is_github_oauth_enabled():
         is_verified_by_default=True,
     )
     router.include_router(github_oauth_router, prefix="/auth/github", tags=["auth"])
-
-
 
 
 @router.post("/invite", tags=["invitations"])
@@ -447,13 +442,13 @@ async def register_view(
         session.add(invitation)
         await session.commit()
 
-    # Note: User resources (quotas, API keys, default bot) are now initialized 
+    # Note: User resources (quotas, API keys, default bot) are now initialized
     # in the on_after_register method which is called automatically by fastapi-users
     await user_manager.on_after_register(user, request)
 
     # Determine registration source
     registration_source = "local"  # Default to local registration
-    if hasattr(user, 'oauth_accounts') and user.oauth_accounts:
+    if hasattr(user, "oauth_accounts") and user.oauth_accounts:
         # If user has OAuth accounts, use the first one's provider name
         registration_source = user.oauth_accounts[0].oauth_name
 
@@ -523,16 +518,14 @@ async def get_user_view(request: Request, session: AsyncSessionDep, user: Option
     """Get user info, return 401 if not authenticated"""
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
-    
+
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     # Load user with oauth_accounts to determine registration source
-    result = await session.execute(
-        select(User).options(selectinload(User.oauth_accounts)).where(User.id == user.id)
-    )
+    result = await session.execute(select(User).options(selectinload(User.oauth_accounts)).where(User.id == user.id))
     user_with_oauth = result.scalars().first()
-    
+
     # Determine registration source
     registration_source = "local"  # Default to local registration
     if user_with_oauth and user_with_oauth.oauth_accounts:
@@ -560,7 +553,9 @@ async def list_users_view(
     if user.role == Role.ADMIN:
         result = await session.execute(select(User).options(selectinload(User.oauth_accounts)))
     else:
-        result = await session.execute(select(User).options(selectinload(User.oauth_accounts)).where(User.id == user.id))
+        result = await session.execute(
+            select(User).options(selectinload(User.oauth_accounts)).where(User.id == user.id)
+        )
 
     users = []
     for u in result.unique().scalars():
@@ -569,7 +564,7 @@ async def list_users_view(
         if u.oauth_accounts:
             # If user has OAuth accounts, use the first one's provider name
             registration_source = u.oauth_accounts[0].oauth_name
-        
+
         users.append(
             view_models.User(
                 id=str(u.id),
