@@ -6186,6 +6186,7 @@ components:
             - user
             - flow
             - search
+            - index
           nullable: true
           description: Type of resource
         resource_id:

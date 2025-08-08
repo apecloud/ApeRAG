@@ -149,7 +149,8 @@ export const AuditLogResourceTypeEnum = {
     model_service_provider: 'model_service_provider',
     user: 'user',
     flow: 'flow',
-    search: 'search'
+    search: 'search',
+    index: 'index'
 } as const;
 
 export type AuditLogResourceTypeEnum = typeof AuditLogResourceTypeEnum[keyof typeof AuditLogResourceTypeEnum];
