@@ -4163,6 +4163,7 @@ components:
           description: Collection owner user ID
         owner_username:
           type: string
+          nullable: true
           description: Collection owner username
         subscription_id:
           type: string
@@ -5366,6 +5367,7 @@ components:
           description: Original owner user ID
         owner_username:
           type: string
+          nullable: true
           description: Original owner username
         subscription_id:
           type: string
@@ -5380,7 +5382,6 @@ components:
         - id
         - title
         - owner_user_id
-        - owner_username
     SharedCollectionList:
       type: object
       description: Shared Collection list response

@@ -49,7 +49,7 @@ export interface SharedCollection {
      * @type {string}
      * @memberof SharedCollection
      */
-    'owner_username': string;
+    'owner_username'?: string;
     /**
      * Subscription record ID (has value if subscribed, null if not subscribed)
      * @type {string}

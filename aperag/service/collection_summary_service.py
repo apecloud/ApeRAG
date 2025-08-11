@@ -16,7 +16,7 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import or_, and_, select, update
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
@@ -282,9 +282,7 @@ class CollectionSummaryService:
                 )
                 collection = collection_result.scalar_one_or_none()
 
-                summary_result = session.execute(
-                    select(CollectionSummary).where(CollectionSummary.id == summary_id)
-                )
+                summary_result = session.execute(select(CollectionSummary).where(CollectionSummary.id == summary_id))
                 summary = summary_result.scalar_one_or_none()
 
             if not collection:
@@ -297,7 +295,9 @@ class CollectionSummaryService:
                 return
 
             if summary.status != CollectionSummaryStatus.GENERATING or summary.version != target_version:
-                raise Exception(f"CollectionSummary {summary_id} status/version mismatch, Status: {summary.status}, Version: {summary.version}, Target: {target_version}, retry... ")
+                raise Exception(
+                    f"CollectionSummary {summary_id} status/version mismatch, Status: {summary.status}, Version: {summary.version}, Target: {target_version}, retry... "
+                )
 
             completion_service = get_collection_completion_service_sync(collection)
 

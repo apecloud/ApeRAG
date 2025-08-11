@@ -26,6 +26,7 @@ SharedCollection:
       description: Original owner user ID
     owner_username:
       type: string
+      nullable: true
       description: Original owner username
     subscription_id:
       type: string
@@ -40,7 +41,6 @@ SharedCollection:
     - id
     - title
     - owner_user_id
-    - owner_username
 
 SharedCollectionList:
   type: object

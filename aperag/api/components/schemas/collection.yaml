@@ -338,6 +338,7 @@ collectionView:
       description: Collection owner user ID
     owner_username:
       type: string
+      nullable: true
       description: Collection owner username
     subscription_id:
       type: string
