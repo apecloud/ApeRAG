@@ -233,29 +233,28 @@ class CollectionSummaryService:
         async for session in get_async_session():
             config = parseCollectionConfig(collection.config)
 
-            summary = await self._get_summary_by_collection_id(session, collection.id)
+            record = await self._get_summary_by_collection_id(session, collection.id)
 
             if config.enable_summary:
-                if summary:
+                if record:
                     # If summary exists, update its version to trigger reconciliation
-                    if summary.status != CollectionSummaryStatus.GENERATING:
-                        summary.update_version()
-                        summary.status = CollectionSummaryStatus.PENDING  # Reset status
+                    if record.status != CollectionSummaryStatus.GENERATING:
+                        record.update_version()
                         logger.info(f"Triggered re-generation for CollectionSummary of collection {collection.id}")
                     else:
                         logger.info(f"CollectionSummary for {collection.id} is already being processed.")
                         return False
                 else:
                     # If summary does not exist, create a new one
-                    summary = CollectionSummary(collection_id=collection.id, status=CollectionSummaryStatus.PENDING)
-                    session.add(summary)
+                    record = CollectionSummary(collection_id=collection.id, status=CollectionSummaryStatus.PENDING)
+                    session.add(record)
                     logger.info(f"Created new CollectionSummary for collection {collection.id}")
                 await session.commit()
                 return True
             else:
                 # If summary is disabled, delete the summary object
-                if summary:
-                    await session.delete(summary)
+                if record:
+                    await session.delete(record)
                     await session.commit()
                     logger.info(f"Deleted CollectionSummary for collection {collection.id} as summary is disabled.")
                     return True
@@ -298,11 +297,7 @@ class CollectionSummaryService:
                 return
 
             if summary.status != CollectionSummaryStatus.GENERATING or summary.version != target_version:
-                logger.warning(
-                    f"CollectionSummary {summary_id} status/version mismatch, skipping generation. "
-                    f"Status: {summary.status}, Version: {summary.version}, Target: {target_version}"
-                )
-                return
+                raise Exception(f"CollectionSummary {summary_id} status/version mismatch, Status: {summary.status}, Version: {summary.version}, Target: {target_version}, retry... ")
 
             completion_service = get_collection_completion_service_sync(collection)
 
