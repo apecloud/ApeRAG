@@ -214,9 +214,9 @@ class CollectionService:
         config = parseCollectionConfig(collection.config)
         if config.enable_summary:
             async for session in get_async_session():
-                summary = await collection_summary_service._get_summary_by_collection_id(session, collection.id)
-                if summary and summary.status == db_models.CollectionSummaryStatus.COMPLETE and summary.summary:
-                    return summary.summary
+                record = await collection_summary_service._get_summary_by_collection_id(session, collection.id)
+                if record and record.summary:
+                    return record.summary
         return collection.description
 
     async def update_collection(

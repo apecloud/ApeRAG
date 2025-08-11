@@ -234,29 +234,22 @@ export default ({ onSubmit, action, values, form }: Props) => {
             </span>
           }
         >
-          <div>
-            <Input.TextArea
-              maxLength={300}
-              rows={3}
-              readOnly={enableSummary}
-              placeholder={
-                enableSummary
-                  ? formatMessage({
-                      id: 'collection.description.auto_generated.placeholder',
-                    })
-                  : undefined
-              }
-              style={{
-                color: enableSummary
-                  ? token.colorTextDisabled
-                  : token.colorText,
-                backgroundColor: enableSummary
-                  ? token.colorBgContainerDisabled
-                  : token.colorBgContainer,
-                cursor: enableSummary ? 'default' : 'text',
-              }}
-            />
-          </div>
+          <Input.TextArea
+            maxLength={300}
+            rows={3}
+            readOnly={enableSummary}
+            placeholder={
+              enableSummary
+                ? formatMessage({
+                    id: 'collection.description.auto_generated.placeholder',
+                  })
+                : formatMessage({ id: 'collection.description.placeholder' })
+            }
+            style={{
+              backgroundColor: enableSummary ? '#f5f5f5' : undefined,
+              cursor: enableSummary ? 'not-allowed' : 'text',
+            }}
+          />
         </Form.Item>
 
         {/* Index Types Selector */}
