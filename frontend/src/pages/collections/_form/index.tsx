@@ -236,7 +236,7 @@ export default ({ onSubmit, action, values, form }: Props) => {
         >
           <Input.TextArea
             maxLength={300}
-            rows={3}
+            autoSize={{ minRows: 3, maxRows: 8 }}
             readOnly={enableSummary}
             placeholder={
               enableSummary
