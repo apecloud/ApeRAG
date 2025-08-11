@@ -793,9 +793,7 @@ def collection_summary_task(self, summary_id: str, collection_id: str, target_ve
     try:
         from aperag.service.collection_summary_service import collection_summary_service
         
-        # Run the async method synchronously in the celery task
-        import asyncio
-        asyncio.run(collection_summary_service.generate_collection_summary_task(summary_id, collection_id, target_version))
+        collection_summary_service.generate_collection_summary_task(summary_id, collection_id, target_version)
         
         logger.info(f"Collection summary task completed for {collection_id}")
         return {"success": True, "collection_id": collection_id}
