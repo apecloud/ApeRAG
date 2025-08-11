@@ -74,7 +74,7 @@ class QuotaService:
                 )
 
             result = await session.execute(stmt)
-            users = result.scalars().all()
+            users = result.scalars().unique().all()
 
             result_list = []
             for user in users:
