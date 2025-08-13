@@ -1,0 +1,28 @@
+{
+  "$schema": "./node_modules/@openapitools/openapi-generator-cli/config.schema.json",
+  "spaces": 2,
+  "generator-cli": {
+    "version": "7.12.0",
+    "useDocker": true,
+    "generators": {
+      "v3.0": {
+        "generatorName": "typescript-axios",
+        "output": "#{cwd}/src/api",
+        "inputSpec": "#{cwd}/src/api/openapi.merged.yaml",
+        "apiPackage": "apis",
+        "modelPackage": "models",
+        "modelNamePrefix": "",
+        "skipValidateSpec": true,
+        "additionalProperties": {
+          "enumPropertyNaming": "original",
+          "supportsES6": true,
+          "withInterfaces": true,
+          "prependFormOrBodyParameters": false,
+          "withoutPrefixEnums": false,
+          "withSeparateModelsAndApi": true,
+          "useSingleRequestParameter": true
+        }
+      }
+    }
+  }
+}
