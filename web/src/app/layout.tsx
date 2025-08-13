@@ -1,10 +1,10 @@
+import { defaultApi } from '@/services/api';
 import type { Metadata } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
 import { Geist, Geist_Mono } from 'next/font/google';
-import { ThemeProvider } from './theme-provider';
-
 import { GlobalProvider } from './global-provider';
 import './globals.css';
+import { ThemeProvider } from './theme-provider';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -26,6 +26,14 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  let user;
+  try {
+    const res = await defaultApi.userGet();
+    user = res.data;
+  } catch (err: any) {
+    console.log(err.response.data);
+  }
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body
@@ -38,7 +46,7 @@ export default async function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            <GlobalProvider user={null}>{children}</GlobalProvider>
+            <GlobalProvider user={user}>{children}</GlobalProvider>
           </ThemeProvider>
         </NextIntlClientProvider>
       </body>

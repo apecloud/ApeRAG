@@ -1,22 +1,31 @@
-import type { NextConfig } from 'next';
-import createNextIntlPlugin from 'next-intl/plugin';
+import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
 
 const nextConfig: NextConfig = {
   /* config options here */
 
-  output: 'standalone',
+  output: "standalone",
   poweredByHeader: false,
   experimental: {
     serverActions: {
-      bodySizeLimit: '5mb',
+      bodySizeLimit: "5mb",
     },
+  },
+
+  rewrites: async () => {
+    return [
+      {
+        source: "/api/v1/:path*",
+        destination: "http://localhost:8000/api/v1/:path*",
+      },
+    ];
   },
 };
 
 const withNextIntl = createNextIntlPlugin({
   experimental: {
     // Provide the path to the messages that you're using in `AppConfig`
-    createMessagesDeclaration: './src/i18n/en-US.json',
+    createMessagesDeclaration: "./src/i18n/en-US.json",
   },
 });
 
