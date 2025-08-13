@@ -1,7 +1,7 @@
-"use server";
+'use server';
 
-import { defaultLocale, localeCookieName, LocaleEnum, locales } from "@/config";
-import { cookies } from "next/headers";
+import { defaultLocale, localeCookieName, LocaleEnum, locales } from '@/config';
+import { cookies } from 'next/headers';
 
 /**
  * get locale
@@ -21,7 +21,6 @@ export async function getLocale(): Promise<LocaleEnum> {
 export async function setLocale(locale: LocaleEnum) {
   (await cookies()).set(localeCookieName, locale);
 }
-
 
 /**
  * get cookie by name
