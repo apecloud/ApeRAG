@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { User } from "@/api";
-import { createContext, useContext } from "react";
+import { User } from '@/api';
+import { createContext, useContext } from 'react';
 
-import * as z from "zod";
+import * as z from 'zod';
 
 export const signInLocalSchema = z.object({
   username: z.string(),
@@ -11,7 +11,7 @@ export const signInLocalSchema = z.object({
 });
 
 export type SignInOptions = {
-  type: "local" | "google" | "github";
+  type?: 'local' | 'google' | 'github';
   data?: z.infer<typeof signInLocalSchema>;
   redirectTo: string;
 };

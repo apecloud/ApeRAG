@@ -1,7 +1,5 @@
 'use client';
 
-import { Config } from '@/api';
-
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,28 +8,33 @@ import {
   signInLocalSchema,
   useGlobalContext,
 } from '@/hooks/use-global-context';
-import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { useSearchParams } from 'next/navigation';
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useMemo } from 'react';
 import { FaGithub, FaGoogle } from 'react-icons/fa6';
 
 export function LoginForm({
   className,
+  methods,
   ...props
-}: React.ComponentProps<'div'>) {
-  const [config, setConfig] = useState<Config>({
-    login_methods: ['local'],
-  });
+}: React.ComponentProps<'div'> & {
+  methods: string[];
+}) {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('callbackUrl') || '/';
   const { signIn } = useGlobalContext();
 
   const hasSocialLogin = useMemo(() => {
-    return config.login_methods?.some((method) =>
-      ['google', 'github'].includes(method),
-    );
-  }, [config.login_methods]);
+    return methods.some((method) => ['google', 'github'].includes(method));
+  }, [methods]);
+
+  const hasSocialGithubLogin = useMemo(() => {
+    return methods.some((method) => method === 'github');
+  }, [methods]);
+
+  const hasSocialGoogleLogin = useMemo(() => {
+    return methods.some((method) => method === 'google');
+  }, [methods]);
 
   const handleSignInLocal = useCallback(
     async (e: FormEvent<HTMLFormElement>) => {
@@ -40,24 +43,16 @@ export function LoginForm({
       const payload = Object.fromEntries(formData.entries());
       const { data, error } = signInLocalSchema.safeParse(payload);
 
-      if (error) {
-        return;
+      if (!error) {
+        await signIn({
+          type: 'local',
+          data,
+          redirectTo,
+        });
       }
-
-      await signIn({
-        type: 'local',
-        data: data,
-        redirectTo,
-      });
     },
     [redirectTo, signIn],
   );
-
-  useEffect(() => {
-    apiClient.defaultApi.configGet().then((res) => {
-      setConfig(res.data);
-    });
-  }, []);
 
   return (
     <div className={cn('flex flex-col gap-6', className)} {...props}>
@@ -70,22 +65,26 @@ export function LoginForm({
                 Login with your Github or Google account
               </div>
               <div className="flex flex-col gap-4 text-sm">
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => signIn({ type: 'github', redirectTo })}
-                >
-                  <FaGithub />
-                  Login with Github
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => signIn({ type: 'google', redirectTo })}
-                >
-                  <FaGoogle />
-                  Login with Google
-                </Button>
+                {hasSocialGithubLogin && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => signIn({ type: 'github', redirectTo })}
+                  >
+                    <FaGithub />
+                    Login with Github
+                  </Button>
+                )}
+                {hasSocialGoogleLogin && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => signIn({ type: 'google', redirectTo })}
+                  >
+                    <FaGoogle />
+                    Login with Google
+                  </Button>
+                )}
               </div>
               <div className="after:border-border relative my-6 text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t">
                 <span className="bg-card text-muted-foreground relative z-10 px-2">

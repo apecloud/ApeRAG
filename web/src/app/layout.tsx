@@ -1,11 +1,10 @@
-
+import { getServerApi } from '@/lib/api/server';
 import type { Metadata } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { GlobalProvider } from './global-provider';
 import './globals.css';
 import { ThemeProvider } from './theme-provider';
-import { getServerApi } from '@/lib/api/server';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -32,8 +31,9 @@ export default async function RootLayout({
   try {
     const res = await apiServer.defaultApi.userGet();
     user = res.data;
-  } catch (err: any) {
-  
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  } catch (err) {
+    
   }
 
   return (
