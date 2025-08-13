@@ -54,10 +54,6 @@ import type { ChatList } from '../models';
 // @ts-ignore
 import type { ChatUpdate } from '../models';
 // @ts-ignore
-import type { CleanupTempDocumentsRequest } from '../models';
-// @ts-ignore
-import type { CleanupTempDocumentsResponse } from '../models';
-// @ts-ignore
 import type { Collection } from '../models';
 // @ts-ignore
 import type { CollectionCreate } from '../models';
@@ -1367,50 +1363,6 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
             localVarRequestOptions.data = serializeDataIfNeeded(documentCreate, localVarRequestOptions, configuration)
-
-            return {
-                url: toPathString(localVarUrlObj),
-                options: localVarRequestOptions,
-            };
-        },
-        /**
-         * Delete temporary uploaded documents that haven\'t been confirmed
-         * @summary Cleanup temporary documents
-         * @param {string} collectionId 
-         * @param {CleanupTempDocumentsRequest} cleanupTempDocumentsRequest 
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        collectionsCollectionIdDocumentsTempDelete: async (collectionId: string, cleanupTempDocumentsRequest: CleanupTempDocumentsRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
-            // verify required parameter 'collectionId' is not null or undefined
-            assertParamExists('collectionsCollectionIdDocumentsTempDelete', 'collectionId', collectionId)
-            // verify required parameter 'cleanupTempDocumentsRequest' is not null or undefined
-            assertParamExists('collectionsCollectionIdDocumentsTempDelete', 'cleanupTempDocumentsRequest', cleanupTempDocumentsRequest)
-            const localVarPath = `/collections/{collection_id}/documents/temp`
-                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)));
-            // use dummy base URL string because the URL constructor only accepts absolute URLs.
-            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
-            let baseOptions;
-            if (configuration) {
-                baseOptions = configuration.baseOptions;
-            }
-
-            const localVarRequestOptions = { method: 'DELETE', ...baseOptions, ...options};
-            const localVarHeaderParameter = {} as any;
-            const localVarQueryParameter = {} as any;
-
-            // authentication BearerAuth required
-            // http bearer authentication required
-            await setBearerAuthToObject(localVarHeaderParameter, configuration)
-
-
-    
-            localVarHeaderParameter['Content-Type'] = 'application/json';
-
-            setSearchParams(localVarUrlObj, localVarQueryParameter);
-            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
-            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
-            localVarRequestOptions.data = serializeDataIfNeeded(cleanupTempDocumentsRequest, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -3644,20 +3596,6 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Delete temporary uploaded documents that haven\'t been confirmed
-         * @summary Cleanup temporary documents
-         * @param {string} collectionId 
-         * @param {CleanupTempDocumentsRequest} cleanupTempDocumentsRequest 
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        async collectionsCollectionIdDocumentsTempDelete(collectionId: string, cleanupTempDocumentsRequest: CleanupTempDocumentsRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<CleanupTempDocumentsResponse>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdDocumentsTempDelete(collectionId, cleanupTempDocumentsRequest, options);
-            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
-            const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdDocumentsTempDelete']?.[localVarOperationServerIndex]?.url;
-            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
-        },
-        /**
          * Upload a single document file to temporary storage (UPLOADED status)
          * @summary Upload a single document
          * @param {string} collectionId 
@@ -4596,16 +4534,6 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.collectionsCollectionIdDocumentsPost(requestParameters.collectionId, requestParameters.documentCreate, options).then((request) => request(axios, basePath));
         },
         /**
-         * Delete temporary uploaded documents that haven\'t been confirmed
-         * @summary Cleanup temporary documents
-         * @param {DefaultApiCollectionsCollectionIdDocumentsTempDeleteRequest} requestParameters Request parameters.
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        collectionsCollectionIdDocumentsTempDelete(requestParameters: DefaultApiCollectionsCollectionIdDocumentsTempDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<CleanupTempDocumentsResponse> {
-            return localVarFp.collectionsCollectionIdDocumentsTempDelete(requestParameters.collectionId, requestParameters.cleanupTempDocumentsRequest, options).then((request) => request(axios, basePath));
-        },
-        /**
          * Upload a single document file to temporary storage (UPLOADED status)
          * @summary Upload a single document
          * @param {DefaultApiCollectionsCollectionIdDocumentsUploadPostRequest} requestParameters Request parameters.
@@ -5373,16 +5301,6 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     collectionsCollectionIdDocumentsPost(requestParameters: DefaultApiCollectionsCollectionIdDocumentsPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<DocumentList>;
-
-    /**
-     * Delete temporary uploaded documents that haven\'t been confirmed
-     * @summary Cleanup temporary documents
-     * @param {DefaultApiCollectionsCollectionIdDocumentsTempDeleteRequest} requestParameters Request parameters.
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof DefaultApiInterface
-     */
-    collectionsCollectionIdDocumentsTempDelete(requestParameters: DefaultApiCollectionsCollectionIdDocumentsTempDeleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<CleanupTempDocumentsResponse>;
 
     /**
      * Upload a single document file to temporary storage (UPLOADED status)
@@ -6422,27 +6340,6 @@ export interface DefaultApiCollectionsCollectionIdDocumentsPostRequest {
      * @memberof DefaultApiCollectionsCollectionIdDocumentsPost
      */
     readonly documentCreate: DocumentCreate
-}
-
-/**
- * Request parameters for collectionsCollectionIdDocumentsTempDelete operation in DefaultApi.
- * @export
- * @interface DefaultApiCollectionsCollectionIdDocumentsTempDeleteRequest
- */
-export interface DefaultApiCollectionsCollectionIdDocumentsTempDeleteRequest {
-    /**
-     * 
-     * @type {string}
-     * @memberof DefaultApiCollectionsCollectionIdDocumentsTempDelete
-     */
-    readonly collectionId: string
-
-    /**
-     * 
-     * @type {CleanupTempDocumentsRequest}
-     * @memberof DefaultApiCollectionsCollectionIdDocumentsTempDelete
-     */
-    readonly cleanupTempDocumentsRequest: CleanupTempDocumentsRequest
 }
 
 /**
@@ -7511,18 +7408,6 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      */
     public collectionsCollectionIdDocumentsPost(requestParameters: DefaultApiCollectionsCollectionIdDocumentsPostRequest, options?: RawAxiosRequestConfig) {
         return DefaultApiFp(this.configuration).collectionsCollectionIdDocumentsPost(requestParameters.collectionId, requestParameters.documentCreate, options).then((request) => request(this.axios, this.basePath));
-    }
-
-    /**
-     * Delete temporary uploaded documents that haven\'t been confirmed
-     * @summary Cleanup temporary documents
-     * @param {DefaultApiCollectionsCollectionIdDocumentsTempDeleteRequest} requestParameters Request parameters.
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof DefaultApi
-     */
-    public collectionsCollectionIdDocumentsTempDelete(requestParameters: DefaultApiCollectionsCollectionIdDocumentsTempDeleteRequest, options?: RawAxiosRequestConfig) {
-        return DefaultApiFp(this.configuration).collectionsCollectionIdDocumentsTempDelete(requestParameters.collectionId, requestParameters.cleanupTempDocumentsRequest, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

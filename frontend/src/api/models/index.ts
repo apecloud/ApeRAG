@@ -17,8 +17,6 @@ export * from './chat-details';
 export * from './chat-list';
 export * from './chat-message';
 export * from './chat-update';
-export * from './cleanup-temp-documents-request';
-export * from './cleanup-temp-documents-response';
 export * from './collection';
 export * from './collection-config';
 export * from './collection-create';

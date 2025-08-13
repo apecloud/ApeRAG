@@ -61,8 +61,6 @@ paths:
     $ref: './paths/collections.yaml#/upload_document'
   /collections/{collection_id}/documents/confirm:
     $ref: './paths/collections.yaml#/confirm_documents'
-  /collections/{collection_id}/documents/temp:
-    $ref: './paths/collections.yaml#/cleanup_temp_documents'
   /collections/{collection_id}/searches:
     $ref: './paths/collections.yaml#/searches'
   /collections/{collection_id}/searches/{search_id}:

@@ -509,44 +509,6 @@ confirm_documents:
             schema:
               $ref: '../components/schemas/common.yaml#/failResponse'
 
-cleanup_temp_documents:
-  delete:
-    summary: Cleanup temporary documents
-    description: Delete temporary uploaded documents that haven't been confirmed
-    security:
-      - BearerAuth: []
-    parameters:
-      - name: collection_id
-        in: path
-        required: true
-        schema:
-          type: string
-    requestBody:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '../components/schemas/document.yaml#/cleanupTempDocumentsRequest'
-    responses:
-      '200':
-        description: Temporary documents cleaned up successfully
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/document.yaml#/cleanupTempDocumentsResponse'
-      '401':
-        description: Unauthorized
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/common.yaml#/failResponse'
-      '404':
-        description: Collection not found
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/common.yaml#/failResponse'
-
 searches:
   get:
     summary: Get search history

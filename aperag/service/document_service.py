@@ -78,6 +78,132 @@ class DocumentService:
         else:
             self.db_ops = AsyncDatabaseOps(session)  # Create custom instance for transaction control
 
+    async def _validate_collection(self, user: str, collection_id: str) -> db_models.Collection:
+        """
+        Validate that collection exists and is active.
+        Returns the collection if valid, raises exception otherwise.
+        """
+        collection = await self.db_ops.query_collection(user, collection_id)
+        if collection is None:
+            raise ResourceNotFoundException("Collection", collection_id)
+        if collection.status != db_models.CollectionStatus.ACTIVE:
+            raise CollectionInactiveException(collection_id)
+        return collection
+
+    def _validate_file(self, filename: str, size: int) -> str:
+        """
+        Validate file extension and size.
+        Returns the file suffix if valid, raises exception otherwise.
+        """
+        supported_file_extensions = DocParser().supported_extensions()
+        supported_file_extensions += SUPPORTED_COMPRESSED_EXTENSIONS
+        
+        file_suffix = os.path.splitext(filename)[1].lower()
+        if file_suffix not in supported_file_extensions:
+            raise invalid_param("file_type", f"unsupported file type {file_suffix}")
+        if size > settings.max_document_size:
+            raise invalid_param("file_size", "file size is too large")
+        
+        return file_suffix
+
+    async def _check_document_quotas(self, session: AsyncSession, user: str, collection_id: str, count: int):
+        """
+        Check and consume document quotas.
+        Raises QuotaExceededException if quota would be exceeded.
+        """
+        from aperag.service.quota_service import quota_service
+        from sqlalchemy import func, select
+        
+        # Check and consume user quota
+        await quota_service.check_and_consume_quota(user, "max_document_count", count, session)
+
+        # Check per-collection quota
+        stmt = (
+            select(func.count())
+            .select_from(db_models.Document)
+            .where(
+                db_models.Document.collection_id == collection_id,
+                db_models.Document.status != db_models.DocumentStatus.DELETED,
+                db_models.Document.status != db_models.DocumentStatus.UPLOADED,  # Don't count temporary uploads
+            )
+        )
+        existing_doc_count = await session.scalar(stmt)
+
+        # Get per-collection quota limit
+        from aperag.db.models import UserQuota
+        stmt = select(UserQuota).where(
+            UserQuota.user == user,
+            UserQuota.key == "max_document_count_per_collection"
+        )
+        result = await session.execute(stmt)
+        per_collection_quota = result.scalars().first()
+
+        if per_collection_quota and (existing_doc_count + count) > per_collection_quota.quota_limit:
+            raise QuotaExceededException(
+                "max_document_count_per_collection",
+                per_collection_quota.quota_limit,
+                existing_doc_count
+            )
+
+    def _get_index_types_for_collection(self, collection_config: dict) -> list:
+        """
+        Get the list of index types to create based on collection configuration.
+        """
+        index_types = [
+            db_models.DocumentIndexType.VECTOR,
+            db_models.DocumentIndexType.FULLTEXT,
+        ]
+        
+        if collection_config.get("enable_knowledge_graph", False):
+            index_types.append(db_models.DocumentIndexType.GRAPH)
+        if collection_config.get("enable_summary", False):
+            index_types.append(db_models.DocumentIndexType.SUMMARY)
+        if collection_config.get("enable_vision", False):
+            index_types.append(db_models.DocumentIndexType.VISION)
+        
+        return index_types
+
+    async def _create_document_record(
+        self,
+        session: AsyncSession,
+        user: str,
+        collection_id: str,
+        filename: str,
+        size: int,
+        status: db_models.DocumentStatus,
+        file_suffix: str,
+        file_content: bytes
+    ) -> db_models.Document:
+        """
+        Create a document record in database and upload file to object store.
+        Returns the created document instance.
+        """
+        # Create document in database
+        document_instance = db_models.Document(
+            user=user,
+            name=filename,
+            status=status,
+            size=size,
+            collection_id=collection_id,
+        )
+        session.add(document_instance)
+        await session.flush()
+        await session.refresh(document_instance)
+
+        # Upload to object store
+        async_obj_store = get_async_object_store()
+        upload_path = f"{document_instance.object_store_base_path()}/original{file_suffix}"
+        await async_obj_store.put(upload_path, file_content)
+
+        # Update document with object path
+        metadata = json.dumps({"object_path": upload_path})
+        document_instance.doc_metadata = metadata
+        session.add(document_instance)
+        await session.flush()
+        await session.refresh(document_instance)
+        
+        return document_instance
+
     async def _query_documents_with_indexes(
         self, user: str, collection_id: str, document_id: str = None
     ) -> List[db_models.Document]:
@@ -113,6 +239,7 @@ class DocumentService:
                         db_models.Document.user == user,
                         db_models.Document.collection_id == collection_id,
                         db_models.Document.status != db_models.DocumentStatus.DELETED,
+                        db_models.Document.status != db_models.DocumentStatus.UPLOADED,  # Filter out temporary uploaded documents
                     )
                 )
                 .order_by(db_models.Document.gmt_created.desc())
@@ -199,132 +326,60 @@ class DocumentService:
         if len(files) > 50:
             raise invalid_param("file_count", "documents are too many, add document failed")
 
-        # Check collection exists and is active
-        collection = await self.db_ops.query_collection(user, collection_id)
-        if collection is None:
-            raise ResourceNotFoundException("Collection", collection_id)
-        if collection.status != db_models.CollectionStatus.ACTIVE:
-            raise CollectionInactiveException(collection_id)
-
-        # Quota checks will be done within the transaction
-
-        supported_file_extensions = DocParser().supported_extensions()
-        supported_file_extensions += SUPPORTED_COMPRESSED_EXTENSIONS
-
-        response = []
+        # Validate collection
+        collection = await self._validate_collection(user, collection_id)
 
         # Prepare file data and validate all files before starting any database operations
         file_data = []
         for item in files:
-            file_suffix = os.path.splitext(item.filename)[1].lower()
-            if file_suffix not in supported_file_extensions:
-                raise invalid_param("file_type", f"unsupported file type {file_suffix}")
-            if item.size > settings.max_document_size:
-                raise invalid_param("file_size", "file size is too large")
-
+            file_suffix = self._validate_file(item.filename, item.size)
+            
             # Read file content from UploadFile
             file_content = await item.read()
             # Reset file pointer for potential future use
             await item.seek(0)
 
-            file_data.append(
-                {"filename": item.filename, "size": item.size, "suffix": file_suffix, "content": file_content}
-            )
+            file_data.append({
+                "filename": item.filename,
+                "size": item.size,
+                "suffix": file_suffix,
+                "content": file_content
+            })
 
         # Process all files in a single transaction for atomicity
         async def _create_documents_atomically(session):
-            from aperag.db.models import Document, DocumentStatus
-            from aperag.service.quota_service import quota_service
-
-            # Check and consume quotas first within the transaction
-            await quota_service.check_and_consume_quota(user, "max_document_count", len(files), session)
-
-            # Check per-collection quota by counting existing documents in this collection
-            from sqlalchemy import func, select
-
-            stmt = (
-                select(func.count())
-                .select_from(Document)
-                .where(Document.collection_id == collection_id, Document.status != DocumentStatus.DELETED)
-            )
-            existing_doc_count = await session.scalar(stmt)
-
-            # Get per-collection quota limit
-            from aperag.db.models import UserQuota
-
-            stmt = select(UserQuota).where(UserQuota.user == user, UserQuota.key == "max_document_count_per_collection")
-            result = await session.execute(stmt)
-            per_collection_quota = result.scalars().first()
-
-            if per_collection_quota and (existing_doc_count + len(files)) > per_collection_quota.quota_limit:
-                raise QuotaExceededException(
-                    "max_document_count_per_collection", per_collection_quota.quota_limit, existing_doc_count
-                )
+            # Check quotas
+            await self._check_document_quotas(session, user, collection_id, len(files))
 
             documents_created = []
-            async_obj_store = get_async_object_store()
-            uploaded_files = []  # Track uploaded files for cleanup
+            collection_config = json.loads(collection.config)
+            index_types = self._get_index_types_for_collection(collection_config)
 
-            try:
-                for file_info in file_data:
-                    # Create document in database directly using session
-                    document_instance = Document(
-                        user=user,
-                        name=file_info["filename"],
-                        status=DocumentStatus.PENDING,
-                        size=file_info["size"],
-                        collection_id=collection.id,
-                    )
-                    session.add(document_instance)
-                    await session.flush()
-                    await session.refresh(document_instance)
+            for file_info in file_data:
+                # Create document and upload file
+                document_instance = await self._create_document_record(
+                    session=session,
+                    user=user,
+                    collection_id=collection.id,
+                    filename=file_info["filename"],
+                    size=file_info["size"],
+                    status=db_models.DocumentStatus.PENDING,
+                    file_suffix=file_info["suffix"],
+                    file_content=file_info["content"]
+                )
 
-                    # Upload to object store
-                    upload_path = f"{document_instance.object_store_base_path()}/original{file_info['suffix']}"
-                    await async_obj_store.put(upload_path, file_info["content"])
-                    uploaded_files.append(upload_path)
+                # Create indexes
+                await document_index_manager.create_or_update_document_indexes(
+                    document_id=document_instance.id,
+                    index_types=index_types,
+                    session=session
+                )
 
-                    # Update document with object path
-                    metadata = json.dumps({"object_path": upload_path})
-                    document_instance.doc_metadata = metadata
-                    session.add(document_instance)
-                    await session.flush()
-                    await session.refresh(document_instance)
+                # Build response object
+                doc_response = await self._build_document_response(document_instance)
+                documents_created.append(doc_response)
 
-                    # Create index specs for the new document
-                    index_types = [
-                        db_models.DocumentIndexType.VECTOR,
-                        db_models.DocumentIndexType.FULLTEXT,
-                    ]
-                    collection_config = json.loads(collection.config)
-                    if collection_config.get("enable_knowledge_graph", False):
-                        index_types.append(db_models.DocumentIndexType.GRAPH)
-
-                    if collection_config.get("enable_summary", False):
-                        index_types.append(db_models.DocumentIndexType.SUMMARY)
-
-                    if collection_config.get("enable_vision", False):
-                        index_types.append(db_models.DocumentIndexType.VISION)
-
-                    # Use index manager to create indexes with new status model
-                    await document_index_manager.create_or_update_document_indexes(
-                        document_id=document_instance.id, index_types=index_types, session=session
-                    )
-
-                    # Build response object
-                    doc_response = await self._build_document_response(document_instance)
-                    documents_created.append(doc_response)
-
-                return documents_created
-
-            except Exception as e:
-                # Clean up uploaded files on database transaction failure
-                for upload_path in uploaded_files:
-                    try:
-                        await async_obj_store.delete_objects_by_prefix(upload_path)
-                    except Exception as cleanup_error:
-                        logger.warning(f"Failed to cleanup uploaded file during rollback: {cleanup_error}")
-                raise e
+            return documents_created
 
         response = await self.db_ops.execute_with_transaction(_create_documents_atomically)
 
@@ -787,22 +842,11 @@ class DocumentService:
 
     async def upload_document(self, user_id: str, collection_id: str, file: UploadFile) -> view_models.UploadDocumentResponse:
         """Upload a single document file to temporary storage"""
-        # Check collection exists and is active
-        collection = await self.db_ops.query_collection(user_id, collection_id)
-        if collection is None:
-            raise ResourceNotFoundException("Collection", collection_id)
-        if collection.status != db_models.CollectionStatus.ACTIVE:
-            raise CollectionInactiveException(collection_id)
-
-        # Validate file
-        supported_file_extensions = DocParser().supported_extensions()
-        supported_file_extensions += SUPPORTED_COMPRESSED_EXTENSIONS
+        # Validate collection
+        collection = await self._validate_collection(user_id, collection_id)
         
-        file_suffix = os.path.splitext(file.filename)[1].lower()
-        if file_suffix not in supported_file_extensions:
-            raise invalid_param("file_type", f"unsupported file type {file_suffix}")
-        if file.size > settings.max_document_size:
-            raise invalid_param("file_size", "file size is too large")
+        # Validate file
+        file_suffix = self._validate_file(file.filename, file.size)
 
         # Read file content
         file_content = await file.read()
@@ -810,27 +854,16 @@ class DocumentService:
 
         async def _upload_document_atomically(session):
             # Create document with UPLOADED status (temporary)
-            document_instance = db_models.Document(
+            document_instance = await self._create_document_record(
+                session=session,
                 user=user_id,
-                name=file.filename,
-                status=db_models.DocumentStatus.UPLOADED,  # Temporary status
-                size=file.size,
                 collection_id=collection.id,
+                filename=file.filename,
+                size=file.size,
+                status=db_models.DocumentStatus.UPLOADED,  # Temporary status
+                file_suffix=file_suffix,
+                file_content=file_content
             )
-            session.add(document_instance)
-            await session.flush()
-            await session.refresh(document_instance)
-
-            # Upload to object store
-            async_obj_store = get_async_object_store()
-            upload_path = f"{document_instance.object_store_base_path()}/original{file_suffix}"
-            await async_obj_store.put(upload_path, file_content)
-
-            # Update document with object path
-            metadata = json.dumps({"object_path": upload_path})
-            document_instance.doc_metadata = metadata
-            session.add(document_instance)
-            await session.flush()
 
             return view_models.UploadDocumentResponse(
                 document_id=document_instance.id,
@@ -850,38 +883,13 @@ class DocumentService:
         async def _confirm_documents_atomically(session):
             nonlocal confirmed_count, failed_count, failed_documents
             
-            # Check quotas first
-            from aperag.service.quota_service import quota_service
-            await quota_service.check_and_consume_quota(user_id, "max_document_count", len(document_ids), session)
-
-            # Check per-collection quota
-            from sqlalchemy import func, select
-            stmt = (
-                select(func.count())
-                .select_from(db_models.Document)
-                .where(
-                    db_models.Document.collection_id == collection_id, 
-                    db_models.Document.status != db_models.DocumentStatus.DELETED
-                )
-            )
-            existing_doc_count = await session.scalar(stmt)
-
-            from aperag.db.models import UserQuota
-            stmt = select(UserQuota).where(
-                UserQuota.user == user_id, 
-                UserQuota.key == "max_document_count_per_collection"
-            )
-            result = await session.execute(stmt)
-            per_collection_quota = result.scalars().first()
-
-            if per_collection_quota and (existing_doc_count + len(document_ids)) > per_collection_quota.quota_limit:
-                raise QuotaExceededException(
-                    "max_document_count_per_collection", per_collection_quota.quota_limit, existing_doc_count
-                )
+            # Check quotas
+            await self._check_document_quotas(session, user_id, collection_id, len(document_ids))
 
             # Get collection config
             collection = await self.db_ops.query_collection(user_id, collection_id)
             collection_config = json.loads(collection.config)
+            index_types = self._get_index_types_for_collection(collection_config)
 
             for document_id in document_ids:
                 try:
@@ -907,21 +915,11 @@ class DocumentService:
                     document.status = db_models.DocumentStatus.PENDING
                     session.add(document)
 
-                    # Create index specs
-                    index_types = [
-                        db_models.DocumentIndexType.VECTOR,
-                        db_models.DocumentIndexType.FULLTEXT,
-                    ]
-                    if collection_config.get("enable_knowledge_graph", False):
-                        index_types.append(db_models.DocumentIndexType.GRAPH)
-                    if collection_config.get("enable_summary", False):
-                        index_types.append(db_models.DocumentIndexType.SUMMARY)
-                    if collection_config.get("enable_vision", False):
-                        index_types.append(db_models.DocumentIndexType.VISION)
-
                     # Create indexes
                     await document_index_manager.create_or_update_document_indexes(
-                        document_id=document.id, index_types=index_types, session=session
+                        document_id=document.id,
+                        index_types=index_types,
+                        session=session
                     )
 
                     confirmed_count += 1
@@ -941,64 +939,6 @@ class DocumentService:
 
         return view_models.ConfirmDocumentsResponse(
             confirmed_count=confirmed_count,
-            failed_count=failed_count,
-            failed_documents=failed_documents
-        )
-
-    async def cleanup_temp_documents(self, user_id: str, collection_id: str, document_ids: list[str]) -> view_models.CleanupTempDocumentsResponse:
-        """Delete temporary uploaded documents that haven't been confirmed"""
-        deleted_count = 0
-        failed_count = 0
-        failed_documents = []
-
-        async def _cleanup_temp_documents_atomically(session):
-            nonlocal deleted_count, failed_count, failed_documents
-            
-            async_obj_store = get_async_object_store()
-
-            for document_id in document_ids:
-                try:
-                    # Get document
-                    stmt = select(db_models.Document).where(
-                        db_models.Document.id == document_id,
-                        db_models.Document.user == user_id,
-                        db_models.Document.collection_id == collection_id,
-                        db_models.Document.status == db_models.DocumentStatus.UPLOADED
-                    )
-                    result = await session.execute(stmt)
-                    document = result.scalars().first()
-                    
-                    if not document:
-                        failed_documents.append(view_models.FailedDocument(
-                            document_id=document_id,
-                            error="Document not found or not in uploaded status"
-                        ))
-                        failed_count += 1
-                        continue
-
-                    # Delete from object store
-                    try:
-                        await async_obj_store.delete_objects_by_prefix(document.object_store_base_path())
-                        logger.info(f"Deleted objects from object store with prefix: {document.object_store_base_path()}")
-                    except Exception as e:
-                        logger.warning(f"Failed to delete objects for document {document.id} from object store: {e}")
-
-                    # Delete document from database
-                    await session.delete(document)
-                    deleted_count += 1
-
-                except Exception as e:
-                    logger.error(f"Failed to cleanup temp document {document_id}: {e}")
-                    failed_documents.append(view_models.FailedDocument(
-                        document_id=document_id,
-                        error=str(e)
-                    ))
-                    failed_count += 1
-
-        await self.db_ops.execute_with_transaction(_cleanup_temp_documents_atomically)
-
-        return view_models.CleanupTempDocumentsResponse(
-            deleted_count=deleted_count,
             failed_count=failed_count,
             failed_documents=failed_documents
         )

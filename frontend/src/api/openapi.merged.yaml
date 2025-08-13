@@ -941,43 +941,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
-  /collections/{collection_id}/documents/temp:
-    delete:
-      summary: Cleanup temporary documents
-      description: Delete temporary uploaded documents that haven't been confirmed
-      security:
-        - BearerAuth: []
-      parameters:
-        - name: collection_id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/cleanupTempDocumentsRequest'
-      responses:
-        '200':
-          description: Temporary documents cleaned up successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/cleanupTempDocumentsResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/failResponse'
-        '404':
-          description: Collection not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/failResponse'
   /collections/{collection_id}/searches:
     get:
       summary: Get search history
@@ -4894,39 +4857,6 @@ components:
           description: Details of failed confirmations
       required:
         - confirmed_count
-        - failed_count
-    cleanupTempDocumentsRequest:
-      type: object
-      properties:
-        document_ids:
-          type: array
-          items:
-            type: string
-          description: List of temporary document IDs to cleanup
-          minItems: 1
-      required:
-        - document_ids
-    cleanupTempDocumentsResponse:
-      type: object
-      properties:
-        deleted_count:
-          type: integer
-          description: Number of documents successfully deleted
-        failed_count:
-          type: integer
-          description: Number of documents that failed to delete
-        failed_documents:
-          type: array
-          items:
-            type: object
-            properties:
-              document_id:
-                type: string
-              error:
-                type: string
-          description: Details of failed deletions
-      required:
-        - deleted_count
         - failed_count
     vectorSearchParams:
       type: object
