@@ -63,8 +63,8 @@ export default () => {
   ];
 
   return (
-    <div style={{ padding: '24px', backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
-      <Card style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+    <>
+      <Card>
         <Result
           status={state.failedDocuments.length === 0 ? "success" : "warning"}
           title={`成功添加 ${state.confirmedCount} 个文档到知识库`}
@@ -97,6 +97,6 @@ export default () => {
           </div>
         )}
       </Card>
-    </div>
+    </>
   );
 };

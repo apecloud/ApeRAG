@@ -102,7 +102,10 @@ export default () => {
   const updateStatistics = (tasks: UploadTask[]) => {
     const stats = tasks.reduce(
       (acc, task) => {
-        acc[task.status]++;
+        if (task.status === 'uploading') acc.uploading++;
+        else if (task.status === 'success') acc.success++;
+        else if (task.status === 'failed') acc.failed++;
+        else if (task.status === 'pending') acc.pending++;
         return acc;
       },
       { total: tasks.length, uploading: 0, success: 0, failed: 0, pending: 0 }
@@ -130,12 +133,23 @@ export default () => {
 
   const uploadSingleFile = async (task: UploadTask) => {
     try {
-      setState(prev => ({
-        ...prev,
-        tasks: prev.tasks.map(t => 
-          t.id === task.id ? { ...t, status: 'uploading', progress: 0 } : t
-        ),
-      }));
+      setState(prev => {
+        const newTasks = prev.tasks.map(t => 
+          t.id === task.id ? { ...t, status: 'uploading' as const, progress: 0 } : t
+        );
+        // Update statistics when starting upload
+        const stats = newTasks.reduce(
+          (acc, t) => {
+            if (t.status === 'uploading') acc.uploading++;
+            else if (t.status === 'success') acc.success++;
+            else if (t.status === 'failed') acc.failed++;
+            else if (t.status === 'pending') acc.pending++;
+            return acc;
+          },
+          { total: newTasks.length, uploading: 0, success: 0, failed: 0, pending: 0 }
+        );
+        return { ...prev, tasks: newTasks, statistics: stats };
+      });
       
       const formData = new FormData();
       formData.append('file', task.file);  // Changed from 'files' to 'file' to match backend API
@@ -159,17 +173,28 @@ export default () => {
           if (xhr.status === 200) {
             try {
               const response = JSON.parse(xhr.responseText);
+              console.log('Upload response:', response); // Debug log
               setState(prev => {
                 const newTasks = prev.tasks.map(t => 
                   t.id === task.id ? { 
                     ...t, 
                     status: 'success' as const, 
                     progress: 100,
-                    documentId: response.document_id 
+                    documentId: response.document_id || response.data?.document_id
                   } : t
                 );
-                updateStatistics(newTasks);
-                return { ...prev, tasks: newTasks };
+                // Calculate statistics directly here
+                const stats = newTasks.reduce(
+                  (acc, t) => {
+                    if (t.status === 'uploading') acc.uploading++;
+                    else if (t.status === 'success') acc.success++;
+                    else if (t.status === 'failed') acc.failed++;
+                    else if (t.status === 'pending') acc.pending++;
+                    return acc;
+                  },
+                  { total: newTasks.length, uploading: 0, success: 0, failed: 0, pending: 0 }
+                );
+                return { ...prev, tasks: newTasks, statistics: stats };
               });
               resolve();
             } catch (error) {
@@ -238,8 +263,18 @@ export default () => {
             error: error instanceof Error ? error.message : '上传失败'
           } : t
         );
-        updateStatistics(newTasks);
-        return { ...prev, tasks: newTasks };
+        // Calculate statistics directly here
+        const stats = newTasks.reduce(
+          (acc, t) => {
+            if (t.status === 'uploading') acc.uploading++;
+            else if (t.status === 'success') acc.success++;
+            else if (t.status === 'failed') acc.failed++;
+            else if (t.status === 'pending') acc.pending++;
+            return acc;
+          },
+          { total: newTasks.length, uploading: 0, success: 0, failed: 0, pending: 0 }
+        );
+        return { ...prev, tasks: newTasks, statistics: stats };
       });
     }
   };
@@ -350,14 +385,10 @@ export default () => {
   ];
 
   return (
-    <div style={{ padding: '24px', backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
+    <>
       {/* Header with steps and exit button */}
       <div style={{ 
-        backgroundColor: 'white', 
-        padding: '16px 24px', 
-        marginBottom: '24px',
-        borderRadius: '8px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+        marginBottom: '24px'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <Typography.Title level={4} style={{ margin: 0 }}>
@@ -371,7 +402,7 @@ export default () => {
           </Button>
         </div>
         
-        <Steps current={1} style={{ maxWidth: '600px', margin: '0 auto' }}>
+        <Steps current={1}>
           <Steps.Step 
             title={<FormattedMessage id="document.upload.step.select" />} 
             icon={<FileOutlined />}
@@ -383,7 +414,7 @@ export default () => {
         </Steps>
       </div>
 
-      <Card style={{ marginBottom: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+      <Card style={{ marginBottom: 24 }}>
         <Space size="large">
           <Statistic title="总文件数" value={state.statistics.total} />
           <Statistic title="上传中" value={state.statistics.uploading} />
@@ -413,7 +444,7 @@ export default () => {
         </Button>
       </div>
 
-      <Card style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+      <Card>
         <Table
           dataSource={filteredTasks}
           columns={columns}
@@ -447,6 +478,6 @@ export default () => {
       </Card>
 
       {contextHolder}
-    </div>
+    </>
   );
 };
