@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { Button, Table, Progress, Space, Typography, Card, Checkbox, message } from 'antd';
-import { InboxOutlined, FolderOpenOutlined, FileOutlined } from '@ant-design/icons';
+import { Button, Table, Progress, Space, Typography, Card, Checkbox, message, Steps } from 'antd';
+import { InboxOutlined, FolderOpenOutlined, FileOutlined, CloseOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { useNavigate, useParams, FormattedMessage, useIntl } from 'umi';
 import byteSize from 'byte-size';
 import { nanoid } from 'nanoid';
@@ -192,15 +192,67 @@ const FileSelectionPage: React.FC = () => {
       key: 'type',
       width: 150,
       ellipsis: true
+    },
+    {
+      title: formatMessage({ id: 'action.name' }),
+      key: 'action',
+      width: 80,
+      render: (_: any, file: ScannedFile) => (
+        <Button 
+          size="small" 
+          danger
+          onClick={() => {
+            setState(prev => ({
+              ...prev,
+              scannedFiles: prev.scannedFiles.filter(f => f.id !== file.id),
+              totalSize: prev.scannedFiles
+                .filter(f => f.id !== file.id && f.selected)
+                .reduce((sum, f) => sum + f.size, 0),
+              totalCount: prev.scannedFiles.filter(f => f.id !== file.id && f.selected).length
+            }));
+          }}
+        >
+          <FormattedMessage id="action.delete" />
+        </Button>
+      )
     }
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
-      <Card>
-        <Typography.Title level={4}>
-          <FormattedMessage id="document.upload.selectFiles" />
-        </Typography.Title>
+    <div style={{ padding: '24px', backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
+      {/* Header with steps and exit button */}
+      <div style={{ 
+        backgroundColor: 'white', 
+        padding: '16px 24px', 
+        marginBottom: '24px',
+        borderRadius: '8px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <Typography.Title level={4} style={{ margin: 0 }}>
+            <FormattedMessage id="document.upload" />
+          </Typography.Title>
+          <Button 
+            icon={<CloseOutlined />}
+            onClick={() => navigate(`/collections/${collectionId}/documents`)}
+          >
+            <FormattedMessage id="action.back" />
+          </Button>
+        </div>
+        
+        <Steps current={0} style={{ maxWidth: '600px', margin: '0 auto' }}>
+          <Steps.Step 
+            title={<FormattedMessage id="document.upload.step.select" />} 
+            icon={<FileOutlined />}
+          />
+          <Steps.Step 
+            title={<FormattedMessage id="document.upload.step.upload" />} 
+            icon={<InboxOutlined />}
+          />
+        </Steps>
+      </div>
+
+      <Card style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
         
         {/* File selection area */}
         <div style={{ 
@@ -295,24 +347,28 @@ const FileSelectionPage: React.FC = () => {
               scroll={{ y: 400 }}
             />
             
-            <div style={{ marginTop: '24px', textAlign: 'right' }}>
-              <Space>
-                <Button 
-                  size="large"
-                  onClick={() => navigate(`/collections/${collectionId}/documents`)}
-                >
-                  <FormattedMessage id="action.cancel" />
-                </Button>
-                <Button
-                  type="primary"
-                  size="large"
-                  onClick={handleStartUpload}
-                  disabled={state.scannedFiles.filter(f => f.selected).length === 0}
-                >
-                  <FormattedMessage id="document.upload.start" />
-                  {state.totalCount > 0 && ` (${state.totalCount})`}
-                </Button>
-              </Space>
+            <div style={{ 
+              marginTop: '24px', 
+              padding: '16px 0',
+              borderTop: '1px solid #f0f0f0',
+              display: 'flex',
+              justifyContent: 'space-between'
+            }}>
+              <Button 
+                size="large"
+                onClick={() => navigate(`/collections/${collectionId}/documents`)}
+              >
+                <FormattedMessage id="action.cancel" />
+              </Button>
+              <Button
+                type="primary"
+                size="large"
+                onClick={handleStartUpload}
+                disabled={state.scannedFiles.filter(f => f.selected).length === 0}
+              >
+                <FormattedMessage id="document.upload.next" />
+                {state.totalCount > 0 && ` (${state.totalCount})`}
+              </Button>
             </div>
           </>
         )}

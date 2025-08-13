@@ -13,10 +13,18 @@ import {
   Tag,
   Modal,
   Tooltip,
+  Steps,
 } from 'antd';
-import { ReloadOutlined, DeleteOutlined } from '@ant-design/icons';
+import { 
+  ReloadOutlined, 
+  DeleteOutlined, 
+  CloseOutlined,
+  FileOutlined,
+  InboxOutlined,
+  CheckCircleOutlined 
+} from '@ant-design/icons';
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams, useLocation } from 'umi';
+import { useNavigate, useParams, useLocation, FormattedMessage, useIntl } from 'umi';
 import { toast } from 'react-toastify';
 import byteSize from 'byte-size';
 
@@ -54,6 +62,7 @@ export default () => {
   const { collectionId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { formatMessage } = useIntl();
   const [modal, contextHolder] = Modal.useModal();
 
   const [state, setState] = useState<UploadTaskState>({
@@ -242,45 +251,6 @@ export default () => {
     }
   };
 
-  const handleDeleteSelected = async () => {
-    if (state.selectedTaskIds.length === 0) return;
-    
-    const confirmed = await modal.confirm({
-      title: '确认删除',
-      content: `确定要删除选中的 ${state.selectedTaskIds.length} 个文件吗？`,
-      okText: '删除',
-      cancelText: '取消',
-      okButtonProps: { danger: true },
-    });
-    
-    if (!confirmed) return;
-    
-    const selectedTasks = state.tasks.filter(t => state.selectedTaskIds.includes(t.id));
-    const documentIds = selectedTasks
-      .filter(t => t.documentId)
-      .map(t => t.documentId!);
-    
-    if (documentIds.length > 0) {
-      try {
-        await api.collectionsCollectionIdDocumentsTempDelete({
-          collectionId: collectionId!,
-          cleanupTempDocumentsRequest: { document_ids: documentIds }
-        });
-      } catch (error) {
-        console.error('删除临时文档失败:', error);
-      }
-    }
-    
-    setState(prev => {
-      const newTasks = prev.tasks.filter(t => !state.selectedTaskIds.includes(t.id));
-      updateStatistics(newTasks);
-      return {
-        ...prev,
-        tasks: newTasks,
-        selectedTaskIds: [],
-      };
-    });
-  };
 
   const handleConfirmUpload = async () => {
     const successTasks = state.tasks.filter(t => t.status === 'success');
@@ -320,38 +290,6 @@ export default () => {
   });
 
   const columns = [
-    {
-      title: (
-        <Checkbox
-          indeterminate={state.selectedTaskIds.length > 0 && state.selectedTaskIds.length < filteredTasks.length}
-          checked={state.selectedTaskIds.length === filteredTasks.length && filteredTasks.length > 0}
-          onChange={(e) => {
-            const allIds = filteredTasks.map(t => t.id);
-            setState(prev => ({
-              ...prev,
-              selectedTaskIds: e.target.checked ? allIds : []
-            }));
-          }}
-        >
-          选择
-        </Checkbox>
-      ),
-      key: 'select',
-      width: 80,
-      render: (_: any, task: UploadTask) => (
-        <Checkbox
-          checked={state.selectedTaskIds.includes(task.id)}
-          onChange={(e) => {
-            setState(prev => ({
-              ...prev,
-              selectedTaskIds: e.target.checked 
-                ? [...prev.selectedTaskIds, task.id]
-                : prev.selectedTaskIds.filter(id => id !== task.id)
-            }));
-          }}
-        />
-      ),
-    },
     {
       title: '文件名',
       dataIndex: 'name',
@@ -396,43 +334,56 @@ export default () => {
     {
       title: '操作',
       key: 'action',
-      width: 120,
+      width: 80,
       render: (_: any, task: UploadTask) => (
-        <Space>
-          {task.status === 'failed' && (
-            <Button 
-              size="small" 
-              onClick={() => uploadSingleFile(task)}
-              loading={state.isUploading}
-            >
-              重试
-            </Button>
-          )}
+        task.status === 'failed' ? (
           <Button 
             size="small" 
-            danger 
-            onClick={() => {
-              setState(prev => ({
-                ...prev,
-                selectedTaskIds: [task.id]
-              }));
-              handleDeleteSelected();
-            }}
+            onClick={() => uploadSingleFile(task)}
+            loading={state.isUploading}
           >
-            删除
+            重试
           </Button>
-        </Space>
+        ) : null
       ),
     },
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
-      <Typography.Title level={3}>
-        上传任务管理
-      </Typography.Title>
+    <div style={{ padding: '24px', backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
+      {/* Header with steps and exit button */}
+      <div style={{ 
+        backgroundColor: 'white', 
+        padding: '16px 24px', 
+        marginBottom: '24px',
+        borderRadius: '8px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <Typography.Title level={4} style={{ margin: 0 }}>
+            <FormattedMessage id="document.upload" />
+          </Typography.Title>
+          <Button 
+            icon={<CloseOutlined />}
+            onClick={() => navigate(`/collections/${collectionId}/documents`)}
+          >
+            <FormattedMessage id="action.back" />
+          </Button>
+        </div>
+        
+        <Steps current={1} style={{ maxWidth: '600px', margin: '0 auto' }}>
+          <Steps.Step 
+            title={<FormattedMessage id="document.upload.step.select" />} 
+            icon={<FileOutlined />}
+          />
+          <Steps.Step 
+            title={<FormattedMessage id="document.upload.step.upload" />} 
+            icon={<InboxOutlined />}
+          />
+        </Steps>
+      </div>
 
-      <Card style={{ marginBottom: 24 }}>
+      <Card style={{ marginBottom: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
         <Space size="large">
           <Statistic title="总文件数" value={state.statistics.total} />
           <Statistic title="上传中" value={state.statistics.uploading} />
@@ -453,43 +404,47 @@ export default () => {
       </Tabs>
 
       <div style={{ marginBottom: 16 }}>
-        <Space>
-          <Button 
-            onClick={handleDeleteSelected}
-            disabled={state.selectedTaskIds.length === 0}
-            icon={<DeleteOutlined />}
-          >
-            删除选中
-          </Button>
-          
-          <Button 
-            onClick={handleRetryFailed}
-            disabled={state.statistics.failed === 0}
-            icon={<ReloadOutlined />}
-          >
-            重试失败
-          </Button>
-        </Space>
-      </div>
-
-      <Table
-        dataSource={filteredTasks}
-        columns={columns}
-        rowKey="id"
-        pagination={{ pageSize: 20 }}
-      />
-
-      <div style={{ marginTop: 24, textAlign: 'center' }}>
         <Button 
-          type="primary" 
-          size="large"
-          onClick={handleConfirmUpload}
-          loading={state.isConfirming}
-          disabled={state.statistics.success === 0}
+          onClick={handleRetryFailed}
+          disabled={state.statistics.failed === 0}
+          icon={<ReloadOutlined />}
         >
-          确认添加到知识库 ({state.statistics.success})
+          重试失败
         </Button>
       </div>
+
+      <Card style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+        <Table
+          dataSource={filteredTasks}
+          columns={columns}
+          rowKey="id"
+          pagination={{ pageSize: 20 }}
+        />
+
+        <div style={{ 
+          marginTop: '24px', 
+          padding: '16px 0',
+          borderTop: '1px solid #f0f0f0',
+          display: 'flex',
+          justifyContent: 'space-between'
+        }}>
+          <Button 
+            size="large"
+            onClick={() => navigate(`/collections/${collectionId}/documents/upload`)}
+          >
+            <FormattedMessage id="action.back" />
+          </Button>
+          <Button 
+            type="primary" 
+            size="large"
+            onClick={handleConfirmUpload}
+            loading={state.isConfirming}
+            disabled={state.statistics.success === 0}
+          >
+            <FormattedMessage id="document.upload.confirm" /> ({state.statistics.success})
+          </Button>
+        </div>
+      </Card>
 
       {contextHolder}
     </div>
