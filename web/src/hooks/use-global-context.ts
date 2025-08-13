@@ -1,13 +1,14 @@
 'use client';
 
+import { User } from '@/api';
 import { createContext, useContext } from 'react';
 
 export type GlobalContextProps = {
-  user: UserEntity | null;
+  user?: User;
 };
 
 export const GlobalContext = createContext<GlobalContextProps>({
-  user: null,
+  user: undefined,
 });
 
 export const useGlobalClientContext = () => useContext(GlobalContext);

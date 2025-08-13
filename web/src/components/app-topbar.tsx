@@ -48,7 +48,7 @@ export const AppShortLogo = () => {
 
 export const AppUserDropdownMenu = () => {
   const { user } = useGlobalClientContext();
-  const username = user?.name || user?.email?.split('@')[0];
+  const username = user?.username || user?.email?.split('@')[0];
 
   if (!user) {
     return (
@@ -56,6 +56,7 @@ export const AppUserDropdownMenu = () => {
         variant="ghost"
         onClick={() => {
           // signIn()
+          
         }}
       >
         <UserAvatar user={user} />
