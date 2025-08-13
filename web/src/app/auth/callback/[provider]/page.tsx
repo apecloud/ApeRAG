@@ -27,7 +27,7 @@ export default function Page() {
       .then((res) => {
         if (res.ok) {
           setTimeout(() => {
-            window.location.href = '/';
+            window.location.href = '/workspace';
           }, 1000);
           return;
         }

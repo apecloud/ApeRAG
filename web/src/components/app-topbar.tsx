@@ -20,6 +20,7 @@ import { BadgeCheck, Bell, CreditCard, LogOut, Sparkles } from 'lucide-react';
 import { useGlobalContext } from '@/hooks/use-global-context';
 import { cn } from '@/lib/utils';
 
+import { FaGithub } from 'react-icons/fa6';
 import {
   NavigationMenu,
   NavigationMenuItem,
@@ -174,6 +175,12 @@ export const AppTopbar = ({ className }: React.ComponentProps<'div'>) => {
           </NavigationMenu>
         </div>
         <div className="flex flex-row items-center gap-2 pr-4">
+          <Button variant="ghost" size="icon" asChild>
+            <Link target="_blank" href="https://github.com/apecloud/ApeRAG">
+              <FaGithub />
+              <span className="sr-only">Github</span>
+            </Link>
+          </Button>
           <AppThemeDropdownMenu />
           <AppUserDropdownMenu />
         </div>
