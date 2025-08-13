@@ -1,10 +1,11 @@
 import { AppTopbar } from '@/components/app-topbar';
+import Link from 'next/link';
 
 export default async function Home() {
   return (
     <>
       <AppTopbar className="bg-background/60" />
-      <div className="relative isolate px-6 pt-14 lg:px-8">
+      <div className="relative px-6 pt-8">
         <div
           aria-hidden="true"
           className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80"
@@ -17,7 +18,7 @@ export default async function Home() {
             className="relative left-[calc(50%-11rem)] aspect-1155/678 w-144.5 -translate-x-1/2 rotate-30 bg-linear-to-tr from-[#ff80b5] to-[#9089fc] opacity-30 sm:left-[calc(50%-30rem)] sm:w-288.75"
           ></div>
         </div>
-        <div className="mx-auto max-w-2xl py-32 sm:py-48 lg:py-56">
+        <div className="mx-auto max-w-300 py-48">
           <div className="hidden sm:mb-8 sm:flex sm:justify-center">
             <div className="relative rounded-full border px-4 py-1 text-sm/6">
               Announcing our next round of funding.
@@ -29,22 +30,26 @@ export default async function Home() {
           </div>
           <div className="text-center">
             <h1 className="text-5xl font-semibold tracking-tight text-balance sm:text-7xl">
-              Data to enrich your online business
+              Best choice for building your own Knowledge Graph and for Context
+              Engineering
             </h1>
-            <p className="text-muted-foreground mt-8 text-lg font-medium text-pretty sm:text-xl/8">
-              Anim aute id magna aliqua ad ad non deserunt sunt. Qui irure qui
-              lorem cupidatat commodo. Elit sunt amet fugiat veniam occaecat.
+            <p className="text-muted-foreground mt-8 sm:text-xl/8">
+              ApeRAG is a production-ready RAG (Retrieval-Augmented Generation)
+              platform that combines Graph RAG, vector search, and full-text
+              search. Build sophisticated AI applications with hybrid retrieval,
+              multimodal document processing, and enterprise-grade management
+              features.
             </p>
             <div className="mt-10 flex items-center justify-center gap-x-6">
-              <a
-                href="#"
+              <Link
+                href="/workspace"
                 className="bg-primary text-accent hover:bg-primary/90 focus-visible:bg-primary/90 rounded-md px-3.5 py-2.5 text-sm font-semibold shadow-xs focus-visible:outline-2 focus-visible:outline-offset-2"
               >
                 Get started
-              </a>
-              <a href="#" className="text-sm/6 font-semibold">
+              </Link>
+              <Link href="/" className="text-sm/6 font-semibold">
                 Learn more <span aria-hidden="true">→</span>
-              </a>
+              </Link>
             </div>
           </div>
         </div>

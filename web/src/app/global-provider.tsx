@@ -40,7 +40,7 @@ export const GlobalProvider = ({
         });
         if (res.status === 200) {
           setUser(res.data);
-          router.push(options.redirectTo);
+          router.push(`/workspace`);
         }
       }
 
