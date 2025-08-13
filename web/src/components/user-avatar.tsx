@@ -5,7 +5,7 @@ import { FaCircleUser } from 'react-icons/fa6';
 
 export const UserAvatar = ({ user }: { user?: User }) => {
   const UserIcon = () => (
-    <FaCircleUser className="text-muted-foreground/20 size-8" />
+    <FaCircleUser className="text-muted-foreground/50 size-8" />
   );
 
   return user?.image ? (

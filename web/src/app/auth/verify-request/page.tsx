@@ -8,10 +8,12 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { signIn } from 'next-auth/react';
+import { useGlobalContext } from '@/hooks/use-global-context';
+
 import Link from 'next/link';
 
 export default function Page() {
+  const { signIn } = useGlobalContext();
   return (
     <div className="flex flex-col gap-6">
       <Card>
@@ -28,7 +30,7 @@ export default function Page() {
             </Link>
             <Button
               variant="outline"
-              onClick={() => signIn(undefined, { redirectTo: '/' })}
+              onClick={() => signIn({ redirectTo: '/' })}
             >
               <div className="grid flex-1 text-left text-sm leading-tight">
                 Sign in again

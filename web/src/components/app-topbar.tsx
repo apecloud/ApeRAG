@@ -158,6 +158,7 @@ export const AppTopbar = ({ className }: React.ComponentProps<'div'>) => {
         <div className="flex items-center gap-4 pl-4">
           <AppLogo />
         </div>
+        <div></div>
         <div className="flex flex-row items-center gap-2 pr-4">
           <AppThemeDropdownMenu />
           <AppUserDropdownMenu />

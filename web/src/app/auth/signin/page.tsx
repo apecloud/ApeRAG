@@ -1,5 +1,16 @@
+import { getServerApi } from '@/lib/api/server';
 import { LoginForm } from './login-form';
 
 export default async function Page() {
-  return <LoginForm />;
+  const apiServer = await getServerApi();
+  let methods;
+  try {
+    const res = await apiServer.defaultApi.configGet();
+    methods = res.data.login_methods || [];
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  } catch (err) {
+    methods = ['local'];
+  }
+
+  return <LoginForm methods={methods} />;
 }
