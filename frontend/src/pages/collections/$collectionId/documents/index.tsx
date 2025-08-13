@@ -50,7 +50,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { defaultStyles, FileIcon } from 'react-file-icon';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'react-toastify';
-import { FormattedMessage, useIntl, useModel, useParams } from 'umi';
+import { FormattedMessage, useIntl, useModel, useParams, useNavigate } from 'umi';
 
 export default () => {
   const [searchParams, setSearchParams] = useState<{
@@ -62,6 +62,7 @@ export default () => {
   const { token } = theme.useToken();
   const [modal, contextHolder] = Modal.useModal();
   const { formatMessage } = useIntl();
+  const navigate = useNavigate();
   const [rebuildModalVisible, setRebuildModalVisible] = useState(false);
   const [rebuildSelectedDocument, setRebuildSelectedDocument] =
     useState<ApeDocument | null>(null);
@@ -587,11 +588,15 @@ export default () => {
         />
         <Space>
           {collection?.config?.source === 'system' ? (
-            <Upload {...uploadProps}>
-              <Button type="primary">
-                <FormattedMessage id="document.upload" />
-              </Button>
-            </Upload>
+            <Button 
+              type="primary"
+              onClick={() => {
+                console.log('Navigating to upload page:', `/collections/${collectionId}/documents/upload`);
+                navigate(`/collections/${collectionId}/documents/upload`);
+              }}
+            >
+              <FormattedMessage id="document.upload" />
+            </Button>
           ) : null}
           <Button
             type="default"

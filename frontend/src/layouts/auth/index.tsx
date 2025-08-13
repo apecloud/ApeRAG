@@ -61,4 +61,7 @@ export const Auth = ({ children }: { children: React.ReactNode }) => {
   if (type === 'cookie') {
     return <AuthCookie>{children}</AuthCookie>;
   }
+
+  // 默认情况下，如果没有配置认证类型或者类型为空，使用 none 认证
+  return <AuthNone>{children}</AuthNone>;
 };

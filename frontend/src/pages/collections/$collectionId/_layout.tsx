@@ -78,12 +78,10 @@ export const LayoutCollection = () => {
     }
   }, [collection]);
 
-  if (!collection) return;
-
   return (
     <>
       {contextHolder}
-      <PageContainer loading={collection === undefined}>
+      <PageContainer loading={!collection}>
         <PageHeader
           title={collection?.title}
           description={

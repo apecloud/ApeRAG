@@ -131,6 +131,7 @@ export interface Document {
 }
 
 export const DocumentStatusEnum = {
+    UPLOADED: 'UPLOADED',
     PENDING: 'PENDING',
     RUNNING: 'RUNNING',
     COMPLETE: 'COMPLETE',

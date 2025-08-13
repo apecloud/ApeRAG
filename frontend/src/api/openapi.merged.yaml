@@ -848,6 +848,136 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/failResponse'
+  /collections/{collection_id}/documents/upload:
+    post:
+      summary: Upload a single document
+      description: Upload a single document file to temporary storage (UPLOADED status)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Document file to upload
+              required:
+                - file
+      responses:
+        '200':
+          description: Document uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/uploadDocumentResponse'
+        '400':
+          description: Bad request - invalid file or file too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /collections/{collection_id}/documents/confirm:
+    post:
+      summary: Confirm documents to collection
+      description: Confirm uploaded documents and add them to the collection (change status from UPLOADED to PENDING)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/confirmDocumentsRequest'
+      responses:
+        '200':
+          description: Documents confirmed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/confirmDocumentsResponse'
+        '400':
+          description: Bad request - invalid document IDs or quota exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+  /collections/{collection_id}/documents/temp:
+    delete:
+      summary: Cleanup temporary documents
+      description: Delete temporary uploaded documents that haven't been confirmed
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: collection_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/cleanupTempDocumentsRequest'
+      responses:
+        '200':
+          description: Temporary documents cleaned up successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/cleanupTempDocumentsResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
+        '404':
+          description: Collection not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/failResponse'
   /collections/{collection_id}/searches:
     get:
       summary: Get search history
@@ -4539,6 +4669,7 @@ components:
         status:
           type: string
           enum:
+            - UPLOADED
             - PENDING
             - RUNNING
             - COMPLETE
@@ -4709,6 +4840,94 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/visionChunk'
+    uploadDocumentResponse:
+      type: object
+      properties:
+        document_id:
+          type: string
+          description: ID of the uploaded document
+        filename:
+          type: string
+          description: Name of the uploaded file
+        size:
+          type: integer
+          description: Size of the uploaded file in bytes
+        status:
+          type: string
+          enum:
+            - UPLOADED
+          description: Status of the uploaded document
+      required:
+        - document_id
+        - filename
+        - size
+        - status
+    confirmDocumentsRequest:
+      type: object
+      properties:
+        document_ids:
+          type: array
+          items:
+            type: string
+          description: List of document IDs to confirm
+          minItems: 1
+      required:
+        - document_ids
+    confirmDocumentsResponse:
+      type: object
+      properties:
+        confirmed_count:
+          type: integer
+          description: Number of documents successfully confirmed
+        failed_count:
+          type: integer
+          description: Number of documents that failed to confirm
+        failed_documents:
+          type: array
+          items:
+            type: object
+            properties:
+              document_id:
+                type: string
+              error:
+                type: string
+          description: Details of failed confirmations
+      required:
+        - confirmed_count
+        - failed_count
+    cleanupTempDocumentsRequest:
+      type: object
+      properties:
+        document_ids:
+          type: array
+          items:
+            type: string
+          description: List of temporary document IDs to cleanup
+          minItems: 1
+      required:
+        - document_ids
+    cleanupTempDocumentsResponse:
+      type: object
+      properties:
+        deleted_count:
+          type: integer
+          description: Number of documents successfully deleted
+        failed_count:
+          type: integer
+          description: Number of documents that failed to delete
+        failed_documents:
+          type: array
+          items:
+            type: object
+            properties:
+              document_id:
+                type: string
+              error:
+                type: string
+          description: Details of failed deletions
+      required:
+        - deleted_count
+        - failed_count
     vectorSearchParams:
       type: object
       properties:

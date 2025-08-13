@@ -92,6 +92,7 @@ class CollectionMarketplaceStatusEnum(str, Enum):
 
 
 class DocumentStatus(str, Enum):
+    UPLOADED = "UPLOADED"  # 新增：已上传但未确认添加到collection
     PENDING = "PENDING"
     RUNNING = "RUNNING"
     COMPLETE = "COMPLETE"
