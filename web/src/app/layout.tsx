@@ -1,10 +1,11 @@
-import { defaultApi } from '@/services/api';
+
 import type { Metadata } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { GlobalProvider } from './global-provider';
 import './globals.css';
 import { ThemeProvider } from './theme-provider';
+import { getServerApi } from '@/lib/api/server';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -27,11 +28,12 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   let user;
+  const apiServer = await getServerApi();
   try {
-    const res = await defaultApi.userGet();
+    const res = await apiServer.defaultApi.userGet();
     user = res.data;
   } catch (err: any) {
-    console.log(err.response.data);
+  
   }
 
   return (

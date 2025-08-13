@@ -17,7 +17,7 @@ import Link from 'next/link';
 
 import { BadgeCheck, Bell, CreditCard, LogOut, Sparkles } from 'lucide-react';
 
-import { useGlobalClientContext } from '@/hooks/use-global-context';
+import { useGlobalContext } from '@/hooks/use-global-context';
 import { cn } from '@/lib/utils';
 
 import { UserAvatar, UserAvatarProfile } from './user-avatar';
@@ -47,7 +47,7 @@ export const AppShortLogo = () => {
 };
 
 export const AppUserDropdownMenu = () => {
-  const { user } = useGlobalClientContext();
+  const { user, signIn, signOut } = useGlobalContext();
   const username = user?.username || user?.email?.split('@')[0];
 
   if (!user) {
@@ -55,8 +55,7 @@ export const AppUserDropdownMenu = () => {
       <Button
         variant="ghost"
         onClick={() => {
-          // signIn()
-          
+          signIn();
         }}
       >
         <UserAvatar user={user} />
@@ -108,11 +107,7 @@ export const AppUserDropdownMenu = () => {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() => {
-            // signOut()
-          }}
-        >
+        <DropdownMenuItem onClick={signOut}>
           <LogOut />
           Sign Out
         </DropdownMenuItem>
