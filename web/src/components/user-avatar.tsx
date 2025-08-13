@@ -1,9 +1,9 @@
+import { User } from '@/api';
 import { Avatar, AvatarFallback, AvatarImage } from '@radix-ui/react-avatar';
-import { User } from 'next-auth';
 
 import { FaCircleUser } from 'react-icons/fa6';
 
-export const UserAvatar = ({ user }: { user?: User | null }) => {
+export const UserAvatar = ({ user }: { user?: User }) => {
   const UserIcon = () => (
     <FaCircleUser className="text-muted-foreground/20 size-8" />
   );
@@ -20,8 +20,8 @@ export const UserAvatar = ({ user }: { user?: User | null }) => {
   );
 };
 
-export const UserAvatarProfile = ({ user }: { user?: User | null }) => {
-  const username = user?.name || user?.email?.split('@')[0];
+export const UserAvatarProfile = ({ user }: { user?: User }) => {
+  const username = user?.username || user?.email?.split('@')[0];
   return (
     <div className="flex items-center gap-2 text-left text-sm">
       <UserAvatar user={user} />
