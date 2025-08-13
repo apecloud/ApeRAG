@@ -31,10 +31,8 @@ export default async function RootLayout({
   try {
     const res = await apiServer.defaultApi.userGet();
     user = res.data;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  } catch (err) {
-    
-  }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  } catch (err) {}
 
   return (
     <html lang="en" suppressHydrationWarning>
