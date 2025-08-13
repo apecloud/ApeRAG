@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button, Table, Progress, Space, Typography, Card, Checkbox, message, Steps } from 'antd';
 import { InboxOutlined, FolderOpenOutlined, FileOutlined, CloseOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { useNavigate, useParams, FormattedMessage, useIntl } from 'umi';
@@ -30,6 +30,7 @@ const FileSelectionPage: React.FC = () => {
   const { formatMessage } = useIntl();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
   
   const [state, setState] = useState<FileSelectionState>({
     selectedFiles: [],
@@ -39,6 +40,27 @@ const FileSelectionPage: React.FC = () => {
     totalSize: 0,
     totalCount: 0
   });
+
+  // Prevent default drag and drop behavior on the entire document
+  useEffect(() => {
+    const preventDefaults = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    // Add event listeners to prevent default behavior
+    const events = ['dragenter', 'dragover', 'dragleave', 'drop'];
+    events.forEach(eventName => {
+      document.addEventListener(eventName, preventDefaults, false);
+    });
+
+    // Cleanup
+    return () => {
+      events.forEach(eventName => {
+        document.removeEventListener(eventName, preventDefaults, false);
+      });
+    };
+  }, []);
 
   const handleFileSelect = async (files: FileList | File[]) => {
     setState(prev => ({ ...prev, isScanning: true, scanProgress: 0 }));
@@ -79,6 +101,87 @@ const FileSelectionPage: React.FC = () => {
       isScanning: false,
       scanProgress: 100
     }));
+  };
+
+  // Handle drag events
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Check if we're leaving the drop zone entirely
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    
+    if (x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const items = e.dataTransfer.items;
+    const files: File[] = [];
+
+    // Process dropped items
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      
+      if (item.kind === 'file') {
+        const entry = item.webkitGetAsEntry();
+        
+        if (entry) {
+          // Handle both files and directories
+          await processEntry(entry, files);
+        } else {
+          // Fallback for browsers that don't support webkitGetAsEntry
+          const file = item.getAsFile();
+          if (file) {
+            files.push(file);
+          }
+        }
+      }
+    }
+
+    if (files.length > 0) {
+      handleFileSelect(files);
+    }
+  };
+
+  // Recursively process file system entries
+  const processEntry = async (entry: any, files: File[]): Promise<void> => {
+    if (entry.isFile) {
+      return new Promise((resolve) => {
+        entry.file((file: File) => {
+          files.push(file);
+          resolve();
+        });
+      });
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      return new Promise((resolve) => {
+        reader.readEntries(async (entries: any[]) => {
+          for (const childEntry of entries) {
+            await processEntry(childEntry, files);
+          }
+          resolve();
+        });
+      });
+    }
   };
 
   const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -255,14 +358,21 @@ const FileSelectionPage: React.FC = () => {
       <Card style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
         
         {/* File selection area */}
-        <div style={{ 
-          border: '2px dashed #d9d9d9',
-          borderRadius: '8px',
-          padding: '40px',
-          textAlign: 'center',
-          marginBottom: '24px',
-          backgroundColor: '#fafafa'
-        }}>
+        <div 
+          style={{ 
+            border: `2px dashed ${isDragging ? '#1890ff' : '#d9d9d9'}`,
+            borderRadius: '8px',
+            padding: '40px',
+            textAlign: 'center',
+            marginBottom: '24px',
+            backgroundColor: isDragging ? '#e6f7ff' : '#fafafa',
+            transition: 'all 0.3s ease'
+          }}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
           <InboxOutlined style={{ fontSize: '48px', color: '#999', marginBottom: '16px' }} />
           
           <Typography.Paragraph>
