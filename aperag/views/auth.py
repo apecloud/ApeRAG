@@ -296,7 +296,7 @@ if is_google_oauth_enabled():
         auth_backend,
         get_user_manager,
         settings.jwt_secret,
-        redirect_url=settings.oauth_redirect_url,
+        redirect_url=settings.oauth_redirect_url + "/google",
         associate_by_email=True,
         is_verified_by_default=True,
     )
@@ -309,7 +309,7 @@ if is_github_oauth_enabled():
         auth_backend,
         get_user_manager,
         settings.jwt_secret,
-        redirect_url=settings.oauth_redirect_url,
+        redirect_url=settings.oauth_redirect_url + "/github",
         associate_by_email=True,
         is_verified_by_default=True,
     )

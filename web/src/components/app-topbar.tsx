@@ -20,6 +20,12 @@ import { BadgeCheck, Bell, CreditCard, LogOut, Sparkles } from 'lucide-react';
 import { useGlobalContext } from '@/hooks/use-global-context';
 import { cn } from '@/lib/utils';
 
+import {
+  NavigationMenu,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+} from './ui/navigation-menu';
 import { UserAvatar, UserAvatarProfile } from './user-avatar';
 
 export const AppLogo = () => {
@@ -155,10 +161,18 @@ export const AppTopbar = ({ className }: React.ComponentProps<'div'>) => {
           className,
         )}
       >
-        <div className="flex items-center gap-4 pl-4">
+        <div className="flex items-center gap-8 pl-4">
           <AppLogo />
+          <NavigationMenu>
+            <NavigationMenuList>
+              <NavigationMenuItem>
+                <NavigationMenuLink asChild className="hover:bg-accent/40 px-4">
+                  <Link href="/workspace">Workspace</Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+            </NavigationMenuList>
+          </NavigationMenu>
         </div>
-        <div></div>
         <div className="flex flex-row items-center gap-2 pr-4">
           <AppThemeDropdownMenu />
           <AppUserDropdownMenu />

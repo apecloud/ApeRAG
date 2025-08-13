@@ -7,7 +7,7 @@ export default async function Page() {
   try {
     const res = await apiServer.defaultApi.configGet();
     methods = res.data.login_methods || [];
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (err) {
     methods = ['local'];
   }

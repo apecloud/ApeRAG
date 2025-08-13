@@ -3,7 +3,7 @@ import { AppTopbar } from '@/components/app-topbar';
 export default async function Home() {
   return (
     <>
-      <AppTopbar className="bg-background/20" />
+      <AppTopbar className="bg-background/60" />
       <div className="relative isolate px-6 pt-14 lg:px-8">
         <div
           aria-hidden="true"

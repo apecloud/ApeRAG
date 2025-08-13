@@ -84,7 +84,7 @@ class Config(BaseSettings):
     # Auth
     auth_type: str = Field("none", alias="AUTH_TYPE")
     jwt_secret: str = Field("SECRET", alias="JWT_SECRET")
-    oauth_redirect_url: str = Field("http://127.0.0.1:3000/web/oauth-callback.html", alias="OAUTH_REDIRECT_URL")
+    oauth_redirect_url: str = Field("http://localhost:3000/auth/callback", alias="OAUTH_REDIRECT_URL")
     google_oauth_client_id: str = Field("", alias="GOOGLE_OAUTH_CLIENT_ID")
     google_oauth_client_secret: str = Field("", alias="GOOGLE_OAUTH_CLIENT_SECRET")
     github_oauth_client_id: str = Field("", alias="GITHUB_OAUTH_CLIENT_ID")
