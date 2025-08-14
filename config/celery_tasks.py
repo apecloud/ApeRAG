@@ -102,7 +102,6 @@ import logging
 from typing import Any, List
 
 from celery import Task, current_app, group, chord, chain
-from celery.exceptions import Retry
 from aperag.tasks.collection import collection_task
 from aperag.tasks.document import document_index_task
 from aperag.tasks.utils import TaskConfig
@@ -162,7 +161,7 @@ class BaseIndexTask(Task):
 
     def _handle_index_success(self, document_id: str, index_type: str, target_version: int, index_data: dict = None):
         try:
-            from aperag.index.reconciler import index_task_callbacks
+            from aperag.tasks.reconciler import index_task_callbacks
             index_data_json = json.dumps(index_data) if index_data else None
             index_task_callbacks.on_index_created(document_id, index_type, target_version, index_data_json)
             logger.info(f"Index success callback executed for {index_type} index of document {document_id} (v{target_version})")
@@ -171,7 +170,7 @@ class BaseIndexTask(Task):
 
     def _handle_index_deletion_success(self, document_id: str, index_type: str):
         try:
-            from aperag.index.reconciler import index_task_callbacks
+            from aperag.tasks.reconciler import index_task_callbacks
             index_task_callbacks.on_index_deleted(document_id, index_type)
             logger.info(f"Index deletion callback executed for {index_type} index of document {document_id}")
         except Exception as e:
@@ -179,7 +178,7 @@ class BaseIndexTask(Task):
 
     def _handle_index_failure(self, document_id: str, index_types: List[str], error_msg: str):
         try:
-            from aperag.index.reconciler import index_task_callbacks
+            from aperag.tasks.reconciler import index_task_callbacks
             
             for index_type in index_types:
                 index_task_callbacks.on_index_failed(document_id, index_type, error_msg)
@@ -697,7 +696,7 @@ def reconcile_indexes_task():
         logger.info("Starting index reconciliation")
 
         # Import here to avoid circular dependencies
-        from aperag.index.reconciler import index_reconciler
+        from aperag.tasks.reconciler import index_reconciler
 
         # Run reconciliation
         index_reconciler.reconcile_all()
@@ -716,7 +715,7 @@ def reconcile_collection_summaries_task():
         logger.info("Starting collection summary reconciliation")
 
         # Import here to avoid circular dependencies
-        from aperag.service.collection_summary_service import collection_summary_reconciler
+        from aperag.tasks.reconciler import collection_summary_reconciler
 
         # Run reconciliation
         collection_summary_reconciler.reconcile_all()
@@ -803,7 +802,7 @@ def collection_summary_task(self, summary_id: str, collection_id: str, target_ve
         
         # Mark as failed using callback if we've exhausted retries
         if self.request.retries >= self.max_retries:
-            from aperag.service.collection_summary_service import collection_summary_callbacks
+            from aperag.tasks.reconciler import collection_summary_callbacks
             collection_summary_callbacks.on_summary_failed(collection_id, str(e))
         
         raise self.retry(
@@ -811,5 +810,22 @@ def collection_summary_task(self, summary_id: str, collection_id: str, target_ve
             countdown=TaskConfig.RETRY_COUNTDOWN_COLLECTION,
             max_retries=TaskConfig.RETRY_MAX_RETRIES_COLLECTION,
         )
+
+
+@current_app.task
+def cleanup_expired_documents_task():
+    """
+    Celery task to clean up expired uploaded documents.
+    This task should be scheduled to run periodically (e.g., every hour).
+    """
+    logger.info("Starting Celery task: cleanup_expired_documents")
+
+    # Import here to avoid circular dependencies
+    from aperag.tasks.reconciler import collection_gc_reconciler
+
+    result = collection_gc_reconciler.reconcile_all()
+
+    logger.info(f"Celery task completed with result: {result}")
+    return result
 
 

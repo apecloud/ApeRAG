@@ -15,16 +15,20 @@
 import logging
 from typing import List, Optional
 
-from sqlalchemy import and_, select, update
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.orm import Session
 
 from aperag.config import get_sync_session
 from aperag.db.models import (
+    CollectionSummary,
+    CollectionSummaryStatus,
     Document,
     DocumentIndex,
     DocumentIndexStatus,
     DocumentIndexType,
     DocumentStatus,
+    Collection,
+    CollectionStatus,
 )
 from aperag.tasks.scheduler import TaskScheduler, create_task_scheduler
 from aperag.utils.constant import IndexAction
@@ -369,6 +373,208 @@ class IndexTaskCallbacks:
                 session.rollback()
 
 
+class CollectionSummaryReconciler:
+    """Reconciler for collection summaries using reconcile pattern"""
+
+    def __init__(self, scheduler_type: str = "celery"):
+        self.scheduler_type = scheduler_type
+
+    def reconcile_all(self):
+        """
+        Main reconciliation loop - scan collections and reconcile summary differences
+        """
+        for session in get_sync_session():
+            summaries_to_reconcile = self._get_summaries_needing_reconciliation(session)
+            logger.info(f"Found {len(summaries_to_reconcile)} collection summaries need reconciliation")
+
+            successful_reconciliations = 0
+            failed_reconciliations = 0
+            for summary in summaries_to_reconcile:
+                try:
+                    self._reconcile_single_summary(session, summary)
+                    successful_reconciliations += 1
+                except Exception as e:
+                    failed_reconciliations += 1
+                    logger.error(f"Failed to reconcile collection summary {summary.id}: {e}", exc_info=True)
+
+            if successful_reconciliations > 0 or failed_reconciliations > 0:
+                logger.info(
+                    f"Summary reconciliation completed: {successful_reconciliations} successful, {failed_reconciliations} failed"
+                )
+
+    def _get_summaries_needing_reconciliation(self, session: Session) -> List[CollectionSummary]:
+        """
+        Get all collection summaries that need reconciliation
+        """
+        stmt = select(CollectionSummary).where(
+            or_(
+                CollectionSummary.version != CollectionSummary.observed_version,
+                CollectionSummary.status != CollectionSummaryStatus.GENERATING,
+            )
+        )
+        result = session.execute(stmt)
+        return result.scalars().all()
+
+    def _reconcile_single_summary(self, session: Session, summary: CollectionSummary):
+        """
+        Reconcile summary generation for a single collection summary
+        """
+        claimed = self._claim_summary_for_processing(session, summary.id, summary.version)
+
+        if claimed:
+            self._schedule_summary_generation(summary.id, summary.collection_id, summary.version)
+            session.commit()
+        else:
+            logger.debug(
+                f"Skipping summary {summary.id} - could not be claimed (likely already processing or version mismatch)"
+            )
+
+    def _claim_summary_for_processing(self, session: Session, summary_id: str, version: int) -> bool:
+        """Atomically claim a summary for processing by updating its state and observed_version"""
+        try:
+            update_stmt = (
+                update(CollectionSummary)
+                .where(
+                    and_(
+                        CollectionSummary.id == summary_id,
+                        CollectionSummary.status != CollectionSummaryStatus.GENERATING,
+                        CollectionSummary.version == version,
+                    )
+                )
+                .values(
+                    status=CollectionSummaryStatus.GENERATING,
+                    gmt_last_reconciled=utc_now(),
+                    gmt_updated=utc_now(),
+                )
+            )
+            result = session.execute(update_stmt)
+            if result.rowcount > 0:
+                logger.debug(f"Claimed summary {summary_id} (v{version}) for processing")
+                session.flush()
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Failed to claim summary {summary_id}: {e}")
+            session.rollback()
+            return False
+
+    def _schedule_summary_generation(self, summary_id: str, collection_id: str, target_version: int):
+        """
+        Schedule summary generation task
+        """
+        try:
+            from config.celery_tasks import collection_summary_task
+
+            task_result = collection_summary_task.delay(summary_id, collection_id, target_version)
+            logger.info(
+                f"Collection summary generation task scheduled for summary {summary_id} "
+                f"(collection: {collection_id}, version: {target_version}), task ID: {task_result.id}"
+            )
+        except Exception as e:
+            logger.error(f"Failed to schedule summary generation for {summary_id}: {e}")
+            raise
+
+
+class CollectionSummaryCallbacks:
+    """Callbacks for collection summary task completion"""
+
+    @staticmethod
+    def on_summary_generated(summary_id: str, summary_content: str, target_version: int):
+        """Called when summary generation succeeds"""
+        try:
+            for session in get_sync_session():
+                update_stmt = (
+                    update(CollectionSummary)
+                    .where(
+                        and_(
+                            CollectionSummary.id == summary_id,
+                            CollectionSummary.status == CollectionSummaryStatus.GENERATING,
+                            CollectionSummary.version == target_version,
+                        )
+                    )
+                    .values(
+                        status=CollectionSummaryStatus.COMPLETE,
+                        summary=summary_content,
+                        error_message=None,
+                        observed_version=target_version,
+                        gmt_updated=utc_now(),
+                    )
+                )
+                result = session.execute(update_stmt)
+                if result.rowcount > 0:
+                    session.commit()
+                    logger.info(f"Collection summary generation completed for {summary_id} (v{target_version})")
+                else:
+                    session.rollback()
+                    logger.warning(
+                        f"Summary completion callback ignored for {summary_id} (v{target_version}) - not in expected state"
+                    )
+
+        except Exception as e:
+            logger.error(f"Failed to update collection summary completion for {summary_id}: {e}")
+
+    @staticmethod
+    def on_summary_failed(summary_id: str, error_message: str, target_version: int):
+        """Called when summary generation fails"""
+        try:
+            for session in get_sync_session():
+                update_stmt = (
+                    update(CollectionSummary)
+                    .where(
+                        and_(
+                            CollectionSummary.id == summary_id,
+                            CollectionSummary.status == CollectionSummaryStatus.GENERATING,
+                            CollectionSummary.version == target_version,
+                        )
+                    )
+                    .values(
+                        status=CollectionSummaryStatus.FAILED,
+                        error_message=error_message,
+                        gmt_updated=utc_now(),
+                    )
+                )
+                result = session.execute(update_stmt)
+                if result.rowcount > 0:
+                    session.commit()
+                    logger.error(
+                        f"Collection summary generation failed for {summary_id} (v{target_version}): {error_message}"
+                    )
+                else:
+                    session.rollback()
+                    logger.warning(
+                        f"Summary failure callback ignored for {summary_id} (v{target_version}) - not in expected state"
+                    )
+        except Exception as e:
+            logger.error(f"Failed to update collection summary failure for {summary_id}: {e}")
+
+
+class CollectionGCReconciler:
+    def __init__(self, scheduler_type: str = "celery"):
+        self.scheduler_type = scheduler_type
+
+    def reconcile_all(self):
+        collections = None
+        for session in get_sync_session():
+            stmt = select(Collection).where(
+                or_(
+                    Collection.status == CollectionStatus.ACTIVE,
+                )
+            )
+            result = session.execute(stmt)
+            collections = result.scalars().all()
+
+        if not collections:
+            return
+
+        from aperag.tasks.collection import collection_task        
+        for collection in collections:
+            collection_task.cleanup_expired_documents(collection.id)
+
+
 # Global instances
 index_reconciler = DocumentIndexReconciler()
 index_task_callbacks = IndexTaskCallbacks()
+collection_summary_reconciler = CollectionSummaryReconciler()
+collection_summary_callbacks = CollectionSummaryCallbacks()
+collection_gc_reconciler = CollectionGCReconciler()
+

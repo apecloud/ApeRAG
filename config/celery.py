@@ -46,12 +46,16 @@ app.conf.update(
 app.conf.beat_schedule = {
     'reconcile-indexes': {
         'task': 'config.celery_tasks.reconcile_indexes_task',
-        'schedule': 3600.0,  # Increased from 600s (10min) to 3600s (60min) since we now trigger on document operations
+        'schedule': 3600.0, # Run every 1 hour
     },
     'reconcile-collection-summaries': {
         'task': 'config.celery_tasks.reconcile_collection_summaries_task',
-        'schedule': 60.0,  # Run every 1 minute
+        'schedule': 60.0,
     },
+    'collection-gc': {
+        'task': 'config.celery_tasks.cleanup_expired_documents_task',
+        'schedule': 60.0,
+    }
 }
 
 # Set up task routes if local queue is specified

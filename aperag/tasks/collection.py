@@ -12,22 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from datetime import timedelta
 import logging
 from typing import Any
 
 from asgiref.sync import Dict, async_to_sync
+from sqlalchemy import and_, select
+from sqlalchemy.orm import Session
 
 from aperag.config import get_vector_db_connector
-from aperag.db.models import CollectionStatus
+from aperag.db import models as db_models
+from aperag.db.models import CollectionStatus, Collection
 from aperag.db.ops import db_ops
 from aperag.graph import lightrag_manager
 from aperag.index.fulltext_index import create_index, delete_index
 from aperag.llm.embed.base_embedding import get_collection_embedding_service_sync
+from aperag.objectstore.base import get_object_store
 from aperag.schema.utils import parseCollectionConfig
 from aperag.tasks.models import TaskResult
 from aperag.utils.utils import (
     generate_fulltext_index_name,
     generate_vector_db_collection_name,
+    utc_now,
 )
 
 logger = logging.getLogger(__name__)
@@ -195,6 +201,81 @@ class CollectionTask:
         index_name = generate_fulltext_index_name(collection_id)
         delete_index(index_name)
         logger.debug(f"Deleted fulltext index {index_name}")
+
+    def cleanup_expired_documents(self, collection_id: str):
+        """
+        Clean up documents that have been in UPLOADED status for more than 1 day.
+        This function runs asynchronously and handles all database operations.
+        """
+        logger.info("Starting cleanup of expired uploaded documents")
+
+        def _cleanup_expired_documents(session: Session):
+            # Calculate expiration time (1 day ago)
+            current_time = utc_now()
+            expiration_threshold = current_time - timedelta(seconds=1)
+
+            # Query for expired documents
+            stmt = select(db_models.Document).where(
+                and_(
+                    db_models.Document.collection_id == collection_id,
+                    db_models.Document.status == db_models.DocumentStatus.UPLOADED,
+                    db_models.Document.gmt_created < expiration_threshold
+                )
+            )
+
+            result = session.execute(stmt)
+            expired_documents = result.scalars().all()
+
+            if not expired_documents:
+                logger.info("No expired documents found")
+                return {"total_found": 0, "deleted_count": 0, "failed_count": 0}
+
+            logger.info(f"Found {len(expired_documents)} expired documents to clean up")
+
+            deleted_count = 0
+            failed_count = 0
+            obj_store = get_object_store()
+
+            for document in expired_documents:
+                try:
+                    # Delete from object store
+                    try:
+                        obj_store.delete_objects_by_prefix(document.object_store_base_path())
+                        logger.info(f"Deleted objects from object store for expired document {document.id}: {document.object_store_base_path()}")
+                    except Exception as e:
+                        logger.warning(f"Failed to delete objects for expired document {document.id} from object store: {e}")
+
+                    # Delete document from database
+                    session.delete(document)
+                    deleted_count += 1
+                    logger.info(f"Deleted expired document {document.id} (name: {document.name}, created: {document.gmt_created})")
+
+                except Exception as e:
+                    failed_count += 1
+                    logger.error(f"Failed to cleanup expired document {document.id}: {e}")
+
+            session.commit()
+
+            return {
+                "deleted_count": deleted_count,
+                "failed_count": failed_count,
+                "total_found": len(expired_documents)
+            }
+
+        try:
+            # Execute the cleanup with transaction
+            result = db_ops._execute_transaction(_cleanup_expired_documents)
+
+            logger.info(
+                f"Cleanup completed - Deleted: {result['deleted_count']}, "
+                f"Failed: {result['failed_count']}, Total found: {result['total_found']}"
+            )
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Error during expired documents cleanup: {e}", exc_info=True)
+            return {"deleted_count": 0, "failed_count": 0, "error": str(e)}
 
 
 collection_task = CollectionTask()
