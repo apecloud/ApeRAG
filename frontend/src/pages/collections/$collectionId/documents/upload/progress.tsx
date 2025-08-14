@@ -56,6 +56,10 @@ interface UploadTaskState {
     pending: number;
   };
   shouldContinue: boolean; // Flag to control whether to continue uploading
+  pagination: {
+    current: number;
+    pageSize: number;
+  };
 }
 
 const formatFileSize = (size: number) => byteSize(size).toString();
@@ -77,6 +81,10 @@ export default () => {
     selectedTaskIds: [],
     statistics: { total: 0, uploading: 0, success: 0, failed: 0, pending: 0 },
     shouldContinue: true,
+    pagination: {
+      current: 1,
+      pageSize: 20,
+    },
   });
 
   const updateStatistics = (tasks: UploadTask[]) => {
@@ -364,6 +372,17 @@ export default () => {
     setTimeout(() => startUpload(), 100);
   };
 
+  // Reset pagination when switching tabs
+  useEffect(() => {
+    setState(prev => ({
+      ...prev,
+      pagination: {
+        ...prev.pagination,
+        current: 1,
+      },
+    }));
+  }, [state.currentTab]);
+
   const handleStopUpload = () => {
     uploadAbortRef.current = true;
     setState(prev => ({ ...prev, shouldContinue: false }));
@@ -406,6 +425,16 @@ export default () => {
       default: return true;
     }
   });
+
+  const handlePaginationChange = (page: number, pageSize?: number) => {
+    setState(prev => ({
+      ...prev,
+      pagination: {
+        current: page,
+        pageSize: pageSize || prev.pagination.pageSize,
+      },
+    }));
+  };
 
   const columns = [
     {
@@ -533,9 +562,13 @@ export default () => {
           columns={columns}
           rowKey="id"
           pagination={{ 
-            pageSize: 20,
+            current: state.pagination.current,
+            pageSize: state.pagination.pageSize,
             showSizeChanger: true,
-            pageSizeOptions: ['10', '20', '50', '100']
+            pageSizeOptions: ['10', '20', '50', '100'],
+            onChange: handlePaginationChange,
+            onShowSizeChange: handlePaginationChange,
+            total: filteredTasks.length,
           }}
           rowClassName={(record) => {
             if (record.status === 'failed') return 'error-row';

@@ -22,6 +22,10 @@ interface FileSelectionState {
   scanProgress: number;
   totalSize: number;
   totalCount: number;
+  pagination: {
+    current: number;
+    pageSize: number;
+  };
 }
 
 const FileSelectionPage: React.FC = () => {
@@ -38,7 +42,11 @@ const FileSelectionPage: React.FC = () => {
     isScanning: false,
     scanProgress: 0,
     totalSize: 0,
-    totalCount: 0
+    totalCount: 0,
+    pagination: {
+      current: 1,
+      pageSize: 10,
+    },
   });
 
   // Prevent default drag and drop behavior on the entire document
@@ -247,6 +255,16 @@ const FileSelectionPage: React.FC = () => {
     return byteSize(size).toString();
   };
 
+  const handlePaginationChange = (page: number, pageSize?: number) => {
+    setState(prev => ({
+      ...prev,
+      pagination: {
+        current: page,
+        pageSize: pageSize || prev.pagination.pageSize,
+      },
+    }));
+  };
+
   const columns = [
     {
       title: (
@@ -446,8 +464,13 @@ const FileSelectionPage: React.FC = () => {
               columns={columns}
               rowKey="id"
               pagination={{
-                pageSize: 10,
+                current: state.pagination.current,
+                pageSize: state.pagination.pageSize,
                 showSizeChanger: true,
+                pageSizeOptions: ['10', '20', '50', '100'],
+                onChange: handlePaginationChange,
+                onShowSizeChange: handlePaginationChange,
+                total: state.scannedFiles.length,
                 showTotal: (total) => `${formatMessage({ id: 'text.total' })} ${total} ${formatMessage({ id: 'text.items' })}`
               }}
               scroll={{ y: 400 }}

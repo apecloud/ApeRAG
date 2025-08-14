@@ -33,6 +33,10 @@ const AuditLogsPage: React.FC = () => {
   const [data, setData] = useState<AuditLog[]>([]);
   const [selectedRecord, setSelectedRecord] = useState<AuditLog | null>(null);
   const [detailDrawerVisible, setDetailDrawerVisible] = useState(false);
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 20,
+  });
 
   // Format duration
   // const formatDuration = (ms?: number): string => {
@@ -120,6 +124,14 @@ const AuditLogsPage: React.FC = () => {
     }
 
     fetchData(params);
+  };
+
+  // Handle pagination change
+  const handlePaginationChange = (page: number, pageSize?: number) => {
+    setPagination({
+      current: page,
+      pageSize: pageSize || pagination.pageSize,
+    });
   };
 
   // Handle view details
@@ -416,6 +428,8 @@ const AuditLogsPage: React.FC = () => {
           loading={loading}
           rowKey="id"
           pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total, range) =>
@@ -427,7 +441,9 @@ const AuditLogsPage: React.FC = () => {
                 { start: range[0] || 0, end: range[1] || 0, total },
               ),
             pageSizeOptions: ['20', '50', '100'],
-            defaultPageSize: 20,
+            onChange: handlePaginationChange,
+            onShowSizeChange: handlePaginationChange,
+            total: data.length,
           }}
           scroll={{ x: 1240 }}
           size="small"
