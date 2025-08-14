@@ -124,11 +124,12 @@ def _validate_task_relevance(document_id: str, index_type: str, target_version: 
     Returns a dictionary with a 'skipped' status if the task is no longer relevant,
     otherwise returns None.
     """
-    from aperag.db.models import DocumentIndex, DocumentIndexType
+    from aperag.db.models import DocumentIndex, DocumentIndexType, Document, DocumentStatus
     from aperag.config import get_sync_session
     from sqlalchemy import select, and_
 
     for session in get_sync_session():
+        # Check document index status
         stmt = select(DocumentIndex).where(
             and_(
                 DocumentIndex.document_id == document_id,
@@ -149,6 +150,19 @@ def _validate_task_relevance(document_id: str, index_type: str, target_version: 
         if target_version and db_index.version != target_version:
             logger.info(f"Version mismatch for {document_id}:{index_type}, expected: {target_version}, current: {db_index.version}, skipping task.")
             return {"status": "skipped", "reason": f"version_mismatch_expected_{target_version}_current_{db_index.version}"}
+        
+        # Check document status - if document is UPLOADED or EXPIRED, task should be skipped
+        doc_stmt = select(Document).where(Document.id == document_id)
+        doc_result = session.execute(doc_stmt)
+        document = doc_result.scalar_one_or_none()
+        
+        if not document:
+            logger.info(f"Document {document_id} not found, skipping task.")
+            return {"status": "skipped", "reason": "document_not_found"}
+        
+        if document.status in [DocumentStatus.UPLOADED, DocumentStatus.EXPIRED]:
+            logger.info(f"Document {document_id} status is {document.status}, skipping task.")
+            return {"status": "skipped", "reason": f"document_status_{document.status}"}
         
         return None  # Task is still relevant
 
@@ -827,5 +841,3 @@ def cleanup_expired_documents_task():
 
     logger.info(f"Celery task completed with result: {result}")
     return result
-
-

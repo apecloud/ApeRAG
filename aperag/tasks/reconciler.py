@@ -266,7 +266,10 @@ class IndexTaskCallbacks:
 
     @staticmethod
     def _update_document_status(document_id: str, session: Session):
-        stmt = select(Document).where(Document.id == document_id, Document.status != DocumentStatus.DELETED)
+        stmt = select(Document).where(
+            Document.id == document_id, 
+            Document.status.not_in([DocumentStatus.DELETED, DocumentStatus.UPLOADED, DocumentStatus.EXPIRED])
+        )
         result = session.execute(stmt)
         document = result.scalar_one_or_none()
         if not document:
@@ -577,4 +580,3 @@ index_task_callbacks = IndexTaskCallbacks()
 collection_summary_reconciler = CollectionSummaryReconciler()
 collection_summary_callbacks = CollectionSummaryCallbacks()
 collection_gc_reconciler = CollectionGCReconciler()
-
