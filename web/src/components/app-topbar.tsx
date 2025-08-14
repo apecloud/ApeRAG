@@ -138,7 +138,7 @@ export const AppThemeDropdownMenu = () => {
           <span className="sr-only">Toggle theme</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent side="bottom" align="end">
         <DropdownMenuItem onClick={() => setTheme('light')}>
           Light
         </DropdownMenuItem>
@@ -152,6 +152,15 @@ export const AppThemeDropdownMenu = () => {
     </DropdownMenu>
   );
 };
+
+export const AppGithub = () => (
+  <Button variant="ghost" size="icon" asChild>
+    <Link target="_blank" href="https://github.com/apecloud/ApeRAG">
+      <FaGithub />
+      <span className="sr-only">Github</span>
+    </Link>
+  </Button>
+);
 
 export const AppTopbar = ({ className }: React.ComponentProps<'div'>) => {
   return (
@@ -175,12 +184,7 @@ export const AppTopbar = ({ className }: React.ComponentProps<'div'>) => {
           </NavigationMenu>
         </div>
         <div className="flex flex-row items-center gap-2 pr-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link target="_blank" href="https://github.com/apecloud/ApeRAG">
-              <FaGithub />
-              <span className="sr-only">Github</span>
-            </Link>
-          </Button>
+          <AppGithub />
           <AppThemeDropdownMenu />
           <AppUserDropdownMenu />
         </div>
