@@ -1,7 +1,5 @@
 'use client';
 
-import * as React from 'react';
-
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -16,6 +14,9 @@ import {
   useReactTable,
   VisibilityState,
 } from '@tanstack/react-table';
+import * as React from 'react';
+import { CopyToClipboard } from 'react-copy-to-clipboard';
+import { toast } from 'sonner';
 
 import { z } from 'zod';
 
@@ -58,11 +59,14 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Columns3,
+  Copy,
   EllipsisVertical,
   Plus,
+  SquarePen,
+  Trash,
 } from 'lucide-react';
-import { ApiKeyActions } from './api-key-actions';
 
+import { ApiKeyActions } from './api-key-actions';
 export const schema = z.object({
   id: z.number(),
   header: z.string(),
@@ -101,6 +105,25 @@ const columns: ColumnDef<ApiKey>[] = [
   {
     accessorKey: 'key',
     header: 'API Keys',
+    cell: ({ row }) => {
+      return (
+        <div className="flex flex-row items-center gap-2">
+          <span>{row.original.key}</span>
+          {row.original.key && (
+            <CopyToClipboard
+              text={row.original.key}
+              onCopy={() => {
+                toast.success('Copied');
+              }}
+            >
+              <Button size="icon" variant="ghost" className="cursor-pointer">
+                <Copy className="text-muted-foreground size-4" />
+              </Button>
+            </CopyToClipboard>
+          )}
+        </div>
+      );
+    },
   },
   {
     accessorKey: 'description',
@@ -141,11 +164,15 @@ const columns: ColumnDef<ApiKey>[] = [
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-32">
           <ApiKeyActions action="edit" apiKey={row.original}>
-            <DropdownMenuItem>Edit</DropdownMenuItem>
+            <DropdownMenuItem>
+              <SquarePen /> Edit
+            </DropdownMenuItem>
           </ApiKeyActions>
           <DropdownMenuSeparator />
           <ApiKeyActions action="delete" apiKey={row.original}>
-            <DropdownMenuItem variant="destructive">Delete</DropdownMenuItem>
+            <DropdownMenuItem variant="destructive">
+              <Trash /> Delete
+            </DropdownMenuItem>
           </ApiKeyActions>
         </DropdownMenuContent>
       </DropdownMenu>

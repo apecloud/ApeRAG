@@ -13,6 +13,7 @@ const eslintConfig = [
   ...compat.extends('next/core-web-vitals', 'next/typescript'),
   ...compat.config({
     extends: ['next', 'prettier'],
+    ignorePatterns: 'src/api/*',
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
     },

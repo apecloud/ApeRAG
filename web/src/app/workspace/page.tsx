@@ -1,9 +1,14 @@
-import { PageHeader } from '@/components/page-header';
+import {
+  PageContainer,
+  PageContent,
+  PageHeader,
+} from '@/components/page-container';
 
 export default function Page() {
   return (
-    <>
-      <PageHeader title="Home" />
-    </>
+    <PageContainer>
+      <PageHeader />
+      <PageContent></PageContent>
+    </PageContainer>
   );
 }
