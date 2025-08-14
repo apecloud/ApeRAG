@@ -167,23 +167,23 @@ export const AppTopbar = ({ className }: React.ComponentProps<'div'>) => {
     <>
       <header
         className={cn(
-          'fixed z-40 flex h-16 w-full shrink-0 items-center justify-between gap-2 backdrop-blur-lg transition-[width,height] ease-linear',
+          'fixed z-40 flex h-16 w-full shrink-0 items-center justify-between gap-2 px-4 backdrop-blur-lg transition-[width,height] ease-linear',
           className,
         )}
       >
-        <div className="flex items-center gap-8 pl-4">
+        <div className="flex items-center gap-8">
           <AppLogo />
           <NavigationMenu>
             <NavigationMenuList>
               <NavigationMenuItem>
                 <NavigationMenuLink asChild className="hover:bg-accent/40 px-4">
-                  <Link href="/workspace">Workspace</Link>
+                  <Link href="/workspace/collections">Workspace</Link>
                 </NavigationMenuLink>
               </NavigationMenuItem>
             </NavigationMenuList>
           </NavigationMenu>
         </div>
-        <div className="flex flex-row items-center gap-2 pr-4">
+        <div className="flex flex-row items-center gap-2">
           <AppGithub />
           <AppThemeDropdownMenu />
           <AppUserDropdownMenu />

@@ -39,18 +39,20 @@ export default async function Layout({
     <>
       <SidebarProvider>
         <Sidebar>
-          <SidebarHeader className="flex-row gap-4">
+          <SidebarHeader className="h-16 flex-row items-center gap-4 px-4 align-middle">
             <AppLogo />
           </SidebarHeader>
           <SidebarContent className="gap-0">
             <SidebarGroup className="mt-4">
               <SidebarMenu>
-                <SidebarMenuButton asChild>
-                  <Link href="/workspace/collections">
-                    <BookOpen />
-                    Collections
-                  </Link>
-                </SidebarMenuButton>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <Link href="/workspace/collections">
+                      <BookOpen />
+                      Collections
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroup>
 
