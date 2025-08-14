@@ -794,7 +794,7 @@ def collection_init_task(self, collection_id: str, document_user_quota: int) -> 
         )
 
 
-@app.task(bind=True)
+@app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3, 'countdown': 60})
 def collection_summary_task(self, summary_id: str, collection_id: str, target_version: int) -> Any:
     """
     Generate collection summary task entry point
