@@ -25,7 +25,7 @@ export const PageHeader = ({
   breadcrumbs?: AppTopbarBreadcrumbItem[];
 }) => {
   return (
-    <header className="flex h-12 items-center gap-2 border-b transition-[width,height] ease-linear">
+    <header className="flex h-16 items-center gap-2 border-b transition-[width,height] ease-linear">
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
         <SidebarTrigger className="-ml-1" />
         <Separator
@@ -83,7 +83,7 @@ export const PageDescription = ({
   ...props
 }: React.ComponentProps<'div'>) => {
   return (
-    <h1 className={cn('text-muted-foreground mb-4', className)} {...props} />
+    <div className={cn('text-muted-foreground mb-4', className)} {...props} />
   );
 };
 

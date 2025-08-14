@@ -42,7 +42,7 @@ export default async function Home() {
             </p>
             <div className="mt-10 flex items-center justify-center gap-x-6">
               <Link
-                href="/workspace"
+                href="/workspace/collections"
                 className="bg-primary text-accent hover:bg-primary/90 focus-visible:bg-primary/90 rounded-md px-3.5 py-2.5 text-sm font-semibold shadow-xs focus-visible:outline-2 focus-visible:outline-offset-2"
               >
                 Get started
