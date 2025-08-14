@@ -22,7 +22,7 @@ export const PageHeader = ({
   title,
   description,
   breadcrumbs = [],
-  children
+  children,
 }: {
   title?: string;
   description?: string;
@@ -43,8 +43,8 @@ export const PageHeader = ({
             <BreadcrumbList>
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
-                  <Link href="/" className="flex flex-row items-center  gap-1">
-                    <House className='size-4' />
+                  <Link href="/" className="flex flex-row items-center gap-1">
+                    <House className="size-4" />
                     Home
                   </Link>
                 </BreadcrumbLink>
@@ -78,12 +78,12 @@ export const PageHeader = ({
         </div>
       </header>
       <div className="flex flex-row items-center px-4 pt-4">
-        <h1 className="text-2xl font-medium truncate max-w-80">{title}</h1>
-        <div className='ml-auto'>
-          {children}
-        </div>
+        <h1 className="max-w-80 truncate text-2xl font-medium">{title}</h1>
+        <div className="ml-auto">{children}</div>
       </div>
-      {description && <div className="text-muted-foreground px-4">{description}</div>}
+      {description && (
+        <div className="text-muted-foreground px-4">{description}</div>
+      )}
     </>
   );
 };
