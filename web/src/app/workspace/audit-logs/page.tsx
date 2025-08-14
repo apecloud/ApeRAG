@@ -1,13 +1,21 @@
-import { PageHeader } from '@/components/page-header';
+import {
+  PageContainer,
+  PageContent,
+  PageDescription,
+  PageHeader,
+  PageTitle,
+} from '@/components/page-container';
 
 export default function Page() {
   return (
-    <>
-      <PageHeader
-        title="Audit Logs"
-        description="View detailed audit records of system operations"
-        breadcrumbs={[{ title: 'Audit Logs' }]}
-      />
-    </>
+    <PageContainer>
+      <PageHeader breadcrumbs={[{ title: 'Audit Logs' }]} />
+      <PageContent>
+        <PageTitle>Audit Logs</PageTitle>
+        <PageDescription>
+          View detailed audit records of system operations
+        </PageDescription>
+      </PageContent>
+    </PageContainer>
   );
 }

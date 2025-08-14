@@ -136,7 +136,7 @@ export const ApiKeyActions = ({
               className="space-y-8"
             >
               <DialogHeader>
-                <DialogTitle>Create API Key</DialogTitle>
+                <DialogTitle>API Key</DialogTitle>
                 <DialogDescription></DialogDescription>
               </DialogHeader>
               <FormField

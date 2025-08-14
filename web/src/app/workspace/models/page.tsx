@@ -1,13 +1,19 @@
-import { PageHeader } from '@/components/page-header';
+import {
+  PageContainer,
+  PageContent,
+  PageDescription,
+  PageHeader,
+  PageTitle,
+} from '@/components/page-container';
 
 export default function Page() {
   return (
-    <>
-      <PageHeader
-        title="Models"
-        description="Configure LLM providers and models"
-        breadcrumbs={[{ title: 'Models' }]}
-      />
-    </>
+    <PageContainer>
+      <PageHeader breadcrumbs={[{ title: 'Models' }]} />
+      <PageContent>
+        <PageTitle>Models</PageTitle>
+        <PageDescription>Configure LLM providers and models</PageDescription>
+      </PageContent>
+    </PageContainer>
   );
 }
