@@ -2,18 +2,17 @@ import { api } from '@/services';
 import { getAuthorizationHeader } from '@/models/user';
 import {
   Button,
-  Checkbox,
   Progress,
   Table,
   Typography,
   Space,
   Card,
-  Statistic,
   Tabs,
   Tag,
   Modal,
   Tooltip,
   Steps,
+  message,
 } from 'antd';
 import { 
   ReloadOutlined, 
@@ -21,9 +20,10 @@ import {
   CloseOutlined,
   FileOutlined,
   InboxOutlined,
-  CheckCircleOutlined 
+  CheckCircleOutlined,
+  ExclamationCircleOutlined,
 } from '@ant-design/icons';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useLocation, FormattedMessage, useIntl } from 'umi';
 import { toast } from 'react-toastify';
 import byteSize from 'byte-size';
@@ -53,7 +53,9 @@ interface UploadTaskState {
     uploading: number;
     success: number;
     failed: number;
+    pending: number;
   };
+  shouldContinue: boolean; // Flag to control whether to continue uploading
 }
 
 const formatFileSize = (size: number) => byteSize(size).toString();
@@ -64,6 +66,8 @@ export default () => {
   const location = useLocation();
   const { formatMessage } = useIntl();
   const [modal, contextHolder] = Modal.useModal();
+  const uploadAbortRef = useRef(false); // Ref to track if upload should be aborted
+  const startUploadRef = useRef<() => void>(); // Ref to store startUpload function
 
   const [state, setState] = useState<UploadTaskState>({
     tasks: [],
@@ -71,33 +75,9 @@ export default () => {
     isUploading: false,
     isConfirming: false,
     selectedTaskIds: [],
-    statistics: { total: 0, uploading: 0, success: 0, failed: 0 },
+    statistics: { total: 0, uploading: 0, success: 0, failed: 0, pending: 0 },
+    shouldContinue: true,
   });
-
-  useEffect(() => {
-    // 从路由状态获取选中的文件
-    const files = (location.state as any)?.files || [];
-    const tasks: UploadTask[] = files.map((file: any) => ({
-      id: file.id,
-      name: file.name,
-      size: file.size,
-      path: file.path,
-      status: 'pending' as const,
-      progress: 0,
-      file: file.file,
-    }));
-    
-    setState(prev => ({
-      ...prev,
-      tasks,
-      statistics: { ...prev.statistics, total: tasks.length },
-    }));
-    
-    // 自动开始上传
-    if (tasks.length > 0) {
-      startUpload(tasks);
-    }
-  }, []);
 
   const updateStatistics = (tasks: UploadTask[]) => {
     const stats = tasks.reduce(
@@ -111,43 +91,71 @@ export default () => {
       { total: tasks.length, uploading: 0, success: 0, failed: 0, pending: 0 }
     );
     
-    setState(prev => ({ ...prev, statistics: stats }));
+    return stats;
   };
 
-  const startUpload = async (tasks: UploadTask[]) => {
-    setState(prev => ({ ...prev, isUploading: true }));
+  const startUpload = async () => {
+    setState(prev => ({ ...prev, isUploading: true, shouldContinue: true }));
+    uploadAbortRef.current = false;
     
     // 并发上传，限制并发数为3
     const concurrency = 3;
-    const chunks = [];
-    for (let i = 0; i < tasks.length; i += concurrency) {
-      chunks.push(tasks.slice(i, i + concurrency));
+    const uploadQueue: UploadTask[] = [];
+    
+    // Get all pending tasks from current state
+    state.tasks.forEach(task => {
+      if (task.status === 'pending' || task.status === 'failed') {
+        uploadQueue.push(task);
+      }
+    });
+    
+    const uploadNext = async (): Promise<void> => {
+      // Check if we should stop uploading
+      if (uploadAbortRef.current || uploadQueue.length === 0) {
+        return;
+      }
+      
+      const task = uploadQueue.shift();
+      if (task) {
+        try {
+          await uploadSingleFile(task);
+        } catch (error) {
+          console.error(`Failed to upload ${task.name}:`, error);
+        }
+        // Continue with next file regardless of success/failure
+        await uploadNext();
+      }
+    };
+    
+    // Start concurrent uploads
+    const promises = [];
+    for (let i = 0; i < Math.min(concurrency, uploadQueue.length); i++) {
+      promises.push(uploadNext());
     }
     
-    for (const chunk of chunks) {
-      await Promise.all(chunk.map(task => uploadSingleFile(task)));
-    }
+    await Promise.all(promises);
     
     setState(prev => ({ ...prev, isUploading: false }));
+    
+    // Get the latest statistics after upload completes
+    setState(prev => {
+      const stats = updateStatistics(prev.tasks);
+      return { ...prev, statistics: stats };
+    });
   };
 
   const uploadSingleFile = async (task: UploadTask) => {
+    // Check if we should stop uploading
+    if (uploadAbortRef.current) {
+      return;
+    }
+    
     try {
       setState(prev => {
         const newTasks = prev.tasks.map(t => 
-          t.id === task.id ? { ...t, status: 'uploading' as const, progress: 0 } : t
+          t.id === task.id ? { ...t, status: 'uploading' as const, progress: 0, error: undefined } : t
         );
-        // Update statistics when starting upload
-        const stats = newTasks.reduce(
-          (acc, t) => {
-            if (t.status === 'uploading') acc.uploading++;
-            else if (t.status === 'success') acc.success++;
-            else if (t.status === 'failed') acc.failed++;
-            else if (t.status === 'pending') acc.pending++;
-            return acc;
-          },
-          { total: newTasks.length, uploading: 0, success: 0, failed: 0, pending: 0 }
-        );
+        const stats = updateStatistics(newTasks);
         return { ...prev, tasks: newTasks, statistics: stats };
       });
       
@@ -170,7 +178,7 @@ export default () => {
         };
         
         xhr.onload = () => {
-          if (xhr.status === 200) {
+          if (xhr.status === 200 || xhr.status === 201) {
             try {
               const response = JSON.parse(xhr.responseText);
               console.log('Upload response:', response); // Debug log
@@ -180,25 +188,28 @@ export default () => {
                     ...t, 
                     status: 'success' as const, 
                     progress: 100,
-                    documentId: response.document_id || response.data?.document_id
+                    documentId: response.document_id || response.data?.document_id,
+                    error: undefined
                   } : t
                 );
-                // Calculate statistics directly here
-                const stats = newTasks.reduce(
-                  (acc, t) => {
-                    if (t.status === 'uploading') acc.uploading++;
-                    else if (t.status === 'success') acc.success++;
-                    else if (t.status === 'failed') acc.failed++;
-                    else if (t.status === 'pending') acc.pending++;
-                    return acc;
-                  },
-                  { total: newTasks.length, uploading: 0, success: 0, failed: 0, pending: 0 }
-                );
+                const stats = updateStatistics(newTasks);
                 return { ...prev, tasks: newTasks, statistics: stats };
               });
               resolve();
             } catch (error) {
-              reject(new Error(formatMessage({ id: 'document.upload.error.parseResponse' })));
+              const errorMsg = formatMessage({ id: 'document.upload.error.parseResponse' });
+              setState(prev => {
+                const newTasks = prev.tasks.map(t => 
+                  t.id === task.id ? { 
+                    ...t, 
+                    status: 'failed' as const, 
+                    error: errorMsg
+                  } : t
+                );
+                const stats = updateStatistics(newTasks);
+                return { ...prev, tasks: newTasks, statistics: stats };
+              });
+              reject(new Error(errorMsg));
             }
           } else {
             // Parse error response
@@ -213,15 +224,24 @@ export default () => {
             } catch (e) {
               // If response is not JSON, use status text
               if (xhr.statusText) {
-                errorMessage = formatMessage({ id: 'document.upload.error.httpError' }, { status: xhr.statusText });
+                errorMessage = xhr.statusText;
               }
             }
             
-            // Handle specific error codes
-            if (xhr.status === 422) {
-              // Unprocessable Entity - usually validation errors
+            // Handle specific error codes and messages
+            if (xhr.status === 400) {
+              // Bad Request - usually validation errors
               if (errorMessage.includes('unsupported file type')) {
-                errorMessage = formatMessage({ id: 'document.upload.error.unsupportedFileType' });
+                const fileExt = task.name.split('.').pop()?.toLowerCase() || '';
+                errorMessage = formatMessage({ id: 'document.upload.error.unsupportedFileType' }, { fileType: `.${fileExt}` });
+              } else if (errorMessage.includes('file size is too large')) {
+                errorMessage = formatMessage({ id: 'document.upload.error.fileSizeTooLarge' });
+              }
+            } else if (xhr.status === 422) {
+              // Unprocessable Entity - validation errors
+              if (errorMessage.includes('unsupported file type')) {
+                const fileExt = task.name.split('.').pop()?.toLowerCase() || '';
+                errorMessage = formatMessage({ id: 'document.upload.error.unsupportedFileType' }, { fileType: `.${fileExt}` });
               } else if (errorMessage.includes('file size is too large')) {
                 errorMessage = formatMessage({ id: 'document.upload.error.fileSizeTooLarge' });
               }
@@ -233,12 +253,38 @@ export default () => {
               errorMessage = formatMessage({ id: 'document.upload.error.authFailed' });
             }
             
+            // Update task status to failed
+            setState(prev => {
+              const newTasks = prev.tasks.map(t => 
+                t.id === task.id ? { 
+                  ...t, 
+                  status: 'failed' as const, 
+                  error: errorMessage
+                } : t
+              );
+              const stats = updateStatistics(newTasks);
+              return { ...prev, tasks: newTasks, statistics: stats };
+            });
+            
+            // Don't show toast for individual failures - user can see in Failed tab
             reject(new Error(errorMessage));
           }
         };
         
         xhr.onerror = () => {
-          reject(new Error(formatMessage({ id: 'document.upload.error.networkError' })));
+          const errorMsg = formatMessage({ id: 'document.upload.error.networkError' });
+          setState(prev => {
+            const newTasks = prev.tasks.map(t => 
+              t.id === task.id ? { 
+                ...t, 
+                status: 'failed' as const, 
+                error: errorMsg
+              } : t
+            );
+            const stats = updateStatistics(newTasks);
+            return { ...prev, tasks: newTasks, statistics: stats };
+          });
+          reject(new Error(errorMsg));
         };
         
         xhr.open('POST', `/api/v1/collections/${collectionId}/documents/upload`);
@@ -255,41 +301,78 @@ export default () => {
       });
       
     } catch (error) {
+      // This catch block handles any errors not caught by the xhr handlers
+      const errorMsg = error instanceof Error ? error.message : formatMessage({ id: 'document.upload.error.uploadFailed' });
       setState(prev => {
         const newTasks = prev.tasks.map(t => 
           t.id === task.id ? { 
             ...t, 
             status: 'failed' as const, 
-            error: error instanceof Error ? error.message : formatMessage({ id: 'document.upload.error.uploadFailed' })
+            error: errorMsg
           } : t
         );
-        // Calculate statistics directly here
-        const stats = newTasks.reduce(
-          (acc, t) => {
-            if (t.status === 'uploading') acc.uploading++;
-            else if (t.status === 'success') acc.success++;
-            else if (t.status === 'failed') acc.failed++;
-            else if (t.status === 'pending') acc.pending++;
-            return acc;
-          },
-          { total: newTasks.length, uploading: 0, success: 0, failed: 0, pending: 0 }
-        );
+        const stats = updateStatistics(newTasks);
         return { ...prev, tasks: newTasks, statistics: stats };
       });
     }
   };
 
-  const handleRetryFailed = () => {
-    const failedTasks = state.tasks.filter(t => t.status === 'failed');
-    if (failedTasks.length > 0) {
-      startUpload(failedTasks);
+  // Store startUpload in ref so it can be called from useEffect
+  startUploadRef.current = startUpload;
+
+  useEffect(() => {
+    // 从路由状态获取选中的文件
+    const files = (location.state as any)?.files || [];
+    const tasks: UploadTask[] = files.map((file: any) => ({
+      id: file.id,
+      name: file.name,
+      size: file.size,
+      path: file.path,
+      status: 'pending' as const,
+      progress: 0,
+      file: file.file,
+    }));
+    
+    setState(prev => ({
+      ...prev,
+      tasks,
+      statistics: { ...prev.statistics, total: tasks.length, pending: tasks.length },
+    }));
+    
+    // 自动开始上传
+    if (tasks.length > 0) {
+      // Use setTimeout to ensure state is updated before starting upload
+      setTimeout(() => {
+        if (startUploadRef.current) {
+          startUploadRef.current();
+        }
+      }, 100);
     }
+  }, []);
+
+  const handleRetryFailed = () => {
+    // Reset failed tasks to pending before retrying
+    setState(prev => {
+      const newTasks = prev.tasks.map(t => 
+        t.status === 'failed' ? { ...t, status: 'pending' as const, error: undefined, progress: 0 } : t
+      );
+      const stats = updateStatistics(newTasks);
+      return { ...prev, tasks: newTasks, statistics: stats };
+    });
+    
+    // Start upload for all tasks (will only process pending ones)
+    setTimeout(() => startUpload(), 100);
   };
 
+  const handleStopUpload = () => {
+    uploadAbortRef.current = true;
+    setState(prev => ({ ...prev, shouldContinue: false }));
+    message.info(formatMessage({ id: 'document.upload.stopped' }));
+  };
 
   const handleConfirmUpload = async () => {
     const successTasks = state.tasks.filter(t => t.status === 'success');
-    const documentIds = successTasks.map(t => t.documentId!);
+    const documentIds = successTasks.map(t => t.documentId!).filter(id => id);
     
     if (documentIds.length === 0) {
       toast.warning(formatMessage({ id: 'document.upload.error.noDocumentsToConfirm' }));
@@ -348,41 +431,33 @@ export default () => {
       title: formatMessage({ id: 'document.status' }),
       dataIndex: 'status',
       key: 'status',
-      width: 150,
+      width: 120,
+      align: 'center' as const,
       render: (status: string, task: UploadTask) => {
         switch (status) {
           case 'uploading':
-            return <Progress percent={task.progress} size="small" />;
+            return <Progress percent={task.progress} size="small" status="active" />;
           case 'success':
-            return <Tag color="green">{formatMessage({ id: 'document.upload.status.success' })}</Tag>;
+            return <Tag color="green">Success</Tag>;
           case 'failed':
             return (
-              <Tooltip title={task.error || formatMessage({ id: 'document.upload.status.failed' })}>
-                <Tag color="red">{formatMessage({ id: 'document.upload.status.failed' })}</Tag>
+              <Tooltip title={task.error}>
+                <Tag color="red">Failed</Tag>
               </Tooltip>
             );
+          case 'pending':
+            return <Tag>Pending</Tag>;
           default:
-            return <Tag>{formatMessage({ id: 'document.upload.status.pending' })}</Tag>;
+            return <Tag>{status}</Tag>;
         }
       },
     },
-    {
-      title: formatMessage({ id: 'action.name' }),
-      key: 'action',
-      width: 80,
-      render: (_: any, task: UploadTask) => (
-        task.status === 'failed' ? (
-          <Button 
-            size="small" 
-            onClick={() => uploadSingleFile(task)}
-            loading={state.isUploading}
-          >
-            <FormattedMessage id="document.upload.action.retry" />
-          </Button>
-        ) : null
-      ),
-    },
   ];
+
+  // Calculate overall progress
+  const overallProgress = state.statistics.total > 0 
+    ? Math.round(((state.statistics.success + state.statistics.failed) / state.statistics.total) * 100)
+    : 0;
 
   return (
     <>
@@ -414,42 +489,70 @@ export default () => {
         </Steps>
       </div>
 
-      <Card style={{ marginBottom: 24 }}>
-        <Space size="large">
-          <Statistic title={formatMessage({ id: 'document.upload.progress.totalFiles' })} value={state.statistics.total} />
-          <Statistic title={formatMessage({ id: 'document.upload.progress.uploading' })} value={state.statistics.uploading} />
-          <Statistic title={formatMessage({ id: 'document.upload.progress.completed' })} value={state.statistics.success} />
-          <Statistic title={formatMessage({ id: 'document.upload.progress.failed' })} value={state.statistics.failed} />
-        </Space>
-      </Card>
+      {/* Overall progress */}
+      {state.isUploading && (
+        <Card style={{ marginBottom: 16 }}>
+          <Progress 
+            percent={overallProgress} 
+            status={state.statistics.failed > 0 ? 'exception' : 'active'}
+            format={() => `${state.statistics.success + state.statistics.failed} / ${state.statistics.total}`}
+          />
+        </Card>
+      )}
 
       <Tabs 
         activeKey={state.currentTab}
         onChange={(key) => setState(prev => ({ ...prev, currentTab: key as any }))}
         style={{ marginBottom: 16 }}
+        tabBarExtraContent={
+          <Space>
+            {state.isUploading && (
+              <Button 
+                onClick={handleStopUpload}
+                danger
+              >
+                <FormattedMessage id="action.stop" />
+              </Button>
+            )}
+            <Button 
+              onClick={handleRetryFailed}
+              disabled={state.statistics.failed === 0}
+              icon={<ReloadOutlined />}
+            >
+              <FormattedMessage id="document.upload.progress.retryFailed" />
+              {state.statistics.failed > 0 && ` (${state.statistics.failed})`}
+            </Button>
+          </Space>
+        }
       >
         <Tabs.TabPane tab={formatMessage({ id: 'document.upload.progress.tab.all' }, { count: state.statistics.total })} key="all" />
         <Tabs.TabPane tab={formatMessage({ id: 'document.upload.progress.tab.uploading' }, { count: state.statistics.uploading })} key="uploading" />
         <Tabs.TabPane tab={formatMessage({ id: 'document.upload.progress.tab.completed' }, { count: state.statistics.success })} key="success" />
-        <Tabs.TabPane tab={formatMessage({ id: 'document.upload.progress.tab.failed' }, { count: state.statistics.failed })} key="failed" />
+        <Tabs.TabPane 
+          tab={
+            <span style={{ color: state.statistics.failed > 0 ? '#ff4d4f' : undefined }}>
+              {formatMessage({ id: 'document.upload.progress.tab.failed' }, { count: state.statistics.failed })}
+            </span>
+          } 
+          key="failed" 
+        />
       </Tabs>
-
-      <div style={{ marginBottom: 16 }}>
-        <Button 
-          onClick={handleRetryFailed}
-          disabled={state.statistics.failed === 0}
-          icon={<ReloadOutlined />}
-        >
-          <FormattedMessage id="document.upload.progress.retryFailed" />
-        </Button>
-      </div>
 
       <Card>
         <Table
           dataSource={filteredTasks}
           columns={columns}
           rowKey="id"
-          pagination={{ pageSize: 20 }}
+          pagination={{ 
+            pageSize: 20,
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50', '100']
+          }}
+          rowClassName={(record) => {
+            if (record.status === 'failed') return 'error-row';
+            if (record.status === 'success') return 'success-row';
+            return '';
+          }}
         />
 
         <div style={{ 

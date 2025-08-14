@@ -525,7 +525,7 @@ export default {
   // Document upload error messages
   'document.upload.error.parseResponse': '解析响应失败',
   'document.upload.error.httpError': '上传失败: HTTP {status}',
-  'document.upload.error.unsupportedFileType': '不支持的文件类型',
+  'document.upload.error.unsupportedFileType': '不支持的文件类型 {fileType}',
   'document.upload.error.fileSizeTooLarge': '文件大小超过限制',
   'document.upload.error.collectionNotFound': '知识库不存在',
   'document.upload.error.noPermission': '没有权限',
@@ -535,4 +535,6 @@ export default {
   'document.upload.error.noDocumentsToConfirm': '没有可确认的文档',
   'document.upload.error.confirmFailed': '确认失败',
   'document.upload.error.unknown': '未知错误',
+  'document.upload.stopped': '上传已停止',
+  'document.upload.summary.withErrors': '上传完成: {success} 个成功, {failed} 个失败 (共 {total} 个)',
 };
