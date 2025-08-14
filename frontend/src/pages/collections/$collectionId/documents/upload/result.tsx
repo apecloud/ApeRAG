@@ -13,13 +13,21 @@ import {
   CheckCircleOutlined 
 } from '@ant-design/icons';
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams, useLocation, FormattedMessage } from 'umi';
+import { useNavigate, useParams, useLocation, FormattedMessage, useIntl } from 'umi';
 
 interface FailedDocument {
   documentId: string;
   name: string;
   error: string;
 }
+
+// Error code to i18n key mapping
+const ERROR_CODE_MAP: Record<string, string> = {
+  'DOCUMENT_EXPIRED': 'document.error.expired',
+  'DOCUMENT_NOT_UPLOADED': 'document.error.notUploaded',
+  'DOCUMENT_NOT_FOUND': 'document.error.notFound',
+  'CONFIRMATION_FAILED': 'document.error.confirmationFailed',
+};
 
 interface ConfirmResultState {
   confirmedCount: number;
@@ -31,6 +39,7 @@ export default () => {
   const { collectionId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const intl = useIntl();
 
   const [state, setState] = useState<ConfirmResultState>({
     confirmedCount: 0,
@@ -51,14 +60,24 @@ export default () => {
 
   const columns = [
     {
-      title: '文档名称',
+      title: intl.formatMessage({ id: 'document.name' }),
       dataIndex: 'name',
       key: 'name',
+      render: (name: string) => name || intl.formatMessage({ id: 'document.unknown' }),
     },
     {
-      title: '失败原因',
+      title: intl.formatMessage({ id: 'document.error.reason' }),
       dataIndex: 'error',
       key: 'error',
+      render: (error: string) => {
+        // Map error code to i18n message
+        const i18nKey = ERROR_CODE_MAP[error];
+        if (i18nKey) {
+          return intl.formatMessage({ id: i18nKey });
+        }
+        // Fallback to the original error message if not a known code
+        return error;
+      },
     },
   ];
 
@@ -67,11 +86,17 @@ export default () => {
       <Card>
         <Result
           status={state.failedDocuments.length === 0 ? "success" : "warning"}
-          title={`成功添加 ${state.confirmedCount} 个文档到知识库`}
+          title={intl.formatMessage(
+            { id: 'document.upload.result.success' },
+            { count: state.confirmedCount }
+          )}
           subTitle={
             state.failedDocuments.length > 0 
-              ? `${state.failedDocuments.length} 个文档添加失败`
-              : "所有文档已成功添加到知识库，系统正在后台建立索引"
+              ? intl.formatMessage(
+                  { id: 'document.upload.result.partialFailed' },
+                  { count: state.failedDocuments.length }
+                )
+              : intl.formatMessage({ id: 'document.upload.result.allSuccess' })
           }
           extra={[
             <Button 
@@ -80,14 +105,16 @@ export default () => {
               size="large"
               onClick={() => navigate(`/collections/${collectionId}/documents`)}
             >
-              返回文档列表
+              <FormattedMessage id="document.upload.result.backToList" />
             </Button>
           ]}
         />
 
         {state.failedDocuments.length > 0 && (
           <div style={{ marginTop: 32 }}>
-            <Typography.Title level={4}>失败文档详情</Typography.Title>
+            <Typography.Title level={4}>
+              <FormattedMessage id="document.upload.result.failedDetails" />
+            </Typography.Title>
             <Table
               dataSource={state.failedDocuments}
               columns={columns}

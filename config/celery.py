@@ -54,7 +54,7 @@ app.conf.beat_schedule = {
     },
     'collection-gc': {
         'task': 'config.celery_tasks.cleanup_expired_documents_task',
-        'schedule': 60.0,
+        'schedule': 10.0,
     }
 }
 

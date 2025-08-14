@@ -93,6 +93,7 @@ class CollectionMarketplaceStatusEnum(str, Enum):
 
 class DocumentStatus(str, Enum):
     UPLOADED = "UPLOADED"  # 新增：已上传但未确认添加到collection
+    EXPIRED = "EXPIRED"  # 新增：已过期的临时上传文档
     PENDING = "PENDING"
     RUNNING = "RUNNING"
     COMPLETE = "COMPLETE"

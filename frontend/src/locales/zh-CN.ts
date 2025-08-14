@@ -491,4 +491,19 @@ export default {
   'document.summary.copy': '复制摘要',
   'document.summary.copy.success': '摘要已复制到剪贴板',
   'document.summary.copy.failed': '复制摘要失败',
+  
+  // Document upload result messages
+  'document.upload.result.success': '成功添加 {count} 个文档到知识库',
+  'document.upload.result.partialFailed': '{count} 个文档添加失败',
+  'document.upload.result.allSuccess': '所有文档已成功添加到知识库，系统正在后台建立索引',
+  'document.upload.result.backToList': '返回文档列表',
+  'document.upload.result.failedDetails': '失败文档详情',
+  
+  // Document error messages
+  'document.unknown': '未知文档',
+  'document.error.reason': '失败原因',
+  'document.error.expired': '文档已过期，请重新上传。可能是因为停留时间过长，临时文件已被清理',
+  'document.error.notUploaded': '文档状态异常，请重新上传',
+  'document.error.notFound': '文档不存在或已被删除',
+  'document.error.confirmationFailed': '文档确认失败，请重试',
 };

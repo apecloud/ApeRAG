@@ -240,6 +240,7 @@ class DocumentService:
                         db_models.Document.collection_id == collection_id,
                         db_models.Document.status != db_models.DocumentStatus.DELETED,
                         db_models.Document.status != db_models.DocumentStatus.UPLOADED,  # Filter out temporary uploaded documents
+                        db_models.Document.status != db_models.DocumentStatus.EXPIRED,  # Filter out temporary uploaded documents
                     )
                 )
                 .order_by(db_models.Document.gmt_created.desc())
@@ -893,20 +894,37 @@ class DocumentService:
 
             for document_id in document_ids:
                 try:
-                    # Get document
+                    # Get document (single query without status filter)
                     stmt = select(db_models.Document).where(
                         db_models.Document.id == document_id,
                         db_models.Document.user == user_id,
                         db_models.Document.collection_id == collection_id,
-                        db_models.Document.status == db_models.DocumentStatus.UPLOADED
                     )
                     result = await session.execute(stmt)
                     document = result.scalars().first()
                     
                     if not document:
+                        # Document not found at all
                         failed_documents.append(view_models.FailedDocument(
                             document_id=document_id,
-                            error="Document not found or not in uploaded status"
+                            name=None,
+                            error="DOCUMENT_NOT_FOUND"
+                        ))
+                        failed_count += 1
+                        continue
+                    
+                    # Check document status
+                    if document.status != db_models.DocumentStatus.UPLOADED:
+                        # Document exists but not in correct status
+                        if document.status == db_models.DocumentStatus.EXPIRED:
+                            error_code = "DOCUMENT_EXPIRED"
+                        else:
+                            error_code = "DOCUMENT_NOT_UPLOADED"
+                        
+                        failed_documents.append(view_models.FailedDocument(
+                            document_id=document_id,
+                            name=document.name,
+                            error=error_code
                         ))
                         failed_count += 1
                         continue
@@ -926,9 +944,21 @@ class DocumentService:
 
                 except Exception as e:
                     logger.error(f"Failed to confirm document {document_id}: {e}")
+                    # Try to get document name for better error reporting
+                    document_name = None
+                    try:
+                        stmt_name = select(db_models.Document.name).where(
+                            db_models.Document.id == document_id
+                        )
+                        result_name = await session.execute(stmt_name)
+                        document_name = result_name.scalar()
+                    except:
+                        pass
+                    
                     failed_documents.append(view_models.FailedDocument(
                         document_id=document_id,
-                        error=str(e)
+                        name=document_name,
+                        error="CONFIRMATION_FAILED"
                     ))
                     failed_count += 1
 

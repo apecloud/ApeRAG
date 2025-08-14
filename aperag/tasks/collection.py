@@ -206,6 +206,7 @@ class CollectionTask:
         """
         Clean up documents that have been in UPLOADED status for more than 1 day.
         This function runs asynchronously and handles all database operations.
+        Uses soft delete by marking documents as EXPIRED instead of deleting them.
         """
         logger.info("Starting cleanup of expired uploaded documents")
 
@@ -228,11 +229,11 @@ class CollectionTask:
 
             if not expired_documents:
                 logger.info("No expired documents found")
-                return {"total_found": 0, "deleted_count": 0, "failed_count": 0}
+                return {"total_found": 0, "expired_count": 0, "failed_count": 0}
 
             logger.info(f"Found {len(expired_documents)} expired documents to clean up")
 
-            deleted_count = 0
+            expired_count = 0
             failed_count = 0
             obj_store = get_object_store()
 
@@ -245,10 +246,12 @@ class CollectionTask:
                     except Exception as e:
                         logger.warning(f"Failed to delete objects for expired document {document.id} from object store: {e}")
 
-                    # Delete document from database
-                    session.delete(document)
-                    deleted_count += 1
-                    logger.info(f"Deleted expired document {document.id} (name: {document.name}, created: {document.gmt_created})")
+                    # Soft delete: Mark document as EXPIRED instead of deleting
+                    document.status = db_models.DocumentStatus.EXPIRED
+                    document.gmt_updated = current_time
+                    session.add(document)
+                    expired_count += 1
+                    logger.info(f"Marked document {document.id} as expired (name: {document.name}, created: {document.gmt_created})")
 
                 except Exception as e:
                     failed_count += 1
@@ -257,7 +260,7 @@ class CollectionTask:
             session.commit()
 
             return {
-                "deleted_count": deleted_count,
+                "expired_count": expired_count,
                 "failed_count": failed_count,
                 "total_found": len(expired_documents)
             }
@@ -267,7 +270,7 @@ class CollectionTask:
             result = db_ops._execute_transaction(_cleanup_expired_documents)
 
             logger.info(
-                f"Cleanup completed - Deleted: {result['deleted_count']}, "
+                f"Cleanup completed - Expired: {result.get('expired_count', 0)}, "
                 f"Failed: {result['failed_count']}, Total found: {result['total_found']}"
             )
 
@@ -275,7 +278,7 @@ class CollectionTask:
 
         except Exception as e:
             logger.error(f"Error during expired documents cleanup: {e}", exc_info=True)
-            return {"deleted_count": 0, "failed_count": 0, "error": str(e)}
+            return {"expired_count": 0, "failed_count": 0, "error": str(e)}
 
 
 collection_task = CollectionTask()

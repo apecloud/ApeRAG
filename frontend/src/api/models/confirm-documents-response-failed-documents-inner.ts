@@ -27,6 +27,12 @@ export interface ConfirmDocumentsResponseFailedDocumentsInner {
      */
     'document_id'?: string;
     /**
+     * Name of the document
+     * @type {string}
+     * @memberof ConfirmDocumentsResponseFailedDocumentsInner
+     */
+    'name'?: string;
+    /**
      * 
      * @type {string}
      * @memberof ConfirmDocumentsResponseFailedDocumentsInner

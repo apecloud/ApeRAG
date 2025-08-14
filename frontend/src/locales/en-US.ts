@@ -472,4 +472,19 @@ export default {
   'document.summary.copy': 'Copy Summary',
   'document.summary.copy.success': 'Summary copied to clipboard',
   'document.summary.copy.failed': 'Failed to copy summary',
+  
+  // Document upload result messages
+  'document.upload.result.success': 'Successfully added {count} documents to collection',
+  'document.upload.result.partialFailed': '{count} documents failed to add',
+  'document.upload.result.allSuccess': 'All documents have been successfully added to the collection, system is building indexes in the background',
+  'document.upload.result.backToList': 'Back to Document List',
+  'document.upload.result.failedDetails': 'Failed Document Details',
+  
+  // Document error messages
+  'document.unknown': 'Unknown Document',
+  'document.error.reason': 'Failure Reason',
+  'document.error.expired': 'Document has expired, please re-upload. This may be due to staying too long and temporary files have been cleaned up',
+  'document.error.notUploaded': 'Document status is abnormal, please re-upload',
+  'document.error.notFound': 'Document does not exist or has been deleted',
+  'document.error.confirmationFailed': 'Document confirmation failed, please retry',
 };

@@ -9,6 +9,7 @@ document:
       type: string
       enum:
         - UPLOADED
+        - EXPIRED
         - PENDING
         - RUNNING
         - COMPLETE
@@ -236,10 +237,12 @@ confirmDocumentsResponse:
         properties:
           document_id:
             type: string
+          name:
+            type: string
+            description: Name of the document
           error:
             type: string
       description: Details of failed confirmations
   required:
     - confirmed_count
     - failed_count
-

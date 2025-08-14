@@ -4633,6 +4633,7 @@ components:
           type: string
           enum:
             - UPLOADED
+            - EXPIRED
             - PENDING
             - RUNNING
             - COMPLETE
@@ -4852,6 +4853,9 @@ components:
             properties:
               document_id:
                 type: string
+              name:
+                type: string
+                description: Name of the document
               error:
                 type: string
           description: Details of failed confirmations
