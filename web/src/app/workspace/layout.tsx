@@ -38,12 +38,23 @@ export default async function Layout({
   return (
     <>
       <SidebarProvider>
-        <Sidebar variant="inset">
+        <Sidebar>
           <SidebarHeader className="flex-row gap-4">
             <AppLogo />
           </SidebarHeader>
-          <SidebarContent>
-            <SidebarGroup className="flex-auto">
+          <SidebarContent className="gap-0">
+            <SidebarGroup className="mt-4">
+              <SidebarMenu>
+                <SidebarMenuButton asChild>
+                  <Link href="/workspace/collections">
+                    <BookOpen />
+                    Collections
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenu>
+            </SidebarGroup>
+
+            <SidebarGroup>
               <SidebarGroupLabel>Chats</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
@@ -60,18 +71,10 @@ export default async function Layout({
               </SidebarGroupContent>
             </SidebarGroup>
 
-            <SidebarGroup>
+            <SidebarGroup className="mt-auto">
               <SidebarGroupLabel>Settings</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  <SidebarMenuItem className="flex items-center gap-2">
-                    <SidebarMenuButton asChild>
-                      <Link href="/workspace/collections">
-                        <BookOpen />
-                        <span>Collections</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <Link href="/workspace/models">
@@ -104,7 +107,8 @@ export default async function Layout({
               </SidebarGroupContent>
             </SidebarGroup>
           </SidebarContent>
-          <SidebarFooter>
+
+          <SidebarFooter className="border-t">
             <AppUserDropdownMenu />
           </SidebarFooter>
         </Sidebar>
