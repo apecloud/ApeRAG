@@ -61,7 +61,9 @@ export default async function Layout({
               {_.upperFirst(_.lowerCase(collection.status))}
             </Badge>
           )}
-          <Button size="icon" variant="outline"><Trash className='text-red-500' /></Button>
+          <Button size="icon" variant="outline">
+            <Trash className="text-red-500" />
+          </Button>
         </div>
       </PageHeader>
       {children}

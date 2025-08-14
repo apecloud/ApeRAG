@@ -49,7 +49,7 @@ export const CollectionList = ({
             <Card className="cursor-pointer rounded-md hover:mask-alpha">
               <CardHeader>
                 <CardTitle className="truncate">{collection.title}</CardTitle>
-                <CardDescription className="truncate h-4">
+                <CardDescription className="h-4 truncate">
                   {collection.description}
                 </CardDescription>
               </CardHeader>
