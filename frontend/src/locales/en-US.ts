@@ -503,4 +503,33 @@ export default {
   'document.error.notUploaded': 'Document status is abnormal, please re-upload',
   'document.error.notFound': 'Document does not exist or has been deleted',
   'document.error.confirmationFailed': 'Document confirmation failed, please retry',
+  
+  // Document upload progress messages
+  'document.upload.progress.totalFiles': 'Total Files',
+  'document.upload.progress.uploading': 'Uploading',
+  'document.upload.progress.completed': 'Completed',
+  'document.upload.progress.failed': 'Failed',
+  'document.upload.progress.tab.all': 'All ({count})',
+  'document.upload.progress.tab.uploading': 'Uploading ({count})',
+  'document.upload.progress.tab.completed': 'Completed ({count})',
+  'document.upload.progress.tab.failed': 'Failed ({count})',
+  'document.upload.progress.retryFailed': 'Retry Failed',
+  'document.upload.status.success': 'Upload Success',
+  'document.upload.status.failed': 'Upload Failed',
+  'document.upload.status.pending': 'Pending Upload',
+  'document.upload.action.retry': 'Retry',
+  
+  // Document upload error messages
+  'document.upload.error.parseResponse': 'Failed to parse response',
+  'document.upload.error.httpError': 'Upload failed: HTTP {status}',
+  'document.upload.error.unsupportedFileType': 'Unsupported file type',
+  'document.upload.error.fileSizeTooLarge': 'File size exceeds limit',
+  'document.upload.error.collectionNotFound': 'Collection not found',
+  'document.upload.error.noPermission': 'No permission',
+  'document.upload.error.authFailed': 'Authentication failed, please login again',
+  'document.upload.error.networkError': 'Network error',
+  'document.upload.error.uploadFailed': 'Upload failed',
+  'document.upload.error.noDocumentsToConfirm': 'No documents to confirm',
+  'document.upload.error.confirmFailed': 'Confirmation failed',
+  'document.upload.error.unknown': 'Unknown error',
 };

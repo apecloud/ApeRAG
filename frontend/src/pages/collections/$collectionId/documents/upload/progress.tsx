@@ -198,11 +198,11 @@ export default () => {
               });
               resolve();
             } catch (error) {
-              reject(new Error('解析响应失败'));
+              reject(new Error(formatMessage({ id: 'document.upload.error.parseResponse' })));
             }
           } else {
             // Parse error response
-            let errorMessage = `上传失败: HTTP ${xhr.status}`;
+            let errorMessage = formatMessage({ id: 'document.upload.error.httpError' }, { status: xhr.status });
             try {
               const errorResponse = JSON.parse(xhr.responseText);
               if (errorResponse.detail) {
@@ -213,7 +213,7 @@ export default () => {
             } catch (e) {
               // If response is not JSON, use status text
               if (xhr.statusText) {
-                errorMessage = `上传失败: ${xhr.statusText}`;
+                errorMessage = formatMessage({ id: 'document.upload.error.httpError' }, { status: xhr.statusText });
               }
             }
             
@@ -221,16 +221,16 @@ export default () => {
             if (xhr.status === 422) {
               // Unprocessable Entity - usually validation errors
               if (errorMessage.includes('unsupported file type')) {
-                errorMessage = '不支持的文件类型';
+                errorMessage = formatMessage({ id: 'document.upload.error.unsupportedFileType' });
               } else if (errorMessage.includes('file size is too large')) {
-                errorMessage = '文件大小超过限制';
+                errorMessage = formatMessage({ id: 'document.upload.error.fileSizeTooLarge' });
               }
             } else if (xhr.status === 404) {
-              errorMessage = '知识库不存在';
+              errorMessage = formatMessage({ id: 'document.upload.error.collectionNotFound' });
             } else if (xhr.status === 403) {
-              errorMessage = '没有权限';
+              errorMessage = formatMessage({ id: 'document.upload.error.noPermission' });
             } else if (xhr.status === 401) {
-              errorMessage = '认证失败，请重新登录';
+              errorMessage = formatMessage({ id: 'document.upload.error.authFailed' });
             }
             
             reject(new Error(errorMessage));
@@ -238,7 +238,7 @@ export default () => {
         };
         
         xhr.onerror = () => {
-          reject(new Error('网络错误'));
+          reject(new Error(formatMessage({ id: 'document.upload.error.networkError' })));
         };
         
         xhr.open('POST', `/api/v1/collections/${collectionId}/documents/upload`);
@@ -260,7 +260,7 @@ export default () => {
           t.id === task.id ? { 
             ...t, 
             status: 'failed' as const, 
-            error: error instanceof Error ? error.message : '上传失败'
+            error: error instanceof Error ? error.message : formatMessage({ id: 'document.upload.error.uploadFailed' })
           } : t
         );
         // Calculate statistics directly here
@@ -292,7 +292,7 @@ export default () => {
     const documentIds = successTasks.map(t => t.documentId!);
     
     if (documentIds.length === 0) {
-      toast.warning('没有可确认的文档');
+      toast.warning(formatMessage({ id: 'document.upload.error.noDocumentsToConfirm' }));
       return;
     }
     
@@ -309,7 +309,7 @@ export default () => {
         state: { result: response.data }
       });
     } catch (error) {
-      toast.error('确认失败：' + (error instanceof Error ? error.message : '未知错误'));
+      toast.error(formatMessage({ id: 'document.upload.error.confirmFailed' }) + ': ' + (error instanceof Error ? error.message : formatMessage({ id: 'document.upload.error.unknown' })));
     } finally {
       setState(prev => ({ ...prev, isConfirming: false }));
     }
@@ -326,26 +326,26 @@ export default () => {
 
   const columns = [
     {
-      title: '文件名',
+      title: formatMessage({ id: 'document.name' }),
       dataIndex: 'name',
       key: 'name',
       ellipsis: true,
     },
     {
-      title: '路径',
+      title: formatMessage({ id: 'document.path' }),
       dataIndex: 'path',
       key: 'path',
       ellipsis: true,
     },
     {
-      title: '大小',
+      title: formatMessage({ id: 'document.size' }),
       dataIndex: 'size',
       key: 'size',
       width: 120,
       render: (size: number) => formatFileSize(size),
     },
     {
-      title: '状态',
+      title: formatMessage({ id: 'document.status' }),
       dataIndex: 'status',
       key: 'status',
       width: 150,
@@ -354,20 +354,20 @@ export default () => {
           case 'uploading':
             return <Progress percent={task.progress} size="small" />;
           case 'success':
-            return <Tag color="green">上传成功</Tag>;
+            return <Tag color="green">{formatMessage({ id: 'document.upload.status.success' })}</Tag>;
           case 'failed':
             return (
-              <Tooltip title={task.error || '上传失败'}>
-                <Tag color="red">上传失败</Tag>
+              <Tooltip title={task.error || formatMessage({ id: 'document.upload.status.failed' })}>
+                <Tag color="red">{formatMessage({ id: 'document.upload.status.failed' })}</Tag>
               </Tooltip>
             );
           default:
-            return <Tag>等待上传</Tag>;
+            return <Tag>{formatMessage({ id: 'document.upload.status.pending' })}</Tag>;
         }
       },
     },
     {
-      title: '操作',
+      title: formatMessage({ id: 'action.name' }),
       key: 'action',
       width: 80,
       render: (_: any, task: UploadTask) => (
@@ -377,7 +377,7 @@ export default () => {
             onClick={() => uploadSingleFile(task)}
             loading={state.isUploading}
           >
-            重试
+            <FormattedMessage id="document.upload.action.retry" />
           </Button>
         ) : null
       ),
@@ -416,10 +416,10 @@ export default () => {
 
       <Card style={{ marginBottom: 24 }}>
         <Space size="large">
-          <Statistic title="总文件数" value={state.statistics.total} />
-          <Statistic title="上传中" value={state.statistics.uploading} />
-          <Statistic title="已完成" value={state.statistics.success} />
-          <Statistic title="失败" value={state.statistics.failed} />
+          <Statistic title={formatMessage({ id: 'document.upload.progress.totalFiles' })} value={state.statistics.total} />
+          <Statistic title={formatMessage({ id: 'document.upload.progress.uploading' })} value={state.statistics.uploading} />
+          <Statistic title={formatMessage({ id: 'document.upload.progress.completed' })} value={state.statistics.success} />
+          <Statistic title={formatMessage({ id: 'document.upload.progress.failed' })} value={state.statistics.failed} />
         </Space>
       </Card>
 
@@ -428,10 +428,10 @@ export default () => {
         onChange={(key) => setState(prev => ({ ...prev, currentTab: key as any }))}
         style={{ marginBottom: 16 }}
       >
-        <Tabs.TabPane tab={`全部(${state.statistics.total})`} key="all" />
-        <Tabs.TabPane tab={`上传中(${state.statistics.uploading})`} key="uploading" />
-        <Tabs.TabPane tab={`已完成(${state.statistics.success})`} key="success" />
-        <Tabs.TabPane tab={`上传失败(${state.statistics.failed})`} key="failed" />
+        <Tabs.TabPane tab={formatMessage({ id: 'document.upload.progress.tab.all' }, { count: state.statistics.total })} key="all" />
+        <Tabs.TabPane tab={formatMessage({ id: 'document.upload.progress.tab.uploading' }, { count: state.statistics.uploading })} key="uploading" />
+        <Tabs.TabPane tab={formatMessage({ id: 'document.upload.progress.tab.completed' }, { count: state.statistics.success })} key="success" />
+        <Tabs.TabPane tab={formatMessage({ id: 'document.upload.progress.tab.failed' }, { count: state.statistics.failed })} key="failed" />
       </Tabs>
 
       <div style={{ marginBottom: 16 }}>
@@ -440,7 +440,7 @@ export default () => {
           disabled={state.statistics.failed === 0}
           icon={<ReloadOutlined />}
         >
-          重试失败
+          <FormattedMessage id="document.upload.progress.retryFailed" />
         </Button>
       </div>
 

@@ -506,4 +506,33 @@ export default {
   'document.error.notUploaded': '文档状态异常，请重新上传',
   'document.error.notFound': '文档不存在或已被删除',
   'document.error.confirmationFailed': '文档确认失败，请重试',
+  
+  // Document upload progress messages
+  'document.upload.progress.totalFiles': '总文件数',
+  'document.upload.progress.uploading': '上传中',
+  'document.upload.progress.completed': '已完成',
+  'document.upload.progress.failed': '失败',
+  'document.upload.progress.tab.all': '全部({count})',
+  'document.upload.progress.tab.uploading': '上传中({count})',
+  'document.upload.progress.tab.completed': '已完成({count})',
+  'document.upload.progress.tab.failed': '上传失败({count})',
+  'document.upload.progress.retryFailed': '重试失败',
+  'document.upload.status.success': '上传成功',
+  'document.upload.status.failed': '上传失败',
+  'document.upload.status.pending': '等待上传',
+  'document.upload.action.retry': '重试',
+  
+  // Document upload error messages
+  'document.upload.error.parseResponse': '解析响应失败',
+  'document.upload.error.httpError': '上传失败: HTTP {status}',
+  'document.upload.error.unsupportedFileType': '不支持的文件类型',
+  'document.upload.error.fileSizeTooLarge': '文件大小超过限制',
+  'document.upload.error.collectionNotFound': '知识库不存在',
+  'document.upload.error.noPermission': '没有权限',
+  'document.upload.error.authFailed': '认证失败，请重新登录',
+  'document.upload.error.networkError': '网络错误',
+  'document.upload.error.uploadFailed': '上传失败',
+  'document.upload.error.noDocumentsToConfirm': '没有可确认的文档',
+  'document.upload.error.confirmFailed': '确认失败',
+  'document.upload.error.unknown': '未知错误',
 };
