@@ -213,7 +213,7 @@ class CollectionTask:
         def _cleanup_expired_documents(session: Session):
             # Calculate expiration time (1 day ago)
             current_time = utc_now()
-            expiration_threshold = current_time - timedelta(seconds=1)
+            expiration_threshold = current_time - timedelta(days=1)
 
             # Query for expired documents
             stmt = select(db_models.Document).where(
