@@ -1,6 +1,7 @@
 import { CollectionViewStatusEnum } from '@/api';
 import { FormatDate } from '@/components/format-date';
-import { PageHeader } from '@/components/page-header';
+import { PageHeader } from '@/components/page-container';
+
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { getServerApi } from '@/lib/api/server';

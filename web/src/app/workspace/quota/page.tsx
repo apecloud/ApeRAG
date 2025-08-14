@@ -1,13 +1,19 @@
-import { PageHeader } from '@/components/page-header';
+import {
+  PageContainer,
+  PageContent,
+  PageDescription,
+  PageHeader,
+  PageTitle,
+} from '@/components/page-container';
 
 export default function Page() {
   return (
-    <>
-      <PageHeader
-        title="Quotas"
-        description="Manage user quotas and usage"
-        breadcrumbs={[{ title: 'Quotas' }]}
-      />
-    </>
+    <PageContainer>
+      <PageHeader breadcrumbs={[{ title: 'Quotas' }]} />
+      <PageContent>
+        <PageTitle>Quotas</PageTitle>
+        <PageDescription>Manage user quotas and usage</PageDescription>
+      </PageContent>
+    </PageContainer>
   );
 }

@@ -1,3 +1,4 @@
+import { Toaster } from '@/components/ui/sonner';
 import { getServerApi } from '@/lib/api/server';
 import type { Metadata } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
@@ -46,6 +47,7 @@ export default async function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
+            <Toaster position="top-center" richColors />
             <GlobalProvider user={user}>{children}</GlobalProvider>
           </ThemeProvider>
         </NextIntlClientProvider>

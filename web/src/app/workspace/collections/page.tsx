@@ -1,5 +1,12 @@
 import { CollectionView } from '@/api';
-import { PageHeader } from '@/components/page-header';
+import {
+  PageContainer,
+  PageContent,
+  PageDescription,
+  PageHeader,
+  PageTitle,
+} from '@/components/page-container';
+
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getServerApi } from '@/lib/api/server';
@@ -18,20 +25,16 @@ export default async function Page() {
   } catch (err) {}
 
   return (
-    <>
-      <PageHeader
-        title="Collections"
-        description="You can import and manage your data sources in dataset to enhance the context of LLM."
-        breadcrumbs={[
-          {
-            title: 'Collections',
-          },
-        ]}
-      />
-
-      <div className="p-4">
-        <Tabs defaultValue="creation">
-          <div className="mb-4 flex flex-row items-center">
+    <PageContainer>
+      <PageHeader breadcrumbs={[{ title: 'Collections' }]} />
+      <PageContent>
+        <PageTitle>Collections</PageTitle>
+        <PageDescription>
+          You can import and manage your data sources in dataset to enhance the
+          context of LLM.
+        </PageDescription>
+        <Tabs defaultValue="creation" className="gap-4">
+          <div className="flex flex-row items-center">
             <TabsList>
               <TabsTrigger value="creation">My Creations</TabsTrigger>
               <TabsTrigger value="subscribed">
@@ -59,7 +62,7 @@ export default async function Page() {
             />
           </TabsContent>
         </Tabs>
-      </div>
-    </>
+      </PageContent>
+    </PageContainer>
   );
 }
