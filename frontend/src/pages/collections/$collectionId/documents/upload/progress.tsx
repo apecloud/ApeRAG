@@ -489,17 +489,6 @@ export default () => {
         </Steps>
       </div>
 
-      {/* Overall progress */}
-      {state.isUploading && (
-        <Card style={{ marginBottom: 16 }}>
-          <Progress 
-            percent={overallProgress} 
-            status={state.statistics.failed > 0 ? 'exception' : 'active'}
-            format={() => `${state.statistics.success + state.statistics.failed} / ${state.statistics.total}`}
-          />
-        </Card>
-      )}
-
       <Tabs 
         activeKey={state.currentTab}
         onChange={(key) => setState(prev => ({ ...prev, currentTab: key as any }))}
