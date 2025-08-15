@@ -3,6 +3,7 @@ import { getServerApi } from '@/lib/api/server';
 import type { Metadata } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
 import { Geist, Geist_Mono } from 'next/font/google';
+import NextTopLoader from 'nextjs-toploader';
 import { GlobalProvider } from './global-provider';
 import './globals.css';
 import { ThemeProvider } from './theme-provider';
@@ -40,6 +41,12 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <NextTopLoader
+          color="color-mix(in oklab, var(--primary) 50%, transparent)"
+          showSpinner={false}
+          crawl={false}
+          initialPosition={0.2}
+        />
         <NextIntlClientProvider>
           <ThemeProvider
             attribute="class"
