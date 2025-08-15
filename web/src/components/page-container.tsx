@@ -6,7 +6,7 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { cn } from '@/lib/utils';
-import { House, LucideIcon } from 'lucide-react';
+import { House } from 'lucide-react';
 import Link from 'next/link';
 import React from 'react';
 import { AppGithub, AppThemeDropdownMenu } from './app-topbar';
@@ -14,7 +14,6 @@ import { Separator } from './ui/separator';
 import { SidebarTrigger } from './ui/sidebar';
 
 export type AppTopbarBreadcrumbItem = {
-  icon?: LucideIcon;
   title: string;
   href?: string;
 };
@@ -38,10 +37,10 @@ export const PageHeader = ({
               <BreadcrumbLink asChild>
                 <Link href="/" className="flex flex-row items-center gap-1">
                   <House className="size-4" />
-                  Home
                 </Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
+
             {breadcrumbs.length > 0 && <BreadcrumbSeparator />}
             {breadcrumbs.map((item, index) => {
               const isLast = index === breadcrumbs.length - 1;

@@ -92,13 +92,20 @@ export const AppUserDropdownMenu = () => {
           <UserAvatarProfile user={user} />
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem>
-            <Sparkles />
-            Upgrade to Pro
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
+        {user.role === 'admin' && (
+          <>
+            <DropdownMenuGroup>
+              <DropdownMenuItem asChild>
+                <Link href="/admin">
+                  <Sparkles />
+                  Administrator
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+          </>
+        )}
+
         <DropdownMenuGroup>
           <DropdownMenuItem>
             <BadgeCheck />
