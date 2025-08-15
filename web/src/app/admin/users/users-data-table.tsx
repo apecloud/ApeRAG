@@ -30,6 +30,7 @@ import { User } from '@/api';
 import { TableList, TableListPagination } from '@/components/table-list';
 
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   Tooltip,
   TooltipContent,
@@ -53,6 +54,7 @@ export function UsersDataTable({ data }: { data: User[] }) {
     pageIndex: 0,
     pageSize: 20,
   });
+  const [searchValue, setSearchValue] = React.useState<string>('');
 
   const columns: ColumnDef<User>[] = React.useMemo(() => {
     const cols: ColumnDef<User>[] = [
@@ -173,6 +175,7 @@ export function UsersDataTable({ data }: { data: User[] }) {
       rowSelection,
       columnFilters,
       pagination,
+      globalFilter: searchValue,
     },
     getRowId: (row) => String(row.id),
     enableRowSelection: true,
@@ -192,7 +195,13 @@ export function UsersDataTable({ data }: { data: User[] }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <div className="flex flex-row items-center gap-2"></div>
+        <div className="flex flex-row items-center gap-2">
+          <Input
+            placeholder="Search"
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.currentTarget.value)}
+          />
+        </div>
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
