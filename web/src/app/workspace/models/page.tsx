@@ -12,7 +12,12 @@ export default function Page() {
       <PageHeader breadcrumbs={[{ title: 'Models' }]} />
       <PageContent>
         <PageTitle>Models</PageTitle>
-        <PageDescription>Configure LLM providers and models</PageDescription>
+        <PageDescription>
+          This section allows you to connect and customize your preferred Large
+          Language Model (LLM) providers and models for personal use. Set up API
+          keys, choose models, and adjust settings to enhance your AI
+          experience.
+        </PageDescription>
       </PageContent>
     </PageContainer>
   );

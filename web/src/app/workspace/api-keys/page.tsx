@@ -21,8 +21,10 @@ export default async function Page() {
       <PageContent>
         <PageTitle>API keys</PageTitle>
         <PageDescription>
-          The API key is your credential for accessing the system api. Please
-          keep it safe.
+          This section allows you to securely store, update, and manage API keys
+          for different AI services (such as OpenAI, Anthropic, Gemini, etc.).
+          Connecting your keys enables personalized AI interactions while
+          keeping your credentials protected.
         </PageDescription>
         <DataTable data={toJson(data)} />
       </PageContent>
