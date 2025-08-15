@@ -16,9 +16,9 @@ export default async function Page() {
 
   return (
     <PageContainer>
-      <PageHeader breadcrumbs={[{ title: 'Models' }]} />
+      <PageHeader breadcrumbs={[{ title: 'Providers' }]} />
       <PageContent>
-        <PageTitle>Provider & Models</PageTitle>
+        <PageTitle>Model Provider</PageTitle>
         <PageDescription>
           This section allows you to connect and customize your preferred Large
           Language Model (LLM) providers and models for personal use. Set up API
@@ -28,6 +28,7 @@ export default async function Page() {
         <ProviderTable
           data={toJson(res.data.providers) || []}
           models={toJson(res.data.models) || []}
+          urlPrefix="/workspace"
         />
       </PageContent>
     </PageContainer>

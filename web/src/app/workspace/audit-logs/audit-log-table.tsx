@@ -41,7 +41,7 @@ import { ChevronDown, Columns3, Search } from 'lucide-react';
 import { useFormatter } from 'next-intl';
 import { usePathname, useRouter } from 'next/navigation';
 
-export function DataTable({
+export function AuditLogTable({
   data,
   searchParams: initSearchParams,
 }: {

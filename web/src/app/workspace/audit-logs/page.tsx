@@ -8,7 +8,7 @@ import {
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
-import { DataTable } from './data-table';
+import { AuditLogTable } from './audit-log-table';
 
 export default async function Page({
   searchParams,
@@ -47,7 +47,7 @@ export default async function Page({
           changes. Ensure transparency, security, and compliance by monitoring
           who did what, when, and from where.
         </PageDescription>
-        <DataTable
+        <AuditLogTable
           data={toJson(data)}
           searchParams={{ limit, apiName, startDate, endDate }}
         />

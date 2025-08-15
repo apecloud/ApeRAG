@@ -69,7 +69,7 @@ export const GlobalProvider = ({
     const res = await apiClient.defaultApi.logoutPost();
     if (res.status === 200) {
       setUser(undefined);
-      router.refresh();
+      setTimeout(router.refresh, 300);
     }
   }, [router]);
 
