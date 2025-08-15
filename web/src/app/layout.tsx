@@ -42,10 +42,9 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <NextTopLoader
-          color="color-mix(in oklab, var(--primary) 50%, transparent)"
+          color="color-mix(in oklab, var(--primary) 30%, transparent)"
           showSpinner={false}
           crawl={false}
-          initialPosition={0.2}
         />
         <NextIntlClientProvider>
           <ThemeProvider

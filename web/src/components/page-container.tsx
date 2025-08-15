@@ -26,7 +26,7 @@ export const PageHeader = ({
   return (
     <header className="flex h-16 items-center gap-2 border-b transition-[width,height] ease-linear">
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
-        <SidebarTrigger className="-ml-1" />
+        <SidebarTrigger className="-ml-1 cursor-pointer" />
         <Separator
           orientation="vertical"
           className="mx-2 data-[orientation=vertical]:h-4"
@@ -35,7 +35,10 @@ export const PageHeader = ({
           <BreadcrumbList>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
-                <Link href="/" className="flex flex-row items-center gap-1">
+                <Link
+                  href="/"
+                  className="text-foreground flex flex-row items-center gap-1"
+                >
                   <House className="size-4" />
                 </Link>
               </BreadcrumbLink>
