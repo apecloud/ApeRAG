@@ -43,14 +43,19 @@ import {
   SquarePen,
   Trash,
 } from 'lucide-react';
+import Link from 'next/link';
+import { ModelsDefaultConfiguration } from './models-default-configuration';
 import { ProviderActions } from './provider-actions';
 import { ProviderToggle } from './provider-toggle';
+
 export const ProviderTable = ({
   data,
   models,
+  urlPrefix,
 }: {
   data: LlmProvider[];
   models: LlmProviderModel[];
+  urlPrefix: string;
 }) => {
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
@@ -107,6 +112,16 @@ export const ProviderTable = ({
       {
         accessorKey: 'label',
         header: 'Name',
+        cell: ({ row }) => {
+          return (
+            <Link
+              className="underline"
+              href={`${urlPrefix}/providers/${row.original.name}/models`}
+            >
+              {row.original.label || row.original.name}
+            </Link>
+          );
+        },
       },
       {
         accessorKey: 'base_url',
@@ -183,7 +198,7 @@ export const ProviderTable = ({
       },
     ];
     return cols;
-  }, [models]);
+  }, [models, urlPrefix]);
 
   const table = useReactTable({
     data,
@@ -227,7 +242,6 @@ export const ProviderTable = ({
               <Button variant="outline">
                 <Columns3 />
                 <span className="hidden lg:inline">Columns</span>
-                <span className="lg:hidden">Columns</span>
                 <ChevronDown />
               </Button>
             </DropdownMenuTrigger>
@@ -255,14 +269,18 @@ export const ProviderTable = ({
                 })}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          <ModelsDefaultConfiguration />
+
           <ProviderActions action="add">
             <Button>
-              <Plus /> Add provider
+              <Plus />
+              <span className="hidden lg:inline">Add Provider</span>
             </Button>
           </ProviderActions>
         </div>
       </div>
-      <TableList table={table} />
+      <TableList idKey="name" table={table} />
       <TableListPagination table={table} />
     </div>
   );

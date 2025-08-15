@@ -10,18 +10,23 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { apiClient } from '@/lib/api/client';
+import { DialogDescription } from '@radix-ui/react-dialog';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
+import { toast } from 'sonner';
 
 export const ProviderToggle = ({ provider }: { provider: LlmProvider }) => {
-  const [visible, setVisible] = useState<boolean>(false);
+  const [enabledVisible, setEnabledVisible] = useState<boolean>(false);
+  const [disabledVisible, setDisabledVisible] = useState<boolean>(false);
   const [apiKey, setApiKey] = useState<string>(provider.api_key || '');
 
   const router = useRouter();
 
   const handleEnabled = useCallback(async () => {
-    if (!apiKey) return;
-
+    if (!apiKey) {
+      toast.error('Please enter the api key for the model provider.');
+      return;
+    }
     const res = await apiClient.defaultApi.llmProvidersProviderNamePut({
       providerName: provider.name,
       llmProviderUpdateWithApiKey: {
@@ -31,8 +36,8 @@ export const ProviderToggle = ({ provider }: { provider: LlmProvider }) => {
       },
     });
     if (res.data.name) {
-      router.refresh();
-      setVisible(false);
+      setEnabledVisible(false);
+      setTimeout(router.refresh, 300);
     }
   }, [apiKey, provider, router]);
 
@@ -45,7 +50,8 @@ export const ProviderToggle = ({ provider }: { provider: LlmProvider }) => {
       },
     });
     if (res.data.name) {
-      router.refresh();
+      setDisabledVisible(false);
+      setTimeout(router.refresh, 300);
     }
   }, [provider, router]);
 
@@ -55,14 +61,17 @@ export const ProviderToggle = ({ provider }: { provider: LlmProvider }) => {
         checked={Boolean(provider.api_key)}
         onCheckedChange={(checked) => {
           if (!checked) {
-            handleDisabled();
+            setDisabledVisible(true);
           } else {
-            setVisible(true);
+            setEnabledVisible(true);
           }
         }}
         className="cursor-pointer"
       />
-      <Dialog open={visible} onOpenChange={() => setVisible(false)}>
+      <Dialog
+        open={enabledVisible}
+        onOpenChange={() => setEnabledVisible(false)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>API Key</DialogTitle>
@@ -81,10 +90,32 @@ export const ProviderToggle = ({ provider }: { provider: LlmProvider }) => {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setVisible(false)}>
+            <Button variant="outline" onClick={() => setEnabledVisible(false)}>
               Cancel
             </Button>
             <Button onClick={handleEnabled}>OK</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={disabledVisible}
+        onOpenChange={() => setDisabledVisible(false)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm</DialogTitle>
+            <DialogDescription>
+              Confirm disabling this Provider?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDisabledVisible(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDisabled}>
+              OK
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -70,7 +70,7 @@ export const ProviderActions = ({
       });
       if (res?.status === 200) {
         setDeleteVisible(false);
-        router.refresh();
+        setTimeout(router.refresh, 300);
       }
     }
   }, [action, provider?.name, router]);
@@ -96,7 +96,7 @@ export const ProviderActions = ({
       }
       if (res?.status === 200) {
         setCreateOrUpdateVisible(false);
-        router.refresh();
+        setTimeout(router.refresh, 300);
         toast.success('Saved successfully.');
       }
     },
