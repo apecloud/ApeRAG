@@ -42,7 +42,10 @@ export default async function Page({
       <PageContent>
         <PageTitle>Audit Logs</PageTitle>
         <PageDescription>
-          View detailed audit records of system operations
+          Track and review all critical system activities with Audit Logs—a
+          detailed record of user actions, API calls, and administrative
+          changes. Ensure transparency, security, and compliance by monitoring
+          who did what, when, and from where.
         </PageDescription>
         <DataTable
           data={toJson(data)}

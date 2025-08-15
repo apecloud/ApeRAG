@@ -21,8 +21,10 @@ export default async function Page() {
       <PageContent>
         <PageTitle>User Management</PageTitle>
         <PageDescription>
-          Manage user identities including password resets, creating and
-          provisioning, blocking and deleting users.
+          This module enables administrators to centrally control and organize
+          all system users with secure access configurations. Efficiently manage
+          identities, permissions, and authentication policies across your
+          organization.
         </PageDescription>
 
         <UsersDataTable data={toJson(users)} />

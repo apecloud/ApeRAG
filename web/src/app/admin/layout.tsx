@@ -89,10 +89,19 @@ export default async function Layout({
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
+
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
                       <Link href="/admin/quota">
                         <BatteryMedium /> Users quota
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <Link href="/admin/models">
+                        <BatteryMedium /> Models
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
