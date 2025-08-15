@@ -30,11 +30,13 @@ type TableListPaginationProps<T = any> = {
 
 type TableListProps<T = any> = {
   table: TanstackTable<T>;
+  idKey?: string;
 };
 
 export const TableList = ({
   table,
   className,
+  idKey = 'id',
   ...props
 }: TableListProps & React.ComponentProps<'div'>) => {
   return (
@@ -51,7 +53,7 @@ export const TableList = ({
                   <TableHead
                     key={header.id}
                     colSpan={header.colSpan}
-                    className="py-4"
+                    className="py-3"
                   >
                     {header.isPlaceholder
                       ? null
@@ -69,12 +71,12 @@ export const TableList = ({
           {table.getRowModel().rows?.length ? (
             table.getRowModel().rows.map((row) => (
               <TableRow
-                key={row.original.id || row.original.name}
+                key={row.original[idKey]}
                 data-state={row.getIsSelected() && 'selected'}
                 className="relative z-0 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80"
               >
                 {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id} className="py-4">
+                  <TableCell key={cell.id} className="py-3">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>
                 ))}

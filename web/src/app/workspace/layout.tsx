@@ -86,8 +86,8 @@ export default async function Layout({
                 <SidebarMenu>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
-                      <Link href="/workspace/models">
-                        <Package /> Models
+                      <Link href="/workspace/providers">
+                        <Package /> Providers
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
