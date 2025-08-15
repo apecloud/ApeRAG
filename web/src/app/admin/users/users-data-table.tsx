@@ -25,32 +25,23 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
 
-import { AuditApiListAuditLogsRequest, AuditLog } from '@/api';
+import { User } from '@/api';
 import { TableList, TableListPagination } from '@/components/table-list';
+
+import { Badge } from '@/components/ui/badge';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-
-import { DateTimePicker24h } from '@/components/date-time-picker-24h';
-import _ from 'lodash';
-import { ChevronDown, Columns3, Search } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Check, ChevronDown, Columns3, Key } from 'lucide-react';
 import { useFormatter } from 'next-intl';
-import { usePathname, useRouter } from 'next/navigation';
+import { FaGithub, FaGoogle } from 'react-icons/fa6';
 
-export function DataTable({
-  data,
-  searchParams: initSearchParams,
-}: {
-  data: AuditLog[];
-  searchParams: AuditApiListAuditLogsRequest;
-}) {
+export function UsersDataTable({ data }: { data: User[] }) {
   const [rowSelection, setRowSelection] = React.useState({});
-  const [query, setQuery] =
-    React.useState<AuditApiListAuditLogsRequest>(initSearchParams);
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -62,11 +53,9 @@ export function DataTable({
     pageIndex: 0,
     pageSize: 20,
   });
-  const router = useRouter();
-  const pathname = usePathname();
 
-  const columns: ColumnDef<AuditLog>[] = React.useMemo(() => {
-    const cols: ColumnDef<AuditLog>[] = [
+  const columns: ColumnDef<User>[] = React.useMemo(() => {
+    const cols: ColumnDef<User>[] = [
       {
         id: 'select',
         header: ({ table }) => (
@@ -94,46 +83,81 @@ export function DataTable({
         ),
       },
       {
-        accessorKey: 'api_name',
-        header: 'API',
+        accessorKey: 'username',
+        header: 'Username',
         cell: ({ row }) => {
           return (
             <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="inline-flex flex-col gap-1">
-                  <div>{row.original.api_name}</div>
+              <TooltipTrigger>
+                <div className="text-left">
+                  <div>{row.original.username}</div>
                   <div className="text-muted-foreground">
-                    {row.original.path}
+                    {row.original.email}
                   </div>
                 </div>
               </TooltipTrigger>
-              <TooltipContent side="left">
-                <p>Resource ID: {row.original.resource_id}</p>
-                <p>Resource Type: {row.original.resource_type}</p>
-              </TooltipContent>
+              <TooltipContent side="left">ID: {row.original.id}</TooltipContent>
             </Tooltip>
           );
         },
       },
       {
-        accessorKey: 'status_code',
-        header: 'Status',
-      },
-      {
-        accessorKey: 'end_time',
-        header: 'Duration',
+        accessorKey: 'role',
+        header: 'Role',
         cell: ({ row }) => {
-          if (row.original.start_time && row.original.end_time) {
-            return `${row.original.end_time - row.original.start_time}ms`;
-          }
+          return (
+            <Badge
+              className="w-18"
+              variant={row.original.role === 'admin' ? 'default' : 'secondary'}
+            >
+              {row.original.role}
+            </Badge>
+          );
         },
       },
       {
-        accessorKey: 'start_time',
-        header: 'Start Time',
+        accessorKey: 'is_active',
+        header: 'Status',
+        cell: ({ row }) => {
+          return (
+            <Check
+              className={cn(
+                'size-4',
+                row.original.is_active ? 'text-green-500' : 'text-red-500',
+              )}
+            />
+          );
+        },
+      },
+      {
+        accessorKey: 'registration_source',
+        header: 'Registration Source',
+        cell: ({ row }) => {
+          let icon;
+          switch (row.original.registration_source) {
+            case 'google':
+              icon = <FaGoogle className="size-4" />;
+              break;
+            case 'github':
+              icon = <FaGithub className="size-4" />;
+              break;
+            default:
+              icon = <Key className="size-4" />;
+          }
+          return (
+            <div className="flex flex-row items-center gap-2">
+              {icon}
+              {row.original.registration_source}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: 'date_joined',
+        header: 'Creation time',
         cell: ({ row }) =>
-          row.original.start_time
-            ? format.dateTime(row.original.start_time, 'medium')
+          row.original.date_joined
+            ? format.dateTime(new Date(row.original.date_joined), 'medium')
             : '--',
       },
     ];
@@ -165,61 +189,10 @@ export function DataTable({
     getFacetedUniqueValues: getFacetedUniqueValues(),
   });
 
-  const handleSearch = React.useCallback(() => {
-    const sp = new URLSearchParams();
-    _.forEach(query, (value, key) => {
-      sp.set(key, String(value));
-    });
-    router.push(`${pathname}?${sp.toString()}`);
-  }, [pathname, query, router]);
-
-  React.useEffect(() => {
-    setQuery(initSearchParams);
-  }, [initSearchParams]);
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <div className="flex flex-row items-center gap-2">
-          <Input
-            placeholder="Search api name"
-            value={query.apiName}
-            onChange={(e) => {
-              setQuery({
-                ...query,
-                apiName: e.currentTarget.value,
-              });
-            }}
-          />
-          <div className="flex flex-row items-center gap-0.5">
-            <DateTimePicker24h
-              className="w-48"
-              date={query.startDate ? new Date(query.startDate) : undefined}
-              onChange={(d) => {
-                setQuery({
-                  ...query,
-                  startDate: d ? new Date(d).toISOString() : undefined,
-                });
-              }}
-            />
-            <span>-</span>
-            <DateTimePicker24h
-              className="w-48"
-              date={query.endDate ? new Date(query.endDate) : undefined}
-              onChange={(d) => {
-                setQuery({
-                  ...query,
-                  endDate: d ? new Date(d).toISOString() : undefined,
-                });
-              }}
-            />
-          </div>
-
-          <Button onClick={handleSearch}>
-            <Search />
-            <span className="hidden lg:inline">Search</span>
-          </Button>
-        </div>
+        <div className="flex flex-row items-center gap-2"></div>
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
