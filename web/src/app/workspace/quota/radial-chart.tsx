@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 
 import { QuotaInfo } from '@/api';
+import { Badge } from '@/components/ui/badge';
 import {
   Card,
   CardContent,
@@ -19,7 +20,6 @@ import {
 } from '@/components/ui/card';
 import { ChartConfig, ChartContainer } from '@/components/ui/chart';
 import { useMemo } from 'react';
-import { Badge } from '@/components/ui/badge';
 
 export const QuotaRadialChart = ({ data }: { data: QuotaInfo }) => {
   const chartData = [{ usage: data.current_usage, fill: `var(--color-quota)` }];

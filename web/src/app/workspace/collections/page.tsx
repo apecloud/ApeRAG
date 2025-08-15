@@ -30,7 +30,9 @@ export default async function Page() {
       <PageContent>
         <PageTitle>Collections</PageTitle>
         <PageDescription>
-          By importing and systematically organizing your data sources into a structured dataset, you can significantly improve the contextual understanding and response accuracy of large language models (LLMs)
+          By importing and systematically organizing your data sources into a
+          structured dataset, you can significantly improve the contextual
+          understanding and response accuracy of large language models (LLMs)
         </PageDescription>
         <Tabs defaultValue="creation" className="gap-4">
           <div className="flex flex-row items-center">

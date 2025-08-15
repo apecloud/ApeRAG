@@ -88,7 +88,7 @@ export const ApiKeyActions = ({
 
   if (action === 'delete') {
     return (
-      <Dialog open={deleteVisible}>
+      <Dialog open={deleteVisible} onOpenChange={() => setDeleteVisible(false)}>
         <DialogTrigger asChild>
           <Slot
             onClick={(e) => {
@@ -111,14 +111,19 @@ export const ApiKeyActions = ({
             <Button variant="outline" onClick={() => setDeleteVisible(false)}>
               Cancel
             </Button>
-            <Button onClick={() => handleDelete()}>OK</Button>
+            <Button variant="destructive" onClick={() => handleDelete()}>
+              OK
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     );
   } else {
     return (
-      <Dialog open={createOrUpdateVisible}>
+      <Dialog
+        open={createOrUpdateVisible}
+        onOpenChange={() => setCreateOrUpdateVisible(false)}
+      >
         <DialogTrigger asChild>
           <Slot
             onClick={(e) => {
