@@ -48,7 +48,11 @@ export const TableList = ({
             <TableRow key={headerGroup.id}>
               {headerGroup.headers.map((header) => {
                 return (
-                  <TableHead key={header.id} colSpan={header.colSpan}>
+                  <TableHead
+                    key={header.id}
+                    colSpan={header.colSpan}
+                    className="py-3"
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -70,7 +74,7 @@ export const TableList = ({
                 className="relative z-0 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80"
               >
                 {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
+                  <TableCell key={cell.id} className="py-2">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>
                 ))}
