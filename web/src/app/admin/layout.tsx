@@ -12,18 +12,18 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
+  SidebarSeparator,
 } from '@/components/ui/sidebar';
 import { getServerApi } from '@/lib/api/server';
 import {
+  ArrowLeft,
   BatteryMedium,
-  BookOpen,
-  Key,
   Logs,
+  MonitorCog,
   Package,
-  Plus,
 } from 'lucide-react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 export default async function Layout({
   children,
@@ -42,6 +42,10 @@ export default async function Layout({
     redirect('/auth/signin');
   }
 
+  if (user.role !== 'admin') {
+    notFound();
+  }
+
   return (
     <>
       <SidebarProvider>
@@ -50,65 +54,53 @@ export default async function Layout({
             <AppLogo />
           </SidebarHeader>
           <SidebarContent className="gap-0">
-            <SidebarGroup className="mt-4">
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <Link href="/workspace/collections">
-                      <BookOpen />
-                      Collections
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroup>
-
+            <SidebarSeparator />
             <SidebarGroup>
-              <SidebarGroupLabel>Chats</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  <SidebarMenuItem className="flex items-center gap-2">
-                    <SidebarMenuButton
-                      tooltip="Quick Create"
-                      className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground min-w-8 duration-200 ease-linear"
-                    >
-                      <Plus />
-                      <span>Create chat</span>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <Link href="/workspace/collections">
+                        <ArrowLeft /> My Workspace
+                      </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
+            <SidebarSeparator />
 
-            <SidebarGroup className="mt-auto">
-              <SidebarGroupLabel>Settings</SidebarGroupLabel>
+            <SidebarGroup>
+              <SidebarGroupLabel>Administrator</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
-                      <Link href="/workspace/models">
-                        <Package /> Models
+                      <Link href="/admin/users">
+                        <Package /> Users
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <Link href="/admin/audit-logs">
+                        <Logs /> Audit logs
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
-                      <Link href="/workspace/api-keys">
-                        <Key /> API Keys
+                      <Link href="/admin/quota">
+                        <BatteryMedium /> Users quota
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
+
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
-                      <Link href="/workspace/audit-logs">
-                        <Logs /> Audit Logs
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <Link href="/workspace/quota">
-                        <BatteryMedium /> Quota
+                      <Link href="/admin/system">
+                        <MonitorCog /> Configuration
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
