@@ -8,7 +8,7 @@ import {
 
 import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
-import { DataTable } from './data-table';
+import { ApiKeyTable } from './api-key-table';
 
 export default async function Page() {
   const serverApi = await getServerApi();
@@ -26,7 +26,7 @@ export default async function Page() {
           Connecting your keys enables personalized AI interactions while
           keeping your credentials protected.
         </PageDescription>
-        <DataTable data={toJson(data)} />
+        <ApiKeyTable data={toJson(data)} />
       </PageContent>
     </PageContainer>
   );

@@ -160,7 +160,7 @@ const columns: ColumnDef<ApiKey>[] = [
   },
 ];
 
-export function DataTable({ data }: { data: ApiKey[] }) {
+export function ApiKeyTable({ data }: { data: ApiKey[] }) {
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
