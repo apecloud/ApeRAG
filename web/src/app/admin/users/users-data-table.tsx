@@ -23,6 +23,8 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
@@ -36,12 +38,23 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useGlobalContext } from '@/hooks/use-global-context';
 import { cn } from '@/lib/utils';
-import { Check, ChevronDown, Columns3, Key } from 'lucide-react';
+import {
+  BatteryMedium,
+  Check,
+  ChevronDown,
+  Columns3,
+  EllipsisVertical,
+  Key,
+  Trash,
+} from 'lucide-react';
 import { useFormatter } from 'next-intl';
 import { FaGithub, FaGoogle } from 'react-icons/fa6';
+import { UserQuotaAction } from './user-quota-action';
 
 export function UsersDataTable({ data }: { data: User[] }) {
+  const { user } = useGlobalContext();
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
@@ -86,22 +99,24 @@ export function UsersDataTable({ data }: { data: User[] }) {
       },
       {
         accessorKey: 'username',
-        header: 'Username',
+        header: 'User',
         cell: ({ row }) => {
           return (
-            <Tooltip>
-              <TooltipTrigger>
-                <div className="text-left">
-                  <div>{row.original.username}</div>
-                  <div className="text-muted-foreground">
-                    {row.original.email}
-                  </div>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="left">ID: {row.original.id}</TooltipContent>
-            </Tooltip>
+            <div className="text-left">
+              <div>
+                {row.original.username}{' '}
+                {user?.id === row.original.id && (
+                  <Badge variant="destructive">Me</Badge>
+                )}
+              </div>
+              <div className="text-muted-foreground">{row.original.email}</div>
+            </div>
           );
         },
+      },
+      {
+        accessorKey: 'id',
+        header: 'ID',
       },
       {
         accessorKey: 'role',
@@ -133,7 +148,7 @@ export function UsersDataTable({ data }: { data: User[] }) {
       },
       {
         accessorKey: 'registration_source',
-        header: 'Registration Source',
+        header: 'Source',
         cell: ({ row }) => {
           let icon;
           switch (row.original.registration_source) {
@@ -147,10 +162,12 @@ export function UsersDataTable({ data }: { data: User[] }) {
               icon = <Key className="size-4" />;
           }
           return (
-            <div className="flex flex-row items-center gap-2">
-              {icon}
-              {row.original.registration_source}
-            </div>
+            <Tooltip>
+              <TooltipTrigger>{icon}</TooltipTrigger>
+              <TooltipContent>
+                {row.original.registration_source}
+              </TooltipContent>
+            </Tooltip>
           );
         },
       },
@@ -162,9 +179,38 @@ export function UsersDataTable({ data }: { data: User[] }) {
             ? format.dateTime(new Date(row.original.date_joined), 'medium')
             : '--',
       },
+      {
+        id: 'actions',
+        enableHiding: false,
+        cell: ({ row }) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                className="data-[state=open]:bg-muted text-muted-foreground flex size-8"
+                size="icon"
+              >
+                <EllipsisVertical />
+                <span className="sr-only">Open menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-32">
+              <UserQuotaAction user={row.original}>
+                <DropdownMenuItem>
+                  <BatteryMedium /> Quota
+                </DropdownMenuItem>
+              </UserQuotaAction>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" disabled>
+                <Trash /> Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ),
+      },
     ];
     return cols;
-  }, [format]);
+  }, [format, user?.id]);
 
   const table = useReactTable({
     data,

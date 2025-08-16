@@ -77,6 +77,14 @@ export default async function Layout({
 
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
+                      <Link href="/admin/providers">
+                        <BatteryMedium /> Models
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
                       <Link href="/admin/audit-logs">
                         <Logs /> Audit logs
                       </Link>
@@ -85,23 +93,7 @@ export default async function Layout({
 
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
-                      <Link href="/admin/quota">
-                        <BatteryMedium /> Users quota
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <Link href="/admin/models">
-                        <BatteryMedium /> Models
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <Link href="/admin/system">
+                      <Link href="/admin/configuration">
                         <MonitorCog /> Configuration
                       </Link>
                     </SidebarMenuButton>

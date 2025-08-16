@@ -133,7 +133,7 @@ export function ModelTable({
         cell: ({ row }) => {
           return (
             <div className="flex flex-col gap-2">
-              <div className="text-left text-lg">{row.original.model}</div>
+              <div className="text-left">{row.original.model}</div>
               <div className="flex gap-1">
                 {row.original.tags
                   ?.filter((tag) => tag !== '__autogen__')
@@ -160,7 +160,7 @@ export function ModelTable({
                   <div>{row.original.max_output_tokens || '-'}</div>
                 </div>
               </TooltipTrigger>
-              <TooltipContent>
+              <TooltipContent side="left">
                 <div>
                   <div>Context Window : {row.original.context_window}</div>
                   <div>Max Input Tokens: {row.original.max_input_tokens}</div>
