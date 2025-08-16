@@ -22,8 +22,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'ApeCloud',
-  description: 'ApeCloud',
+  title: 'ApeRAG',
+  description:
+    'Production-Ready RAG Platform with Graph, Vector & Full-Text Search',
 };
 
 export default async function RootLayout({
