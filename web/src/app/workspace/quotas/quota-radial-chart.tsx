@@ -23,7 +23,8 @@ import { useMemo } from 'react';
 
 export const QuotaRadialChart = ({ data }: { data: QuotaInfo }) => {
   const chartData = [{ usage: data.current_usage, fill: `var(--color-quota)` }];
-  const percent = (data.current_usage * 100) / data.quota_limit;
+  const percent =
+    data.quota_limit === 0 ? 0 : (data.current_usage * 100) / data.quota_limit;
   const endAngle = (percent * 360) / 100;
 
   const chartConfig = {
@@ -106,7 +107,7 @@ export const QuotaRadialChart = ({ data }: { data: QuotaInfo }) => {
                           y={viewBox.cy}
                           className="fill-foreground text-4xl font-bold"
                         >
-                          {`${percent}%`}
+                          {`${percent.toFixed(2)}%`}
                         </tspan>
                         <tspan
                           x={viewBox.cx}
