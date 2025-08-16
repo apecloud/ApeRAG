@@ -1,3 +1,4 @@
+import { ProviderTable } from '@/app/workspace/providers/provider-table';
 import {
   PageContainer,
   PageContent,
@@ -5,8 +6,14 @@ import {
   PageHeader,
   PageTitle,
 } from '@/components/page-container';
+import { getServerApi } from '@/lib/api/server';
+import { toJson } from '@/lib/utils';
 
 export default async function Page() {
+  const serverApi = await getServerApi();
+
+  const res = await serverApi.defaultApi.llmConfigurationGet();
+
   return (
     <PageContainer>
       <PageHeader breadcrumbs={[{ title: 'Users' }]} />
@@ -18,6 +25,12 @@ export default async function Page() {
           the system. Configure API keys, model selection, rate limits, and
           other parameters to customize AI-powered functionalities.
         </PageDescription>
+
+        <ProviderTable
+          data={toJson(res.data.providers) || []}
+          models={toJson(res.data.models) || []}
+          urlPrefix="/admin"
+        />
       </PageContent>
     </PageContainer>
   );

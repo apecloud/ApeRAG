@@ -114,7 +114,7 @@ export const ProviderTable = ({
         cell: ({ row }) => {
           return (
             <Link
-              className="text-lg underline"
+              className="underline"
               href={`${urlPrefix}/providers/${row.original.name}/models`}
             >
               {row.original.label || row.original.name}
@@ -133,9 +133,7 @@ export const ProviderTable = ({
           const providerModels = models.filter(
             (m) => m.provider_name === row.original.name,
           );
-          return (
-            <div className="text-lg font-bold">{providerModels.length}</div>
-          );
+          return <div>{providerModels.length}</div>;
         },
       },
       {

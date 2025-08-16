@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { LaptopMinimalCheck, LoaderCircle } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -32,6 +33,7 @@ export const MinerUSettings = ({
     ...initData,
   });
 
+  const [checked, setChecked] = useState<boolean>(false);
   const [checking, setChecking] = useState<boolean>(false);
 
   const handleSave = useCallback(async () => {
@@ -53,7 +55,10 @@ export const MinerUSettings = ({
   );
 
   const handleCheckMineruToken = useCallback(async () => {
-    if (!data.mineru_api_token) return;
+    if (!data.mineru_api_token) {
+      toast.error('MinerU API Token is required.');
+      return;
+    }
 
     setChecking(true);
     const res = await apiClient.defaultApi.settingsTestMineruTokenPost({
@@ -64,6 +69,7 @@ export const MinerUSettings = ({
     if (res.data.status_code === 401) {
       toast.error('Invalid token');
     } else {
+      setChecked(true);
       toast.success('Successfully verified');
     }
     setChecking(false);
@@ -109,7 +115,12 @@ export const MinerUSettings = ({
               variant="outline"
               onClick={handleCheckMineruToken}
             >
-              Check Token
+              {checking ? (
+                <LoaderCircle className="animate-spin opacity-50" />
+              ) : (
+                <LaptopMinimalCheck />
+              )}
+              Check
             </Button>
           </div>
           <div className="text-muted-foreground mt-2 text-sm">
@@ -121,7 +132,9 @@ export const MinerUSettings = ({
         <CardFooter
           className={cn('justify-end', data.use_mineru ? 'flex' : 'hidden')}
         >
-          <Button onClick={handleSave}>Save</Button>
+          <Button disabled={!checked} onClick={handleSave}>
+            Save
+          </Button>
         </CardFooter>
       </Card>
     </>

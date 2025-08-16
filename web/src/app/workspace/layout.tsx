@@ -107,8 +107,8 @@ export default async function Layout({
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild>
-                      <Link href="/workspace/quota">
-                        <BatteryMedium /> Quota
+                      <Link href="/workspace/quotas">
+                        <BatteryMedium /> Quotas
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
