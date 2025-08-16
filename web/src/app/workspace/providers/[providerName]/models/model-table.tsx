@@ -1,7 +1,5 @@
 'use client';
 
-import { LlmProvider, LlmProviderModel } from '@/api';
-
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -17,6 +15,8 @@ import {
 } from '@tanstack/react-table';
 import * as React from 'react';
 
+import { z } from 'zod';
+
 import { Button } from '@/components/ui/button';
 
 import { Checkbox } from '@/components/ui/checkbox';
@@ -30,33 +30,52 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-import { TableList, TableListPagination } from '@/components/table-list';
-
+import { LlmProvider, LlmProviderModel } from '@/api';
 import { FormatDate } from '@/components/format-date';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import {
+  ArrowLeft,
+  ArrowUpDown,
+  BetweenVerticalStart,
   ChevronDown,
   Columns3,
   EllipsisVertical,
+  MessageSquareCode,
   Plus,
   SquarePen,
   Trash,
 } from 'lucide-react';
-import Link from 'next/link';
-import { ModelsDefaultConfiguration } from './models-default-configuration';
-import { ProviderActions } from './provider-actions';
-import { ProviderToggle } from './provider-toggle';
 
-export const ProviderTable = ({
+import { TableList, TableListPagination } from '@/components/table-list';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import Link from 'next/link';
+import { ModelActions } from './model-actions';
+import { ModelTagSwitch } from './model-tag-switch';
+export const schema = z.object({
+  id: z.number(),
+  header: z.string(),
+  type: z.string(),
+  status: z.string(),
+  target: z.string(),
+  limit: z.string(),
+  reviewer: z.string(),
+});
+
+export function ModelTable({
+  provider,
   data,
-  models,
-  urlPrefix,
+  pathnamePrefix,
 }: {
-  data: LlmProvider[];
-  models: LlmProviderModel[];
-  urlPrefix: string;
-}) => {
+  provider: LlmProvider;
+  data: LlmProviderModel[];
+  pathnamePrefix: string;
+}) {
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({
@@ -71,7 +90,7 @@ export const ProviderTable = ({
       desc: true,
     },
     {
-      id: 'name',
+      id: 'model',
       desc: false,
     },
   ]);
@@ -80,9 +99,8 @@ export const ProviderTable = ({
     pageSize: 20,
   });
   const [searchValue, setSearchValue] = React.useState<string>('');
-
-  const columns: ColumnDef<LlmProvider>[] = React.useMemo(() => {
-    const cols: ColumnDef<LlmProvider>[] = [
+  const columns: ColumnDef<LlmProviderModel>[] = React.useMemo(() => {
+    const cols: ColumnDef<LlmProviderModel>[] = [
       {
         id: 'select',
         header: ({ table }) => (
@@ -110,63 +128,108 @@ export const ProviderTable = ({
         ),
       },
       {
-        accessorKey: 'label',
-        header: 'Name',
+        accessorKey: 'model',
+        header: 'Model',
         cell: ({ row }) => {
           return (
-            <Link
-              className="text-lg underline"
-              href={`${urlPrefix}/providers/${row.original.name}/models`}
-            >
-              {row.original.label || row.original.name}
-            </Link>
+            <div className="flex flex-col gap-2">
+              <div className="text-left text-lg">{row.original.model}</div>
+              <div className="flex gap-1">
+                {row.original.tags
+                  ?.filter((tag) => tag !== '__autogen__')
+                  .map((tag) => {
+                    return <Badge key={tag}>{tag}</Badge>;
+                  })}
+              </div>
+            </div>
           );
         },
       },
       {
-        accessorKey: 'base_url',
-        header: 'Base Url',
-      },
-      {
-        accessorKey: 'name',
-        header: 'Models',
+        accessorKey: 'params',
+        header: 'LLM params',
         cell: ({ row }) => {
-          const providerModels = models.filter(
-            (m) => m.provider_name === row.original.name,
-          );
           return (
-            <div className="text-lg font-bold">{providerModels.length}</div>
+            <Tooltip>
+              <TooltipTrigger>
+                <div className="flex h-4 items-center gap-2">
+                  <div>{row.original.context_window || '-'}</div>
+                  <Separator orientation="vertical" />
+                  <div>{row.original.max_input_tokens || '-'}</div>
+                  <Separator orientation="vertical" />
+                  <div>{row.original.max_output_tokens || '-'}</div>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <div>
+                  <div>Context Window : {row.original.context_window}</div>
+                  <div>Max Input Tokens: {row.original.max_input_tokens}</div>
+                  <div>Max Output Tokens: {row.original.max_output_tokens}</div>
+                </div>
+              </TooltipContent>
+            </Tooltip>
           );
         },
       },
       {
-        accessorKey: 'user_id',
-        header: 'Scope',
+        accessorKey: 'agent',
+        header: 'Agent',
         cell: ({ row }) => {
-          const text = row.original.user_id === 'public' ? 'Public' : 'Private';
-          const variant =
-            row.original.user_id === 'public' ? 'default' : 'destructive';
-          return <Badge variant={variant}>{text}</Badge>;
+          return (
+            <ModelTagSwitch
+              model={row.original}
+              provider={provider}
+              tag="enable_for_agent"
+            />
+          );
         },
       },
       {
-        accessorKey: 'enabled',
-        header: 'Enabled',
+        accessorKey: 'collection',
+        header: 'Collection',
         cell: ({ row }) => {
-          return <ProviderToggle provider={row.original} />;
+          return (
+            <ModelTagSwitch
+              model={row.original}
+              provider={provider}
+              tag="enable_for_collection"
+            />
+          );
+        },
+      },
+      {
+        accessorKey: 'api',
+        header: 'API Type',
+        cell: ({ row }) => {
+          let icon;
+          switch (row.original.api) {
+            case 'completion':
+              icon = <MessageSquareCode />;
+              break;
+            case 'embedding':
+              icon = <BetweenVerticalStart />;
+              break;
+            case 'rerank':
+              icon = <ArrowUpDown />;
+              break;
+          }
+          return (
+            <Badge variant="outline">
+              {icon} {row.original.api}
+            </Badge>
+          );
         },
       },
       {
         accessorKey: 'created',
         header: 'Creation time',
         cell: ({ row }) => {
-          return row.original.created ? (
-            <FormatDate datetime={new Date(row.original.created)} />
-          ) : (
-            ''
-          );
+          if (row.original.created) {
+            return <FormatDate datetime={new Date(row.original.created)} />;
+          }
         },
       },
+
       {
         id: 'actions',
         enableHiding: false,
@@ -183,24 +246,32 @@ export const ProviderTable = ({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-32">
-              <ProviderActions action="edit" provider={row.original}>
+              <ModelActions
+                action="edit"
+                provider={provider}
+                model={row.original}
+              >
                 <DropdownMenuItem>
                   <SquarePen /> Edit
                 </DropdownMenuItem>
-              </ProviderActions>
+              </ModelActions>
               <DropdownMenuSeparator />
-              <ProviderActions action="delete" provider={row.original}>
+              <ModelActions
+                action="delete"
+                provider={provider}
+                model={row.original}
+              >
                 <DropdownMenuItem variant="destructive">
                   <Trash /> Delete
                 </DropdownMenuItem>
-              </ProviderActions>
+              </ModelActions>
             </DropdownMenuContent>
           </DropdownMenu>
         ),
       },
     ];
     return cols;
-  }, [models, urlPrefix]);
+  }, [provider]);
 
   const table = useReactTable({
     data,
@@ -213,7 +284,7 @@ export const ProviderTable = ({
       pagination,
       globalFilter: searchValue,
     },
-    getRowId: (row) => String(row.name),
+    getRowId: (row) => String(row.model),
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
@@ -232,6 +303,11 @@ export const ProviderTable = ({
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div className="flex flex-row items-center gap-2">
+          <Button asChild variant="outline">
+            <Link href={`${pathnamePrefix}/providers`}>
+              <ArrowLeft />
+            </Link>
+          </Button>
           <Input
             placeholder="Search"
             value={searchValue}
@@ -272,18 +348,16 @@ export const ProviderTable = ({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <ModelsDefaultConfiguration />
-
-          <ProviderActions action="add">
+          <ModelActions action="add" provider={provider}>
             <Button>
               <Plus />
-              <span className="hidden lg:inline">Add Provider</span>
+              <span className="hidden lg:inline">Add Model</span>
             </Button>
-          </ProviderActions>
+          </ModelActions>
         </div>
       </div>
-      <TableList idKey="name" table={table} />
+      <TableList idKey="model" table={table} />
       <TableListPagination table={table} />
     </div>
   );
-};
+}
