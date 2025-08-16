@@ -8,7 +8,7 @@ import {
 
 import { UserQuotaInfo } from '@/api';
 import { getServerApi } from '@/lib/api/server';
-import { QuotaRadialChart } from './radial-chart';
+import { QuotaRadialChart } from './quota-radial-chart';
 
 export default async function Page() {
   const serverApi = await getServerApi();
