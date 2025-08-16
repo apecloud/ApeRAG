@@ -45,7 +45,7 @@ import {
   Trash,
 } from 'lucide-react';
 
-import { TableList, TableListPagination } from '@/components/table-list';
+import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
@@ -356,8 +356,8 @@ export function ModelTable({
           </ModelActions>
         </div>
       </div>
-      <TableList idKey="model" table={table} />
-      <TableListPagination table={table} />
+      <DataGrid table={table} />
+      <DataGridPagination table={table} />
     </div>
   );
 }
