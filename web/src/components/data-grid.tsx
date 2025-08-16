@@ -71,7 +71,7 @@ export const DataGrid = ({
           {table.getRowModel().rows?.length ? (
             table.getRowModel().rows.map((row) => (
               <TableRow
-                key={row.original[idKey]}
+                key={row.original[idKey] || Math.random()}
                 data-state={row.getIsSelected() && 'selected'}
                 className="relative z-0 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80"
               >

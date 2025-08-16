@@ -1,23 +1,25 @@
 import { User } from '@/api';
-import { Avatar, AvatarFallback, AvatarImage } from '@radix-ui/react-avatar';
+// import { Avatar, AvatarFallback, AvatarImage } from '@radix-ui/react-avatar';
 
 import { FaCircleUser } from 'react-icons/fa6';
 
-export const UserAvatar = ({ user }: { user?: User }) => {
+export const UserAvatar = ({ }: { user?: User }) => {
   const UserIcon = () => (
     <FaCircleUser className="text-muted-foreground/50 size-8" />
   );
 
-  return user?.image ? (
-    <Avatar className="h-8 w-8 overflow-hidden rounded-4xl">
-      <AvatarImage src={user.image} />
-      <AvatarFallback>
-        <UserIcon />
-      </AvatarFallback>
-    </Avatar>
-  ) : (
-    <UserIcon />
-  );
+  return <UserIcon />
+
+  // return user?.image ? (
+  //   <Avatar className="h-8 w-8 overflow-hidden rounded-4xl">
+  //     <AvatarImage src={user.image} />
+  //     <AvatarFallback>
+  //       <UserIcon />
+  //     </AvatarFallback>
+  //   </Avatar>
+  // ) : (
+  //   <UserIcon />
+  // );
 };
 
 export const UserAvatarProfile = ({ user }: { user?: User }) => {
