@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/tooltip';
 
 import { DateTimePicker24h } from '@/components/date-time-picker-24h';
+import { cn } from '@/lib/utils';
 import _ from 'lodash';
 import { ChevronDown, Columns3, Search } from 'lucide-react';
 import { useFormatter } from 'next-intl';
@@ -118,6 +119,19 @@ export function AuditLogTable({
       {
         accessorKey: 'status_code',
         header: 'Status',
+        cell: ({ row }) => {
+          let color;
+          switch (row.original.status_code) {
+            case 200:
+              color = 'text-green-500';
+              break;
+            case 500:
+              color = 'text-red-500';
+              break;
+            default:
+          }
+          return <div className={cn(color)}>{row.original.status_code}</div>;
+        },
       },
       {
         accessorKey: 'end_time',
