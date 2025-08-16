@@ -94,7 +94,7 @@ export default async function Layout({
             </SidebarGroup>
           </SidebarContent>
 
-          <SidebarFooter className="gap-0 border-t">
+          <SidebarFooter className="gap-0">
             <SidebarGroup>
               <SidebarGroupLabel>Settings</SidebarGroupLabel>
               <SidebarGroupContent>
@@ -130,7 +130,7 @@ export default async function Layout({
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
-            <SidebarSeparator className="mx-0" />
+            <SidebarSeparator className="mx-0 mb-2" />
             <AppUserDropdownMenu />
           </SidebarFooter>
         </Sidebar>
