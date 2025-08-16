@@ -7,7 +7,7 @@ import {
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
 
-import { ModelsTable } from './models-table';
+import { ModelTable } from './model-table';
 
 export default async function Page({
   params,
@@ -43,7 +43,7 @@ export default async function Page({
           keys, choose models, and adjust settings to enhance your AI
           experience.
         </PageDescription>
-        <ModelsTable
+        <ModelTable
           provider={providerRes.data}
           data={modelsRes.data.items || []}
           pathnamePrefix="/workspace"

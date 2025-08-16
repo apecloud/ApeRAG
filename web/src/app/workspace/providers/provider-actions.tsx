@@ -14,6 +14,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -182,6 +183,10 @@ export const ProviderActions = ({
                     <FormControl>
                       <Input placeholder="API base url" {...field} />
                     </FormControl>
+                    <FormDescription>
+                      The LLM API baseUrl refers to the root endpoint URL used
+                      to access a Large Language Model (LLM) API service.
+                    </FormDescription>
                   </FormItem>
                 )}
               />
@@ -236,6 +241,11 @@ export const ProviderActions = ({
                       </FormItem>
                     )}
                   />
+                </div>
+                <div className="text-muted-foreground mt-2 text-sm">
+                  Completion API Dialect suggests possible outputs, Embedding
+                  API Dialect converts them to vectors, and Rerank API Dialect
+                  optimizes their order based on semantic relevance.
                 </div>
               </div>
 

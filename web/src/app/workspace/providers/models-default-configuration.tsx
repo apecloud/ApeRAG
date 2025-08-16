@@ -65,7 +65,7 @@ export const ModelsDefaultConfiguration = () => {
       <Dialog open={visible} onOpenChange={() => setVisible(false)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Default Models</DialogTitle>
+            <DialogTitle>Default models configuration</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-6 py-8">
             {defaultModels.map((modelConfig) => {
