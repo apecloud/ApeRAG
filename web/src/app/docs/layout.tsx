@@ -1,5 +1,10 @@
 import { AppLogo, AppUserDropdownMenu } from '@/components/app-topbar';
 import {
+  PageContainer,
+  PageContent,
+  PageHeader,
+} from '@/components/page-container';
+import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -9,8 +14,10 @@ import {
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
+  SidebarMenuButton,
   SidebarProvider,
 } from '@/components/ui/sidebar';
+import Link from 'next/link';
 
 export default async function Layout({
   children,
@@ -28,7 +35,11 @@ export default async function Layout({
             <SidebarGroup>
               <SidebarGroupLabel>Documents</SidebarGroupLabel>
               <SidebarGroupContent>
-                <SidebarMenu></SidebarMenu>
+                <SidebarMenu>
+                  <SidebarMenuButton asChild>
+                    <Link href="/docs/get-started">Get started</Link>
+                  </SidebarMenuButton>
+                </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
           </SidebarContent>
@@ -37,7 +48,12 @@ export default async function Layout({
             <AppUserDropdownMenu />
           </SidebarFooter>
         </Sidebar>
-        <SidebarInset>{children}</SidebarInset>
+        <SidebarInset>
+          <PageContainer>
+            <PageHeader breadcrumbs={[{ title: 'Documents' }]} />
+            <PageContent className="pb-20">{children}</PageContent>
+          </PageContainer>
+        </SidebarInset>
       </SidebarProvider>
     </>
   );
