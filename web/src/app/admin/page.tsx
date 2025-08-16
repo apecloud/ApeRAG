@@ -8,7 +8,7 @@ import {
 export default async function Page() {
   return (
     <PageContainer>
-      <PageHeader defaultBreadcrumb={{ title: 'Admin', href: '/admin' }} />
+      <PageHeader />
       <PageContent>
         <PageTitle>Administrator</PageTitle>
       </PageContent>
