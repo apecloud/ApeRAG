@@ -67,9 +67,6 @@ QuestionSet:
       type: string
     user_id:
       type: string
-    collection_id:
-      type: string
-      nullable: true
     name:
       type: string
     description:
@@ -163,8 +160,6 @@ QuestionSetCreate:
       type: string
     description:
       type: string
-    collection_id:
-      type: string
     questions:
       type: array
       description: "A list of questions. Maximum 1000 questions are allowed."
@@ -230,9 +225,6 @@ QuestionSetDetail:
       type: string
     user_id:
       type: string
-    collection_id:
-      type: string
-      nullable: true
     name:
       type: string
     description:
@@ -269,6 +261,10 @@ EvaluationDetail:
     id:
       type: string
     name:
+      type: string
+    collection_name:
+      type: string
+    question_set_name:
       type: string
     status:
       $ref: './evaluation.yaml#/EvaluationStatus'
@@ -308,3 +304,52 @@ EvaluationList:
       type: integer
     page_size:
       type: integer
+
+# ==================================================
+# Schemas for Internal Agent Chat
+# ==================================================
+EvaluationChatWithAgentRequest:
+  type: object
+  required:
+    - collection_id
+    - agent_llm_config
+    - question_text
+  properties:
+    collection_id:
+      type: string
+    agent_llm_config:
+      $ref: './evaluation.yaml#/LLMConfig'
+    question_text:
+      type: string
+    language:
+      type: string
+      nullable: true
+
+ChatSuccessResponse:
+  type: object
+  properties:
+    messages:
+      type: array
+      items:
+        $ref: './chat.yaml#/chatMessage'
+
+AgentErrorResponse:
+  type: object
+  properties:
+    type:
+      type: string
+      description: "The type of the response, must be 'error'."
+      enum:
+        - "error"
+    id:
+      type: string
+    data:
+      type: string
+      description: "Error message"
+    timestamp:
+      type: integer
+
+EvaluationChatWithAgentResponse:
+  oneOf:
+    - $ref: './evaluation.yaml#/ChatSuccessResponse'
+    - $ref: './evaluation.yaml#/AgentErrorResponse'

@@ -51,7 +51,7 @@ from aperag.agent.exceptions import (
     safe_json_parse,
 )
 from aperag.agent.response_types import AgentErrorResponse, AgentToolCallResultResponse
-from aperag.chat.history.message import StoredChatMessagePart, create_assistant_message
+from aperag.chat.history.message import StoredChatMessage, create_assistant_message
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.schema import view_models
 from aperag.service.prompt_template_service import build_agent_query_prompt, get_agent_system_prompt
@@ -461,7 +461,7 @@ class AgentChatService:
         custom_llm_provider: Optional[Dict],
         collections: List[view_models.Collection],
         language: str = "en-US",
-    ) -> StoredChatMessagePart | AgentErrorResponse:
+    ) -> StoredChatMessage | AgentErrorResponse:
         """
         Handle internal chat requests for evaluation tasks, bypassing WebSockets.
         Returns the AI response as a dictionary representation of StoredChatMessage.

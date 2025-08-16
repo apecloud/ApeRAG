@@ -24,6 +24,10 @@ import { BASE_PATH, COLLECTION_FORMATS, type RequestArgs, BaseAPI, RequiredError
 // @ts-ignore
 import type { Evaluation } from '../models';
 // @ts-ignore
+import type { EvaluationChatWithAgentRequest } from '../models';
+// @ts-ignore
+import type { EvaluationChatWithAgentResponse } from '../models';
+// @ts-ignore
 import type { EvaluationCreate } from '../models';
 // @ts-ignore
 import type { EvaluationDetail } from '../models';
@@ -75,6 +79,10 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
 
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
 
     
             localVarHeaderParameter['Content-Type'] = 'application/json';
@@ -83,6 +91,44 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
             localVarRequestOptions.data = serializeDataIfNeeded(question, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * This is an internal endpoint used by the evaluation service to run the agent chat logic in the main FastAPI process, avoiding issues with Celery\'s execution context. It should be protected by an internal API key. 
+         * @summary (Internal) Chat with an agent for evaluation purposes
+         * @param {EvaluationChatWithAgentRequest} [evaluationChatWithAgentRequest] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        chatWithAgentForEvaluationApiV1EvaluationsChatWithAgentPost: async (evaluationChatWithAgentRequest?: EvaluationChatWithAgentRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/evaluations/chat_with_agent`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(evaluationChatWithAgentRequest, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -108,6 +154,10 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
             const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
 
 
     
@@ -142,6 +192,10 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
             const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
 
 
     
@@ -179,6 +233,10 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
             const localVarRequestOptions = { method: 'DELETE', ...baseOptions, ...options};
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
 
 
     
@@ -218,6 +276,10 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
 
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
 
     
             setSearchParams(localVarUrlObj, localVarQueryParameter);
@@ -252,6 +314,10 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
 
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
 
     
             setSearchParams(localVarUrlObj, localVarQueryParameter);
@@ -282,6 +348,10 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
             const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
 
 
     
@@ -320,6 +390,10 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
 
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
 
     
             setSearchParams(localVarUrlObj, localVarQueryParameter);
@@ -354,6 +428,10 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
 
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
 
     
             setSearchParams(localVarUrlObj, localVarQueryParameter);
@@ -385,6 +463,10 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
             const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
 
             if (page !== undefined) {
                 localVarQueryParameter['page'] = page;
@@ -426,6 +508,10 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
 
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
             if (page !== undefined) {
                 localVarQueryParameter['page'] = page;
             }
@@ -433,6 +519,120 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
             if (pageSize !== undefined) {
                 localVarQueryParameter['page_size'] = pageSize;
             }
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary Pause an evaluation task
+         * @param {string} evalId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        pauseEvaluationApiV1EvaluationsEvalIdPausePost: async (evalId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'evalId' is not null or undefined
+            assertParamExists('pauseEvaluationApiV1EvaluationsEvalIdPausePost', 'evalId', evalId)
+            const localVarPath = `/evaluations/{eval_id}/pause`
+                .replace(`{${"eval_id"}}`, encodeURIComponent(String(evalId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary Resume an evaluation task
+         * @param {string} evalId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        resumeEvaluationApiV1EvaluationsEvalIdResumePost: async (evalId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'evalId' is not null or undefined
+            assertParamExists('resumeEvaluationApiV1EvaluationsEvalIdResumePost', 'evalId', evalId)
+            const localVarPath = `/evaluations/{eval_id}/resume`
+                .replace(`{${"eval_id"}}`, encodeURIComponent(String(evalId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary Retry failed items in an evaluation task
+         * @param {string} evalId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        retryEvaluationApiV1EvaluationsEvalIdRetryPost: async (evalId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'evalId' is not null or undefined
+            assertParamExists('retryEvaluationApiV1EvaluationsEvalIdRetryPost', 'evalId', evalId)
+            const localVarPath = `/evaluations/{eval_id}/retry`
+                .replace(`{${"eval_id"}}`, encodeURIComponent(String(evalId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
 
 
     
@@ -473,6 +673,10 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
 
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
 
     
             localVarHeaderParameter['Content-Type'] = 'application/json';
@@ -511,6 +715,10 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
 
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
 
     
             localVarHeaderParameter['Content-Type'] = 'application/json';
@@ -547,6 +755,10 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
             const localVarFormParams = new ((configuration && configuration.formDataCtor) || FormData)();
+
+            // authentication BearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
 
 
             if (file !== undefined) { 
@@ -588,6 +800,19 @@ export const EvaluationApiFp = function(configuration?: Configuration) {
             const localVarAxiosArgs = await localVarAxiosParamCreator.addQuestionApiV1QuestionSetsQsIdQuestionsPost(qsId, question, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['EvaluationApi.addQuestionApiV1QuestionSetsQsIdQuestionsPost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * This is an internal endpoint used by the evaluation service to run the agent chat logic in the main FastAPI process, avoiding issues with Celery\'s execution context. It should be protected by an internal API key. 
+         * @summary (Internal) Chat with an agent for evaluation purposes
+         * @param {EvaluationChatWithAgentRequest} [evaluationChatWithAgentRequest] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async chatWithAgentForEvaluationApiV1EvaluationsChatWithAgentPost(evaluationChatWithAgentRequest?: EvaluationChatWithAgentRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<EvaluationChatWithAgentResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.chatWithAgentForEvaluationApiV1EvaluationsChatWithAgentPost(evaluationChatWithAgentRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['EvaluationApi.chatWithAgentForEvaluationApiV1EvaluationsChatWithAgentPost']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
@@ -725,6 +950,45 @@ export const EvaluationApiFp = function(configuration?: Configuration) {
         },
         /**
          * 
+         * @summary Pause an evaluation task
+         * @param {string} evalId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async pauseEvaluationApiV1EvaluationsEvalIdPausePost(evalId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<Evaluation>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.pauseEvaluationApiV1EvaluationsEvalIdPausePost(evalId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['EvaluationApi.pauseEvaluationApiV1EvaluationsEvalIdPausePost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * 
+         * @summary Resume an evaluation task
+         * @param {string} evalId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async resumeEvaluationApiV1EvaluationsEvalIdResumePost(evalId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<Evaluation>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.resumeEvaluationApiV1EvaluationsEvalIdResumePost(evalId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['EvaluationApi.resumeEvaluationApiV1EvaluationsEvalIdResumePost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * 
+         * @summary Retry failed items in an evaluation task
+         * @param {string} evalId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async retryEvaluationApiV1EvaluationsEvalIdRetryPost(evalId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<Evaluation>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.retryEvaluationApiV1EvaluationsEvalIdRetryPost(evalId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['EvaluationApi.retryEvaluationApiV1EvaluationsEvalIdRetryPost']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * 
          * @summary Update a question
          * @param {string} qsId 
          * @param {string} qId 
@@ -784,6 +1048,16 @@ export const EvaluationApiFactory = function (configuration?: Configuration, bas
          */
         addQuestionApiV1QuestionSetsQsIdQuestionsPost(requestParameters: EvaluationApiAddQuestionApiV1QuestionSetsQsIdQuestionsPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<Question> {
             return localVarFp.addQuestionApiV1QuestionSetsQsIdQuestionsPost(requestParameters.qsId, requestParameters.question, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * This is an internal endpoint used by the evaluation service to run the agent chat logic in the main FastAPI process, avoiding issues with Celery\'s execution context. It should be protected by an internal API key. 
+         * @summary (Internal) Chat with an agent for evaluation purposes
+         * @param {EvaluationApiChatWithAgentForEvaluationApiV1EvaluationsChatWithAgentPostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        chatWithAgentForEvaluationApiV1EvaluationsChatWithAgentPost(requestParameters: EvaluationApiChatWithAgentForEvaluationApiV1EvaluationsChatWithAgentPostRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<EvaluationChatWithAgentResponse> {
+            return localVarFp.chatWithAgentForEvaluationApiV1EvaluationsChatWithAgentPost(requestParameters.evaluationChatWithAgentRequest, options).then((request) => request(axios, basePath));
         },
         /**
          * 
@@ -887,6 +1161,36 @@ export const EvaluationApiFactory = function (configuration?: Configuration, bas
         },
         /**
          * 
+         * @summary Pause an evaluation task
+         * @param {EvaluationApiPauseEvaluationApiV1EvaluationsEvalIdPausePostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        pauseEvaluationApiV1EvaluationsEvalIdPausePost(requestParameters: EvaluationApiPauseEvaluationApiV1EvaluationsEvalIdPausePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<Evaluation> {
+            return localVarFp.pauseEvaluationApiV1EvaluationsEvalIdPausePost(requestParameters.evalId, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * 
+         * @summary Resume an evaluation task
+         * @param {EvaluationApiResumeEvaluationApiV1EvaluationsEvalIdResumePostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        resumeEvaluationApiV1EvaluationsEvalIdResumePost(requestParameters: EvaluationApiResumeEvaluationApiV1EvaluationsEvalIdResumePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<Evaluation> {
+            return localVarFp.resumeEvaluationApiV1EvaluationsEvalIdResumePost(requestParameters.evalId, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * 
+         * @summary Retry failed items in an evaluation task
+         * @param {EvaluationApiRetryEvaluationApiV1EvaluationsEvalIdRetryPostRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        retryEvaluationApiV1EvaluationsEvalIdRetryPost(requestParameters: EvaluationApiRetryEvaluationApiV1EvaluationsEvalIdRetryPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<Evaluation> {
+            return localVarFp.retryEvaluationApiV1EvaluationsEvalIdRetryPost(requestParameters.evalId, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * 
          * @summary Update a question
          * @param {EvaluationApiUpdateQuestionApiV1QuestionSetsQsIdQuestionsQIdPutRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
@@ -933,6 +1237,16 @@ export interface EvaluationApiInterface {
      * @memberof EvaluationApiInterface
      */
     addQuestionApiV1QuestionSetsQsIdQuestionsPost(requestParameters: EvaluationApiAddQuestionApiV1QuestionSetsQsIdQuestionsPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<Question>;
+
+    /**
+     * This is an internal endpoint used by the evaluation service to run the agent chat logic in the main FastAPI process, avoiding issues with Celery\'s execution context. It should be protected by an internal API key. 
+     * @summary (Internal) Chat with an agent for evaluation purposes
+     * @param {EvaluationApiChatWithAgentForEvaluationApiV1EvaluationsChatWithAgentPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof EvaluationApiInterface
+     */
+    chatWithAgentForEvaluationApiV1EvaluationsChatWithAgentPost(requestParameters?: EvaluationApiChatWithAgentForEvaluationApiV1EvaluationsChatWithAgentPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<EvaluationChatWithAgentResponse>;
 
     /**
      * 
@@ -1036,6 +1350,36 @@ export interface EvaluationApiInterface {
 
     /**
      * 
+     * @summary Pause an evaluation task
+     * @param {EvaluationApiPauseEvaluationApiV1EvaluationsEvalIdPausePostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof EvaluationApiInterface
+     */
+    pauseEvaluationApiV1EvaluationsEvalIdPausePost(requestParameters: EvaluationApiPauseEvaluationApiV1EvaluationsEvalIdPausePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<Evaluation>;
+
+    /**
+     * 
+     * @summary Resume an evaluation task
+     * @param {EvaluationApiResumeEvaluationApiV1EvaluationsEvalIdResumePostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof EvaluationApiInterface
+     */
+    resumeEvaluationApiV1EvaluationsEvalIdResumePost(requestParameters: EvaluationApiResumeEvaluationApiV1EvaluationsEvalIdResumePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<Evaluation>;
+
+    /**
+     * 
+     * @summary Retry failed items in an evaluation task
+     * @param {EvaluationApiRetryEvaluationApiV1EvaluationsEvalIdRetryPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof EvaluationApiInterface
+     */
+    retryEvaluationApiV1EvaluationsEvalIdRetryPost(requestParameters: EvaluationApiRetryEvaluationApiV1EvaluationsEvalIdRetryPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<Evaluation>;
+
+    /**
+     * 
      * @summary Update a question
      * @param {EvaluationApiUpdateQuestionApiV1QuestionSetsQsIdQuestionsQIdPutRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -1085,6 +1429,20 @@ export interface EvaluationApiAddQuestionApiV1QuestionSetsQsIdQuestionsPostReque
      * @memberof EvaluationApiAddQuestionApiV1QuestionSetsQsIdQuestionsPost
      */
     readonly question?: Question
+}
+
+/**
+ * Request parameters for chatWithAgentForEvaluationApiV1EvaluationsChatWithAgentPost operation in EvaluationApi.
+ * @export
+ * @interface EvaluationApiChatWithAgentForEvaluationApiV1EvaluationsChatWithAgentPostRequest
+ */
+export interface EvaluationApiChatWithAgentForEvaluationApiV1EvaluationsChatWithAgentPostRequest {
+    /**
+     * 
+     * @type {EvaluationChatWithAgentRequest}
+     * @memberof EvaluationApiChatWithAgentForEvaluationApiV1EvaluationsChatWithAgentPost
+     */
+    readonly evaluationChatWithAgentRequest?: EvaluationChatWithAgentRequest
 }
 
 /**
@@ -1249,6 +1607,48 @@ export interface EvaluationApiListQuestionSetsApiV1QuestionSetsGetRequest {
 }
 
 /**
+ * Request parameters for pauseEvaluationApiV1EvaluationsEvalIdPausePost operation in EvaluationApi.
+ * @export
+ * @interface EvaluationApiPauseEvaluationApiV1EvaluationsEvalIdPausePostRequest
+ */
+export interface EvaluationApiPauseEvaluationApiV1EvaluationsEvalIdPausePostRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof EvaluationApiPauseEvaluationApiV1EvaluationsEvalIdPausePost
+     */
+    readonly evalId: string
+}
+
+/**
+ * Request parameters for resumeEvaluationApiV1EvaluationsEvalIdResumePost operation in EvaluationApi.
+ * @export
+ * @interface EvaluationApiResumeEvaluationApiV1EvaluationsEvalIdResumePostRequest
+ */
+export interface EvaluationApiResumeEvaluationApiV1EvaluationsEvalIdResumePostRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof EvaluationApiResumeEvaluationApiV1EvaluationsEvalIdResumePost
+     */
+    readonly evalId: string
+}
+
+/**
+ * Request parameters for retryEvaluationApiV1EvaluationsEvalIdRetryPost operation in EvaluationApi.
+ * @export
+ * @interface EvaluationApiRetryEvaluationApiV1EvaluationsEvalIdRetryPostRequest
+ */
+export interface EvaluationApiRetryEvaluationApiV1EvaluationsEvalIdRetryPostRequest {
+    /**
+     * 
+     * @type {string}
+     * @memberof EvaluationApiRetryEvaluationApiV1EvaluationsEvalIdRetryPost
+     */
+    readonly evalId: string
+}
+
+/**
  * Request parameters for updateQuestionApiV1QuestionSetsQsIdQuestionsQIdPut operation in EvaluationApi.
  * @export
  * @interface EvaluationApiUpdateQuestionApiV1QuestionSetsQsIdQuestionsQIdPutRequest
@@ -1328,6 +1728,18 @@ export class EvaluationApi extends BaseAPI implements EvaluationApiInterface {
      */
     public addQuestionApiV1QuestionSetsQsIdQuestionsPost(requestParameters: EvaluationApiAddQuestionApiV1QuestionSetsQsIdQuestionsPostRequest, options?: RawAxiosRequestConfig) {
         return EvaluationApiFp(this.configuration).addQuestionApiV1QuestionSetsQsIdQuestionsPost(requestParameters.qsId, requestParameters.question, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * This is an internal endpoint used by the evaluation service to run the agent chat logic in the main FastAPI process, avoiding issues with Celery\'s execution context. It should be protected by an internal API key. 
+     * @summary (Internal) Chat with an agent for evaluation purposes
+     * @param {EvaluationApiChatWithAgentForEvaluationApiV1EvaluationsChatWithAgentPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof EvaluationApi
+     */
+    public chatWithAgentForEvaluationApiV1EvaluationsChatWithAgentPost(requestParameters: EvaluationApiChatWithAgentForEvaluationApiV1EvaluationsChatWithAgentPostRequest = {}, options?: RawAxiosRequestConfig) {
+        return EvaluationApiFp(this.configuration).chatWithAgentForEvaluationApiV1EvaluationsChatWithAgentPost(requestParameters.evaluationChatWithAgentRequest, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -1448,6 +1860,42 @@ export class EvaluationApi extends BaseAPI implements EvaluationApiInterface {
      */
     public listQuestionSetsApiV1QuestionSetsGet(requestParameters: EvaluationApiListQuestionSetsApiV1QuestionSetsGetRequest = {}, options?: RawAxiosRequestConfig) {
         return EvaluationApiFp(this.configuration).listQuestionSetsApiV1QuestionSetsGet(requestParameters.page, requestParameters.pageSize, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * 
+     * @summary Pause an evaluation task
+     * @param {EvaluationApiPauseEvaluationApiV1EvaluationsEvalIdPausePostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof EvaluationApi
+     */
+    public pauseEvaluationApiV1EvaluationsEvalIdPausePost(requestParameters: EvaluationApiPauseEvaluationApiV1EvaluationsEvalIdPausePostRequest, options?: RawAxiosRequestConfig) {
+        return EvaluationApiFp(this.configuration).pauseEvaluationApiV1EvaluationsEvalIdPausePost(requestParameters.evalId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * 
+     * @summary Resume an evaluation task
+     * @param {EvaluationApiResumeEvaluationApiV1EvaluationsEvalIdResumePostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof EvaluationApi
+     */
+    public resumeEvaluationApiV1EvaluationsEvalIdResumePost(requestParameters: EvaluationApiResumeEvaluationApiV1EvaluationsEvalIdResumePostRequest, options?: RawAxiosRequestConfig) {
+        return EvaluationApiFp(this.configuration).resumeEvaluationApiV1EvaluationsEvalIdResumePost(requestParameters.evalId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * 
+     * @summary Retry failed items in an evaluation task
+     * @param {EvaluationApiRetryEvaluationApiV1EvaluationsEvalIdRetryPostRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof EvaluationApi
+     */
+    public retryEvaluationApiV1EvaluationsEvalIdRetryPost(requestParameters: EvaluationApiRetryEvaluationApiV1EvaluationsEvalIdRetryPostRequest, options?: RawAxiosRequestConfig) {
+        return EvaluationApiFp(this.configuration).retryEvaluationApiV1EvaluationsEvalIdRetryPost(requestParameters.evalId, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

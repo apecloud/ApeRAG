@@ -20,7 +20,7 @@ using redis-py's built-in connection pooling capabilities for both sync and asyn
 """
 
 import logging
-from typing import Optional
+from typing import AsyncGenerator, Optional
 
 import redis
 import redis.asyncio as async_redis
@@ -82,6 +82,23 @@ class RedisConnectionManager:
         if cls._sync_client is None:
             cls._initialize_sync_client(redis_url)
         return cls._sync_client
+
+    @classmethod
+    async def new_async_client(cls) -> AsyncGenerator[async_redis.Redis, None]:
+        """
+        Provides a new, dedicated async Redis client as an async context manager.
+
+        This method is useful when a specific task requires a new, non-pooled
+        connection. It ensures the client is bound to the current event loop
+        and is properly closed after use.
+
+        Unlike `get_async_client`, this method does not use the shared connection pool.
+
+        Yields:
+            An async generator that yields a single Redis client instance.
+        """
+        async with async_redis.Redis.from_url(cls._get_redis_url()) as client:
+            yield client
 
     @classmethod
     async def _initialize_async_client(cls, redis_url: str = None):

@@ -1081,12 +1081,10 @@ class QuestionSet(Base):
     __tablename__ = "question_sets"
     __table_args__ = (
         Index("idx_question_sets_user_id", "user_id"),
-        Index("idx_question_sets_collection_id", "collection_id"),
     )
 
     id = Column(String(24), primary_key=True, default=lambda: "qs_" + random_id()[:16])
     user_id = Column(String(24), nullable=False)
-    collection_id = Column(String(24), nullable=True)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)

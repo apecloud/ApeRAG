@@ -6,6 +6,8 @@ question_sets:
     tags:
       - evaluation
     summary: List all question sets for the current user
+    security:
+      - BearerAuth: []
     operationId: list_question_sets_api_v1_question_sets_get
     parameters:
       - name: page
@@ -29,6 +31,8 @@ question_sets:
     tags:
       - evaluation
     summary: Create a new question set
+    security:
+      - BearerAuth: []
     operationId: create_question_set_api_v1_question_sets_post
     requestBody:
       content:
@@ -48,6 +52,8 @@ uploadQuestionSet:
     tags:
       - evaluation
     summary: Upload a file to create a question set
+    security:
+      - BearerAuth: []
     operationId: upload_question_set_api_v1_question_sets_upload_post
     requestBody:
       content:
@@ -73,6 +79,8 @@ generateQuestionSet:
     tags:
       - evaluation
     summary: Generate a question set from a collection
+    security:
+      - BearerAuth: []
     operationId: generate_question_set_api_v1_question_sets_generate_post
     requestBody:
       content:
@@ -92,6 +100,8 @@ question_set:
     tags:
       - evaluation
     summary: Get details of a question set
+    security:
+      - BearerAuth: []
     operationId: get_question_set_api_v1_question_sets__qs_id__get
     parameters:
       - name: qs_id
@@ -110,6 +120,8 @@ question_set:
     tags:
       - evaluation
     summary: Update a question set
+    security:
+      - BearerAuth: []
     operationId: update_question_set_api_v1_question_sets__qs_id__put
     parameters:
       - name: qs_id
@@ -133,6 +145,8 @@ question_set:
     tags:
       - evaluation
     summary: Delete a question set
+    security:
+      - BearerAuth: []
     operationId: delete_question_set_api_v1_question_sets__qs_id__delete
     parameters:
       - name: qs_id
@@ -144,11 +158,108 @@ question_set:
       '204':
         description: Successful Response
 
+evaluation_chat_with_agent:
+  post:
+    tags:
+      - evaluation
+    summary: (Internal) Chat with an agent for evaluation purposes
+    description: >
+      This is an internal endpoint used by the evaluation service to run the agent
+      chat logic in the main FastAPI process, avoiding issues with Celery's execution context.
+      It should be protected by an internal API key.
+    operationId: chat_with_agent_for_evaluation_api_v1_evaluations_chat_with_agent_post
+    security:
+      - BearerAuth: []
+    requestBody:
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/evaluation.yaml#/EvaluationChatWithAgentRequest'
+    responses:
+      '200':
+        description: Successful Response from Agent
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evaluation.yaml#/EvaluationChatWithAgentResponse'
+      '401':
+        description: Unauthorized
+      '422':
+        description: Validation Error
+
+evaluation_pause:
+  post:
+    tags:
+      - evaluation
+    summary: Pause an evaluation task
+    security:
+      - BearerAuth: []
+    operationId: pause_evaluation_api_v1_evaluations__eval_id__pause_post
+    parameters:
+      - name: eval_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Successful Response
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evaluation.yaml#/Evaluation'
+
+evaluation_resume:
+  post:
+    tags:
+      - evaluation
+    summary: Resume an evaluation task
+    security:
+      - BearerAuth: []
+    operationId: resume_evaluation_api_v1_evaluations__eval_id__resume_post
+    parameters:
+      - name: eval_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Successful Response
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evaluation.yaml#/Evaluation'
+
+evaluation_retry:
+  post:
+    tags:
+      - evaluation
+    summary: Retry failed items in an evaluation task
+    security:
+      - BearerAuth: []
+    operationId: retry_evaluation_api_v1_evaluations__eval_id__retry_post
+    parameters:
+      - name: eval_id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Successful Response
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/evaluation.yaml#/Evaluation'
+
 question_set_questions:
   post:
     tags:
       - evaluation
     summary: Add a question to a question set
+    security:
+      - BearerAuth: []
     operationId: add_question_api_v1_question_sets__qs_id__questions_post
     parameters:
       - name: qs_id
@@ -174,6 +285,8 @@ question:
     tags:
       - evaluation
     summary: Update a question
+    security:
+      - BearerAuth: []
     operationId: update_question_api_v1_question_sets__qs_id__questions__q_id__put
     parameters:
       - name: qs_id
@@ -202,6 +315,8 @@ question:
     tags:
       - evaluation
     summary: Delete a question
+    security:
+      - BearerAuth: []
     operationId: delete_question_api_v1_question_sets__qs_id__questions__q_id__delete
     parameters:
       - name: qs_id
@@ -226,6 +341,8 @@ evaluations:
     tags:
       - evaluation
     summary: List all evaluation tasks
+    security:
+      - BearerAuth: []
     operationId: list_evaluations_api_v1_evaluations_get
     parameters:
       - name: page
@@ -249,6 +366,8 @@ evaluations:
     tags:
       - evaluation
     summary: Create and start a new evaluation task
+    security:
+      - BearerAuth: []
     operationId: create_evaluation_api_v1_evaluations_post
     requestBody:
       content:
@@ -268,6 +387,8 @@ evaluation:
     tags:
       - evaluation
     summary: Get details of an evaluation task
+    security:
+      - BearerAuth: []
     operationId: get_evaluation_api_v1_evaluations__eval_id__get
     parameters:
       - name: eval_id
@@ -286,6 +407,8 @@ evaluation:
     tags:
       - evaluation
     summary: Delete an evaluation task
+    security:
+      - BearerAuth: []
     operationId: delete_evaluation_api_v1_evaluations__eval_id__delete
     parameters:
       - name: eval_id

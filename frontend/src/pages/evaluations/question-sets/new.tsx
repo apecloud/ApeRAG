@@ -6,7 +6,7 @@ import {
   PlusOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
-import { EvaluationApi } from '@/api';
+import { EvaluationApi } from '@/api/apis/evaluation-api';
 import {
   App,
   Button,

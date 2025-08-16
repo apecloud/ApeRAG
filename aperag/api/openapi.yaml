@@ -201,6 +201,14 @@ paths:
     $ref: './paths/evaluations.yaml#/evaluations'
   /evaluations/{eval_id}:
     $ref: './paths/evaluations.yaml#/evaluation'
+  /evaluations/{eval_id}/pause:
+    $ref: './paths/evaluations.yaml#/evaluation_pause'
+  /evaluations/{eval_id}/resume:
+    $ref: './paths/evaluations.yaml#/evaluation_resume'
+  /evaluations/{eval_id}/retry:
+    $ref: './paths/evaluations.yaml#/evaluation_retry'
+  /evaluations/chat_with_agent:
+    $ref: './paths/evaluations.yaml#/evaluation_chat_with_agent'
 
   /agent/message:
     $ref: './paths/agent.yaml'

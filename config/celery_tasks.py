@@ -902,27 +902,27 @@ def initialize_evaluation_task(self, evaluation_id: str) -> Any:
 
 
 @app.task(bind=True)
-def process_evaluation_task(self, evaluation_id: str) -> Any:
-    """Task to process a single result for an evaluation."""
+def process_evaluation_batch_task(self, evaluation_id: str) -> Any:
+    """Task to process a batch of items for an evaluation."""
     try:
         async def execute():
             from aperag.service.evaluation_service import EvaluationExecutor
 
             async with _new_async_engine() as engine:
                 executor = EvaluationExecutor(engine)
-                await executor.process_evaluation(evaluation_id)
+                await executor.process_evaluation_batch(evaluation_id)
 
         import asyncio
         asyncio.run(execute())
 
         return {"success": True, "evaluation_id": evaluation_id}
     except Exception as e:
-        logger.error(f"Failed to process result for evaluation {evaluation_id}: {e}", exc_info=True)
+        logger.error(f"Failed to process batch for evaluation {evaluation_id}: {e}", exc_info=True)
         raise self.retry(exc=e, countdown=60, max_retries=3)
 
 
 @app.task(bind=True)
-def process_evaluation_item_task(self, item_id: str) -> Any:
+def process_evaluation_item_task(self, evaluation_id: str, item_id: str) -> Any:
     """Task to process a single evaluation item."""
     try:
         async def execute():
@@ -930,7 +930,7 @@ def process_evaluation_item_task(self, item_id: str) -> Any:
 
             async with _new_async_engine() as engine:
                 executor = EvaluationExecutor(engine)
-                await executor.process_evaluation_item(item_id)
+                await executor.process_evaluation_item(evaluation_id, item_id)
 
         import asyncio
         asyncio.run(execute())

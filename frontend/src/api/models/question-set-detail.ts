@@ -40,12 +40,6 @@ export interface QuestionSetDetail {
      * @type {string}
      * @memberof QuestionSetDetail
      */
-    'collection_id'?: string;
-    /**
-     * 
-     * @type {string}
-     * @memberof QuestionSetDetail
-     */
     'name'?: string;
     /**
      * 

@@ -1,4 +1,5 @@
-import { DefaultApi, EvaluationApi } from '@/api';
+import { EvaluationApi } from '@/api/apis/evaluation-api';
+import { DefaultApi } from '@/api/apis/default-api';
 import { Collection } from '@/api/models';
 import { ModelSelect } from '@/components';
 import { InfoCircleOutlined } from '@ant-design/icons';

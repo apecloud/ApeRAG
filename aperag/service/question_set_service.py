@@ -24,6 +24,7 @@ from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.llm.completion.base_completion import get_completion_service
 from aperag.schema import view_models
 from aperag.service.document_service import document_service
+from aperag.utils import llm_response
 from aperag.utils.tokenizer import get_default_tokenizer
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,6 @@ class QuestionSetService:
             user_id=user_id,
             name=request.name,
             description=request.description,
-            collection_id=request.collection_id,
         )
 
         questions_to_create = []
@@ -176,15 +176,7 @@ class QuestionSetService:
 
         # 6. Parse the response
         try:
-            # The response might be wrapped in ```json ... ```, so we extract it.
-            response_text = response_text.strip()
-            json_str = response_text
-            if len(response_text) > 6:
-                if response_text.startswith("```json") and response_text.endswith("```"):
-                    json_str = response_text[7:][:-3]
-                elif response_text.startswith("```") and response_text.endswith("```"):
-                    json_str = response_text[3:][:-3]
-            questions_data = json.loads(json_str)
+            questions_data = llm_response.parse_json(response_text)
             questions = [view_models.Question(**q) for q in questions_data]
             return questions
         except (json.JSONDecodeError, TypeError, KeyError) as e:

@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from sqlalchemy import func, select
+from typing import List
+
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.db.models import Evaluation, EvaluationItem
+from aperag.db.models import Evaluation, EvaluationItem, EvaluationItemStatus, EvaluationStatus
 from aperag.db.repositories.base import AsyncRepositoryProtocol
 from aperag.utils.utils import utc_now
 
@@ -26,6 +28,69 @@ class AsyncEvaluationRepositoryMixin(AsyncRepositoryProtocol):
 
         async def _operation(session: AsyncSession):
             session.add(evaluation)
+            await session.flush()
+            await session.refresh(evaluation)
+            return evaluation
+
+        return await self.execute_with_transaction(_operation)
+
+    async def retry_evaluation(self, eval_id: str, user_id: str) -> Evaluation | None:
+        """Retries all failed items in an evaluation."""
+
+        async def _operation(session: AsyncSession):
+            # 1. Get the evaluation and lock it for update
+            stmt = (
+                select(Evaluation)
+                .where(Evaluation.id == eval_id, Evaluation.user_id == user_id, Evaluation.gmt_deleted.is_(None))
+                .with_for_update()
+            )
+            evaluation = (await session.execute(stmt)).scalar_one_or_none()
+
+            if not evaluation:
+                return None
+
+            # 2. Reset status of failed items
+            failed_items_stmt = (
+                update(EvaluationItem)
+                .where(EvaluationItem.evaluation_id == eval_id, EvaluationItem.status == EvaluationItemStatus.FAILED)
+                .values(status=EvaluationItemStatus.PENDING, llm_judge_score=0, llm_judge_reasoning="")
+            )
+            result = await session.execute(failed_items_stmt)
+
+            # 3. Reset evaluation status to RUNNING to allow re-processing.
+            # Note: Do not reset to PENDING. The transition from PENDING to RUNNING requires
+            # an initialization process, which would cause duplicate items to be added.
+            evaluation.status = EvaluationStatus.RUNNING
+            evaluation.completed_questions = evaluation.completed_questions - result.rowcount
+            await session.flush()
+            await session.refresh(evaluation)
+
+            return evaluation
+
+        return await self.execute_with_transaction(_operation)
+
+    async def update_evaluation_status(
+        self, eval_id: str, user_id: str, new_status: EvaluationStatus, current_statuses: List[EvaluationStatus] = None
+    ) -> Evaluation | None:
+        """Updates the status of an evaluation, optionally checking its current status."""
+
+        async def _operation(session: AsyncSession):
+            # 1. Fetch the evaluation to ensure it exists and belongs to the user.
+            stmt = select(Evaluation).where(
+                Evaluation.id == eval_id,
+                Evaluation.user_id == user_id,
+                Evaluation.gmt_deleted.is_(None),
+            )
+            if current_statuses:
+                stmt = stmt.where(Evaluation.status.in_(current_statuses))
+
+            evaluation = (await session.execute(stmt)).scalar_one_or_none()
+
+            if not evaluation:
+                return None
+
+            # 2. Update the status.
+            evaluation.status = new_status
             await session.flush()
             await session.refresh(evaluation)
             return evaluation

@@ -1,6 +1,6 @@
 import { PageContainer } from '@/components/page-container';
 import { PageHeader } from '@/components/page-header';
-import { EvaluationApi } from '@/api';
+import { EvaluationApi } from '@/api/apis/evaluation-api';
 import {
   App,
   Button,

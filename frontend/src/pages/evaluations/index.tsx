@@ -1,6 +1,5 @@
 import { PageContainer, PageHeader, RefreshButton } from '@/components';
 import { DATETIME_FORMAT, UI_EVALUATION_STATUS } from '@/constants';
-import { Evaluation } from '@/types';
 import { ExperimentOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useInterval } from 'ahooks';
 import {
@@ -96,15 +95,15 @@ export default () => {
         />
       ) : (
         <Row gutter={[24, 24]}>
-          {_evaluations?.map((evaluation: Evaluation) => {
+          {_evaluations?.map((evaluation) => {
             return (
               <Col
                 key={evaluation.id}
                 xs={24}
-                sm={12}
-                md={8}
+                sm={24}
+                md={12}
                 lg={8}
-                xl={6}
+                xl={8}
                 xxl={6}
               >
                 <Link to={`/evaluations/${evaluation.id}`}>
@@ -129,11 +128,6 @@ export default () => {
                         <div>
                           <Typography.Text ellipsis>
                             {evaluation.name}
-                          </Typography.Text>
-                        </div>
-                        <div>
-                          <Typography.Text ellipsis type="secondary">
-                            {evaluation.bot?.title}
                           </Typography.Text>
                         </div>
                       </div>
@@ -175,7 +169,7 @@ export default () => {
                         type="secondary"
                         style={{ fontSize: '0.9em' }}
                       >
-                        {moment(evaluation?.updated_at).format(DATETIME_FORMAT)}
+                        {moment(evaluation?.gmt_updated).format(DATETIME_FORMAT)}
                       </Typography.Text>
                       <Badge
                         status={

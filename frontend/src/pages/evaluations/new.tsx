@@ -1,7 +1,7 @@
 import { Button, Form, message, Input, Select } from 'antd';
 import { useIntl, history, useModel } from 'umi';
 import { useEffect, useState } from 'react';
-import { EvaluationApi } from '@/api';
+import { EvaluationApi } from '@/api/apis/evaluation-api';
 import { PageContainer } from '@/components/page-container';
 import { PageHeader } from '@/components/page-header';
 import { ModelSelect } from '@/components';

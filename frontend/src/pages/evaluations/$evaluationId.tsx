@@ -1,13 +1,15 @@
 import { PageContainer, PageHeader } from '@/components';
 import { UI_EVALUATION_STATUS } from '@/constants';
-import { EvaluationItem, EvaluationItemStatus } from '@/api/models';
+import { EvaluationItem, EvaluationItemStatus, EvaluationStatus } from '@/api/models';
 import { SyncOutlined } from '@ant-design/icons';
 import {
+  App,
   Badge,
   Button,
   Card,
   Col,
   Divider,
+  Popconfirm,
   Row,
   Skeleton,
   Space,
@@ -16,8 +18,8 @@ import {
   Tooltip,
   Typography,
 } from 'antd';
-import { useState, useEffect } from 'react';
-import { FormattedMessage, useIntl, useModel, useParams, Link } from 'umi';
+import { useState, useEffect, useMemo } from 'react';
+import { FormattedMessage, useIntl, useModel, useParams, Link, history } from 'umi';
 
 const { Text, Paragraph, Title } = Typography;
 
@@ -81,15 +83,93 @@ const ResultItemStatus = ({ item }: { item: EvaluationItem }) => {
 export default () => {
   const { evaluationId } = useParams<{ evaluationId: string }>();
   const { formatMessage } = useIntl();
-  const { currentEvaluation, loading, getEvaluation } = useModel('evaluation');
+  const { message } = App.useApp();
+  const {
+    currentEvaluation,
+    loading,
+    getEvaluation,
+    deleteEvaluation,
+    pauseEvaluation,
+    resumeEvaluation,
+    retryEvaluation,
+  } = useModel('evaluation');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const hasFailedItems = useMemo(() => {
+    return currentEvaluation?.results?.some((item) => item.status === EvaluationItemStatus.FAILED) ?? false;
+  }, [currentEvaluation]);
+
+  const handleDelete = async () => {
+    if (!evaluationId) return;
+    const success = await deleteEvaluation(evaluationId);
+    if (success) {
+      message.success(formatMessage({ id: 'evaluation.delete.success' }));
+      history.push('/evaluations');
+    } else {
+      message.error(formatMessage({ id: 'evaluation.delete.failure' }));
+    }
+  };
+
+  const handlePause = async () => {
+    if (!evaluationId) return;
+    const success = await pauseEvaluation(evaluationId);
+    if (success) {
+      message.success(formatMessage({ id: 'evaluation.pause.success' }));
+    } else {
+      message.error(formatMessage({ id: 'evaluation.pause.failure' }));
+    }
+  };
+
+  const handleResume = async () => {
+    if (!evaluationId) return;
+    const success = await resumeEvaluation(evaluationId);
+    if (success) {
+      message.success(formatMessage({ id: 'evaluation.resume.success' }));
+    } else {
+      message.error(formatMessage({ id: 'evaluation.resume.failure' }));
+    }
+  };
+
+  const handleRetry = async () => {
+    if (!evaluationId) return;
+    const success = await retryEvaluation(evaluationId);
+    if (success) {
+      message.success(formatMessage({ id: 'evaluation.retry.success' }));
+    } else {
+      message.error(formatMessage({ id: 'evaluation.retry.failure' }));
+    }
+  };
 
   useEffect(() => {
     if (evaluationId) {
       getEvaluation(evaluationId);
     }
-  }, [evaluationId, getEvaluation]);
+  }, [evaluationId]);
 
-  if (loading || !currentEvaluation) {
+  useEffect(() => {
+    const isRefreshable =
+      currentEvaluation?.status === EvaluationStatus.PENDING ||
+      currentEvaluation?.status === EvaluationStatus.RUNNING;
+
+    if (!isRefreshable) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      if (evaluationId) {
+        const currentScrollY = window.scrollY;
+        setIsRefreshing(true);
+        getEvaluation(evaluationId, { background: true }).finally(() => {
+          setIsRefreshing(false);
+          window.scrollTo(0, currentScrollY);
+        });
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(intervalId);
+  }, [currentEvaluation?.status, evaluationId, getEvaluation]);
+
+  if ((loading && !isRefreshing) || !currentEvaluation) {
     return (
       <PageContainer>
         <PageHeader title={<Skeleton.Input active size="small" />} />
@@ -112,6 +192,38 @@ export default () => {
     <Title level={3} style={{ margin: 0 }}>
       {name}
     </Title>
+  );
+
+  const headerExtra = (
+    <Space>
+      <Button icon={<SyncOutlined spin={isRefreshing} />} onClick={() => getEvaluation(evaluationId!)} loading={loading && !isRefreshing}>
+        <FormattedMessage id="action.refresh" />
+      </Button>
+      {status === EvaluationStatus.RUNNING && (
+        <Button onClick={handlePause} loading={loading}>
+          <FormattedMessage id="action.pause" />
+        </Button>
+      )}
+      {status === EvaluationStatus.PAUSED && (
+        <Button onClick={handleResume} loading={loading}>
+          <FormattedMessage id="action.resume" />
+        </Button>
+      )}
+      <Button onClick={handleRetry} disabled={!hasFailedItems} loading={loading}>
+        <FormattedMessage id="action.retry" />
+      </Button>
+      <Popconfirm
+        title={formatMessage({ id: 'evaluation.delete.confirm.title' })}
+        description={formatMessage({ id: 'evaluation.delete.confirm.description' })}
+        onConfirm={handleDelete}
+        okText={formatMessage({ id: 'action.yes' })}
+        cancelText={formatMessage({ id: 'action.no' })}
+      >
+        <Button danger loading={loading}>
+          <FormattedMessage id="action.delete" />
+        </Button>
+      </Popconfirm>
+    </Space>
   );
 
   const renderResultItem = (item: EvaluationItem) => {
@@ -147,14 +259,17 @@ export default () => {
   return (
     <PageContainer>
       <PageHeader title={headerTitle}>
-        <Badge
-          status={status ? UI_EVALUATION_STATUS[status] : 'default'}
-          text={
-            <Text type="secondary">
-              <FormattedMessage id={`evaluation.status.${status}`} />
-            </Text>
-          }
-        />
+        <Space>
+          <Badge
+            status={status ? UI_EVALUATION_STATUS[status] : 'default'}
+            text={
+              <Text type="secondary">
+                <FormattedMessage id={`evaluation.status.${status}`} />
+              </Text>
+            }
+          />
+          {headerExtra}
+        </Space>
       </PageHeader>
       <Card style={{ marginTop: 24, marginBottom: 24 }}>
         <Row gutter={[32, 16]}>

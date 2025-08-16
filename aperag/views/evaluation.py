@@ -12,10 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
+import os
+from typing import Union
 
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile
+
+from aperag.agent.response_types import AgentErrorResponse
+from aperag.chat.history.message import StoredChatMessage, StoredChatMessagePart
 from aperag.db.models import User
+from aperag.exceptions import CollectionNotFoundException
 from aperag.schema import view_models
+from aperag.service.agent_chat_service import AgentChatService
+from aperag.service.collection_service import collection_service
 from aperag.service.evaluation_service import evaluation_service
 from aperag.service.question_set_service import question_set_service
 from aperag.views.auth import current_user
@@ -84,7 +92,6 @@ async def get_question_set(
     return view_models.QuestionSetDetail(
         id=qs.id,
         user_id=qs.user_id,
-        collection_id=qs.collection_id,
         name=qs.name,
         description=qs.description,
         gmt_created=qs.gmt_created,
@@ -236,6 +243,89 @@ async def delete_evaluation(
 ):
     if not await evaluation_service.delete_evaluation(eval_id, user.id):
         raise HTTPException(status_code=404, detail="Evaluation not found")
+
+
+@router.post("/evaluations/{eval_id}/pause", response_model=view_models.Evaluation)
+async def pause_evaluation(
+    eval_id: str,
+    user: User = Depends(current_user),
+):
+    evaluation = await evaluation_service.pause_evaluation(eval_id, user.id)
+    if not evaluation:
+        raise HTTPException(status_code=404, detail="Evaluation not found")
+    return evaluation
+
+
+@router.post("/evaluations/{eval_id}/resume", response_model=view_models.Evaluation)
+async def resume_evaluation(
+    eval_id: str,
+    user: User = Depends(current_user),
+):
+    evaluation = await evaluation_service.resume_evaluation(eval_id, user.id)
+    if not evaluation:
+        raise HTTPException(status_code=404, detail="Evaluation not found")
+    return evaluation
+
+
+@router.post("/evaluations/{eval_id}/retry", response_model=view_models.Evaluation)
+async def retry_evaluation(
+    eval_id: str,
+    user: User = Depends(current_user),
+):
+    evaluation = await evaluation_service.retry_failed_items(eval_id, user.id)
+    if not evaluation:
+        raise HTTPException(status_code=404, detail="Evaluation not found")
+    return evaluation
+
+
+@router.post(
+    "/evaluations/chat_with_agent",
+    response_model=view_models.EvaluationChatWithAgentResponse,
+)
+async def chat_with_agent_for_evaluation(
+    request: view_models.EvaluationChatWithAgentRequest,
+    user: User = Depends(current_user),
+):
+    """
+    (Internal) Handles a chat request for an evaluation item.
+    This endpoint is called by the Celery worker to execute agent logic in the FastAPI process.
+    """
+    if user is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    agent_service = AgentChatService()
+    try:
+        collection = await collection_service.get_collection(user.id, request.collection_id)
+        if not collection:
+            raise CollectionNotFoundException(f"Collection {request.collection_id} not found.")
+        collections = [collection]
+    except CollectionNotFoundException as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    result = await agent_service.chat_for_evaluation(
+        query=request.question_text,
+        user_id=user.id,
+        model_name=request.agent_llm_config.model_name,
+        model_service_provider=request.agent_llm_config.model_service_provider,
+        custom_llm_provider=request.agent_llm_config.custom_llm_provider,
+        collections=collections,
+        language=request.language or "en-US",
+    )
+
+    # AgentErrorResponse is a TypedDict, which does not support instance checks,
+    # so we check the type field.
+    if isinstance(result, dict) and result.get("type") == "error":
+        return view_models.AgentErrorResponse(
+            type="error",
+            id=result["id"],
+            data=result["data"],
+            timestamp=result["timestamp"],
+        )
+    elif isinstance(result, StoredChatMessage):
+        msgs = result.to_frontend_format()
+        return view_models.ChatSuccessResponse(messages=msgs)
+    else:
+        raise HTTPException(status_code=500, detail=f"Unknown response type, object: {result}")
 
 
 # endregion

@@ -26,7 +26,10 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Optional
 
+import redis.asyncio as async_redis
+
 from .protocols import LockProtocol
+from .utils import LockAcquisitionError
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +82,7 @@ class RedisLock(LockProtocol):
         retry_times: int = 3,
         retry_delay: float = 0.1,
         name: str = None,
+        redis_client: Optional[async_redis.Redis] = None,
     ):
         """
         Initialize the Redis lock.
@@ -100,12 +104,17 @@ class RedisLock(LockProtocol):
         self._retry_delay = retry_delay
         self._lock_value: Optional[str] = None
         self._is_locked = False
+        self._redis_client = redis_client
 
     async def _get_redis_client(self):
         """Get Redis client from shared connection manager."""
+        if self._redis_client:
+            return self._redis_client
+
         from aperag.db.redis_manager import RedisConnectionManager
 
-        return await RedisConnectionManager.get_async_client()
+        self._redis_client = await RedisConnectionManager.get_async_client()
+        return self._redis_client
 
     async def acquire(self, timeout: Optional[float] = None) -> bool:
         """
@@ -237,7 +246,7 @@ class RedisLock(LockProtocol):
         """Async context manager entry."""
         success = await self.acquire()
         if not success:
-            raise RuntimeError(f"Failed to acquire Redis lock '{self._key}'")
+            raise LockAcquisitionError(f"Failed to acquire Redis lock '{self._key}'")
         return self
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
@@ -305,7 +314,7 @@ async def redis_lock_with_renewal(lock: RedisLock, renewal_interval: int = 10):
 
     try:
         if not await lock.acquire():
-            raise RuntimeError(f"Failed to acquire lock '{lock.get_name()}'")
+            raise LockAcquisitionError(f"Failed to acquire lock '{lock.get_name()}'")
 
         watchdog_task = asyncio.create_task(watchdog())
         yield lock

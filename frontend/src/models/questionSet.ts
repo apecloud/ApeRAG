@@ -1,4 +1,4 @@
-import { EvaluationApi } from '@/api';
+import { EvaluationApi } from '@/api/apis/evaluation-api';
 import { QuestionSet } from '@/api/models';
 import { useRequest } from 'ahooks';
 
