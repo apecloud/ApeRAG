@@ -32,15 +32,22 @@ export const GlobalProvider = ({
       if (options.type === 'local') {
         const { data } = signInLocalSchema.safeParse(options.data);
         if (!data) return;
-        const res = await apiClient.defaultApi.loginPost({
-          login: {
-            username: data.username,
-            password: data.password,
-          },
-        });
-        if (res.status === 200) {
-          setUser(res.data);
-          router.push(`/workspace`);
+
+        try {
+          const res = await apiClient.defaultApi.loginPost({
+            login: {
+              username: data.username,
+              password: data.password,
+            },
+          });
+
+          if (res.status === 200) {
+            setUser(res.data);
+            router.push(`/workspace`);
+          }
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch (err) {
+          toast.error('Invalid credentials');
         }
       }
 
