@@ -1,4 +1,4 @@
-import { Button, Form, message, Input, Select } from 'antd';
+import { Button, Form, Input, Select, App } from 'antd';
 import { useIntl, history, useModel } from 'umi';
 import { useEffect, useState } from 'react';
 import { EvaluationApi } from '@/api/apis/evaluation-api';
@@ -9,8 +9,9 @@ import { ModelSelect } from '@/components';
 const { Option } = Select;
 const evaluationApi = new EvaluationApi();
 
-const NewEvaluation = () => {
+const NewEvaluationContent = () => {
   const intl = useIntl();
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [namePlaceholder, setNamePlaceholder] = useState('');
   const { collections, getCollections } = useModel('collection');
@@ -218,5 +219,11 @@ const NewEvaluation = () => {
     </PageContainer>
   );
 };
+
+const NewEvaluation = () => (
+  <App>
+    <NewEvaluationContent />
+  </App>
+);
 
 export default NewEvaluation;

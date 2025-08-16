@@ -23,8 +23,6 @@ import redis.asyncio as async_redis
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-from aperag.agent.response_types import AgentErrorResponse
-from aperag.chat.history.message import StoredChatMessagePart
 from aperag.config import get_async_session
 from aperag.db.models import (
     Evaluation,
@@ -39,6 +37,7 @@ from aperag.db.redis_manager import RedisConnectionManager
 from aperag.exceptions import CollectionNotFoundException
 from aperag.llm.completion.base_completion import get_completion_service
 from aperag.schema import view_models
+from aperag.service.collection_service import collection_service
 from aperag.utils import llm_response
 from aperag.utils.utils import utc_now
 
@@ -130,7 +129,6 @@ class EvaluationExecutor:
         status to RUNNING.
         """
         # This import is deferred to avoid circular dependency issues with Celery tasks.
-        from aperag.service.collection_service import CollectionService
         from config.celery_tasks import process_evaluation_batch_task
 
         logger.info(f"Initializing evaluation {evaluation_id}")
@@ -141,45 +139,14 @@ class EvaluationExecutor:
                     logger.error(f"Evaluation {evaluation_id} not found.")
                     return
 
-                # 1. Basic configuration checks
-                question_set = await session.get(QuestionSet, evaluation.question_set_id)
-                if not question_set:
-                    raise ValueError("QuestionSet not found.")
-
-                stmt_questions = select(Question).where(Question.question_set_id == evaluation.question_set_id)
-                questions = (await session.execute(stmt_questions)).scalars().all()
-                if not questions:
-                    raise ValueError("QuestionSet contains no questions.")
-
-                try:
-                    collection_service = CollectionService(session=session)
-                    await collection_service.get_collection(evaluation.user_id, evaluation.collection_id)
-                except CollectionNotFoundException:
-                    raise ValueError("Collection not found.")
-
-                if not evaluation.agent_llm_config or not evaluation.judge_llm_config:
-                    raise ValueError("LLM configuration is missing.")
-
-                # 2. Transition status to RUNNING and create result entries in a transaction
-                async with session.begin_nested():
-                    evaluation.status = EvaluationStatus.RUNNING
-                    evaluation.total_questions = len(questions)
-                    session.add(evaluation)
-
-                    for question in questions:
-                        eval_item = EvaluationItem(
-                            evaluation_id=evaluation.id,
-                            question_id=question.id,
-                            question_text=question.question_text,
-                            ground_truth=question.ground_truth,
-                            status=EvaluationItemStatus.PENDING,
-                        )
-                        session.add(eval_item)
+                # Transition status to RUNNING
+                evaluation.status = EvaluationStatus.RUNNING
+                session.add(evaluation)
 
                 await session.commit()
                 logger.info(f"Evaluation {evaluation.id} successfully initialized and set to RUNNING.")
 
-                # 3. Trigger process_evaluation_task to start processing
+                # Trigger process_evaluation_task to start processing
                 process_evaluation_batch_task.delay(evaluation.id)
 
             except Exception as e:
@@ -543,6 +510,30 @@ class EvaluationService:
 
     async def create_evaluation(self, request: view_models.EvaluationCreate, user_id: str) -> Evaluation:
         """Creates a new evaluation task."""
+
+        # Basic configuration checks
+        question_set = await self.db_ops.get_question_set_by_id(request.question_set_id, user_id)
+        if not question_set:
+            raise ValueError("QuestionSet not found.")
+
+        questions = await self.db_ops.list_all_questions_by_set_id(request.question_set_id)
+        if not questions:
+            raise ValueError("QuestionSet contains no questions.")
+
+        try:
+            await collection_service.get_collection(user_id, request.collection_id)
+        except CollectionNotFoundException:
+            raise ValueError("Collection not found.")
+
+        def check_llm_config(cfg: view_models.LLMConfig):
+            if not cfg.model_name or not cfg.model_service_provider or not cfg.custom_llm_provider:
+                return False
+            return True
+
+        if not check_llm_config(request.agent_llm_config) or not check_llm_config(request.judge_llm_config):
+            raise ValueError("LLM configuration is missing.")
+
+        # Create evaluation
         db_evaluation = Evaluation(
             user_id=user_id,
             name=request.name,
@@ -550,8 +541,10 @@ class EvaluationService:
             question_set_id=request.question_set_id,
             agent_llm_config=request.agent_llm_config.model_dump(),
             judge_llm_config=request.judge_llm_config.model_dump(),
+            total_questions=len(questions),
+            status=EvaluationStatus.PENDING,
         )
-        evaluation = await self.db_ops.create_evaluation(db_evaluation)
+        evaluation = await self.db_ops.create_evaluation(db_evaluation, questions)
         if evaluation:
             # Trigger the scheduler to pick it up
             from config.celery_tasks import reconcile_evaluations_task

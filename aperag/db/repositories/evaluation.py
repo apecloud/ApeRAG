@@ -17,19 +17,32 @@ from typing import List
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.db.models import Evaluation, EvaluationItem, EvaluationItemStatus, EvaluationStatus
+from aperag.db.models import Evaluation, EvaluationItem, EvaluationItemStatus, EvaluationStatus, Question
 from aperag.db.repositories.base import AsyncRepositoryProtocol
 from aperag.utils.utils import utc_now
 
 
 class AsyncEvaluationRepositoryMixin(AsyncRepositoryProtocol):
-    async def create_evaluation(self, evaluation: Evaluation) -> Evaluation:
+    async def create_evaluation(self, evaluation: Evaluation, questions: List[Question]) -> Evaluation:
         """Creates a new evaluation."""
 
         async def _operation(session: AsyncSession):
+            # Insert evaluation into db and retrieve the id
             session.add(evaluation)
             await session.flush()
             await session.refresh(evaluation)
+
+            for question in questions:
+                eval_item = EvaluationItem(
+                    evaluation_id=evaluation.id,
+                    question_id=question.id,
+                    question_text=question.question_text,
+                    ground_truth=question.ground_truth,
+                    status=EvaluationItemStatus.PENDING,
+                )
+                session.add(eval_item)
+
+            await session.flush()
             return evaluation
 
         return await self.execute_with_transaction(_operation)
