@@ -124,6 +124,8 @@ export * from './question-set-list';
 export * from './question-set-update';
 export * from './question-type';
 export * from './question-update';
+export * from './questions-add';
+export * from './questions-add-questions-inner';
 export * from './quota-info';
 export * from './quota-update-request';
 export * from './quota-update-response';

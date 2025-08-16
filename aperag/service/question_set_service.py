@@ -76,15 +76,18 @@ class QuestionSetService:
         """Deletes a question set."""
         return await self.db_ops.delete_question_set_by_id(qs_id, user_id)
 
-    async def add_question(self, qs_id: str, request: view_models.Question) -> Question | None:
-        """Adds a question to a question set."""
-        db_question = Question(
-            question_set_id=qs_id,
-            question_type=request.question_type,
-            question_text=request.question_text,
-            ground_truth=request.ground_truth,
-        )
-        return await self.db_ops.create_question(db_question)
+    async def add_questions(self, qs_id: str, request: view_models.QuestionsAdd) -> list[Question]:
+        """Adds multiple questions to a question set."""
+        questions_to_create = [
+            Question(
+                question_set_id=qs_id,
+                question_text=q.question_text,
+                ground_truth=q.ground_truth,
+                question_type=q.question_type,
+            )
+            for q in request.questions
+        ]
+        return await self.db_ops.create_questions_in_bulk(questions_to_create)
 
     async def update_question(self, q_id: str, request: view_models.QuestionUpdate) -> Question | None:
         """Updates a question."""

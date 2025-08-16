@@ -3700,32 +3700,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/QuestionSet'
-  /question-sets/upload:
-    post:
-      tags:
-        - evaluation
-      summary: Upload a file to create a question set
-      security:
-        - BearerAuth: []
-      operationId: upload_question_set_api_v1_question_sets_upload_post
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required:
-                - file
-              properties:
-                file:
-                  type: string
-                  format: binary
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/QuestionSet'
   /question-sets/generate:
     post:
       tags:
@@ -3812,10 +3786,10 @@ paths:
     post:
       tags:
         - evaluation
-      summary: Add a question to a question set
+      summary: Add questions to a question set
       security:
         - BearerAuth: []
-      operationId: add_question_api_v1_question_sets__qs_id__questions_post
+      operationId: add_questions_api_v1_question_sets__qs_id__questions_post
       parameters:
         - name: qs_id
           in: path
@@ -3826,14 +3800,16 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Question'
+              $ref: '#/components/schemas/QuestionsAdd'
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Question'
+                type: array
+                items:
+                  $ref: '#/components/schemas/Question'
   /question-sets/{qs_id}/questions/{q_id}:
     put:
       tags:
@@ -7444,6 +7420,25 @@ components:
           type: string
         description:
           type: string
+    QuestionsAdd:
+      type: object
+      required:
+        - questions
+      properties:
+        questions:
+          type: array
+          items:
+            type: object
+            required:
+              - question_text
+              - ground_truth
+            properties:
+              question_text:
+                type: string
+              ground_truth:
+                type: string
+              question_type:
+                $ref: '#/components/schemas/QuestionType'
     QuestionUpdate:
       type: object
       properties:
@@ -7599,7 +7594,7 @@ components:
               type: object
             judge_llm_config:
               type: object
-        results:
+        items:
           type: array
           items:
             $ref: '#/components/schemas/EvaluationItem'

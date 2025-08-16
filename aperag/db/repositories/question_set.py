@@ -147,6 +147,16 @@ class AsyncQuestionSetRepositoryMixin(AsyncRepositoryProtocol):
 
         return await self.execute_with_transaction(_operation)
 
+    async def create_questions_in_bulk(self, questions: list[Question]) -> list[Question]:
+        """Creates multiple questions in a single transaction."""
+
+        async def _operation(session: AsyncSession):
+            session.add_all(questions)
+            await session.flush()
+            return questions
+
+        return await self.execute_with_transaction(_operation)
+
     async def update_question(
         self, q_id: str, question_text: Optional[str], ground_truth: Optional[str], question_type: Optional[str]
     ) -> Question | None:

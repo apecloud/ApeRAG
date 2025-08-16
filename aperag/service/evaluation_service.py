@@ -595,7 +595,7 @@ class EvaluationService:
                 agent_llm_config=db_eval.agent_llm_config,
                 judge_llm_config=db_eval.judge_llm_config,
             ),
-            results=[],  # Results will be loaded separately in the view
+            items=[],  # Results will be loaded separately in the view
         )
         return eval_detail
 

@@ -187,8 +187,6 @@ paths:
   # evaluation
   /question-sets:
     $ref: './paths/evaluations.yaml#/question_sets'
-  /question-sets/upload:
-    $ref: './paths/evaluations.yaml#/uploadQuestionSet'
   /question-sets/generate:
     $ref: './paths/evaluations.yaml#/generateQuestionSet'
   /question-sets/{qs_id}:

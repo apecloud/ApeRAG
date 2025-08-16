@@ -49,6 +49,8 @@ import type { QuestionSetList } from '../models';
 import type { QuestionSetUpdate } from '../models';
 // @ts-ignore
 import type { QuestionUpdate } from '../models';
+// @ts-ignore
+import type { QuestionsAdd } from '../models';
 /**
  * EvaluationApi - axios parameter creator
  * @export
@@ -57,15 +59,15 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
     return {
         /**
          * 
-         * @summary Add a question to a question set
+         * @summary Add questions to a question set
          * @param {string} qsId 
-         * @param {Question} [question] 
+         * @param {QuestionsAdd} [questionsAdd] 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        addQuestionApiV1QuestionSetsQsIdQuestionsPost: async (qsId: string, question?: Question, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        addQuestionsApiV1QuestionSetsQsIdQuestionsPost: async (qsId: string, questionsAdd?: QuestionsAdd, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'qsId' is not null or undefined
-            assertParamExists('addQuestionApiV1QuestionSetsQsIdQuestionsPost', 'qsId', qsId)
+            assertParamExists('addQuestionsApiV1QuestionSetsQsIdQuestionsPost', 'qsId', qsId)
             const localVarPath = `/question-sets/{qs_id}/questions`
                 .replace(`{${"qs_id"}}`, encodeURIComponent(String(qsId)));
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
@@ -90,7 +92,7 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
             setSearchParams(localVarUrlObj, localVarQueryParameter);
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
-            localVarRequestOptions.data = serializeDataIfNeeded(question, localVarRequestOptions, configuration)
+            localVarRequestOptions.data = serializeDataIfNeeded(questionsAdd, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -733,51 +735,6 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
                 options: localVarRequestOptions,
             };
         },
-        /**
-         * 
-         * @summary Upload a file to create a question set
-         * @param {File} file 
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        uploadQuestionSetApiV1QuestionSetsUploadPost: async (file: File, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
-            // verify required parameter 'file' is not null or undefined
-            assertParamExists('uploadQuestionSetApiV1QuestionSetsUploadPost', 'file', file)
-            const localVarPath = `/question-sets/upload`;
-            // use dummy base URL string because the URL constructor only accepts absolute URLs.
-            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
-            let baseOptions;
-            if (configuration) {
-                baseOptions = configuration.baseOptions;
-            }
-
-            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
-            const localVarHeaderParameter = {} as any;
-            const localVarQueryParameter = {} as any;
-            const localVarFormParams = new ((configuration && configuration.formDataCtor) || FormData)();
-
-            // authentication BearerAuth required
-            // http bearer authentication required
-            await setBearerAuthToObject(localVarHeaderParameter, configuration)
-
-
-            if (file !== undefined) { 
-                localVarFormParams.append('file', file as any);
-            }
-    
-    
-            localVarHeaderParameter['Content-Type'] = 'multipart/form-data';
-    
-            setSearchParams(localVarUrlObj, localVarQueryParameter);
-            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
-            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
-            localVarRequestOptions.data = localVarFormParams;
-
-            return {
-                url: toPathString(localVarUrlObj),
-                options: localVarRequestOptions,
-            };
-        },
     }
 };
 
@@ -790,16 +747,16 @@ export const EvaluationApiFp = function(configuration?: Configuration) {
     return {
         /**
          * 
-         * @summary Add a question to a question set
+         * @summary Add questions to a question set
          * @param {string} qsId 
-         * @param {Question} [question] 
+         * @param {QuestionsAdd} [questionsAdd] 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async addQuestionApiV1QuestionSetsQsIdQuestionsPost(qsId: string, question?: Question, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<Question>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.addQuestionApiV1QuestionSetsQsIdQuestionsPost(qsId, question, options);
+        async addQuestionsApiV1QuestionSetsQsIdQuestionsPost(qsId: string, questionsAdd?: QuestionsAdd, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<Array<Question>>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.addQuestionsApiV1QuestionSetsQsIdQuestionsPost(qsId, questionsAdd, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
-            const localVarOperationServerBasePath = operationServerMap['EvaluationApi.addQuestionApiV1QuestionSetsQsIdQuestionsPost']?.[localVarOperationServerIndex]?.url;
+            const localVarOperationServerBasePath = operationServerMap['EvaluationApi.addQuestionsApiV1QuestionSetsQsIdQuestionsPost']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
@@ -1016,19 +973,6 @@ export const EvaluationApiFp = function(configuration?: Configuration) {
             const localVarOperationServerBasePath = operationServerMap['EvaluationApi.updateQuestionSetApiV1QuestionSetsQsIdPut']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
-        /**
-         * 
-         * @summary Upload a file to create a question set
-         * @param {File} file 
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        async uploadQuestionSetApiV1QuestionSetsUploadPost(file: File, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<QuestionSet>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.uploadQuestionSetApiV1QuestionSetsUploadPost(file, options);
-            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
-            const localVarOperationServerBasePath = operationServerMap['EvaluationApi.uploadQuestionSetApiV1QuestionSetsUploadPost']?.[localVarOperationServerIndex]?.url;
-            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
-        },
     }
 };
 
@@ -1041,13 +985,13 @@ export const EvaluationApiFactory = function (configuration?: Configuration, bas
     return {
         /**
          * 
-         * @summary Add a question to a question set
-         * @param {EvaluationApiAddQuestionApiV1QuestionSetsQsIdQuestionsPostRequest} requestParameters Request parameters.
+         * @summary Add questions to a question set
+         * @param {EvaluationApiAddQuestionsApiV1QuestionSetsQsIdQuestionsPostRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        addQuestionApiV1QuestionSetsQsIdQuestionsPost(requestParameters: EvaluationApiAddQuestionApiV1QuestionSetsQsIdQuestionsPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<Question> {
-            return localVarFp.addQuestionApiV1QuestionSetsQsIdQuestionsPost(requestParameters.qsId, requestParameters.question, options).then((request) => request(axios, basePath));
+        addQuestionsApiV1QuestionSetsQsIdQuestionsPost(requestParameters: EvaluationApiAddQuestionsApiV1QuestionSetsQsIdQuestionsPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<Array<Question>> {
+            return localVarFp.addQuestionsApiV1QuestionSetsQsIdQuestionsPost(requestParameters.qsId, requestParameters.questionsAdd, options).then((request) => request(axios, basePath));
         },
         /**
          * This is an internal endpoint used by the evaluation service to run the agent chat logic in the main FastAPI process, avoiding issues with Celery\'s execution context. It should be protected by an internal API key. 
@@ -1209,16 +1153,6 @@ export const EvaluationApiFactory = function (configuration?: Configuration, bas
         updateQuestionSetApiV1QuestionSetsQsIdPut(requestParameters: EvaluationApiUpdateQuestionSetApiV1QuestionSetsQsIdPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<QuestionSet> {
             return localVarFp.updateQuestionSetApiV1QuestionSetsQsIdPut(requestParameters.qsId, requestParameters.questionSetUpdate, options).then((request) => request(axios, basePath));
         },
-        /**
-         * 
-         * @summary Upload a file to create a question set
-         * @param {EvaluationApiUploadQuestionSetApiV1QuestionSetsUploadPostRequest} requestParameters Request parameters.
-         * @param {*} [options] Override http request option.
-         * @throws {RequiredError}
-         */
-        uploadQuestionSetApiV1QuestionSetsUploadPost(requestParameters: EvaluationApiUploadQuestionSetApiV1QuestionSetsUploadPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<QuestionSet> {
-            return localVarFp.uploadQuestionSetApiV1QuestionSetsUploadPost(requestParameters.file, options).then((request) => request(axios, basePath));
-        },
     };
 };
 
@@ -1230,13 +1164,13 @@ export const EvaluationApiFactory = function (configuration?: Configuration, bas
 export interface EvaluationApiInterface {
     /**
      * 
-     * @summary Add a question to a question set
-     * @param {EvaluationApiAddQuestionApiV1QuestionSetsQsIdQuestionsPostRequest} requestParameters Request parameters.
+     * @summary Add questions to a question set
+     * @param {EvaluationApiAddQuestionsApiV1QuestionSetsQsIdQuestionsPostRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof EvaluationApiInterface
      */
-    addQuestionApiV1QuestionSetsQsIdQuestionsPost(requestParameters: EvaluationApiAddQuestionApiV1QuestionSetsQsIdQuestionsPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<Question>;
+    addQuestionsApiV1QuestionSetsQsIdQuestionsPost(requestParameters: EvaluationApiAddQuestionsApiV1QuestionSetsQsIdQuestionsPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<Array<Question>>;
 
     /**
      * This is an internal endpoint used by the evaluation service to run the agent chat logic in the main FastAPI process, avoiding issues with Celery\'s execution context. It should be protected by an internal API key. 
@@ -1398,37 +1332,27 @@ export interface EvaluationApiInterface {
      */
     updateQuestionSetApiV1QuestionSetsQsIdPut(requestParameters: EvaluationApiUpdateQuestionSetApiV1QuestionSetsQsIdPutRequest, options?: RawAxiosRequestConfig): AxiosPromise<QuestionSet>;
 
-    /**
-     * 
-     * @summary Upload a file to create a question set
-     * @param {EvaluationApiUploadQuestionSetApiV1QuestionSetsUploadPostRequest} requestParameters Request parameters.
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof EvaluationApiInterface
-     */
-    uploadQuestionSetApiV1QuestionSetsUploadPost(requestParameters: EvaluationApiUploadQuestionSetApiV1QuestionSetsUploadPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<QuestionSet>;
-
 }
 
 /**
- * Request parameters for addQuestionApiV1QuestionSetsQsIdQuestionsPost operation in EvaluationApi.
+ * Request parameters for addQuestionsApiV1QuestionSetsQsIdQuestionsPost operation in EvaluationApi.
  * @export
- * @interface EvaluationApiAddQuestionApiV1QuestionSetsQsIdQuestionsPostRequest
+ * @interface EvaluationApiAddQuestionsApiV1QuestionSetsQsIdQuestionsPostRequest
  */
-export interface EvaluationApiAddQuestionApiV1QuestionSetsQsIdQuestionsPostRequest {
+export interface EvaluationApiAddQuestionsApiV1QuestionSetsQsIdQuestionsPostRequest {
     /**
      * 
      * @type {string}
-     * @memberof EvaluationApiAddQuestionApiV1QuestionSetsQsIdQuestionsPost
+     * @memberof EvaluationApiAddQuestionsApiV1QuestionSetsQsIdQuestionsPost
      */
     readonly qsId: string
 
     /**
      * 
-     * @type {Question}
-     * @memberof EvaluationApiAddQuestionApiV1QuestionSetsQsIdQuestionsPost
+     * @type {QuestionsAdd}
+     * @memberof EvaluationApiAddQuestionsApiV1QuestionSetsQsIdQuestionsPost
      */
-    readonly question?: Question
+    readonly questionsAdd?: QuestionsAdd
 }
 
 /**
@@ -1698,20 +1622,6 @@ export interface EvaluationApiUpdateQuestionSetApiV1QuestionSetsQsIdPutRequest {
 }
 
 /**
- * Request parameters for uploadQuestionSetApiV1QuestionSetsUploadPost operation in EvaluationApi.
- * @export
- * @interface EvaluationApiUploadQuestionSetApiV1QuestionSetsUploadPostRequest
- */
-export interface EvaluationApiUploadQuestionSetApiV1QuestionSetsUploadPostRequest {
-    /**
-     * 
-     * @type {File}
-     * @memberof EvaluationApiUploadQuestionSetApiV1QuestionSetsUploadPost
-     */
-    readonly file: File
-}
-
-/**
  * EvaluationApi - object-oriented interface
  * @export
  * @class EvaluationApi
@@ -1720,14 +1630,14 @@ export interface EvaluationApiUploadQuestionSetApiV1QuestionSetsUploadPostReques
 export class EvaluationApi extends BaseAPI implements EvaluationApiInterface {
     /**
      * 
-     * @summary Add a question to a question set
-     * @param {EvaluationApiAddQuestionApiV1QuestionSetsQsIdQuestionsPostRequest} requestParameters Request parameters.
+     * @summary Add questions to a question set
+     * @param {EvaluationApiAddQuestionsApiV1QuestionSetsQsIdQuestionsPostRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof EvaluationApi
      */
-    public addQuestionApiV1QuestionSetsQsIdQuestionsPost(requestParameters: EvaluationApiAddQuestionApiV1QuestionSetsQsIdQuestionsPostRequest, options?: RawAxiosRequestConfig) {
-        return EvaluationApiFp(this.configuration).addQuestionApiV1QuestionSetsQsIdQuestionsPost(requestParameters.qsId, requestParameters.question, options).then((request) => request(this.axios, this.basePath));
+    public addQuestionsApiV1QuestionSetsQsIdQuestionsPost(requestParameters: EvaluationApiAddQuestionsApiV1QuestionSetsQsIdQuestionsPostRequest, options?: RawAxiosRequestConfig) {
+        return EvaluationApiFp(this.configuration).addQuestionsApiV1QuestionSetsQsIdQuestionsPost(requestParameters.qsId, requestParameters.questionsAdd, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -1920,18 +1830,6 @@ export class EvaluationApi extends BaseAPI implements EvaluationApiInterface {
      */
     public updateQuestionSetApiV1QuestionSetsQsIdPut(requestParameters: EvaluationApiUpdateQuestionSetApiV1QuestionSetsQsIdPutRequest, options?: RawAxiosRequestConfig) {
         return EvaluationApiFp(this.configuration).updateQuestionSetApiV1QuestionSetsQsIdPut(requestParameters.qsId, requestParameters.questionSetUpdate, options).then((request) => request(this.axios, this.basePath));
-    }
-
-    /**
-     * 
-     * @summary Upload a file to create a question set
-     * @param {EvaluationApiUploadQuestionSetApiV1QuestionSetsUploadPostRequest} requestParameters Request parameters.
-     * @param {*} [options] Override http request option.
-     * @throws {RequiredError}
-     * @memberof EvaluationApi
-     */
-    public uploadQuestionSetApiV1QuestionSetsUploadPost(requestParameters: EvaluationApiUploadQuestionSetApiV1QuestionSetsUploadPostRequest, options?: RawAxiosRequestConfig) {
-        return EvaluationApiFp(this.configuration).uploadQuestionSetApiV1QuestionSetsUploadPost(requestParameters.file, options).then((request) => request(this.axios, this.basePath));
     }
 }
 

@@ -76,7 +76,7 @@ export interface EvaluationDetail {
      * @type {Array<EvaluationItem>}
      * @memberof EvaluationDetail
      */
-    'results'?: Array<EvaluationItem>;
+    'items'?: Array<EvaluationItem>;
     /**
      * 
      * @type {string}

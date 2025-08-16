@@ -47,33 +47,6 @@ question_sets:
             schema:
               $ref: '../components/schemas/evaluation.yaml#/QuestionSet'
 
-uploadQuestionSet:
-  post:
-    tags:
-      - evaluation
-    summary: Upload a file to create a question set
-    security:
-      - BearerAuth: []
-    operationId: upload_question_set_api_v1_question_sets_upload_post
-    requestBody:
-      content:
-        multipart/form-data:
-          schema:
-            type: object
-            required:
-              - file
-            properties:
-              file:
-                type: string
-                format: binary
-    responses:
-      '200':
-        description: Successful Response
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/evaluation.yaml#/QuestionSet'
-
 generateQuestionSet:
   post:
     tags:
@@ -257,10 +230,10 @@ question_set_questions:
   post:
     tags:
       - evaluation
-    summary: Add a question to a question set
+    summary: Add questions to a question set
     security:
       - BearerAuth: []
-    operationId: add_question_api_v1_question_sets__qs_id__questions_post
+    operationId: add_questions_api_v1_question_sets__qs_id__questions_post
     parameters:
       - name: qs_id
         in: path
@@ -271,14 +244,16 @@ question_set_questions:
       content:
         application/json:
           schema:
-            $ref: '../components/schemas/evaluation.yaml#/Question'
+            $ref: '../components/schemas/evaluation.yaml#/QuestionsAdd'
     responses:
       '200':
         description: Successful Response
         content:
           application/json:
             schema:
-              $ref: '../components/schemas/evaluation.yaml#/Question'
+              type: array
+              items:
+                $ref: '../components/schemas/evaluation.yaml#/Question'
 
 question:
   put:

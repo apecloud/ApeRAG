@@ -12,13 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-from typing import Union
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, UploadFile
-
-from aperag.agent.response_types import AgentErrorResponse
-from aperag.chat.history.message import StoredChatMessage, StoredChatMessagePart
+from aperag.chat.history.message import StoredChatMessage
 from aperag.db.models import User
 from aperag.exceptions import CollectionNotFoundException
 from aperag.schema import view_models
@@ -54,15 +50,6 @@ async def create_question_set(
             status_code=400, detail=f"A question set can have a maximum of {MAX_QUESTIONS_PER_SET} questions."
         )
     return await question_set_service.create_question_set(request, user.id)
-
-
-@router.post("/question-sets/upload", response_model=view_models.QuestionSet)
-async def upload_question_set(
-    file: UploadFile,
-    user: User = Depends(current_user),
-):
-    # TODO: Implement file parsing and question creation logic
-    raise HTTPException(status_code=501, detail="Not Implemented")
 
 
 @router.post("/question-sets/generate", response_model=view_models.QuestionSetDetail)
@@ -128,26 +115,29 @@ async def delete_question_set(
     qs_id: str,
     user: User = Depends(current_user),
 ):
-    # TODO: check if the question set belongs to the user
     if not await question_set_service.delete_question_set(qs_id, user.id):
         raise HTTPException(status_code=404, detail="Question set not found")
 
 
-@router.post("/question-sets/{qs_id}/questions", response_model=view_models.Question)
-async def add_question(
+@router.post("/question-sets/{qs_id}/questions", response_model=list[view_models.Question])
+async def add_questions(
     qs_id: str,
-    request: view_models.Question,
+    request: view_models.QuestionsAdd,
     user: User = Depends(current_user),
 ):
-    # TODO: check if the question set belongs to the user
+    qs = await question_set_service.get_question_set(qs_id, user.id)
+    if not qs:
+        raise HTTPException(status_code=404, detail="Question set not found")
+
     # Get current question count
     _, total_questions = await question_set_service.list_questions_by_set_id(qs_id, page=1, page_size=1)
-    if total_questions >= MAX_QUESTIONS_PER_SET:
+    if total_questions + len(request.questions) > MAX_QUESTIONS_PER_SET:
         raise HTTPException(
-            status_code=400, detail=f"A question set can have a maximum of {MAX_QUESTIONS_PER_SET} questions."
+            status_code=400,
+            detail=f"Adding these questions would exceed the maximum of {MAX_QUESTIONS_PER_SET} questions per set.",
         )
 
-    return await question_set_service.add_question(qs_id, request)
+    return await question_set_service.add_questions(qs_id, request)
 
 
 @router.put("/question-sets/{qs_id}/questions/{q_id}", response_model=view_models.Question)
@@ -213,9 +203,9 @@ async def get_evaluation(
     if not evaluation_detail:
         raise HTTPException(status_code=404, detail="Evaluation not found")
 
-    # Load evaluation results for the detail view
-    results = await evaluation_service.get_evaluation_items(eval_id)
-    evaluation_detail.results = [
+    # Load evaluation items for the detail view
+    items = await evaluation_service.get_evaluation_items(eval_id)
+    evaluation_detail.items = [
         view_models.EvaluationItem(
             id=item.id,
             evaluation_id=item.evaluation_id,
@@ -230,7 +220,7 @@ async def get_evaluation(
             gmt_created=item.gmt_created,
             gmt_updated=item.gmt_updated,
         )
-        for item in results
+        for item in items
     ]
 
     return evaluation_detail

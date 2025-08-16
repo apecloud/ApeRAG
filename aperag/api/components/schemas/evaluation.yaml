@@ -218,6 +218,26 @@ EvaluationCreate:
     judge_llm_config:
       $ref: './evaluation.yaml#/LLMConfig'
 
+QuestionsAdd:
+  type: object
+  required:
+    - questions
+  properties:
+    questions:
+      type: array
+      items:
+        type: object
+        required:
+          - question_text
+          - ground_truth
+        properties:
+          question_text:
+            type: string
+          ground_truth:
+            type: string
+          question_type:
+            $ref: './evaluation.yaml#/QuestionType'
+
 QuestionSetDetail:
   type: object
   properties:
@@ -283,7 +303,7 @@ EvaluationDetail:
           type: object
         judge_llm_config:
           type: object
-    results:
+    items:
       type: array
       items:
         $ref: './evaluation.yaml#/EvaluationItem'

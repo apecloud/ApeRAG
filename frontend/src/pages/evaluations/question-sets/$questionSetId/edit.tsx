@@ -6,6 +6,7 @@ import {
   PlusOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
+import { QuestionType } from '@/api';
 import { EvaluationApi } from '@/api/apis/evaluation-api';
 import {
   App,
@@ -34,6 +35,7 @@ interface QuestionItem {
   key: number;
   question: string;
   ground_truth: string;
+  question_type?: QuestionType;
 }
 
 const QuestionSetDetailPage = () => {
@@ -75,6 +77,7 @@ const QuestionSetDetailPage = () => {
               key: i + 1,
               question: q.question_text || '',
               ground_truth: q.ground_truth || '',
+              question_type: q.question_type,
             })) || [];
           setQuestions(initialQuestions);
           setNextKey(initialQuestions.length + 1);
@@ -95,6 +98,7 @@ const QuestionSetDetailPage = () => {
       key: newKey,
       question: '',
       ground_truth: '',
+      question_type: QuestionType.USER_DEFINED,
     };
     setQuestions([...questions, newQuestion]);
     setAddedQuestions([...addedQuestions, newQuestion]);
@@ -283,19 +287,27 @@ const QuestionSetDetailPage = () => {
           questionUpdate: {
             question_text: q.question,
             ground_truth: q.ground_truth,
+            question_type: q.question_type,
           },
         }),
       );
 
       // 4. Add new questions
-      const addPromises = addedQuestions.map((q) =>
-        evaluationApi.addQuestionApiV1QuestionSetsQsIdQuestionsPost({
+      let addPromise: Promise<any> = Promise.resolve();
+      if (addedQuestions.length > 0) {
+        const questionsToAdd = addedQuestions.map(q => ({
+          question_text: q.question,
+          ground_truth: q.ground_truth,
+          question_type: q.question_type,
+        }));
+        addPromise = evaluationApi.addQuestionsApiV1QuestionSetsQsIdQuestionsPost({
           qsId,
-          question: { question_text: q.question, ground_truth: q.ground_truth },
-        }),
-      );
+          questionsAdd: { questions: questionsToAdd },
+        });
+      }
 
-      await Promise.all([...deletePromises, ...updatePromises, ...addPromises]);
+
+      await Promise.all([...deletePromises, ...updatePromises, addPromise]);
 
       message.success(formatMessage({ id: 'tips.update.success' }));
       // Reset tracking states and refresh data

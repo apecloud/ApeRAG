@@ -96,7 +96,7 @@ export default () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const hasFailedItems = useMemo(() => {
-    return currentEvaluation?.results?.some((item) => item.status === EvaluationItemStatus.FAILED) ?? false;
+    return currentEvaluation?.items?.some((item) => item.status === EvaluationItemStatus.FAILED) ?? false;
   }, [currentEvaluation]);
 
   const handleDelete = async () => {
@@ -182,7 +182,7 @@ export default () => {
     name,
     status,
     average_score,
-    results,
+    items,
     config,
     collection_name,
     question_set_name,
@@ -304,7 +304,7 @@ export default () => {
         </Row>
       </Card>
 
-      <div>{results?.map(renderResultItem)}</div>
+      <div>{items?.map(renderResultItem)}</div>
     </PageContainer>
   );
 };
