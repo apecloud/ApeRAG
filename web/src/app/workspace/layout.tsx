@@ -12,12 +12,14 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
+  SidebarSeparator,
 } from '@/components/ui/sidebar';
 import { getServerApi } from '@/lib/api/server';
 import {
   BatteryMedium,
   BookOpen,
   Key,
+  LayoutGrid,
   Logs,
   Package,
   Plus,
@@ -50,8 +52,18 @@ export default async function Layout({
             <AppLogo />
           </SidebarHeader>
           <SidebarContent className="gap-0">
-            <SidebarGroup className="mt-4">
+            <SidebarGroup>
+              <SidebarGroupLabel>Resources</SidebarGroupLabel>
               <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <Link href="/workspace/collections">
+                      <LayoutGrid />
+                      Marketplace
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
                     <Link href="/workspace/collections">
@@ -63,8 +75,8 @@ export default async function Layout({
               </SidebarMenu>
             </SidebarGroup>
 
-            <SidebarGroup>
-              <SidebarGroupLabel>Chats</SidebarGroupLabel>
+            <SidebarGroup className="pt-0">
+              {/* <SidebarGroupLabel>Chats</SidebarGroupLabel> */}
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem className="flex items-center gap-2">
@@ -77,10 +89,13 @@ export default async function Layout({
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </SidebarMenu>
+                <div className="h-300"></div>
               </SidebarGroupContent>
             </SidebarGroup>
+          </SidebarContent>
 
-            <SidebarGroup className="mt-auto">
+          <SidebarFooter className="gap-0 border-t">
+            <SidebarGroup>
               <SidebarGroupLabel>Settings</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
@@ -115,9 +130,7 @@ export default async function Layout({
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
-          </SidebarContent>
-
-          <SidebarFooter className="border-t">
+            <SidebarSeparator className="mx-0" />
             <AppUserDropdownMenu />
           </SidebarFooter>
         </Sidebar>
