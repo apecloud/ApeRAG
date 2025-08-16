@@ -12,16 +12,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-  SidebarSeparator,
 } from '@/components/ui/sidebar';
 import { getServerApi } from '@/lib/api/server';
-import {
-  ArrowLeft,
-  BatteryMedium,
-  Logs,
-  MonitorCog,
-  Package,
-} from 'lucide-react';
+import { BatteryMedium, Logs, MonitorCog, Package } from 'lucide-react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
@@ -52,10 +45,9 @@ export default async function Layout({
         <Sidebar>
           <SidebarHeader className="h-16 flex-row items-center gap-4 px-4 align-middle">
             <AppLogo />
-            <div className="text-lg font-bold">Admin</div>
           </SidebarHeader>
           <SidebarContent className="gap-0">
-            <SidebarSeparator />
+            {/* <SidebarSeparator />
             <SidebarGroup>
               <SidebarGroupContent>
                 <SidebarMenu>
@@ -69,7 +61,7 @@ export default async function Layout({
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
-            <SidebarSeparator />
+            <SidebarSeparator /> */}
 
             <SidebarGroup>
               <SidebarGroupLabel>Administrator</SidebarGroupLabel>

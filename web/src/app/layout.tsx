@@ -7,6 +7,8 @@ import NextTopLoader from 'nextjs-toploader';
 
 import { GlobalProvider } from '@/components/global-provider';
 import { ThemeProvider } from '@/components/theme-provider';
+
+import 'highlight.js/styles/github-dark.css';
 import './globals.css';
 
 const geistSans = Geist({
