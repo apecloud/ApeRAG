@@ -197,7 +197,7 @@ export function UsersDataTable({ data }: { data: User[] }) {
             <DropdownMenuContent align="end" className="w-32">
               <UserQuotaAction user={row.original}>
                 <DropdownMenuItem>
-                  <BatteryMedium /> Quota
+                  <BatteryMedium /> Quotas
                 </DropdownMenuItem>
               </UserQuotaAction>
               <DropdownMenuSeparator />

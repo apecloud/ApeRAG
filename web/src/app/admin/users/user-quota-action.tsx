@@ -47,7 +47,6 @@ export const UserQuotaAction = ({
 }) => {
   const [userQuotaInfo, setUserQuotaInfo] = useState<UserQuotaInfo>();
   const [visible, setVisible] = useState<boolean>(false);
-
   const quotaInfo = userQuotaInfo?.quotas;
 
   const form = useForm<z.infer<typeof quotaSchema>>({
@@ -77,13 +76,13 @@ export const UserQuotaAction = ({
     setUserQuotaInfo(data);
   }, [form, user.id]);
 
-  const updateUserQuota = useCallback(
+  const handleUpdateQuota = useCallback(
     async (values: z.infer<typeof quotaSchema>) => {
       const { data: params, error } = quotaSchema.safeParse(values);
-      if (!userQuotaInfo?.user_id || error) return;
+      if (!user.id || error) return;
 
       const res = await apiClient.quotasApi.quotasUserIdPut({
-        userId: userQuotaInfo.user_id,
+        userId: user.id,
         quotaUpdateRequest: params,
       });
       if (res.data.success) {
@@ -91,8 +90,19 @@ export const UserQuotaAction = ({
         setVisible(false);
       }
     },
-    [userQuotaInfo?.user_id],
+    [user.id],
   );
+
+  const handleRecalculate = useCallback(async () => {
+    if (!user.id) return;
+    const res = await apiClient.quotasApi.quotasUserIdRecalculatePost({
+      userId: user.id,
+    });
+    if (res.data.success) {
+      toast.success(res.data.message);
+      setVisible(false);
+    }
+  }, [user.id]);
 
   const content = useMemo(() => {
     if (_.isEmpty(quotaInfo)) {
@@ -169,7 +179,7 @@ export const UserQuotaAction = ({
       </DialogTrigger>
       <DialogContent>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(updateUserQuota)}>
+          <form onSubmit={form.handleSubmit(handleUpdateQuota)}>
             <DialogHeader>
               <DialogTitle>User quota</DialogTitle>
               <DialogDescription asChild>
@@ -182,15 +192,27 @@ export const UserQuotaAction = ({
 
             <div className="flex flex-col gap-6 py-8">{content}</div>
 
-            <DialogFooter>
+            <DialogFooter className="flex flex-col sm:justify-between">
               <Button
                 type="button"
-                variant="outline"
-                onClick={() => setVisible(false)}
+                variant="destructive"
+                onClick={() => handleRecalculate()}
+                disabled={_.isEmpty(quotaInfo)}
               >
-                Cancel
+                Recalculate Quotas
               </Button>
-              <Button type="submit">Save</Button>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setVisible(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={_.isEmpty(quotaInfo)}>
+                  Save
+                </Button>
+              </div>
             </DialogFooter>
           </form>
         </Form>

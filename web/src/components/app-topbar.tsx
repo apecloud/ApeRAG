@@ -15,7 +15,7 @@ import { useTheme } from 'next-themes';
 
 import Link from 'next/link';
 
-import { BadgeCheck, Bell, CreditCard, LogOut, Sparkles } from 'lucide-react';
+import { BadgeCheck, Bell, LogOut, Sparkles } from 'lucide-react';
 
 import { useGlobalContext } from '@/hooks/use-global-context';
 import { cn } from '@/lib/utils';
@@ -110,10 +110,7 @@ export const AppUserDropdownMenu = () => {
             <BadgeCheck />
             Account
           </DropdownMenuItem>
-          <DropdownMenuItem>
-            <CreditCard />
-            Billing
-          </DropdownMenuItem>
+
           <DropdownMenuItem>
             <Bell />
             Notifications
