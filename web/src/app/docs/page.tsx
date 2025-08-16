@@ -1,9 +1,5 @@
-import { PageContainer, PageHeader } from '@/components/page-container';
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-  return (
-    <PageContainer>
-      <PageHeader></PageHeader>
-    </PageContainer>
-  );
+  redirect('/docs/get-started');
 }
