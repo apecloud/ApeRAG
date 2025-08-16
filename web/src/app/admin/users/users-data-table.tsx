@@ -27,8 +27,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 import { User } from '@/api';
-import { TableList, TableListPagination } from '@/components/table-list';
 
+import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
@@ -238,8 +238,8 @@ export function UsersDataTable({ data }: { data: User[] }) {
           </DropdownMenu>
         </div>
       </div>
-      <TableList table={table} />
-      <TableListPagination table={table} />
+      <DataGrid table={table} />
+      <DataGridPagination table={table} />
     </div>
   );
 }

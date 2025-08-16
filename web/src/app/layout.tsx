@@ -4,9 +4,10 @@ import type { Metadata } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
 import { Geist, Geist_Mono } from 'next/font/google';
 import NextTopLoader from 'nextjs-toploader';
-import { GlobalProvider } from './global-provider';
+
+import { GlobalProvider } from '@/components/global-provider';
+import { ThemeProvider } from '@/components/theme-provider';
 import './globals.css';
-import { ThemeProvider } from './theme-provider';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',

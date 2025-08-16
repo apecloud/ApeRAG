@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ChevronsUpDown, Moon, Sun } from 'lucide-react';
+import { ChevronsUpDown, CircleQuestionMark, Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
 import Link from 'next/link';
@@ -24,7 +24,6 @@ import { FaGithub } from 'react-icons/fa6';
 import {
   NavigationMenu,
   NavigationMenuItem,
-  NavigationMenuLink,
   NavigationMenuList,
 } from './ui/navigation-menu';
 import { UserAvatar, UserAvatarProfile } from './user-avatar';
@@ -160,6 +159,15 @@ export const AppThemeDropdownMenu = () => {
   );
 };
 
+export const AppDocs = () => (
+  <Button variant="ghost" size="icon" asChild>
+    <Link href="/docs">
+      <CircleQuestionMark />
+      <span className="sr-only">Documents</span>
+    </Link>
+  </Button>
+);
+
 export const AppGithub = () => (
   <Button variant="ghost" size="icon" asChild>
     <Link target="_blank" href="https://github.com/apecloud/ApeRAG">
@@ -183,15 +191,16 @@ export const AppTopbar = ({ className }: React.ComponentProps<'div'>) => {
           <NavigationMenu>
             <NavigationMenuList>
               <NavigationMenuItem>
-                <NavigationMenuLink asChild className="hover:bg-accent/40 px-4">
+                {/* <NavigationMenuLink asChild className="hover:bg-accent/40 px-4">
                   <Link href="/workspace/collections">Workspace</Link>
-                </NavigationMenuLink>
+                </NavigationMenuLink> */}
               </NavigationMenuItem>
             </NavigationMenuList>
           </NavigationMenu>
         </div>
         <div className="flex flex-row items-center gap-2">
           <AppGithub />
+          <AppDocs />
           <AppThemeDropdownMenu />
           <AppUserDropdownMenu />
         </div>

@@ -30,8 +30,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-import { TableList, TableListPagination } from '@/components/table-list';
-
+import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { FormatDate } from '@/components/format-date';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -282,8 +281,8 @@ export const ProviderTable = ({
           </ProviderActions>
         </div>
       </div>
-      <TableList idKey="name" table={table} />
-      <TableListPagination table={table} />
+      <DataGrid table={table} />
+      <DataGridPagination table={table} />
     </div>
   );
 };
