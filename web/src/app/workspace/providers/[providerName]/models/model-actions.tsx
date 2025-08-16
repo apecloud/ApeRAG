@@ -219,21 +219,42 @@ export const ModelActions = ({
                             value={LlmProviderModelCreateApiEnum.completion}
                             id="completion"
                           />
-                          <Label htmlFor="completion">Completion</Label>
+                          <Label
+                            htmlFor="completion"
+                            className={
+                              model == undefined ? '' : 'text-muted-foreground'
+                            }
+                          >
+                            Completion
+                          </Label>
                         </div>
                         <div className="bg-card flex h-9 items-center gap-3 rounded-md border px-3">
                           <RadioGroupItem
                             value={LlmProviderModelCreateApiEnum.embedding}
                             id="embedding"
                           />
-                          <Label htmlFor="embedding">Embedding</Label>
+                          <Label
+                            htmlFor="embedding"
+                            className={
+                              model == undefined ? '' : 'text-muted-foreground'
+                            }
+                          >
+                            Embedding
+                          </Label>
                         </div>
                         <div className="bg-card flex h-9 items-center gap-3 rounded-md border px-3">
                           <RadioGroupItem
                             value={LlmProviderModelCreateApiEnum.rerank}
                             id="rerank"
                           />
-                          <Label htmlFor="rerank">Rerank</Label>
+                          <Label
+                            htmlFor="rerank"
+                            className={
+                              model == undefined ? '' : 'text-muted-foreground'
+                            }
+                          >
+                            Rerank
+                          </Label>
                         </div>
                       </RadioGroup>
 
