@@ -24,21 +24,21 @@ import {
   TableRow,
 } from './ui/table';
 
-type TableListPaginationProps<T = any> = {
+type DataGridPaginationProps<T = any> = {
   table: TanstackTable<T>;
 };
 
-type TableListProps<T = any> = {
+type DataGridProps<T = any> = {
   table: TanstackTable<T>;
   idKey?: string;
 };
 
-export const TableList = ({
+export const DataGrid = ({
   table,
   className,
   idKey = 'id',
   ...props
-}: TableListProps & React.ComponentProps<'div'>) => {
+}: DataGridProps & React.ComponentProps<'div'>) => {
   return (
     <div
       className={cn('overflow-hidden rounded-lg border', className)}
@@ -95,11 +95,11 @@ export const TableList = ({
   );
 };
 
-export const TableListPagination = ({
+export const DataGridPagination = ({
   table,
   className,
   ...props
-}: TableListPaginationProps & React.ComponentProps<'div'>) => {
+}: DataGridPaginationProps & React.ComponentProps<'div'>) => {
   return (
     <div
       className={cn('flex items-center justify-between', className)}

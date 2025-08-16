@@ -28,13 +28,13 @@ import {
 import { Input } from '@/components/ui/input';
 
 import { AuditApiListAuditLogsRequest, AuditLog } from '@/api';
-import { TableList, TableListPagination } from '@/components/table-list';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
+import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { DateTimePicker24h } from '@/components/date-time-picker-24h';
 import { cn } from '@/lib/utils';
 import _ from 'lodash';
@@ -270,8 +270,8 @@ export function AuditLogTable({
           </DropdownMenu>
         </div>
       </div>
-      <TableList table={table} />
-      <TableListPagination table={table} />
+      <DataGrid table={table} />
+      <DataGridPagination table={table} />
     </div>
   );
 }

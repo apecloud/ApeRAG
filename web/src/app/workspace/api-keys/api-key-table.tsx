@@ -46,7 +46,7 @@ import {
 
 import { ApiKeyActions } from './api-key-actions';
 
-import { TableList, TableListPagination } from '@/components/table-list';
+import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { Input } from '@/components/ui/input';
 export const schema = z.object({
   id: z.number(),
@@ -255,8 +255,8 @@ export function ApiKeyTable({ data }: { data: ApiKey[] }) {
           </ApiKeyActions>
         </div>
       </div>
-      <TableList table={table} />
-      <TableListPagination table={table} />
+      <DataGrid table={table} />
+      <DataGridPagination table={table} />
     </div>
   );
 }
