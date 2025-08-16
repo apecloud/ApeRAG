@@ -3,12 +3,12 @@ import { User } from '@/api';
 
 import { FaCircleUser } from 'react-icons/fa6';
 
-export const UserAvatar = ({ }: { user?: User }) => {
+export const UserAvatar = ({}: { user?: User }) => {
   const UserIcon = () => (
     <FaCircleUser className="text-muted-foreground/50 size-8" />
   );
 
-  return <UserIcon />
+  return <UserIcon />;
 
   // return user?.image ? (
   //   <Avatar className="h-8 w-8 overflow-hidden rounded-4xl">
