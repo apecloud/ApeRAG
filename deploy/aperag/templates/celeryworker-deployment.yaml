@@ -170,6 +170,8 @@ spec:
             - name: NEBULA_TIMEOUT
               value: {{ .Values.nebula.NEBULA_TIMEOUT | default "60000" | quote }}
             {{- end }}
+            - name: APERAG_API_BASE_URL
+              value: http://aperag:8000
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           name: aperag-celeryworker
           imagePullPolicy: {{ .Values.image.pullPolicy }}

@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 MAX_CONCURRENT_EVALUATIONS = int(os.getenv("MAX_CONCURRENT_EVALUATIONS", 5))
 MAX_CONCURRENT_PROCESSING_TASKS_PER_EVALUATION = int(os.getenv("MAX_CONCURRENT_PROCESSING_TASKS_PER_EVALUATION", 1))
 EVALUATION_ITEM_PROCESSING_TASK_TIMEOUT_MINUTES = int(os.getenv("EVALUATION_ITEM_PROCESSING_TASK_TIMEOUT_MINUTES", 15))
-APERAG_API_BASE_URL = os.getenv("APERAG_API_BASE_URL", "http://localhost:8000/api/v1")
+APERAG_API_BASE_URL = os.getenv("APERAG_API_BASE_URL", "http://localhost:8000")
 
 
 class EvaluationExecutor:
@@ -379,7 +379,7 @@ class EvaluationExecutor:
                 logger.error(error_msg)
                 raise RuntimeError(error_msg) from e
 
-        url = f"{APERAG_API_BASE_URL}/evaluations/chat_with_agent"
+        url = f"{APERAG_API_BASE_URL}/api/v1/evaluations/chat_with_agent"
         headers = {"Authorization": f"Bearer {aperag_api_key}", "Content-Type": "application/json"}
         payload = view_models.EvaluationChatWithAgentRequest(
             collection_id=evaluation.collection_id,
