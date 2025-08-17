@@ -94,7 +94,9 @@ export default async function Layout({
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>
             </TooltipTrigger>
-            <TooltipContent side="right">{item.title}</TooltipContent>
+            <TooltipContent side="right" className="opacity-80">
+              {item.title}
+            </TooltipContent>
           </Tooltip>
         );
       } else if (parentType === 'group') {
@@ -109,7 +111,9 @@ export default async function Layout({
                 </SidebarMenuItem>
               </SidebarMenu>
             </TooltipTrigger>
-            <TooltipContent side="right">{item.title}</TooltipContent>
+            <TooltipContent side="right" className="opacity-80">
+              {item.title}
+            </TooltipContent>
           </Tooltip>
         );
       } else {
@@ -128,7 +132,9 @@ export default async function Layout({
                 </SidebarGroupContent>
               </SidebarGroup>
             </TooltipTrigger>
-            <TooltipContent side="right">{item.title}</TooltipContent>
+            <TooltipContent side="right" className="opacity-80">
+              {item.title}
+            </TooltipContent>
           </Tooltip>
         );
       }
