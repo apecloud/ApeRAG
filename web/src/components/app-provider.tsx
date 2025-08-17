@@ -3,12 +3,13 @@ import {
   AppContext,
   signInLocalSchema,
   SignInOptions,
+  SignUpOptions,
 } from '@/hooks/use-app-context';
 import { toast } from 'sonner';
 
 import { User } from '@/api';
 import { apiClient } from '@/lib/api/client';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
 export const AppProvider = ({
@@ -19,17 +20,18 @@ export const AppProvider = ({
   children?: React.ReactNode;
 }) => {
   const [_user, setUser] = useState<User | undefined>(user);
-  const searchParams = useSearchParams();
 
   const router = useRouter();
   const handleSignIn = useCallback(
     async (options?: SignInOptions) => {
+      // redirect to sign in page
       if (options?.type === undefined) {
         const callbackUrl = encodeURIComponent(options?.redirectTo || '/');
         router.push(`/auth/signin?callbackUrl=${callbackUrl}`);
         return;
       }
 
+      // signin with local credentials
       if (options.type === 'local') {
         const { data } = signInLocalSchema.safeParse(options.data);
         if (!data) return;
@@ -41,7 +43,7 @@ export const AppProvider = ({
 
           if (res.status === 200) {
             setUser(res.data);
-            const callbackUrl = searchParams.get('callbackUrl') || '/workspace';
+            const callbackUrl = options.redirectTo || '/workspace';
             router.push(callbackUrl);
           }
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -50,15 +52,13 @@ export const AppProvider = ({
         }
       }
 
+      // signin with third-party account
       if (['github', 'google'].includes(options.type)) {
         try {
           const response = await fetch(
             `/api/v1/auth/${options.type}/authorize`,
           );
           const data = await response.json();
-
-          console.log(data);
-
           if (data.authorization_url) {
             window.location.href = data.authorization_url;
           }
@@ -68,7 +68,27 @@ export const AppProvider = ({
         }
       }
     },
-    [router, searchParams],
+    [router],
+  );
+
+  const handleSignUp = useCallback(
+    async (params: SignUpOptions) => {
+      try {
+        const res = await apiClient.defaultApi.registerPost({
+          register: params.data,
+        });
+        if (res.status === 200) {
+          toast.success('Registration successful');
+          router.push(
+            `/auth/signin?callbackUrl=${encodeURIComponent(params.redirectTo || '/')}`,
+          );
+        }
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (err) {
+        toast.error('Invalid credentials');
+      }
+    },
+    [router],
   );
 
   const handleSignOut = useCallback(async () => {
@@ -85,6 +105,7 @@ export const AppProvider = ({
         user: _user,
         signIn: handleSignIn,
         signOut: handleSignOut,
+        signUp: handleSignUp,
       }}
     >
       {children}

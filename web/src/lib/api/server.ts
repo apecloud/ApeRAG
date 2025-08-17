@@ -13,7 +13,7 @@ import axios from 'axios';
 const configuration = new Configuration();
 
 const request = axios.create({
-  baseURL: `${process.env.API_ENDPOINT}/api/v1`,
+  baseURL: `${process.env.API_ENDPOINT || 'http://localhost:8000'}/api/v1`,
   timeout: 1000 * 5,
 });
 

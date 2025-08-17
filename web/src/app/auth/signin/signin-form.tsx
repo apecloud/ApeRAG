@@ -13,13 +13,14 @@ import { Input } from '@/components/ui/input';
 import { signInLocalSchema, useAppContext } from '@/hooks/use-app-context';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { FaGithub, FaGoogle } from 'react-icons/fa6';
 import * as z from 'zod';
 
-export function LoginForm({
+export function SignInForm({
   className,
   methods,
   ...props
@@ -62,7 +63,7 @@ export function LoginForm({
 
   return (
     <div className={cn('flex flex-col gap-6', className)} {...props}>
-      <Card>
+      <Card className="bg-card/50">
         <CardContent>
           <div className="mb-8 text-center text-xl font-bold">Welcome back</div>
           {hasSocialLogin && (
@@ -122,12 +123,12 @@ export function LoginForm({
                   <FormItem>
                     <div className="flex justify-between">
                       <FormLabel>Password</FormLabel>
-                      <a
+                      <Link
                         href="#"
                         className="text-muted-foreground hover:text-primary text-xs underline-offset-4 hover:underline"
                       >
                         Forgot your password?
-                      </a>
+                      </Link>
                     </div>
                     <FormControl>
                       <Input
@@ -141,22 +142,26 @@ export function LoginForm({
               />
 
               <Button type="submit" className="w-full">
-                Login
+                Sign In
               </Button>
 
               <div className="text-center text-sm">
-                Don&apos;t have an account?{' '}
-                <a href="#" className="underline underline-offset-4">
+                Don&apos;t have an account? &nbsp;
+                <Link
+                  href={`/auth/signup?callbaclUrl=${encodeURIComponent(redirectTo)}`}
+                  className="underline underline-offset-4"
+                >
                   Sign up
-                </a>
+                </Link>
               </div>
             </form>
           </Form>
         </CardContent>
       </Card>
       <div className="text-muted-foreground *:[a]:hover:text-primary text-center text-xs text-balance *:[a]:underline *:[a]:underline-offset-4">
-        By clicking continue, you agree to our <a href="#">Terms of Service</a>
-        and <a href="#">Privacy Policy</a>.
+        By clicking continue, you agree to our{' '}
+        <Link href="#">Terms of Service</Link> and{' '}
+        <Link href="#">Privacy Policy</Link>.
       </div>
     </div>
   );
