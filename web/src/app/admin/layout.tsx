@@ -32,7 +32,7 @@ export default async function Layout({
   } catch (err) {}
 
   if (!user) {
-    redirect('/auth/signin');
+    redirect(`/auth/signin?callbackUrl=${encodeURIComponent('/admin')}`);
   }
 
   if (user.role !== 'admin') {

@@ -8,12 +8,12 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { useGlobalContext } from '@/hooks/use-global-context';
+import { useAppContext } from '@/hooks/use-app-context';
 
 import Link from 'next/link';
 
 export default function Page() {
-  const { signIn } = useGlobalContext();
+  const { signIn } = useAppContext();
   return (
     <div className="flex flex-col gap-6">
       <Card>
