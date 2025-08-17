@@ -36,7 +36,7 @@ export const PageHeader = ({
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
                 <Link
-                  href="/"
+                  href="/workspace"
                   className="text-foreground flex flex-row items-center gap-1"
                 >
                   <House className="size-4" />
