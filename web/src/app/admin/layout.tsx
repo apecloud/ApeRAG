@@ -47,21 +47,19 @@ export default async function Layout({
             <AppLogo />
           </SidebarHeader>
           <SidebarContent className="gap-0">
-            {/* <SidebarSeparator />
-            <SidebarGroup>
+            {/* <SidebarGroup>
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <Link href="/workspace/collections">
+                    <SidebarMenuButton asChild isActive>
+                      <Link href="/workspace">
                         <ArrowLeft /> My Workspace
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>
-            </SidebarGroup>
-            <SidebarSeparator /> */}
+            </SidebarGroup> */}
 
             <SidebarGroup>
               <SidebarGroupLabel>Administrator</SidebarGroupLabel>
