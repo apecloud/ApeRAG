@@ -13,7 +13,9 @@ const NewEvaluationContent = () => {
   const intl = useIntl();
   const { message } = App.useApp();
   const [form] = Form.useForm();
-  const [namePlaceholder, setNamePlaceholder] = useState('');
+  const [namePlaceholder, setNamePlaceholder] = useState(
+    intl.formatMessage({ id: 'evaluation.new.form.name.placeholder.auto' }),
+  );
   const { collections, getCollections } = useModel('collection');
   const { questionSets, refresh: refreshQuestionSets } = useModel('questionSet');
   const { getProviderByModelName, getAvailableModels } = useModel('models');
@@ -36,17 +38,27 @@ const NewEvaluationContent = () => {
     return `${year}${month}${day}${hours}${minutes}${seconds}`;
   };
 
-  const handleValuesChange = (changedValues: any) => {
-    if (changedValues.collection_id) {
+  const handleValuesChange = (changedValues: any, allValues: any) => {
+    const { collection_id, question_set_id } = allValues;
+
+    if (collection_id && question_set_id) {
       const selectedCollection = collections?.find(
-        (c) => c.id === changedValues.collection_id,
+        (c) => c.id === collection_id,
       );
-      if (selectedCollection) {
+      const selectedQuestionSet = questionSets?.find(
+        (qs) => qs.id === question_set_id,
+      );
+
+      if (selectedCollection && selectedQuestionSet) {
         const newName = `${
           selectedCollection.title
-        } - ${getFormattedTimestamp()}`;
+        }-${selectedQuestionSet.name} ${getFormattedTimestamp()}`;
         setNamePlaceholder(newName);
       }
+    } else {
+      setNamePlaceholder(
+        intl.formatMessage({ id: 'evaluation.new.form.name.placeholder.auto' }),
+      );
     }
   };
 
@@ -144,6 +156,29 @@ const NewEvaluationContent = () => {
               placeholder={intl.formatMessage({
                 id: 'evaluation.new.form.questionSet.placeholder',
               })}
+              dropdownRender={(menu) =>
+                questionSets && questionSets.length > 0 ? (
+                  menu
+                ) : (
+                  <div style={{ padding: 8, textAlign: 'center' }}>
+                    <p>
+                      {intl.formatMessage({
+                        id: 'evaluation.new.form.questionSet.empty',
+                      })}
+                    </p>
+                    <Button
+                      type="primary"
+                      onClick={() =>
+                        history.push('/evaluations/question-sets/new')
+                      }
+                    >
+                      {intl.formatMessage({
+                        id: 'evaluation.new.form.questionSet.create',
+                      })}
+                    </Button>
+                  </div>
+                )
+              }
             >
               {questionSets?.map((qs) => (
                 <Option key={qs.id} value={qs.id!}>

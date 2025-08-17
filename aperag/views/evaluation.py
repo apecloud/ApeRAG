@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from aperag.chat.history.message import StoredChatMessage
 from aperag.db.models import User
@@ -147,7 +147,10 @@ async def update_question(
     request: view_models.QuestionUpdate,
     user: User = Depends(current_user),
 ):
-    # TODO: check if the question set belongs to the user
+    qs = await question_set_service.get_question_set(qs_id, user.id)
+    if not qs:
+        raise HTTPException(status_code=404, detail="Question set not found")
+
     q = await question_set_service.update_question(q_id, request)
     if not q:
         raise HTTPException(status_code=404, detail="Question not found")
@@ -160,7 +163,10 @@ async def delete_question(
     q_id: str,
     user: User = Depends(current_user),
 ):
-    # TODO: check if the question set belongs to the user
+    qs = await question_set_service.get_question_set(qs_id, user.id)
+    if not qs:
+        raise HTTPException(status_code=404, detail="Question set not found")
+
     await question_set_service.delete_question(q_id)
 
 
@@ -260,9 +266,10 @@ async def resume_evaluation(
 @router.post("/evaluations/{eval_id}/retry", response_model=view_models.Evaluation)
 async def retry_evaluation(
     eval_id: str,
+    scope: str = Query("failed", enum=["failed", "all"]),
     user: User = Depends(current_user),
 ):
-    evaluation = await evaluation_service.retry_failed_items(eval_id, user.id)
+    evaluation = await evaluation_service.retry_evaluation(eval_id, user.id, scope)
     if not evaluation:
         raise HTTPException(status_code=404, detail="Evaluation not found")
     return evaluation

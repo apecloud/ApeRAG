@@ -1,8 +1,7 @@
-import { QuestionSet } from '@/api/models';
 import { NAVIGATION_WIDTH } from '@/constants';
-import { PlusOutlined } from '@ant-design/icons';
-import { Button, Divider, Flex, Skeleton, theme, Typography } from 'antd';
+import { Button, Divider, Flex, Menu, theme, Typography } from 'antd';
 import { Link, styled, useIntl, useLocation, useModel, useParams } from 'umi';
+import { ExperimentOutlined, ReadOutlined } from '@ant-design/icons';
 
 const { Title } = Typography;
 
@@ -15,23 +14,6 @@ const StyledNavbar = styled('div')`
   flex-direction: column;
 `;
 
-const StyledLink = styled(Link)`
-  display: block;
-  padding: 8px 12px;
-  border-radius: 6px;
-  color: ${(props) => props.theme.colorText};
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-
-  &:hover {
-    background-color: ${(props) => props.theme.controlItemBgHover};
-  }
-
-  &.active {
-    background-color: ${(props) => props.theme.controlItemBgActive};
-  }
-`;
 
 import { ArrowLeftOutlined } from '@ant-design/icons';
 
@@ -40,7 +22,7 @@ export const Navbar = () => {
   const { formatMessage } = useIntl();
   const location = useLocation();
   const params = useParams<{ questionSetId?: string; evaluationId?: string }>();
-  const { questionSets, loading, getQuestionSet } = useModel('questionSet');
+  const { getQuestionSet } = useModel('questionSet');
   const { currentEvaluation } = useModel('evaluation');
   const { questionSetId } = params;
 
@@ -50,49 +32,9 @@ export const Navbar = () => {
   const isEvaluationDetailPage =
     location.pathname.match(/^\/evaluations\/(eval_.+)/);
 
-  const renderQuestionSets = (
-    sets: QuestionSet[] | undefined,
-    isLoading: boolean,
-  ) => {
-    if (isLoading) {
-      return <Skeleton active paragraph={{ rows: 4 }} />;
-    }
-
-    if (!sets || sets.length === 0) {
-      return (
-        <Flex
-          style={{ color: token.colorTextTertiary, textAlign: 'center' }}
-          flex={1}
-          justify="center"
-          align="center"
-        >
-          {formatMessage({ id: 'text.empty' })}
-        </Flex>
-      );
-    }
-
-    return sets.map((set) => (
-      <StyledLink
-        key={set.id}
-        to={`/evaluations/question-sets/${set.id}`}
-        theme={token}
-        className={
-          location.pathname.startsWith(
-            `/evaluations/question-sets/${set.id}`,
-          )
-            ? 'active'
-            : ''
-        }
-        title={set.name}
-      >
-        {set.name}
-      </StyledLink>
-    ));
-  };
-
   const renderNavbarHeader = () => {
     let title = formatMessage({ id: 'evaluation.name' });
-    let backLink = '/evaluations'; // Correct back link
+    let backLink = '/evaluations';
     let showBackArrow = false;
     let entityName: string | undefined = undefined;
 
@@ -102,6 +44,7 @@ export const Navbar = () => {
     } else if (currentQuestionSet) {
       entityName = currentQuestionSet.name;
       showBackArrow = true;
+      backLink = '/evaluations/question-sets';
     }
 
     if (showBackArrow) {
@@ -133,37 +76,59 @@ export const Navbar = () => {
     );
   };
 
+  const getSelectedKeys = () => {
+    if (location.pathname.startsWith('/evaluations/question-sets')) {
+      return ['question-sets'];
+    }
+    if (location.pathname.startsWith('/evaluations')) {
+      return ['evaluations'];
+    }
+    return [];
+  };
+
   return (
     <StyledNavbar theme={token}>
-      <div style={{ marginBottom: 16, height: 32, display: 'flex', alignItems: 'center' }}>
+      <div
+        style={{
+          marginBottom: 16,
+          height: 32,
+          display: 'flex',
+          alignItems: 'center',
+        }}
+      >
         {renderNavbarHeader()}
       </div>
       <Divider style={{ margin: '0 0 16px 0' }} />
-      <Flex vertical flex={1} style={{ overflow: 'hidden' }}>
-        <Flex
-          justify="space-between"
-          align="center"
-          style={{ marginBottom: 8 }}
-        >
-          <Title level={5} style={{ margin: 0 }}>
-            {formatMessage({ id: 'evaluation.question_sets' })}
-          </Title>
-          <Link to="/evaluations/question-sets/new">
-            <Button type="text" shape="circle" icon={<PlusOutlined />} />
-          </Link>
-        </Flex>
-        <Flex
-          vertical
-          style={{
-            overflowY: 'auto',
-            flex: 1,
-            paddingRight: 8,
-            marginRight: -8,
-          }}
-        >
-          {renderQuestionSets(questionSets, loading)}
-        </Flex>
-      </Flex>
+      <Menu
+        style={{
+          border: 'none',
+          background: 'transparent',
+          width: 'calc(100% + 32px)',
+          marginLeft: -16,
+          marginRight: -16,
+        }}
+        selectedKeys={getSelectedKeys()}
+        items={[
+          {
+            key: 'evaluations',
+            icon: <ExperimentOutlined />,
+            label: (
+              <Link to="/evaluations">
+                {formatMessage({ id: 'evaluation.name' })}
+              </Link>
+            ),
+          },
+          {
+            key: 'question-sets',
+            icon: <ReadOutlined />,
+            label: (
+              <Link to="/evaluations/question-sets">
+                {formatMessage({ id: 'evaluation.question_sets' })}
+              </Link>
+            ),
+          },
+        ]}
+      />
     </StyledNavbar>
   );
 };

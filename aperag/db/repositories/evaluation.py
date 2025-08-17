@@ -47,8 +47,8 @@ class AsyncEvaluationRepositoryMixin(AsyncRepositoryProtocol):
 
         return await self.execute_with_transaction(_operation)
 
-    async def retry_evaluation(self, eval_id: str, user_id: str) -> Evaluation | None:
-        """Retries all failed items in an evaluation."""
+    async def retry_evaluation(self, eval_id: str, user_id: str, scope: str) -> Evaluation | None:
+        """Retries items in an evaluation based on the scope."""
 
         async def _operation(session: AsyncSession):
             # 1. Get the evaluation and lock it for update
@@ -62,19 +62,42 @@ class AsyncEvaluationRepositoryMixin(AsyncRepositoryProtocol):
             if not evaluation:
                 return None
 
-            # 2. Reset status of failed items
-            failed_items_stmt = (
-                update(EvaluationItem)
-                .where(EvaluationItem.evaluation_id == eval_id, EvaluationItem.status == EvaluationItemStatus.FAILED)
-                .values(status=EvaluationItemStatus.PENDING, llm_judge_score=0, llm_judge_reasoning="")
-            )
-            result = await session.execute(failed_items_stmt)
+            # 2. Reset status of items based on scope
+            if scope == "all":
+                items_stmt = (
+                    update(EvaluationItem)
+                    .where(EvaluationItem.evaluation_id == eval_id)
+                    .values(
+                        status=EvaluationItemStatus.PENDING,
+                        rag_answer=None,
+                        rag_answer_details=None,
+                        llm_judge_score=0,
+                        llm_judge_reasoning="",
+                    )
+                )
+            else:  # scope == "failed"
+                items_stmt = (
+                    update(EvaluationItem)
+                    .where(
+                        EvaluationItem.evaluation_id == eval_id, EvaluationItem.status == EvaluationItemStatus.FAILED
+                    )
+                    .values(
+                        status=EvaluationItemStatus.PENDING,
+                        rag_answer=None,
+                        rag_answer_details=None,
+                        llm_judge_score=0,
+                        llm_judge_reasoning="",
+                    )
+                )
+            result = await session.execute(items_stmt)
 
             # 3. Reset evaluation status to RUNNING to allow re-processing.
-            # Note: Do not reset to PENDING. The transition from PENDING to RUNNING requires
-            # an initialization process, which would cause duplicate items to be added.
             evaluation.status = EvaluationStatus.RUNNING
-            evaluation.completed_questions = evaluation.completed_questions - result.rowcount
+            if scope == "all":
+                evaluation.completed_questions = 0
+                evaluation.average_score = 0
+            else:
+                evaluation.completed_questions = evaluation.completed_questions - result.rowcount
             await session.flush()
             await session.refresh(evaluation)
 
@@ -114,9 +137,11 @@ class AsyncEvaluationRepositoryMixin(AsyncRepositoryProtocol):
         """Gets all evaluation items for a given evaluation."""
 
         async def _query(session: AsyncSession):
-            stmt = select(EvaluationItem).where(
-                EvaluationItem.evaluation_id == eval_id
-            ).order_by(EvaluationItem.gmt_created.asc())
+            stmt = (
+                select(EvaluationItem)
+                .where(EvaluationItem.evaluation_id == eval_id)
+                .order_by(EvaluationItem.gmt_created.asc())
+            )
             result = await session.execute(stmt)
             return result.scalars().all()
 

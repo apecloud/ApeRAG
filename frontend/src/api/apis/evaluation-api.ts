@@ -613,10 +613,11 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
          * 
          * @summary Retry failed items in an evaluation task
          * @param {string} evalId 
+         * @param {RetryEvaluationApiV1EvaluationsEvalIdRetryPostScopeEnum} [scope] 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        retryEvaluationApiV1EvaluationsEvalIdRetryPost: async (evalId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        retryEvaluationApiV1EvaluationsEvalIdRetryPost: async (evalId: string, scope?: RetryEvaluationApiV1EvaluationsEvalIdRetryPostScopeEnum, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'evalId' is not null or undefined
             assertParamExists('retryEvaluationApiV1EvaluationsEvalIdRetryPost', 'evalId', evalId)
             const localVarPath = `/evaluations/{eval_id}/retry`
@@ -635,6 +636,10 @@ export const EvaluationApiAxiosParamCreator = function (configuration?: Configur
             // authentication BearerAuth required
             // http bearer authentication required
             await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            if (scope !== undefined) {
+                localVarQueryParameter['scope'] = scope;
+            }
 
 
     
@@ -935,11 +940,12 @@ export const EvaluationApiFp = function(configuration?: Configuration) {
          * 
          * @summary Retry failed items in an evaluation task
          * @param {string} evalId 
+         * @param {RetryEvaluationApiV1EvaluationsEvalIdRetryPostScopeEnum} [scope] 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async retryEvaluationApiV1EvaluationsEvalIdRetryPost(evalId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<Evaluation>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.retryEvaluationApiV1EvaluationsEvalIdRetryPost(evalId, options);
+        async retryEvaluationApiV1EvaluationsEvalIdRetryPost(evalId: string, scope?: RetryEvaluationApiV1EvaluationsEvalIdRetryPostScopeEnum, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<Evaluation>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.retryEvaluationApiV1EvaluationsEvalIdRetryPost(evalId, scope, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['EvaluationApi.retryEvaluationApiV1EvaluationsEvalIdRetryPost']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -1131,7 +1137,7 @@ export const EvaluationApiFactory = function (configuration?: Configuration, bas
          * @throws {RequiredError}
          */
         retryEvaluationApiV1EvaluationsEvalIdRetryPost(requestParameters: EvaluationApiRetryEvaluationApiV1EvaluationsEvalIdRetryPostRequest, options?: RawAxiosRequestConfig): AxiosPromise<Evaluation> {
-            return localVarFp.retryEvaluationApiV1EvaluationsEvalIdRetryPost(requestParameters.evalId, options).then((request) => request(axios, basePath));
+            return localVarFp.retryEvaluationApiV1EvaluationsEvalIdRetryPost(requestParameters.evalId, requestParameters.scope, options).then((request) => request(axios, basePath));
         },
         /**
          * 
@@ -1570,6 +1576,13 @@ export interface EvaluationApiRetryEvaluationApiV1EvaluationsEvalIdRetryPostRequ
      * @memberof EvaluationApiRetryEvaluationApiV1EvaluationsEvalIdRetryPost
      */
     readonly evalId: string
+
+    /**
+     * 
+     * @type {'failed' | 'all'}
+     * @memberof EvaluationApiRetryEvaluationApiV1EvaluationsEvalIdRetryPost
+     */
+    readonly scope?: RetryEvaluationApiV1EvaluationsEvalIdRetryPostScopeEnum
 }
 
 /**
@@ -1805,7 +1818,7 @@ export class EvaluationApi extends BaseAPI implements EvaluationApiInterface {
      * @memberof EvaluationApi
      */
     public retryEvaluationApiV1EvaluationsEvalIdRetryPost(requestParameters: EvaluationApiRetryEvaluationApiV1EvaluationsEvalIdRetryPostRequest, options?: RawAxiosRequestConfig) {
-        return EvaluationApiFp(this.configuration).retryEvaluationApiV1EvaluationsEvalIdRetryPost(requestParameters.evalId, options).then((request) => request(this.axios, this.basePath));
+        return EvaluationApiFp(this.configuration).retryEvaluationApiV1EvaluationsEvalIdRetryPost(requestParameters.evalId, requestParameters.scope, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -1833,3 +1846,11 @@ export class EvaluationApi extends BaseAPI implements EvaluationApiInterface {
     }
 }
 
+/**
+ * @export
+ */
+export const RetryEvaluationApiV1EvaluationsEvalIdRetryPostScopeEnum = {
+    failed: 'failed',
+    all: 'all'
+} as const;
+export type RetryEvaluationApiV1EvaluationsEvalIdRetryPostScopeEnum = typeof RetryEvaluationApiV1EvaluationsEvalIdRetryPostScopeEnum[keyof typeof RetryEvaluationApiV1EvaluationsEvalIdRetryPostScopeEnum];

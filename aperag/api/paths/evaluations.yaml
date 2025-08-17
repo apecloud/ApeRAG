@@ -218,6 +218,15 @@ evaluation_retry:
         required: true
         schema:
           type: string
+      - name: scope
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+            - failed
+            - all
+          default: failed
     responses:
       '200':
         description: Successful Response

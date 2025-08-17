@@ -1079,9 +1079,7 @@ class MergeSuggestionHistory(Base):
 
 class QuestionSet(Base):
     __tablename__ = "question_sets"
-    __table_args__ = (
-        Index("idx_question_sets_user_id", "user_id"),
-    )
+    __table_args__ = (Index("idx_question_sets_user_id", "user_id"),)
 
     id = Column(String(24), primary_key=True, default=lambda: "qs_" + random_id()[:16])
     user_id = Column(String(24), nullable=False)

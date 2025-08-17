@@ -29,8 +29,6 @@ from aperag.db.models import (
     EvaluationItem,
     EvaluationItemStatus,
     EvaluationStatus,
-    Question,
-    QuestionSet,
 )
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.db.redis_manager import RedisConnectionManager
@@ -112,7 +110,9 @@ class EvaluationExecutor:
         # Trigger a new batch processing task to drive the evaluation in case the process restarted.
         process_evaluation_batch_task.delay(evaluation.id)
 
-    def _get_evaluation_processing_redis_lock(self, evaluation_id: str, expire_time: int, redis_client: async_redis.Redis):
+    def _get_evaluation_processing_redis_lock(
+        self, evaluation_id: str, expire_time: int, redis_client: async_redis.Redis
+    ):
         from aperag.concurrent_control.redis_lock import RedisLock
 
         lock_name = f"evaluation_processing:{evaluation_id}"
@@ -174,7 +174,9 @@ class EvaluationExecutor:
             lock = self._get_evaluation_processing_redis_lock(evaluation_id, expire_time=60, redis_client=redis_client)
             try:
                 if not await lock.acquire(timeout=5):
-                    logger.info(f"Could not acquire batch lock for evaluation {evaluation_id}. Another task may be running.")
+                    logger.info(
+                        f"Could not acquire batch lock for evaluation {evaluation_id}. Another task may be running."
+                    )
                     return
 
                 async for session in get_async_session(self.engine):
@@ -208,7 +210,9 @@ class EvaluationExecutor:
                             logger.info(f"All items processed for evaluation {evaluation.id}. Finalizing.")
                             await self._finalize_evaluation(session, evaluation)
                         else:
-                            logger.debug(f"No pending items for evaluation {evaluation.id}, but {running_count} are still running.")
+                            logger.debug(
+                                f"No pending items for evaluation {evaluation.id}, but {running_count} are still running."
+                            )
                         return
 
                     for item in items_to_process:
@@ -237,10 +241,10 @@ class EvaluationExecutor:
                     .values(status=EvaluationItemStatus.RUNNING)
                 )
                 result = await session.execute(update_stmt)
+                await session.commit()
 
                 if not result.rowcount:
                     logger.info(f"Skipping item {item_id} as it's not in PENDING state (likely already processed).")
-                    await session.commit()
                     return
 
                 item_to_process = await session.get(EvaluationItem, item_id)
@@ -354,7 +358,9 @@ class EvaluationExecutor:
                 "It was not in RUNNING state or was modified by another process."
             )
 
-    async def _call_agent_chat_api(self, session: AsyncSession, user_id: str, evaluation: Evaluation, question_text: str) -> dict:
+    async def _call_agent_chat_api(
+        self, session: AsyncSession, user_id: str, evaluation: Evaluation, question_text: str
+    ) -> dict:
         """Calls the internal agent chat API via HTTP."""
 
         db_ops = AsyncDatabaseOps(session)
@@ -398,7 +404,9 @@ class EvaluationExecutor:
     ):
         """Process one evaluation item: call agent via API, call judge, and update DB."""
         try:
-            agent_result_json = await self._call_agent_chat_api(session, evaluation.user_id, evaluation, item_to_process.question_text)
+            agent_result_json = await self._call_agent_chat_api(
+                session, evaluation.user_id, evaluation, item_to_process.question_text
+            )
 
             # Check if the response is an AgentErrorResponse
             if agent_result_json.get("type") == "error":
@@ -421,7 +429,9 @@ class EvaluationExecutor:
             item_to_process.status = EvaluationItemStatus.COMPLETED
 
         except Exception as e:
-            logger.error(f"Failed to process item {item_to_process.id} for evaluation {evaluation.id}: {e}", exc_info=True)
+            logger.error(
+                f"Failed to process item {item_to_process.id} for evaluation {evaluation.id}: {e}", exc_info=True
+            )
             item_to_process.status = EvaluationItemStatus.FAILED
             item_to_process.llm_judge_score = 0
             item_to_process.llm_judge_reasoning = f"Error during processing: {e}"
@@ -637,9 +647,9 @@ class EvaluationService:
             reconcile_evaluations_task.delay()
         return evaluation
 
-    async def retry_failed_items(self, eval_id: str, user_id: str) -> Evaluation | None:
-        """Retries all failed items in an evaluation."""
-        evaluation = await self.db_ops.retry_evaluation(eval_id, user_id)
+    async def retry_evaluation(self, eval_id: str, user_id: str, scope: str) -> Evaluation | None:
+        """Retries items in an evaluation based on the scope."""
+        evaluation = await self.db_ops.retry_evaluation(eval_id, user_id, scope)
         if evaluation:
             # Trigger the scheduler to pick it up
             from config.celery_tasks import reconcile_evaluations_task

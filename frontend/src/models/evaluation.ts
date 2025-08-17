@@ -96,11 +96,12 @@ export default () => {
   );
 
   const retryEvaluation = useCallback(
-    async (id: string) => {
+    async (id: string, options: { scope: 'failed' | 'all' }) => {
       setLoading(true);
       try {
         await evaluationApi.retryEvaluationApiV1EvaluationsEvalIdRetryPost({
           evalId: id,
+          scope: options.scope,
         });
         await getEvaluation(id);
         return true;

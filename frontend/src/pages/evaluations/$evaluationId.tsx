@@ -9,6 +9,7 @@ import {
   Card,
   Col,
   Divider,
+  Dropdown,
   Popconfirm,
   Row,
   Skeleton,
@@ -130,9 +131,9 @@ export default () => {
     }
   };
 
-  const handleRetry = async () => {
+  const handleRetry = async (scope: 'failed' | 'all') => {
     if (!evaluationId) return;
-    const success = await retryEvaluation(evaluationId);
+    const success = await retryEvaluation(evaluationId, { scope });
     if (success) {
       message.success(formatMessage({ id: 'evaluation.retry.success' }));
     } else {
@@ -209,9 +210,26 @@ export default () => {
           <FormattedMessage id="action.resume" />
         </Button>
       )}
-      <Button onClick={handleRetry} disabled={!hasFailedItems} loading={loading}>
-        <FormattedMessage id="action.retry" />
-      </Button>
+      <Dropdown
+        menu={{
+          items: [
+            {
+              key: 'failed',
+              label: formatMessage({ id: 'action.retryFailed' }),
+              disabled: !hasFailedItems,
+            },
+            {
+              key: 'all',
+              label: formatMessage({ id: 'action.retryAll' }),
+            },
+          ],
+          onClick: ({ key }) => handleRetry(key as 'failed' | 'all'),
+        }}
+      >
+        <Button loading={loading}>
+          <FormattedMessage id="action.retry" />
+        </Button>
+      </Dropdown>
       <Popconfirm
         title={formatMessage({ id: 'evaluation.delete.confirm.title' })}
         description={formatMessage({ id: 'evaluation.delete.confirm.description' })}
