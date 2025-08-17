@@ -16,7 +16,7 @@ export default function Page() {
   const { signIn } = useAppContext();
   return (
     <div className="flex flex-col gap-6">
-      <Card>
+      <Card className="bg-card/50">
         <CardHeader className="text-center">
           <CardTitle className="text-xl">Check your email</CardTitle>
           <CardDescription>
