@@ -14,6 +14,7 @@ import {
   ChevronsUpDown,
   CircleQuestionMark,
   Moon,
+  ShieldUser,
   Sun,
   User,
 } from 'lucide-react';
@@ -21,7 +22,7 @@ import { useTheme } from 'next-themes';
 
 import Link from 'next/link';
 
-import { LogOut, Sparkles } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 
 import { useAppContext } from '@/hooks/use-app-context';
 import { cn } from '@/lib/utils';
@@ -97,30 +98,19 @@ export const AppUserDropdownMenu = () => {
           <UserAvatarProfile user={user} />
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {user.role === 'admin' && (
-          <>
-            <DropdownMenuGroup>
-              <DropdownMenuItem asChild>
-                <Link href="/admin">
-                  <Sparkles />
-                  Administrator
-                </Link>
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-          </>
-        )}
 
         <DropdownMenuGroup>
+          {user.role === 'admin' && (
+            <DropdownMenuItem asChild>
+              <Link href="/admin">
+                <ShieldUser />
+                Administrator
+              </Link>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem>
             <User />
             Account
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/docs">
-              <CircleQuestionMark />
-              Help
-            </Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
@@ -204,6 +194,7 @@ export const AppTopbar = ({ className }: React.ComponentProps<'div'>) => {
         </div>
         <div className="flex flex-row items-center gap-2">
           <AppGithub />
+          <AppDocs />
           <AppThemeDropdownMenu />
           <AppUserDropdownMenu />
         </div>
