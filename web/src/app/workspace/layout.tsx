@@ -34,6 +34,7 @@ export default async function Layout({
 }>) {
   let user;
   const apiServer = await getServerApi();
+
   try {
     const res = await apiServer.defaultApi.userGet();
     user = res.data;

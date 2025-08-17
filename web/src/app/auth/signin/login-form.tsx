@@ -2,16 +2,22 @@
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
-  signInLocalSchema,
-  useGlobalContext,
-} from '@/hooks/use-global-context';
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { signInLocalSchema, useAppContext } from '@/hooks/use-app-context';
 import { cn } from '@/lib/utils';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useSearchParams } from 'next/navigation';
-import { FormEvent, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
+import { useForm } from 'react-hook-form';
 import { FaGithub, FaGoogle } from 'react-icons/fa6';
+import * as z from 'zod';
 
 export function LoginForm({
   className,
@@ -22,7 +28,14 @@ export function LoginForm({
 }) {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('callbackUrl') || '/';
-  const { signIn } = useGlobalContext();
+  const { signIn } = useAppContext();
+  const form = useForm<z.infer<typeof signInLocalSchema>>({
+    resolver: zodResolver(signInLocalSchema),
+    defaultValues: {
+      username: '',
+      password: '',
+    },
+  });
 
   const hasSocialLogin = useMemo(() => {
     return methods.some((method) => ['google', 'github'].includes(method));
@@ -37,19 +50,12 @@ export function LoginForm({
   }, [methods]);
 
   const handleSignInLocal = useCallback(
-    async (e: FormEvent<HTMLFormElement>) => {
-      e.preventDefault();
-      const formData = new FormData(e.currentTarget);
-      const payload = Object.fromEntries(formData.entries());
-      const { data, error } = signInLocalSchema.safeParse(payload);
-
-      if (!error) {
-        await signIn({
-          type: 'local',
-          data,
-          redirectTo,
-        });
-      }
+    async (payload: z.infer<typeof signInLocalSchema>) => {
+      await signIn({
+        type: 'local',
+        data: payload,
+        redirectTo,
+      });
     },
     [redirectTo, signIn],
   );
@@ -58,84 +64,100 @@ export function LoginForm({
     <div className={cn('flex flex-col gap-6', className)} {...props}>
       <Card>
         <CardContent>
-          <div className="mb-4 text-center text-xl font-bold">Welcome back</div>
+          <div className="mb-8 text-center text-xl font-bold">Welcome back</div>
           {hasSocialLogin && (
-            <>
-              <div className="text-muted-foreground mb-6 text-center text-sm">
-                Login with your Github or Google account
+            <div className="mb-4 grid gap-4">
+              <div className="text-muted-foreground text-center text-sm">
+                Login with a third-party account
               </div>
-              <div className="flex flex-col gap-4 text-sm">
-                {hasSocialGithubLogin && (
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => signIn({ type: 'github', redirectTo })}
-                  >
-                    <FaGithub />
-                    Login with Github
-                  </Button>
-                )}
-                {hasSocialGoogleLogin && (
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => signIn({ type: 'google', redirectTo })}
-                  >
-                    <FaGoogle />
-                    Login with Google
-                  </Button>
-                )}
-              </div>
-              <div className="after:border-border relative my-6 text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t">
+              {hasSocialGithubLogin && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => signIn({ type: 'github', redirectTo })}
+                >
+                  <FaGithub />
+                  Login with Github
+                </Button>
+              )}
+              {hasSocialGoogleLogin && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => signIn({ type: 'google', redirectTo })}
+                >
+                  <FaGoogle />
+                  Login with Google
+                </Button>
+              )}
+
+              <div className="after:border-border relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t">
                 <span className="bg-card text-muted-foreground relative z-10 px-2">
                   Or continue with
                 </span>
               </div>
-            </>
+            </div>
           )}
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(handleSignInLocal)}
+              className="grid gap-6"
+            >
+              <FormField
+                control={form.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Username</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Username" />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex justify-between">
+                      <FormLabel>Password</FormLabel>
+                      <a
+                        href="#"
+                        className="text-muted-foreground hover:text-primary text-xs underline-offset-4 hover:underline"
+                      >
+                        Forgot your password?
+                      </a>
+                    </div>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        {...field}
+                        placeholder="Password"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
 
-          <form onSubmit={handleSignInLocal}>
-            <div className="grid gap-6">
-              <div className="grid gap-6">
-                <div className="grid gap-3">
-                  <Label htmlFor="username">Username</Label>
-                  <Input id="username" name="username" required />
-                </div>
-                <div className="grid gap-3">
-                  <div className="flex items-center">
-                    <Label htmlFor="password">Password</Label>
-                    <a
-                      href="#"
-                      className="ml-auto text-sm underline-offset-4 hover:underline"
-                    >
-                      Forgot your password?
-                    </a>
-                  </div>
-                  <Input
-                    id="password"
-                    name="password"
-                    type="password"
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full">
-                  Login
-                </Button>
-              </div>
+              <Button type="submit" className="w-full">
+                Login
+              </Button>
+
               <div className="text-center text-sm">
                 Don&apos;t have an account?{' '}
                 <a href="#" className="underline underline-offset-4">
                   Sign up
                 </a>
               </div>
-            </div>
-          </form>
+            </form>
+          </Form>
         </CardContent>
       </Card>
-      {/* <div className="text-muted-foreground *:[a]:hover:text-primary text-center text-xs text-balance *:[a]:underline *:[a]:underline-offset-4">
-        By clicking continue, you agree to our <a href="#">Terms of Service</a>{' '}
+      <div className="text-muted-foreground *:[a]:hover:text-primary text-center text-xs text-balance *:[a]:underline *:[a]:underline-offset-4">
+        By clicking continue, you agree to our <a href="#">Terms of Service</a>
         and <a href="#">Privacy Policy</a>.
-      </div> */}
+      </div>
     </div>
   );
 }

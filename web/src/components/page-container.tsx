@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { House } from 'lucide-react';
 import Link from 'next/link';
 import React from 'react';
-import { AppDocs, AppGithub, AppThemeDropdownMenu } from './app-topbar';
+import { AppGithub, AppThemeDropdownMenu } from './app-topbar';
 import { Separator } from './ui/separator';
 import { SidebarTrigger } from './ui/sidebar';
 
@@ -67,7 +67,6 @@ export const PageHeader = ({
       </div>
       <div className="flex flex-row items-center gap-2 pr-4">
         <AppGithub />
-        <AppDocs />
         <AppThemeDropdownMenu />
       </div>
     </header>
