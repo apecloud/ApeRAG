@@ -199,7 +199,7 @@ export const UserQuotaAction = ({
                 onClick={() => handleRecalculate()}
                 disabled={_.isEmpty(quotaInfo)}
               >
-                Recalculate Quotas
+                Reset Quotas
               </Button>
               <div className="flex gap-2">
                 <Button
