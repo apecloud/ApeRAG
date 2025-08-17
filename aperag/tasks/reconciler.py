@@ -20,6 +20,8 @@ from sqlalchemy.orm import Session
 
 from aperag.config import get_sync_session
 from aperag.db.models import (
+    Collection,
+    CollectionStatus,
     CollectionSummary,
     CollectionSummaryStatus,
     Document,
@@ -27,8 +29,6 @@ from aperag.db.models import (
     DocumentIndexStatus,
     DocumentIndexType,
     DocumentStatus,
-    Collection,
-    CollectionStatus,
 )
 from aperag.tasks.scheduler import TaskScheduler, create_task_scheduler
 from aperag.utils.constant import IndexAction
@@ -267,8 +267,8 @@ class IndexTaskCallbacks:
     @staticmethod
     def _update_document_status(document_id: str, session: Session):
         stmt = select(Document).where(
-            Document.id == document_id, 
-            Document.status.not_in([DocumentStatus.DELETED, DocumentStatus.UPLOADED, DocumentStatus.EXPIRED])
+            Document.id == document_id,
+            Document.status.not_in([DocumentStatus.DELETED, DocumentStatus.UPLOADED, DocumentStatus.EXPIRED]),
         )
         result = session.execute(stmt)
         document = result.scalar_one_or_none()
@@ -569,7 +569,8 @@ class CollectionGCReconciler:
         if not collections:
             return
 
-        from aperag.tasks.collection import collection_task        
+        from aperag.tasks.collection import collection_task
+
         for collection in collections:
             collection_task.cleanup_expired_documents(collection.id)
 

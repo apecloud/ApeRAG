@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from datetime import timedelta
 import logging
+from datetime import timedelta
 from typing import Any
 
 from asgiref.sync import Dict, async_to_sync
@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from aperag.config import get_vector_db_connector
 from aperag.db import models as db_models
-from aperag.db.models import CollectionStatus, Collection
+from aperag.db.models import CollectionStatus
 from aperag.db.ops import db_ops
 from aperag.graph import lightrag_manager
 from aperag.index.fulltext_index import create_index, delete_index
@@ -220,7 +220,7 @@ class CollectionTask:
                 and_(
                     db_models.Document.collection_id == collection_id,
                     db_models.Document.status == db_models.DocumentStatus.UPLOADED,
-                    db_models.Document.gmt_created < expiration_threshold
+                    db_models.Document.gmt_created < expiration_threshold,
                 )
             )
 
@@ -242,16 +242,22 @@ class CollectionTask:
                     # Delete from object store
                     try:
                         obj_store.delete_objects_by_prefix(document.object_store_base_path())
-                        logger.info(f"Deleted objects from object store for expired document {document.id}: {document.object_store_base_path()}")
+                        logger.info(
+                            f"Deleted objects from object store for expired document {document.id}: {document.object_store_base_path()}"
+                        )
                     except Exception as e:
-                        logger.warning(f"Failed to delete objects for expired document {document.id} from object store: {e}")
+                        logger.warning(
+                            f"Failed to delete objects for expired document {document.id} from object store: {e}"
+                        )
 
                     # Soft delete: Mark document as EXPIRED instead of deleting
                     document.status = db_models.DocumentStatus.EXPIRED
                     document.gmt_updated = current_time
                     session.add(document)
                     expired_count += 1
-                    logger.info(f"Marked document {document.id} as expired (name: {document.name}, created: {document.gmt_created})")
+                    logger.info(
+                        f"Marked document {document.id} as expired (name: {document.name}, created: {document.gmt_created})"
+                    )
 
                 except Exception as e:
                     failed_count += 1
@@ -259,11 +265,7 @@ class CollectionTask:
 
             session.commit()
 
-            return {
-                "expired_count": expired_count,
-                "failed_count": failed_count,
-                "total_found": len(expired_documents)
-            }
+            return {"expired_count": expired_count, "failed_count": failed_count, "total_found": len(expired_documents)}
 
         try:
             # Execute the cleanup with transaction
