@@ -34,15 +34,16 @@ export default function Page() {
       return (
         <>
           <ShieldAlert className="size-12" />
-          <div className="text-sm text-red-500">{tips}</div>
+          <div className="text-muted-foreground text-sm">{tips}</div>
         </>
       );
     }
     return (
       <>
         <ShieldPlus className="size-12" />
-        <div className="text-sm text-green-500">
-          OAuth authentication succeeded.
+        <div className="text-muted-foreground text-sm">OAuth successful!</div>
+        <div className="text-muted-foreground text-sm">
+          the system will automatically redirect.
         </div>
       </>
     );
@@ -86,11 +87,11 @@ export default function Page() {
   }, [error, code, state]);
 
   return (
-    <Card>
+    <Card className="bg-card/50">
       <CardContent className="flex flex-col gap-12">
         <div className="text-center text-xl font-bold">Authentication</div>
 
-        <div className="flex flex-col items-center justify-center gap-2">
+        <div className="flex flex-col items-center justify-center gap-2 text-center">
           {content}
         </div>
 

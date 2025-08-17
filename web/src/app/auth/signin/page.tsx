@@ -1,5 +1,5 @@
 import { getServerApi } from '@/lib/api/server';
-import { LoginForm } from './login-form';
+import { SignInForm } from './signin-form';
 
 export default async function Page() {
   const apiServer = await getServerApi();
@@ -12,5 +12,5 @@ export default async function Page() {
     methods = ['local'];
   }
 
-  return <LoginForm methods={methods} />;
+  return <SignInForm methods={methods} />;
 }
