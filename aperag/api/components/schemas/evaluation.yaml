@@ -141,6 +141,11 @@ QuestionSetCreate:
       type: string
     collection_id:
       type: string
+    questions:
+      type: array
+      description: "A list of questions. Maximum 1000 questions are allowed."
+      items:
+        $ref: "./evaluation.yaml#/Question"
 
 QuestionSetGenerate:
   type: object

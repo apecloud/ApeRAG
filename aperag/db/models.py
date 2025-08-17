@@ -1103,7 +1103,7 @@ class Question(Base):
 
     id = Column(String(24), primary_key=True, default=lambda: "q_" + random_id()[:16])
     question_set_id = Column(String(24), nullable=False)
-    question_type = Column(EnumColumn(QuestionType), nullable=False)
+    question_type = Column(EnumColumn(QuestionType), nullable=True)
     question_text = Column(Text, nullable=False)
     ground_truth = Column(Text, nullable=False)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)

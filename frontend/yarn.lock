@@ -2779,6 +2779,13 @@
   resolved "https://registry.npmmirror.com/@types/normalize-package-data/-/normalize-package-data-2.4.4.tgz"
   integrity sha512-37i+OaWTh9qeK4LSHPsyRC7NahnGotNuZvjLSgcPzblpHB3rrCJxAOgI5gCdKm7coonsaX1Of0ILiTcnZjbfxA==
 
+"@types/papaparse@^5.3.16":
+  version "5.3.16"
+  resolved "https://registry.npmmirror.com/@types/papaparse/-/papaparse-5.3.16.tgz#320c8f6b8c9be898fe2d0c1b21aee51448bf9dca"
+  integrity sha512-T3VuKMC2H0lgsjI9buTB3uuKj3EMD2eap1MOuEQuBQ44EnDx/IkGhU6EwiTf9zG3za4SKlmwKAImdDKdNnCsXg==
+  dependencies:
+    "@types/node" "*"
+
 "@types/parse-json@^4.0.0":
   version "4.0.2"
   resolved "https://registry.npmmirror.com/@types/parse-json/-/parse-json-4.0.2.tgz"
@@ -14339,6 +14346,11 @@ pako@~1.0.5:
   resolved "https://registry.npmmirror.com/pako/-/pako-1.0.11.tgz"
   integrity sha512-4hLB8Py4zZce5s4yd9XzopqwVv/yGNhV1Bl8NTmCq1763HeK2+EwVTv+leGeL13Dnh2wfbqowVPXCIO0z4taYw==
 
+papaparse@^5.5.3:
+  version "5.5.3"
+  resolved "https://registry.npmmirror.com/papaparse/-/papaparse-5.5.3.tgz#07f8994dec516c6dab266e952bed68e1de59fa9a"
+  integrity sha512-5QvjGxYVjxO59MGU2lHVYpRWBBtKHnlIAcSe1uNFCkkptUh63NFRj0FJQm7nR67puEruUci/ZkjmEFrjCAyP4A==
+
 param-case@2.1.x:
   version "2.1.1"
   resolved "https://registry.npmjs.org/param-case/-/param-case-2.1.1.tgz"
@@ -18241,7 +18253,7 @@ string-length@^1.0.1:
   dependencies:
     strip-ansi "^3.0.0"
 
-"string-width-cjs@npm:string-width@^4.2.0", string-width@^4.1.0, string-width@^4.2.0, string-width@^4.2.3:
+"string-width-cjs@npm:string-width@^4.2.0":
   version "4.2.3"
   resolved "https://registry.npmmirror.com/string-width/-/string-width-4.2.3.tgz"
   integrity sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==
@@ -18266,6 +18278,15 @@ string-width@^2.0.0, string-width@^2.1.0, string-width@^2.1.1:
   dependencies:
     is-fullwidth-code-point "^2.0.0"
     strip-ansi "^4.0.0"
+
+string-width@^4.1.0, string-width@^4.2.0, string-width@^4.2.3:
+  version "4.2.3"
+  resolved "https://registry.npmmirror.com/string-width/-/string-width-4.2.3.tgz"
+  integrity sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==
+  dependencies:
+    emoji-regex "^8.0.0"
+    is-fullwidth-code-point "^3.0.0"
+    strip-ansi "^6.0.1"
 
 string-width@^5.0.1, string-width@^5.1.2:
   version "5.1.2"
@@ -18356,7 +18377,7 @@ stringify-entities@^4.0.0:
     character-entities-html4 "^2.0.0"
     character-entities-legacy "^3.0.0"
 
-"strip-ansi-cjs@npm:strip-ansi@^6.0.1", strip-ansi@^6.0.0, strip-ansi@^6.0.1:
+"strip-ansi-cjs@npm:strip-ansi@^6.0.1":
   version "6.0.1"
   resolved "https://registry.npmmirror.com/strip-ansi/-/strip-ansi-6.0.1.tgz"
   integrity sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A==
@@ -18376,6 +18397,13 @@ strip-ansi@^4.0.0:
   integrity sha512-4XaJ2zQdCzROZDivEVIDPkcQn8LMFSa8kj8Gxb/Lnwzv9A8VctNZ+lfivC/sV3ivW8ElJTERXZoPBRrZKkNKow==
   dependencies:
     ansi-regex "^3.0.0"
+
+strip-ansi@^6.0.0, strip-ansi@^6.0.1:
+  version "6.0.1"
+  resolved "https://registry.npmmirror.com/strip-ansi/-/strip-ansi-6.0.1.tgz"
+  integrity sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A==
+  dependencies:
+    ansi-regex "^5.0.1"
 
 strip-ansi@^7.0.1:
   version "7.1.0"
@@ -20116,7 +20144,7 @@ worker-farm@^1.3.1:
   dependencies:
     errno "~0.1.7"
 
-"wrap-ansi-cjs@npm:wrap-ansi@^7.0.0", wrap-ansi@^7.0.0:
+"wrap-ansi-cjs@npm:wrap-ansi@^7.0.0":
   version "7.0.0"
   resolved "https://registry.npmmirror.com/wrap-ansi/-/wrap-ansi-7.0.0.tgz"
   integrity sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==
@@ -20137,6 +20165,15 @@ wrap-ansi@^6.0.1:
   version "6.2.0"
   resolved "https://registry.npmmirror.com/wrap-ansi/-/wrap-ansi-6.2.0.tgz"
   integrity sha512-r6lPcBGxZXlIcymEu7InxDMhdW0KDxpLgoFLcguasxCaJ/SOIZwINatK9KY/tf+ZrlywOKU0UDj3ATXUBfxJXA==
+  dependencies:
+    ansi-styles "^4.0.0"
+    string-width "^4.1.0"
+    strip-ansi "^6.0.0"
+
+wrap-ansi@^7.0.0:
+  version "7.0.0"
+  resolved "https://registry.npmmirror.com/wrap-ansi/-/wrap-ansi-7.0.0.tgz"
+  integrity sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==
   dependencies:
     ansi-styles "^4.0.0"
     string-width "^4.1.0"

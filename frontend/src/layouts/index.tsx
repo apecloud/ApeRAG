@@ -18,6 +18,7 @@ import { LayoutBot } from '@/pages/bots/$botId/_layout';
 import { NavbarBot } from '@/pages/bots/$botId/_navbar';
 import { LayoutCollection } from '@/pages/collections/$collectionId/_layout';
 import { NavbarCollection } from '@/pages/collections/$collectionId/_navbar';
+import { Navbar as NavbarEvaluations } from '@/pages/evaluations/_navbar';
 import { NavbarSettings } from '@/pages/settings/_navbar';
 
 const { darkAlgorithm, defaultAlgorithm } = theme;
@@ -38,6 +39,9 @@ const config: {
     <Layout navbar={<NavbarCollection />} outlet={<LayoutCollection />} />
   ),
   '/collections(/*)': <Layout />,
+
+  '/evaluations/question-sets/:id': <Layout navbar={<NavbarEvaluations />} outlet={<Outlet />} />,
+  '/evaluations(/*)': <Layout navbar={<NavbarEvaluations />} outlet={<Outlet />} />,
 
   '/marketplace(/*)': <Layout />,
 

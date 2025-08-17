@@ -56,6 +56,10 @@ app.conf.beat_schedule = {
         'task': 'config.celery_tasks.cleanup_expired_documents_task',
         'schedule': 600.0,
     },
+    'reconcile-evaluations': {
+        'task': 'config.celery_tasks.reconcile_evaluations_task',
+        'schedule': 60.0,  # Run every 1 minute
+    },
     'schedule-evaluations': {
         'task': 'config.celery_tasks.schedule_evaluations_task',
         'schedule': 300.0,

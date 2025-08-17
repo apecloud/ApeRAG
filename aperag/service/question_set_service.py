@@ -28,14 +28,25 @@ class QuestionSetService:
 
     async def create_question_set(self, request: view_models.QuestionSetCreate, user_id: str) -> QuestionSet:
         """Creates a new question set."""
-        # TODO: check quota limit
         db_question_set = QuestionSet(
             user_id=user_id,
             name=request.name,
             description=request.description,
             collection_id=request.collection_id,
         )
-        return await self.db_ops.create_question_set(db_question_set)
+
+        questions_to_create = []
+        if request.questions:
+            questions_to_create = [
+                Question(
+                    question_type=q.question_type,
+                    question_text=q.question_text,
+                    ground_truth=q.ground_truth,
+                )
+                for q in request.questions
+            ]
+
+        return await self.db_ops.create_question_set(db_question_set, questions_to_create)
 
     async def get_question_set(self, qs_id: str, user_id: str) -> QuestionSet | None:
         """Gets a question set by its ID."""
@@ -49,7 +60,7 @@ class QuestionSetService:
         self, qs_id: str, request: view_models.QuestionSetUpdate, user_id: str
     ) -> QuestionSet | None:
         """Updates a question set."""
-        return await self.db_ops.update_question_set(qs_id, request, user_id)
+        return await self.db_ops.update_question_set(qs_id, user_id, request.name, request.description)
 
     async def delete_question_set(self, qs_id: str, user_id: str) -> bool:
         """Deletes a question set."""
@@ -57,7 +68,6 @@ class QuestionSetService:
 
     async def add_question(self, qs_id: str, request: view_models.Question) -> Question | None:
         """Adds a question to a question set."""
-        # TODO: check quota limit
         db_question = Question(
             question_set_id=qs_id,
             question_type=request.question_type,
@@ -68,11 +78,21 @@ class QuestionSetService:
 
     async def update_question(self, q_id: str, request: view_models.QuestionUpdate) -> Question | None:
         """Updates a question."""
-        return await self.db_ops.update_question(q_id, request)
+        return await self.db_ops.update_question(
+            q_id, request.question_text, request.ground_truth, request.question_type
+        )
 
     async def delete_question(self, q_id: str) -> bool:
         """Deletes a question."""
         return await self.db_ops.delete_question_by_id(q_id)
+
+    async def list_questions_by_set_id(self, qs_id: str, page: int, page_size: int) -> tuple[list[Question], int]:
+        """Lists all questions for a question set."""
+        return await self.db_ops.list_questions_by_set_id(qs_id, page, page_size)
+
+    async def list_all_questions(self, qs_id: str) -> list[Question]:
+        """Lists all questions for a question set."""
+        return await self.db_ops.list_all_questions_by_set_id(qs_id)
 
 
 question_set_service = QuestionSetService()

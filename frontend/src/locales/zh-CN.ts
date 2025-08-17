@@ -1,6 +1,7 @@
 import { apiKeys } from './zh-CN/apiKeys';
 import { bot } from './zh-CN/bots';
 import { collection } from './zh-CN/collection';
+import { evaluation } from './zh-CN/evaluation';
 import { model, model_provider, model_configuration } from './zh-CN/models';
 import { settings } from './zh-CN/settings';
 import { user, users } from './zh-CN/users';
@@ -15,6 +16,7 @@ export default {
   ...collection,
   ...apiKeys,
   ...settings,
+  ...evaluation,
 
   // Audit logs
   'audit.logs.title': '操作日志',

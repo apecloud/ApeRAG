@@ -7238,29 +7238,6 @@ components:
           type: integer
         page_size:
           type: integer
-    QuestionSetCreate:
-      type: object
-      required:
-        - name
-      properties:
-        name:
-          type: string
-        description:
-          type: string
-        collection_id:
-          type: string
-    QuestionSetGenerate:
-      type: object
-      required:
-        - collection_id
-        - name
-      properties:
-        collection_id:
-          type: string
-        name:
-          type: string
-        description:
-          type: string
     QuestionType:
       type: string
       enum:
@@ -7287,6 +7264,33 @@ components:
         gmt_updated:
           type: string
           format: date-time
+    QuestionSetCreate:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        collection_id:
+          type: string
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Question'
+    QuestionSetGenerate:
+      type: object
+      required:
+        - collection_id
+        - name
+      properties:
+        collection_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
     QuestionSetDetail:
       type: object
       properties:

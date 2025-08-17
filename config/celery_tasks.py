@@ -99,23 +99,22 @@ Each task has built-in retry mechanisms:
 
 import json
 import logging
+from contextlib import asynccontextmanager
 from typing import Any, List
 
-from celery import Task, current_app, group, chord, chain
+from celery import Task, chain, chord, current_app, group
 
 from aperag.tasks.collection import collection_task
 from aperag.tasks.document import document_index_task
-from aperag.tasks.evaluation import evaluation_task
-from aperag.tasks.utils import TaskConfig
 from aperag.tasks.models import (
-    ParsedDocumentData,
     IndexTaskResult,
-    WorkflowResult,
+    ParsedDocumentData,
     TaskStatus,
+    WorkflowResult,
 )
+from aperag.tasks.utils import TaskConfig
 from aperag.utils.constant import IndexAction
 from config.celery import app
-
 
 logger = logging.getLogger()
 
@@ -846,24 +845,56 @@ def cleanup_expired_documents_task():
 
 # ========== Evaluation Tasks ==========
 
-@app.task(bind=True)
-def schedule_evaluations_task(self) -> Any:
-    """Periodic task to schedule pending evaluations."""
+# By default, get_async_session() uses a global AsyncEngine object.
+# Since we also use asyncio.run() to execute async functions, old connections
+# in the AsyncEngine connection pool cannot work in the new event loop,
+# which will raise an exception like "xxx attached to a different loop".
+# Therefore, using a dedicated AsyncEngine to avoid issues from connection reuse.
+@asynccontextmanager
+async def _new_async_engine():
+    from aperag.config import new_async_engine
+
+    engine = new_async_engine()
     try:
+        yield engine
+    finally:
+        await engine.dispose()
+
+
+@current_app.task
+def reconcile_evaluations_task():
+    """Periodic task to reconcile evaluations."""
+    try:
+        async def execute():
+            from aperag.service.evaluation_service import EvaluationExecutor
+
+            async with _new_async_engine() as engine:
+                executor = EvaluationExecutor(engine)
+                await executor.schedule_evaluations()
+
         import asyncio
-        asyncio.run(evaluation_task.schedule_evaluations())
+        asyncio.run(execute())
+
         return {"success": True}
     except Exception as e:
-        logger.error(f"Failed to schedule evaluations: {e}", exc_info=True)
-        raise self.retry(exc=e, countdown=60, max_retries=3)
+        logger.error(f"Failed to reconcile evaluations: {e}", exc_info=True)
+        raise
 
 
 @app.task(bind=True)
 def initialize_evaluation_task(self, evaluation_id: str) -> Any:
     """Task to initialize a specific evaluation."""
     try:
+        async def execute():
+            from aperag.service.evaluation_service import EvaluationExecutor
+
+            async with _new_async_engine() as engine:
+                executor = EvaluationExecutor(engine)
+                await executor.initialize_evaluation(evaluation_id)
+
         import asyncio
-        asyncio.run(evaluation_task.initialize_evaluation(evaluation_id))
+        asyncio.run(execute())
+
         return {"success": True, "evaluation_id": evaluation_id}
     except Exception as e:
         logger.error(f"Failed to initialize evaluation {evaluation_id}: {e}", exc_info=True)
@@ -874,8 +905,16 @@ def initialize_evaluation_task(self, evaluation_id: str) -> Any:
 def process_evaluation_task(self, evaluation_id: str) -> Any:
     """Task to process a single result for an evaluation."""
     try:
+        async def execute():
+            from aperag.service.evaluation_service import EvaluationExecutor
+
+            async with _new_async_engine() as engine:
+                executor = EvaluationExecutor(engine)
+                await executor.process_evaluation(evaluation_id)
+
         import asyncio
-        asyncio.run(evaluation_task.process_evaluation(evaluation_id))
+        asyncio.run(execute())
+
         return {"success": True, "evaluation_id": evaluation_id}
     except Exception as e:
         logger.error(f"Failed to process result for evaluation {evaluation_id}: {e}", exc_info=True)
@@ -886,8 +925,16 @@ def process_evaluation_task(self, evaluation_id: str) -> Any:
 def process_evaluation_item_task(self, item_id: str) -> Any:
     """Task to process a single evaluation item."""
     try:
+        async def execute():
+            from aperag.service.evaluation_service import EvaluationExecutor
+
+            async with _new_async_engine() as engine:
+                executor = EvaluationExecutor(engine)
+                await executor.process_evaluation_item(item_id)
+
         import asyncio
-        asyncio.run(evaluation_task.process_evaluation_item(item_id))
+        asyncio.run(execute())
+
         return {"success": True, "item_id": item_id}
     except Exception as e:
         logger.error(f"Failed to process item {item_id}: {e}", exc_info=True)

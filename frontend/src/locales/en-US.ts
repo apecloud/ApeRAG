@@ -1,6 +1,7 @@
 import { apiKeys } from './en-US/apiKeys';
 import { bot } from './en-US/bots';
 import { collection } from './en-US/collection';
+import { evaluation } from './en-US/evaluation';
 import { model, model_provider } from './en-US/models';
 import { settings } from './en-US/settings';
 import { user, users } from './en-US/users';
@@ -14,6 +15,7 @@ export default {
   ...collection,
   ...apiKeys,
   ...settings,
+  ...evaluation,
 
   // Audit logs
   'audit.logs.title': 'Audit Logs',
@@ -62,6 +64,8 @@ export default {
   'common.not_configured': 'Not Configured',
   'common.edit': 'Edit',
   'common.delete': 'Delete',
+  'common.ok': 'OK',
+  'common.cancel': 'Cancel',
   'common.pagination.total': 'Showing {start}-{end} of {total} records',
 
   'text.welcome': 'Welcome to ApeRAG',

@@ -185,12 +185,21 @@ graph TD
 
 ### 3.2 核心业务流程
 
-**流程1: 创建问题集**
-1.  **手动创建**: 用户在 UI 上手动添加问题和答案，或上传一个 JSON/CSV 文件。
-2.  **自动生成**: 用户在 Collection 页面选择“生成问题集”，后端触发 `QuestionGenerationTask`。
-    -   任务从 Collection 中抽取部分文档内容。
-    -   调用 LLM Service，使用特定 prompt 生成事实性和推理性问题及答案。
-    -   将生成的问题存入 `question_sets` 和 `questions` 表。
+**流程1: 创建问题集 (富客户端模式)**
+1.  **进入创建页面**: 用户在“评估”功能区进入“问题集”管理，并点击“新建问题集”，进入一个富客户端编辑界面。
+2.  **动态编辑问题列表**:
+    -   **手动编辑**: 页面核心是一个可编辑的问题列表，用户可以直接在列表中增、删、改问题和标准答案。
+    -   **从文件导入**: 用户点击“导入文件”按钮，选择本地的 CSV 或 JSON 文件。前端直接解析文件内容，将其转换为问题项并追加到当前列表中，此过程不涉及后端文件上传。UI 会提供清晰的文件格式说明。
+    -   **从 Collection 生成**: 用户点击“生成问题”按钮，弹出一个配置界面。
+        -   用户选择一个已有的 Collection、指定生成用的 LLM、问题数量，并可以按需修改生成 Prompt。
+        -   点击“生成”后，前端调用 `POST /api/v1/question-sets/generate` 接口。
+        -   后端异步或同步执行生成任务，并将生成的问题列表返回。
+        -   用户在前端预览生成结果，确认后可将其导入到当前的问题列表中。
+3.  **最终创建**:
+    -   用户在主界面上填写问题集的名称和描述。
+    -   当问题列表准备就绪后，用户点击“创建”按钮。
+    -   前端将问题集元数据（名称、描述）和整个问题列表一次性通过 `POST /api/v1/question-sets` 接口提交给后端。
+    -   后端服务接收到请求后，在单个事务中创建 `question_sets` 记录和所有对应的 `questions` 记录。
 
 **流程2: 发起评估**
 1.  用户在“评估”页面点击“新建评估”。
@@ -219,15 +228,15 @@ graph TD
 
 **问题集管理 (`/api/v1/question-sets`)**
 - `GET /`: 获取当前用户的所有问题集。
-- `POST /`: 创建一个新的问题集（可包含初始问题）。
-- `POST /upload`: 上传文件创建问题集。
-- `POST /generate`: 从一个 Collection 自动生成问题集。
+- `POST /`: 创建一个包含完整问题列表的新问题集。请求体将包含问题集的元数据和问题数组。
+- `POST /generate`: 根据指定的 Collection 和配置，调用 LLM 实时生成问题列表并返回，不直接创建问题集。
 - `GET /{qs_id}`: 获取问题集详情及其所有问题。
-- `PUT /{qs_id}`: 更新问题集信息。
+- `PUT /{qs_id}`: 更新问题集信息（元数据）。
 - `DELETE /{qs_id}`: 删除问题集。
-- `POST /{qs_id}/questions`: 在问题集中新增问题。
-- `PUT /questions/{q_id}`: 修改问题。
-- `DELETE /questions/{q_id}`: 删除问题。
+- `POST /{qs_id}/questions`: (保留) 在已存在的问题集中新增问题。
+- `PUT /questions/{q_id}`: 修改单个问题。
+- `DELETE /questions/{q_id}`: 删除单个问题。
+- **注意**: `POST /upload` 接口将不再需要，文件解析在前端完成。
 
 **评估管理 (`/api/v1/evaluations`)**
 - `GET /`: 获取所有评估任务列表。
@@ -323,18 +332,23 @@ graph TD
 
 ### 6.1 页面与路由
 
-- `/question-sets`: 问题集管理页面。
-- `/evaluations`: 评估任务列表页面。
+- `/evaluations`: 评估功能的根路径，包含二级导航。
+- `/evaluations/list`: 评估任务列表页面。
 - `/evaluations/new`: 创建新评估的表单页面。
 - `/evaluations/{eval_id}`: 评估详情页。
+- `/evaluations/question-sets`: 问题集列表页面。
+- `/evaluations/question-sets/new`: 创建新问题集的富客户端页面。
+- `/evaluations/question-sets/{qs_id}`: 问题集详情与编辑页面。
 
 ### 6.2 关键组件
 
-- **`QuestionSetTable`**: 展示问题集列表，支持增删改查。
-- **`QuestionEditor`**: 用于添加或修改单个问题的模态框或表单。
 - **`EvaluationList`**: 展示评估任务列表，包含状态、进度条和关键信息。
-- **`EvaluationDetailView`**: 评估详情页的主组件，包含总体统计和结果列表。
 - **`ResultComparisonCard`**: 在详情页中，用于并排展示单个问题的标准答案、RAG 回答和 LLM 评判结果的卡片。
+- **`QuestionSetList`**: 展示问题集列表。
+- **`QuestionSetEditor`**: 创建和编辑问题集的富客户端组件。
+    - **`EditableQuestionTable`**: 一个可交互的表格，用于手动增删改查问题列表。
+    - **`FileUploadParser`**: 客户端文件解析器，支持 CSV/JSON，并能将结果填入表格。
+    - **`QuestionGenerationModal`**: 一个模态框，封装了从 Collection 生成问题的交互流程。
 
 ## 7. 实施计划
 

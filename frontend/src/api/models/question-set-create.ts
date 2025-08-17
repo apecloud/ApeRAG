@@ -13,6 +13,9 @@
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { Question } from './question';
 
 /**
  * 
@@ -38,5 +41,11 @@ export interface QuestionSetCreate {
      * @memberof QuestionSetCreate
      */
     'collection_id'?: string;
+    /**
+     * 
+     * @type {Array<Question>}
+     * @memberof QuestionSetCreate
+     */
+    'questions'?: Array<Question>;
 }
 

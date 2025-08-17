@@ -250,37 +250,49 @@ def get_async_database_url(url: str):
     return url
 
 
+def new_async_engine():
+    return create_async_engine(
+        get_async_database_url(settings.database_url),
+        echo=settings.debug,
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+        pool_timeout=settings.db_pool_timeout,
+        pool_recycle=settings.db_pool_recycle,
+        pool_pre_ping=settings.db_pool_pre_ping,
+    )
+
+
+def new_sync_engine():
+    return create_engine(
+        get_sync_database_url(settings.database_url),
+        echo=settings.debug,
+        pool_size=settings.db_pool_size,
+        max_overflow=settings.db_max_overflow,
+        pool_timeout=settings.db_pool_timeout,
+        pool_recycle=settings.db_pool_recycle,
+        pool_pre_ping=settings.db_pool_pre_ping,
+    )
+
+
 settings = Config()
 
 # Database connection pool settings from configuration
-async_engine = create_async_engine(
-    get_async_database_url(settings.database_url),
-    echo=settings.debug,
-    pool_size=settings.db_pool_size,
-    max_overflow=settings.db_max_overflow,
-    pool_timeout=settings.db_pool_timeout,
-    pool_recycle=settings.db_pool_recycle,
-    pool_pre_ping=settings.db_pool_pre_ping,
-)
-sync_engine = create_engine(
-    get_sync_database_url(settings.database_url),
-    echo=settings.debug,
-    pool_size=settings.db_pool_size,
-    max_overflow=settings.db_max_overflow,
-    pool_timeout=settings.db_pool_timeout,
-    pool_recycle=settings.db_pool_recycle,
-    pool_pre_ping=settings.db_pool_pre_ping,
-)
+async_engine = new_async_engine()
+sync_engine = new_sync_engine()
 
 
-async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
-    async_session = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
+async def get_async_session(engine=None) -> AsyncGenerator[AsyncSession, None]:
+    if engine is None:
+        engine = async_engine
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with async_session() as session:
         yield session
 
 
-def get_sync_session() -> Generator[Session, None, None]:
-    sync_session = sessionmaker(sync_engine)
+def get_sync_session(engine=None) -> Generator[Session, None, None]:
+    if engine is None:
+        engine = sync_engine
+    sync_session = sessionmaker(engine)
     with sync_session() as session:
         yield session
 

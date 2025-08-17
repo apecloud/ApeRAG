@@ -7,7 +7,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal, Optional, Union
 
-from pydantic import BaseModel, EmailStr, Extra, Field, confloat, conint
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, RootModel, confloat, conint
 
 
 class Bot(BaseModel):
@@ -41,9 +41,9 @@ class BotList(BaseModel):
 
 
 class FailResponse(BaseModel):
-    code: Optional[str] = Field(None, description='Error code', example='400')
+    code: Optional[str] = Field(None, description='Error code', examples=['400'])
     message: Optional[str] = Field(
-        None, description='Error message', example='Invalid request'
+        None, description='Error message', examples=['Invalid request']
     )
 
 
@@ -66,20 +66,20 @@ class BotUpdate(BaseModel):
 
 class Retry(BaseModel):
     max_attempts: Optional[int] = Field(
-        None, description='Maximum number of retry attempts', example=3
+        None, description='Maximum number of retry attempts', examples=[3]
     )
     delay: Optional[int] = Field(
-        None, description='Delay between retries in seconds', example=5
+        None, description='Delay between retries in seconds', examples=[5]
     )
 
 
 class Notification(BaseModel):
-    email: Optional[list[EmailStr]] = Field(None, example=['admin@example.com'])
+    email: Optional[list[EmailStr]] = Field(None, examples=[['admin@example.com']])
 
 
 class ErrorHandling(BaseModel):
     strategy: Optional[Literal['stop_on_error', 'continue_on_error']] = Field(
-        None, description='Error handling strategy', example='stop_on_error'
+        None, description='Error handling strategy', examples=['stop_on_error']
     )
     notification: Optional[Notification] = None
 
@@ -90,7 +90,7 @@ class ExecutionConfig(BaseModel):
     """
 
     timeout: Optional[int] = Field(
-        None, description='Overall timeout in seconds', example=300
+        None, description='Overall timeout in seconds', examples=[300]
     )
     retry: Optional[Retry] = None
     error_handling: Optional[ErrorHandling] = None
@@ -101,9 +101,9 @@ class SchemaDefinition(BaseModel):
     JSON Schema definition
     """
 
-    class Config:
-        extra = Extra.allow
-
+    model_config = ConfigDict(
+        extra='allow',
+    )
     type: Optional[
         Literal['object', 'array', 'string', 'number', 'integer', 'boolean']
     ] = None
@@ -129,7 +129,7 @@ class Data(BaseModel):
     collapsed: Optional[bool] = Field(
         None,
         description='Whether the node is collapsed, only useful for frontend to collapse the node',
-        example=False,
+        examples=[False],
     )
 
 
@@ -155,7 +155,7 @@ class Node(BaseModel):
     id: str = Field(
         ...,
         description='Unique identifier for the node',
-        example='vector_search_3f8e2c1a',
+        examples=['vector_search_3f8e2c1a'],
     )
     ariaLabel: Optional[str] = Field(None, description='label for the node')
     type: Literal[
@@ -166,9 +166,9 @@ class Node(BaseModel):
         'merge',
         'rerank',
         'llm',
-    ] = Field(..., description='Type of node', example='vector_search')
+    ] = Field(..., description='Type of node', examples=['vector_search'])
     title: Optional[str] = Field(
-        None, description='Human-readable title of the node', example='Vector Search'
+        None, description='Human-readable title of the node', examples=['Vector Search']
     )
     data: Data
     position: Optional[Position] = Field(
@@ -189,7 +189,7 @@ class Node(BaseModel):
     deletable: Optional[bool] = Field(
         None,
         description='Whether the node is deletable, only useful for frontend to delete the node',
-        example=True,
+        examples=[True],
     )
 
 
@@ -197,17 +197,17 @@ class Edge(BaseModel):
     id: Optional[str] = Field(
         None,
         description='Unique identifier for the edge, only useful for frontend to identify the edge',
-        example='edge_1',
+        examples=['edge_1'],
     )
     deletable: Optional[bool] = Field(
         None,
         description='Whether the edge is deletable, only useful for frontend to delete the edge',
-        example=True,
+        examples=[True],
     )
-    type: Optional[str] = Field(None, description='Type of the edge', example='edge')
-    source: str = Field(..., description='ID of the source node', example='start')
+    type: Optional[str] = Field(None, description='Type of the edge', examples=['edge'])
+    source: str = Field(..., description='ID of the source node', examples=['start'])
     target: str = Field(
-        ..., description='ID of the target node', example='vector_search_3f8e2c1a'
+        ..., description='ID of the target node', examples=['vector_search_3f8e2c1a']
     )
 
 
@@ -226,20 +226,20 @@ class WorkflowDefinition(BaseModel):
     name: str = Field(
         ...,
         description='Machine-readable identifier for the workflow',
-        example='rag_flow',
+        examples=['rag_flow'],
     )
     title: str = Field(
         ...,
         description='Human-readable title of the workflow',
-        example='RAG Knowledge Base Flow',
+        examples=['RAG Knowledge Base Flow'],
     )
     description: Optional[str] = Field(
         None,
         description='Detailed description of the workflow',
-        example='A typical RAG flow with parallel retrieval and reranking',
+        examples=['A typical RAG flow with parallel retrieval and reranking'],
     )
     version: str = Field(
-        ..., description='Version number of the workflow definition', example='1.0.0'
+        ..., description='Version number of the workflow definition', examples=['1.0.0']
     )
     execution: Optional[ExecutionConfig] = None
     schema_: Optional[dict[str, SchemaDefinition]] = Field(
@@ -398,48 +398,50 @@ class CrontabConfig(BaseModel):
         None, description='Whether to enable scheduled tasks'
     )
     minute: Optional[str] = Field(
-        None, description='Minute field in cron expression', example='0'
+        None, description='Minute field in cron expression', examples=['0']
     )
     hour: Optional[str] = Field(
-        None, description='Hour field in cron expression', example='0'
+        None, description='Hour field in cron expression', examples=['0']
     )
     day_of_month: Optional[str] = Field(
-        None, description='Day of month field in cron expression', example='*'
+        None, description='Day of month field in cron expression', examples=['*']
     )
     month: Optional[str] = Field(
-        None, description='Month field in cron expression', example='*'
+        None, description='Month field in cron expression', examples=['*']
     )
     day_of_week: Optional[str] = Field(
-        None, description='Day of week field in cron expression', example='*'
+        None, description='Day of week field in cron expression', examples=['*']
     )
 
 
 class ModelSpec(BaseModel):
     model: Optional[str] = Field(
-        None, description='The name of the language model to use', example='gpt-4o-mini'
+        None,
+        description='The name of the language model to use',
+        examples=['gpt-4o-mini'],
     )
     model_service_provider: Optional[str] = Field(
         None,
         description='Used for querying auth information (api_key/api_base/...) for a model service provider.',
-        example='openai',
+        examples=['openai'],
     )
     custom_llm_provider: Optional[str] = Field(
         None,
         description="Used for Non-OpenAI LLMs (e.g. 'bedrock' for amazon.titan-tg1-large)",
-        example='openai',
+        examples=['openai'],
     )
     temperature: Optional[confloat(ge=0.0, le=2.0)] = Field(
         0.1,
         description='Controls randomness in the output. Values between 0 and 2. Lower values make output more focused and deterministic',
-        example=0.1,
+        examples=[0.1],
     )
     max_tokens: Optional[conint(ge=1)] = Field(
-        None, description='Maximum number of tokens to generate', example=4096
+        None, description='Maximum number of tokens to generate', examples=[4096]
     )
     max_completion_tokens: Optional[conint(ge=1)] = Field(
         None,
         description='Upper bound for generated completion tokens, including visible and reasoning tokens',
-        example=4096,
+        examples=[4096],
     )
     timeout: Optional[conint(ge=1)] = Field(
         None, description='Maximum execution time in seconds for the API request'
@@ -448,13 +450,15 @@ class ModelSpec(BaseModel):
         None, description='Number of top results to return when reranking documents'
     )
     tags: Optional[list[str]] = Field(
-        [], description='Tags for model categorization', example=['free', 'recommend']
+        [],
+        description='Tags for model categorization',
+        examples=[['free', 'recommend']],
     )
 
 
 class CollectionConfig(BaseModel):
     source: Optional[str] = Field(
-        None, description='Source system identifier', example='system'
+        None, description='Source system identifier', examples=['system']
     )
     crontab: Optional[CrontabConfig] = None
     enable_vector: Optional[bool] = Field(
@@ -717,7 +721,7 @@ class DocumentCreate(BaseModel):
 
 class RebuildIndexesRequest(BaseModel):
     index_types: list[Literal['VECTOR', 'FULLTEXT', 'GRAPH', 'SUMMARY', 'VISION']] = (
-        Field(..., description='Types of indexes to rebuild', min_items=1)
+        Field(..., description='Types of indexes to rebuild', min_length=1)
     )
 
 
@@ -854,10 +858,12 @@ class SearchRequest(BaseModel):
     save_to_history: Optional[bool] = Field(
         False,
         description='Whether to save search result to database history',
-        example=True,
+        examples=[True],
     )
     rerank: Optional[bool] = Field(
-        False, description='Whether to enable rerank for search results', example=True
+        False,
+        description='Whether to enable rerank for search results',
+        examples=[True],
     )
 
 
@@ -874,7 +880,7 @@ class GraphLabelsResponse(BaseModel):
     labels: list[str] = Field(
         ...,
         description='List of available node labels in the knowledge graph',
-        example=['墨香居', '李明华', '林晓雯', '深夜读书会'],
+        examples=[['墨香居', '李明华', '林晓雯', '深夜读书会']],
     )
 
 
@@ -883,30 +889,32 @@ class Properties(BaseModel):
     Node properties containing entity metadata
     """
 
-    class Config:
-        extra = Extra.allow
-
+    model_config = ConfigDict(
+        extra='allow',
+    )
     entity_id: Optional[str] = Field(
-        None, description='Entity identifier', example='墨香居'
+        None, description='Entity identifier', examples=['墨香居']
     )
     entity_type: Optional[str] = Field(
-        None, description='Type of the entity', example='organization'
+        None, description='Type of the entity', examples=['organization']
     )
     description: Optional[str] = Field(
         None,
         description='Description of the entity',
-        example='墨香居是这条老巷子里唯一的旧书店，经营着各种书籍，承载了老板李明华的情怀。',
+        examples=[
+            '墨香居是这条老巷子里唯一的旧书店，经营着各种书籍，承载了老板李明华的情怀。'
+        ],
     )
     source_id: Optional[str] = Field(
         None,
         description='Source chunk ID where entity was extracted',
-        example='chunk-88845945407136e9498f5f594c8a00c6',
+        examples=['chunk-88845945407136e9498f5f594c8a00c6'],
     )
     file_path: Optional[str] = Field(
-        None, description='Source file path', example='story.txt'
+        None, description='Source file path', examples=['story.txt']
     )
     created_at: Optional[int] = Field(
-        None, description='Creation timestamp', example=1751356233
+        None, description='Creation timestamp', examples=[1751356233]
     )
 
 
@@ -918,10 +926,10 @@ class GraphNode(BaseModel):
     id: str = Field(
         ...,
         description='Unique identifier for the node (entity name)',
-        example='墨香居',
+        examples=['墨香居'],
     )
     labels: list[str] = Field(
-        ..., description='Labels associated with the node', example=['墨香居']
+        ..., description='Labels associated with the node', examples=[['墨香居']]
     )
     properties: Properties = Field(
         ..., description='Node properties containing entity metadata'
@@ -933,32 +941,32 @@ class Properties1(BaseModel):
     Edge properties containing relationship metadata
     """
 
-    class Config:
-        extra = Extra.allow
-
+    model_config = ConfigDict(
+        extra='allow',
+    )
     weight: Optional[float] = Field(
-        None, description='Relationship weight/strength', example=9
+        None, description='Relationship weight/strength', examples=[9]
     )
     description: Optional[str] = Field(
         None,
         description='Description of the relationship',
-        example='深夜读书会是墨香居的新活动，旨在提升书店的活力和吸引顾客。',
+        examples=['深夜读书会是墨香居的新活动，旨在提升书店的活力和吸引顾客。'],
     )
     keywords: Optional[str] = Field(
         None,
         description='Keywords associated with the relationship',
-        example='书店活力,活动',
+        examples=['书店活力,活动'],
     )
     source_id: Optional[str] = Field(
         None,
         description='Source chunk ID where relationship was extracted',
-        example='chunk-88845945407136e9498f5f594c8a00c6',
+        examples=['chunk-88845945407136e9498f5f594c8a00c6'],
     )
     file_path: Optional[str] = Field(
-        None, description='Source file path', example='story.txt'
+        None, description='Source file path', examples=['story.txt']
     )
     created_at: Optional[int] = Field(
-        None, description='Creation timestamp', example=1751356233
+        None, description='Creation timestamp', examples=[1751356233]
     )
 
 
@@ -968,13 +976,15 @@ class GraphEdge(BaseModel):
     """
 
     id: str = Field(
-        ..., description='Unique identifier for the edge', example='墨香居-深夜读书会'
+        ...,
+        description='Unique identifier for the edge',
+        examples=['墨香居-深夜读书会'],
     )
     type: Optional[str] = Field(
-        'DIRECTED', description='Type of the relationship', example='DIRECTED'
+        'DIRECTED', description='Type of the relationship', examples=['DIRECTED']
     )
-    source: str = Field(..., description='Source node ID', example='墨香居')
-    target: str = Field(..., description='Target node ID', example='深夜读书会')
+    source: str = Field(..., description='Source node ID', examples=['墨香居'])
+    target: str = Field(..., description='Target node ID', examples=['深夜读书会'])
     properties: Properties1 = Field(
         ..., description='Edge properties containing relationship metadata'
     )
@@ -994,7 +1004,7 @@ class KnowledgeGraph(BaseModel):
     is_truncated: bool = Field(
         ...,
         description='Whether the graph was truncated due to size limits',
-        example=False,
+        examples=[False],
     )
 
 
@@ -1027,14 +1037,14 @@ class NodeMergeRequest(BaseModel):
 
     """
 
-    class Config:
-        extra = Extra.forbid
-
+    model_config = ConfigDict(
+        extra='forbid',
+    )
     entity_ids: list[str] = Field(
         ...,
         description='List of entity IDs to merge directly',
-        example=['墨香居', '书店', '旧书店'],
-        min_items=1,
+        examples=[['墨香居', '书店', '旧书店']],
+        min_length=1,
     )
     target_entity_data: Optional[TargetEntityDataRequest] = None
 
@@ -1047,21 +1057,23 @@ class TargetEntityDataResponse(BaseModel):
     entity_name: str = Field(
         ...,
         description='The entity name that was kept (merge target)',
-        example='墨香居',
+        examples=['墨香居'],
     )
     entity_type: str = Field(
-        ..., description='Entity type of the target entity', example='ORGANIZATION'
+        ..., description='Entity type of the target entity', examples=['ORGANIZATION']
     )
     description: str = Field(
         ...,
         description='Merged description of the target entity',
-        example='墨香居是这条老巷子里唯一的旧书店，经营着各种书籍，承载了老板李明华的情怀。',
+        examples=[
+            '墨香居是这条老巷子里唯一的旧书店，经营着各种书籍，承载了老板李明华的情怀。'
+        ],
     )
     source_id: Optional[str] = Field(
-        None, description='Source ID information', example='chunk-001,chunk-002'
+        None, description='Source ID information', examples=['chunk-001,chunk-002']
     )
     file_path: Optional[str] = Field(
-        None, description='File path information', example='story.txt,book.txt'
+        None, description='File path information', examples=['story.txt,book.txt']
     )
 
 
@@ -1071,34 +1083,36 @@ class NodeMergeResponse(BaseModel):
     """
 
     status: Literal['success', 'error'] = Field(
-        ..., description='Status of the merge operation', example='success'
+        ..., description='Status of the merge operation', examples=['success']
     )
     message: str = Field(
         ...,
         description='Detailed message about the merge operation',
-        example='Successfully merged 2 entities into 墨香居',
+        examples=['Successfully merged 2 entities into 墨香居'],
     )
     entity_ids: list[str] = Field(
         ...,
         description='Entity IDs that were merged',
-        example=['墨香居', '书店', '旧书店'],
+        examples=[['墨香居', '书店', '旧书店']],
     )
     target_entity_data: TargetEntityDataResponse
     source_entities: list[str] = Field(
         ...,
         description='List of entities that were merged into the target',
-        example=['书店', '旧书店'],
+        examples=[['书店', '旧书店']],
     )
     redirected_edges: conint(ge=0) = Field(
-        ..., description='Number of edges that were redirected during merge', example=12
+        ...,
+        description='Number of edges that were redirected during merge',
+        examples=[12],
     )
     merged_description_length: conint(ge=0) = Field(
-        ..., description='Length of the merged description', example=512
+        ..., description='Length of the merged description', examples=[512]
     )
     suggestion_id: Optional[str] = Field(
         None,
         description='Suggestion ID if this merge was based on a suggestion',
-        example='msug123',
+        examples=['msug123'],
     )
 
 
@@ -1108,17 +1122,17 @@ class MergeSuggestionsRequest(BaseModel):
     """
 
     max_suggestions: Optional[conint(ge=1, le=100)] = Field(
-        50, description='Maximum number of merge suggestions to return', example=50
+        50, description='Maximum number of merge suggestions to return', examples=[50]
     )
     max_concurrent_llm_calls: Optional[conint(ge=1, le=16)] = Field(
         4,
         description='Maximum number of concurrent LLM calls for batch analysis',
-        example=4,
+        examples=[4],
     )
     force_refresh: Optional[bool] = Field(
         False,
         description='Force regeneration of suggestions even if valid cached suggestions exist',
-        example=False,
+        examples=[False],
     )
 
 
@@ -1128,10 +1142,10 @@ class MergeSuggestionTargetEntity(BaseModel):
     """
 
     entity_name: str = Field(
-        ..., description='Suggested entity name after merge', example='墨香居'
+        ..., description='Suggested entity name after merge', examples=['墨香居']
     )
     entity_type: str = Field(
-        ..., description='Suggested entity type after merge', example='ORGANIZATION'
+        ..., description='Suggested entity type after merge', examples=['ORGANIZATION']
     )
 
 
@@ -1140,33 +1154,37 @@ class MergeSuggestionItem(BaseModel):
     Individual merge suggestion item
     """
 
-    id: str = Field(..., description='Suggestion ID', example='msug123')
-    collection_id: str = Field(..., description='Collection ID', example='col123')
+    id: str = Field(..., description='Suggestion ID', examples=['msug123'])
+    collection_id: str = Field(..., description='Collection ID', examples=['col123'])
     suggestion_batch_id: str = Field(
-        ..., description='Suggestion batch ID', example='batch456'
+        ..., description='Suggestion batch ID', examples=['batch456']
     )
     entity_ids: list[str] = Field(
         ...,
         description='Entity IDs suggested for merging',
-        example=['墨香居', '书店', '旧书店'],
+        examples=[['墨香居', '书店', '旧书店']],
     )
     confidence_score: confloat(ge=0.0, le=1.0) = Field(
-        ..., description='LLM confidence score for this merge suggestion', example=0.85
+        ...,
+        description='LLM confidence score for this merge suggestion',
+        examples=[0.85],
     )
     merge_reason: str = Field(
         ...,
         description='LLM-generated reason for suggesting this merge',
-        example="两个实体都描述同一个书店，'墨香居'是具体名称，'旧书店'是通用描述，应该合并为同一实体",
+        examples=[
+            "两个实体都描述同一个书店，'墨香居'是具体名称，'旧书店'是通用描述，应该合并为同一实体"
+        ],
     )
     suggested_target_entity: MergeSuggestionTargetEntity
     status: Literal['PENDING', 'ACCEPTED', 'REJECTED', 'EXPIRED'] = Field(
-        ..., description='Status of the suggestion', example='PENDING'
+        ..., description='Status of the suggestion', examples=['PENDING']
     )
     created: datetime = Field(
-        ..., description='Creation timestamp', example='2025-01-07T10:00:00Z'
+        ..., description='Creation timestamp', examples=['2025-01-07T10:00:00Z']
     )
     operated_at: Optional[datetime] = Field(
-        None, description='User operation timestamp', example='2025-01-08T15:30:00Z'
+        None, description='User operation timestamp', examples=['2025-01-08T15:30:00Z']
     )
 
 
@@ -1180,28 +1198,28 @@ class MergeSuggestionsResponse(BaseModel):
         description='List of merge suggestions ordered by confidence score (highest first)',
     )
     total_analyzed_nodes: conint(ge=0) = Field(
-        ..., description='Total number of nodes analyzed', example=156
+        ..., description='Total number of nodes analyzed', examples=[156]
     )
     processing_time_seconds: confloat(ge=0.0) = Field(
-        ..., description='Processing time in seconds', example=12.5
+        ..., description='Processing time in seconds', examples=[12.5]
     )
     from_cache: bool = Field(
-        ..., description='Whether suggestions were loaded from cache', example=False
+        ..., description='Whether suggestions were loaded from cache', examples=[False]
     )
     generated_at: datetime = Field(
-        ..., description='Generation timestamp', example='2025-01-07T10:00:00Z'
+        ..., description='Generation timestamp', examples=['2025-01-07T10:00:00Z']
     )
     total_suggestions: conint(ge=0) = Field(
-        ..., description='Total number of suggestions', example=5
+        ..., description='Total number of suggestions', examples=[5]
     )
     pending_count: conint(ge=0) = Field(
-        ..., description='Number of pending suggestions', example=3
+        ..., description='Number of pending suggestions', examples=[3]
     )
     accepted_count: conint(ge=0) = Field(
-        ..., description='Number of accepted suggestions', example=1
+        ..., description='Number of accepted suggestions', examples=[1]
     )
     rejected_count: conint(ge=0) = Field(
-        ..., description='Number of rejected suggestions', example=1
+        ..., description='Number of rejected suggestions', examples=[1]
     )
 
 
@@ -1210,13 +1228,13 @@ class SuggestionActionRequest(BaseModel):
     Request to take action on a merge suggestion
     """
 
-    class Config:
-        extra = Extra.forbid
-
+    model_config = ConfigDict(
+        extra='forbid',
+    )
     action: Literal['accept', 'reject'] = Field(
         ...,
         description="Action to take on the suggestion (case-insensitive, e.g., 'Accept', 'REJECT', 'accept')",
-        example='accept',
+        examples=['accept'],
     )
     target_entity_data: Optional[TargetEntityDataRequest] = Field(
         None,
@@ -1230,20 +1248,20 @@ class SuggestionActionResponse(BaseModel):
     """
 
     status: Literal['success', 'error'] = Field(
-        ..., description='Status of the action operation', example='success'
+        ..., description='Status of the action operation', examples=['success']
     )
     message: str = Field(
         ...,
         description='Detailed message about the action operation',
-        example='Suggestion msug123 has been accepted and merge completed',
+        examples=['Suggestion msug123 has been accepted and merge completed'],
     )
     suggestion_id: str = Field(
-        ..., description='The suggestion ID that was processed', example='msug123'
+        ..., description='The suggestion ID that was processed', examples=['msug123']
     )
     action: Literal['accept', 'reject'] = Field(
         ...,
         description='The action that was performed (normalized to lowercase)',
-        example='accept',
+        examples=['accept'],
     )
     merge_result: Optional[NodeMergeResponse] = Field(
         None,
@@ -1320,12 +1338,14 @@ class ApiKeyUpdate(BaseModel):
 
 class TagFilterCondition(BaseModel):
     operation: Literal['AND', 'OR'] = Field(
-        ..., description='Logical operation for tags in this condition', example='AND'
+        ...,
+        description='Logical operation for tags in this condition',
+        examples=['AND'],
     )
     tags: list[str] = Field(
         ...,
         description='List of tags for this condition',
-        example=['free', 'recommend'],
+        examples=[['free', 'recommend']],
     )
 
 
@@ -1337,9 +1357,11 @@ class TagFilterRequest(BaseModel):
     tag_filters: Optional[list[TagFilterCondition]] = Field(
         None,
         description='List of tag filter conditions (OR relationship between conditions). If not provided or empty, returns models with "recommend" tag by default.',
-        example=[
-            {'operation': 'AND', 'tags': ['free', 'recommend']},
-            {'operation': 'OR', 'tags': ['openai', 'gpt']},
+        examples=[
+            [
+                {'operation': 'AND', 'tags': ['free', 'recommend']},
+                {'operation': 'OR', 'tags': ['openai', 'gpt']},
+            ]
         ],
     )
 
@@ -1372,13 +1394,13 @@ class DefaultModelConfig(BaseModel):
     ] = Field(
         ...,
         description='The scenario for which this default model is configured',
-        example='default_for_embedding',
+        examples=['default_for_embedding'],
     )
     provider_name: Optional[str] = Field(
-        None, description='The name of the model provider', example='openai'
+        None, description='The name of the model provider', examples=['openai']
     )
     model: Optional[str] = Field(
-        None, description='The name of the model', example='text-embedding-3-small'
+        None, description='The name of the model', examples=['text-embedding-3-small']
     )
 
 
@@ -1392,41 +1414,45 @@ class DefaultModelsUpdateRequest(BaseModel):
     defaults: list[DefaultModelConfig] = Field(
         ...,
         description='List of default model configurations to update',
-        example=[
-            {
-                'scenario': 'default_for_embedding',
-                'provider_name': 'openai',
-                'model': 'text-embedding-3-small',
-            },
-            {
-                'scenario': 'default_for_collection_completion',
-                'provider_name': 'openai',
-                'model': 'gpt-4o-mini',
-            },
+        examples=[
+            [
+                {
+                    'scenario': 'default_for_embedding',
+                    'provider_name': 'openai',
+                    'model': 'text-embedding-3-small',
+                },
+                {
+                    'scenario': 'default_for_collection_completion',
+                    'provider_name': 'openai',
+                    'model': 'gpt-4o-mini',
+                },
+            ]
         ],
     )
 
 
 class LlmProvider(BaseModel):
     name: str = Field(
-        ..., description='Unique provider name identifier', example='openai'
+        ..., description='Unique provider name identifier', examples=['openai']
     )
     user_id: str = Field(
         ...,
         description='User ID of the provider owner, "public" for system providers',
-        example='public',
+        examples=['public'],
     )
     label: str = Field(
-        ..., description='Human-readable provider display name', example='OpenAI'
+        ..., description='Human-readable provider display name', examples=['OpenAI']
     )
     completion_dialect: Optional[str] = Field(
-        'openai', description='API dialect for completion/chat APIs', example='openai'
+        'openai',
+        description='API dialect for completion/chat APIs',
+        examples=['openai'],
     )
     embedding_dialect: Optional[str] = Field(
-        'openai', description='API dialect for embedding APIs', example='openai'
+        'openai', description='API dialect for embedding APIs', examples=['openai']
     )
     rerank_dialect: Optional[str] = Field(
-        'jina_ai', description='API dialect for rerank APIs', example='jina_ai'
+        'jina_ai', description='API dialect for rerank APIs', examples=['jina_ai']
     )
     allow_custom_base_url: Optional[bool] = Field(
         False, description='Whether custom base URLs are allowed'
@@ -1434,7 +1460,7 @@ class LlmProvider(BaseModel):
     base_url: str = Field(
         ...,
         description='Default API base URL for this provider',
-        example='https://api.openai.com/v1',
+        examples=['https://api.openai.com/v1'],
     )
     extra: Optional[str] = Field(
         None, description='Additional configuration data in JSON format'
@@ -1448,26 +1474,30 @@ class LlmProvider(BaseModel):
 
 class LlmProviderModel(BaseModel):
     provider_name: str = Field(
-        ..., description='Reference to LLMProvider.name', example='openai'
+        ..., description='Reference to LLMProvider.name', examples=['openai']
     )
     api: Literal['completion', 'embedding', 'rerank'] = Field(
-        ..., description='API type for this model', example='completion'
+        ..., description='API type for this model', examples=['completion']
     )
-    model: str = Field(..., description='Model name/identifier', example='gpt-4o-mini')
+    model: str = Field(
+        ..., description='Model name/identifier', examples=['gpt-4o-mini']
+    )
     custom_llm_provider: str = Field(
-        ..., description='Custom LLM provider implementation', example='openai'
+        ..., description='Custom LLM provider implementation', examples=['openai']
     )
     context_window: Optional[int] = Field(
-        None, description='Context window size (total tokens)', example=128000
+        None, description='Context window size (total tokens)', examples=[128000]
     )
     max_input_tokens: Optional[int] = Field(
-        None, description='Maximum input tokens', example=120000
+        None, description='Maximum input tokens', examples=[120000]
     )
     max_output_tokens: Optional[int] = Field(
-        None, description='Maximum output tokens', example=8000
+        None, description='Maximum output tokens', examples=[8000]
     )
     tags: Optional[list[str]] = Field(
-        [], description='Tags for model categorization', example=['free', 'recommend']
+        [],
+        description='Tags for model categorization',
+        examples=[['free', 'recommend']],
     )
     created: Optional[datetime] = Field(None, description='Creation timestamp')
     updated: Optional[datetime] = Field(None, description='Last update timestamp')
@@ -1557,13 +1587,13 @@ class LlmProviderModelCreate(BaseModel):
         ..., description='Custom LLM provider implementation'
     )
     context_window: Optional[int] = Field(
-        None, description='Context window size (total tokens)', example=128000
+        None, description='Context window size (total tokens)', examples=[128000]
     )
     max_input_tokens: Optional[int] = Field(
-        None, description='Maximum input tokens', example=120000
+        None, description='Maximum input tokens', examples=[120000]
     )
     max_output_tokens: Optional[int] = Field(
-        None, description='Maximum output tokens', example=8000
+        None, description='Maximum output tokens', examples=[8000]
     )
     tags: Optional[list[str]] = Field([], description='Tags for model categorization')
 
@@ -1573,13 +1603,13 @@ class LlmProviderModelUpdate(BaseModel):
         None, description='Custom LLM provider implementation'
     )
     context_window: Optional[int] = Field(
-        None, description='Context window size (total tokens)', example=128000
+        None, description='Context window size (total tokens)', examples=[128000]
     )
     max_input_tokens: Optional[int] = Field(
-        None, description='Maximum input tokens', example=120000
+        None, description='Maximum input tokens', examples=[120000]
     )
     max_output_tokens: Optional[int] = Field(
-        None, description='Maximum output tokens', example=8000
+        None, description='Maximum output tokens', examples=[8000]
     )
     tags: Optional[list[str]] = Field(None, description='Tags for model categorization')
 
@@ -1590,12 +1620,14 @@ class EmbeddingRequest(BaseModel):
     """
 
     provider: str = Field(
-        ..., description='LLM provider name (e.g., openai, anthropic)', example='openai'
+        ...,
+        description='LLM provider name (e.g., openai, anthropic)',
+        examples=['openai'],
     )
     model: str = Field(
         ...,
         description='Model name for embedding generation',
-        example='text-embedding-3-small',
+        examples=['text-embedding-3-small'],
     )
     input: Union[str, list[str]]
 
@@ -1605,16 +1637,18 @@ class EmbeddingData(BaseModel):
     Individual embedding result
     """
 
-    object: str = Field(..., description='Object type identifier', example='embedding')
+    object: str = Field(
+        ..., description='Object type identifier', examples=['embedding']
+    )
     embedding: list[float] = Field(
         ...,
         description='The embedding vector as a list of floats',
-        example=[0.0023064255, -0.009327292, 0.015797421, 0.0012345678],
+        examples=[[0.0023064255, -0.009327292, 0.015797421, 0.0012345678]],
     )
     index: int = Field(
         ...,
         description='Index of the input text corresponding to this embedding',
-        example=0,
+        examples=[0],
     )
 
 
@@ -1624,12 +1658,12 @@ class EmbeddingUsage(BaseModel):
     """
 
     prompt_tokens: int = Field(
-        ..., description='Number of tokens in the input text(s)', example=16
+        ..., description='Number of tokens in the input text(s)', examples=[16]
     )
     total_tokens: int = Field(
         ...,
         description='Total number of tokens used (same as prompt_tokens for embeddings)',
-        example=16,
+        examples=[16],
     )
 
 
@@ -1638,12 +1672,12 @@ class EmbeddingResponse(BaseModel):
     Response containing generated embeddings in OpenAI-compatible format
     """
 
-    object: str = Field(..., description='Object type identifier', example='list')
+    object: str = Field(..., description='Object type identifier', examples=['list'])
     data: list[EmbeddingData] = Field(..., description='List of embedding results')
     model: str = Field(
         ...,
         description='Model used for embedding generation',
-        example='text-embedding-3-small',
+        examples=['text-embedding-3-small'],
     )
     usage: EmbeddingUsage
 
@@ -1652,12 +1686,12 @@ class Document1(BaseModel):
     text: str = Field(
         ...,
         description='Document text content',
-        example='Paris is the capital of France.',
+        examples=['Paris is the capital of France.'],
     )
     metadata: Optional[dict[str, Any]] = Field(
         None,
         description='Optional document metadata',
-        example={'id': 'doc_123', 'source': 'wikipedia'},
+        examples=[{'id': 'doc_123', 'source': 'wikipedia'}],
     )
 
 
@@ -1667,22 +1701,26 @@ class RerankRequest(BaseModel):
     """
 
     provider: str = Field(
-        ..., description='LLM provider name (e.g., cohere, jina_ai)', example='cohere'
+        ...,
+        description='LLM provider name (e.g., cohere, jina_ai)',
+        examples=['cohere'],
     )
     model: str = Field(
-        ..., description='Model name for reranking', example='rerank-english-v3.0'
+        ..., description='Model name for reranking', examples=['rerank-english-v3.0']
     )
     query: str = Field(
         ...,
         description='Search query to rank documents against',
-        example='What is the capital of France?',
+        examples=['What is the capital of France?'],
     )
     documents: Union[list[str], list[Document1]]
     top_k: Optional[conint(ge=1, le=1000)] = Field(
-        10, description='Maximum number of top-ranked documents to return', example=3
+        10, description='Maximum number of top-ranked documents to return', examples=[3]
     )
     return_documents: Optional[bool] = Field(
-        True, description='Whether to return document content in response', example=True
+        True,
+        description='Whether to return document content in response',
+        examples=[True],
     )
 
 
@@ -1694,12 +1732,12 @@ class Document2(BaseModel):
     text: str = Field(
         ...,
         description='Document text content',
-        example='Paris is the capital of France.',
+        examples=['Paris is the capital of France.'],
     )
     metadata: Optional[dict[str, Any]] = Field(
         None,
         description='Document metadata if provided in the request',
-        example={'id': 'doc_123', 'source': 'wikipedia'},
+        examples=[{'id': 'doc_123', 'source': 'wikipedia'}],
     )
 
 
@@ -1709,12 +1747,14 @@ class RerankDocument(BaseModel):
     """
 
     index: int = Field(
-        ..., description='Original index of the document in the input array', example=0
+        ...,
+        description='Original index of the document in the input array',
+        examples=[0],
     )
     relevance_score: confloat(ge=0.0, le=1.0) = Field(
         ...,
         description='Relevance score between 0 and 1 (higher is more relevant)',
-        example=0.95,
+        examples=[0.95],
     )
     document: Optional[Document2] = Field(
         None,
@@ -1730,7 +1770,7 @@ class RerankUsage(BaseModel):
     total_tokens: int = Field(
         ...,
         description='Total number of tokens processed (query + all documents)',
-        example=156,
+        examples=[156],
     )
 
 
@@ -1739,13 +1779,13 @@ class RerankResponse(BaseModel):
     Response containing reranked documents in industry-standard format
     """
 
-    object: str = Field(..., description='Object type identifier', example='list')
+    object: str = Field(..., description='Object type identifier', examples=['list'])
     data: list[RerankDocument] = Field(
         ...,
         description='List of reranked documents ordered by relevance (highest first)',
     )
     model: str = Field(
-        ..., description='Model used for reranking', example='rerank-english-v3.0'
+        ..., description='Model used for reranking', examples=['rerank-english-v3.0']
     )
     usage: RerankUsage
 
@@ -1780,7 +1820,7 @@ class Config(BaseModel):
     login_methods: Optional[list[str]] = Field(
         None,
         description='Available login methods',
-        example=['local', 'google', 'github'],
+        examples=[['local', 'google', 'github']],
     )
 
 
@@ -1958,11 +1998,11 @@ class QuotaInfo(BaseModel):
     """
 
     quota_type: str = Field(
-        ..., description='Type of quota', example='max_collection_count'
+        ..., description='Type of quota', examples=['max_collection_count']
     )
-    quota_limit: int = Field(..., description='Maximum allowed usage', example=10)
-    current_usage: int = Field(..., description='Current usage count', example=3)
-    remaining: int = Field(..., description='Remaining quota available', example=7)
+    quota_limit: int = Field(..., description='Maximum allowed usage', examples=[10])
+    current_usage: int = Field(..., description='Current usage count', examples=[3])
+    remaining: int = Field(..., description='Remaining quota available', examples=[7])
 
 
 class UserQuotaInfo(BaseModel):
@@ -1970,12 +2010,12 @@ class UserQuotaInfo(BaseModel):
     Complete quota information for a user
     """
 
-    user_id: str = Field(..., description='User ID', example='user123')
-    username: Optional[str] = Field(None, description='Username', example='john_doe')
+    user_id: str = Field(..., description='User ID', examples=['user123'])
+    username: Optional[str] = Field(None, description='Username', examples=['john_doe'])
     email: Optional[str] = Field(
-        None, description='User email', example='john@example.com'
+        None, description='User email', examples=['john@example.com']
     )
-    role: str = Field(..., description='User role', example='rw')
+    role: str = Field(..., description='User role', examples=['rw'])
     quotas: list[QuotaInfo] = Field(..., description='List of quota information')
 
 
@@ -2012,10 +2052,10 @@ class UpdatedQuota(BaseModel):
     quota_type: str = Field(
         ...,
         description='Type of quota that was updated',
-        example='max_collection_count',
+        examples=['max_collection_count'],
     )
-    old_limit: int = Field(..., description='Previous quota limit', example=10)
-    new_limit: int = Field(..., description='New quota limit', example=20)
+    old_limit: int = Field(..., description='Previous quota limit', examples=[10])
+    new_limit: int = Field(..., description='New quota limit', examples=[20])
 
 
 class QuotaUpdateResponse(BaseModel):
@@ -2024,12 +2064,14 @@ class QuotaUpdateResponse(BaseModel):
     """
 
     success: bool = Field(
-        ..., description='Whether the update was successful', example=True
+        ..., description='Whether the update was successful', examples=[True]
     )
     message: str = Field(
-        ..., description='Status message', example='Quotas updated successfully'
+        ..., description='Status message', examples=['Quotas updated successfully']
     )
-    user_id: str = Field(..., description='User ID that was updated', example='user123')
+    user_id: str = Field(
+        ..., description='User ID that was updated', examples=['user123']
+    )
     updated_quotas: list[UpdatedQuota] = Field(
         ..., description='List of updated quotas'
     )
@@ -2041,16 +2083,16 @@ class SystemDefaultQuotas(BaseModel):
     """
 
     max_collection_count: conint(ge=0) = Field(
-        ..., description='Default maximum collection count', example=10
+        ..., description='Default maximum collection count', examples=[10]
     )
     max_document_count: conint(ge=0) = Field(
-        ..., description='Default maximum document count', example=1000
+        ..., description='Default maximum document count', examples=[1000]
     )
     max_document_count_per_collection: conint(ge=0) = Field(
-        ..., description='Default maximum documents per collection', example=100
+        ..., description='Default maximum documents per collection', examples=[100]
     )
     max_bot_count: conint(ge=0) = Field(
-        ..., description='Default maximum bot count', example=5
+        ..., description='Default maximum bot count', examples=[5]
     )
 
 
@@ -2076,12 +2118,12 @@ class SystemDefaultQuotasUpdateResponse(BaseModel):
     """
 
     success: bool = Field(
-        ..., description='Whether the update was successful', example=True
+        ..., description='Whether the update was successful', examples=[True]
     )
     message: str = Field(
         ...,
         description='Status message',
-        example='System default quotas updated successfully',
+        examples=['System default quotas updated successfully'],
     )
     quotas: SystemDefaultQuotas
 
@@ -2094,26 +2136,26 @@ class WebSearchRequest(BaseModel):
     query: Optional[str] = Field(
         None,
         description='Search query for regular web search. Optional if only using LLM.txt discovery.',
-        example='ApeRAG 2025年最新发展',
+        examples=['ApeRAG 2025年最新发展'],
     )
     max_results: Optional[int] = Field(
-        5, description='Maximum number of results to return', example=5
+        5, description='Maximum number of results to return', examples=[5]
     )
     timeout: Optional[int] = Field(
-        30, description='Request timeout in seconds', example=30
+        30, description='Request timeout in seconds', examples=[30]
     )
     locale: Optional[str] = Field(
-        'en-US', description='Browser locale', example='en-US'
+        'en-US', description='Browser locale', examples=['en-US']
     )
     source: Optional[str] = Field(
         None,
         description="Domain or URL for site-specific filtering. When provided with query, limits search results to this domain (e.g., 'site:vercel.com query').",
-        example='vercel.com',
+        examples=['vercel.com'],
     )
     search_llms_txt: Optional[str] = Field(
         None,
         description='Domain for LLM.txt discovery search. When provided, performs additional LLM-optimized content discovery from the specified domain, independent of the main search. Results are merged with regular search results.',
-        example='anthropic.com',
+        examples=['anthropic.com'],
     )
 
 
@@ -2122,17 +2164,21 @@ class WebSearchResultItem(BaseModel):
     Individual web search result
     """
 
-    rank: int = Field(..., description='Result rank', example=1)
-    title: str = Field(..., description='Page title', example='ApeRAG 2025年技术路线图')
+    rank: int = Field(..., description='Result rank', examples=[1])
+    title: str = Field(
+        ..., description='Page title', examples=['ApeRAG 2025年技术路线图']
+    )
     url: str = Field(
-        ..., description='Page URL', example='https://example.com/aperag-2025-roadmap'
+        ...,
+        description='Page URL',
+        examples=['https://example.com/aperag-2025-roadmap'],
     )
     snippet: str = Field(
-        ..., description='Page snippet', example='ApeRAG在2025年将重点发展...'
+        ..., description='Page snippet', examples=['ApeRAG在2025年将重点发展...']
     )
-    domain: str = Field(..., description='Domain name', example='example.com')
+    domain: str = Field(..., description='Domain name', examples=['example.com'])
     timestamp: Optional[datetime] = Field(
-        None, description='Result timestamp', example='2025-01-01T00:00:00Z'
+        None, description='Result timestamp', examples=['2025-01-01T00:00:00Z']
     )
 
 
@@ -2159,16 +2205,16 @@ class WebReadRequest(BaseModel):
     url_list: list[str] = Field(
         ...,
         description='List of URLs to read (for single URL, use array with one element)',
-        example=['https://example.com/article'],
+        examples=[['https://example.com/article']],
     )
     timeout: Optional[int] = Field(
-        30, description='Request timeout in seconds', example=30
+        30, description='Request timeout in seconds', examples=[30]
     )
     locale: Optional[str] = Field(
-        'en-US', description='Browser locale', example='en-US'
+        'en-US', description='Browser locale', examples=['en-US']
     )
     max_concurrent: Optional[int] = Field(
-        3, description='Maximum concurrent requests for multiple URLs', example=3
+        3, description='Maximum concurrent requests for multiple URLs', examples=[3]
     )
 
 
@@ -2223,20 +2269,8 @@ class QuestionSetList(BaseModel):
     page_size: Optional[int] = None
 
 
-class QuestionSetCreate(BaseModel):
-    name: str
-    description: Optional[str] = None
-    collection_id: Optional[str] = None
-
-
-class QuestionSetGenerate(BaseModel):
-    collection_id: str
-    name: str
-    description: Optional[str] = None
-
-
-class QuestionType(BaseModel):
-    __root__: Literal['FACTUAL', 'INFERENTIAL', 'USER_DEFINED'] = Field(
+class QuestionType(RootModel[Literal['FACTUAL', 'INFERENTIAL', 'USER_DEFINED']]):
+    root: Literal['FACTUAL', 'INFERENTIAL', 'USER_DEFINED'] = Field(
         ..., description='Question type enumeration'
     )
 
@@ -2249,6 +2283,19 @@ class Question(BaseModel):
     ground_truth: Optional[str] = None
     gmt_created: Optional[datetime] = None
     gmt_updated: Optional[datetime] = None
+
+
+class QuestionSetCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    collection_id: Optional[str] = None
+    questions: Optional[list[Question]] = None
+
+
+class QuestionSetGenerate(BaseModel):
+    collection_id: str
+    name: str
+    description: Optional[str] = None
 
 
 class QuestionSetDetail(BaseModel):
@@ -2273,8 +2320,10 @@ class QuestionUpdate(BaseModel):
     question_type: Optional[QuestionType] = None
 
 
-class EvaluationStatus(BaseModel):
-    __root__: Literal['PENDING', 'RUNNING', 'PAUSED', 'COMPLETED', 'FAILED'] = Field(
+class EvaluationStatus(
+    RootModel[Literal['PENDING', 'RUNNING', 'PAUSED', 'COMPLETED', 'FAILED']]
+):
+    root: Literal['PENDING', 'RUNNING', 'PAUSED', 'COMPLETED', 'FAILED'] = Field(
         ..., description='Evaluation task lifecycle status'
     )
 
@@ -2347,14 +2396,16 @@ class AgentMessage(BaseModel):
     """
 
     query: str = Field(
-        ..., description='User query', example='Tell me about ApeRAG features'
+        ..., description='User query', examples=['Tell me about ApeRAG features']
     )
     collections: list[Collection] = Field(
         ...,
         description='List of collection objects to search in',
-        example=[
-            {'id': 'col_123', 'title': 'Example Collection'},
-            {'id': 'col_456', 'title': 'Another Collection'},
+        examples=[
+            [
+                {'id': 'col_123', 'title': 'Example Collection'},
+                {'id': 'col_456', 'title': 'Another Collection'},
+            ]
         ],
     )
     completion: Optional[ModelSpec] = Field(
@@ -2362,7 +2413,7 @@ class AgentMessage(BaseModel):
         description='Model specification for completion including provider and model details',
     )
     web_search_enabled: Optional[bool] = Field(
-        False, description='Whether to enable web search', example=True
+        False, description='Whether to enable web search', examples=[True]
     )
     language: Optional[
         Literal[
@@ -2379,5 +2430,5 @@ class AgentMessage(BaseModel):
             'ru-RU',
         ]
     ] = Field(
-        'en-US', description='Language preference for the response', example='en-US'
+        'en-US', description='Language preference for the response', examples=['en-US']
     )

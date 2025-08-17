@@ -21,6 +21,8 @@ from aperag.views.auth import current_user
 
 router = APIRouter(tags=["evaluation"])
 
+MAX_QUESTIONS_PER_SET = 1000
+
 
 # region Question Set Management
 @router.get("/question-sets", response_model=view_models.QuestionSetList)
@@ -38,6 +40,8 @@ async def create_question_set(
     request: view_models.QuestionSetCreate,
     user: view_models.User = Depends(current_user),
 ):
+    if len(request.questions) > MAX_QUESTIONS_PER_SET:
+        raise HTTPException(status_code=400, detail=f"A question set can have a maximum of {MAX_QUESTIONS_PER_SET} questions.")
     return await question_set_service.create_question_set(request, user.id)
 
 
@@ -67,8 +71,30 @@ async def get_question_set(
     qs = await question_set_service.get_question_set(qs_id, user.id)
     if not qs:
         raise HTTPException(status_code=404, detail="Question set not found")
-    # TODO: Load questions for the detail view
-    return qs
+
+    # Load questions for the detail view
+    questions = await question_set_service.list_all_questions(qs_id)
+    return view_models.QuestionSetDetail(
+        id=qs.id,
+        user_id=qs.user_id,
+        collection_id=qs.collection_id,
+        name=qs.name,
+        description=qs.description,
+        gmt_created=qs.gmt_created,
+        gmt_updated=qs.gmt_updated,
+        questions=[
+            view_models.Question(
+                id=q.id,
+                question_set_id=q.question_set_id,
+                question_type=q.question_type,
+                question_text=q.question_text,
+                ground_truth=q.ground_truth,
+                gmt_created=q.gmt_created,
+                gmt_updated=q.gmt_updated,
+            )
+            for q in questions
+        ],
+    )
 
 
 @router.put("/question-sets/{qs_id}", response_model=view_models.QuestionSet)
@@ -99,7 +125,13 @@ async def add_question(
     request: view_models.Question,
     user: view_models.User = Depends(current_user),
 ):
-    return await question_set_service.add_question(qs_id, request, user.id)
+    # TODO: check if the question set belongs to the user
+    # Get current question count
+    _, total_questions = await question_set_service.list_questions_by_set_id(qs_id, page=1, page_size=1)
+    if total_questions >= MAX_QUESTIONS_PER_SET:
+        raise HTTPException(status_code=400, detail=f"A question set can have a maximum of {MAX_QUESTIONS_PER_SET} questions.")
+
+    return await question_set_service.add_question(qs_id, request)
 
 
 @router.put("/question-sets/{qs_id}/questions/{q_id}", response_model=view_models.Question)
