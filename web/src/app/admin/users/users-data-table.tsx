@@ -38,7 +38,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useGlobalContext } from '@/hooks/use-global-context';
+import { useAppContext } from '@/hooks/use-app-context';
 import { cn } from '@/lib/utils';
 import {
   BatteryMedium,
@@ -54,7 +54,7 @@ import { FaGithub, FaGoogle } from 'react-icons/fa6';
 import { UserQuotaAction } from './user-quota-action';
 
 export function UsersDataTable({ data }: { data: User[] }) {
-  const { user } = useGlobalContext();
+  const { user } = useAppContext();
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});

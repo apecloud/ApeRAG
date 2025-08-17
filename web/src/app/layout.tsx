@@ -5,7 +5,7 @@ import { NextIntlClientProvider } from 'next-intl';
 import { Geist, Geist_Mono } from 'next/font/google';
 import NextTopLoader from 'nextjs-toploader';
 
-import { GlobalProvider } from '@/components/global-provider';
+import { AppProvider } from '@/components/app-provider';
 import { ThemeProvider } from '@/components/theme-provider';
 
 import 'highlight.js/styles/github-dark.css';
@@ -58,7 +58,7 @@ export default async function RootLayout({
             disableTransitionOnChange
           >
             <Toaster position="top-center" richColors />
-            <GlobalProvider user={user}>{children}</GlobalProvider>
+            <AppProvider user={user}>{children}</AppProvider>
           </ThemeProvider>
         </NextIntlClientProvider>
       </body>

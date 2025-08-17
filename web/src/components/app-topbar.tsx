@@ -10,14 +10,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ChevronsUpDown, CircleQuestionMark, Moon, Sun } from 'lucide-react';
+import {
+  ChevronsUpDown,
+  CircleQuestionMark,
+  Moon,
+  Sun,
+  User,
+} from 'lucide-react';
 import { useTheme } from 'next-themes';
 
 import Link from 'next/link';
 
-import { BadgeCheck, Bell, LogOut, Sparkles } from 'lucide-react';
+import { LogOut, Sparkles } from 'lucide-react';
 
-import { useGlobalContext } from '@/hooks/use-global-context';
+import { useAppContext } from '@/hooks/use-app-context';
 import { cn } from '@/lib/utils';
 
 import { FaGithub } from 'react-icons/fa6';
@@ -53,7 +59,7 @@ export const AppShortLogo = () => {
 };
 
 export const AppUserDropdownMenu = () => {
-  const { user, signIn, signOut } = useGlobalContext();
+  const { user, signIn, signOut } = useAppContext();
   const username = user?.username || user?.email?.split('@')[0];
 
   if (!user) {
@@ -107,13 +113,14 @@ export const AppUserDropdownMenu = () => {
 
         <DropdownMenuGroup>
           <DropdownMenuItem>
-            <BadgeCheck />
+            <User />
             Account
           </DropdownMenuItem>
-
-          <DropdownMenuItem>
-            <Bell />
-            Notifications
+          <DropdownMenuItem asChild>
+            <Link href="/docs">
+              <CircleQuestionMark />
+              Help
+            </Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
@@ -197,7 +204,6 @@ export const AppTopbar = ({ className }: React.ComponentProps<'div'>) => {
         </div>
         <div className="flex flex-row items-center gap-2">
           <AppGithub />
-          <AppDocs />
           <AppThemeDropdownMenu />
           <AppUserDropdownMenu />
         </div>

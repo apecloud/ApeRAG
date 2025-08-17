@@ -6,8 +6,8 @@ import { createContext, useContext } from 'react';
 import * as z from 'zod';
 
 export const signInLocalSchema = z.object({
-  username: z.string(),
-  password: z.string(),
+  username: z.string().min(1),
+  password: z.string().min(1),
 });
 
 export type SignInOptions = {
@@ -16,16 +16,16 @@ export type SignInOptions = {
   redirectTo: string;
 };
 
-export type GlobalContextProps = {
+export type AppContextProps = {
   user?: User;
   signIn: (options?: SignInOptions) => void;
   signOut: () => void;
 };
 
-export const GlobalContext = createContext<GlobalContextProps>({
+export const AppContext = createContext<AppContextProps>({
   user: undefined,
   signIn: () => {},
   signOut: () => {},
 });
 
-export const useGlobalContext = () => useContext(GlobalContext);
+export const useAppContext = () => useContext(AppContext);

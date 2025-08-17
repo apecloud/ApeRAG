@@ -1,17 +1,17 @@
 'use client';
 import {
-  GlobalContext,
+  AppContext,
   signInLocalSchema,
   SignInOptions,
-} from '@/hooks/use-global-context';
+} from '@/hooks/use-app-context';
 import { toast } from 'sonner';
 
 import { User } from '@/api';
 import { apiClient } from '@/lib/api/client';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
-export const GlobalProvider = ({
+export const AppProvider = ({
   user,
   children,
 }: {
@@ -19,6 +19,7 @@ export const GlobalProvider = ({
   children?: React.ReactNode;
 }) => {
   const [_user, setUser] = useState<User | undefined>(user);
+  const searchParams = useSearchParams();
 
   const router = useRouter();
   const handleSignIn = useCallback(
@@ -35,15 +36,13 @@ export const GlobalProvider = ({
 
         try {
           const res = await apiClient.defaultApi.loginPost({
-            login: {
-              username: data.username,
-              password: data.password,
-            },
+            login: data,
           });
 
           if (res.status === 200) {
             setUser(res.data);
-            router.push(`/workspace`);
+            const callbackUrl = searchParams.get('callbackUrl') || '/workspace';
+            router.push(callbackUrl);
           }
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (err) {
@@ -69,7 +68,7 @@ export const GlobalProvider = ({
         }
       }
     },
-    [router],
+    [router, searchParams],
   );
 
   const handleSignOut = useCallback(async () => {
@@ -81,7 +80,7 @@ export const GlobalProvider = ({
   }, [router]);
 
   return (
-    <GlobalContext.Provider
+    <AppContext.Provider
       value={{
         user: _user,
         signIn: handleSignIn,
@@ -89,6 +88,6 @@ export const GlobalProvider = ({
       }}
     >
       {children}
-    </GlobalContext.Provider>
+    </AppContext.Provider>
   );
 };

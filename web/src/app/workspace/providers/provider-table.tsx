@@ -34,7 +34,7 @@ import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { FormatDate } from '@/components/format-date';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { useGlobalContext } from '@/hooks/use-global-context';
+import { useAppContext } from '@/hooks/use-app-context';
 import {
   ChevronDown,
   Columns3,
@@ -57,7 +57,7 @@ export const ProviderTable = ({
   models: LlmProviderModel[];
   urlPrefix: string;
 }) => {
-  const { user } = useGlobalContext();
+  const { user } = useAppContext();
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({
