@@ -15,7 +15,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aperag.db.models import Evaluation
+from aperag.db.models import Evaluation, EvaluationItem
 from aperag.db.repositories.base import AsyncRepositoryProtocol
 from aperag.utils.utils import utc_now
 
@@ -31,6 +31,18 @@ class AsyncEvaluationRepositoryMixin(AsyncRepositoryProtocol):
             return evaluation
 
         return await self.execute_with_transaction(_operation)
+
+    async def get_evaluation_items_by_eval_id(self, eval_id: str) -> list[EvaluationItem]:
+        """Gets all evaluation items for a given evaluation."""
+
+        async def _query(session: AsyncSession):
+            stmt = select(EvaluationItem).where(
+                EvaluationItem.evaluation_id == eval_id
+            ).order_by(EvaluationItem.gmt_created.asc())
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+        return await self._execute_query(_query)
 
     async def get_evaluation_by_id(self, eval_id: str, user_id: str) -> Evaluation | None:
         """Gets an evaluation by its ID."""

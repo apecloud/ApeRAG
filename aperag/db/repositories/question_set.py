@@ -182,7 +182,7 @@ class AsyncQuestionSetRepositoryMixin(AsyncRepositoryProtocol):
                 .where(Question.question_set_id == qs_id, Question.gmt_deleted.is_(None))
                 .offset((page - 1) * page_size)
                 .limit(page_size)
-                .order_by(Question.gmt_created)
+                .order_by(Question.gmt_created.asc())
             )
             result = await session.execute(stmt)
             items = result.scalars().all()
@@ -203,7 +203,7 @@ class AsyncQuestionSetRepositoryMixin(AsyncRepositoryProtocol):
             stmt = (
                 select(Question)
                 .where(Question.question_set_id == qs_id, Question.gmt_deleted.is_(None))
-                .order_by(Question.gmt_created)
+                .order_by(Question.gmt_created.asc())
             )
             result = await session.execute(stmt)
             return result.scalars().all()

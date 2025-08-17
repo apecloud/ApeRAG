@@ -484,27 +484,101 @@ class EvaluationService:
         else:
             self.db_ops = AsyncDatabaseOps(session)
 
+    def _convert_db_evaluation_to_view_model(self, db_eval: Evaluation) -> view_models.Evaluation:
+        """Converts an Evaluation DB model to a Pydantic view model."""
+        if db_eval is None:
+            return None
+
+        # Handle LLM config conversion from JSON/dict to Pydantic model
+        agent_llm_config = view_models.LLMConfig(**db_eval.agent_llm_config) if db_eval.agent_llm_config else None
+        judge_llm_config = view_models.LLMConfig(**db_eval.judge_llm_config) if db_eval.judge_llm_config else None
+
+        return view_models.Evaluation(
+            id=db_eval.id,
+            user_id=db_eval.user_id,
+            name=db_eval.name,
+            collection_id=db_eval.collection_id,
+            question_set_id=db_eval.question_set_id,
+            agent_llm_config=agent_llm_config,
+            judge_llm_config=judge_llm_config,
+            status=db_eval.status,
+            total_questions=db_eval.total_questions,
+            completed_questions=db_eval.completed_questions,
+            average_score=db_eval.average_score,
+            gmt_created=db_eval.gmt_created,
+            gmt_updated=db_eval.gmt_updated,
+        )
+
     async def create_evaluation(self, request: view_models.EvaluationCreate, user_id: str) -> Evaluation:
         """Creates a new evaluation task."""
         # TODO: Add logic to trigger async task runner
-        # TODO: check quota limit
         db_evaluation = Evaluation(
             user_id=user_id,
             name=request.name,
             collection_id=request.collection_id,
             question_set_id=request.question_set_id,
-            agent_llm_config=request.agent_llm_config,
-            judge_llm_config=request.judge_llm_config,
+            agent_llm_config=request.agent_llm_config.model_dump(),
+            judge_llm_config=request.judge_llm_config.model_dump(),
         )
         return await self.db_ops.create_evaluation(db_evaluation)
 
-    async def get_evaluation(self, eval_id: str, user_id: str) -> Evaluation | None:
-        """Gets an evaluation by its ID."""
-        return await self.db_ops.get_evaluation_by_id(eval_id, user_id)
+    async def get_evaluation(self, eval_id: str, user_id: str) -> view_models.EvaluationDetail | None:
+        """Gets an evaluation by its ID and enriches it with related data."""
+        from aperag.service.collection_service import collection_service
+        from aperag.service.question_set_service import question_set_service
 
-    async def list_evaluations(self, user_id: str, page: int, page_size: int) -> tuple[list[Evaluation], int]:
+        db_eval = await self.db_ops.get_evaluation_by_id(eval_id, user_id)
+        if not db_eval:
+            return None
+
+        # Fetch related object names
+        collection_name = "Unknown"
+        try:
+            collection = await collection_service.get_collection(user_id, db_eval.collection_id)
+            if collection:
+                collection_name = collection.title
+        except Exception:
+            logger.warning(f"Could not fetch collection {db_eval.collection_id} for evaluation {eval_id}")
+
+        question_set_name = "Unknown"
+        try:
+            qs = await question_set_service.get_question_set(db_eval.question_set_id, user_id)
+            if qs:
+                question_set_name = qs.name
+        except Exception:
+            logger.warning(f"Could not fetch question set {db_eval.question_set_id} for evaluation {eval_id}")
+
+        # Convert to Pydantic model and add extra fields
+        eval_detail = view_models.EvaluationDetail(
+            id=db_eval.id,
+            name=db_eval.name,
+            status=db_eval.status,
+            average_score=db_eval.average_score,
+            gmt_created=db_eval.gmt_created,
+            gmt_updated=db_eval.gmt_updated,
+            collection_name=collection_name,
+            question_set_name=question_set_name,
+            config=view_models.Config1(
+                collection_id=db_eval.collection_id,
+                question_set_id=db_eval.question_set_id,
+                agent_llm_config=db_eval.agent_llm_config,
+                judge_llm_config=db_eval.judge_llm_config,
+            ),
+            results=[],  # Results will be loaded separately in the view
+        )
+        return eval_detail
+
+    async def get_evaluation_items(self, eval_id: str) -> list[EvaluationItem]:
+        """Gets all evaluation items for a given evaluation."""
+        return await self.db_ops.get_evaluation_items_by_eval_id(eval_id)
+
+    async def list_evaluations(
+        self, user_id: str, page: int, page_size: int
+    ) -> tuple[list[view_models.Evaluation], int]:
         """Lists all evaluations for a user."""
-        return await self.db_ops.list_evaluations_by_user(user_id, page, page_size)
+        db_items, total = await self.db_ops.list_evaluations_by_user(user_id, page, page_size)
+        items = [self._convert_db_evaluation_to_view_model(item) for item in db_items]
+        return items, total
 
     async def delete_evaluation(self, eval_id: str, user_id: str) -> bool:
         """Deletes an evaluation."""

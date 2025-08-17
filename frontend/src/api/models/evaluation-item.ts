@@ -13,6 +13,9 @@
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { EvaluationItemStatus } from './evaluation-item-status';
 
 /**
  * 
@@ -38,6 +41,12 @@ export interface EvaluationItem {
      * @memberof EvaluationItem
      */
     'question_id'?: string;
+    /**
+     * 
+     * @type {EvaluationItemStatus}
+     * @memberof EvaluationItem
+     */
+    'status'?: EvaluationItemStatus;
     /**
      * 
      * @type {string}
@@ -87,4 +96,6 @@ export interface EvaluationItem {
      */
     'gmt_updated'?: string;
 }
+
+
 

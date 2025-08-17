@@ -14,6 +14,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 
+from aperag.db.models import User
 from aperag.schema import view_models
 from aperag.service.evaluation_service import evaluation_service
 from aperag.service.question_set_service import question_set_service
@@ -29,7 +30,7 @@ MAX_QUESTIONS_PER_SET = 1000
 async def list_question_sets(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
-    user: view_models.User = Depends(current_user),
+    user: User = Depends(current_user),
 ):
     items, total = await question_set_service.list_question_sets(user.id, page, page_size)
     return {"items": items, "total": total, "page": page, "page_size": page_size}
@@ -38,7 +39,7 @@ async def list_question_sets(
 @router.post("/question-sets", response_model=view_models.QuestionSet)
 async def create_question_set(
     request: view_models.QuestionSetCreate,
-    user: view_models.User = Depends(current_user),
+    user: User = Depends(current_user),
 ):
     if len(request.questions) > MAX_QUESTIONS_PER_SET:
         raise HTTPException(
@@ -50,7 +51,7 @@ async def create_question_set(
 @router.post("/question-sets/upload", response_model=view_models.QuestionSet)
 async def upload_question_set(
     file: UploadFile,
-    user: view_models.User = Depends(current_user),
+    user: User = Depends(current_user),
 ):
     # TODO: Implement file parsing and question creation logic
     raise HTTPException(status_code=501, detail="Not Implemented")
@@ -59,7 +60,7 @@ async def upload_question_set(
 @router.post("/question-sets/generate", response_model=view_models.QuestionSetDetail)
 async def generate_question_set(
     request: view_models.QuestionSetGenerate,
-    user: view_models.User = Depends(current_user),
+    user: User = Depends(current_user),
 ):
     questions = await question_set_service.generate_questions(request, user)
 
@@ -72,7 +73,7 @@ async def generate_question_set(
 @router.get("/question-sets/{qs_id}", response_model=view_models.QuestionSetDetail)
 async def get_question_set(
     qs_id: str,
-    user: view_models.User = Depends(current_user),
+    user: User = Depends(current_user),
 ):
     qs = await question_set_service.get_question_set(qs_id, user.id)
     if not qs:
@@ -107,7 +108,7 @@ async def get_question_set(
 async def update_question_set(
     qs_id: str,
     request: view_models.QuestionSetUpdate,
-    user: view_models.User = Depends(current_user),
+    user: User = Depends(current_user),
 ):
     qs = await question_set_service.update_question_set(qs_id, request, user.id)
     if not qs:
@@ -118,7 +119,7 @@ async def update_question_set(
 @router.delete("/question-sets/{qs_id}", status_code=204)
 async def delete_question_set(
     qs_id: str,
-    user: view_models.User = Depends(current_user),
+    user: User = Depends(current_user),
 ):
     # TODO: check if the question set belongs to the user
     if not await question_set_service.delete_question_set(qs_id, user.id):
@@ -129,7 +130,7 @@ async def delete_question_set(
 async def add_question(
     qs_id: str,
     request: view_models.Question,
-    user: view_models.User = Depends(current_user),
+    user: User = Depends(current_user),
 ):
     # TODO: check if the question set belongs to the user
     # Get current question count
@@ -147,7 +148,7 @@ async def update_question(
     qs_id: str,
     q_id: str,
     request: view_models.QuestionUpdate,
-    user: view_models.User = Depends(current_user),
+    user: User = Depends(current_user),
 ):
     # TODO: check if the question set belongs to the user
     q = await question_set_service.update_question(q_id, request)
@@ -160,7 +161,7 @@ async def update_question(
 async def delete_question(
     qs_id: str,
     q_id: str,
-    user: view_models.User = Depends(current_user),
+    user: User = Depends(current_user),
 ):
     # TODO: check if the question set belongs to the user
     await question_set_service.delete_question(q_id)
@@ -174,7 +175,7 @@ async def delete_question(
 async def list_evaluations(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
-    user: view_models.User = Depends(current_user),
+    user: User = Depends(current_user),
 ):
     items, total = await evaluation_service.list_evaluations(user.id, page, page_size)
     return view_models.EvaluationList(
@@ -188,8 +189,9 @@ async def list_evaluations(
 @router.post("/evaluations", response_model=view_models.Evaluation)
 async def create_evaluation(
     request: view_models.EvaluationCreate,
-    user: view_models.User = Depends(current_user),
+    user: User = Depends(current_user),
 ):
+    # TODO: check quota limit
     # The request model is generated from OpenAPI spec, so it should match the new structure.
     # No changes needed here as long as the view_models are up to date.
     return await evaluation_service.create_evaluation(request, user.id)
@@ -198,19 +200,39 @@ async def create_evaluation(
 @router.get("/evaluations/{eval_id}", response_model=view_models.EvaluationDetail)
 async def get_evaluation(
     eval_id: str,
-    user: view_models.User = Depends(current_user),
+    user: User = Depends(current_user),
 ):
-    evaluation = await evaluation_service.get_evaluation(eval_id, user.id)
-    if not evaluation:
+    evaluation_detail = await evaluation_service.get_evaluation(eval_id, user.id)
+    if not evaluation_detail:
         raise HTTPException(status_code=404, detail="Evaluation not found")
-    # TODO: Load evaluation results for the detail view
-    return evaluation
+
+    # Load evaluation results for the detail view
+    results = await evaluation_service.get_evaluation_items(eval_id)
+    evaluation_detail.results = [
+        view_models.EvaluationItem(
+            id=item.id,
+            evaluation_id=item.evaluation_id,
+            question_id=item.question_id,
+            status=item.status,
+            question_text=item.question_text,
+            ground_truth=item.ground_truth,
+            rag_answer=item.rag_answer,
+            rag_answer_details=item.rag_answer_details,
+            llm_judge_score=item.llm_judge_score,
+            llm_judge_reasoning=item.llm_judge_reasoning,
+            gmt_created=item.gmt_created,
+            gmt_updated=item.gmt_updated,
+        )
+        for item in results
+    ]
+
+    return evaluation_detail
 
 
 @router.delete("/evaluations/{eval_id}", status_code=204)
 async def delete_evaluation(
     eval_id: str,
-    user: view_models.User = Depends(current_user),
+    user: User = Depends(current_user),
 ):
     if not await evaluation_service.delete_evaluation(eval_id, user.id):
         raise HTTPException(status_code=404, detail="Evaluation not found")

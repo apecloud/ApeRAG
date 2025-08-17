@@ -19,6 +19,15 @@ EvaluationStatus:
     - FAILED
   description: "Evaluation task lifecycle status"
 
+EvaluationItemStatus:
+  type: string
+  enum:
+    - PENDING
+    - RUNNING
+    - COMPLETED
+    - FAILED
+  description: "Evaluation item lifecycle status"
+
 # Base Models
 LLMConfig:
   type: object
@@ -87,11 +96,13 @@ Evaluation:
     question_set_id:
       type: string
     agent_llm_config:
-      type: object
+      $ref: './evaluation.yaml#/LLMConfig'
     judge_llm_config:
-      type: object
+      $ref: './evaluation.yaml#/LLMConfig'
     status:
       $ref: './evaluation.yaml#/EvaluationStatus'
+    error_message:
+      type: string
     total_questions:
       type: integer
     completed_questions:
@@ -117,6 +128,8 @@ EvaluationItem:
     question_id:
       type: string
       nullable: true
+    status:
+      $ref: './evaluation.yaml#/EvaluationItemStatus'
     question_text:
       type: string
     ground_truth:

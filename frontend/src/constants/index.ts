@@ -192,6 +192,16 @@ export const UI_COLLECTION_STATUS: {
   DELETED: 'error',
 };
 
+export const UI_EVALUATION_STATUS: {
+  [key in string]: 'success' | 'processing' | 'error' | 'default' | 'warning';
+} = {
+  PENDING: 'warning',
+  RUNNING: 'processing',
+  PAUSED: 'default',
+  COMPLETED: 'success',
+  FAILED: 'error',
+};
+
 export const UI_DOCUMENT_STATUS: {
   [key in DocumentStatusEnum]:
     | 'success'

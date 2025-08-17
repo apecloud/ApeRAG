@@ -17,5 +17,9 @@ export default () => {
       .then((res) => res.data.items as QuestionSet[]),
   );
 
-  return { questionSets, loading, refresh };
+  const getQuestionSet = (id: string) => {
+    return questionSets?.find((set) => set.id === id);
+  };
+
+  return { questionSets, loading, refresh, getQuestionSet };
 };

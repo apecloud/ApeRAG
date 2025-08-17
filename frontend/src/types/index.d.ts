@@ -136,3 +136,21 @@ export interface Chunk {
     [key: string]: any;
   };
 }
+
+/**
+ * evaluations
+ */
+export type Evaluation = {
+  id: string;
+  name: string;
+  status: 'PENDING' | 'RUNNING' | 'PAUSED' | 'COMPLETED' | 'FAILED';
+  progress: number;
+  total_questions: number;
+  completed_questions: number;
+  average_score: number;
+  updated_at: string;
+  bot?: {
+    id: string;
+    title: string;
+  };
+};

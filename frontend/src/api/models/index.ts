@@ -61,6 +61,7 @@ export * from './evaluation-create';
 export * from './evaluation-detail';
 export * from './evaluation-detail-config';
 export * from './evaluation-item';
+export * from './evaluation-item-status';
 export * from './evaluation-list';
 export * from './evaluation-status';
 export * from './execution-config';

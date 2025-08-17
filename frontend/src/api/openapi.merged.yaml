@@ -7367,11 +7367,13 @@ components:
         question_set_id:
           type: string
         agent_llm_config:
-          type: object
+          $ref: '#/components/schemas/LLMConfig'
         judge_llm_config:
-          type: object
+          $ref: '#/components/schemas/LLMConfig'
         status:
           $ref: '#/components/schemas/EvaluationStatus'
+        error_message:
+          type: string
         total_questions:
           type: integer
         completed_questions:
@@ -7418,6 +7420,14 @@ components:
           $ref: '#/components/schemas/LLMConfig'
         judge_llm_config:
           $ref: '#/components/schemas/LLMConfig'
+    EvaluationItemStatus:
+      type: string
+      enum:
+        - PENDING
+        - RUNNING
+        - COMPLETED
+        - FAILED
+      description: Evaluation item lifecycle status
     EvaluationItem:
       type: object
       properties:
@@ -7428,6 +7438,8 @@ components:
         question_id:
           type: string
           nullable: true
+        status:
+          $ref: '#/components/schemas/EvaluationItemStatus'
         question_text:
           type: string
         ground_truth:

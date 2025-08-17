@@ -495,8 +495,11 @@ const NewQuestionSetPage = () => {
         </Button>
 
         <Form.Item style={{ marginTop: 32 }}>
-          <Button type="primary" htmlType="submit">
-            {formatMessage({ id: 'evaluation.question_sets.create' })}
+          <Button type="primary" htmlType="submit" style={{ marginRight: 8 }}>
+            {formatMessage({ id: 'evaluation.new.form.submit' })}
+          </Button>
+          <Button onClick={() => history.back()}>
+            {formatMessage({ id: 'evaluation.cancel' })}
           </Button>
         </Form.Item>
       </Form>

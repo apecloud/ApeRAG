@@ -2357,9 +2357,10 @@ class Evaluation(BaseModel):
     name: Optional[str] = None
     collection_id: Optional[str] = None
     question_set_id: Optional[str] = None
-    agent_llm_config: Optional[dict[str, Any]] = None
-    judge_llm_config: Optional[dict[str, Any]] = None
+    agent_llm_config: Optional[LLMConfig] = None
+    judge_llm_config: Optional[LLMConfig] = None
     status: Optional[EvaluationStatus] = None
+    error_message: Optional[str] = None
     total_questions: Optional[int] = None
     completed_questions: Optional[int] = None
     average_score: Optional[float] = None
@@ -2382,10 +2383,19 @@ class EvaluationCreate(BaseModel):
     judge_llm_config: LLMConfig
 
 
+class EvaluationItemStatus(
+    RootModel[Literal['PENDING', 'RUNNING', 'COMPLETED', 'FAILED']]
+):
+    root: Literal['PENDING', 'RUNNING', 'COMPLETED', 'FAILED'] = Field(
+        ..., description='Evaluation item lifecycle status'
+    )
+
+
 class EvaluationItem(BaseModel):
     id: Optional[str] = None
     evaluation_id: Optional[str] = None
     question_id: Optional[str] = None
+    status: Optional[EvaluationItemStatus] = None
     question_text: Optional[str] = None
     ground_truth: Optional[str] = None
     rag_answer: Optional[str] = None
@@ -2406,11 +2416,14 @@ class Config1(BaseModel):
 class EvaluationDetail(BaseModel):
     id: Optional[str] = None
     name: Optional[str] = None
+    collection_name: Optional[str] = None
+    question_set_name: Optional[str] = None
     status: Optional[EvaluationStatus] = None
     average_score: Optional[float] = None
     config: Optional[Config1] = None
     results: Optional[list[EvaluationItem]] = None
     gmt_created: Optional[datetime] = None
+    gmt_updated: Optional[datetime] = None
 
 
 class AgentMessage(BaseModel):

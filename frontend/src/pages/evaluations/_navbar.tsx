@@ -2,7 +2,7 @@ import { QuestionSet } from '@/api/models';
 import { NAVIGATION_WIDTH } from '@/constants';
 import { PlusOutlined } from '@ant-design/icons';
 import { Button, Divider, Flex, Skeleton, theme, Typography } from 'antd';
-import { Link, styled, useIntl, useLocation, useModel } from 'umi';
+import { Link, styled, useIntl, useLocation, useModel, useParams } from 'umi';
 
 const { Title } = Typography;
 
@@ -33,11 +33,22 @@ const StyledLink = styled(Link)`
   }
 `;
 
+import { ArrowLeftOutlined } from '@ant-design/icons';
+
 export const Navbar = () => {
   const { token } = theme.useToken();
   const { formatMessage } = useIntl();
   const location = useLocation();
-  const { questionSets, loading } = useModel('questionSet');
+  const params = useParams<{ questionSetId?: string; evaluationId?: string }>();
+  const { questionSets, loading, getQuestionSet } = useModel('questionSet');
+  const { currentEvaluation } = useModel('evaluation');
+  const { questionSetId } = params;
+
+  const currentQuestionSet = questionSetId
+    ? getQuestionSet(questionSetId)
+    : null;
+  const isEvaluationDetailPage =
+    location.pathname.match(/^\/evaluations\/(eval_.+)/);
 
   const renderQuestionSets = (
     sets: QuestionSet[] | undefined,
@@ -79,22 +90,62 @@ export const Navbar = () => {
     ));
   };
 
+  const renderNavbarHeader = () => {
+    let title = formatMessage({ id: 'evaluation.name' });
+    let backLink = '/evaluations'; // Correct back link
+    let showBackArrow = false;
+    let entityName: string | undefined = undefined;
+
+    if (isEvaluationDetailPage && currentEvaluation) {
+      entityName = currentEvaluation.name;
+      showBackArrow = true;
+    } else if (currentQuestionSet) {
+      entityName = currentQuestionSet.name;
+      showBackArrow = true;
+    }
+
+    if (showBackArrow) {
+      return (
+        <Flex align="center" gap={8}>
+          <Link to={backLink}>
+            <Button type="text" shape="circle" icon={<ArrowLeftOutlined />} />
+          </Link>
+          <Title
+            level={5}
+            style={{
+              margin: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+            title={entityName}
+          >
+            {entityName || '...'}
+          </Title>
+        </Flex>
+      );
+    }
+
+    return (
+      <Title level={5} style={{ margin: 0 }}>
+        {title}
+      </Title>
+    );
+  };
+
   return (
     <StyledNavbar theme={token}>
-      <Flex vertical>
-        <Title level={5}>{formatMessage({ id: 'evaluation.name' })}</Title>
-        <StyledLink
-          to="/evaluations/list"
-          theme={token}
-          className={location.pathname === '/evaluations/list' ? 'active' : ''}
-        >
-          {formatMessage({ id: 'evaluation.list' })}
-        </StyledLink>
-      </Flex>
-      <Divider />
+      <div style={{ marginBottom: 16, height: 32, display: 'flex', alignItems: 'center' }}>
+        {renderNavbarHeader()}
+      </div>
+      <Divider style={{ margin: '0 0 16px 0' }} />
       <Flex vertical flex={1} style={{ overflow: 'hidden' }}>
-        <Flex justify="space-between" align="center">
-          <Title level={5}>
+        <Flex
+          justify="space-between"
+          align="center"
+          style={{ marginBottom: 8 }}
+        >
+          <Title level={5} style={{ margin: 0 }}>
             {formatMessage({ id: 'evaluation.question_sets' })}
           </Title>
           <Link to="/evaluations/question-sets/new">

@@ -16,6 +16,9 @@
 // May contain unused imports in some cases
 // @ts-ignore
 import type { EvaluationStatus } from './evaluation-status';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { LLMConfig } from './llmconfig';
 
 /**
  * 
@@ -55,22 +58,28 @@ export interface Evaluation {
     'question_set_id'?: string;
     /**
      * 
-     * @type {object}
+     * @type {LLMConfig}
      * @memberof Evaluation
      */
-    'agent_llm_config'?: object;
+    'agent_llm_config'?: LLMConfig;
     /**
      * 
-     * @type {object}
+     * @type {LLMConfig}
      * @memberof Evaluation
      */
-    'judge_llm_config'?: object;
+    'judge_llm_config'?: LLMConfig;
     /**
      * 
      * @type {EvaluationStatus}
      * @memberof Evaluation
      */
     'status'?: EvaluationStatus;
+    /**
+     * 
+     * @type {string}
+     * @memberof Evaluation
+     */
+    'error_message'?: string;
     /**
      * 
      * @type {number}
