@@ -273,8 +273,6 @@ export const ProviderTable = ({
 
           {user?.role === 'admin' && <ModelsDefaultConfiguration />}
 
-          <ModelsDefaultConfiguration />
-
           <ProviderActions action="add">
             <Button>
               <Plus />
