@@ -18,7 +18,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aperag.db.models import Question, QuestionSet
 from aperag.db.repositories.base import AsyncRepositoryProtocol
 from aperag.schema import view_models
-from aperag.utils.utils import utc_now
 
 
 class AsyncQuestionSetRepositoryMixin(AsyncRepositoryProtocol):

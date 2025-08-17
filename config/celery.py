@@ -55,7 +55,11 @@ app.conf.beat_schedule = {
     'collection-gc': {
         'task': 'config.celery_tasks.cleanup_expired_documents_task',
         'schedule': 600.0,
-    }
+    },
+    'schedule-evaluations': {
+        'task': 'config.celery_tasks.schedule_evaluations_task',
+        'schedule': 300.0,
+    },
 }
 
 # Set up task routes if local queue is specified

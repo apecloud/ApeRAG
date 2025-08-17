@@ -18,7 +18,7 @@
 import type { EvaluationDetailConfig } from './evaluation-detail-config';
 // May contain unused imports in some cases
 // @ts-ignore
-import type { EvaluationResult } from './evaluation-result';
+import type { EvaluationItem } from './evaluation-item';
 // May contain unused imports in some cases
 // @ts-ignore
 import type { EvaluationStatus } from './evaluation-status';
@@ -61,10 +61,10 @@ export interface EvaluationDetail {
     'config'?: EvaluationDetailConfig;
     /**
      * 
-     * @type {Array<EvaluationResult>}
+     * @type {Array<EvaluationItem>}
      * @memberof EvaluationDetail
      */
-    'results'?: Array<EvaluationResult>;
+    'results'?: Array<EvaluationItem>;
     /**
      * 
      * @type {string}

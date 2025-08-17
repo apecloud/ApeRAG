@@ -2310,7 +2310,7 @@ class EvaluationCreate(BaseModel):
     judge_llm_config: dict[str, Any]
 
 
-class EvaluationResult(BaseModel):
+class EvaluationItem(BaseModel):
     id: Optional[str] = None
     evaluation_id: Optional[str] = None
     question_id: Optional[str] = None
@@ -2337,7 +2337,7 @@ class EvaluationDetail(BaseModel):
     status: Optional[EvaluationStatus] = None
     average_score: Optional[float] = None
     config: Optional[Config1] = None
-    results: Optional[list[EvaluationResult]] = None
+    results: Optional[list[EvaluationItem]] = None
     gmt_created: Optional[datetime] = None
 
 

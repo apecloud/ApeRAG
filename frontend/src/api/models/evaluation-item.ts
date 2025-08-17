@@ -17,73 +17,73 @@
 /**
  * 
  * @export
- * @interface EvaluationResult
+ * @interface EvaluationItem
  */
-export interface EvaluationResult {
+export interface EvaluationItem {
     /**
      * 
      * @type {string}
-     * @memberof EvaluationResult
+     * @memberof EvaluationItem
      */
     'id'?: string;
     /**
      * 
      * @type {string}
-     * @memberof EvaluationResult
+     * @memberof EvaluationItem
      */
     'evaluation_id'?: string;
     /**
      * 
      * @type {string}
-     * @memberof EvaluationResult
+     * @memberof EvaluationItem
      */
     'question_id'?: string;
     /**
      * 
      * @type {string}
-     * @memberof EvaluationResult
+     * @memberof EvaluationItem
      */
     'question_text'?: string;
     /**
      * 
      * @type {string}
-     * @memberof EvaluationResult
+     * @memberof EvaluationItem
      */
     'ground_truth'?: string;
     /**
      * 
      * @type {string}
-     * @memberof EvaluationResult
+     * @memberof EvaluationItem
      */
     'rag_answer'?: string;
     /**
      * 
      * @type {object}
-     * @memberof EvaluationResult
+     * @memberof EvaluationItem
      */
     'rag_answer_details'?: object;
     /**
      * 
      * @type {number}
-     * @memberof EvaluationResult
+     * @memberof EvaluationItem
      */
     'llm_judge_score'?: number;
     /**
      * 
      * @type {string}
-     * @memberof EvaluationResult
+     * @memberof EvaluationItem
      */
     'llm_judge_reasoning'?: string;
     /**
      * 
      * @type {string}
-     * @memberof EvaluationResult
+     * @memberof EvaluationItem
      */
     'gmt_created'?: string;
     /**
      * 
      * @type {string}
-     * @memberof EvaluationResult
+     * @memberof EvaluationItem
      */
     'gmt_updated'?: string;
 }

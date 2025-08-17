@@ -7402,7 +7402,7 @@ components:
           type: object
         judge_llm_config:
           type: object
-    EvaluationResult:
+    EvaluationItem:
       type: object
       properties:
         id:
@@ -7461,7 +7461,7 @@ components:
         results:
           type: array
           items:
-            $ref: '#/components/schemas/EvaluationResult'
+            $ref: '#/components/schemas/EvaluationItem'
         gmt_created:
           type: string
           format: date-time

@@ -208,6 +208,15 @@ class EvaluationStatus(str, Enum):
     FAILED = "FAILED"
 
 
+class EvaluationItemStatus(str, Enum):
+    """Evaluation item lifecycle status"""
+
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
 # Models
 class Collection(Base):
     __tablename__ = "collection"
@@ -1120,6 +1129,7 @@ class Evaluation(Base):
     agent_llm_config = Column(JSON, nullable=False)
     judge_llm_config = Column(JSON, nullable=False)
     status = Column(EnumColumn(EvaluationStatus), nullable=False, default=EvaluationStatus.PENDING)
+    error_message = Column(Text, nullable=True)
     total_questions = Column(Integer, nullable=False, default=0)
     completed_questions = Column(Integer, nullable=False, default=0)
     average_score = Column(Numeric(3, 2), nullable=True)
@@ -1131,13 +1141,14 @@ class Evaluation(Base):
         return f"<Evaluation(id={self.id}, name={self.name}, status={self.status})>"
 
 
-class EvaluationResult(Base):
-    __tablename__ = "evaluation_results"
-    __table_args__ = (Index("idx_evaluation_results_evaluation_id", "evaluation_id"),)
+class EvaluationItem(Base):
+    __tablename__ = "evaluation_items"
+    __table_args__ = (Index("idx_evaluation_items_evaluation_id", "evaluation_id"),)
 
-    id = Column(String(24), primary_key=True, default=lambda: "res_" + random_id()[:16])
+    id = Column(String(24), primary_key=True, default=lambda: "item_" + random_id()[:16])
     evaluation_id = Column(String(24), nullable=False)
     question_id = Column(String(24), nullable=True)
+    status = Column(EnumColumn(EvaluationItemStatus), nullable=False, default=EvaluationItemStatus.PENDING, index=True)
     question_text = Column(Text, nullable=False)
     ground_truth = Column(Text, nullable=False)
     rag_answer = Column(Text, nullable=True)
@@ -1145,10 +1156,10 @@ class EvaluationResult(Base):
     llm_judge_score = Column(Integer, nullable=True)
     llm_judge_reasoning = Column(Text, nullable=True)
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
-    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
     def __repr__(self):
-        return f"<EvaluationResult(id={self.id}, eval_id={self.evaluation_id}, q_id={self.question_id})>"
+        return f"<EvaluationItem(id={self.id}, eval_id={self.evaluation_id}, q_id={self.question_id})>"
 
 
 class Setting(Base):

@@ -96,7 +96,7 @@ Evaluation:
       type: string
       format: date-time
 
-EvaluationResult:
+EvaluationItem:
   type: object
   properties:
     id:
@@ -260,7 +260,7 @@ EvaluationDetail:
     results:
       type: array
       items:
-        $ref: './evaluation.yaml#/EvaluationResult'
+        $ref: './evaluation.yaml#/EvaluationItem'
     gmt_created:
       type: string
       format: date-time
