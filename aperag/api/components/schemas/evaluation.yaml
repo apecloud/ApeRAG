@@ -20,6 +20,17 @@ EvaluationStatus:
   description: "Evaluation task lifecycle status"
 
 # Base Models
+LLMConfig:
+  type: object
+  properties:
+    model_name:
+      type: string
+    model_service_provider:
+      type: string
+    custom_llm_provider:
+      type: string
+      nullable: true
+
 Question:
   type: object
   properties:
@@ -151,13 +162,14 @@ QuestionSetGenerate:
   type: object
   required:
     - collection_id
-    - name
   properties:
     collection_id:
       type: string
-    name:
-      type: string
-    description:
+    llm_config:
+      $ref: './evaluation.yaml#/LLMConfig'
+    question_count:
+      type: integer
+    prompt:
       type: string
 
 QuestionSetUpdate:
@@ -194,9 +206,9 @@ EvaluationCreate:
     question_set_id:
       type: string
     agent_llm_config:
-      type: object
+      $ref: './evaluation.yaml#/LLMConfig'
     judge_llm_config:
-      type: object
+      $ref: './evaluation.yaml#/LLMConfig'
 
 QuestionSetDetail:
   type: object

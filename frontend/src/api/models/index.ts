@@ -80,6 +80,7 @@ export * from './invitation';
 export * from './invitation-create';
 export * from './invitation-list';
 export * from './knowledge-graph';
+export * from './llmconfig';
 export * from './llm-configuration-response';
 export * from './llm-provider';
 export * from './llm-provider-create-with-api-key';

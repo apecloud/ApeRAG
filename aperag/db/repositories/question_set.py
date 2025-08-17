@@ -173,9 +173,7 @@ class AsyncQuestionSetRepositoryMixin(AsyncRepositoryProtocol):
 
         return await self.execute_with_transaction(_operation)
 
-    async def list_questions_by_set_id(
-        self, qs_id: str, page: int, page_size: int
-    ) -> tuple[list[Question], int]:
+    async def list_questions_by_set_id(self, qs_id: str, page: int, page_size: int) -> tuple[list[Question], int]:
         """Lists all questions for a question set."""
 
         async def _query(session: AsyncSession):

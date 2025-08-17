@@ -85,7 +85,7 @@ generateQuestionSet:
         content:
           application/json:
             schema:
-              $ref: '../components/schemas/evaluation.yaml#/QuestionSet'
+              $ref: '../components/schemas/evaluation.yaml#/QuestionSetDetail'
 
 question_set:
   get:

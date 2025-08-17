@@ -663,7 +663,7 @@ export const EvaluationApiFp = function(configuration?: Configuration) {
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async generateQuestionSetApiV1QuestionSetsGeneratePost(questionSetGenerate?: QuestionSetGenerate, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<QuestionSet>> {
+        async generateQuestionSetApiV1QuestionSetsGeneratePost(questionSetGenerate?: QuestionSetGenerate, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<QuestionSetDetail>> {
             const localVarAxiosArgs = await localVarAxiosParamCreator.generateQuestionSetApiV1QuestionSetsGeneratePost(questionSetGenerate, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['EvaluationApi.generateQuestionSetApiV1QuestionSetsGeneratePost']?.[localVarOperationServerIndex]?.url;
@@ -842,7 +842,7 @@ export const EvaluationApiFactory = function (configuration?: Configuration, bas
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        generateQuestionSetApiV1QuestionSetsGeneratePost(requestParameters: EvaluationApiGenerateQuestionSetApiV1QuestionSetsGeneratePostRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<QuestionSet> {
+        generateQuestionSetApiV1QuestionSetsGeneratePost(requestParameters: EvaluationApiGenerateQuestionSetApiV1QuestionSetsGeneratePostRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<QuestionSetDetail> {
             return localVarFp.generateQuestionSetApiV1QuestionSetsGeneratePost(requestParameters.questionSetGenerate, options).then((request) => request(axios, basePath));
         },
         /**
@@ -992,7 +992,7 @@ export interface EvaluationApiInterface {
      * @throws {RequiredError}
      * @memberof EvaluationApiInterface
      */
-    generateQuestionSetApiV1QuestionSetsGeneratePost(requestParameters?: EvaluationApiGenerateQuestionSetApiV1QuestionSetsGeneratePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<QuestionSet>;
+    generateQuestionSetApiV1QuestionSetsGeneratePost(requestParameters?: EvaluationApiGenerateQuestionSetApiV1QuestionSetsGeneratePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<QuestionSetDetail>;
 
     /**
      * 

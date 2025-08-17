@@ -157,9 +157,46 @@ const NewQuestionSetPage = () => {
     reader.readAsText(file as Blob);
   };
 
-  const handleGenerateQuestions = (values: any) => {
-    console.log('Received values of form: ', values);
-    // TODO: Call API to generate questions
+  const handleGenerateQuestions = (generatedQuestions: any[]) => {
+    const existingQuestions = new Set(
+      questions.map((q) => `${q.question.trim()}|||${q.ground_truth.trim()}`),
+    );
+
+    const uniqueNewQuestions: QuestionItem[] = [];
+    let tempNextKey = nextKey;
+
+    generatedQuestions.forEach((item) => {
+      const question = item.question_text?.trim();
+      const ground_truth = item.ground_truth?.trim();
+
+      if (!question || !ground_truth) {
+        return;
+      }
+
+      const combined = `${question}|||${ground_truth}`;
+      if (!existingQuestions.has(combined)) {
+        existingQuestions.add(combined);
+        uniqueNewQuestions.push({
+          key: tempNextKey,
+          question,
+          ground_truth,
+        });
+        tempNextKey++;
+      }
+    });
+
+    if (uniqueNewQuestions.length > 0) {
+      setQuestions([...questions, ...uniqueNewQuestions]);
+      setNextKey(tempNextKey);
+      message.success(
+        formatMessage(
+          { id: 'tips.import.success' },
+          { count: uniqueNewQuestions.length },
+        ),
+      );
+    } else {
+      message.info(formatMessage({ id: 'tips.upload.nodata' }));
+    }
     setIsModalOpen(false);
   };
 
@@ -466,7 +503,7 @@ const NewQuestionSetPage = () => {
       <QuestionGenerationModal
         open={isModalOpen}
         onCancel={() => setIsModalOpen(false)}
-        onOk={handleGenerateQuestions}
+        onGenerated={handleGenerateQuestions}
       />
     </PageContainer>
   );

@@ -13,6 +13,9 @@
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { LLMConfig } from './llmconfig';
 
 /**
  * 
@@ -28,15 +31,21 @@ export interface QuestionSetGenerate {
     'collection_id': string;
     /**
      * 
-     * @type {string}
+     * @type {LLMConfig}
      * @memberof QuestionSetGenerate
      */
-    'name': string;
+    'llm_config'?: LLMConfig;
+    /**
+     * 
+     * @type {number}
+     * @memberof QuestionSetGenerate
+     */
+    'question_count'?: number;
     /**
      * 
      * @type {string}
      * @memberof QuestionSetGenerate
      */
-    'description'?: string;
+    'prompt'?: string;
 }
 

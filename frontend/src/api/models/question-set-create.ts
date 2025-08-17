@@ -42,7 +42,7 @@ export interface QuestionSetCreate {
      */
     'collection_id'?: string;
     /**
-     * 
+     * A list of questions. Maximum 1000 questions are allowed.
      * @type {Array<Question>}
      * @memberof QuestionSetCreate
      */

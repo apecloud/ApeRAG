@@ -41,7 +41,9 @@ async def create_question_set(
     user: view_models.User = Depends(current_user),
 ):
     if len(request.questions) > MAX_QUESTIONS_PER_SET:
-        raise HTTPException(status_code=400, detail=f"A question set can have a maximum of {MAX_QUESTIONS_PER_SET} questions.")
+        raise HTTPException(
+            status_code=400, detail=f"A question set can have a maximum of {MAX_QUESTIONS_PER_SET} questions."
+        )
     return await question_set_service.create_question_set(request, user.id)
 
 
@@ -54,13 +56,17 @@ async def upload_question_set(
     raise HTTPException(status_code=501, detail="Not Implemented")
 
 
-@router.post("/question-sets/generate", response_model=view_models.QuestionSet)
+@router.post("/question-sets/generate", response_model=view_models.QuestionSetDetail)
 async def generate_question_set(
     request: view_models.QuestionSetGenerate,
     user: view_models.User = Depends(current_user),
 ):
-    # TODO: Implement question generation logic via async task
-    raise HTTPException(status_code=501, detail="Not Implemented")
+    questions = await question_set_service.generate_questions(request, user)
+
+    return view_models.QuestionSetDetail(
+        name=f"Generated Questions for {request.collection_id}",
+        questions=questions,
+    )
 
 
 @router.get("/question-sets/{qs_id}", response_model=view_models.QuestionSetDetail)
@@ -129,7 +135,9 @@ async def add_question(
     # Get current question count
     _, total_questions = await question_set_service.list_questions_by_set_id(qs_id, page=1, page_size=1)
     if total_questions >= MAX_QUESTIONS_PER_SET:
-        raise HTTPException(status_code=400, detail=f"A question set can have a maximum of {MAX_QUESTIONS_PER_SET} questions.")
+        raise HTTPException(
+            status_code=400, detail=f"A question set can have a maximum of {MAX_QUESTIONS_PER_SET} questions."
+        )
 
     return await question_set_service.add_question(qs_id, request)
 

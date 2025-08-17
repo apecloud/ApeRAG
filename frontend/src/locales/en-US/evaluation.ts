@@ -45,6 +45,39 @@ export const evaluation = {
   'tips.request.error': 'Failed to fetch data.',
   'tips.delete.success': 'Deleted successfully.',
   'tips.delete.failed': 'Failed to delete.',
+  'tips.generate.failed': 'Failed to generate questions',
   'evaluation.ok': 'OK',
   'evaluation.cancel': 'Cancel',
+  'evaluation.question_sets.prompt.template.default': `You are an expert at asking questions. Please read the following document carefully and generate two types of questions and their corresponding standard answers based on the content.
+
+**Question Types:**
+1.  **Factual Questions**: Questions that can be answered directly from the text.
+2.  **Inferential Questions**: Questions that require reasoning, comparison, or summarization of multiple pieces of information from the text to answer.
+
+**Document Content:**
+
+'{DOCUMENT_CONTENT}'
+
+**Your Task:**
+Please generate '{NUMBER_OF_QUESTIONS}' questions based on the document above. The number of factual and inferential questions should be equal. The language of the questions should be consistent with the language of the document. Please output a list of questions in JSON format. Each question object should contain three fields: \`question_type\` ('FACTUAL' or 'INFERENTIAL'), \`question_text\` (the content of the question), and \`ground_truth\` (the standard answer based on the document content).
+
+**IMPORTANT**: Your response should only contain the JSON object, with no other text or explanations.
+
+**Output Example:**
+[
+  '{
+    "question_type": "FACTUAL",
+    "question_text": "What year was the project mentioned in the document launched?",
+    "ground_truth": "According to the document, the project was officially launched in 2021."
+  }',
+  '{
+    "question_type": "INFERENTIAL",
+    "question_text": "What are the main differences in challenges between the early and late stages of the project?",
+    "ground_truth": "The main challenges in the early stages were technology selection and team building, while in the later stages, they shifted to system performance optimization and market promotion."
+  }'
+]
+`,
+  'evaluation.question_sets.prompt.template.hint': `The following variables will be replaced by the system:
+- '{DOCUMENT_CONTENT}': The content of the document from the collection.
+- '{NUMBER_OF_QUESTIONS}': The number of questions to be generated.`,
 };

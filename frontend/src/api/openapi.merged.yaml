@@ -3737,7 +3737,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/QuestionSet'
+                $ref: '#/components/schemas/QuestionSetDetail'
   /question-sets/{qs_id}:
     get:
       tags:
@@ -7277,19 +7277,31 @@ components:
           type: string
         questions:
           type: array
+          description: A list of questions. Maximum 1000 questions are allowed.
           items:
             $ref: '#/components/schemas/Question'
+    LLMConfig:
+      type: object
+      properties:
+        model_name:
+          type: string
+        model_service_provider:
+          type: string
+        custom_llm_provider:
+          type: string
+          nullable: true
     QuestionSetGenerate:
       type: object
       required:
         - collection_id
-        - name
       properties:
         collection_id:
           type: string
-        name:
-          type: string
-        description:
+        llm_config:
+          $ref: '#/components/schemas/LLMConfig'
+        question_count:
+          type: integer
+        prompt:
           type: string
     QuestionSetDetail:
       type: object
@@ -7403,9 +7415,9 @@ components:
         question_set_id:
           type: string
         agent_llm_config:
-          type: object
+          $ref: '#/components/schemas/LLMConfig'
         judge_llm_config:
-          type: object
+          $ref: '#/components/schemas/LLMConfig'
     EvaluationItem:
       type: object
       properties:

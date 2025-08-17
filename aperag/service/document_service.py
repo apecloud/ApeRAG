@@ -702,7 +702,7 @@ class DocumentService:
         """
 
         # Use database operations with proper session management
-        async def _get_document_preview(session):
+        async def _get_document_preview(session: AsyncSession):
             # 1. Get document and vector index in one go
             doc_stmt = select(db_models.Document).filter(
                 db_models.Document.id == document_id,
