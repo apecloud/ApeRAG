@@ -2,14 +2,14 @@
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { useGlobalContext } from '@/hooks/use-global-context';
+import { useAppContext } from '@/hooks/use-app-context';
 import { LoaderCircle, ShieldAlert, ShieldPlus } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
 export default function Page() {
-  const { signIn } = useGlobalContext();
+  const { signIn } = useAppContext();
   const { provider } = useParams();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState<boolean>(true);
