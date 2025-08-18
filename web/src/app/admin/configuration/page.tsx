@@ -21,7 +21,7 @@ export default async function Page() {
 
   return (
     <PageContainer>
-      <PageHeader breadcrumbs={[{ title: 'System' }]} />
+      <PageHeader breadcrumbs={[{ title: 'Configuration' }]} />
       <PageContent>
         <PageTitle>Configuration</PageTitle>
         <PageDescription className="mb-8">

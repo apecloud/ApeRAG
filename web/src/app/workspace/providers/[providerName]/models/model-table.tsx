@@ -48,12 +48,6 @@ import {
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Separator } from '@/components/ui/separator';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import Link from 'next/link';
 import { ModelActions } from './model-actions';
 import { ModelTagSwitch } from './model-tag-switch';
@@ -150,24 +144,26 @@ export function ModelTable({
         header: 'LLM params',
         cell: ({ row }) => {
           return (
-            <Tooltip>
-              <TooltipTrigger>
-                <div className="flex h-4 items-center gap-2">
-                  <div>{row.original.context_window || '-'}</div>
-                  <Separator orientation="vertical" />
-                  <div>{row.original.max_input_tokens || '-'}</div>
-                  <Separator orientation="vertical" />
-                  <div>{row.original.max_output_tokens || '-'}</div>
+            <div className="flex items-center gap-6">
+              <div className="text-center">
+                <div className="text-muted-foreground text-sm">Context</div>
+                <div className="w-25 truncate text-lg">
+                  {row.original.context_window || '-'}
                 </div>
-              </TooltipTrigger>
-              <TooltipContent side="left">
-                <div>
-                  <div>Context Window : {row.original.context_window}</div>
-                  <div>Max Input Tokens: {row.original.max_input_tokens}</div>
-                  <div>Max Output Tokens: {row.original.max_output_tokens}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-muted-foreground text-sm">Max Input</div>
+                <div className="w-25 truncate text-lg">
+                  {row.original.max_input_tokens || '-'}
                 </div>
-              </TooltipContent>
-            </Tooltip>
+              </div>
+              <div className="text-center">
+                <div className="text-muted-foreground text-sm">Max Output</div>
+                <div className="w-25 truncate text-lg">
+                  {row.original.max_output_tokens || '-'}
+                </div>
+              </div>
+            </div>
           );
         },
       },
