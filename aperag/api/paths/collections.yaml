@@ -1,7 +1,7 @@
 collections:
   get:
     summary: List collections
-    description: Get a list of collections (owned and optionally subscribed)
+    description: Get a paginated list of collections (owned and optionally subscribed) with sorting and search capabilities
     security:
       - BearerAuth: []
     parameters:
@@ -9,21 +9,49 @@ collections:
         in: query
         schema:
           type: integer
+          minimum: 1
           default: 1
+        description: Page number (1-based)
       - name: page_size
         in: query
         schema:
           type: integer
-          default: 10
+          minimum: 1
+          maximum: 100
+          default: 20
+        description: Number of items per page
+      - name: sort_by
+        in: query
+        schema:
+          type: string
+          enum: ["title", "created", "updated", "type"]
+        description: Field to sort by
+      - name: sort_order
+        in: query
+        schema:
+          type: string
+          enum: ["asc", "desc"]
+          default: "desc"
+        description: Sort order
+      - name: search
+        in: query
+        schema:
+          type: string
+        description: Search collections by title or description
       - name: include_subscribed
         in: query
         schema:
           type: boolean
           default: true
         description: Whether to include subscribed collections in results
+      - name: type_filter
+        in: query
+        schema:
+          type: string
+        description: Filter collections by type
     responses:
       '200':
-        description: List of collections
+        description: Paginated list of collections
         content:
           application/json:
             schema:
@@ -164,7 +192,7 @@ summary_generate:
 documents:
   get:
     summary: List documents
-    description: Get a list of documents
+    description: Get a paginated list of documents with sorting and search capabilities
     security:
       - BearerAuth: []
     parameters:
@@ -177,15 +205,48 @@ documents:
         in: query
         schema:
           type: integer
+          minimum: 1
           default: 1
+        description: Page number (1-based)
       - name: page_size
         in: query
         schema:
           type: integer
+          minimum: 1
+          maximum: 100
           default: 10
+        description: Number of items per page
+      - name: sort_by
+        in: query
+        schema:
+          type: string
+          enum: ["name", "created", "updated", "size", "status"]
+        description: Field to sort by
+      - name: sort_order
+        in: query
+        schema:
+          type: string
+          enum: ["asc", "desc"]
+          default: "desc"
+        description: Sort order
+      - name: search
+        in: query
+        schema:
+          type: string
+        description: Search documents by name
+      - name: status_filter
+        in: query
+        schema:
+          type: array
+          items:
+            type: string
+            enum: ["UPLOADED", "EXPIRED", "PENDING", "RUNNING", "COMPLETE", "FAILED", "DELETING", "DELETED"]
+        description: Filter documents by status
+        style: form
+        explode: true
     responses:
       '200':
-        description: List of documents
+        description: Paginated list of documents
         content:
           application/json:
             schema:

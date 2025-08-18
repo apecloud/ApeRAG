@@ -97,14 +97,15 @@ chatDetails:
 
 chatList:
   type: object
-  description: A list of chats
-  properties:
-    items:
-      type: array
-      items:
-        $ref: '#/chat'
-    pageResult:
-      $ref: './common.yaml#/pageResult'
+  description: A list of chats with pagination
+  allOf:
+    - type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/chat'
+    - $ref: './common.yaml#/paginatedResponse'
 
 chatCreate:
   type: object

@@ -102,14 +102,15 @@ document:
 
 documentList:
   type: object
-  description: A list of documents
-  properties:
-    items:
-      type: array
-      items:
-        $ref: '#/document'
-    pageResult:
-      $ref: './common.yaml#/pageResult'
+  description: A list of documents with pagination
+  allOf:
+    - type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/document'
+    - $ref: './common.yaml#/paginatedResponse'
 
 documentCreate:
   type: object
