@@ -96,6 +96,14 @@ export const collection = {
   'collection.goto.settings': 'Go to Settings',
   'collection.not.found': 'Collection not found',
 
+  // Document list
+  'document.search.placeholder': 'Search document name...',
+  'document.sort.name': 'Document Name',
+  'document.sort.created': 'Created Time',
+  'document.sort.updated': 'Updated Time',
+  'document.sort.size': 'File Size',
+  'document.sort.status': 'Status',
+
   // Collection sharing
   'collection.sharing.publish.title': 'Publish to Marketplace',
   'collection.sharing.publish.content': 'Once published, other users can discover and access your collection. Are you sure you want to publish?',

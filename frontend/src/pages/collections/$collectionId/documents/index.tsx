@@ -4,7 +4,7 @@ import {
   DocumentVectorIndexStatusEnum,
   RebuildIndexesRequestIndexTypesEnum,
 } from '@/api';
-import { ChunkViewer, RefreshButton } from '@/components';
+import { ChunkViewer, RefreshButton, PaginatedTable } from '@/components';
 import {
   DATETIME_FORMAT,
   SUPPORTED_COMPRESSED_EXTENSIONS,
@@ -21,7 +21,6 @@ import {
   DeleteOutlined,
   MoreOutlined,
   ReloadOutlined,
-  SearchOutlined,
 } from '@ant-design/icons';
 import { useRequest } from 'ahooks';
 import {
@@ -31,10 +30,8 @@ import {
   Checkbox,
   Drawer,
   Dropdown,
-  Input,
   Modal,
   Space,
-  Table,
   TableProps,
   theme,
   Tooltip,
@@ -56,6 +53,14 @@ export default () => {
   const [searchParams, setSearchParams] = useState<{
     name?: string;
   }>();
+  const [pagination, setPagination] = useState({
+    page: 1,
+    page_size: 10,
+  });
+  const [sortParams, setSortParams] = useState({
+    sort_by: 'created',
+    sort_order: 'desc' as 'asc' | 'desc',
+  });
   const { collectionId } = useParams();
   const { collection } = useModel('collection');
   const { setLoading } = useModel('global');
@@ -84,9 +89,14 @@ export default () => {
     () =>
       api.collectionsCollectionIdDocumentsGet({
         collectionId: collectionId || '',
+        page: pagination.page,
+        pageSize: pagination.page_size,
+        sortBy: sortParams.sort_by,
+        sortOrder: sortParams.sort_order,
+        search: searchParams?.name,
       }),
     {
-      refreshDeps: [collectionId],
+      refreshDeps: [collectionId, pagination, sortParams, searchParams],
       pollingInterval: 3000,
     },
   );
@@ -144,21 +154,14 @@ export default () => {
 
   const documents = useMemo(
     () =>
-      documentsRes?.data?.items
-        ?.map((document: any) => {
-          const item: ApeDocument = {
-            ...document,
-            config: parseConfig(document.config),
-          };
-          return item;
-        })
-        .filter((item: ApeDocument) => {
-          const titleMatch = searchParams?.name
-            ? item.name?.includes(searchParams.name)
-            : true;
-          return titleMatch;
-        }),
-    [documentsRes, searchParams],
+      documentsRes?.data?.items?.map((document: any) => {
+        const item: ApeDocument = {
+          ...document,
+          config: parseConfig(document.config),
+        };
+        return item;
+      }),
+    [documentsRes],
   );
 
   // Get documents with failed indexes
@@ -296,6 +299,23 @@ export default () => {
     setSummaryDrawerVisible(true);
   };
 
+  // Handle pagination change
+  const handlePageChange = (page: number, pageSize: number) => {
+    setPagination({ page, page_size: pageSize });
+  };
+
+  // Handle search change
+  const handleSearchChange = (value: string) => {
+    setSearchParams({ name: value });
+    setPagination({ ...pagination, page: 1 }); // Reset to first page
+  };
+
+  // Handle sort change
+  const handleSortChange = (sortBy: string, sortOrder: 'asc' | 'desc') => {
+    setSortParams({ sort_by: sortBy, sort_order: sortOrder });
+    setPagination({ ...pagination, page: 1 }); // Reset to first page
+  };
+
   const indexTypeOptions = [
     {
       label: formatMessage({ id: 'document.index.type.vector' }),
@@ -317,6 +337,14 @@ export default () => {
       label: formatMessage({ id: 'document.index.type.vision' }),
       value: 'VISION',
     },
+  ];
+
+  const sortOptions = [
+    { label: formatMessage({ id: 'document.sort.name' }), value: 'name' },
+    { label: formatMessage({ id: 'document.sort.created' }), value: 'created' },
+    { label: formatMessage({ id: 'document.sort.updated' }), value: 'updated' },
+    { label: formatMessage({ id: 'document.sort.size' }), value: 'size' },
+    { label: formatMessage({ id: 'document.sort.status' }), value: 'status' },
   ];
 
   const renderIndexStatus = (
@@ -566,69 +594,72 @@ export default () => {
 
   return (
     <>
-      <Space
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          marginBottom: 24,
-        }}
-      >
-        <Input
-          placeholder={formatMessage({ id: 'action.search' })}
-          prefix={
-            <Typography.Text disabled>
-              <SearchOutlined />
-            </Typography.Text>
-          }
-          onChange={(e) => {
-            setSearchParams({ ...searchParams, name: e.currentTarget.value });
-          }}
-          allowClear
-          value={searchParams?.name}
-        />
-        <Space>
-          {collection?.config?.source === 'system' ? (
-            <Button 
-              type="primary"
-              onClick={() => {
-                console.log('Navigating to upload page:', `/collections/${collectionId}/documents/upload`);
-                navigate(`/collections/${collectionId}/documents/upload`);
+      <PaginatedTable
+        rowKey="id"
+        bordered
+        columns={columns}
+        dataSource={documents}
+        loading={documentsLoading}
+        // Pagination props
+        total={documentsRes?.data?.pageResult?.count || 0}
+        current={pagination.page}
+        pageSize={pagination.page_size}
+        onPageChange={handlePageChange}
+        // Search props
+        searchValue={searchParams?.name}
+        onSearchChange={handleSearchChange}
+        searchPlaceholder={formatMessage({ id: 'document.search.placeholder' })}
+        // Sort props
+        showSort
+        sortBy={sortParams.sort_by}
+        sortOrder={sortParams.sort_order}
+        sortOptions={sortOptions}
+        onSortChange={handleSortChange}
+        // Header content
+        headerContent={
+          <Space>
+            {collection?.config?.source === 'system' ? (
+              <Button 
+                type="primary"
+                onClick={() => {
+                  console.log('Navigating to upload page:', `/collections/${collectionId}/documents/upload`);
+                  navigate(`/collections/${collectionId}/documents/upload`);
+                }}
+              >
+                <FormattedMessage id="document.upload" />
+              </Button>
+            ) : null}
+            <Button
+              type="default"
+              onClick={handleRebuildFailedIndexes}
+              disabled={getDocumentsWithFailedIndexes().length === 0}
+              loading={documentsLoading}
+              style={{
+                borderColor:
+                  getDocumentsWithFailedIndexes().length > 0
+                    ? '#ff4d4f'
+                    : undefined,
+                color:
+                  getDocumentsWithFailedIndexes().length > 0
+                    ? '#ff4d4f'
+                    : undefined,
               }}
             >
-              <FormattedMessage id="document.upload" />
+              <ReloadOutlined />
+              <FormattedMessage id="document.index.rebuild.failed.button" />
+              {getDocumentsWithFailedIndexes().length > 0 && (
+                <span style={{ marginLeft: 4, fontSize: '12px', opacity: 0.8 }}>
+                  ({getDocumentsWithFailedIndexes().length})
+                </span>
+              )}
             </Button>
-          ) : null}
-          <Button
-            type="default"
-            onClick={handleRebuildFailedIndexes}
-            disabled={getDocumentsWithFailedIndexes().length === 0}
-            loading={documentsLoading}
-            style={{
-              borderColor:
-                getDocumentsWithFailedIndexes().length > 0
-                  ? '#ff4d4f'
-                  : undefined,
-              color:
-                getDocumentsWithFailedIndexes().length > 0
-                  ? '#ff4d4f'
-                  : undefined,
-            }}
-          >
-            <ReloadOutlined />
-            <FormattedMessage id="document.index.rebuild.failed.button" />
-            {getDocumentsWithFailedIndexes().length > 0 && (
-              <span style={{ marginLeft: 4, fontSize: '12px', opacity: 0.8 }}>
-                ({getDocumentsWithFailedIndexes().length})
-              </span>
-            )}
-          </Button>
-          <RefreshButton
-            loading={documentsLoading}
-            onClick={() => collectionId && getDocuments()}
-          />
-        </Space>
-      </Space>
-      <Table rowKey="id" bordered columns={columns} dataSource={documents} />
+            <RefreshButton
+              loading={documentsLoading}
+              onClick={() => collectionId && getDocuments()}
+            />
+          </Space>
+        }
+      />
       {contextHolder}
 
       <Drawer

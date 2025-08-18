@@ -47,6 +47,12 @@ export default {
 
   // Common
   'common.search': 'Search',
+  'common.sort.by': 'Sort',
+  'common.sort.field': 'Sort Field',
+  'common.sort.asc': 'Ascending',
+  'common.sort.desc': 'Descending',
+  'common.pagination.total': 'Total {total} items, showing {start} - {end}',
+  'common.load.more': 'Load More',
   'common.search.placeholder': 'Search collections...',
   'common.search.no.results': 'No matching results found',
   'common.search.try.different.keywords': 'Please try different keywords',

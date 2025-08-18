@@ -29,7 +29,16 @@ type MenuItem = Required<MenuProps>['items'][number];
 export const NavbarBot = () => {
   const { botId, chatId } = useParams();
   const [renameVisible, setRenameVisible] = useState<boolean>();
-  const { bot, chats, getBot, setBot, setChats, getChats } = useModel('bot');
+  const { 
+    bot, 
+    chats, 
+    chatsPagination,
+    getBot, 
+    setBot, 
+    setChats, 
+    getChats,
+    setChatsPagination
+  } = useModel('bot');
   const { loading } = useModel('global');
 
   const [chatLoading, setChatLoading] = useState<boolean>(false);
@@ -105,7 +114,108 @@ export const NavbarBot = () => {
     [botId, chatId, chats],
   );
 
+  const onLoadMoreChats = useCallback(async () => {
+    if (botId && chatsPagination.current * chatsPagination.pageSize < chatsPagination.total) {
+      setChatLoading(true);
+      const nextPage = chatsPagination.current + 1;
+      const res = await api.botsBotIdChatsGet({ 
+        botId,
+        page: nextPage,
+        pageSize: chatsPagination.pageSize,
+      });
+      setChatLoading(false);
+      
+      if (res.data.items) {
+        setChats((prevChats) => [...(prevChats || []), ...res.data.items]);
+        setChatsPagination({
+          ...chatsPagination,
+          current: nextPage,
+        });
+      }
+    }
+  }, [botId, chatsPagination, setChats, setChatsPagination]);
+
   const chatMenuItems = useMemo((): MenuItem[] => {
+    const chatItems = (chats || []).map((item) => {
+      const path = `/bots/${botId}/chats/${item.id}`;
+      return {
+        style: { paddingRight: 40 },
+        label: (
+          <>
+            {_.truncate(item.title || formatMessage({ id: 'chat.new' }), {
+              length: 22,
+            })}
+            <Dropdown
+              menu={{
+                items: [
+                  {
+                    key: 'rename',
+                    label: formatMessage({ id: 'action.rename' }),
+                    icon: <EditOutlined />,
+                    onClick: ({ domEvent }) => {
+                      domEvent.stopPropagation();
+                      form.setFieldsValue(item);
+                      setRenameVisible(true);
+                    },
+                  },
+                  {
+                    key: 'delete',
+                    label: formatMessage({ id: 'chat.delete' }),
+                    icon: <DeleteOutlined />,
+                    danger: true,
+                    onClick: ({ domEvent }) => {
+                      domEvent.stopPropagation();
+                      onDeleteChat(item);
+                    },
+                  },
+                ],
+              }}
+              overlayStyle={{
+                width: 160,
+              }}
+            >
+              <Button
+                type="text"
+                style={{
+                  position: 'absolute',
+                  top: 4,
+                  right: 4,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+                icon={<MoreOutlined />}
+              />
+            </Dropdown>
+          </>
+        ),
+        key: path,
+      };
+    });
+
+    // Add load more button if there are more chats to load
+    const hasMoreChats = chatsPagination.current * chatsPagination.pageSize < chatsPagination.total;
+    if (hasMoreChats) {
+      chatItems.push({
+        key: 'load-more-chats',
+        style: { paddingRight: 40, textAlign: 'center' },
+        label: (
+          <Button
+            type="text"
+            size="small"
+            loading={chatLoading}
+            onClick={(e) => {
+              e.stopPropagation();
+              onLoadMoreChats();
+            }}
+            style={{ fontSize: '12px', color: '#666' }}
+          >
+            {formatMessage({ id: 'common.load.more' })}
+          </Button>
+        ),
+      });
+    }
+
     return [
       {
         key: 'chat',
@@ -117,7 +227,7 @@ export const NavbarBot = () => {
               alignItems: 'center',
             }}
           >
-            {formatMessage({ id: 'chat.all' })}
+            {formatMessage({ id: 'chat.all' })} {chatsPagination.total > 0 && `(${chatsPagination.total})`}
             <Tooltip
               title={formatMessage({ id: 'chat.new' })}
               placement="right"
@@ -135,65 +245,10 @@ export const NavbarBot = () => {
           </Space>
         ),
         type: 'group',
-        children: (chats || []).map((item) => {
-          const path = `/bots/${botId}/chats/${item.id}`;
-          return {
-            style: { paddingRight: 40 },
-            label: (
-              <>
-                {_.truncate(item.title || formatMessage({ id: 'chat.new' }), {
-                  length: 22,
-                })}
-                <Dropdown
-                  menu={{
-                    items: [
-                      {
-                        key: 'rename',
-                        label: formatMessage({ id: 'action.rename' }),
-                        icon: <EditOutlined />,
-                        onClick: ({ domEvent }) => {
-                          domEvent.stopPropagation();
-                          form.setFieldsValue(item);
-                          setRenameVisible(true);
-                        },
-                      },
-                      {
-                        key: 'delete',
-                        label: formatMessage({ id: 'chat.delete' }),
-                        icon: <DeleteOutlined />,
-                        danger: true,
-                        onClick: ({ domEvent }) => {
-                          domEvent.stopPropagation();
-                          onDeleteChat(item);
-                        },
-                      },
-                    ],
-                  }}
-                  overlayStyle={{
-                    width: 160,
-                  }}
-                >
-                  <Button
-                    type="text"
-                    style={{
-                      position: 'absolute',
-                      top: 4,
-                      right: 4,
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                    }}
-                    icon={<MoreOutlined />}
-                  />
-                </Dropdown>
-              </>
-            ),
-            key: path,
-          };
-        }),
+        children: chatItems,
       },
     ];
-  }, [botId, chats, chatLoading, onCreateChat, onDeleteChat, onRenameChat]);
+  }, [botId, chats, chatsPagination, chatLoading, onCreateChat, onDeleteChat, onRenameChat, onLoadMoreChats]);
 
   useEffect(() => {
     if (botId) {

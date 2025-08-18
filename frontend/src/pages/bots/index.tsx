@@ -22,6 +22,7 @@ import {
   Form,
   Input,
   Modal,
+  Pagination,
   Result,
   Row,
   Space,
@@ -151,7 +152,13 @@ export default () => {
   const [searchParams, setSearchParams] = useState<BotSearchParams>();
   const [createVisible, setCreateVisible] = useState<boolean>(false);
   const { token } = theme.useToken();
-  const { bots, botsLoading, getBots } = useModel('bot');
+  const { 
+    bots, 
+    botsLoading, 
+    botsPagination, 
+    getBots,
+    setBotsPagination
+  } = useModel('bot');
   const { formatMessage } = useIntl();
 
   const [form] = Form.useForm<BotCreate>();
@@ -236,6 +243,16 @@ export default () => {
     [searchParams, botsLoading],
   );
 
+  // Handle pagination change
+  const handlePageChange = (page: number, pageSize: number) => {
+    setBotsPagination({
+      ...botsPagination,
+      current: page,
+      pageSize,
+    });
+    getBots(page, pageSize);
+  };
+
   useEffect(() => {
     getBots();
   }, []);
@@ -264,6 +281,29 @@ export default () => {
             );
           })}
         </Row>
+      )}
+
+      {!_.isEmpty(_bots) && botsPagination.total > botsPagination.pageSize && (
+        <div style={{ marginTop: 24, textAlign: 'center' }}>
+          <Pagination
+            current={botsPagination.current}
+            total={botsPagination.total}
+            pageSize={botsPagination.pageSize}
+            showSizeChanger
+            showQuickJumper
+            showTotal={(total, range) =>
+              formatMessage(
+                { id: 'common.pagination.total' },
+                {
+                  start: range[0],
+                  end: range[1],
+                  total,
+                }
+              )
+            }
+            onChange={handlePageChange}
+          />
+        </div>
       )}
 
       <Modal

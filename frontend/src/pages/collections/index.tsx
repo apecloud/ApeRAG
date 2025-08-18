@@ -16,6 +16,7 @@ import {
   Col,
   Divider,
   Input,
+  Pagination,
   Result,
   Row,
   Select,
@@ -38,8 +39,13 @@ export default () => {
   }>();
   const { token } = theme.useToken();
   const { formatMessage } = useIntl();
-  const { collections, collectionsLoading, getCollections } =
-    useModel('collection');
+  const { 
+    collections, 
+    collectionsLoading, 
+    collectionsPagination, 
+    getCollections,
+    setCollectionsPagination
+  } = useModel('collection');
 
   useInterval(() => {
     if (collections?.some((collection) => collection.status !== 'ACTIVE')) {
@@ -79,6 +85,16 @@ export default () => {
       </Space>
     </PageHeader>
   );
+
+  // Handle pagination change
+  const handlePageChange = (page: number, pageSize: number) => {
+    setCollectionsPagination({
+      ...collectionsPagination,
+      current: page,
+      pageSize,
+    });
+    getCollections(page, pageSize);
+  };
 
   useEffect(() => {
     getCollections();
@@ -219,6 +235,29 @@ export default () => {
             );
           })}
         </Row>
+      )}
+
+      {!_.isEmpty(_collections) && collectionsPagination.total > collectionsPagination.pageSize && (
+        <div style={{ marginTop: 24, textAlign: 'center' }}>
+          <Pagination
+            current={collectionsPagination.current}
+            total={collectionsPagination.total}
+            pageSize={collectionsPagination.pageSize}
+            showSizeChanger
+            showQuickJumper
+            showTotal={(total, range) =>
+              formatMessage(
+                { id: 'common.pagination.total' },
+                {
+                  start: range[0],
+                  end: range[1],
+                  total,
+                }
+              )
+            }
+            onChange={handlePageChange}
+          />
+        </div>
       )}
     </PageContainer>
   );

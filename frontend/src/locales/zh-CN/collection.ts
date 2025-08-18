@@ -90,6 +90,14 @@ export const collection = {
   'collection.goto.settings': '前往设置',
   'collection.not.found': '知识库不存在',
 
+  // Document list
+  'document.search.placeholder': '搜索文档名称...',
+  'document.sort.name': '文档名称',
+  'document.sort.created': '创建时间',
+  'document.sort.updated': '更新时间',
+  'document.sort.size': '文件大小',
+  'document.sort.status': '状态',
+
   // Collection sharing
   'collection.sharing.publish.title': '发布到知识库市场',
   'collection.sharing.publish.content': '发布后，其他用户可以发现并访问您的知识库。您确定要发布吗？',

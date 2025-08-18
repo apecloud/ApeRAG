@@ -12,6 +12,11 @@ export default () => {
 
   const [collections, setCollections] = useState<CollectionView[]>();
   const [collectionsLoading, setCollectionsLoading] = useState<boolean>(false);
+  const [collectionsPagination, setCollectionsPagination] = useState({
+    current: 1,
+    pageSize: 20,
+    total: 0,
+  });
 
   // sharing status
   const [sharingStatus, setSharingStatus] = useState<SharingStatusResponse>();
@@ -27,14 +32,25 @@ export default () => {
   });
 
   // collections
-  const getCollections = useCallback(async () => {
+  const getCollections = useCallback(async (page?: number, pageSize?: number, includeSubscribed?: boolean) => {
     setLoading(true);
     setCollectionsLoading(true);
-    const res = await api.collectionsGet();
+    const res = await api.collectionsGet({
+      page: page || collectionsPagination.current,
+      pageSize: pageSize || collectionsPagination.pageSize,
+      includeSubscribed: includeSubscribed !== undefined ? includeSubscribed : true,
+    });
     setLoading(false);
     setCollectionsLoading(false);
     setCollections(res.data.items);
-  }, []);
+    if (res.data.pageResult) {
+      setCollectionsPagination({
+        current: res.data.pageResult.page_number || 1,
+        pageSize: res.data.pageResult.page_size || 20,
+        total: res.data.pageResult.count || 0,
+      });
+    }
+  }, [collectionsPagination]);
 
   // collection
   const getCollection = useCallback(async (collectionId: string) => {
@@ -196,8 +212,10 @@ export default () => {
   return {
     collections,
     collectionsLoading,
+    collectionsPagination,
     getCollections,
     setCollections,
+    setCollectionsPagination,
 
     collection,
     collectionLoading,

@@ -48,6 +48,12 @@ export default {
 
   // Common
   'common.search': '搜索',
+  'common.sort.by': '排序',
+  'common.sort.field': '排序字段',
+  'common.sort.asc': '升序',
+  'common.sort.desc': '降序',
+  'common.pagination.total': '共 {total} 条，显示第 {start} - {end} 条',
+  'common.load.more': '加载更多',
   'common.search.placeholder': '搜索知识库...',
   'common.search.no.results': '没有找到匹配的结果',
   'common.search.try.different.keywords': '请尝试使用不同的关键词',

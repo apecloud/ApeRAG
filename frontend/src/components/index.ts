@@ -8,5 +8,6 @@ export * from './model-select';
 export * from './navbar';
 export * from './page-container';
 export * from './page-header';
+export * from './PaginatedTable';
 export * from './refresh-button';
 export * from './SharingControl';
