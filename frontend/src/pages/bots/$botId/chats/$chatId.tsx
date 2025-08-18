@@ -1,4 +1,4 @@
-import { ChatMessage, Feedback } from '@/api';
+import { ChatMessage, Feedback, Reference } from '@/api';
 import { PageContainer } from '@/components';
 import { api } from '@/services';
 import { useWebSocket } from 'ahooks';
@@ -45,17 +45,26 @@ export default () => {
           });
 
           if (parts) {
-            const part = parts.find((p) => {
-              if (fragment.type === 'message') {
-                return p.type === 'message';
-              } else {
-                return fragment.part_id && fragment.part_id === p.part_id;
-              }
-            });
-            if (part) {
-              part.data = (part.data || '') + fragment.data;
+            if (fragment.type === 'stop' && Array.isArray(fragment.data)) {
+              parts.push({
+                type: 'references',
+                references: fragment.data as Reference[],
+                data: '',
+                role: 'ai',
+              });
             } else {
-              parts.push(fragment);
+              const part = parts.find((p) => {
+                if (fragment.type === 'message') {
+                  return p.type === 'message';
+                } else {
+                  return fragment.part_id && fragment.part_id === p.part_id;
+                }
+              });
+              if (part) {
+                part.data = (part.data || '') + fragment.data;
+              } else {
+                parts.push(fragment);
+              }
             }
           } else {
             msgs.push([

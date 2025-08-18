@@ -16,7 +16,6 @@ import {
   LoadingOutlined,
   UserOutlined,
 } from '@ant-design/icons';
-import { useHover } from 'ahooks';
 import {
   Alert,
   Avatar,
@@ -36,7 +35,7 @@ import {
 } from 'antd';
 import _ from 'lodash';
 import moment from 'moment';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { BsRobot } from 'react-icons/bs';
 import { toast } from 'react-toastify';
 import { css, styled, useIntl } from 'umi';
@@ -287,9 +286,7 @@ export const ChatMessageItem = ({
         },
       }));
 
-  const partReference = useMemo(() => {
-    return parts.find((p) => p.type === 'references');
-  }, [parts]);
+  const partReference = parts.find((p) => p.type === 'references');
 
   const handleFeedback = useCallback(
     (type: FeedbackTypeEnum) => {
