@@ -1,4 +1,5 @@
 # ApeRAG
+[![Trust Score](https://archestra.ai/mcp-catalog/api/badge/quality/apecloud/ApeRAG)](https://archestra.ai/mcp-catalog/apecloud__aperag)
 
 ![HarryPotterKG.png](docs%2Fimages%2FHarryPotterKG.png)
 
