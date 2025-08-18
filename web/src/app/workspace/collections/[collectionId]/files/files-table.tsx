@@ -6,6 +6,8 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -25,15 +27,33 @@ import {
 import * as React from 'react';
 import { defaultStyles, FileIcon } from 'react-file-icon';
 
-import { Document, DocumentVectorIndexStatusEnum } from '@/api';
+import { Collection, Document } from '@/api';
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { FormatDate } from '@/components/format-date';
-import { cn } from '@/lib/utils';
+import { cn, objectKeys } from '@/lib/utils';
 import _ from 'lodash';
-import { ChevronDown, Columns3, MonitorUp } from 'lucide-react';
+import {
+  ChevronDown,
+  Columns3,
+  EllipsisVertical,
+  FolderSync,
+  MonitorUp,
+  Trash,
+} from 'lucide-react';
 
-export function FilesTable({ data }: { data: Document[] }) {
+import { FileIndexType, getDocumentStatusColor } from '@/lib/document';
+import { FileDelete } from './file-delete';
+import { FileIndexStatus } from './file-index-status';
+import { FileReBuildIndex } from './file-rebuild-index';
+
+export function FilesTable({
+  collection,
+  data,
+}: {
+  collection: Collection;
+  data: Document[];
+}) {
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
@@ -47,23 +67,23 @@ export function FilesTable({ data }: { data: Document[] }) {
   });
   const [searchValue, setSearchValue] = React.useState<string>('');
 
-  const getStatusColor = React.useCallback(
-    (status?: DocumentVectorIndexStatusEnum) => {
-      const data = {
-        ACTIVE: 'bg-green-500',
-        CREATING: 'bg-emerald-500',
-        DELETING: 'bg-pink-500',
-        DELETION_IN_PROGRESS: 'bg-cyan-500',
-        FAILED: 'bg-red-500',
-        PENDING: 'bg-amber-500',
-        SKIPPED: 'bg-gray-500',
-      };
-      return status ? data[status] : 'bg-gray-500';
-    },
-    [],
-  );
-
   const columns: ColumnDef<Document>[] = React.useMemo(() => {
+    const indexCols: ColumnDef<Document>[] = objectKeys(FileIndexType).map(
+      (key) => {
+        const accessorKey = key.toLowerCase() + '_index_status';
+        return {
+          accessorKey,
+          header: FileIndexType[key].title,
+          cell: ({ row }) => (
+            <FileIndexStatus
+              document={row.original}
+              accessorKey={accessorKey}
+            />
+          ),
+        };
+      },
+    );
+
     const cols: ColumnDef<Document>[] = [
       {
         id: 'select',
@@ -99,13 +119,26 @@ export function FilesTable({ data }: { data: Document[] }) {
             row.original.name?.split('.').pop()?.toLowerCase() ||
             ('unknow' as keyof typeof defaultStyles);
           const iconProps = _.get(defaultStyles, extension);
-          const icon = <FileIcon extension={extension} {...iconProps} />;
+          const icon = (
+            <FileIcon
+              color="var(--muted-foreground)"
+              extension={extension}
+              {...iconProps}
+            />
+          );
           return (
             <div className="flex flex-row items-center gap-2">
               <div className="h-8 w-6">{icon}</div>
               <div>
-                <div className="max-w-60 truncate">{row.original.name}</div>
-                <div className="text-muted-foreground">
+                <div
+                  className={cn(
+                    'max-w-60 truncate',
+                    getDocumentStatusColor(row.original.status),
+                  )}
+                >
+                  {row.original.name}
+                </div>
+                <div className="text-muted-foreground text-sm">
                   {(Number(row.original.size || 0) / 1000).toFixed(2)} KB
                 </div>
               </div>
@@ -113,77 +146,7 @@ export function FilesTable({ data }: { data: Document[] }) {
           );
         },
       },
-      {
-        accessorKey: 'vector_index_status',
-        header: 'Vector',
-        cell: ({ row }) => {
-          const status = row.original.vector_index_status;
-          const color = getStatusColor(status);
-          return (
-            <div className="flex flex-row items-center gap-2">
-              <div className={cn('size-2 rounded-4xl', color)}></div>
-              {_.capitalize(status)}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: 'fulltext_index_status',
-        header: 'Fulltext',
-        cell: ({ row }) => {
-          const status = row.original.fulltext_index_status;
-          const color = getStatusColor(status);
-          return (
-            <div className="flex flex-row items-center gap-2">
-              <div className={cn('size-2 rounded-4xl', color)}></div>
-              {_.capitalize(status)}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: 'graph_index_status',
-        header: 'Graph',
-        cell: ({ row }) => {
-          const status = row.original.graph_index_status;
-          const color = getStatusColor(status);
-          return (
-            <div className="flex flex-row items-center gap-2">
-              <div className={cn('size-2 rounded-4xl', color)}></div>
-              {_.capitalize(status)}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: 'summary_index_status',
-        header: 'Summary',
-        cell: ({ row }) => {
-          const status = row.original.summary_index_status;
-          const color = getStatusColor(status);
-          return (
-            <div className="flex flex-row items-center gap-2">
-              <div className={cn('size-2 rounded-4xl', color)}></div>
-              {_.capitalize(status)}
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: 'vision_index_status',
-        header: 'Vision',
-        cell: ({ row }) => {
-          const status = row.original.vision_index_status;
-          const color = getStatusColor(status);
-          return (
-            <div className="flex flex-row items-center gap-2">
-              <div className={cn('size-2 rounded-4xl', color)}></div>
-              {_.capitalize(status)}
-            </div>
-          );
-        },
-      },
-
+      ...indexCols,
       {
         accessorKey: 'updated',
         header: 'Last Updated',
@@ -196,11 +159,39 @@ export function FilesTable({ data }: { data: Document[] }) {
         },
       },
       {
-        id: 'action',
+        id: 'actions',
+        enableHiding: false,
+        cell: ({ row }) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                className="data-[state=open]:bg-muted text-muted-foreground flex size-8"
+                size="icon"
+              >
+                <EllipsisVertical />
+                <span className="sr-only">Open menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-42">
+              <FileReBuildIndex collection={collection} file={row.original}>
+                <DropdownMenuItem>
+                  <FolderSync /> Rebuild File Index
+                </DropdownMenuItem>
+              </FileReBuildIndex>
+              <DropdownMenuSeparator />
+              <FileDelete collection={collection} file={row.original}>
+                <DropdownMenuItem variant="destructive">
+                  <Trash /> Delete
+                </DropdownMenuItem>
+              </FileDelete>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ),
       },
     ];
     return cols;
-  }, [getStatusColor]);
+  }, [collection]);
 
   const table = useReactTable({
     data,
@@ -241,7 +232,7 @@ export function FilesTable({ data }: { data: Document[] }) {
         <div className="flex items-center gap-2">
           <Button>
             <MonitorUp />
-            <span className="hidden lg:inline">UpLoad</span>
+            <span className="hidden lg:inline">Upload</span>
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
