@@ -94,7 +94,7 @@ export const FileReBuildIndex = ({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleRebuild)}>
             <DialogHeader>
-              <DialogTitle>Rebuild Index</DialogTitle>
+              <DialogTitle>Rebuild File Index</DialogTitle>
               <DialogDescription>{file.name}</DialogDescription>
             </DialogHeader>
             <div className="my-6 flex flex-col gap-4">
