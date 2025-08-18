@@ -38,7 +38,11 @@ async def list_audit_logs(
     status_code: Optional[int] = Query(None, description="Filter by status code"),
     start_date: Optional[datetime] = Query(None, description="Filter by start date"),
     end_date: Optional[datetime] = Query(None, description="Filter by end date"),
-    limit: int = Query(1000, le=5000, description="Maximum number of records"),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Page size"),
+    sort_by: Optional[str] = Query(None, description="Sort field"),
+    sort_order: str = Query("desc", description="Sort order: asc or desc"),
+    search: Optional[str] = Query(None, description="Search term"),
     user: User = Depends(current_user),
 ):
     """List audit logs with filtering"""
@@ -53,24 +57,28 @@ async def list_audit_logs(
             raise HTTPException(status_code=400, detail=f"Invalid resource_type: {resource_type}")
 
     # Get audit logs
-    if user.role == Role.ADMIN:
-        user_id = None
-    else:
-        user_id = user.id
-    audit_logs = await audit_service.list_audit_logs(
-        user_id=user_id,
+    filter_user_id = user_id
+    if user.role != Role.ADMIN:
+        filter_user_id = user.id
+    
+    result = await audit_service.list_audit_logs(
+        user_id=filter_user_id,
         resource_type=audit_resource,
         api_name=api_name,
         http_method=http_method,
         status_code=status_code,
         start_date=start_date,
         end_date=end_date,
-        limit=limit,
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        search=search,
     )
 
     # Convert to view models
     items = []
-    for log in audit_logs:
+    for log in result.items:
         items.append(
             view_models.AuditLog(
                 id=str(log.id),
@@ -95,7 +103,17 @@ async def list_audit_logs(
             )
         )
 
-    return view_models.AuditLogList(items=items)
+    return view_models.AuditLogList(
+        items=items,
+        page_result=view_models.PageResult(
+            page=result.page,
+            page_size=result.page_size,
+            total=result.total,
+            total_pages=result.total_pages,
+            has_next=result.has_next,
+            has_prev=result.has_prev,
+        )
+    )
 
 
 @router.get("/audit-logs/{audit_id}", tags=["audit"])
