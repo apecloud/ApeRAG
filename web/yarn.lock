@@ -2212,6 +2212,13 @@
   resolved "https://registry.npmjs.org/@types/react-dom/-/react-dom-19.1.7.tgz#2863f2aa89e023592b981204ef92c5221b286410"
   integrity sha512-i5ZzwYpqjmrKenzkoLM2Ibzt6mAsM7pxB6BCIouEVVmgiqaMj1TjaK7hnA36hbW5aZv20kx7Lw6hWzPWg0Rurw==
 
+"@types/react-file-icon@^1.0.4":
+  version "1.0.4"
+  resolved "https://registry.npmjs.org/@types/react-file-icon/-/react-file-icon-1.0.4.tgz#6825b0e6b8ab639f7f25a6cd52499650d3afcd89"
+  integrity sha512-c1mIklUDaxm9odxf8RTiy/EAxsblZliJ86EKIOAyuafP9eK3iudyn4ATv53DX6ZvgGymc7IttVNm97LTGnTiYA==
+  dependencies:
+    "@types/react" "*"
+
 "@types/react-scroll@^1.8.10":
   version "1.8.10"
   resolved "https://registry.npmjs.org/@types/react-scroll/-/react-scroll-1.8.10.tgz#585a5c4bd0654434f3e55a08e94ed2e048bae7c7"
@@ -3072,6 +3079,11 @@ color@^4.2.3:
   dependencies:
     color-convert "^2.0.1"
     color-string "^1.9.0"
+
+colord@^2.9.3:
+  version "2.9.3"
+  resolved "https://registry.npmjs.org/colord/-/colord-2.9.3.tgz#4f8ce919de456f1d5c1c368c307fe20f3e59fb43"
+  integrity sha512-jeC1axXpnb0/2nn/Y1LPuLdgXBLH7aDcHu4KEKfqw3CUhX7ZpfBSlPKyqXE6btIgEzfWtrX3/tyBCaCvXvMkOw==
 
 colorette@^1.2.0:
   version "1.4.0"
@@ -7124,6 +7136,14 @@ react-dom@19.1.0:
   integrity sha512-Dlq/5LAZgF0Gaz6yiqZCf6VCcZs1ghAJyrsu84Q/GT0gV+mCxbfmKNoGRKBYMJ8IEdGPqu49YWXD02GCknEDkw==
   dependencies:
     scheduler "^0.26.0"
+
+react-file-icon@^1.6.0:
+  version "1.6.0"
+  resolved "https://registry.npmjs.org/react-file-icon/-/react-file-icon-1.6.0.tgz#88e1df4ef4308b2c935a06528c096f6f54ab80ea"
+  integrity sha512-Ba4Qa2ya/kvhcCd4LJja77sV7JD7u1ZXcI1DUz+TII3nGmglG6QY+NZeHizThokgct3qI0glwb9eV8NqRGs5lw==
+  dependencies:
+    colord "^2.9.3"
+    prop-types "^15.7.2"
 
 react-hook-form@^7.62.0:
   version "7.62.0"
