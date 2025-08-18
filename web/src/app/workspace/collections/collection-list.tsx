@@ -43,7 +43,7 @@ export const CollectionList = ({
             href={
               collection.subscription_id
                 ? `/marketplace/collections/${collection.id}`
-                : `/workspace/collections/${collection.id}/general`
+                : `/workspace/collections/${collection.id}/files`
             }
           >
             <Card className="cursor-pointer rounded-md hover:mask-alpha">

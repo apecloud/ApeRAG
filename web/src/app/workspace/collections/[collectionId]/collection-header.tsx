@@ -2,10 +2,28 @@ import { Collection, CollectionViewStatusEnum } from '@/api';
 import { FormatDate } from '@/components/format-date';
 import { PageContent, PageTitle } from '@/components/page-container';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import _ from 'lodash';
 
-import { Calendar, Trash } from 'lucide-react';
+import {
+  Calendar,
+  EllipsisVertical,
+  Files,
+  FolderSearch,
+  MonitorUp,
+  Settings,
+  TextSearch,
+  Trash,
+  VectorSquare,
+} from 'lucide-react';
+import Link from 'next/link';
 
 export const CollectionHeader = ({
   collection,
@@ -47,9 +65,41 @@ export const CollectionHeader = ({
             </div>
           </div>
         </div>
-        <Button size="icon" variant="outline">
-          <Trash className="text-red-500" />
-        </Button>
+        <div className="flex flex-row items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <EllipsisVertical />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-46">
+              <DropdownMenuItem asChild>
+                <Link href={`/workspace/collections/${collection.id}/files`}>
+                  <Files /> File Explorer
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/workspace/collections/${collection.id}/search`}>
+                  <FolderSearch /> Experience Search
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/workspace/collections/${collection.id}/search`}>
+                  <VectorSquare /> Knowledge Graph
+                </Link> 
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/workspace/collections/${collection.id}/settings`}>
+                  <Settings /> Settings
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive">
+                <Trash /> Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </PageContent>
   );
