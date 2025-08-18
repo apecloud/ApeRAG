@@ -60,7 +60,9 @@ export const PaginatedTable = <T extends Record<string, any>>({
   const { formatMessage } = useIntl();
   
   const handleSearch = (value: string) => {
-    onSearchChange?.(value);
+    // Trim the search value to handle empty spaces
+    const trimmedValue = value.trim();
+    onSearchChange?.(trimmedValue || undefined);
   };
   
   const handleSortByChange = (value: string) => {

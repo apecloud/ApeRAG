@@ -165,7 +165,7 @@ class PaginationHelper:
             items=items,
             total=total,
             page=page,
-            page_size=len(items),  # 实际返回的数量
+            page_size=page_size,  # 使用请求的page_size，而不是实际返回的数量
             total_pages=total_pages,
             has_next=page < total_pages,
             has_prev=page > 1

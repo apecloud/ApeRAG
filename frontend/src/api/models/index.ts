@@ -113,6 +113,7 @@ export * from './node-merge-request';
 export * from './node-merge-response';
 export * from './node-position';
 export * from './page-result';
+export * from './paginated-response';
 export * from './prompt-template';
 export * from './prompt-template-list';
 export * from './question';

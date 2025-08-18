@@ -243,7 +243,7 @@ async def list_documents_view(
     from aperag.utils.pagination import PaginatedResponse
     
     # 调用新的分页方法
-    result = await document_service.list_documents_paginated(
+    result = await document_service.list_documents(
         user=str(user.id),
         collection_id=collection_id,
         page=page,

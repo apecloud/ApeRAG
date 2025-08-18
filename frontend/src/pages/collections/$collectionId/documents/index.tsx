@@ -17,6 +17,8 @@ import { api } from '@/services';
 import { ApeDocument } from '@/types';
 import { parseConfig } from '@/utils';
 import {
+  CaretDownOutlined,
+  CaretUpOutlined,
   CopyOutlined,
   DeleteOutlined,
   MoreOutlined,
@@ -86,15 +88,38 @@ export default () => {
     run: getDocuments,
     loading: documentsLoading,
   } = useRequest(
-    () =>
-      api.collectionsCollectionIdDocumentsGet({
-        collectionId: collectionId || '',
-        page: pagination.page,
-        pageSize: pagination.page_size,
-        sortBy: sortParams.sort_by,
-        sortOrder: sortParams.sort_order,
-        search: searchParams?.name,
-      }),
+    async () => {
+      // Custom API call with all parameters since SDK might not include them yet
+      const params = new URLSearchParams({
+        page: pagination.page.toString(),
+        page_size: pagination.page_size.toString(),
+        sort_order: sortParams.sort_order,
+      });
+      
+      if (sortParams.sort_by) {
+        params.append('sort_by', sortParams.sort_by);
+      }
+      
+      if (searchParams?.name) {
+        params.append('search', searchParams.name);
+      }
+      
+      const response = await fetch(
+        `/api/v1/collections/${collectionId}/documents?${params.toString()}`,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthorizationHeader(),
+          },
+        }
+      );
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return { data: await response.json() };
+    },
     {
       refreshDeps: [collectionId, pagination, sortParams, searchParams],
       pollingInterval: 3000,
@@ -154,7 +179,7 @@ export default () => {
 
   const documents = useMemo(
     () =>
-      documentsRes?.data?.items?.map((document: any) => {
+      (documentsRes?.data as any)?.items?.map((document: any) => {
         const item: ApeDocument = {
           ...document,
           config: parseConfig(document.config),
@@ -168,7 +193,7 @@ export default () => {
   const getDocumentsWithFailedIndexes = () => {
     if (!documents) return [];
 
-    return documents.filter((doc) => {
+    return documents.filter((doc: ApeDocument) => {
       const hasFailedVector = doc.vector_index_status === 'FAILED';
       const hasFailedFulltext = doc.fulltext_index_status === 'FAILED';
       const hasFailedGraph = doc.graph_index_status === 'FAILED';
@@ -305,7 +330,7 @@ export default () => {
   };
 
   // Handle search change
-  const handleSearchChange = (value: string) => {
+  const handleSearchChange = (value: string | undefined) => {
     setSearchParams({ name: value });
     setPagination({ ...pagination, page: 1 }); // Reset to first page
   };
@@ -314,6 +339,42 @@ export default () => {
   const handleSortChange = (sortBy: string, sortOrder: 'asc' | 'desc') => {
     setSortParams({ sort_by: sortBy, sort_order: sortOrder });
     setPagination({ ...pagination, page: 1 }); // Reset to first page
+  };
+
+  // Create sortable column title
+  const createSortableTitle = (title: string, sortKey: string) => {
+    const isActive = sortParams.sort_by === sortKey;
+    const nextOrder = isActive && sortParams.sort_order === 'asc' ? 'desc' : 'asc';
+    
+    return (
+      <div
+        style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          cursor: 'pointer',
+          userSelect: 'none'
+        }}
+        onClick={() => handleSortChange(sortKey, nextOrder)}
+      >
+        <span>{title}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', marginLeft: 4 }}>
+          <CaretUpOutlined 
+            style={{ 
+              fontSize: 10, 
+              color: isActive && sortParams.sort_order === 'asc' ? token.colorPrimary : token.colorTextTertiary,
+              marginBottom: -2
+            }} 
+          />
+          <CaretDownOutlined 
+            style={{ 
+              fontSize: 10, 
+              color: isActive && sortParams.sort_order === 'desc' ? token.colorPrimary : token.colorTextTertiary
+            }} 
+          />
+        </div>
+      </div>
+    );
   };
 
   const indexTypeOptions = [
@@ -376,7 +437,7 @@ export default () => {
 
   const columns: TableProps<ApeDocument>['columns'] = [
     {
-      title: formatMessage({ id: 'document.name' }),
+      title: createSortableTitle(formatMessage({ id: 'document.name' }), 'name'),
       dataIndex: 'name',
       render: (value, record) => {
         const extension =
@@ -501,7 +562,7 @@ export default () => {
       },
     },
     {
-      title: formatMessage({ id: 'text.updatedAt' }),
+      title: createSortableTitle(formatMessage({ id: 'text.updatedAt' }), 'updated'),
       dataIndex: 'updated',
       width: 180,
       render: (value) => {
@@ -601,7 +662,7 @@ export default () => {
         dataSource={documents}
         loading={documentsLoading}
         // Pagination props
-        total={documentsRes?.data?.pageResult?.count || 0}
+        total={(documentsRes?.data as any)?.total || 0}
         current={pagination.page}
         pageSize={pagination.page_size}
         onPageChange={handlePageChange}
@@ -609,12 +670,8 @@ export default () => {
         searchValue={searchParams?.name}
         onSearchChange={handleSearchChange}
         searchPlaceholder={formatMessage({ id: 'document.search.placeholder' })}
-        // Sort props
-        showSort
-        sortBy={sortParams.sort_by}
-        sortOrder={sortParams.sort_order}
-        sortOptions={sortOptions}
-        onSortChange={handleSortChange}
+        // Sort props - now handled by column headers
+        showSort={false}
         // Header content
         headerContent={
           <Space>

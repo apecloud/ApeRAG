@@ -16,18 +16,15 @@
 // May contain unused imports in some cases
 // @ts-ignore
 import type { AuditLog } from './audit-log';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { PaginatedResponse } from './paginated-response';
 
 /**
- * List of audit logs
+ * @type AuditLogList
+ * List of audit logs with pagination
  * @export
- * @interface AuditLogList
  */
-export interface AuditLogList {
-    /**
-     * Audit log entries
-     * @type {Array<AuditLog>}
-     * @memberof AuditLogList
-     */
-    'items'?: Array<AuditLog>;
-}
+export type AuditLogList = PaginatedResponse;
+
 

@@ -203,7 +203,7 @@ paths:
   /bots/{bot_id}/chats:
     get:
       summary: List chats
-      description: Get a list of chats
+      description: Get a paginated list of chats with sorting and search capabilities
       security:
         - BearerAuth: []
       parameters:
@@ -216,15 +216,43 @@ paths:
           in: query
           schema:
             type: integer
+            minimum: 1
             default: 1
+          description: Page number (1-based)
         - name: page_size
           in: query
           schema:
             type: integer
+            minimum: 1
+            maximum: 100
             default: 10
+          description: Number of items per page
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum:
+              - title
+              - created
+              - updated
+          description: Field to sort by
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: desc
+          description: Sort order
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search chats by title
       responses:
         '200':
-          description: List of chats
+          description: Paginated list of chats
           content:
             application/json:
               schema:
@@ -447,7 +475,7 @@ paths:
   /collections:
     get:
       summary: List collections
-      description: Get a list of collections (owned and optionally subscribed)
+      description: Get a paginated list of collections (owned and optionally subscribed) with sorting and search capabilities
       security:
         - BearerAuth: []
       parameters:
@@ -455,21 +483,55 @@ paths:
           in: query
           schema:
             type: integer
+            minimum: 1
             default: 1
+          description: Page number (1-based)
         - name: page_size
           in: query
           schema:
             type: integer
-            default: 10
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of items per page
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum:
+              - title
+              - created
+              - updated
+              - type
+          description: Field to sort by
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: desc
+          description: Sort order
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search collections by title or description
         - name: include_subscribed
           in: query
           schema:
             type: boolean
             default: true
           description: Whether to include subscribed collections in results
+        - name: type_filter
+          in: query
+          schema:
+            type: string
+          description: Filter collections by type
       responses:
         '200':
-          description: List of collections
+          description: Paginated list of collections
           content:
             application/json:
               schema:
@@ -604,7 +666,7 @@ paths:
   /collections/{collection_id}/documents:
     get:
       summary: List documents
-      description: Get a list of documents
+      description: Get a paginated list of documents with sorting and search capabilities
       security:
         - BearerAuth: []
       parameters:
@@ -617,15 +679,63 @@ paths:
           in: query
           schema:
             type: integer
+            minimum: 1
             default: 1
+          description: Page number (1-based)
         - name: page_size
           in: query
           schema:
             type: integer
+            minimum: 1
+            maximum: 100
             default: 10
+          description: Number of items per page
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum:
+              - name
+              - created
+              - updated
+              - size
+              - status
+          description: Field to sort by
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: desc
+          description: Sort order
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search documents by name
+        - name: status_filter
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - UPLOADED
+                - EXPIRED
+                - PENDING
+                - RUNNING
+                - COMPLETE
+                - FAILED
+                - DELETING
+                - DELETED
+          description: Filter documents by status
+          style: form
+          explode: true
       responses:
         '200':
-          description: List of documents
+          description: Paginated list of documents
           content:
             application/json:
               schema:
@@ -2993,15 +3103,99 @@ paths:
       tags:
         - audit
       summary: List audit logs
-      description: List audit logs with filtering options
+      description: List audit logs with pagination, sorting and filtering options
       operationId: list_audit_logs
       parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number (1-based)
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of items per page
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum:
+              - created
+              - duration
+              - status_code
+              - api_name
+          description: Field to sort by
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: desc
+          description: Sort order
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search in API name or path
+        - name: user_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by user ID
+        - name: resource_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - collection
+              - document
+              - bot
+              - chat
+              - message
+              - api_key
+              - llm
+              - llm_provider
+              - llm_provider_model
+              - model_service_provider
+              - user
+              - flow
+              - search
+              - index
+          description: Filter by resource type
         - name: api_name
           in: query
           required: false
           schema:
             type: string
           description: Filter by API name
+        - name: http_method
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+          description: Filter by HTTP method
+        - name: status_code
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Filter by HTTP status code
         - name: start_date
           in: query
           required: false
@@ -3016,14 +3210,6 @@ paths:
             type: string
             format: date-time
           description: Filter by end date
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: integer
-            maximum: 5000
-            default: 1000
-          description: Maximum number of records
       responses:
         '200':
           description: Audit logs retrieved successfully
@@ -4105,7 +4291,7 @@ components:
           type: string
           format: date-time
     pageResult:
-      description: PageResult info
+      description: PageResult info (deprecated, use paginatedResponse instead)
       properties:
         page_number:
           type: integer
@@ -4449,16 +4635,48 @@ components:
         updated:
           type: string
           format: date-time
+    paginatedResponse:
+      type: object
+      properties:
+        total:
+          type: integer
+          minimum: 0
+          description: Total number of items
+          example: 100
+        page:
+          type: integer
+          minimum: 1
+          description: Current page number
+          example: 1
+        page_size:
+          type: integer
+          minimum: 1
+          description: Number of items per page
+          example: 10
+        total_pages:
+          type: integer
+          minimum: 1
+          description: Total number of pages
+          example: 10
+        has_next:
+          type: boolean
+          description: Whether there is a next page
+          example: true
+        has_prev:
+          type: boolean
+          description: Whether there is a previous page
+          example: false
     chatList:
       type: object
-      description: A list of chats
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/chat'
-        pageResult:
-          $ref: '#/components/schemas/pageResult'
+      description: A list of chats with pagination
+      allOf:
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/chat'
+        - $ref: '#/components/schemas/paginatedResponse'
     chatCreate:
       type: object
       properties:
@@ -4656,14 +4874,15 @@ components:
           description: Subscription time, null for owned collections
     collectionViewList:
       type: object
-      description: A list of collection views
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/collectionView'
-        pageResult:
-          $ref: '#/components/schemas/pageResult'
+      description: A list of collection views with pagination
+      allOf:
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/collectionView'
+        - $ref: '#/components/schemas/paginatedResponse'
     crontabConfig:
       type: object
       properties:
@@ -5112,14 +5331,15 @@ components:
           format: date-time
     documentList:
       type: object
-      description: A list of documents
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/document'
-        pageResult:
-          $ref: '#/components/schemas/pageResult'
+      description: A list of documents with pagination
+      allOf:
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/document'
+        - $ref: '#/components/schemas/paginatedResponse'
     documentCreate:
       type: object
       properties:
@@ -6789,13 +7009,16 @@ components:
           description: Created timestamp
     auditLogList:
       type: object
-      description: List of audit logs
-      properties:
-        items:
-          type: array
-          description: Audit log entries
-          items:
-            $ref: '#/components/schemas/auditLog'
+      description: List of audit logs with pagination
+      allOf:
+        - type: object
+          properties:
+            items:
+              type: array
+              description: Audit log entries
+              items:
+                $ref: '#/components/schemas/auditLog'
+        - $ref: '#/components/schemas/paginatedResponse'
     invitationCreate:
       type: object
       properties:

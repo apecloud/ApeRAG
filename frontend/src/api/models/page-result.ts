@@ -15,7 +15,7 @@
 
 
 /**
- * PageResult info
+ * PageResult info (deprecated, use paginatedResponse instead)
  * @export
  * @interface PageResult
  */
