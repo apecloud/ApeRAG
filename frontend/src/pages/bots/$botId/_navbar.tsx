@@ -21,7 +21,7 @@ import {
 } from 'antd';
 import FormItem from 'antd/es/form/FormItem';
 import _ from 'lodash';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { history, useIntl, useLocation, useModel, useParams } from 'umi';
 
 type MenuItem = Required<MenuProps>['items'][number];
@@ -47,6 +47,8 @@ export const NavbarBot = () => {
   const { formatMessage } = useIntl();
   const [modal, contextHolder] = Modal.useModal();
   const [form] = Form.useForm<Chat>();
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const navbarBodyRef = useRef<HTMLDivElement>(null);
 
   const onCreateChat = useCallback(async () => {
     if (botId) {
@@ -125,8 +127,8 @@ export const NavbarBot = () => {
       });
       setChatLoading(false);
       
-      if (res.data.items) {
-        setChats((prevChats) => [...(prevChats || []), ...res.data.items]);
+      if ((res.data as any).items) {
+        setChats((prevChats) => [...(prevChats || []), ...(res.data as any).items]);
         setChatsPagination({
           ...chatsPagination,
           current: nextPage,
@@ -134,6 +136,41 @@ export const NavbarBot = () => {
       }
     }
   }, [botId, chatsPagination, setChats, setChatsPagination]);
+
+  // Infinite scroll effect
+  useEffect(() => {
+    const loadMoreElement = loadMoreRef.current;
+    const navbarBodyElement = navbarBodyRef.current;
+    
+    if (!loadMoreElement || !navbarBodyElement) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        // Check if the load more element is visible and we have more data to load
+        if (
+          entry.isIntersecting && 
+          !chatLoading && 
+          chatsPagination.current * chatsPagination.pageSize < chatsPagination.total
+        ) {
+          onLoadMoreChats();
+        }
+      },
+      {
+        root: navbarBodyElement,
+        rootMargin: '20px',
+        threshold: 0.1,
+      }
+    );
+
+    observer.observe(loadMoreElement);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [chatLoading, chatsPagination, onLoadMoreChats]);
 
   const chatMenuItems = useMemo((): MenuItem[] => {
     const chatItems = (chats || []).map((item) => {
@@ -193,25 +230,29 @@ export const NavbarBot = () => {
       };
     });
 
-    // Add load more button if there are more chats to load
+    // Add invisible load more trigger for infinite scroll
     const hasMoreChats = chatsPagination.current * chatsPagination.pageSize < chatsPagination.total;
     if (hasMoreChats) {
       chatItems.push({
-        key: 'load-more-chats',
-        style: { paddingRight: 40, textAlign: 'center' },
+        key: 'load-more-trigger',
+        style: { paddingRight: 0 },
         label: (
-          <Button
-            type="text"
-            size="small"
-            loading={chatLoading}
-            onClick={(e) => {
-              e.stopPropagation();
-              onLoadMoreChats();
+          <div
+            ref={loadMoreRef}
+            style={{ 
+              height: '1px', 
+              width: '100%', 
+              background: 'transparent',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              fontSize: '12px',
+              color: '#999',
+              padding: '8px 0'
             }}
-            style={{ fontSize: '12px', color: '#666' }}
           >
-            {formatMessage({ id: 'common.load.more' })}
-          </Button>
+            {chatLoading ? formatMessage({ id: 'common.loading' }) + '...' : ''}
+          </div>
         ),
       });
     }
@@ -272,42 +313,44 @@ export const NavbarBot = () => {
           backTo="/bots"
         ></NavbarHeader>
         <NavbarBody>
-          <Menu
-            onClick={({ key }) => history.push(key)}
-            mode="inline"
-            selectedKeys={[location.pathname]}
-            items={chatMenuItems}
-            style={{
-              padding: 0,
-              background: 'none',
-              border: 'none',
-            }}
-          />
-          {bot.type !== 'agent' && (
+          <div ref={navbarBodyRef} style={{ height: '100%', overflow: 'auto' }}>
             <Menu
               onClick={({ key }) => history.push(key)}
               mode="inline"
               selectedKeys={[location.pathname]}
-              items={[
-                {
-                  label: formatMessage({ id: 'action.settings' }),
-                  key: `/bots/${botId}/settings`,
-                  type: 'group',
-                  children: [
-                    {
-                      label: formatMessage({ id: 'flow.settings' }),
-                      key: `/bots/${botId}/flow`,
-                    },
-                  ],
-                },
-              ]}
+              items={chatMenuItems}
               style={{
                 padding: 0,
                 background: 'none',
                 border: 'none',
               }}
             />
-          )}
+            {bot.type !== 'agent' && (
+              <Menu
+                onClick={({ key }) => history.push(key)}
+                mode="inline"
+                selectedKeys={[location.pathname]}
+                items={[
+                  {
+                    label: formatMessage({ id: 'action.settings' }),
+                    key: `/bots/${botId}/settings`,
+                    type: 'group',
+                    children: [
+                      {
+                        label: formatMessage({ id: 'flow.settings' }),
+                        key: `/bots/${botId}/flow`,
+                      },
+                    ],
+                  },
+                ]}
+                style={{
+                  padding: 0,
+                  background: 'none',
+                  border: 'none',
+                }}
+              />
+            )}
+          </div>
         </NavbarBody>
       </Navbar>
 

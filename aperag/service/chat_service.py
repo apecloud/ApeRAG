@@ -146,7 +146,7 @@ class ChatService:
         user: str,
         bot_id: str,
         page: int = 1,
-        page_size: int = 10,
+        page_size: int = 50,
         sort_by: str = None,
         sort_order: str = 'desc',
         search: str = None

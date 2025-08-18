@@ -15,7 +15,7 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Path, Request, Response, WebSocket
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request, Response, WebSocket
 
 from aperag.db.models import User
 from aperag.exceptions import BusinessException
@@ -73,8 +73,17 @@ async def create_chat_view(request: Request, bot_id: str, user: User = Depends(c
 
 
 @router.get("/bots/{bot_id}/chats", tags=["chats"])
-async def list_chats_view(request: Request, bot_id: str, user: User = Depends(current_user)) -> view_models.ChatList:
-    return await chat_service_global.list_chats(str(user.id), bot_id)
+async def list_chats_view(
+    request: Request, 
+    bot_id: str, 
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    sort_by: Optional[str] = Query(None),
+    sort_order: str = Query('desc'),
+    search: Optional[str] = Query(None),
+    user: User = Depends(current_user)
+) -> view_models.ChatList:
+    return await chat_service_global.list_chats(str(user.id), bot_id, page, page_size, sort_by, sort_order, search)
 
 
 @router.get("/bots/{bot_id}/chats/{chat_id}", tags=["chats"])
