@@ -24,7 +24,7 @@ export const AuditLogDetail = ({ auditLog }: { auditLog: AuditLog }) => {
         </DrawerTrigger>
         <DrawerContent className="min-w-lg select-auto">
           <DrawerHeader>
-            <DialogTitle className='font-bold'>Audit Log</DialogTitle>
+            <DialogTitle className="font-bold">Audit Log</DialogTitle>
           </DrawerHeader>
           <div className="flex flex-col gap-4 p-4 text-sm">
             <div>
