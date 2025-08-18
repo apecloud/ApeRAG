@@ -105,14 +105,12 @@ async def list_audit_logs(
 
     return view_models.AuditLogList(
         items=items,
-        page_result=view_models.PageResult(
-            page=result.page,
-            page_size=result.page_size,
-            total=result.total,
-            total_pages=result.total_pages,
-            has_next=result.has_next,
-            has_prev=result.has_prev,
-        )
+        total=result.total,
+        page=result.page,
+        page_size=result.page_size,
+        total_pages=result.total_pages,
+        has_next=result.has_next,
+        has_prev=result.has_prev,
     )
 
 

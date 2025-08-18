@@ -36,6 +36,7 @@ const AuditLogsPage: React.FC = () => {
   const [pagination, setPagination] = useState({
     current: 1,
     pageSize: 20,
+    total: 0,
   });
 
   // Format duration
@@ -75,12 +76,25 @@ const AuditLogsPage: React.FC = () => {
   };
 
   // Fetch audit logs
-  const fetchData = async (params?: any) => {
+  const fetchData = async (params?: any, overridePagination?: { page?: number; pageSize?: number }) => {
     setLoading(true);
     try {
       const api = new AuditApi();
-      const response = await api.listAuditLogs(params || {});
+      const requestParams = {
+        page: overridePagination?.page || pagination.current,
+        pageSize: overridePagination?.pageSize || pagination.pageSize,
+        ...params,
+      };
+      const response = await api.listAuditLogs(requestParams);
       setData(response.data.items || []);
+      
+      // Update pagination info from response
+      setPagination(prev => ({
+        ...prev,
+        current: response.data.page || 1,
+        pageSize: response.data.page_size || 20,
+        total: response.data.total || 0,
+      }));
     } catch (error) {
       console.error('Failed to fetch audit logs:', error);
       message.error(
@@ -100,7 +114,6 @@ const AuditLogsPage: React.FC = () => {
     const endTime = dayjs();
     const startTime = endTime.subtract(1, 'day');
     fetchData({
-      limit: 100,
       startDate: startTime.toISOString(),
       endDate: endTime.toISOString(),
     });
@@ -114,7 +127,7 @@ const AuditLogsPage: React.FC = () => {
   // Handle search
   const handleSearch = () => {
     const values = form.getFieldsValue();
-    const params: any = { ...values, limit: 100 };
+    const params: any = { ...values };
 
     // Handle date range
     if (values.dateRange) {
@@ -123,15 +136,27 @@ const AuditLogsPage: React.FC = () => {
       delete params.dateRange;
     }
 
-    fetchData(params);
+    // Reset to first page when searching
+    setPagination(prev => ({ ...prev, current: 1 }));
+    fetchData(params, { page: 1 });
   };
 
   // Handle pagination change
   const handlePaginationChange = (page: number, pageSize?: number) => {
-    setPagination({
-      current: page,
-      pageSize: pageSize || pagination.pageSize,
-    });
+    const newPageSize = pageSize || pagination.pageSize;
+    
+    // Fetch data with new pagination
+    const values = form.getFieldsValue();
+    const params: any = { ...values };
+    
+    // Handle date range
+    if (values.dateRange) {
+      params.startDate = values.dateRange[0]?.toISOString();
+      params.endDate = values.dateRange[1]?.toISOString();
+      delete params.dateRange;
+    }
+    
+    fetchData(params, { page, pageSize: newPageSize });
   };
 
   // Handle view details
@@ -443,7 +468,7 @@ const AuditLogsPage: React.FC = () => {
             pageSizeOptions: ['20', '50', '100'],
             onChange: handlePaginationChange,
             onShowSizeChange: handlePaginationChange,
-            total: data.length,
+            total: pagination.total,
           }}
           scroll={{ x: 1240 }}
           size="small"
