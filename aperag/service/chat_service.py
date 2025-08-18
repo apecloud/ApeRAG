@@ -141,12 +141,74 @@ class ChatService:
 
         return self.build_chat_response(chat)
 
-    async def list_chats(self, user: str, bot_id: str) -> view_models.ChatList:
-        chats = await self.db_ops.query_chats(user, bot_id)
-        response = []
-        for chat in chats:
-            response.append(self.build_chat_response(chat))
-        return ChatList(items=response)
+    async def list_chats(
+        self,
+        user: str,
+        bot_id: str,
+        page: int = 1,
+        page_size: int = 10,
+        sort_by: str = None,
+        sort_order: str = 'desc',
+        search: str = None
+    ):
+        """List chats with pagination, sorting and search capabilities."""
+        
+        # Define sort field mapping
+        sort_mapping = {
+            'title': db_models.Chat.title,
+            'created': db_models.Chat.gmt_created,
+            'updated': db_models.Chat.gmt_updated
+        }
+        
+        # Define search fields mapping
+        search_fields = {
+            'title': db_models.Chat.title
+        }
+        
+        async def _execute_paginated_query(session):
+            from sqlalchemy import and_, desc, select
+            
+            # Build base query
+            query = select(db_models.Chat).where(
+                and_(
+                    db_models.Chat.user == user,
+                    db_models.Chat.bot_id == bot_id,
+                    db_models.Chat.status != db_models.ChatStatus.DELETED
+                )
+            )
+            
+            # Build query parameters
+            from aperag.utils.pagination import ListParams, PaginationParams, SortParams, SearchParams, PaginationHelper
+            
+            params = ListParams(
+                pagination=PaginationParams(page=page, page_size=page_size),
+                sort=SortParams(sort_by=sort_by, sort_order=sort_order) if sort_by else None,
+                search=SearchParams(search=search, search_fields=['title']) if search else None
+            )
+            
+            # Use pagination helper
+            items, total = await PaginationHelper.paginate_query(
+                query=query,
+                session=session,
+                params=params,
+                sort_mapping=sort_mapping,
+                search_fields=search_fields,
+                default_sort=desc(db_models.Chat.gmt_created)
+            )
+            
+            # Build chat responses
+            chat_responses = []
+            for chat in items:
+                chat_responses.append(self.build_chat_response(chat))
+            
+            return PaginationHelper.build_response(
+                items=chat_responses,
+                total=total,
+                page=page,
+                page_size=page_size
+            )
+        
+        return await self.db_ops._execute_query(_execute_paginated_query)
 
     async def get_chat(self, user: str, bot_id: str, chat_id: str) -> view_models.ChatDetails:
         # Import here to avoid circular imports

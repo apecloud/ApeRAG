@@ -114,89 +114,201 @@ class CollectionService:
         return await self.build_collection_response(instance)
 
     async def list_collections_view(
-        self, user_id: str, include_subscribed: bool = True, page: int = 1, page_size: int = 20
-    ) -> view_models.CollectionViewList:
+        self, 
+        user_id: str, 
+        include_subscribed: bool = True, 
+        page: int = 1, 
+        page_size: int = 20,
+        sort_by: str = None,
+        sort_order: str = 'desc',
+        search: str = None,
+        type_filter: str = None
+    ):
         """
-        Get user's collection list (lightweight view)
+        Get user's collection list (lightweight view) with database-level pagination, sorting and search
 
         Args:
             user_id: User ID
             include_subscribed: Whether to include subscribed collections, default True
             page: Page number
             page_size: Page size
+            sort_by: Field to sort by (title, created, updated, type)
+            sort_order: Sort order (asc, desc)
+            search: Search keyword for title or description
+            type_filter: Filter by collection type
         """
-        items = []
-
-        # 1. Get user's owned collections with marketplace info
-        owned_collections_data = await self.db_ops.query_collections_with_marketplace_info(user_id)
-
-        for row in owned_collections_data:
-            is_published = row.marketplace_status == "PUBLISHED"
-            items.append(
-                view_models.CollectionView(
-                    id=row.id,
-                    title=row.title,
-                    description=row.description,
-                    type=row.type,
-                    status=row.status,
-                    created=row.gmt_created,
-                    updated=row.gmt_updated,
-                    is_published=is_published,
-                    published_at=row.published_at if is_published else None,
-                    owner_user_id=row.user,
-                    owner_username=row.owner_username,
-                    subscription_id=None,  # Own collection, subscription_id is None
-                    subscribed_at=None,
+        
+        async def _execute_unified_query(session):
+            from sqlalchemy import and_, desc, select, union_all, literal, case, func, or_
+            from aperag.db.models import (
+                Collection, CollectionMarketplace, UserCollectionSubscription, 
+                User, CollectionStatus
+            )
+            
+            # Define sort mapping for unified query
+            sort_mapping = {
+                'title': 'title',
+                'created': 'created',
+                'updated': 'updated', 
+                'type': 'type'
+            }
+            
+            # Query 1: User's owned collections
+            owned_query = (
+                select(
+                    Collection.id,
+                    Collection.title,
+                    Collection.description,
+                    Collection.type,
+                    Collection.status,
+                    Collection.gmt_created.label('created'),
+                    Collection.gmt_updated.label('updated'),
+                    case(
+                        (CollectionMarketplace.status == "PUBLISHED", True),
+                        else_=False
+                    ).label('is_published'),
+                    CollectionMarketplace.gmt_created.label('published_at'),
+                    Collection.user.label('owner_user_id'),
+                    User.username.label('owner_username'),
+                    literal(None).label('subscription_id'),  # Own collection, no subscription_id
+                    literal(None).label('subscribed_at'),    # Own collection, no subscribed_at
+                    literal('owned').label('source_type')    # Mark as owned for ordering
+                )
+                .select_from(Collection)
+                .join(User, Collection.user == User.id)
+                .outerjoin(
+                    CollectionMarketplace,
+                    and_(
+                        CollectionMarketplace.collection_id == Collection.id,
+                        CollectionMarketplace.gmt_deleted.is_(None),
+                    ),
+                )
+                .where(
+                    Collection.user == user_id, 
+                    Collection.status != CollectionStatus.DELETED
                 )
             )
-
-        # 2. Get subscribed collections if needed (optimized - no N+1 queries)
-        if include_subscribed:
-            try:
-                # Get subscribed collections data with all needed fields in one query
-                subscribed_collections_data, _ = await self.db_ops.list_user_subscribed_collections(
-                    user_id,
-                    page=1,
-                    page_size=1000,  # Get all subscriptions for now
-                )
-
-                for data in subscribed_collections_data:
-                    is_published = data["marketplace_status"] == "PUBLISHED"
-                    items.append(
-                        view_models.CollectionView(
-                            id=data["id"],
-                            title=data["title"],
-                            description=data["description"],
-                            type=data["type"],
-                            status=data["status"],
-                            created=data["gmt_created"],
-                            updated=data["gmt_updated"],
-                            is_published=is_published,
-                            published_at=data["published_at"] if is_published else None,
-                            owner_user_id=data["owner_user_id"],
-                            owner_username=data["owner_username"],
-                            subscription_id=data["subscription_id"],
-                            subscribed_at=data["gmt_subscribed"],
-                        )
+            
+            # Query 2: User's subscribed collections (if enabled)
+            if include_subscribed:
+                subscribed_query = (
+                    select(
+                        Collection.id,
+                        Collection.title,
+                        Collection.description,
+                        Collection.type,
+                        Collection.status,
+                        Collection.gmt_created.label('created'),
+                        Collection.gmt_updated.label('updated'),
+                        case(
+                            (CollectionMarketplace.status == "PUBLISHED", True),
+                            else_=False
+                        ).label('is_published'),
+                        CollectionMarketplace.gmt_created.label('published_at'),
+                        Collection.user.label('owner_user_id'),
+                        User.username.label('owner_username'),
+                        UserCollectionSubscription.id.label('subscription_id'),
+                        UserCollectionSubscription.gmt_subscribed.label('subscribed_at'),
+                        literal('subscribed').label('source_type')  # Mark as subscribed for ordering
                     )
-            except Exception as e:
-                # If getting subscriptions fails, log and continue with owned collections
-                import logging
-
-                logger = logging.getLogger(__name__)
-                logger.warning(f"Failed to get subscribed collections for user {user_id}: {e}")
-
-        # 3. Sort by update time
-        items.sort(key=lambda x: x.updated or x.created, reverse=True)
-
-        # 4. Apply pagination
-        start_idx = (page - 1) * page_size
-        end_idx = start_idx + page_size
-        paginated_items = items[start_idx:end_idx]
-
-        return view_models.CollectionViewList(
-            items=paginated_items, pageResult=view_models.PageResult(total=len(items), page=page, page_size=page_size)
-        )
+                    .select_from(UserCollectionSubscription)
+                    .join(
+                        CollectionMarketplace,
+                        UserCollectionSubscription.collection_marketplace_id == CollectionMarketplace.id,
+                    )
+                    .join(Collection, CollectionMarketplace.collection_id == Collection.id)
+                    .join(User, Collection.user == User.id)
+                    .where(
+                        UserCollectionSubscription.user_id == user_id,
+                        UserCollectionSubscription.gmt_deleted.is_(None),
+                        CollectionMarketplace.gmt_deleted.is_(None),
+                        Collection.status != CollectionStatus.DELETED,
+                        Collection.gmt_deleted.is_(None),
+                    )
+                )
+                
+                # Combine owned and subscribed collections
+                combined_query = union_all(owned_query, subscribed_query)
+            else:
+                combined_query = owned_query
+            
+            # Create subquery for filtering and sorting
+            subquery = combined_query.subquery()
+            
+            # Build final query with filters
+            final_query = select(subquery)
+            
+            # Apply search filter
+            if search:
+                search_term = f"%{search}%"
+                final_query = final_query.where(
+                    or_(
+                        subquery.c.title.ilike(search_term),
+                        subquery.c.description.ilike(search_term)
+                    )
+                )
+            
+            # Apply type filter
+            if type_filter:
+                final_query = final_query.where(subquery.c.type == type_filter)
+            
+            # Apply sorting
+            if sort_by and sort_by in sort_mapping:
+                column_name = sort_mapping[sort_by]
+                if sort_order == 'asc':
+                    final_query = final_query.order_by(getattr(subquery.c, column_name))
+                else:
+                    final_query = final_query.order_by(desc(getattr(subquery.c, column_name)))
+            else:
+                # Default sort: owned collections first, then by update time
+                final_query = final_query.order_by(
+                    desc(subquery.c.source_type),  # 'owned' > 'subscribed' lexicographically
+                    desc(subquery.c.updated)
+                )
+            
+            # Get total count
+            count_query = select(func.count()).select_from(final_query.subquery())
+            total = await session.scalar(count_query)
+            
+            # Apply pagination
+            offset = (page - 1) * page_size
+            paginated_query = final_query.offset(offset).limit(page_size)
+            
+            # Execute paginated query
+            result = await session.execute(paginated_query)
+            rows = result.fetchall()
+            
+            # Build collection view responses
+            items = []
+            for row in rows:
+                items.append(
+                    view_models.CollectionView(
+                        id=row.id,
+                        title=row.title,
+                        description=row.description,
+                        type=row.type,
+                        status=row.status,
+                        created=row.created,
+                        updated=row.updated,
+                        is_published=row.is_published,
+                        published_at=row.published_at,
+                        owner_user_id=row.owner_user_id,
+                        owner_username=row.owner_username,
+                        subscription_id=row.subscription_id,
+                        subscribed_at=row.subscribed_at,
+                    )
+                )
+            
+            # Build paginated response
+            from aperag.utils.pagination import PaginationHelper
+            return PaginationHelper.build_response(
+                items=items,
+                total=total or 0,
+                page=page,
+                page_size=page_size
+            )
+        
+        return await self.db_ops._execute_query(_execute_unified_query)
 
     async def get_collection(self, user: str, collection_id: str) -> view_models.Collection:
         from aperag.exceptions import CollectionNotFoundException

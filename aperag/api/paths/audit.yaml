@@ -3,15 +3,74 @@ audit_logs:
     tags:
       - audit
     summary: List audit logs
-    description: List audit logs with filtering options
+    description: List audit logs with pagination, sorting and filtering options
     operationId: list_audit_logs
     parameters:
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        description: Page number (1-based)
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        description: Number of items per page
+      - name: sort_by
+        in: query
+        schema:
+          type: string
+          enum: ["created", "duration", "status_code", "api_name"]
+        description: Field to sort by
+      - name: sort_order
+        in: query
+        schema:
+          type: string
+          enum: ["asc", "desc"]
+          default: "desc"
+        description: Sort order
+      - name: search
+        in: query
+        schema:
+          type: string
+        description: Search in API name or path
+      - name: user_id
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Filter by user ID
+      - name: resource_type
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: ["collection", "document", "bot", "chat", "message", "api_key", "llm", "llm_provider", "llm_provider_model", "model_service_provider", "user", "flow", "search", "index"]
+        description: Filter by resource type
       - name: api_name
         in: query
         required: false
         schema:
           type: string
         description: Filter by API name
+      - name: http_method
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: ["GET", "POST", "PUT", "DELETE", "PATCH"]
+        description: Filter by HTTP method
+      - name: status_code
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: Filter by HTTP status code
       - name: start_date
         in: query
         required: false
@@ -26,14 +85,6 @@ audit_logs:
           type: string
           format: date-time
         description: Filter by end date
-      - name: limit
-        in: query
-        required: false
-        schema:
-          type: integer
-          maximum: 5000
-          default: 1000
-        description: Maximum number of records
     responses:
       "200":
         description: Audit logs retrieved successfully
@@ -69,5 +120,3 @@ audit_log_detail:
         description: Admin access required
       "404":
         description: Audit log not found
-
- 

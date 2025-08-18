@@ -78,12 +78,13 @@ auditLog:
 
 auditLogList:
   type: object
-  description: List of audit logs
-  properties:
-    items:
-      type: array
-      description: Audit log entries
-      items:
-        $ref: '#/auditLog'
-
- 
+  description: List of audit logs with pagination
+  allOf:
+    - type: object
+      properties:
+        items:
+          type: array
+          description: Audit log entries
+          items:
+            $ref: '#/auditLog'
+    - $ref: './common.yaml#/paginatedResponse'

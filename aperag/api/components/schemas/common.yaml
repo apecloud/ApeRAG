@@ -10,8 +10,116 @@ failResponse:
       description: Error message
       example: "Invalid request"
 
+# 通用分页参数
+paginationParams:
+  type: object
+  properties:
+    page:
+      type: integer
+      minimum: 1
+      default: 1
+      description: Page number (1-based)
+      example: 1
+    page_size:
+      type: integer
+      minimum: 1
+      maximum: 100
+      default: 10
+      description: Number of items per page
+      example: 10
+
+# 通用排序参数
+sortParams:
+  type: object
+  properties:
+    sort_by:
+      type: string
+      description: Field to sort by
+      example: "created"
+    sort_order:
+      type: string
+      enum: ["asc", "desc"]
+      default: "desc"
+      description: Sort order
+      example: "desc"
+
+# 通用搜索参数
+searchParams:
+  type: object
+  properties:
+    search:
+      type: string
+      description: Search keyword
+      example: "document name"
+
+# 通用列表查询参数
+listQueryParams:
+  type: object
+  properties:
+    page:
+      type: integer
+      minimum: 1
+      default: 1
+      description: Page number (1-based)
+      example: 1
+    page_size:
+      type: integer
+      minimum: 1
+      maximum: 100
+      default: 10
+      description: Number of items per page
+      example: 10
+    sort_by:
+      type: string
+      description: Field to sort by
+      example: "created"
+    sort_order:
+      type: string
+      enum: ["asc", "desc"]
+      default: "desc"
+      description: Sort order
+      example: "desc"
+    search:
+      type: string
+      description: Search keyword
+      example: "search term"
+
+# 标准分页响应结构
+paginatedResponse:
+  type: object
+  properties:
+    total:
+      type: integer
+      minimum: 0
+      description: Total number of items
+      example: 100
+    page:
+      type: integer
+      minimum: 1
+      description: Current page number
+      example: 1
+    page_size:
+      type: integer
+      minimum: 1
+      description: Number of items per page
+      example: 10
+    total_pages:
+      type: integer
+      minimum: 1
+      description: Total number of pages
+      example: 10
+    has_next:
+      type: boolean
+      description: Whether there is a next page
+      example: true
+    has_prev:
+      type: boolean
+      description: Whether there is a previous page
+      example: false
+
+# 保持向后兼容的旧版本pageResult
 pageResult:
-  description: PageResult info
+  description: PageResult info (deprecated, use paginatedResponse instead)
   properties:
     page_number:
       type: integer

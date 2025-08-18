@@ -175,6 +175,11 @@ class AuditService:
 
     async def list_audit_logs(
         self,
+        page: int = 1,
+        page_size: int = 20,
+        sort_by: str = None,
+        sort_order: str = 'desc',
+        search: str = None,
         user_id: Optional[str] = None,
         resource_type: Optional[AuditResource] = None,
         api_name: Optional[str] = None,
@@ -182,13 +187,27 @@ class AuditService:
         status_code: Optional[int] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-        limit: int = 1000,
-    ) -> List[AuditLog]:
-        """List audit logs with filtering"""
+    ):
+        """List audit logs with pagination, sorting, and filtering"""
+        
+        # Define sort field mapping
+        sort_mapping = {
+            'created': AuditLog.gmt_created,
+            'duration': AuditLog.end_time - AuditLog.start_time,  # Calculated field
+            'status_code': AuditLog.status_code,
+            'api_name': AuditLog.api_name
+        }
+        
+        # Define search fields mapping
+        search_fields = {
+            'api_name': AuditLog.api_name,
+            'path': AuditLog.path
+        }
 
-        # Use proper session management
         async def _list_audit_logs(session):
-            # Build query
+            from aperag.utils.pagination import ListParams, PaginationParams, SortParams, SearchParams, PaginationHelper
+            
+            # Build base query
             stmt = select(AuditLog)
 
             # Add filters
@@ -211,20 +230,34 @@ class AuditService:
             if conditions:
                 stmt = stmt.where(and_(*conditions))
 
-            # Order by creation time (newest first) and limit
-            stmt = stmt.order_by(desc(AuditLog.gmt_created)).limit(limit)
-
-            # Execute query and return results immediately
-            result = await session.execute(stmt)
-            return result.scalars().all()
+            # Build query parameters
+            params = ListParams(
+                pagination=PaginationParams(page=page, page_size=page_size),
+                sort=SortParams(sort_by=sort_by, sort_order=sort_order) if sort_by else None,
+                search=SearchParams(search=search, search_fields=['api_name', 'path']) if search else None
+            )
+            
+            # Use pagination helper
+            items, total = await PaginationHelper.paginate_query(
+                query=stmt,
+                session=session,
+                params=params,
+                sort_mapping=sort_mapping,
+                search_fields=search_fields,
+                default_sort=desc(AuditLog.gmt_created)
+            )
+            
+            return items, total
 
         # Execute query with proper session management
         audit_logs = None
+        total = 0
         async for session in get_async_session():
-            audit_logs = await _list_audit_logs(session)
+            audit_logs, total = await _list_audit_logs(session)
             break  # Only process one session
 
         # Post-process audit logs outside of session to avoid long session occupation
+        processed_logs = []
         for log in audit_logs:
             if log.resource_type and log.path:
                 # Convert string to enum if needed
@@ -245,8 +278,17 @@ class AuditService:
                 log.duration_ms = log.end_time - log.start_time
             else:
                 log.duration_ms = None
+                
+            processed_logs.append(log)
 
-        return audit_logs
+        # Build paginated response
+        from aperag.utils.pagination import PaginationHelper
+        return PaginationHelper.build_response(
+            items=processed_logs,
+            total=total,
+            page=page,
+            page_size=page_size
+        )
 
 
 # Global audit service instance

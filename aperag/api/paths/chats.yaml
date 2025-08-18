@@ -1,7 +1,7 @@
 chats:
   get:
     summary: List chats
-    description: Get a list of chats
+    description: Get a paginated list of chats with sorting and search capabilities
     security:
       - BearerAuth: []
     parameters:
@@ -14,15 +14,38 @@ chats:
         in: query
         schema:
           type: integer
+          minimum: 1
           default: 1
+        description: Page number (1-based)
       - name: page_size
         in: query
         schema:
           type: integer
+          minimum: 1
+          maximum: 100
           default: 10
+        description: Number of items per page
+      - name: sort_by
+        in: query
+        schema:
+          type: string
+          enum: ["title", "created", "updated"]
+        description: Field to sort by
+      - name: sort_order
+        in: query
+        schema:
+          type: string
+          enum: ["asc", "desc"]
+          default: "desc"
+        description: Sort order
+      - name: search
+        in: query
+        schema:
+          type: string
+        description: Search chats by title
     responses:
       '200':
-        description: List of chats
+        description: Paginated list of chats
         content:
           application/json:
             schema:

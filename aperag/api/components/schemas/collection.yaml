@@ -352,14 +352,15 @@ collectionView:
 
 collectionViewList:
   type: object
-  description: A list of collection views
-  properties:
-    items:
-      type: array
-      items:
-        $ref: '#/collectionView'
-    pageResult:
-      $ref: './common.yaml#/pageResult'
+  description: A list of collection views with pagination
+  allOf:
+    - type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/collectionView'
+    - $ref: './common.yaml#/paginatedResponse'
 
 collectionList:
   type: object
