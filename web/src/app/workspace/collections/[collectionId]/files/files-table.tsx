@@ -248,7 +248,6 @@ export function FilesTable({ data }: { data: Document[] }) {
               <Button variant="outline">
                 <Columns3 />
                 <span className="hidden lg:inline">Columns</span>
-                <span className="lg:hidden">Columns</span>
                 <ChevronDown />
               </Button>
             </DropdownMenuTrigger>

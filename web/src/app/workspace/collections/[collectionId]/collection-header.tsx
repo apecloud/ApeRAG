@@ -17,9 +17,7 @@ import {
   EllipsisVertical,
   Files,
   FolderSearch,
-  MonitorUp,
   Settings,
-  TextSearch,
   Trash,
   VectorSquare,
 } from 'lucide-react';
@@ -39,7 +37,7 @@ export const CollectionHeader = ({
   };
 
   return (
-    <PageContent className="mb-4">
+    <PageContent>
       <PageTitle>{collection.title}</PageTitle>
       <div className="flex flex-row items-center justify-between">
         <div className="flex flex-row items-center gap-6">
@@ -84,9 +82,9 @@ export const CollectionHeader = ({
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href={`/workspace/collections/${collection.id}/search`}>
+                <Link href={`/workspace/collections/${collection.id}/graph`}>
                   <VectorSquare /> Knowledge Graph
-                </Link> 
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href={`/workspace/collections/${collection.id}/settings`}>
@@ -95,7 +93,7 @@ export const CollectionHeader = ({
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive">
-                <Trash /> Delete
+                <Trash /> Delete Collection
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
