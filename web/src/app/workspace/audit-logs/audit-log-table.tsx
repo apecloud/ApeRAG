@@ -245,7 +245,6 @@ export function AuditLogTable({
               <Button variant="outline">
                 <Columns3 />
                 <span className="hidden lg:inline">Columns</span>
-                <span className="lg:hidden">Columns</span>
                 <ChevronDown />
               </Button>
             </DropdownMenuTrigger>

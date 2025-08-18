@@ -40,7 +40,7 @@ export default async function Page({
       />
       <CollectionHeader collection={toJson(collectionRes.data)} />
 
-      <PageContent className='pt-0'>
+      <PageContent>
         <FilesTable data={toJson(documentsRes.data.items || [])} />
       </PageContent>
     </PageContainer>

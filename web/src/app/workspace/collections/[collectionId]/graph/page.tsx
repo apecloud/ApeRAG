@@ -1,4 +1,8 @@
-import { PageContainer, PageHeader } from '@/components/page-container';
+import {
+  PageContainer,
+  PageContent,
+  PageHeader,
+} from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
 import { CollectionHeader } from '../collection-header';
 
@@ -28,6 +32,7 @@ export default async function Page({
         ]}
       />
       <CollectionHeader collection={collection} />
+      <PageContent>Knowledge Graph</PageContent>
     </PageContainer>
   );
 }
