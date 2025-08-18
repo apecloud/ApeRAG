@@ -14,10 +14,8 @@ export const toJson = <T>(obj: T): T => {
   return JSON.parse(JSON.stringify(obj));
 };
 
-export const objectKeys = <T extends object>(
-  obj?: T,
-): Array<keyof T> | undefined => {
-  if (obj === undefined) return;
+export const objectKeys = <T extends object>(obj?: T): Array<keyof T> => {
+  if (obj === undefined) return [];
   return Object.keys(obj) as Array<keyof T>;
 };
 

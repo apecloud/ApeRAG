@@ -25,6 +25,8 @@ export default async function Page({
     }),
   ]);
 
+  const collection = toJson(collectionRes.data);
+
   return (
     <PageContainer>
       <PageHeader
@@ -38,10 +40,13 @@ export default async function Page({
           },
         ]}
       />
-      <CollectionHeader collection={toJson(collectionRes.data)} />
+      <CollectionHeader collection={collection} />
 
       <PageContent>
-        <FilesTable data={toJson(documentsRes.data.items || [])} />
+        <FilesTable
+          collection={collection}
+          data={toJson(documentsRes.data.items || [])}
+        />
       </PageContent>
     </PageContainer>
   );

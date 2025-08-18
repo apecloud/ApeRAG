@@ -16,17 +16,17 @@ export const AuditLogDetail = ({ auditLog }: { auditLog: AuditLog }) => {
   const format = useFormatter();
   return (
     <>
-      <Drawer direction="right">
+      <Drawer direction="right" handleOnly={true}>
         <DrawerTrigger asChild>
           <Button variant="ghost" size="icon">
             <ScanEye />
           </Button>
         </DrawerTrigger>
-        <DrawerContent className="min-w-lg select-auto">
+        <DrawerContent className="flex min-w-xl">
           <DrawerHeader>
             <DialogTitle className="font-bold">Audit Log</DialogTitle>
           </DrawerHeader>
-          <div className="flex flex-col gap-4 p-4 text-sm">
+          <div className="flex flex-col gap-4 overflow-auto p-4 text-sm select-text">
             <div>
               <div className="text-muted-foreground">User Agent:</div>
               <div>{auditLog.user_agent}</div>

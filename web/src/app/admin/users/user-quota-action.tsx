@@ -47,7 +47,7 @@ export const UserQuotaAction = ({
 }) => {
   const [userQuotaInfo, setUserQuotaInfo] = useState<UserQuotaInfo>();
   const [visible, setVisible] = useState<boolean>(false);
-  const quotaInfo = userQuotaInfo?.quotas;
+  const quotaInfo = _.orderBy(userQuotaInfo?.quotas, ['quota_type'], ['desc']);
 
   const form = useForm<z.infer<typeof quotaSchema>>({
     resolver: zodResolver(quotaSchema),
@@ -100,9 +100,9 @@ export const UserQuotaAction = ({
     });
     if (res.data.success) {
       toast.success(res.data.message);
-      setVisible(false);
+      getUserQuota();
     }
-  }, [user.id]);
+  }, [getUserQuota, user.id]);
 
   const content = useMemo(() => {
     if (_.isEmpty(quotaInfo)) {
@@ -195,11 +195,11 @@ export const UserQuotaAction = ({
             <DialogFooter className="flex flex-col sm:justify-between">
               <Button
                 type="button"
-                variant="destructive"
+                variant="secondary"
                 onClick={() => handleRecalculate()}
                 disabled={_.isEmpty(quotaInfo)}
               >
-                Reset Quotas
+                Recalculate
               </Button>
               <div className="flex gap-2">
                 <Button

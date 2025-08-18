@@ -1,6 +1,17 @@
 'use client';
 
 import { LlmProvider } from '@/api';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -106,8 +117,11 @@ export const ProviderActions = ({
 
   if (action === 'delete') {
     return (
-      <Dialog open={deleteVisible} onOpenChange={() => setDeleteVisible(false)}>
-        <DialogTrigger asChild>
+      <AlertDialog
+        open={deleteVisible}
+        onOpenChange={() => setDeleteVisible(false)}
+      >
+        <AlertDialogTrigger asChild>
           <Slot
             onClick={(e) => {
               setDeleteVisible(true);
@@ -116,25 +130,26 @@ export const ProviderActions = ({
           >
             {children}
           </Slot>
-        </DialogTrigger>
-        <DialogContent showCloseButton={false}>
-          <DialogHeader>
-            <DialogTitle>Confirm</DialogTitle>
-            <DialogDescription>
-              Confirm deletion of the provider?
-            </DialogDescription>
-          </DialogHeader>
-          <DialogDescription></DialogDescription>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteVisible(false)}>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete
+              provider and remove your data from our servers.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogDescription></AlertDialogDescription>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteVisible(false)}>
               Cancel
-            </Button>
-            <Button variant="destructive" onClick={() => handleDelete()}>
-              OK
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => handleDelete()}>
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     );
   } else {
     return (
