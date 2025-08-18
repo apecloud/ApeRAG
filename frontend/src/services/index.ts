@@ -1,4 +1,7 @@
-import { Configuration, DefaultApi, GraphApi, QuotasApi } from '@/api';
+import { Configuration } from '@/api';
+import { DefaultApi } from '@/api/apis/default-api';
+import { GraphApi } from '@/api/apis/graph-api';
+import { QuotasApi } from '@/api/apis/quotas-api';
 import { getAuthorizationHeader } from '@/models/user';
 import axios from 'axios';
 import { toast } from 'react-toastify';
@@ -49,13 +52,13 @@ request.interceptors.response.use(
       // Handle quota exceeded errors with friendly messages
       const errorData = err.response?.data;
       let errorMessage = err.response?.data?.detail || err.message || 'request error';
-      
+
       if (errorData && errorData.details?.quota_exceeded) {
         const intl = getIntl();
         const quotaType = errorData.details.quota_type;
         const currentUsage = errorData.details.current_usage;
         const quotaLimit = errorData.details.quota_limit;
-        
+
         // Map quota types to user-friendly messages
         const quotaTypeMessages: Record<string, string> = {
           'max_collection_count': intl.formatMessage({ id: 'quota.error.collection_exceeded' }),
@@ -63,9 +66,9 @@ request.interceptors.response.use(
           'max_document_count_per_collection': intl.formatMessage({ id: 'quota.error.document_exceeded' }),
           'max_bot_count': intl.formatMessage({ id: 'quota.error.bot_exceeded' }),
         };
-        
+
         const friendlyMessage = quotaTypeMessages[quotaType] || intl.formatMessage({ id: 'quota.error.exceeded' });
-        
+
         if (currentUsage !== null && quotaLimit) {
           const usageDetail = intl.formatMessage(
             { id: 'quota.error.current_usage' },
@@ -87,11 +90,11 @@ request.interceptors.response.use(
           'DOCUMENT_QUOTA_EXCEEDED': intl.formatMessage({ id: 'quota.error.document_exceeded' }),
           'BOT_QUOTA_EXCEEDED': intl.formatMessage({ id: 'quota.error.bot_exceeded' }),
         };
-        
+
         const friendlyMessage = errorCodeMessages[errorData.error_code] || intl.formatMessage({ id: 'quota.error.exceeded' });
         errorMessage = `${friendlyMessage}。${intl.formatMessage({ id: 'quota.error.upgrade_hint' })}`;
       }
-      
+
       toast.error(errorMessage);
     }
     return Promise.reject(err);

@@ -34,7 +34,6 @@ from aperag.db.ops import db_ops
 from aperag.index.summary_index import SummaryIndexer
 from aperag.llm.completion.base_completion import get_collection_completion_service_sync
 from aperag.schema.utils import parseCollectionConfig
-from aperag.tasks.reconciler import CollectionSummaryReconciler
 from aperag.tasks.reconciler import CollectionSummaryCallbacks
 
 logger = logging.getLogger(__name__)

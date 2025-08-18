@@ -126,7 +126,7 @@ ifeq ($(REMOVE_VOLUMES),1)
 endif
 
 .PHONY: compose-up compose-down compose-logs compose-infra
-# Full application startup 
+# Full application startup
 compose-up:
 	$(_EXTRA_ENVS) docker-compose $(_PROFILES_TO_ACTIVATE) -f docker-compose.yml up -d
 
@@ -228,7 +228,8 @@ generate-models: merge-openapi
 		--target-python-version 3.11 \
 		--use-standard-collections \
 		--use-schema-description \
-		--enum-field-as-literal all
+		--enum-field-as-literal all \
+		--output-model-type pydantic_v2.BaseModel
 	@rm aperag/api/openapi.merged.yaml
 
 generate-frontend-sdk:

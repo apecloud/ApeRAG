@@ -1,0 +1,140 @@
+export const evaluation = {
+  'evaluation.name': '评估',
+  'evaluation.tips': '在这里管理和查看您的 RAG 评估任务。',
+  'evaluation.add': '新建评估',
+  'evaluation.list': '评估列表',
+  'evaluation.new': '新建评估',
+  'evaluation.questionCount': '问题数',
+  'evaluation.averageScore': '平均分',
+  'evaluation.status.PENDING': '待处理',
+  'evaluation.status.RUNNING': '运行中',
+  'evaluation.status.COMPLETED': '已完成',
+  'evaluation.status.FAILED': '失败',
+  'evaluation.status.PAUSED': '已暂停',
+  'evaluation.question_sets': '问题集',
+  'evaluation.question_sets.tips': '在这里管理和查看您的问题集。',
+  'evaluation.question_sets.add': '新建问题集',
+  'evaluation.question_sets.new': '新建问题集',
+  'evaluation.question_sets.edit': '编辑问题集',
+  'evaluation.question_sets.delete.confirm': '确定删除问题集 "{name}" 吗？',
+  'evaluation.question_sets.create': '创建问题集',
+  'evaluation.question_sets.import_from_file': '从文件导入',
+  'evaluation.question_sets.generate_from_collection': '从知识库生成',
+  'evaluation.question_sets.generate': '生成问题',
+  'evaluation.question_sets.question': '问题',
+  'evaluation.question_sets.ground_truth': '标准答案',
+  'evaluation.question_sets.add_question': '添加问题',
+  'evaluation.task.name': '评估任务',
+  'evaluation.task.delete.confirm': '确定删除评估任务 "{name}" 吗？',
+  'evaluation.task.status.PENDING': '待处理',
+  'evaluation.task.status.RUNNING': '运行中',
+  'evaluation.task.status.COMPLETED': '已完成',
+  'evaluation.task.status.FAILED': '失败',
+  'evaluation.task.status.PAUSED': '已暂停',
+  'evaluation.task.average_score': '平均分',
+  'evaluation.task.progress': '进度',
+  'evaluation.result.rag_answer': 'RAG 回答',
+  'evaluation.result.llm_judge_score': 'LLM 评分',
+  'evaluation.result.llm_judge_reasoning': '评分理由',
+  'evaluation.question_sets.question_count': '问题数量',
+  'model.prompt.template': '提示词模板',
+  'evaluation.question_sets.upload_hint.title': '上传文件内容示例',
+  'evaluation.question_sets.upload_hint.demo.q1': '法国的首都是哪里？',
+  'evaluation.question_sets.upload_hint.demo.a1': '巴黎',
+  'evaluation.question_sets.upload_hint.demo.q2': '《杀死一只知更鸟》的作者是谁？',
+  'evaluation.question_sets.upload_hint.demo.a2': '哈珀·李',
+  'tips.import.success': '成功导入 {count} 个问题。',
+  'tips.upload.nodata': '没有发现新问题或所有问题都已存在。',
+  'evaluation.question_sets.empty': '问题集不能为空。',
+  'tips.create.success': '创建成功。',
+  'tips.create.failed': '创建失败。',
+  'text.click_to_edit': '点击以编辑',
+  'text.click_to_edit_tooltip': '点击以编辑',
+  'evaluation.question_sets.update': '更新问题集',
+  'tips.update.success': '问题集更新成功。',
+  'tips.update.failed': '问题集更新失败。',
+  'tips.request.error': '获取数据失败。',
+  'tips.delete.success': '删除成功。',
+  'tips.delete.failed': '删除失败。',
+  'tips.generate.failed': '生成问题失败',
+  'evaluation.ok': '确定',
+  'evaluation.cancel': '取消',
+  'evaluation.question_sets.prompt.template.default': `你是一个善于提出问题的专家。请仔细阅读以下文档内容，并根据内容生成两种类型的问题和对应的标准答案。
+
+**问题类型:**
+1.  **事实性问题 (Factual)**: 可以直接从文本中找到明确答案的问题。
+2.  **推理性问题 (Inferential)**: 需要结合文本中多个信息点进行推理、比较或总结才能得出答案的问题。
+
+**文档内容:**
+
+'{DOCUMENT_CONTENT}'
+
+**你的任务:**
+请根据以上文档，生成 '{NUMBER_OF_QUESTIONS}' 个问题。事实性问题和推理性问题的数量应各占一半。提问的语言应与文档的语言尽量保持一致。请以 JSON 格式输出一个问题列表，每个问题对象包含三个字段: \`question_type\` ('FACTUAL' 或 'INFERENTIAL'), \`question_text\` (问题内容), 和 \`ground_truth\` (基于文档内容得到的标准答案)。
+
+**重要提示**: 你的回答应该只包含 JSON 对象，不应有任何其他文本或解释。
+
+**输出示例:**
+[
+  '{
+    "question_type": "FACTUAL",
+    "question_text": "文档中提到的项目启动于哪一年？",
+    "ground_truth": "根据文档，该项目于2021年正式启动。"
+  }',
+  '{
+    "question_type": "INFERENTIAL",
+    "question_text": "项目早期阶段和后期阶段的主要挑战有何不同？",
+    "ground_truth": "项目早期挑战主要是技术选型和团队组建，后期挑战则转变为系统性能优化和市场推广。"
+  }'
+]
+`,
+  'evaluation.question_sets.prompt.template.hint': `以下变量将被系统替换：
+- '{DOCUMENT_CONTENT}': 知识库中的文档内容。
+- '{NUMBER_OF_QUESTIONS}': 待生成的问题数量。`,
+  'evaluation.new.form.collection': '知识库',
+  'evaluation.new.form.collection.placeholder': '请选择知识库',
+  'evaluation.new.form.questionSet': '问题集',
+  'evaluation.new.form.questionSet.placeholder': '请选择问题集',
+  'evaluation.new.form.questionSet.empty': '暂无问题集，请先创建。',
+  'evaluation.new.form.questionSet.create': '新建问题集',
+  'evaluation.new.form.bot': '机器人',
+  'evaluation.new.form.bot.placeholder': '请选择机器人',
+  'evaluation.new.form.agentLlm': 'Agent LLM',
+  'evaluation.new.form.agentLlm.placeholder': '请选择 Agent 使用的 LLM',
+  'evaluation.new.form.judgeLlm': '评判 LLM',
+  'evaluation.new.form.judgeLlm.placeholder': '请选择评判 LLM',
+  'evaluation.new.form.name': '评估名称',
+  'evaluation.new.form.name.placeholder.auto': '请输入评估名称（留空自动生成）',
+  'evaluation.new.form.submit': '创建',
+  'evaluation.new.form.cancel': '取消',
+  'evaluation.detail.collection': '知识库',
+  'evaluation.detail.questionSet': '问题集',
+  'evaluation.detail.groundTruth': '标准答案',
+  'evaluation.detail.ragAnswer': 'RAG 回答',
+  'evaluation.detail.judgeReasoning': 'LLM 评判理由',
+  'evaluation.item.status.PENDING': '待处理',
+  'evaluation.item.status.RUNNING': '运行中',
+  'evaluation.item.status.COMPLETED': '已完成',
+  'evaluation.item.status.FAILED': '失败',
+  'evaluation.item.noScore': '无评分',
+  'action.showMore': '显示更多',
+  'action.showLess': '收起',
+  'action.pause': '暂停',
+  'action.resume': '恢复',
+  'action.retry': '重试',
+  'action.retryFailed': '重试失败项',
+  'action.retryAll': '重试全部',
+  'action.delete': '删除',
+  'action.yes': '是',
+  'action.no': '否',
+  'evaluation.delete.confirm.title': '删除评估',
+  'evaluation.delete.confirm.description': '您确定要删除此评估任务吗？此操作无法撤销。',
+  'evaluation.delete.success': '评估删除成功',
+  'evaluation.delete.failure': '删除评估失败',
+  'evaluation.pause.success': '评估暂停成功',
+  'evaluation.pause.failure': '暂停评估失败',
+  'evaluation.resume.success': '评估恢复成功',
+  'evaluation.resume.failure': '恢复评估失败',
+  'evaluation.retry.success': '评估重试成功',
+  'evaluation.retry.failure': '重试评估失败',
+};

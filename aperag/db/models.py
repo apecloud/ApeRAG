@@ -190,6 +190,33 @@ class APIType(str, Enum):
     RERANK = "rerank"
 
 
+class QuestionType(str, Enum):
+    """Question type enumeration"""
+
+    FACTUAL = "FACTUAL"
+    INFERENTIAL = "INFERENTIAL"
+    USER_DEFINED = "USER_DEFINED"
+
+
+class EvaluationStatus(str, Enum):
+    """Evaluation task lifecycle status"""
+
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    PAUSED = "PAUSED"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class EvaluationItemStatus(str, Enum):
+    """Evaluation item lifecycle status"""
+
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
 # Models
 class Collection(Base):
     __tablename__ = "collection"
@@ -1048,6 +1075,87 @@ class MergeSuggestionHistory(Base):
         return (
             f"<MergeSuggestionHistory(id={self.id}, original_id={self.original_suggestion_id}, status={self.status})>"
         )
+
+
+class QuestionSet(Base):
+    __tablename__ = "question_sets"
+    __table_args__ = (Index("idx_question_sets_user_id", "user_id"),)
+
+    id = Column(String(24), primary_key=True, default=lambda: "qs_" + random_id()[:16])
+    user_id = Column(String(24), nullable=False)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
+
+    def __repr__(self):
+        return f"<QuestionSet(id={self.id}, name={self.name}, user_id={self.user_id})>"
+
+
+class Question(Base):
+    __tablename__ = "questions"
+    __table_args__ = (Index("idx_questions_question_set_id", "question_set_id"),)
+
+    id = Column(String(24), primary_key=True, default=lambda: "q_" + random_id()[:16])
+    question_set_id = Column(String(24), nullable=False)
+    question_type = Column(EnumColumn(QuestionType), nullable=True)
+    question_text = Column(Text, nullable=False)
+    ground_truth = Column(Text, nullable=False)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
+
+    def __repr__(self):
+        return f"<Question(id={self.id}, qs_id={self.question_set_id})>"
+
+
+class Evaluation(Base):
+    __tablename__ = "evaluations"
+    __table_args__ = (
+        Index("idx_evaluations_user_id", "user_id"),
+        Index("idx_evaluations_status", "status"),
+    )
+
+    id = Column(String(24), primary_key=True, default=lambda: "eval_" + random_id()[:16])
+    user_id = Column(String(24), nullable=False)
+    name = Column(String(255), nullable=False)
+    collection_id = Column(String(24), nullable=False)
+    question_set_id = Column(String(24), nullable=False)
+    agent_llm_config = Column(JSON, nullable=False)
+    judge_llm_config = Column(JSON, nullable=False)
+    status = Column(EnumColumn(EvaluationStatus), nullable=False, default=EvaluationStatus.PENDING)
+    error_message = Column(Text, nullable=True)
+    total_questions = Column(Integer, nullable=False, default=0)
+    completed_questions = Column(Integer, nullable=False, default=0)
+    average_score = Column(Numeric(3, 2), nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_deleted = Column(DateTime(timezone=True), nullable=True)
+
+    def __repr__(self):
+        return f"<Evaluation(id={self.id}, name={self.name}, status={self.status})>"
+
+
+class EvaluationItem(Base):
+    __tablename__ = "evaluation_items"
+    __table_args__ = (Index("idx_evaluation_items_evaluation_id", "evaluation_id"),)
+
+    id = Column(String(24), primary_key=True, default=lambda: "item_" + random_id()[:16])
+    evaluation_id = Column(String(24), nullable=False)
+    question_id = Column(String(24), nullable=True)
+    status = Column(EnumColumn(EvaluationItemStatus), nullable=False, default=EvaluationItemStatus.PENDING, index=True)
+    question_text = Column(Text, nullable=False)
+    ground_truth = Column(Text, nullable=False)
+    rag_answer = Column(Text, nullable=True)
+    rag_answer_details = Column(JSON, nullable=True)
+    llm_judge_score = Column(Integer, nullable=True)
+    llm_judge_reasoning = Column(Text, nullable=True)
+    gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    gmt_updated = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    def __repr__(self):
+        return f"<EvaluationItem(id={self.id}, eval_id={self.evaluation_id}, q_id={self.question_id})>"
 
 
 class Setting(Base):

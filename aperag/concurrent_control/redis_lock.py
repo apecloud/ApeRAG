@@ -23,9 +23,13 @@ import asyncio
 import logging
 import time
 import uuid
+from contextlib import asynccontextmanager
 from typing import Any, Optional
 
+import redis.asyncio as async_redis
+
 from .protocols import LockProtocol
+from .utils import LockAcquisitionError
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +66,15 @@ class RedisLock(LockProtocol):
     end
     """
 
+    # Lua script for safe lock renewal (atomic check-and-expire)
+    RENEW_SCRIPT = """
+    if redis.call("get", KEYS[1]) == ARGV[1] then
+        return redis.call("expire", KEYS[1], ARGV[2])
+    else
+        return 0
+    end
+    """
+
     def __init__(
         self,
         key: str,
@@ -69,6 +82,7 @@ class RedisLock(LockProtocol):
         retry_times: int = 3,
         retry_delay: float = 0.1,
         name: str = None,
+        redis_client: Optional[async_redis.Redis] = None,
     ):
         """
         Initialize the Redis lock.
@@ -90,12 +104,17 @@ class RedisLock(LockProtocol):
         self._retry_delay = retry_delay
         self._lock_value: Optional[str] = None
         self._is_locked = False
+        self._redis_client = redis_client
 
     async def _get_redis_client(self):
         """Get Redis client from shared connection manager."""
+        if self._redis_client:
+            return self._redis_client
+
         from aperag.db.redis_manager import RedisConnectionManager
 
-        return await RedisConnectionManager.get_async_client()
+        self._redis_client = await RedisConnectionManager.get_async_client()
+        return self._redis_client
 
     async def acquire(self, timeout: Optional[float] = None) -> bool:
         """
@@ -227,7 +246,7 @@ class RedisLock(LockProtocol):
         """Async context manager entry."""
         success = await self.acquire()
         if not success:
-            raise RuntimeError(f"Failed to acquire Redis lock '{self._key}'")
+            raise LockAcquisitionError(f"Failed to acquire Redis lock '{self._key}'")
         return self
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
@@ -249,3 +268,66 @@ class RedisLock(LockProtocol):
                 f"Redis lock '{key}' is being garbage collected while still held. "
                 f"Make sure to call release() or use context manager."
             )
+
+
+# NOTE: This implementation might have issues if renewal fails; ensure your use case can tolerate such problems.
+@asynccontextmanager
+async def redis_lock_with_renewal(lock: RedisLock, renewal_interval: int = 10):
+    """
+    A context manager specifically for RedisLock that adds watchdog renewal.
+    It does not modify the LockProtocol.
+    """
+    if not isinstance(lock, RedisLock):
+        raise TypeError("This context manager only works with RedisLock instances.")
+
+    watchdog_task = None
+    is_active = True
+
+    async def watchdog():
+        """Periodically renews the lock."""
+        lock_key = lock._key
+        lock_value = lock._lock_value
+        expire_time = lock._expire_time
+        redis_client = await lock._get_redis_client()
+
+        while is_active:
+            await asyncio.sleep(renewal_interval)
+            if not is_active:
+                break
+            try:
+                result = await redis_client.eval(
+                    RedisLock.RENEW_SCRIPT,
+                    1,
+                    lock_key,
+                    lock_value,
+                    expire_time,
+                )
+                if result != 1:
+                    logger.error(f"Lock '{lock_key}' lost during renewal. Watchdog stopping.")
+                    lock._is_locked = False  # Mark lock as lost, for the main loop to detect
+                    break
+                else:
+                    logger.debug(f"Lock '{lock_key}' renewed successfully.")
+            except Exception as e:
+                logger.error(f"Error renewing lock '{lock_key}': {e}")
+                break
+
+    try:
+        if not await lock.acquire():
+            raise LockAcquisitionError(f"Failed to acquire lock '{lock.get_name()}'")
+
+        watchdog_task = asyncio.create_task(watchdog())
+        yield lock
+    finally:
+        # Stop the watchdog
+        is_active = False
+        if watchdog_task:
+            watchdog_task.cancel()
+            try:
+                await watchdog_task
+            except asyncio.CancelledError:
+                pass  # Expected behavior
+
+        # Release the lock if it's still held by this instance
+        if lock.is_locked():
+            await lock.release()

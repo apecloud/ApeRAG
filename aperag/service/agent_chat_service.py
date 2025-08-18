@@ -51,6 +51,7 @@ from aperag.agent.exceptions import (
     safe_json_parse,
 )
 from aperag.agent.response_types import AgentErrorResponse, AgentToolCallResultResponse
+from aperag.chat.history.message import StoredChatMessage, create_assistant_message
 from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.schema import view_models
 from aperag.service.prompt_template_service import build_agent_query_prompt, get_agent_system_prompt
@@ -450,6 +451,98 @@ class AgentChatService:
         else:
             # Handle unexpected errors with generic processing error
             return format_processing_error(str(exception), language)
+
+    async def chat_for_evaluation(
+        self,
+        query: str,
+        user_id: str,
+        model_name: str,
+        model_service_provider: str,
+        custom_llm_provider: Optional[Dict],
+        collections: List[view_models.Collection],
+        language: str = "en-US",
+    ) -> StoredChatMessage | AgentErrorResponse:
+        """
+        Handle internal chat requests for evaluation tasks, bypassing WebSockets.
+        Returns the AI response as a dictionary representation of StoredChatMessage.
+        """
+        # Construct AgentMessage
+        agent_message = view_models.AgentMessage(
+            query=query,
+            completion=view_models.ModelSpec(
+                model=model_name,
+                model_service_provider=model_service_provider,
+                custom_llm_provider=custom_llm_provider,
+            ),
+            collections=collections,
+            language=language,
+        )
+
+        # Generate unique IDs for this interaction
+        chat_id = f"eval-chat-{uuid.uuid4()}"
+        message_id = str(uuid.uuid4())
+        trace_id = None
+
+        try:
+            message_queue = AgentMessageQueue()
+            trace_id = await self.register_message_queue(agent_message.language, chat_id, message_id, message_queue)
+
+            # Simplified consumer that just collects results without a websocket
+            async def consume_and_collect():
+                tool_calls = []
+                while True:
+                    message = await message_queue.get()
+                    if message is None:
+                        break
+                    if isinstance(message, dict) and message.get("type") == "tool_call_result":
+                        tool_calls.append(message)
+                return tool_calls
+
+            process_task = asyncio.create_task(
+                self.process_agent_message(agent_message, user_id, chat_id, message_id, message_queue)
+            )
+            consumer_task = asyncio.create_task(consume_and_collect())
+
+            process_result, consumer_result = await asyncio.gather(process_task, consumer_task, return_exceptions=True)
+
+            # Handle process_task exceptions with unified error formatting
+            if isinstance(process_result, Exception):
+                logger.error(f"Process task failed: {process_result}")
+                error_response = self._format_exception_to_error_response(
+                    process_result, agent_message.language or "en-US"
+                )
+                return error_response
+
+            # Handle consumer_task exceptions
+            if isinstance(consumer_result, Exception):
+                logger.error(f"Consumer task failed: {consumer_result}")
+                error_response = format_processing_error(str(consumer_result), agent_message.language or "en-US")
+                return error_response
+
+            query = process_result.get("query", "")
+            ai_response = process_result.get("content", "")
+            references = process_result.get("references", "")
+            tool_use_list = consumer_result
+
+            # AI message
+            ai_message = create_assistant_message(
+                content=ai_response,
+                chat_id=chat_id,
+                message_id=message_id,
+                trace_id=trace_id,
+                tool_use_list=tool_use_list,
+                references=references,
+                # urls=,
+            )
+            return ai_message
+
+        except Exception as e:
+            logger.error(f"Error during internal agent chat for evaluation: {e}")
+            error_response = self._format_exception_to_error_response(e, agent_message.language or "en-US")
+            return error_response
+        finally:
+            if trace_id:
+                await agent_event_listener.unregister_listener(str(trace_id))
 
     async def _save_conversation_history(
         self,

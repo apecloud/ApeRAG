@@ -98,13 +98,13 @@ class DocumentService:
         """
         supported_file_extensions = DocParser().supported_extensions()
         supported_file_extensions += SUPPORTED_COMPRESSED_EXTENSIONS
-        
+
         file_suffix = os.path.splitext(filename)[1].lower()
         if file_suffix not in supported_file_extensions:
             raise invalid_param("file_type", f"unsupported file type {file_suffix}")
         if size > settings.max_document_size:
             raise invalid_param("file_size", "file size is too large")
-        
+
         return file_suffix
 
     async def _check_document_quotas(self, session: AsyncSession, user: str, collection_id: str, count: int):
@@ -112,9 +112,10 @@ class DocumentService:
         Check and consume document quotas.
         Raises QuotaExceededException if quota would be exceeded.
         """
-        from aperag.service.quota_service import quota_service
         from sqlalchemy import func, select
-        
+
+        from aperag.service.quota_service import quota_service
+
         # Check and consume user quota
         await quota_service.check_and_consume_quota(user, "max_document_count", count, session)
 
@@ -132,18 +133,14 @@ class DocumentService:
 
         # Get per-collection quota limit
         from aperag.db.models import UserQuota
-        stmt = select(UserQuota).where(
-            UserQuota.user == user,
-            UserQuota.key == "max_document_count_per_collection"
-        )
+
+        stmt = select(UserQuota).where(UserQuota.user == user, UserQuota.key == "max_document_count_per_collection")
         result = await session.execute(stmt)
         per_collection_quota = result.scalars().first()
 
         if per_collection_quota and (existing_doc_count + count) > per_collection_quota.quota_limit:
             raise QuotaExceededException(
-                "max_document_count_per_collection",
-                per_collection_quota.quota_limit,
-                existing_doc_count
+                "max_document_count_per_collection", per_collection_quota.quota_limit, existing_doc_count
             )
 
     def _get_index_types_for_collection(self, collection_config: dict) -> list:
@@ -154,14 +151,14 @@ class DocumentService:
             db_models.DocumentIndexType.VECTOR,
             db_models.DocumentIndexType.FULLTEXT,
         ]
-        
+
         if collection_config.get("enable_knowledge_graph", False):
             index_types.append(db_models.DocumentIndexType.GRAPH)
         if collection_config.get("enable_summary", False):
             index_types.append(db_models.DocumentIndexType.SUMMARY)
         if collection_config.get("enable_vision", False):
             index_types.append(db_models.DocumentIndexType.VISION)
-        
+
         return index_types
 
     async def _create_document_record(
@@ -173,7 +170,7 @@ class DocumentService:
         size: int,
         status: db_models.DocumentStatus,
         file_suffix: str,
-        file_content: bytes
+        file_content: bytes,
     ) -> db_models.Document:
         """
         Create a document record in database and upload file to object store.
@@ -202,7 +199,7 @@ class DocumentService:
         session.add(document_instance)
         await session.flush()
         await session.refresh(document_instance)
-        
+
         return document_instance
 
     async def _query_documents_with_indexes(
@@ -240,8 +237,10 @@ class DocumentService:
                         db_models.Document.user == user,
                         db_models.Document.collection_id == collection_id,
                         db_models.Document.status != db_models.DocumentStatus.DELETED,
-                        db_models.Document.status != db_models.DocumentStatus.UPLOADED,  # Filter out temporary uploaded documents
-                        db_models.Document.status != db_models.DocumentStatus.EXPIRED,  # Filter out temporary uploaded documents
+                        db_models.Document.status
+                        != db_models.DocumentStatus.UPLOADED,  # Filter out temporary uploaded documents
+                        db_models.Document.status
+                        != db_models.DocumentStatus.EXPIRED,  # Filter out temporary uploaded documents
                     )
                 )
                 .order_by(db_models.Document.gmt_created.desc())
@@ -335,18 +334,15 @@ class DocumentService:
         file_data = []
         for item in files:
             file_suffix = self._validate_file(item.filename, item.size)
-            
+
             # Read file content from UploadFile
             file_content = await item.read()
             # Reset file pointer for potential future use
             await item.seek(0)
 
-            file_data.append({
-                "filename": item.filename,
-                "size": item.size,
-                "suffix": file_suffix,
-                "content": file_content
-            })
+            file_data.append(
+                {"filename": item.filename, "size": item.size, "suffix": file_suffix, "content": file_content}
+            )
 
         # Process all files in a single transaction for atomicity
         async def _create_documents_atomically(session):
@@ -367,14 +363,12 @@ class DocumentService:
                     size=file_info["size"],
                     status=db_models.DocumentStatus.PENDING,
                     file_suffix=file_info["suffix"],
-                    file_content=file_info["content"]
+                    file_content=file_info["content"],
                 )
 
                 # Create indexes
                 await document_index_manager.create_or_update_document_indexes(
-                    document_id=document_instance.id,
-                    index_types=index_types,
-                    session=session
+                    document_id=document_instance.id, index_types=index_types, session=session
                 )
 
                 # Build response object
@@ -812,7 +806,7 @@ class DocumentService:
         """
 
         # Use database operations with proper session management
-        async def _get_document_preview(session):
+        async def _get_document_preview(session: AsyncSession):
             # 1. Get document and vector index in one go
             doc_stmt = select(db_models.Document).filter(
                 db_models.Document.id == document_id,
@@ -950,12 +944,13 @@ class DocumentService:
         # Execute query with proper session management
         return await self.db_ops._execute_query(_get_document_object)
 
-
-    async def upload_document(self, user_id: str, collection_id: str, file: UploadFile) -> view_models.UploadDocumentResponse:
+    async def upload_document(
+        self, user_id: str, collection_id: str, file: UploadFile
+    ) -> view_models.UploadDocumentResponse:
         """Upload a single document file to temporary storage"""
         # Validate collection
         collection = await self._validate_collection(user_id, collection_id)
-        
+
         # Validate file
         file_suffix = self._validate_file(file.filename, file.size)
 
@@ -973,19 +968,18 @@ class DocumentService:
                 size=file.size,
                 status=db_models.DocumentStatus.UPLOADED,  # Temporary status
                 file_suffix=file_suffix,
-                file_content=file_content
+                file_content=file_content,
             )
 
             return view_models.UploadDocumentResponse(
-                document_id=document_instance.id,
-                filename=file.filename,
-                size=file.size,
-                status="UPLOADED"
+                document_id=document_instance.id, filename=file.filename, size=file.size, status="UPLOADED"
             )
 
         return await self.db_ops.execute_with_transaction(_upload_document_atomically)
 
-    async def confirm_documents(self, user_id: str, collection_id: str, document_ids: list[str]) -> view_models.ConfirmDocumentsResponse:
+    async def confirm_documents(
+        self, user_id: str, collection_id: str, document_ids: list[str]
+    ) -> view_models.ConfirmDocumentsResponse:
         """Confirm uploaded documents and add them to the collection"""
         confirmed_count = 0
         failed_count = 0
@@ -993,7 +987,7 @@ class DocumentService:
 
         async def _confirm_documents_atomically(session):
             nonlocal confirmed_count, failed_count, failed_documents
-            
+
             # Check quotas
             await self._check_document_quotas(session, user_id, collection_id, len(document_ids))
 
@@ -1012,17 +1006,15 @@ class DocumentService:
                     )
                     result = await session.execute(stmt)
                     document = result.scalars().first()
-                    
+
                     if not document:
                         # Document not found at all
-                        failed_documents.append(view_models.FailedDocument(
-                            document_id=document_id,
-                            name=None,
-                            error="DOCUMENT_NOT_FOUND"
-                        ))
+                        failed_documents.append(
+                            view_models.FailedDocument(document_id=document_id, name=None, error="DOCUMENT_NOT_FOUND")
+                        )
                         failed_count += 1
                         continue
-                    
+
                     # Check document status
                     if document.status != db_models.DocumentStatus.UPLOADED:
                         # Document exists but not in correct status
@@ -1030,12 +1022,10 @@ class DocumentService:
                             error_code = "DOCUMENT_EXPIRED"
                         else:
                             error_code = "DOCUMENT_NOT_UPLOADED"
-                        
-                        failed_documents.append(view_models.FailedDocument(
-                            document_id=document_id,
-                            name=document.name,
-                            error=error_code
-                        ))
+
+                        failed_documents.append(
+                            view_models.FailedDocument(document_id=document_id, name=document.name, error=error_code)
+                        )
                         failed_count += 1
                         continue
 
@@ -1045,9 +1035,7 @@ class DocumentService:
 
                     # Create indexes
                     await document_index_manager.create_or_update_document_indexes(
-                        document_id=document.id,
-                        index_types=index_types,
-                        session=session
+                        document_id=document.id, index_types=index_types, session=session
                     )
 
                     confirmed_count += 1
@@ -1057,19 +1045,17 @@ class DocumentService:
                     # Try to get document name for better error reporting
                     document_name = None
                     try:
-                        stmt_name = select(db_models.Document.name).where(
-                            db_models.Document.id == document_id
-                        )
+                        stmt_name = select(db_models.Document.name).where(db_models.Document.id == document_id)
                         result_name = await session.execute(stmt_name)
                         document_name = result_name.scalar()
-                    except:
+                    except Exception:
                         pass
-                    
-                    failed_documents.append(view_models.FailedDocument(
-                        document_id=document_id,
-                        name=document_name,
-                        error="CONFIRMATION_FAILED"
-                    ))
+
+                    failed_documents.append(
+                        view_models.FailedDocument(
+                            document_id=document_id, name=document_name, error="CONFIRMATION_FAILED"
+                        )
+                    )
                     failed_count += 1
 
         await self.db_ops.execute_with_transaction(_confirm_documents_atomically)
@@ -1078,9 +1064,7 @@ class DocumentService:
         _trigger_index_reconciliation()
 
         return view_models.ConfirmDocumentsResponse(
-            confirmed_count=confirmed_count,
-            failed_count=failed_count,
-            failed_documents=failed_documents
+            confirmed_count=confirmed_count, failed_count=failed_count, failed_documents=failed_documents
         )
 
 

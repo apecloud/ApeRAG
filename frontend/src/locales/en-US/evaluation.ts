@@ -1,0 +1,140 @@
+export const evaluation = {
+  'evaluation.name': 'Evaluation',
+  'evaluation.tips': 'Manage and view your RAG evaluation tasks here.',
+  'evaluation.add': 'New Evaluation',
+  'evaluation.list': 'Evaluation List',
+  'evaluation.new': 'New Evaluation',
+  'evaluation.questionCount': 'Questions',
+  'evaluation.averageScore': 'Avg. Score',
+  'evaluation.status.PENDING': 'Pending',
+  'evaluation.status.RUNNING': 'Running',
+  'evaluation.status.COMPLETED': 'Completed',
+  'evaluation.status.FAILED': 'Failed',
+  'evaluation.status.PAUSED': 'Paused',
+  'evaluation.question_sets': 'Question Sets',
+  'evaluation.question_sets.tips': 'Manage and view your question sets here.',
+  'evaluation.question_sets.add': 'New Question Set',
+  'evaluation.question_sets.new': 'New Question Set',
+  'evaluation.question_sets.edit': 'Edit Question Set',
+  'evaluation.question_sets.delete.confirm': 'Are you sure to delete question set "{name}"?',
+  'evaluation.question_sets.create': 'Create Question Set',
+  'evaluation.question_sets.import_from_file': 'Import from File',
+  'evaluation.question_sets.generate_from_collection': 'Generate from Collection',
+  'evaluation.question_sets.generate': 'Generate Questions',
+  'evaluation.question_sets.question': 'Question',
+  'evaluation.question_sets.ground_truth': 'Ground Truth',
+  'evaluation.question_sets.add_question': 'Add Question',
+  'evaluation.task.name': 'Evaluation Task',
+  'evaluation.task.delete.confirm': 'Are you sure to delete evaluation task "{name}"?',
+  'evaluation.task.status.PENDING': 'Pending',
+  'evaluation.task.status.RUNNING': 'Running',
+  'evaluation.task.status.COMPLETED': 'Completed',
+  'evaluation.task.status.FAILED': 'Failed',
+  'evaluation.task.status.PAUSED': 'Paused',
+  'evaluation.task.average_score': 'Average Score',
+  'evaluation.task.progress': 'Progress',
+  'evaluation.result.rag_answer': 'RAG Answer',
+  'evaluation.result.llm_judge_score': 'LLM Score',
+  'evaluation.result.llm_judge_reasoning': 'Reasoning',
+  'evaluation.question_sets.question_count': 'Question Count',
+  'model.prompt.template': 'Prompt Template',
+  'evaluation.question_sets.upload_hint.title': 'File Upload Content Example',
+  'evaluation.question_sets.upload_hint.demo.q1': 'What is the capital of France?',
+  'evaluation.question_sets.upload_hint.demo.a1': 'Paris',
+  'evaluation.question_sets.upload_hint.demo.q2': 'Who wrote "To Kill a Mockingbird"?',
+  'evaluation.question_sets.upload_hint.demo.a2': 'Harper Lee',
+  'tips.import.success': '{count} questions imported successfully.',
+  'tips.upload.nodata': 'No new questions found or all are duplicates.',
+  'evaluation.question_sets.empty': 'Question set cannot be empty.',
+  'tips.create.success': 'Created successfully.',
+  'tips.create.failed': 'Failed to create.',
+  'text.click_to_edit': 'Click to edit',
+  'text.click_to_edit_tooltip': 'Click to edit',
+  'evaluation.question_sets.update': 'Update Question Set',
+  'tips.update.success': 'Question set updated successfully.',
+  'tips.update.failed': 'Failed to update question set.',
+  'tips.request.error': 'Failed to fetch data.',
+  'tips.delete.success': 'Deleted successfully.',
+  'tips.delete.failed': 'Failed to delete.',
+  'tips.generate.failed': 'Failed to generate questions',
+  'evaluation.ok': 'OK',
+  'evaluation.cancel': 'Cancel',
+  'evaluation.question_sets.prompt.template.default': `You are an expert at asking questions. Please read the following document carefully and generate two types of questions and their corresponding standard answers based on the content.
+
+**Question Types:**
+1.  **Factual Questions**: Questions that can be answered directly from the text.
+2.  **Inferential Questions**: Questions that require reasoning, comparison, or summarization of multiple pieces of information from the text to answer.
+
+**Document Content:**
+
+'{DOCUMENT_CONTENT}'
+
+**Your Task:**
+Please generate '{NUMBER_OF_QUESTIONS}' questions based on the document above. The number of factual and inferential questions should be equal. The language of the questions should be consistent with the language of the document. Please output a list of questions in JSON format. Each question object should contain three fields: \`question_type\` ('FACTUAL' or 'INFERENTIAL'), \`question_text\` (the content of the question), and \`ground_truth\` (the standard answer based on the document content).
+
+**IMPORTANT**: Your response should only contain the JSON object, with no other text or explanations.
+
+**Output Example:**
+[
+  '{
+    "question_type": "FACTUAL",
+    "question_text": "What year was the project mentioned in the document launched?",
+    "ground_truth": "According to the document, the project was officially launched in 2021."
+  }',
+  '{
+    "question_type": "INFERENTIAL",
+    "question_text": "What are the main differences in challenges between the early and late stages of the project?",
+    "ground_truth": "The main challenges in the early stages were technology selection and team building, while in the later stages, they shifted to system performance optimization and market promotion."
+  }'
+]
+`,
+  'evaluation.question_sets.prompt.template.hint': `The following variables will be replaced by the system:
+- '{DOCUMENT_CONTENT}': The content of the document from the collection.
+- '{NUMBER_OF_QUESTIONS}': The number of questions to be generated.`,
+  'evaluation.new.form.collection': 'Collection',
+  'evaluation.new.form.collection.placeholder': 'Select a collection',
+  'evaluation.new.form.questionSet': 'Question Set',
+  'evaluation.new.form.questionSet.placeholder': 'Select a question set',
+  'evaluation.new.form.questionSet.empty': 'No question sets available. Please create one first.',
+  'evaluation.new.form.questionSet.create': 'New Question Set',
+  'evaluation.new.form.bot': 'Bot',
+  'evaluation.new.form.bot.placeholder': 'Select a bot',
+  'evaluation.new.form.agentLlm': 'Agent LLM',
+  'evaluation.new.form.agentLlm.placeholder': 'Select an Agent LLM',
+  'evaluation.new.form.judgeLlm': 'Judge LLM',
+  'evaluation.new.form.judgeLlm.placeholder': 'Select a Judge LLM',
+  'evaluation.new.form.name': 'Evaluation Name',
+  'evaluation.new.form.name.placeholder.auto': 'Enter evaluation name (auto-generated if left blank)',
+  'evaluation.new.form.submit': 'Create',
+  'evaluation.new.form.cancel': 'Cancel',
+  'evaluation.detail.collection': 'Collection',
+  'evaluation.detail.questionSet': 'Question Set',
+  'evaluation.detail.groundTruth': 'Ground Truth',
+  'evaluation.detail.ragAnswer': 'RAG Answer',
+  'evaluation.detail.judgeReasoning': 'LLM Judge Reasoning',
+  'evaluation.item.status.PENDING': 'Pending',
+  'evaluation.item.status.RUNNING': 'Running',
+  'evaluation.item.status.COMPLETED': 'Completed',
+  'evaluation.item.status.FAILED': 'Failed',
+  'evaluation.item.noScore': 'No Score',
+  'action.showMore': 'Show More',
+  'action.showLess': 'Show Less',
+  'action.pause': 'Pause',
+  'action.resume': 'Resume',
+  'action.retry': 'Retry',
+  'action.retryFailed': 'Retry Failed',
+  'action.retryAll': 'Retry All',
+  'action.delete': 'Delete',
+  'action.yes': 'Yes',
+  'action.no': 'No',
+  'evaluation.delete.confirm.title': 'Delete Evaluation',
+  'evaluation.delete.confirm.description': 'Are you sure you want to delete this evaluation task? This action cannot be undone.',
+  'evaluation.delete.success': 'Evaluation deleted successfully',
+  'evaluation.delete.failure': 'Failed to delete evaluation',
+  'evaluation.pause.success': 'Evaluation paused successfully',
+  'evaluation.pause.failure': 'Failed to pause evaluation',
+  'evaluation.resume.success': 'Evaluation resumed successfully',
+  'evaluation.resume.failure': 'Failed to resume evaluation',
+  'evaluation.retry.success': 'Evaluation retry started successfully',
+  'evaluation.retry.failure': 'Failed to retry evaluation',
+};

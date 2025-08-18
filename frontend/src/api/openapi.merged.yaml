@@ -3655,6 +3655,393 @@ paths:
                   value:
                     code: '500'
                     message: 'Content reading failed: Provider error'
+  /question-sets:
+    get:
+      tags:
+        - evaluation
+      summary: List all question sets for the current user
+      security:
+        - BearerAuth: []
+      operationId: list_question_sets_api_v1_question_sets_get
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionSetList'
+    post:
+      tags:
+        - evaluation
+      summary: Create a new question set
+      security:
+        - BearerAuth: []
+      operationId: create_question_set_api_v1_question_sets_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionSetCreate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionSet'
+  /question-sets/generate:
+    post:
+      tags:
+        - evaluation
+      summary: Generate a question set from a collection
+      security:
+        - BearerAuth: []
+      operationId: generate_question_set_api_v1_question_sets_generate_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionSetGenerate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionSetDetail'
+  /question-sets/{qs_id}:
+    get:
+      tags:
+        - evaluation
+      summary: Get details of a question set
+      security:
+        - BearerAuth: []
+      operationId: get_question_set_api_v1_question_sets__qs_id__get
+      parameters:
+        - name: qs_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionSetDetail'
+    put:
+      tags:
+        - evaluation
+      summary: Update a question set
+      security:
+        - BearerAuth: []
+      operationId: update_question_set_api_v1_question_sets__qs_id__put
+      parameters:
+        - name: qs_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionSetUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionSet'
+    delete:
+      tags:
+        - evaluation
+      summary: Delete a question set
+      security:
+        - BearerAuth: []
+      operationId: delete_question_set_api_v1_question_sets__qs_id__delete
+      parameters:
+        - name: qs_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Successful Response
+  /question-sets/{qs_id}/questions:
+    post:
+      tags:
+        - evaluation
+      summary: Add questions to a question set
+      security:
+        - BearerAuth: []
+      operationId: add_questions_api_v1_question_sets__qs_id__questions_post
+      parameters:
+        - name: qs_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionsAdd'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Question'
+  /question-sets/{qs_id}/questions/{q_id}:
+    put:
+      tags:
+        - evaluation
+      summary: Update a question
+      security:
+        - BearerAuth: []
+      operationId: update_question_api_v1_question_sets__qs_id__questions__q_id__put
+      parameters:
+        - name: qs_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: q_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Question'
+    delete:
+      tags:
+        - evaluation
+      summary: Delete a question
+      security:
+        - BearerAuth: []
+      operationId: delete_question_api_v1_question_sets__qs_id__questions__q_id__delete
+      parameters:
+        - name: qs_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: q_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Successful Response
+  /evaluations:
+    get:
+      tags:
+        - evaluation
+      summary: List all evaluation tasks
+      security:
+        - BearerAuth: []
+      operationId: list_evaluations_api_v1_evaluations_get
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluationList'
+    post:
+      tags:
+        - evaluation
+      summary: Create and start a new evaluation task
+      security:
+        - BearerAuth: []
+      operationId: create_evaluation_api_v1_evaluations_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvaluationCreate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Evaluation'
+  /evaluations/{eval_id}:
+    get:
+      tags:
+        - evaluation
+      summary: Get details of an evaluation task
+      security:
+        - BearerAuth: []
+      operationId: get_evaluation_api_v1_evaluations__eval_id__get
+      parameters:
+        - name: eval_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluationDetail'
+    delete:
+      tags:
+        - evaluation
+      summary: Delete an evaluation task
+      security:
+        - BearerAuth: []
+      operationId: delete_evaluation_api_v1_evaluations__eval_id__delete
+      parameters:
+        - name: eval_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Successful Response
+  /evaluations/{eval_id}/pause:
+    post:
+      tags:
+        - evaluation
+      summary: Pause an evaluation task
+      security:
+        - BearerAuth: []
+      operationId: pause_evaluation_api_v1_evaluations__eval_id__pause_post
+      parameters:
+        - name: eval_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Evaluation'
+  /evaluations/{eval_id}/resume:
+    post:
+      tags:
+        - evaluation
+      summary: Resume an evaluation task
+      security:
+        - BearerAuth: []
+      operationId: resume_evaluation_api_v1_evaluations__eval_id__resume_post
+      parameters:
+        - name: eval_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Evaluation'
+  /evaluations/{eval_id}/retry:
+    post:
+      tags:
+        - evaluation
+      summary: Retry failed items in an evaluation task
+      security:
+        - BearerAuth: []
+      operationId: retry_evaluation_api_v1_evaluations__eval_id__retry_post
+      parameters:
+        - name: eval_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - failed
+              - all
+            default: failed
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Evaluation'
+  /evaluations/chat_with_agent:
+    post:
+      tags:
+        - evaluation
+      summary: (Internal) Chat with an agent for evaluation purposes
+      description: |
+        This is an internal endpoint used by the evaluation service to run the agent chat logic in the main FastAPI process, avoiding issues with Celery's execution context. It should be protected by an internal API key.
+      operationId: chat_with_agent_for_evaluation_api_v1_evaluations_chat_with_agent_post
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvaluationChatWithAgentRequest'
+      responses:
+        '200':
+          description: Successful Response from Agent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluationChatWithAgentResponse'
+        '401':
+          description: Unauthorized
+        '422':
+          description: Validation Error
   /agent/message:
     post:
       summary: (Doc Only) Agent message format for WebSocket/SSE
@@ -6919,6 +7306,352 @@ components:
         - total_urls
         - successful
         - failed
+    QuestionSet:
+      type: object
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        gmt_created:
+          type: string
+          format: date-time
+        gmt_updated:
+          type: string
+          format: date-time
+    QuestionSetList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuestionSet'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+    QuestionType:
+      type: string
+      enum:
+        - FACTUAL
+        - INFERENTIAL
+        - USER_DEFINED
+      description: Question type enumeration
+    Question:
+      type: object
+      properties:
+        id:
+          type: string
+        question_set_id:
+          type: string
+        question_type:
+          $ref: '#/components/schemas/QuestionType'
+        question_text:
+          type: string
+        ground_truth:
+          type: string
+        gmt_created:
+          type: string
+          format: date-time
+        gmt_updated:
+          type: string
+          format: date-time
+    QuestionSetCreate:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        questions:
+          type: array
+          description: A list of questions. Maximum 1000 questions are allowed.
+          items:
+            $ref: '#/components/schemas/Question'
+    LLMConfig:
+      type: object
+      properties:
+        model_name:
+          type: string
+        model_service_provider:
+          type: string
+        custom_llm_provider:
+          type: string
+          nullable: true
+    QuestionSetGenerate:
+      type: object
+      required:
+        - collection_id
+      properties:
+        collection_id:
+          type: string
+        llm_config:
+          $ref: '#/components/schemas/LLMConfig'
+        question_count:
+          type: integer
+        prompt:
+          type: string
+    QuestionSetDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Question'
+        gmt_created:
+          type: string
+          format: date-time
+        gmt_updated:
+          type: string
+          format: date-time
+    QuestionSetUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+    QuestionsAdd:
+      type: object
+      required:
+        - questions
+      properties:
+        questions:
+          type: array
+          items:
+            type: object
+            required:
+              - question_text
+              - ground_truth
+            properties:
+              question_text:
+                type: string
+              ground_truth:
+                type: string
+              question_type:
+                $ref: '#/components/schemas/QuestionType'
+    QuestionUpdate:
+      type: object
+      properties:
+        question_text:
+          type: string
+        ground_truth:
+          type: string
+        question_type:
+          $ref: '#/components/schemas/QuestionType'
+    EvaluationStatus:
+      type: string
+      enum:
+        - PENDING
+        - RUNNING
+        - PAUSED
+        - COMPLETED
+        - FAILED
+      description: Evaluation task lifecycle status
+    Evaluation:
+      type: object
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        name:
+          type: string
+        collection_id:
+          type: string
+        question_set_id:
+          type: string
+        agent_llm_config:
+          $ref: '#/components/schemas/LLMConfig'
+        judge_llm_config:
+          $ref: '#/components/schemas/LLMConfig'
+        status:
+          $ref: '#/components/schemas/EvaluationStatus'
+        error_message:
+          type: string
+        total_questions:
+          type: integer
+        completed_questions:
+          type: integer
+        average_score:
+          type: number
+          format: float
+          nullable: true
+        gmt_created:
+          type: string
+          format: date-time
+        gmt_updated:
+          type: string
+          format: date-time
+    EvaluationList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Evaluation'
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+    EvaluationCreate:
+      type: object
+      required:
+        - name
+        - collection_id
+        - question_set_id
+        - agent_llm_config
+        - judge_llm_config
+      properties:
+        name:
+          type: string
+        collection_id:
+          type: string
+        question_set_id:
+          type: string
+        agent_llm_config:
+          $ref: '#/components/schemas/LLMConfig'
+        judge_llm_config:
+          $ref: '#/components/schemas/LLMConfig'
+    EvaluationItemStatus:
+      type: string
+      enum:
+        - PENDING
+        - RUNNING
+        - COMPLETED
+        - FAILED
+      description: Evaluation item lifecycle status
+    EvaluationItem:
+      type: object
+      properties:
+        id:
+          type: string
+        evaluation_id:
+          type: string
+        question_id:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/EvaluationItemStatus'
+        question_text:
+          type: string
+        ground_truth:
+          type: string
+        rag_answer:
+          type: string
+          nullable: true
+        rag_answer_details:
+          type: object
+          nullable: true
+        llm_judge_score:
+          type: integer
+          nullable: true
+        llm_judge_reasoning:
+          type: string
+          nullable: true
+        gmt_created:
+          type: string
+          format: date-time
+        gmt_updated:
+          type: string
+          format: date-time
+    EvaluationDetail:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        collection_name:
+          type: string
+        question_set_name:
+          type: string
+        status:
+          $ref: '#/components/schemas/EvaluationStatus'
+        average_score:
+          type: number
+          format: float
+          nullable: true
+        config:
+          type: object
+          properties:
+            collection_id:
+              type: string
+            question_set_id:
+              type: string
+            agent_llm_config:
+              type: object
+            judge_llm_config:
+              type: object
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/EvaluationItem'
+        gmt_created:
+          type: string
+          format: date-time
+    EvaluationChatWithAgentRequest:
+      type: object
+      required:
+        - collection_id
+        - agent_llm_config
+        - question_text
+      properties:
+        collection_id:
+          type: string
+        agent_llm_config:
+          $ref: '#/components/schemas/LLMConfig'
+        question_text:
+          type: string
+        language:
+          type: string
+          nullable: true
+    ChatSuccessResponse:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/chatMessage'
+    AgentErrorResponse:
+      type: object
+      properties:
+        type:
+          type: string
+          description: The type of the response, must be 'error'.
+          enum:
+            - error
+        id:
+          type: string
+        data:
+          type: string
+          description: Error message
+        timestamp:
+          type: integer
+    EvaluationChatWithAgentResponse:
+      oneOf:
+        - $ref: '#/components/schemas/ChatSuccessResponse'
+        - $ref: '#/components/schemas/AgentErrorResponse'
     AgentMessage:
       type: object
       description: Message format for agent-type bots with additional capabilities

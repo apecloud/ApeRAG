@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from aperag.concurrent_control.redis_lock import RedisLock
+from aperag.concurrent_control.utils import LockAcquisitionError
 
 
 class TestRedisLockWithConnectionManager:
@@ -127,7 +128,7 @@ class TestRedisLockWithConnectionManager:
 
         lock = RedisLock(key="test_context_fail", retry_times=0)
 
-        with pytest.raises(RuntimeError, match="Failed to acquire Redis lock"):
+        with pytest.raises(LockAcquisitionError, match="Failed to acquire Redis lock"):
             async with lock:
                 pass
 

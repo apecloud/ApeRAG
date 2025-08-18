@@ -27,6 +27,7 @@ import uuid
 from typing import Any, Optional
 
 from .protocols import LockProtocol
+from .utils import LockAcquisitionError
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +121,7 @@ class ThreadingLock(LockProtocol):
         """Async context manager entry."""
         success = await self.acquire()
         if not success:
-            raise RuntimeError(f"Failed to acquire lock '{self._name}'")
+            raise LockAcquisitionError(f"Failed to acquire lock '{self._name}'")
         return self
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:

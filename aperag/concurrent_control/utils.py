@@ -25,6 +25,12 @@ from typing import AsyncContextManager, Optional
 from .protocols import LockProtocol
 
 
+class LockAcquisitionError(Exception):
+    """Raised when a lock cannot be acquired."""
+
+    pass
+
+
 @asynccontextmanager
 async def lock_context(lock: LockProtocol, timeout: Optional[float] = None) -> AsyncContextManager[None]:
     """
