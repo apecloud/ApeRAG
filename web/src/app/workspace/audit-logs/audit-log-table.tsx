@@ -41,6 +41,7 @@ import _ from 'lodash';
 import { ChevronDown, Columns3, Search } from 'lucide-react';
 import { useFormatter } from 'next-intl';
 import { usePathname, useRouter } from 'next/navigation';
+import { AuditLogDetail } from './audit-log-detail';
 
 export function AuditLogTable({
   data,
@@ -134,12 +135,10 @@ export function AuditLogTable({
         },
       },
       {
-        accessorKey: 'end_time',
+        accessorKey: 'duration_ms',
         header: 'Duration',
         cell: ({ row }) => {
-          if (row.original.start_time && row.original.end_time) {
-            return `${row.original.end_time - row.original.start_time}ms`;
-          }
+          return row.original.duration_ms + 'ms';
         },
       },
       {
@@ -149,6 +148,12 @@ export function AuditLogTable({
           row.original.start_time
             ? format.dateTime(row.original.start_time, 'medium')
             : '--',
+      },
+      {
+        id: 'action',
+        cell: ({ row }) => {
+          return <AuditLogDetail auditLog={row.original} />;
+        },
       },
     ];
     return cols;
