@@ -24,7 +24,7 @@ export const AuditLogDetail = ({ auditLog }: { auditLog: AuditLog }) => {
         </DrawerTrigger>
         <DrawerContent className="min-w-lg select-auto">
           <DrawerHeader>
-            <DialogTitle>{auditLog.api_name}</DialogTitle>
+            <DialogTitle className='font-bold'>Audit Log</DialogTitle>
           </DrawerHeader>
           <div className="flex flex-col gap-4 p-4 text-sm">
             <div>
@@ -45,6 +45,11 @@ export const AuditLogDetail = ({ auditLog }: { auditLog: AuditLog }) => {
             <div>
               <div className="text-muted-foreground">Request ID:</div>
               <div>{auditLog.request_id}</div>
+            </div>
+
+            <div>
+              <div className="text-muted-foreground">API:</div>
+              <div>{auditLog.api_name}</div>
             </div>
 
             <div>
