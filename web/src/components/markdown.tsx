@@ -78,8 +78,10 @@ export const mdComponents = {
       />
     );
   },
-  pre: ({ className, ...props }: JSX.IntrinsicElements['pre']) => {
-    return <pre className={cn('my-4', className)} {...props} />;
+  pre: ({ className, children }: JSX.IntrinsicElements['pre']) => {
+    return (
+      <pre className={cn('my-4 overflow-x-auto', className)}>{children}</pre>
+    );
   },
   code: ({ className, ...props }: JSX.IntrinsicElements['code']) => {
     const match = /language-(\w+)/.exec(className || '');
@@ -92,7 +94,7 @@ export const mdComponents = {
       return (
         <code
           className={cn(
-            'mx-1 inline-block rounded-sm bg-gray-500/10 px-1.5 py-0.5 text-sm',
+            'mx-1 inline-block overflow-x-auto rounded-md bg-gray-500/10 px-1.5 py-0.5 align-middle text-sm',
             className,
           )}
         >
