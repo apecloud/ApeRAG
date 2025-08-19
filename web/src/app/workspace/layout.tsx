@@ -17,7 +17,6 @@ import {
 } from '@/components/ui/sidebar';
 import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
-import _ from 'lodash';
 import {
   BatteryMedium,
   BookOpen,
@@ -49,7 +48,7 @@ export default async function Layout({
   }
 
   const botsRes = await apiServer.defaultApi.botsGet();
-  const bot = _.first(botsRes.data.items);
+  const bot = botsRes.data.items?.find((item) => item.type === 'agent');
   let chats: Chat[] = [];
 
   if (bot?.id) {

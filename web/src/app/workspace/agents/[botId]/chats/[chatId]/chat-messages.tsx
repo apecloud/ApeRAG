@@ -80,7 +80,7 @@ const ReferenceContent = ({ parts }: { parts: ChatMessage[] }) => {
           </Badge>
         </Button>
       </DrawerTrigger>
-      <DrawerContent className="flex min-w-2xl">
+      <DrawerContent className="flex sm:min-w-2xl md:min-w-3xl lg:min-w-5xl">
         <DrawerHeader>
           <DrawerTitle className="font-bold">References</DrawerTitle>
         </DrawerHeader>
@@ -337,7 +337,7 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
 
   return (
     <>
-      <div className="flex flex-col gap-6 pb-80">
+      <div className="text-md flex flex-col gap-6 pb-80">
         {messages?.map((parts, index) => {
           const isAI = parts.some((part) => part.role === 'ai');
 

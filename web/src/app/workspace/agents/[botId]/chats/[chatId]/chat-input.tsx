@@ -125,8 +125,8 @@ export const ChatInput = ({
       language: locale,
     };
 
-    setQuery('');
-    setSelectedCollections([]);
+    // setQuery('');
+    // setSelectedCollections([]);
     onSubmit(data);
   }, [
     isComposing,
