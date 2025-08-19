@@ -24,15 +24,15 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { FileIndexStatus } from './file-index-status';
+import { DocumentIndexStatus } from './document-index-status';
 
-const fileReBuildSchema = z.object({
+const documentReBuildSchema = z.object({
   index_types: z.array(z.enum(objectKeys(FileIndexType))),
 });
 
-type FileReBuildSchemaType = z.infer<typeof fileReBuildSchema>;
+type DocumentReBuildSchemaType = z.infer<typeof documentReBuildSchema>;
 
-export const FileReBuildIndex = ({
+export const DocumentReBuildIndex = ({
   collection,
   file,
   children,
@@ -43,14 +43,14 @@ export const FileReBuildIndex = ({
 }) => {
   const [visible, setVisible] = useState<boolean>(false);
   const router = useRouter();
-  const form = useForm<FileReBuildSchemaType>({
-    resolver: zodResolver(fileReBuildSchema),
+  const form = useForm<DocumentReBuildSchemaType>({
+    resolver: zodResolver(documentReBuildSchema),
     defaultValues: {
       index_types: objectKeys(FileIndexType),
     },
   });
 
-  const handleRebuild = async (values: FileReBuildSchemaType) => {
+  const handleRebuild = async (values: DocumentReBuildSchemaType) => {
     if (!collection.id || !file.id) return;
 
     if (values.index_types.length === 0) {
@@ -125,7 +125,7 @@ export const FileReBuildIndex = ({
                           <div className="grid gap-1.5 font-normal">
                             <div className="item-center flex flex-row justify-between text-sm leading-none font-medium">
                               {item.title}
-                              <FileIndexStatus
+                              <DocumentIndexStatus
                                 document={file}
                                 accessorKey={
                                   key.toLowerCase() + '_index_status'

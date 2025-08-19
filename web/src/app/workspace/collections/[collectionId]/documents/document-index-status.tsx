@@ -15,7 +15,7 @@ const getIndexStatusBg = (status?: DocumentVectorIndexStatusEnum) => {
   return status ? data[status] : 'bg-gray-500';
 };
 
-export const FileIndexStatus = ({
+export const DocumentIndexStatus = ({
   document,
   accessorKey,
 }: {
