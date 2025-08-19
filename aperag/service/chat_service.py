@@ -147,17 +147,12 @@ class ChatService:
         bot_id: str,
         page: int = 1,
         page_size: int = 50,
-        sort_by: str = None,
-        sort_order: str = 'desc',
-        search: str = None
     ):
         """List chats with pagination, sorting and search capabilities."""
         
         # Define sort field mapping
         sort_mapping = {
-            'title': db_models.Chat.title,
             'created': db_models.Chat.gmt_created,
-            'updated': db_models.Chat.gmt_updated
         }
         
         # Define search fields mapping
@@ -182,8 +177,7 @@ class ChatService:
             
             params = ListParams(
                 pagination=PaginationParams(page=page, page_size=page_size),
-                sort=SortParams(sort_by=sort_by, sort_order=sort_order) if sort_by else None,
-                search=SearchParams(search=search, search_fields=['title']) if search else None
+                sort=SortParams(sort_by="created", sort_order="desc"),
             )
             
             # Use pagination helper

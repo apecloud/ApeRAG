@@ -78,12 +78,9 @@ async def list_chats_view(
     bot_id: str, 
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
-    sort_by: Optional[str] = Query(None),
-    sort_order: str = Query('desc'),
-    search: Optional[str] = Query(None),
     user: User = Depends(current_user)
 ) -> view_models.ChatList:
-    return await chat_service_global.list_chats(str(user.id), bot_id, page, page_size, sort_by, sort_order, search)
+    return await chat_service_global.list_chats(str(user.id), bot_id, page, page_size)
 
 
 @router.get("/bots/{bot_id}/chats/{chat_id}", tags=["chats"])

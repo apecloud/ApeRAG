@@ -619,13 +619,10 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
          * @param {string} botId 
          * @param {number} [page] Page number (1-based)
          * @param {number} [pageSize] Number of items per page
-         * @param {BotsBotIdChatsGetSortByEnum} [sortBy] Field to sort by
-         * @param {BotsBotIdChatsGetSortOrderEnum} [sortOrder] Sort order
-         * @param {string} [search] Search chats by title
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        botsBotIdChatsGet: async (botId: string, page?: number, pageSize?: number, sortBy?: BotsBotIdChatsGetSortByEnum, sortOrder?: BotsBotIdChatsGetSortOrderEnum, search?: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        botsBotIdChatsGet: async (botId: string, page?: number, pageSize?: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'botId' is not null or undefined
             assertParamExists('botsBotIdChatsGet', 'botId', botId)
             const localVarPath = `/bots/{bot_id}/chats`
@@ -651,18 +648,6 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
 
             if (pageSize !== undefined) {
                 localVarQueryParameter['page_size'] = pageSize;
-            }
-
-            if (sortBy !== undefined) {
-                localVarQueryParameter['sort_by'] = sortBy;
-            }
-
-            if (sortOrder !== undefined) {
-                localVarQueryParameter['sort_order'] = sortOrder;
-            }
-
-            if (search !== undefined) {
-                localVarQueryParameter['search'] = search;
             }
 
 
@@ -3407,14 +3392,11 @@ export const DefaultApiFp = function(configuration?: Configuration) {
          * @param {string} botId 
          * @param {number} [page] Page number (1-based)
          * @param {number} [pageSize] Number of items per page
-         * @param {BotsBotIdChatsGetSortByEnum} [sortBy] Field to sort by
-         * @param {BotsBotIdChatsGetSortOrderEnum} [sortOrder] Sort order
-         * @param {string} [search] Search chats by title
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async botsBotIdChatsGet(botId: string, page?: number, pageSize?: number, sortBy?: BotsBotIdChatsGetSortByEnum, sortOrder?: BotsBotIdChatsGetSortOrderEnum, search?: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ChatList>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.botsBotIdChatsGet(botId, page, pageSize, sortBy, sortOrder, search, options);
+        async botsBotIdChatsGet(botId: string, page?: number, pageSize?: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ChatList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.botsBotIdChatsGet(botId, page, pageSize, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['DefaultApi.botsBotIdChatsGet']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -4427,7 +4409,7 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
          * @throws {RequiredError}
          */
         botsBotIdChatsGet(requestParameters: DefaultApiBotsBotIdChatsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<ChatList> {
-            return localVarFp.botsBotIdChatsGet(requestParameters.botId, requestParameters.page, requestParameters.pageSize, requestParameters.sortBy, requestParameters.sortOrder, requestParameters.search, options).then((request) => request(axios, basePath));
+            return localVarFp.botsBotIdChatsGet(requestParameters.botId, requestParameters.page, requestParameters.pageSize, options).then((request) => request(axios, basePath));
         },
         /**
          * Create a new chat
@@ -6077,27 +6059,6 @@ export interface DefaultApiBotsBotIdChatsGetRequest {
      * @memberof DefaultApiBotsBotIdChatsGet
      */
     readonly pageSize?: number
-
-    /**
-     * Field to sort by
-     * @type {'title' | 'created' | 'updated'}
-     * @memberof DefaultApiBotsBotIdChatsGet
-     */
-    readonly sortBy?: BotsBotIdChatsGetSortByEnum
-
-    /**
-     * Sort order
-     * @type {'asc' | 'desc'}
-     * @memberof DefaultApiBotsBotIdChatsGet
-     */
-    readonly sortOrder?: BotsBotIdChatsGetSortOrderEnum
-
-    /**
-     * Search chats by title
-     * @type {string}
-     * @memberof DefaultApiBotsBotIdChatsGet
-     */
-    readonly search?: string
 }
 
 /**
@@ -7346,7 +7307,7 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      * @memberof DefaultApi
      */
     public botsBotIdChatsGet(requestParameters: DefaultApiBotsBotIdChatsGetRequest, options?: RawAxiosRequestConfig) {
-        return DefaultApiFp(this.configuration).botsBotIdChatsGet(requestParameters.botId, requestParameters.page, requestParameters.pageSize, requestParameters.sortBy, requestParameters.sortOrder, requestParameters.search, options).then((request) => request(this.axios, this.basePath));
+        return DefaultApiFp(this.configuration).botsBotIdChatsGet(requestParameters.botId, requestParameters.page, requestParameters.pageSize, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -8121,23 +8082,6 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
     }
 }
 
-/**
- * @export
- */
-export const BotsBotIdChatsGetSortByEnum = {
-    title: 'title',
-    created: 'created',
-    updated: 'updated'
-} as const;
-export type BotsBotIdChatsGetSortByEnum = typeof BotsBotIdChatsGetSortByEnum[keyof typeof BotsBotIdChatsGetSortByEnum];
-/**
- * @export
- */
-export const BotsBotIdChatsGetSortOrderEnum = {
-    asc: 'asc',
-    desc: 'desc'
-} as const;
-export type BotsBotIdChatsGetSortOrderEnum = typeof BotsBotIdChatsGetSortOrderEnum[keyof typeof BotsBotIdChatsGetSortOrderEnum];
 /**
  * @export
  */
