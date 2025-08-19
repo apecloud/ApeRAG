@@ -6,9 +6,9 @@ import {
   Drawer,
   DrawerContent,
   DrawerHeader,
+  DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import { DialogTitle } from '@radix-ui/react-dialog';
 import { ScanEye } from 'lucide-react';
 import { useFormatter } from 'next-intl';
 
@@ -24,7 +24,7 @@ export const AuditLogDetail = ({ auditLog }: { auditLog: AuditLog }) => {
         </DrawerTrigger>
         <DrawerContent className="flex min-w-xl">
           <DrawerHeader>
-            <DialogTitle className="font-bold">Audit Log</DialogTitle>
+            <DrawerTitle className="font-bold">Audit Log</DrawerTitle>
           </DrawerHeader>
           <div className="flex flex-col gap-4 overflow-auto p-4 text-sm select-text">
             <div>

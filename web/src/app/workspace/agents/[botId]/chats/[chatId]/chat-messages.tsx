@@ -3,6 +3,7 @@
 import { ChatDetails, ChatMessage, Reference } from '@/api';
 import { CopyToClipboard } from '@/components/copy-to-clipboard';
 import { Markdown } from '@/components/markdown';
+import { PageContent } from '@/components/page-container';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,15 +17,27 @@ import {
   Drawer,
   DrawerContent,
   DrawerHeader,
+  DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { apiClient } from '@/lib/api/client';
-import { DialogTitle } from '@radix-ui/react-dialog';
+import { useWebSocket } from 'ahooks';
+import { animateScroll as scroll } from 'react-scroll';
+
+import { ReadyState } from 'ahooks/lib/useWebSocket';
 import _ from 'lodash';
-import { Bot, ChevronRight, Sparkles, UserRound } from 'lucide-react';
+import {
+  AlertCircleIcon,
+  Bot,
+  ChevronRight,
+  Sparkles,
+  UserRound,
+} from 'lucide-react';
 import { useFormatter } from 'next-intl';
 import { useParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ChatInput, ChatInputSubmitParams } from './chat-input';
 
 const CollapseContent = ({
   defaultOpen,
@@ -69,7 +82,7 @@ const ReferenceContent = ({ parts }: { parts: ChatMessage[] }) => {
       </DrawerTrigger>
       <DrawerContent className="flex min-w-2xl">
         <DrawerHeader>
-          <DialogTitle className="font-bold">References</DialogTitle>
+          <DrawerTitle className="font-bold">References</DrawerTitle>
         </DrawerHeader>
         <div className="overflow-auto px-4 pb-4 select-text">
           {references?.map((reference: Reference, index) => {
@@ -85,8 +98,8 @@ const ReferenceContent = ({ parts }: { parts: ChatMessage[] }) => {
                         _.truncate(reference.text, { length: 30 })}
                     </div>
                     <div className="ml-auto flex flex-row items-center gap-2">
-                      <Sparkles className="text-muted-foreground size-4" />{' '}
-                      {reference.score}
+                      <Sparkles className="text-muted-foreground size-4" />
+                      <span>{(reference.score || 0).toFixed(2)}</span>
                     </div>
                   </div>
                 }
@@ -148,6 +161,7 @@ const AIMessagePart = ({ part }: { part: ChatMessage }) => {
     case 'error':
       return (
         <Alert variant="destructive">
+          <AlertCircleIcon />
           <AlertDescription>{part.data}</AlertDescription>
         </Alert>
       );
@@ -202,10 +216,82 @@ const AIMessage = ({ parts }: { parts: ChatMessage[] }) => {
 };
 
 export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
+  const isMobile = useIsMobile();
   const [messages, setMessages] = useState<Array<Array<ChatMessage>>>(
     chat.history || [],
   );
+  const [loading, setLoading] = useState<boolean>(false);
   const { botId, chatId } = useParams<{ botId: string; chatId: string }>();
+  const { protocol, host } = useMemo(() => {
+    if (typeof window !== 'undefined') {
+      return {
+        protocol: window.location.protocol === 'http:' ? 'ws://' : 'wss://',
+        host: window.location.host,
+      };
+    } else {
+      return {
+        protocol: 'ws://',
+        host: 'localhost:8000',
+      };
+    }
+  }, []);
+
+  const { sendMessage, readyState, disconnect, connect } = useWebSocket(
+    `${protocol}${host}/api/v1/bots/${botId}/chats/${chatId}/connect`,
+    {
+      onMessage: (message) => {
+        const fragment = JSON.parse(message.data) as ChatMessage;
+        if (fragment.type === 'start') {
+          setLoading(true);
+        }
+        if (fragment.type === 'stop') {
+          setLoading(false);
+        }
+
+        setMessages((msgs) => {
+          const parts = msgs.findLast((parts) => {
+            return Boolean(
+              parts.find(
+                (part) => part.id === fragment.id && part.role === 'ai',
+              ),
+            );
+          });
+
+          if (parts) {
+            if (fragment.type === 'stop' && Array.isArray(fragment.data)) {
+              parts.push({
+                type: 'references',
+                references: fragment.data as Reference[],
+                data: '',
+                role: 'ai',
+              });
+            } else {
+              const part = parts.find((p) => {
+                if (fragment.type === 'message') {
+                  return p.type === 'message';
+                } else {
+                  return fragment.part_id && fragment.part_id === p.part_id;
+                }
+              });
+              if (part) {
+                part.data = (part.data || '') + fragment.data;
+              } else {
+                parts.push(fragment);
+              }
+            }
+          } else {
+            msgs.push([
+              {
+                ...fragment,
+                role: 'ai',
+              },
+            ]);
+          }
+          return [...msgs];
+        });
+      },
+    },
+  );
 
   const loadChatDetail = useCallback(async () => {
     if (!botId || !chatId) return;
@@ -216,25 +302,64 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
     setMessages(res.data?.history || []);
   }, [botId, chatId]);
 
+  const handleSendMessage = useCallback(
+    (params: ChatInputSubmitParams) => {
+      const timestamp = Math.floor(new Date().getTime() / 1000);
+      const part: ChatMessage = {
+        type: 'message',
+        role: 'human',
+        data: params.query,
+        timestamp,
+      };
+      setMessages((msgs) => {
+        msgs?.push([part]);
+        return [...msgs];
+      });
+
+      sendMessage(JSON.stringify(params));
+    },
+    [sendMessage],
+  );
+
+  const handleCancel = useCallback(() => {
+    disconnect();
+    connect();
+    setLoading(false);
+  }, [connect, disconnect]);
+
   useEffect(() => {
     loadChatDetail();
   }, [loadChatDetail]);
 
-  if (messages.length === 0) {
-    return <div>no messages found</div>;
-  }
+  useEffect(() => {
+    scroll.scrollToBottom({ duration: 0 });
+  }, [messages, chat]);
 
   return (
-    <div className="flex flex-col gap-6">
-      {messages?.map((parts, index) => {
-        const isAI = parts.some((part) => part.role === 'ai');
+    <>
+      <div className="flex flex-col gap-6 pb-80">
+        {messages?.map((parts, index) => {
+          const isAI = parts.some((part) => part.role === 'ai');
 
-        return isAI ? (
-          <AIMessage key={index} parts={parts} />
-        ) : (
-          <UserMessage key={index} parts={parts} />
-        );
-      })}
-    </div>
+          return isAI ? (
+            <AIMessage key={index} parts={parts} />
+          ) : (
+            <UserMessage key={index} parts={parts} />
+          );
+        })}
+      </div>
+      <div
+        className={`fixed ${isMobile ? 'left-0' : 'left-[var(--sidebar-width)]'} bg-background right-0 bottom-0 z-10`}
+      >
+        <PageContent className="max-w-5xl pb-12">
+          <ChatInput
+            onSubmit={handleSendMessage}
+            disabled={readyState !== ReadyState.Open}
+            loading={loading}
+            onCancel={handleCancel}
+          />
+        </PageContent>
+      </div>
+    </>
   );
 };

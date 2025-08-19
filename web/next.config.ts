@@ -32,15 +32,17 @@ const nextConfig: NextConfig = {
   },
 
   modularizeImports: {},
+  
 
-  rewrites: async () => {
-    return [
-      {
-        source: '/api/v1/:path*',
-        destination: `${process.env.API_ENDPOINT || 'http://localhost:8000'}/api/v1/:path*`,
-      },
-    ];
-  },
+  // rewrites: async () => {
+  //   const endpoint = process.env.API_ENDPOINT || 'http://localhost:8000';
+  //   return [
+  //     {
+  //       source: '/api/v1/:path*',
+  //       destination: `${endpoint}/api/v1/:path*`,
+  //     },
+  //   ];
+  // },
 };
 
 const withNextIntl = createNextIntlPlugin({
