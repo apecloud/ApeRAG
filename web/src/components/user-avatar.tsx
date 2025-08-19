@@ -1,11 +1,17 @@
 import { User } from '@/api';
+import { cn } from '@/lib/utils';
 // import { Avatar, AvatarFallback, AvatarImage } from '@radix-ui/react-avatar';
 
 import { FaCircleUser } from 'react-icons/fa6';
 
-export const UserAvatar = ({}: { user?: User }) => {
+export const UserAvatar = ({
+  className,
+}: {
+  user?: User;
+  className?: string;
+}) => {
   const UserIcon = () => (
-    <FaCircleUser className="text-muted-foreground/50 size-8" />
+    <FaCircleUser className={cn('text-muted-foreground size-8', className)} />
   );
 
   return <UserIcon />;
