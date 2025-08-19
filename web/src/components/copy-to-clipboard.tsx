@@ -4,12 +4,12 @@ import copy from 'copy-to-clipboard';
 import { Copy } from 'lucide-react';
 import { useCallback } from 'react';
 import { toast } from 'sonner';
-import { Button } from './ui/button';
+import { Button, ButtonProps } from './ui/button';
 
 export const CopyToClipboard = ({
   text,
   ...props
-}: React.ComponentProps<'button'> & {
+}: ButtonProps & {
   text?: string;
 }) => {
   const handlerClick = useCallback(() => {
@@ -22,7 +22,7 @@ export const CopyToClipboard = ({
   if (!text) return;
 
   return (
-    <Button {...props} onClick={handlerClick}>
+    <Button size="icon" {...props} onClick={handlerClick}>
       <Copy />
     </Button>
   );

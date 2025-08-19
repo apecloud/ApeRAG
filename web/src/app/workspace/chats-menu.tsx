@@ -92,7 +92,10 @@ export const ChatsMenu = ({
         {chats.length > 0 && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button className="-mr-0.5 size-8" onClick={handleCreate}>
+              <Button
+                className="-mr-0.5 size-8 cursor-pointer"
+                onClick={handleCreate}
+              >
                 <Plus />
                 <span className="sr-only">Create chat</span>
               </Button>
@@ -113,17 +116,18 @@ export const ChatsMenu = ({
                       <Link href={url}>{chat.title}</Link>
                     </SidebarMenuButton>
                     <DropdownMenuTrigger asChild>
-                      <SidebarMenuAction className="data-[state=open]:bg-accent">
+                      <SidebarMenuAction className="data-[state=open]:bg-accent cursor-pointer">
                         <EllipsisVertical className="text-muted-foreground" />
                       </SidebarMenuAction>
                     </DropdownMenuTrigger>
 
                     <DropdownMenuContent side="right" align="start">
-                      <DropdownMenuItem>
+                      <DropdownMenuItem className="cursor-pointer">
                         <SquarePen /> Rename
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
+                        className="cursor-pointer"
                         variant="destructive"
                         onClick={() => handleDelete(chat)}
                       >
@@ -138,7 +142,7 @@ export const ChatsMenu = ({
             <SidebarMenuItem>
               <SidebarMenuButton
                 onClick={handleCreate}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground min-w-8 duration-200 ease-linear"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground min-w-8 cursor-pointer duration-200 ease-linear"
               >
                 <Plus />
                 <span>Create chat</span>
