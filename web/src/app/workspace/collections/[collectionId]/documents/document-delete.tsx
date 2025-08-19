@@ -18,25 +18,25 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
-export const FileDelete = ({
+export const DocumentDelete = ({
   collection,
-  file,
+  document,
   children,
 }: {
   collection: Collection;
-  file: Document;
+  document: Document;
   children: React.ReactNode;
 }) => {
   const [visible, setVisible] = useState<boolean>(false);
   const router = useRouter();
 
   const handleDelete = async () => {
-    if (!collection.id || !file.id) return;
+    if (!collection.id || !document.id) return;
     const res =
       await apiClient.defaultApi.collectionsCollectionIdDocumentsDocumentIdDelete(
         {
           collectionId: collection.id,
-          documentId: file.id,
+          documentId: document.id,
         },
       );
 

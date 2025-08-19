@@ -43,11 +43,12 @@ import {
 } from 'lucide-react';
 
 import { FileIndexType, getDocumentStatusColor } from '@/lib/document';
-import { FileDelete } from './file-delete';
-import { FileIndexStatus } from './file-index-status';
-import { FileReBuildIndex } from './file-rebuild-index';
+import Link from 'next/link';
+import { DocumentDelete } from './document-delete';
+import { DocumentIndexStatus } from './document-index-status';
+import { DocumentReBuildIndex } from './document-rebuild-index';
 
-export function FilesTable({
+export function DocumentsTable({
   collection,
   data,
 }: {
@@ -75,7 +76,7 @@ export function FilesTable({
           accessorKey,
           header: FileIndexType[key].title,
           cell: ({ row }) => (
-            <FileIndexStatus
+            <DocumentIndexStatus
               document={row.original}
               accessorKey={accessorKey}
             />
@@ -130,14 +131,15 @@ export function FilesTable({
             <div className="flex flex-row items-center gap-2">
               <div className="h-8 w-6">{icon}</div>
               <div>
-                <div
+                <Link
+                  href={`/workspace/collections/${collection.id}/documents/${row.original.id}`}
                   className={cn(
-                    'max-w-60 truncate',
+                    'max-w-60 truncate underline',
                     getDocumentStatusColor(row.original.status),
                   )}
                 >
                   {row.original.name}
-                </div>
+                </Link>
                 <div className="text-muted-foreground text-sm">
                   {(Number(row.original.size || 0) / 1000).toFixed(2)} KB
                 </div>
@@ -174,17 +176,17 @@ export function FilesTable({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-42">
-              <FileReBuildIndex collection={collection} file={row.original}>
+              <DocumentReBuildIndex collection={collection} file={row.original}>
                 <DropdownMenuItem>
                   <FolderSync /> Rebuild File Index
                 </DropdownMenuItem>
-              </FileReBuildIndex>
+              </DocumentReBuildIndex>
               <DropdownMenuSeparator />
-              <FileDelete collection={collection} file={row.original}>
+              <DocumentDelete collection={collection} document={row.original}>
                 <DropdownMenuItem variant="destructive">
                   <Trash /> Delete
                 </DropdownMenuItem>
-              </FileDelete>
+              </DocumentDelete>
             </DropdownMenuContent>
           </DropdownMenu>
         ),

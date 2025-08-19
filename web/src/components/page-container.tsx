@@ -94,11 +94,7 @@ export const PageContent = ({
   className,
   ...props
 }: React.ComponentProps<'div'>) => {
-  return (
-    <div>
-      <div className={cn('mx-auto max-w-7xl p-4', className)} {...props} />
-    </div>
-  );
+  return <div className={cn('mx-auto max-w-7xl p-4', className)} {...props} />;
 };
 
 export const PageContainer = ({

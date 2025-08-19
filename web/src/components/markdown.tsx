@@ -39,7 +39,7 @@ export const mdComponents = {
     <h6 className="my-2 text-lg font-bold">{props.children}</h6>
   ),
   p: (props: JSX.IntrinsicElements['p']) => (
-    <p className="my-1">{props.children}</p>
+    <div className="my-1">{props.children}</div>
   ),
   a: (props: JSX.IntrinsicElements['a']) => {
     const target = props.href?.match(/^http/) ? '_blank' : '_self';
