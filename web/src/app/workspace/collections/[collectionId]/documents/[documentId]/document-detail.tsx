@@ -2,14 +2,16 @@
 import { Collection, Document, DocumentPreview } from '@/api';
 import { FormatDate } from '@/components/format-date';
 import { Markdown } from '@/components/markdown';
-import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getDocumentStatusColor } from '@/lib/document';
 import { cn } from '@/lib/utils';
 import _ from 'lodash';
-import { LoaderCircle } from 'lucide-react';
+import { ArrowLeft, LoaderCircle } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { defaultStyles, FileIcon } from 'react-file-icon';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -68,11 +70,11 @@ export const DocumentDetail = ({
       <Tabs defaultValue="markdown" className="gap-4">
         <div className="flex flex-row items-center justify-between gap-2">
           <div className="flex flex-row items-center gap-4">
-            {/* <Button asChild variant="outline" size="icon">
+            <Button asChild variant="outline" size="icon">
               <Link href={`/workspace/collections/${collection.id}/documents`}>
                 <ArrowLeft />
               </Link>
-            </Button> */}
+            </Button>
             <div className="flex flex-row items-center gap-2">
               <div className="h-8 w-6">{icon}</div>
               <div>
@@ -111,44 +113,33 @@ export const DocumentDetail = ({
         </div>
 
         <TabsContent value="markdown">
-          <Card className="dark:border-none">
-            <CardContent>
-              <Markdown>{documentPreview.markdown_content}</Markdown>
-            </CardContent>
-          </Card>
+          <Markdown>{documentPreview.markdown_content}</Markdown>
         </TabsContent>
 
         {isPdf && (
           <TabsContent value="pdf">
-            <Card className="dark:border-none">
-              <CardContent>
-                <PDFDocument
-                  file={`/api/v1/collections/${collection.id}/documents/${document.id}/object?path=${documentPreview.converted_pdf_object_path}`}
-                  onLoadSuccess={({ numPages }: { numPages: number }) => {
-                    setNumPages(numPages);
-                  }}
-                  loading={
-                    <div className="flex flex-col py-8">
-                      <LoaderCircle className="size-10 animate-spin self-center opacity-50" />
-                    </div>
-                  }
-                  className="flex flex-col justify-center gap-1"
-                >
-                  {_.times(numPages).map((index) => {
-                    return (
-                      <div key={index} className="text-center">
-                        <Card className="inline-block overflow-hidden p-0">
-                          <PDFPage
-                            pageNumber={index + 1}
-                            className="bg-accent"
-                          />
-                        </Card>
-                      </div>
-                    );
-                  })}
-                </PDFDocument>
-              </CardContent>
-            </Card>
+            <PDFDocument
+              file={`/api/v1/collections/${collection.id}/documents/${document.id}/object?path=${documentPreview.converted_pdf_object_path}`}
+              onLoadSuccess={({ numPages }: { numPages: number }) => {
+                setNumPages(numPages);
+              }}
+              loading={
+                <div className="flex flex-col py-8">
+                  <LoaderCircle className="size-10 animate-spin self-center opacity-50" />
+                </div>
+              }
+              className="flex flex-col justify-center gap-1"
+            >
+              {_.times(numPages).map((index) => {
+                return (
+                  <div key={index} className="text-center">
+                    <Card className="inline-block overflow-hidden p-0">
+                      <PDFPage pageNumber={index + 1} className="bg-accent" />
+                    </Card>
+                  </div>
+                );
+              })}
+            </PDFDocument>
           </TabsContent>
         )}
       </Tabs>
