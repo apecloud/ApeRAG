@@ -55,7 +55,7 @@ export const PageHeader = ({
                         <Link href={item.href || '#'}>{item.title}</Link>
                       </BreadcrumbLink>
                     ) : (
-                      <div className="text-primary">{item.title}</div>
+                      <div>{item.title}</div>
                     )}
                   </BreadcrumbItem>
                   {!isLast && <BreadcrumbSeparator />}
