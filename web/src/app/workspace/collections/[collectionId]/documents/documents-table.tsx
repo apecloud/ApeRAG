@@ -44,6 +44,7 @@ import {
 
 import { FileIndexType, getDocumentStatusColor } from '@/lib/document';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { DocumentDelete } from './document-delete';
 import { DocumentIndexStatus } from './document-index-status';
 import { DocumentReBuildIndex } from './document-rebuild-index';
