@@ -233,16 +233,14 @@ async def list_documents_view(
     collection_id: str,
     page: int = Query(1, ge=1, description="Page number (1-based)"),
     page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
-    sort_by: str = Query(None, description="Field to sort by"),
+    sort_by: str = Query("created", description="Field to sort by"),
     sort_order: str = Query('desc', regex='^(asc|desc)$', description="Sort order"),
     search: str = Query(None, description="Search documents by name"),
-    status_filter: List[str] = Query(None, description="Filter documents by status"),
     user: User = Depends(current_user)
 ):
     """List documents with pagination, sorting and search capabilities"""
     from aperag.utils.pagination import PaginatedResponse
     
-    # 调用新的分页方法
     result = await document_service.list_documents(
         user=str(user.id),
         collection_id=collection_id,
@@ -251,10 +249,8 @@ async def list_documents_view(
         sort_by=sort_by,
         sort_order=sort_order,
         search=search,
-        status_filter=status_filter
     )
     
-    # 转换为符合OpenAPI规范的响应格式
     return {
         "items": result.items,
         "total": result.total,

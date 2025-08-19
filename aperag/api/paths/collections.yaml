@@ -206,16 +206,6 @@ documents:
         schema:
           type: string
         description: Search documents by name
-      - name: status_filter
-        in: query
-        schema:
-          type: array
-          items:
-            type: string
-            enum: ["UPLOADED", "EXPIRED", "PENDING", "RUNNING", "COMPLETE", "FAILED", "DELETING", "DELETED"]
-        description: Filter documents by status
-        style: form
-        explode: true
     responses:
       '200':
         description: Paginated list of documents

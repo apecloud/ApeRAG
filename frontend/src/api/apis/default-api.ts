@@ -1286,11 +1286,10 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
          * @param {CollectionsCollectionIdDocumentsGetSortByEnum} [sortBy] Field to sort by
          * @param {CollectionsCollectionIdDocumentsGetSortOrderEnum} [sortOrder] Sort order
          * @param {string} [search] Search documents by name
-         * @param {Array<CollectionsCollectionIdDocumentsGetStatusFilterEnum>} [statusFilter] Filter documents by status
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        collectionsCollectionIdDocumentsGet: async (collectionId: string, page?: number, pageSize?: number, sortBy?: CollectionsCollectionIdDocumentsGetSortByEnum, sortOrder?: CollectionsCollectionIdDocumentsGetSortOrderEnum, search?: string, statusFilter?: Array<CollectionsCollectionIdDocumentsGetStatusFilterEnum>, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        collectionsCollectionIdDocumentsGet: async (collectionId: string, page?: number, pageSize?: number, sortBy?: CollectionsCollectionIdDocumentsGetSortByEnum, sortOrder?: CollectionsCollectionIdDocumentsGetSortOrderEnum, search?: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'collectionId' is not null or undefined
             assertParamExists('collectionsCollectionIdDocumentsGet', 'collectionId', collectionId)
             const localVarPath = `/collections/{collection_id}/documents`
@@ -1328,10 +1327,6 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
 
             if (search !== undefined) {
                 localVarQueryParameter['search'] = search;
-            }
-
-            if (statusFilter) {
-                localVarQueryParameter['status_filter'] = statusFilter;
             }
 
 
@@ -3595,12 +3590,11 @@ export const DefaultApiFp = function(configuration?: Configuration) {
          * @param {CollectionsCollectionIdDocumentsGetSortByEnum} [sortBy] Field to sort by
          * @param {CollectionsCollectionIdDocumentsGetSortOrderEnum} [sortOrder] Sort order
          * @param {string} [search] Search documents by name
-         * @param {Array<CollectionsCollectionIdDocumentsGetStatusFilterEnum>} [statusFilter] Filter documents by status
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async collectionsCollectionIdDocumentsGet(collectionId: string, page?: number, pageSize?: number, sortBy?: CollectionsCollectionIdDocumentsGetSortByEnum, sortOrder?: CollectionsCollectionIdDocumentsGetSortOrderEnum, search?: string, statusFilter?: Array<CollectionsCollectionIdDocumentsGetStatusFilterEnum>, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<DocumentList>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdDocumentsGet(collectionId, page, pageSize, sortBy, sortOrder, search, statusFilter, options);
+        async collectionsCollectionIdDocumentsGet(collectionId: string, page?: number, pageSize?: number, sortBy?: CollectionsCollectionIdDocumentsGetSortByEnum, sortOrder?: CollectionsCollectionIdDocumentsGetSortOrderEnum, search?: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<DocumentList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsCollectionIdDocumentsGet(collectionId, page, pageSize, sortBy, sortOrder, search, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsCollectionIdDocumentsGet']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -4545,7 +4539,7 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
          * @throws {RequiredError}
          */
         collectionsCollectionIdDocumentsGet(requestParameters: DefaultApiCollectionsCollectionIdDocumentsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<DocumentList> {
-            return localVarFp.collectionsCollectionIdDocumentsGet(requestParameters.collectionId, requestParameters.page, requestParameters.pageSize, requestParameters.sortBy, requestParameters.sortOrder, requestParameters.search, requestParameters.statusFilter, options).then((request) => request(axios, basePath));
+            return localVarFp.collectionsCollectionIdDocumentsGet(requestParameters.collectionId, requestParameters.page, requestParameters.pageSize, requestParameters.sortBy, requestParameters.sortOrder, requestParameters.search, options).then((request) => request(axios, basePath));
         },
         /**
          * Create a new document
@@ -6364,13 +6358,6 @@ export interface DefaultApiCollectionsCollectionIdDocumentsGetRequest {
      * @memberof DefaultApiCollectionsCollectionIdDocumentsGet
      */
     readonly search?: string
-
-    /**
-     * Filter documents by status
-     * @type {Array<'UPLOADED' | 'EXPIRED' | 'PENDING' | 'RUNNING' | 'COMPLETE' | 'FAILED' | 'DELETING' | 'DELETED'>}
-     * @memberof DefaultApiCollectionsCollectionIdDocumentsGet
-     */
-    readonly statusFilter?: Array<CollectionsCollectionIdDocumentsGetStatusFilterEnum>
 }
 
 /**
@@ -7447,7 +7434,7 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      * @memberof DefaultApi
      */
     public collectionsCollectionIdDocumentsGet(requestParameters: DefaultApiCollectionsCollectionIdDocumentsGetRequest, options?: RawAxiosRequestConfig) {
-        return DefaultApiFp(this.configuration).collectionsCollectionIdDocumentsGet(requestParameters.collectionId, requestParameters.page, requestParameters.pageSize, requestParameters.sortBy, requestParameters.sortOrder, requestParameters.search, requestParameters.statusFilter, options).then((request) => request(this.axios, this.basePath));
+        return DefaultApiFp(this.configuration).collectionsCollectionIdDocumentsGet(requestParameters.collectionId, requestParameters.page, requestParameters.pageSize, requestParameters.sortBy, requestParameters.sortOrder, requestParameters.search, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -8049,20 +8036,6 @@ export const CollectionsCollectionIdDocumentsGetSortOrderEnum = {
     desc: 'desc'
 } as const;
 export type CollectionsCollectionIdDocumentsGetSortOrderEnum = typeof CollectionsCollectionIdDocumentsGetSortOrderEnum[keyof typeof CollectionsCollectionIdDocumentsGetSortOrderEnum];
-/**
- * @export
- */
-export const CollectionsCollectionIdDocumentsGetStatusFilterEnum = {
-    UPLOADED: 'UPLOADED',
-    EXPIRED: 'EXPIRED',
-    PENDING: 'PENDING',
-    RUNNING: 'RUNNING',
-    COMPLETE: 'COMPLETE',
-    FAILED: 'FAILED',
-    DELETING: 'DELETING',
-    DELETED: 'DELETED'
-} as const;
-export type CollectionsCollectionIdDocumentsGetStatusFilterEnum = typeof CollectionsCollectionIdDocumentsGetStatusFilterEnum[keyof typeof CollectionsCollectionIdDocumentsGetStatusFilterEnum];
 /**
  * @export
  */

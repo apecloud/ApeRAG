@@ -393,7 +393,6 @@ class DocumentService:
         sort_by: str = None,
         sort_order: str = 'desc',
         search: str = None,
-        status_filter: List[str] = None
     ) -> PaginatedResponse[view_models.Document]:
         """List documents with pagination, sorting and search capabilities."""
         
@@ -425,10 +424,6 @@ class DocumentService:
                 )
             )
             
-            # Apply status filter
-            if status_filter:
-                base_query = base_query.where(db_models.Document.status.in_(status_filter))
-            
             # Apply search filter
             if search:
                 search_term = f"%{search}%"
@@ -439,7 +434,6 @@ class DocumentService:
                 pagination=PaginationParams(page=page, page_size=page_size),
                 sort=SortParams(sort_by=sort_by, sort_order=sort_order) if sort_by else None,
                 search=SearchParams(search=search, search_fields=['name']) if search else None,
-                filters={'status_filter': status_filter} if status_filter else None
             )
             
             # Use pagination helper for documents
