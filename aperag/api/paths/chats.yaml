@@ -1,7 +1,7 @@
 chats:
   get:
     summary: List chats
-    description: Get a paginated list of chats with sorting and search capabilities
+    description: Get a paginated list of chats
     security:
       - BearerAuth: []
     parameters:
