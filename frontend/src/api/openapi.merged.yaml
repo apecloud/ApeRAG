@@ -203,7 +203,7 @@ paths:
   /bots/{bot_id}/chats:
     get:
       summary: List chats
-      description: Get a paginated list of chats with sorting and search capabilities
+      description: Get a paginated list of chats
       security:
         - BearerAuth: []
       parameters:
@@ -452,7 +452,7 @@ paths:
   /collections:
     get:
       summary: List collections
-      description: Get a paginated list of collections (owned and optionally subscribed) with sorting and search capabilities
+      description: Get a list of collections (owned and optionally subscribed)
       security:
         - BearerAuth: []
       parameters:
@@ -460,55 +460,21 @@ paths:
           in: query
           schema:
             type: integer
-            minimum: 1
             default: 1
-          description: Page number (1-based)
         - name: page_size
           in: query
           schema:
             type: integer
-            minimum: 1
-            maximum: 100
-            default: 20
-          description: Number of items per page
-        - name: sort_by
-          in: query
-          schema:
-            type: string
-            enum:
-              - title
-              - created
-              - updated
-              - type
-          description: Field to sort by
-        - name: sort_order
-          in: query
-          schema:
-            type: string
-            enum:
-              - asc
-              - desc
-            default: desc
-          description: Sort order
-        - name: search
-          in: query
-          schema:
-            type: string
-          description: Search collections by title or description
+            default: 10
         - name: include_subscribed
           in: query
           schema:
             type: boolean
             default: true
           description: Whether to include subscribed collections in results
-        - name: type_filter
-          in: query
-          schema:
-            type: string
-          description: Filter collections by type
       responses:
         '200':
-          description: Paginated list of collections
+          description: List of collections
           content:
             application/json:
               schema:
@@ -4851,15 +4817,14 @@ components:
           description: Subscription time, null for owned collections
     collectionViewList:
       type: object
-      description: A list of collection views with pagination
-      allOf:
-        - type: object
-          properties:
-            items:
-              type: array
-              items:
-                $ref: '#/components/schemas/collectionView'
-        - $ref: '#/components/schemas/paginatedResponse'
+      description: A list of collection views
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/collectionView'
+        pageResult:
+          $ref: '#/components/schemas/pageResult'
     crontabConfig:
       type: object
       properties:

@@ -18,13 +18,25 @@
 import type { CollectionView } from './collection-view';
 // May contain unused imports in some cases
 // @ts-ignore
-import type { PaginatedResponse } from './paginated-response';
+import type { PageResult } from './page-result';
 
 /**
- * @type CollectionViewList
- * A list of collection views with pagination
+ * A list of collection views
  * @export
+ * @interface CollectionViewList
  */
-export type CollectionViewList = PaginatedResponse;
-
+export interface CollectionViewList {
+    /**
+     * 
+     * @type {Array<CollectionView>}
+     * @memberof CollectionViewList
+     */
+    'items'?: Array<CollectionView>;
+    /**
+     * 
+     * @type {PageResult}
+     * @memberof CollectionViewList
+     */
+    'pageResult'?: PageResult;
+}
 

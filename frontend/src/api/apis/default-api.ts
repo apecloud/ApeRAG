@@ -614,7 +614,7 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
-         * Get a paginated list of chats with sorting and search capabilities
+         * Get a paginated list of chats
          * @summary List chats
          * @param {string} botId 
          * @param {number} [page] Page number (1-based)
@@ -1845,19 +1845,15 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
-         * Get a paginated list of collections (owned and optionally subscribed) with sorting and search capabilities
+         * Get a list of collections (owned and optionally subscribed)
          * @summary List collections
-         * @param {number} [page] Page number (1-based)
-         * @param {number} [pageSize] Number of items per page
-         * @param {CollectionsGetSortByEnum} [sortBy] Field to sort by
-         * @param {CollectionsGetSortOrderEnum} [sortOrder] Sort order
-         * @param {string} [search] Search collections by title or description
+         * @param {number} [page] 
+         * @param {number} [pageSize] 
          * @param {boolean} [includeSubscribed] Whether to include subscribed collections in results
-         * @param {string} [typeFilter] Filter collections by type
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        collectionsGet: async (page?: number, pageSize?: number, sortBy?: CollectionsGetSortByEnum, sortOrder?: CollectionsGetSortOrderEnum, search?: string, includeSubscribed?: boolean, typeFilter?: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        collectionsGet: async (page?: number, pageSize?: number, includeSubscribed?: boolean, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             const localVarPath = `/collections`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
@@ -1882,24 +1878,8 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
                 localVarQueryParameter['page_size'] = pageSize;
             }
 
-            if (sortBy !== undefined) {
-                localVarQueryParameter['sort_by'] = sortBy;
-            }
-
-            if (sortOrder !== undefined) {
-                localVarQueryParameter['sort_order'] = sortOrder;
-            }
-
-            if (search !== undefined) {
-                localVarQueryParameter['search'] = search;
-            }
-
             if (includeSubscribed !== undefined) {
                 localVarQueryParameter['include_subscribed'] = includeSubscribed;
-            }
-
-            if (typeFilter !== undefined) {
-                localVarQueryParameter['type_filter'] = typeFilter;
             }
 
 
@@ -3387,7 +3367,7 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Get a paginated list of chats with sorting and search capabilities
+         * Get a paginated list of chats
          * @summary List chats
          * @param {string} botId 
          * @param {number} [page] Page number (1-based)
@@ -3789,20 +3769,16 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Get a paginated list of collections (owned and optionally subscribed) with sorting and search capabilities
+         * Get a list of collections (owned and optionally subscribed)
          * @summary List collections
-         * @param {number} [page] Page number (1-based)
-         * @param {number} [pageSize] Number of items per page
-         * @param {CollectionsGetSortByEnum} [sortBy] Field to sort by
-         * @param {CollectionsGetSortOrderEnum} [sortOrder] Sort order
-         * @param {string} [search] Search collections by title or description
+         * @param {number} [page] 
+         * @param {number} [pageSize] 
          * @param {boolean} [includeSubscribed] Whether to include subscribed collections in results
-         * @param {string} [typeFilter] Filter collections by type
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async collectionsGet(page?: number, pageSize?: number, sortBy?: CollectionsGetSortByEnum, sortOrder?: CollectionsGetSortOrderEnum, search?: string, includeSubscribed?: boolean, typeFilter?: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<CollectionViewList>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsGet(page, pageSize, sortBy, sortOrder, search, includeSubscribed, typeFilter, options);
+        async collectionsGet(page?: number, pageSize?: number, includeSubscribed?: boolean, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<CollectionViewList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.collectionsGet(page, pageSize, includeSubscribed, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['DefaultApi.collectionsGet']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -4402,7 +4378,7 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.botsBotIdChatsChatIdTitlePost(requestParameters.botId, requestParameters.chatId, requestParameters.titleGenerateRequest, options).then((request) => request(axios, basePath));
         },
         /**
-         * Get a paginated list of chats with sorting and search capabilities
+         * Get a paginated list of chats
          * @summary List chats
          * @param {DefaultApiBotsBotIdChatsGetRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
@@ -4692,14 +4668,14 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.collectionsCollectionIdSummaryGeneratePost(requestParameters.collectionId, options).then((request) => request(axios, basePath));
         },
         /**
-         * Get a paginated list of collections (owned and optionally subscribed) with sorting and search capabilities
+         * Get a list of collections (owned and optionally subscribed)
          * @summary List collections
          * @param {DefaultApiCollectionsGetRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
         collectionsGet(requestParameters: DefaultApiCollectionsGetRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<CollectionViewList> {
-            return localVarFp.collectionsGet(requestParameters.page, requestParameters.pageSize, requestParameters.sortBy, requestParameters.sortOrder, requestParameters.search, requestParameters.includeSubscribed, requestParameters.typeFilter, options).then((request) => request(axios, basePath));
+            return localVarFp.collectionsGet(requestParameters.page, requestParameters.pageSize, requestParameters.includeSubscribed, options).then((request) => request(axios, basePath));
         },
         /**
          * Create a new collection
@@ -5171,7 +5147,7 @@ export interface DefaultApiInterface {
     botsBotIdChatsChatIdTitlePost(requestParameters: DefaultApiBotsBotIdChatsChatIdTitlePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<TitleGenerateResponse>;
 
     /**
-     * Get a paginated list of chats with sorting and search capabilities
+     * Get a paginated list of chats
      * @summary List chats
      * @param {DefaultApiBotsBotIdChatsGetRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -5461,7 +5437,7 @@ export interface DefaultApiInterface {
     collectionsCollectionIdSummaryGeneratePost(requestParameters: DefaultApiCollectionsCollectionIdSummaryGeneratePostRequest, options?: RawAxiosRequestConfig): AxiosPromise<CollectionsCollectionIdSummaryGeneratePost200Response>;
 
     /**
-     * Get a paginated list of collections (owned and optionally subscribed) with sorting and search capabilities
+     * Get a list of collections (owned and optionally subscribed)
      * @summary List collections
      * @param {DefaultApiCollectionsGetRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -6621,39 +6597,18 @@ export interface DefaultApiCollectionsCollectionIdSummaryGeneratePostRequest {
  */
 export interface DefaultApiCollectionsGetRequest {
     /**
-     * Page number (1-based)
+     * 
      * @type {number}
      * @memberof DefaultApiCollectionsGet
      */
     readonly page?: number
 
     /**
-     * Number of items per page
+     * 
      * @type {number}
      * @memberof DefaultApiCollectionsGet
      */
     readonly pageSize?: number
-
-    /**
-     * Field to sort by
-     * @type {'title' | 'created' | 'updated' | 'type'}
-     * @memberof DefaultApiCollectionsGet
-     */
-    readonly sortBy?: CollectionsGetSortByEnum
-
-    /**
-     * Sort order
-     * @type {'asc' | 'desc'}
-     * @memberof DefaultApiCollectionsGet
-     */
-    readonly sortOrder?: CollectionsGetSortOrderEnum
-
-    /**
-     * Search collections by title or description
-     * @type {string}
-     * @memberof DefaultApiCollectionsGet
-     */
-    readonly search?: string
 
     /**
      * Whether to include subscribed collections in results
@@ -6661,13 +6616,6 @@ export interface DefaultApiCollectionsGetRequest {
      * @memberof DefaultApiCollectionsGet
      */
     readonly includeSubscribed?: boolean
-
-    /**
-     * Filter collections by type
-     * @type {string}
-     * @memberof DefaultApiCollectionsGet
-     */
-    readonly typeFilter?: string
 }
 
 /**
@@ -7299,7 +7247,7 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
     }
 
     /**
-     * Get a paginated list of chats with sorting and search capabilities
+     * Get a paginated list of chats
      * @summary List chats
      * @param {DefaultApiBotsBotIdChatsGetRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -7647,7 +7595,7 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
     }
 
     /**
-     * Get a paginated list of collections (owned and optionally subscribed) with sorting and search capabilities
+     * Get a list of collections (owned and optionally subscribed)
      * @summary List collections
      * @param {DefaultApiCollectionsGetRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -7655,7 +7603,7 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      * @memberof DefaultApi
      */
     public collectionsGet(requestParameters: DefaultApiCollectionsGetRequest = {}, options?: RawAxiosRequestConfig) {
-        return DefaultApiFp(this.configuration).collectionsGet(requestParameters.page, requestParameters.pageSize, requestParameters.sortBy, requestParameters.sortOrder, requestParameters.search, requestParameters.includeSubscribed, requestParameters.typeFilter, options).then((request) => request(this.axios, this.basePath));
+        return DefaultApiFp(this.configuration).collectionsGet(requestParameters.page, requestParameters.pageSize, requestParameters.includeSubscribed, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -8115,24 +8063,6 @@ export const CollectionsCollectionIdDocumentsGetStatusFilterEnum = {
     DELETED: 'DELETED'
 } as const;
 export type CollectionsCollectionIdDocumentsGetStatusFilterEnum = typeof CollectionsCollectionIdDocumentsGetStatusFilterEnum[keyof typeof CollectionsCollectionIdDocumentsGetStatusFilterEnum];
-/**
- * @export
- */
-export const CollectionsGetSortByEnum = {
-    title: 'title',
-    created: 'created',
-    updated: 'updated',
-    type: 'type'
-} as const;
-export type CollectionsGetSortByEnum = typeof CollectionsGetSortByEnum[keyof typeof CollectionsGetSortByEnum];
-/**
- * @export
- */
-export const CollectionsGetSortOrderEnum = {
-    asc: 'asc',
-    desc: 'desc'
-} as const;
-export type CollectionsGetSortOrderEnum = typeof CollectionsGetSortOrderEnum[keyof typeof CollectionsGetSortOrderEnum];
 /**
  * @export
  */
