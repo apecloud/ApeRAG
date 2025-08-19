@@ -1,3 +1,4 @@
+import { Chat } from '@/api';
 import { AppLogo, AppUserDropdownMenu } from '@/components/app-topbar';
 import {
   Sidebar,
@@ -15,6 +16,8 @@ import {
   SidebarSeparator,
 } from '@/components/ui/sidebar';
 import { getServerApi } from '@/lib/api/server';
+import { toJson } from '@/lib/utils';
+import _ from 'lodash';
 import {
   BatteryMedium,
   BookOpen,
@@ -22,10 +25,10 @@ import {
   LayoutGrid,
   Logs,
   Package,
-  Plus,
 } from 'lucide-react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { ChatsMenu } from './chats-menu';
 
 export default async function Layout({
   children,
@@ -45,6 +48,17 @@ export default async function Layout({
     redirect(`/auth/signin?callbackUrl=${encodeURIComponent('/workspace')}`);
   }
 
+  const botsRes = await apiServer.defaultApi.botsGet();
+  const bot = _.first(botsRes.data.items);
+  let chats: Chat[] = [];
+
+  if (bot?.id) {
+    const chatsRes = await apiServer.defaultApi.botsBotIdChatsGet({
+      botId: bot.id,
+    });
+    chats = chatsRes.data.items || [];
+  }
+
   return (
     <>
       <SidebarProvider>
@@ -53,7 +67,7 @@ export default async function Layout({
             <AppLogo />
           </SidebarHeader>
           <SidebarContent className="gap-0">
-            <SidebarGroup>
+            <SidebarGroup className="py-0">
               <SidebarGroupLabel>Resources</SidebarGroupLabel>
               <SidebarMenu>
                 <SidebarMenuItem>
@@ -64,7 +78,6 @@ export default async function Layout({
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
                     <Link href="/workspace/collections">
@@ -75,24 +88,7 @@ export default async function Layout({
                 </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroup>
-
-            <SidebarGroup className="pt-0">
-              {/* <SidebarGroupLabel>Chats</SidebarGroupLabel> */}
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem className="flex items-center gap-2">
-                    <SidebarMenuButton
-                      tooltip="Quick Create"
-                      className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground min-w-8 duration-200 ease-linear"
-                    >
-                      <Plus />
-                      <span>Create chat</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-                <div className="h-300"></div>
-              </SidebarGroupContent>
-            </SidebarGroup>
+            {bot && <ChatsMenu bot={toJson(bot)} chats={toJson(chats)} />}
           </SidebarContent>
 
           <SidebarFooter className="gap-0">
