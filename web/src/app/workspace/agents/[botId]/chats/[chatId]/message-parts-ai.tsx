@@ -1,0 +1,84 @@
+import { ChatMessage, Feedback } from '@/api';
+import { CopyToClipboard } from '@/components/copy-to-clipboard';
+import { Card, CardContent } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
+import { Bot, LoaderCircle } from 'lucide-react';
+import { MessageFeedback } from './message-feedback';
+import { MessagePartAi } from './message-part-ai';
+import { MessageReference } from './message-reference';
+import { MessageTimestamp } from './message-timestamp';
+
+export const MessagePartsAi = ({
+  pending,
+  loading,
+  parts,
+  hanldeMessageFeedback,
+}: {
+  pending: boolean;
+  loading: boolean;
+  parts: ChatMessage[];
+  hanldeMessageFeedback: (part: ChatMessage, feedback: Feedback) => void;
+}) => {
+  const references =
+    parts.findLast((part) => part.references)?.references || [];
+
+  return (
+    <div className="flex w-max max-w-[85%] flex-row gap-4">
+      <div>
+        <div className="bg-muted text-muted-foreground relative flex size-10 flex-col justify-center rounded-full">
+          {loading && (
+            <LoaderCircle className="absolute -left-1 size-12 animate-spin opacity-20" />
+          )}
+          <Bot className={cn('size-5 self-center')} />
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <Card className="py-4 dark:border-none">
+          <CardContent className="px-4">
+            {pending ? (
+              <div className="flex flex-row gap-2">
+                <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-0"></div>
+                <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-200"></div>
+                <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-400"></div>
+              </div>
+            ) : (
+              parts.map((part, index) => (
+                <MessagePartAi key={`${index}-${part.id}`} part={part} />
+              ))
+            )}
+          </CardContent>
+        </Card>
+        <div className="flex flex-row items-center gap-2">
+          <MessageTimestamp parts={parts} className="mr-2" />
+          <Separator
+            orientation="vertical"
+            className="data-[orientation=vertical]:h-4"
+          />
+          {!_.isEmpty(references) && (
+            <>
+              <MessageReference references={references} />
+              <Separator
+                orientation="vertical"
+                className="data-[orientation=vertical]:h-4"
+              />
+            </>
+          )}
+          <MessageFeedback
+            parts={parts}
+            hanldeMessageFeedback={hanldeMessageFeedback}
+          />
+          <Separator
+            orientation="vertical"
+            className="data-[orientation=vertical]:h-4"
+          />
+          <CopyToClipboard
+            variant="ghost"
+            className="text-muted-foreground"
+            text={parts.map((part) => part.data).join('')}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};

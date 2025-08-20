@@ -1,0 +1,22 @@
+import { ChatMessage } from '@/api';
+import { Markdown } from '@/components/markdown';
+import { UserRound } from 'lucide-react';
+import { MessageTimestamp } from './message-timestamp';
+
+export const MessagePartsUser = ({ parts }: { parts: ChatMessage[] }) => {
+  return (
+    <div className="ml-auto flex w-max max-w-[85%] flex-row gap-4">
+      <div className="flex flex-col gap-2">
+        <div className="bg-primary text-primary-foreground rounded-lg px-4 py-3 text-sm">
+          <Markdown>{parts?.map((part) => part.data || '').join('')}</Markdown>
+        </div>
+        <MessageTimestamp parts={parts} />
+      </div>
+      <div>
+        <div className="bg-muted text-muted-foreground flex size-10 flex-col justify-center rounded-full">
+          <UserRound className="size-5 self-center" />
+        </div>
+      </div>
+    </div>
+  );
+};

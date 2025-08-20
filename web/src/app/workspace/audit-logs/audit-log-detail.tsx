@@ -1,7 +1,6 @@
 'use client';
 import { AuditLog } from '@/api';
 import { Markdown } from '@/components/markdown';
-import { Button } from '@/components/ui/button';
 import {
   Drawer,
   DrawerContent,
@@ -9,20 +8,21 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import { ScanEye } from 'lucide-react';
 import { useFormatter } from 'next-intl';
 
-export const AuditLogDetail = ({ auditLog }: { auditLog: AuditLog }) => {
+export const AuditLogDetail = ({
+  auditLog,
+  children,
+}: {
+  auditLog: AuditLog;
+  children: React.ReactNode;
+}) => {
   const format = useFormatter();
   return (
     <>
       <Drawer direction="right" handleOnly={true}>
-        <DrawerTrigger asChild>
-          <Button variant="ghost" size="icon">
-            <ScanEye />
-          </Button>
-        </DrawerTrigger>
-        <DrawerContent className="flex min-w-xl">
+        <DrawerTrigger asChild>{children}</DrawerTrigger>
+        <DrawerContent className="flex sm:min-w-2xl md:min-w-3xl lg:min-w-4xl">
           <DrawerHeader>
             <DrawerTitle className="font-bold">Audit Log</DrawerTitle>
           </DrawerHeader>

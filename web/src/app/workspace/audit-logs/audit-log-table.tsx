@@ -28,11 +28,6 @@ import {
 import { Input } from '@/components/ui/input';
 
 import { AuditApiListAuditLogsRequest, AuditLog } from '@/api';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { DateTimePicker24h } from '@/components/date-time-picker-24h';
@@ -100,20 +95,16 @@ export function AuditLogTable({
         header: 'API',
         cell: ({ row }) => {
           return (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="inline-flex flex-col gap-1">
-                  <div>{row.original.api_name}</div>
-                  <div className="text-muted-foreground">
-                    {row.original.path}
-                  </div>
+            <div className="flex flex-col gap-1">
+              <AuditLogDetail auditLog={row.original}>
+                <div className="cursor-pointer underline">
+                  {row.original.api_name}
                 </div>
-              </TooltipTrigger>
-              <TooltipContent side="left">
-                <p>Resource ID: {row.original.resource_id}</p>
-                <p>Resource Type: {row.original.resource_type}</p>
-              </TooltipContent>
-            </Tooltip>
+              </AuditLogDetail>
+              <div className="text-muted-foreground truncate sm:w-sm md:w-md lg:w-lg">
+                {row.original.path}
+              </div>
+            </div>
           );
         },
       },
@@ -148,12 +139,6 @@ export function AuditLogTable({
           row.original.start_time
             ? format.dateTime(row.original.start_time, 'medium')
             : '--',
-      },
-      {
-        id: 'action',
-        cell: ({ row }) => {
-          return <AuditLogDetail auditLog={row.original} />;
-        },
       },
     ];
     return cols;

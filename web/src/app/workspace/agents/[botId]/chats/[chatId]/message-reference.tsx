@@ -1,0 +1,65 @@
+import { Reference } from '@/api';
+import { Markdown } from '@/components/markdown';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/components/ui/drawer';
+import _ from 'lodash';
+import { Sparkles } from 'lucide-react';
+import { MessageCollapseContent } from './message-collapse-content';
+
+export const MessageReference = ({
+  references,
+}: {
+  references: Reference[];
+}) => {
+  return (
+    <Drawer direction="right" handleOnly={true}>
+      <DrawerTrigger asChild>
+        <Button variant="ghost" size="icon" className="cursor-pointer">
+          <Badge
+            className="h-5 min-w-5 rounded-full px-1 font-mono tabular-nums"
+            variant="destructive"
+          >
+            {references?.length}
+          </Badge>
+        </Button>
+      </DrawerTrigger>
+      <DrawerContent className="flex sm:min-w-2xl md:min-w-3xl lg:min-w-4xl">
+        <DrawerHeader>
+          <DrawerTitle className="font-bold">References</DrawerTitle>
+        </DrawerHeader>
+        <div className="overflow-auto px-4 pb-4 select-text">
+          {references?.map((reference: Reference, index) => {
+            return (
+              <MessageCollapseContent
+                defaultOpen={index <= 2}
+                key={index}
+                title={
+                  <div className="flex flex-row justify-between">
+                    <div>
+                      {reference.metadata?.type ||
+                        reference.metadata?.query ||
+                        _.truncate(reference.text, { length: 30 })}
+                    </div>
+                    <div className="ml-auto flex flex-row items-center gap-2">
+                      <Sparkles className="text-muted-foreground size-4" />
+                      <span>{(reference.score || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+                }
+              >
+                <Markdown>{reference.text}</Markdown>
+              </MessageCollapseContent>
+            );
+          })}
+        </div>
+      </DrawerContent>
+    </Drawer>
+  );
+};
