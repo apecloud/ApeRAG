@@ -417,7 +417,7 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
             </div>
           )}
 
-          <PageContent className="max-w-5xl pb-12">
+          <PageContent className="max-w-5xl">
             <ChatInput
               onSubmit={handleSendMessage}
               disabled={readyState !== ReadyState.Open}
