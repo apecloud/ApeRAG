@@ -1,7 +1,5 @@
-// import rehypeToc from '@jsdevtools/rehype-toc';
-
 import { h } from 'hastscript';
-import { JSX } from 'react';
+import { JSX, MouseEventHandler } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeHighlightLines from 'rehype-highlight-code-lines';
@@ -43,19 +41,36 @@ const securityLink = (props: JSX.IntrinsicElements['a']) => {
 };
 
 const unSecurityLink = (props: JSX.IntrinsicElements['a']) => {
-  const url = props.href?.replace(/\.md/, '');
+  const url = props.href?.replace(/\.md/, '') || '/';
   const isNavLink = props.className?.includes('toc-link');
+  const handleLinkClick: MouseEventHandler<HTMLAnchorElement> = (e) => {
+    if (!url.match(/http/)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
   return isNavLink ? (
     <Tooltip>
       <TooltipTrigger asChild>
-        <AnchorLink {...props} href={url || '/'} target="_blank" />
+        <AnchorLink
+          {...props}
+          href={url}
+          target="_blank"
+          onClick={handleLinkClick}
+        />
       </TooltipTrigger>
       <TooltipContent side={isNavLink ? 'left' : 'top'}>
         {props.children}
       </TooltipContent>
     </Tooltip>
   ) : (
-    <Link {...props} href={url || '/'} target="_blank" className="underline">
+    <Link
+      {...props}
+      href={url}
+      target="_blank"
+      className="underline"
+      onClick={handleLinkClick}
+    >
       {props.children}
     </Link>
   );
@@ -212,7 +227,7 @@ export const mdRemarkPlugins: any = [
 ];
 
 export const Markdown = ({
-  security = true,
+  security = false,
   children,
 }: {
   security?: boolean;
@@ -220,7 +235,7 @@ export const Markdown = ({
 }) => {
   return (
     <ReactMarkdown
-      rehypePlugins={mdRehypePlugins}
+      rehypePlugins={mdRemarkPlugins}
       remarkPlugins={mdRemarkPlugins}
       components={{
         a: security ? securityLink : unSecurityLink,
