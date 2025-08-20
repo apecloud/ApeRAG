@@ -15,16 +15,19 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { AuditLog } from './audit-log';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { PaginatedResponse } from './paginated-response';
+import type { QuestionsAddQuestionsInner } from './questions-add-questions-inner';
 
 /**
- * @type AuditLogList
- * List of audit logs with pagination
+ * 
  * @export
+ * @interface QuestionsAdd
  */
-export type AuditLogList = PaginatedResponse;
-
+export interface QuestionsAdd {
+    /**
+     * 
+     * @type {Array<QuestionsAddQuestionsInner>}
+     * @memberof QuestionsAdd
+     */
+    'questions': Array<QuestionsAddQuestionsInner>;
+}
 

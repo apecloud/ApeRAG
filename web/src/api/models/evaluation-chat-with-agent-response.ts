@@ -15,16 +15,18 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { AuditLog } from './audit-log';
+import type { AgentErrorResponse } from './agent-error-response';
 // May contain unused imports in some cases
 // @ts-ignore
-import type { PaginatedResponse } from './paginated-response';
+import type { ChatMessage } from './chat-message';
+// May contain unused imports in some cases
+// @ts-ignore
+import type { ChatSuccessResponse } from './chat-success-response';
 
 /**
- * @type AuditLogList
- * List of audit logs with pagination
+ * @type EvaluationChatWithAgentResponse
  * @export
  */
-export type AuditLogList = PaginatedResponse;
+export type EvaluationChatWithAgentResponse = AgentErrorResponse | ChatSuccessResponse;
 
 

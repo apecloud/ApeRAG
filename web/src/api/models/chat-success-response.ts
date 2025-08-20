@@ -15,16 +15,19 @@
 
 // May contain unused imports in some cases
 // @ts-ignore
-import type { AuditLog } from './audit-log';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { PaginatedResponse } from './paginated-response';
+import type { ChatMessage } from './chat-message';
 
 /**
- * @type AuditLogList
- * List of audit logs with pagination
+ * 
  * @export
+ * @interface ChatSuccessResponse
  */
-export type AuditLogList = PaginatedResponse;
-
+export interface ChatSuccessResponse {
+    /**
+     * 
+     * @type {Array<ChatMessage>}
+     * @memberof ChatSuccessResponse
+     */
+    'messages'?: Array<ChatMessage>;
+}
 

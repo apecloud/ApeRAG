@@ -13,18 +13,22 @@
  */
 
 
-// May contain unused imports in some cases
-// @ts-ignore
-import type { AuditLog } from './audit-log';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { PaginatedResponse } from './paginated-response';
 
 /**
- * @type AuditLogList
- * List of audit logs with pagination
+ * Evaluation task lifecycle status
  * @export
+ * @enum {string}
  */
-export type AuditLogList = PaginatedResponse;
+
+export const EvaluationStatus = {
+    PENDING: 'PENDING',
+    RUNNING: 'RUNNING',
+    PAUSED: 'PAUSED',
+    COMPLETED: 'COMPLETED',
+    FAILED: 'FAILED'
+} as const;
+
+export type EvaluationStatus = typeof EvaluationStatus[keyof typeof EvaluationStatus];
+
 
 

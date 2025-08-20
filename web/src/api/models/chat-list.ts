@@ -18,25 +18,13 @@
 import type { Chat } from './chat';
 // May contain unused imports in some cases
 // @ts-ignore
-import type { PageResult } from './page-result';
+import type { PaginatedResponse } from './paginated-response';
 
 /**
- * A list of chats
+ * @type ChatList
+ * A list of chats with pagination
  * @export
- * @interface ChatList
  */
-export interface ChatList {
-    /**
-     * 
-     * @type {Array<Chat>}
-     * @memberof ChatList
-     */
-    'items'?: Array<Chat>;
-    /**
-     * 
-     * @type {PageResult}
-     * @memberof ChatList
-     */
-    'pageResult'?: PageResult;
-}
+export type ChatList = PaginatedResponse;
+
 

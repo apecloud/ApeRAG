@@ -13,18 +13,20 @@
  */
 
 
-// May contain unused imports in some cases
-// @ts-ignore
-import type { AuditLog } from './audit-log';
-// May contain unused imports in some cases
-// @ts-ignore
-import type { PaginatedResponse } from './paginated-response';
 
 /**
- * @type AuditLogList
- * List of audit logs with pagination
+ * Question type enumeration
  * @export
+ * @enum {string}
  */
-export type AuditLogList = PaginatedResponse;
+
+export const QuestionType = {
+    FACTUAL: 'FACTUAL',
+    INFERENTIAL: 'INFERENTIAL',
+    USER_DEFINED: 'USER_DEFINED'
+} as const;
+
+export type QuestionType = typeof QuestionType[keyof typeof QuestionType];
+
 
 

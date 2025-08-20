@@ -18,25 +18,13 @@
 import type { Document } from './document';
 // May contain unused imports in some cases
 // @ts-ignore
-import type { PageResult } from './page-result';
+import type { PaginatedResponse } from './paginated-response';
 
 /**
- * A list of documents
+ * @type DocumentList
+ * A list of documents with pagination
  * @export
- * @interface DocumentList
  */
-export interface DocumentList {
-    /**
-     * 
-     * @type {Array<Document>}
-     * @memberof DocumentList
-     */
-    'items'?: Array<Document>;
-    /**
-     * 
-     * @type {PageResult}
-     * @memberof DocumentList
-     */
-    'pageResult'?: PageResult;
-}
+export type DocumentList = PaginatedResponse;
+
 
