@@ -11,12 +11,12 @@ export default async function Page() {
     <PageContainer>
       <PageHeader breadcrumbs={[{ title: 'Users' }]} />
       <PageContent>
-        <PageTitle>Users quota</PageTitle>
+        <PageTitle>Models & Providers</PageTitle>
         <PageDescription>
-          This section allows you to set and control usage limits for individual
-          users or groups, ensuring fair resource allocation and preventing
-          system overload. Define quotas for API calls, compute time, storage,
-          and other critical metrics.
+          This section allows administrators to manage and integrate third-party
+          Large Language Model (LLM) providers and their respective models into
+          the system. Configure API keys, model selection, rate limits, and
+          other parameters to customize AI-powered functionalities.
         </PageDescription>
       </PageContent>
     </PageContainer>
