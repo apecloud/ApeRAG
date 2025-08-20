@@ -26,13 +26,15 @@ import {
 import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import _ from 'lodash';
-import { Globe, LoaderCircle } from 'lucide-react';
+import { Bot, Globe, LoaderCircle } from 'lucide-react';
 import { useLocale } from 'next-intl';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BiSolidRightArrow } from 'react-icons/bi';
 import { PiStopFill } from 'react-icons/pi';
 import useLocalStorageState from 'use-local-storage-state';
 
+import { PageContent } from '@/components/page-container';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from 'sonner';
 
 export type ChatInputSubmitParams = {
@@ -48,11 +50,13 @@ export type ChatInputSubmitParams = {
 };
 
 export const ChatInput = ({
+  welcome,
   loading,
   disabled,
   onSubmit,
   onCancel,
 }: {
+  welcome: boolean;
   loading: boolean;
   disabled: boolean;
   onSubmit: (params: ChatInputSubmitParams) => void;
@@ -60,6 +64,7 @@ export const ChatInput = ({
 }) => {
   const [isComposing, setIsComposing] = useState<boolean>(false);
   const [collections, setCollections] = useState<Collection[]>([]);
+  const isMobile = useIsMobile();
   const [providerModels, setProviderModels] = useState<
     {
       label?: string;
@@ -183,130 +188,147 @@ export const ChatInput = ({
   }, [loadData]);
 
   return (
-    <div className="relative flex flex-col gap-2">
-      <Label>
-        <Mention
-          trigger="@"
-          className="w-full"
-          value={selectedCollections}
-          inputValue={query}
-          onInputValueChange={setQuery}
-          onValueChange={setSelectedCollections}
-          onCompositionStart={() => setIsComposing(true)}
-          onCompositionEnd={() => setIsComposing(false)}
-          onKeyDown={(e) => {
-            if (e.key == 'Enter' && e.shiftKey) {
-              handleSendMessage();
-              e.preventDefault();
-            }
-          }}
-        >
-          <MentionInput asChild>
-            <Textarea
-              className="resize-none rounded-xl pb-20"
-              placeholder={
-                disabled
-                  ? 'Network connection in progress, please wait...'
-                  : 'Type @ to mention a collection...'
-              }
-              disabled={disabled}
-            />
-          </MentionInput>
-          <MentionContent className="w-60">
-            {enabledColelctions.length ? (
-              enabledColelctions.map((collection) => (
-                <MentionItem
-                  key={collection.id}
-                  value={collection.id || ''}
-                  className="flex-col items-start gap-0.5"
-                  disabled={collection.status !== 'ACTIVE'}
-                >
-                  <span className="text-sm">{collection.title}</span>
-                  <span className="text-muted-foreground text-xs">
-                    {collection.id}
-                  </span>
-                </MentionItem>
-              ))
-            ) : (
-              <div className="text-muted-foreground p-4 text-center text-xs">
-                No collection was found.
-              </div>
-            )}
-          </MentionContent>
-        </Mention>
-
-        <div className="absolute bottom-0 flex w-full flex-row items-center justify-between p-4">
-          <div></div>
-          <div className="flex gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Toggle
-                  variant={webSearchEnabled ? 'outline' : 'default'}
-                  onClick={() => setWebSearchEnabled(!webSearchEnabled)}
-                  aria-label="Web search"
-                  className={cn('relative cursor-pointer')}
-                  disabled={disabled}
-                >
-                  <Globe
-                    className={`${webSearchEnabled ? 'text-primary' : 'text-muted-foreground'}`}
-                  />
-                </Toggle>
-              </TooltipTrigger>
-              <TooltipContent>Web search</TooltipContent>
-            </Tooltip>
-
-            <Select
-              value={modelName}
-              disabled={disabled}
-              onValueChange={(v) => {
-                setModelName(v);
-              }}
-            >
-              <SelectTrigger className="w-60 cursor-pointer">
-                <SelectValue placeholder="Select a model" />
-              </SelectTrigger>
-              <SelectContent>
-                {providerModels
-                  ?.filter((item) => _.size(item.models))
-                  .map((item) => {
-                    return (
-                      <SelectGroup key={item.name}>
-                        <SelectLabel>{item.label}</SelectLabel>
-                        {item.models?.map((model) => {
-                          return (
-                            <SelectItem
-                              key={model.model}
-                              value={model.model || ''}
-                            >
-                              {model.model}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectGroup>
-                    );
-                  })}
-              </SelectContent>
-            </Select>
-            <Button
-              size="icon"
-              disabled={disabled}
-              className={cn('relative cursor-pointer rounded-full')}
-              onClick={() => {
-                if (loading) {
-                  onCancel();
-                } else {
+    <div
+      className={cn(
+        'bg-background fixed right-0 z-10',
+        isMobile ? 'left-0' : 'left-[var(--sidebar-width)]',
+        welcome ? 'top-[30%]' : 'bottom-0',
+      )}
+    >
+      {welcome && (
+        <div className="mb-6 flex flex-col justify-center text-center">
+          <Bot className={cn('mb-6 size-18 self-center opacity-10')} />
+          <h3 className="mb-2 text-2xl font-medium">Hi, I&apos;m ApeRAG.</h3>
+          <p className="text-muted-foreground">How can I help you today?</p>
+        </div>
+      )}
+      <PageContent className="max-w-5xl">
+        <div className="relative flex flex-col gap-2">
+          <Label>
+            <Mention
+              trigger="@"
+              className="w-full"
+              value={selectedCollections}
+              inputValue={query}
+              onInputValueChange={setQuery}
+              onValueChange={setSelectedCollections}
+              onCompositionStart={() => setIsComposing(true)}
+              onCompositionEnd={() => setIsComposing(false)}
+              onKeyDown={(e) => {
+                if (e.key == 'Enter' && e.shiftKey) {
                   handleSendMessage();
+                  e.preventDefault();
                 }
               }}
             >
-              {loading && (
-                <LoaderCircle className="absolute size-full animate-spin opacity-30" />
-              )}
-              {loading ? <PiStopFill /> : <BiSolidRightArrow />}
-            </Button>
-          </div>
+              <MentionInput asChild>
+                <Textarea
+                  className="resize-none rounded-xl pb-20"
+                  placeholder={
+                    disabled
+                      ? 'Network connection in progress, please wait...'
+                      : 'Type @ to mention a collection...'
+                  }
+                  disabled={disabled}
+                />
+              </MentionInput>
+              <MentionContent className="w-60">
+                {enabledColelctions.length ? (
+                  enabledColelctions.map((collection) => (
+                    <MentionItem
+                      key={collection.id}
+                      value={collection.id || ''}
+                      className="flex-col items-start gap-0.5"
+                      disabled={collection.status !== 'ACTIVE'}
+                    >
+                      <span className="text-sm">{collection.title}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {collection.id}
+                      </span>
+                    </MentionItem>
+                  ))
+                ) : (
+                  <div className="text-muted-foreground p-4 text-center text-xs">
+                    No collection was found.
+                  </div>
+                )}
+              </MentionContent>
+            </Mention>
+
+            <div className="absolute bottom-0 flex w-full flex-row items-center justify-between p-4">
+              <div></div>
+              <div className="flex gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Toggle
+                      variant={webSearchEnabled ? 'outline' : 'default'}
+                      onClick={() => setWebSearchEnabled(!webSearchEnabled)}
+                      aria-label="Web search"
+                      className={cn('relative cursor-pointer')}
+                      disabled={disabled}
+                    >
+                      <Globe
+                        className={`${webSearchEnabled ? 'text-primary' : 'text-muted-foreground'}`}
+                      />
+                    </Toggle>
+                  </TooltipTrigger>
+                  <TooltipContent>Web search</TooltipContent>
+                </Tooltip>
+
+                <Select
+                  value={modelName}
+                  disabled={disabled}
+                  onValueChange={(v) => {
+                    setModelName(v);
+                  }}
+                >
+                  <SelectTrigger className="w-60 cursor-pointer">
+                    <SelectValue placeholder="Select a model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {providerModels
+                      ?.filter((item) => _.size(item.models))
+                      .map((item) => {
+                        return (
+                          <SelectGroup key={item.name}>
+                            <SelectLabel>{item.label}</SelectLabel>
+                            {item.models?.map((model) => {
+                              return (
+                                <SelectItem
+                                  key={model.model}
+                                  value={model.model || ''}
+                                >
+                                  {model.model}
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectGroup>
+                        );
+                      })}
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="icon"
+                  disabled={disabled}
+                  className={cn('relative cursor-pointer rounded-full')}
+                  onClick={() => {
+                    if (loading) {
+                      onCancel();
+                    } else {
+                      handleSendMessage();
+                    }
+                  }}
+                >
+                  {loading && (
+                    <LoaderCircle className="absolute size-full animate-spin opacity-30" />
+                  )}
+                  {loading ? <PiStopFill /> : <BiSolidRightArrow />}
+                </Button>
+              </div>
+            </div>
+          </Label>
         </div>
-      </Label>
+      </PageContent>
     </div>
   );
 };

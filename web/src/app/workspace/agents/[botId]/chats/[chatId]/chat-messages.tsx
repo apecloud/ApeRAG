@@ -3,7 +3,6 @@
 import { ChatDetails, ChatMessage, Reference } from '@/api';
 import { CopyToClipboard } from '@/components/copy-to-clipboard';
 import { Markdown } from '@/components/markdown';
-import { PageContent } from '@/components/page-container';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,8 +19,6 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { apiClient } from '@/lib/api/client';
 import { useWebSocket } from 'ahooks';
 import { animateScroll as scroll } from 'react-scroll';
 
@@ -240,7 +237,6 @@ const AIMessageParts = ({
 };
 
 export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
-  const isMobile = useIsMobile();
   const { chatRename } = useWorkspaceContext();
   const [messages, setMessages] = useState<Array<Array<ChatMessage>>>(
     chat.history || [],
@@ -335,14 +331,14 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
     },
   );
 
-  const loadChatDetail = useCallback(async () => {
-    if (!botId || !chatId) return;
-    const res = await apiClient.defaultApi.botsBotIdChatsChatIdGet({
-      botId,
-      chatId,
-    });
-    setMessages(res.data?.history || []);
-  }, [botId, chatId]);
+  // const loadChatDetail = useCallback(async () => {
+  //   if (!botId || !chatId) return;
+  //   const res = await apiClient.defaultApi.botsBotIdChatsChatIdGet({
+  //     botId,
+  //     chatId,
+  //   });
+  //   setMessages(res.data?.history || []);
+  // }, [botId, chatId]);
 
   const handleSendMessage = useCallback(
     (params: ChatInputSubmitParams) => {
@@ -370,63 +366,37 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
   }, [connect, disconnect]);
 
   useEffect(() => {
-    loadChatDetail();
-  }, [loadChatDetail]);
-
-  useEffect(() => {
     scroll.scrollToBottom({ duration: 0 });
   }, [messages, chat]);
 
   return (
-    <>
-      <div className="text-md flex flex-col gap-6 pb-80">
-        {messages.map((parts, index) => {
-          const isAI = parts.some((part) => part.role === 'ai');
-          const isLoading = loading && index + 1 === messages.length;
-          const isAIPending =
-            isLoading &&
-            parts.filter((p) => p.type !== 'start').length === 0 &&
-            isAI;
+    <div className="text-md flex flex-col gap-6 pb-80">
+      {messages.map((parts, index) => {
+        const isAI = parts.some((part) => part.role === 'ai');
+        const isLoading = loading && index + 1 === messages.length;
+        const isAIPending =
+          isLoading &&
+          parts.filter((p) => p.type !== 'start').length === 0 &&
+          isAI;
 
-          return isAI ? (
-            <AIMessageParts
-              pending={isAIPending}
-              loading={isLoading}
-              key={index}
-              parts={parts}
-            />
-          ) : (
-            <UserMessageParts key={index} parts={parts} />
-          );
-        })}
-
-        <div
-          className={cn(
-            'bg-background fixed right-0 z-10',
-            isMobile ? 'left-0' : 'left-[var(--sidebar-width)]',
-            _.isEmpty(messages) ? 'top-[30%]' : 'bottom-0',
-          )}
-        >
-          {_.isEmpty(messages) && (
-            <div className="mb-6 flex flex-col justify-center text-center">
-              <Bot className={cn('mb-6 size-18 self-center opacity-10')} />
-              <h3 className="mb-2 text-2xl font-medium">
-                Hi, I&apos;m ApeRAG.
-              </h3>
-              <p className="text-muted-foreground">How can I help you today?</p>
-            </div>
-          )}
-
-          <PageContent className="max-w-5xl">
-            <ChatInput
-              onSubmit={handleSendMessage}
-              disabled={readyState !== ReadyState.Open}
-              loading={loading}
-              onCancel={handleCancel}
-            />
-          </PageContent>
-        </div>
-      </div>
-    </>
+        return isAI ? (
+          <AIMessageParts
+            pending={isAIPending}
+            loading={isLoading}
+            key={index}
+            parts={parts}
+          />
+        ) : (
+          <UserMessageParts key={index} parts={parts} />
+        );
+      })}
+      <ChatInput
+        welcome={_.isEmpty(messages)}
+        onSubmit={handleSendMessage}
+        disabled={readyState !== ReadyState.Open}
+        loading={loading}
+        onCancel={handleCancel}
+      />
+    </div>
   );
 };

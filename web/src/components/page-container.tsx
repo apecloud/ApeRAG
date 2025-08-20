@@ -32,13 +32,13 @@ export const PageHeader = ({
 
   const cls = useMemo(() => {
     const defaultCls = cn(
-      'flex flex-row justify-between h-12 items-center gap-2 border-b transition-[width,height] ease-linear',
+      'flex flex-row justify-between h-12 items-center gap-2 border-b transition-[width,height] ease-linear bg-background/50 backdrop-blur-lg',
     );
 
     return fixed
       ? cn(
           defaultCls,
-          'fixed right-0 top-0 bg-background z-10',
+          'fixed right-0 top-0 z-10',
           isMobile ? 'left-0' : 'left-[var(--sidebar-width)]',
         )
       : defaultCls;

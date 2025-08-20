@@ -1,5 +1,5 @@
 import { h } from 'hastscript';
-import { JSX, MouseEventHandler } from 'react';
+import { JSX, MouseEventHandler, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeHighlightLines from 'rehype-highlight-code-lines';
@@ -132,9 +132,11 @@ export const mdComponents = {
       );
     }
   },
-  pre: ({ className, children }: JSX.IntrinsicElements['pre']) => {
+  pre: ({ className, children, ...props }: JSX.IntrinsicElements['pre']) => {
     return (
-      <pre className={cn('my-4 overflow-x-auto', className)}>{children}</pre>
+      <pre className={cn('my-4 overflow-x-auto', className)} {...props}>
+        {children}
+      </pre>
     );
   },
   code: ({ className, ...props }: JSX.IntrinsicElements['code']) => {
@@ -151,6 +153,7 @@ export const mdComponents = {
             'mx-1 inline-block overflow-x-auto rounded-md bg-gray-500/10 px-1.5 py-0.5 align-middle text-sm',
             className,
           )}
+          {...props}
         >
           {props.children}
         </code>
@@ -227,15 +230,30 @@ export const mdRemarkPlugins: any = [
 ];
 
 export const Markdown = ({
+  rehypeToc = false,
   security = false,
   children,
 }: {
+  rehypeToc?: boolean;
   security?: boolean;
   children?: string;
 }) => {
+  const rehypePlugins = useMemo(() => {
+    const plugins = [...mdRehypePlugins];
+    if (rehypeToc) {
+      plugins.push([
+        rehypeToc,
+        {
+          headings: ['h2', 'h3', 'h4', 'h5', 'h6'],
+        },
+      ]);
+    }
+    return plugins;
+  }, [rehypeToc]);
+
   return (
     <ReactMarkdown
-      rehypePlugins={mdRemarkPlugins}
+      rehypePlugins={rehypePlugins}
       remarkPlugins={mdRemarkPlugins}
       components={{
         a: security ? securityLink : unSecurityLink,
