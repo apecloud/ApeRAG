@@ -203,7 +203,7 @@ export const ChatInput = ({
         >
           <MentionInput asChild>
             <Textarea
-              className="resize-none rounded-xl pb-15"
+              className="resize-none rounded-xl pb-20"
               placeholder={
                 disabled
                   ? 'Network connection in progress, please wait...'
@@ -235,7 +235,7 @@ export const ChatInput = ({
           </MentionContent>
         </Mention>
 
-        <div className="absolute bottom-0 flex w-full flex-row items-center justify-between p-2">
+        <div className="absolute bottom-0 flex w-full flex-row items-center justify-between p-4">
           <div></div>
           <div className="flex gap-2">
             <Tooltip>
