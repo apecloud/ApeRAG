@@ -96,7 +96,7 @@ export const mdComponents = {
     <h6 className="my-2 text-lg font-bold">{props.children}</h6>
   ),
   p: (props: JSX.IntrinsicElements['p']) => (
-    <div className="my-1">{props.children}</div>
+    <div className="my-2">{props.children}</div>
   ),
   blockquote: ({
     className,
@@ -115,7 +115,7 @@ export const mdComponents = {
   img: ({ src, ...props }: JSX.IntrinsicElements['img']) => {
     if (!src) {
       return (
-        <Skeleton className="h-[125px] w-[250px] rounded-xl pt-8 text-center">
+        <Skeleton className="h-[125px] w-full rounded-xl pt-8 text-center">
           <ImageIcon className="mx-auto size-12 opacity-20" />
         </Skeleton>
       );
@@ -160,13 +160,22 @@ export const mdComponents = {
       );
     }
   },
+  ol: ({ className, ...props }: JSX.IntrinsicElements['ul']) => {
+    return (
+      <ul className={cn('my-4 list-decimal pl-4', className)}>
+        {props.children}
+      </ul>
+    );
+  },
   ul: ({ className, ...props }: JSX.IntrinsicElements['ul']) => {
     return (
-      <ul className={cn('my-2 list-disc pl-4', className)}>{props.children}</ul>
+      <ul className={cn('my-4 list-disc pl-4', className)}>{props.children}</ul>
     );
   },
   li: ({ className, ...props }: JSX.IntrinsicElements['li']) => {
-    return <li className={cn('list-item', className)}>{props.children}</li>;
+    return (
+      <li className={cn('my-1 list-item', className)}>{props.children}</li>
+    );
   },
   nav: (props: JSX.IntrinsicElements['nav']) => {
     if (props.className === 'toc') {

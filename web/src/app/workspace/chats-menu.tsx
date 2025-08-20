@@ -16,11 +16,11 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useWorkspaceContext } from '@/hooks/use-workspace-context';
+import { motion } from 'framer-motion';
 import _ from 'lodash';
 import { Plus, Trash } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-
 export const ChatsMenu = () => {
   const { bot, chats, chatCreate, chatDelete } = useWorkspaceContext();
   const pathname = usePathname();
@@ -56,20 +56,36 @@ export const ChatsMenu = () => {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ) : (
-            chats?.map((chat) => {
+            chats?.map((chat, index) => {
               const url = `/workspace/agents/${bot?.id}/chats/${chat.id}`;
               return (
                 <SidebarMenuItem key={chat.id} className="group/item">
-                  <SidebarMenuButton asChild isActive={pathname === url}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === url}
+                    className="data-[active=true]:font-normal"
+                  >
                     <Link href={url}>
-                      <span className="block truncate">{chat.title}</span>
+                      <span className="block truncate">
+                        <motion.div
+                          initial={{ opacity: 0, x: 80 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{
+                            duration: 0.3,
+                            ease: 'easeIn',
+                            delay: index * 0.1,
+                          }}
+                        >
+                          {chat.title}
+                        </motion.div>
+                      </span>
                     </Link>
                   </SidebarMenuButton>
                   <SidebarMenuAction
                     className="invisible cursor-pointer group-hover/item:visible"
                     onClick={() => chatDelete && chatDelete(chat)}
                   >
-                    <Trash className="opacity-40 hover:opacity-100" />
+                    <Trash className="opacity-60 hover:opacity-100" />
                   </SidebarMenuAction>
                 </SidebarMenuItem>
               );

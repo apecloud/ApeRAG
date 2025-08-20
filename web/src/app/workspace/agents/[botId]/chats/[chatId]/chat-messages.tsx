@@ -25,6 +25,7 @@ import { animateScroll as scroll } from 'react-scroll';
 import { useWorkspaceContext } from '@/hooks/use-workspace-context';
 import { cn } from '@/lib/utils';
 import { ReadyState } from 'ahooks/lib/useWebSocket';
+import { motion } from 'framer-motion';
 import _ from 'lodash';
 import {
   AlertCircleIcon,
@@ -50,12 +51,21 @@ const CollapseContent = ({
 }) => {
   return (
     <Collapsible className="group/collapsible my-2" defaultOpen={defaultOpen}>
-      <CollapsibleTrigger asChild>
-        <Button variant="secondary" className="w-full cursor-pointer">
-          <ChevronRight className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-          <div className="block flex-1 text-left">{title}</div>
-        </Button>
-      </CollapsibleTrigger>
+      <motion.div
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{
+          duration: 0.3,
+          ease: 'easeIn',
+        }}
+      >
+        <CollapsibleTrigger asChild>
+          <Button variant="secondary" className="w-full cursor-pointer">
+            <ChevronRight className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+            <div className="block flex-1 text-left">{title}</div>
+          </Button>
+        </CollapsibleTrigger>
+      </motion.div>
       <CollapsibleContent className="mt-2 rounded-md border p-4">
         {children}
       </CollapsibleContent>
@@ -379,15 +389,26 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
           parts.filter((p) => p.type !== 'start').length === 0 &&
           isAI;
 
-        return isAI ? (
-          <AIMessageParts
-            pending={isAIPending}
-            loading={isLoading}
+        return (
+          <motion.div
             key={index}
-            parts={parts}
-          />
-        ) : (
-          <UserMessageParts key={index} parts={parts} />
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+              duration: 0.3,
+              ease: 'easeIn',
+            }}
+          >
+            {isAI ? (
+              <AIMessageParts
+                pending={isAIPending}
+                loading={isLoading}
+                parts={parts}
+              />
+            ) : (
+              <UserMessageParts parts={parts} />
+            )}
+          </motion.div>
         );
       })}
       <ChatInput
