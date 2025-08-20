@@ -44,7 +44,6 @@ export const mdComponents = {
   a: (props: JSX.IntrinsicElements['a']) => {
     const target = props.href?.match(/^http/) ? '_blank' : '_self';
     const url = props.href?.replace(/\.md/, '');
-
     const isNavLink = props.className?.includes('toc-link');
     return isNavLink ? (
       <Tooltip>
