@@ -71,7 +71,7 @@ export const ChatsMenu = () => {
                           initial={{ opacity: 0, x: 80 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{
-                            duration: 0.3,
+                            duration: 0.2,
                             ease: 'easeIn',
                             delay: index * 0.1,
                           }}

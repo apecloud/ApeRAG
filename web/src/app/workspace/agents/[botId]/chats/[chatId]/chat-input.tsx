@@ -1,4 +1,5 @@
 import { Collection, ModelSpec } from '@/api';
+import { PageContent } from '@/components/page-container';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -23,19 +24,19 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
 import _ from 'lodash';
-import { Bot, Globe, LoaderCircle } from 'lucide-react';
+import { Bot, Globe } from 'lucide-react';
 import { useLocale } from 'next-intl';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BiSolidRightArrow } from 'react-icons/bi';
 import { PiStopFill } from 'react-icons/pi';
-import useLocalStorageState from 'use-local-storage-state';
-
-import { PageContent } from '@/components/page-container';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from 'sonner';
+import Typewriter from 'typewriter-effect';
+import useLocalStorageState from 'use-local-storage-state';
 
 export type ChatInputSubmitParams = {
   query: string;
@@ -195,15 +196,74 @@ export const ChatInput = ({
         welcome ? 'top-[30%]' : 'bottom-0',
       )}
     >
-      {welcome && (
-        <div className="mb-6 flex flex-col justify-center text-center">
-          <Bot className={cn('mb-6 size-18 self-center opacity-10')} />
-          <h3 className="mb-2 text-2xl font-medium">Hi, I&apos;m ApeRAG.</h3>
-          <p className="text-muted-foreground">How can I help you today?</p>
-        </div>
-      )}
       <PageContent className="max-w-5xl">
-        <div className="relative flex flex-col gap-2">
+        {welcome && (
+          <div className="mb-6 flex flex-col justify-center text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: 0.3,
+                ease: 'easeIn',
+                delay: 0,
+              }}
+              className="relative mx-auto mb-6 flex size-18 justify-center"
+            >
+              <Bot className="size-full opacity-10" />
+              <div className="opacity-30">
+                <div className="animate-caret-blink absolute top-9 left-6 h-3 w-1.5 rounded-sm bg-black dark:bg-white"></div>
+                <div className="animate-caret-blink absolute top-9 left-10.5 h-3 w-1.5 rounded-sm bg-black delay-75 dark:bg-white"></div>
+              </div>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: 0.3,
+                ease: 'easeIn',
+                delay: 0.1,
+              }}
+              className="mb-2 text-xl font-medium"
+            >
+              <Typewriter
+                options={{
+                  strings: [
+                    "Hi, I'm ApeRAG.",
+                    'How can I help you?',
+                    'Production-Ready RAG Platform',
+                    'Graph, Vector & Full-Text Search',
+                  ],
+                  autoStart: true,
+                  loop: true,
+                }}
+              />
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: 0.3,
+                ease: 'easeIn',
+                delay: 0.2,
+              }}
+              className="text-muted-foreground text-sm"
+            >
+              ApeRAG is a production-ready RAG platform that combines graph,
+              vector, and full-text search for hybrid retrieval, knowledge
+              management, and enterprise AI applications.
+            </motion.div>
+          </div>
+        )}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{
+            duration: 0.3,
+            ease: 'easeIn',
+            delay: 0.3,
+          }}
+          className="relative flex flex-col gap-2"
+        >
           <Label>
             <Mention
               trigger="@"
@@ -329,15 +389,12 @@ export const ChatInput = ({
                     }
                   }}
                 >
-                  {loading && (
-                    <LoaderCircle className="absolute size-full animate-spin opacity-30" />
-                  )}
                   {loading ? <PiStopFill /> : <BiSolidRightArrow />}
                 </Button>
               </div>
             </div>
           </Label>
-        </div>
+        </motion.div>
       </PageContent>
     </div>
   );

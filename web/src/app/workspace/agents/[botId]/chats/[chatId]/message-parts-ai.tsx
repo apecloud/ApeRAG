@@ -3,6 +3,7 @@ import { CopyToClipboard } from '@/components/copy-to-clipboard';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import _ from 'lodash';
 import { Bot, LoaderCircle } from 'lucide-react';
 import { MessageFeedback } from './message-feedback';
 import { MessagePartAi } from './message-part-ai';
@@ -26,18 +27,18 @@ export const MessagePartsAi = ({
   return (
     <div className="flex w-max max-w-[85%] flex-row gap-4">
       <div>
-        <div className="bg-muted text-muted-foreground relative flex size-10 flex-col justify-center rounded-full">
+        <div className="bg-muted text-muted-foreground relative flex size-12 flex-col justify-center rounded-full">
           {loading && (
-            <LoaderCircle className="absolute -left-1 size-12 animate-spin opacity-20" />
+            <LoaderCircle className="absolute -left-1 size-14 animate-spin opacity-20" />
           )}
-          <Bot className={cn('size-5 self-center')} />
+          <Bot className={cn('size-6 self-center')} />
         </div>
       </div>
       <div className="flex flex-col gap-1">
-        <Card className="py-4 dark:border-none">
-          <CardContent className="px-4">
+        <Card className="rounded-lg rounded-bl-none py-4 dark:border-none">
+          <CardContent className="px-4 text-sm">
             {pending ? (
-              <div className="flex flex-row gap-2">
+              <div className="flex flex-row gap-2 py-2">
                 <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-0"></div>
                 <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-200"></div>
                 <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-400"></div>
