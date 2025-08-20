@@ -20,6 +20,8 @@ const nextConfig: NextConfig = {
   // To disable this UI completely, set devIndicators: false in your next.config file.
   // devIndicators: false,
 
+  reactStrictMode: false,
+
   // Configure `pageExtensions` to include markdown and MDX files
   pageExtensions: ['js', 'jsx', 'md', 'mdx', 'ts', 'tsx'],
 

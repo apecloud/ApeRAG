@@ -25,6 +25,7 @@ import { apiClient } from '@/lib/api/client';
 import { useWebSocket } from 'ahooks';
 import { animateScroll as scroll } from 'react-scroll';
 
+import { cn } from '@/lib/utils';
 import { ReadyState } from 'ahooks/lib/useWebSocket';
 import _ from 'lodash';
 import {
@@ -63,7 +64,7 @@ const CollapseContent = ({
   );
 };
 
-const ReferenceContent = ({ parts }: { parts: ChatMessage[] }) => {
+const MessageReference = ({ parts }: { parts: ChatMessage[] }) => {
   const references = parts.findLast((part) => part.references)?.references;
   if (_.isEmpty(references)) {
     return;
@@ -124,7 +125,7 @@ const MessageTimestamp = ({ parts }: { parts: ChatMessage[] }) => {
   );
 };
 
-const UserMessage = ({ parts }: { parts: ChatMessage[] }) => {
+const UserMessageParts = ({ parts }: { parts: ChatMessage[] }) => {
   return (
     <div className="ml-auto flex w-max max-w-[85%] flex-row gap-4">
       <div className="flex flex-col gap-2">
@@ -180,30 +181,53 @@ const AIMessagePart = ({ part }: { part: ChatMessage }) => {
       );
     case 'message':
       return <Markdown>{part.data}</Markdown>;
+    case 'stop':
+      return '';
     default:
       return part.data;
   }
 };
 
-const AIMessage = ({ parts }: { parts: ChatMessage[] }) => {
+const AIMessageParts = ({
+  pending,
+  loading,
+  parts,
+}: {
+  pending: boolean;
+  loading: boolean;
+  parts: ChatMessage[];
+}) => {
   return (
     <div className="flex w-max max-w-[85%] flex-row gap-4">
       <div>
-        <div className="bg-muted text-muted-foreground flex size-10 flex-col justify-center rounded-full">
-          <Bot className="size-5 self-center" />
+        <div className="bg-muted text-muted-foreground relative flex size-10 flex-col justify-center rounded-full">
+          <Bot
+            className={cn(
+              'size-5 self-center',
+              loading ? 'animate-caret-blink' : '',
+            )}
+          />
         </div>
       </div>
       <div className="flex flex-col gap-1">
-        <Card className="py-4 dark:border-none">
+        <Card className="py-5 dark:border-none">
           <CardContent className="px-4">
-            {parts.map((part, index) => (
-              <AIMessagePart key={`${index}-${part.id}`} part={part} />
-            ))}
+            {pending ? (
+              <div className="flex flex-row gap-2">
+                <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-0"></div>
+                <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-200"></div>
+                <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-400"></div>
+              </div>
+            ) : (
+              parts.map((part, index) => (
+                <AIMessagePart key={`${index}-${part.id}`} part={part} />
+              ))
+            )}
           </CardContent>
         </Card>
         <div className="flex flex-row items-center gap-2">
           <MessageTimestamp parts={parts} />
-          <ReferenceContent parts={parts} />
+          <MessageReference parts={parts} />
           <CopyToClipboard
             variant="ghost"
             className="text-muted-foreground"
@@ -247,7 +271,6 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
         if (fragment.type === 'stop') {
           setLoading(false);
         }
-
         setMessages((msgs) => {
           const parts = msgs.findLast((parts) => {
             return Boolean(
@@ -256,23 +279,34 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
               ),
             );
           });
-
           if (parts) {
-            if (fragment.type === 'stop' && Array.isArray(fragment.data)) {
+            if (fragment.type === 'stop') {
               parts.push({
                 type: 'references',
-                references: fragment.data as Reference[],
+                references: Array.isArray(fragment.data)
+                  ? (fragment.data as Reference[])
+                  : [],
                 data: '',
                 role: 'ai',
               });
-            } else {
-              const part = parts.find((p) => {
-                if (fragment.type === 'message') {
-                  return p.type === 'message';
-                } else {
-                  return fragment.part_id && fragment.part_id === p.part_id;
-                }
+            }
+            if (fragment.type === 'start') {
+              parts.push({
+                ...fragment,
+                type: 'start',
+                data: '',
               });
+            } else if (fragment.type === 'message') {
+              const part = parts.find((p) => p.type === 'message');
+              if (part) {
+                part.data = (part.data || '') + fragment.data;
+              } else {
+                parts.push(fragment);
+              }
+            } else {
+              const part = parts.find(
+                (p) => fragment.part_id && fragment.part_id === p.part_id,
+              );
               if (part) {
                 part.data = (part.data || '') + fragment.data;
               } else {
@@ -340,11 +374,21 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
       <div className="text-md flex flex-col gap-6 pb-80">
         {messages?.map((parts, index) => {
           const isAI = parts.some((part) => part.role === 'ai');
+          const isAIPending =
+            loading &&
+            index + 1 === messages.length &&
+            isAI &&
+            parts.filter((p) => p.type !== 'start').length === 0;
 
           return isAI ? (
-            <AIMessage key={index} parts={parts} />
+            <AIMessageParts
+              pending={isAIPending}
+              loading={loading}
+              key={index}
+              parts={parts}
+            />
           ) : (
-            <UserMessage key={index} parts={parts} />
+            <UserMessageParts key={index} parts={parts} />
           );
         })}
       </div>

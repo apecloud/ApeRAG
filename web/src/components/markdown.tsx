@@ -14,8 +14,10 @@ import remarkMdxFrontmatter from 'remark-mdx-frontmatter';
 import { visit } from 'unist-util-visit';
 
 import { cn } from '@/lib/utils';
+import { ImageIcon } from 'lucide-react';
 import Link from 'next/link';
 import { AnchorLink } from './anchor-link';
+import { Skeleton } from './ui/skeleton';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from './ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
@@ -77,6 +79,17 @@ export const mdComponents = {
         {...props}
       />
     );
+  },
+  img: ({ src, ...props }: JSX.IntrinsicElements['img']) => {
+    if (!src) {
+      return (
+        <Skeleton className="h-[125px] w-[250px] rounded-xl pt-8 text-center">
+          <ImageIcon className="mx-auto size-12 opacity-20" />
+        </Skeleton>
+      );
+    } else {
+      return <img {...props} style={{ maxWidth: '100%', height: 'auto' }} />;
+    }
   },
   pre: ({ className, children }: JSX.IntrinsicElements['pre']) => {
     return (
