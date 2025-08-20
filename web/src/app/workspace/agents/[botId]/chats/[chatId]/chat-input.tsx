@@ -28,7 +28,9 @@ import _ from 'lodash';
 import { Globe } from 'lucide-react';
 import { useLocale } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
-import { BiSolidRightArrow, BiStop } from 'react-icons/bi';
+import { BiSolidRightArrow } from 'react-icons/bi';
+import { PiStopFill } from 'react-icons/pi';
+
 import { toast } from 'sonner';
 
 export type ChatInputSubmitParams = {
@@ -262,7 +264,11 @@ export const ChatInput = ({
                 }
               }}
             >
-              {loading ? <BiStop /> : <BiSolidRightArrow />}
+              {loading ? (
+                <PiStopFill className="animate-caret-blink" />
+              ) : (
+                <BiSolidRightArrow />
+              )}
             </Button>
           </div>
         </div>
