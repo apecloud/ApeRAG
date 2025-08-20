@@ -224,11 +224,12 @@ export const ChatInput = ({
               <MentionInput asChild>
                 <Textarea
                   className="resize-none rounded-xl pb-20"
-                  placeholder={
-                    disabled
-                      ? 'Network connection in progress, please wait...'
-                      : 'Type @ to mention a collection...'
-                  }
+                  // placeholder={
+                  //   disabled
+                  //     ? 'Network connection in progress, please wait...'
+                  //     : 'Type @ to mention a collection...'
+                  // }
+                  placeholder="Type @ to mention a collection..."
                   disabled={disabled}
                 />
               </MentionInput>
@@ -278,6 +279,7 @@ export const ChatInput = ({
                 <Select
                   value={modelName}
                   disabled={disabled}
+                  defaultValue={modelName}
                   onValueChange={(v) => {
                     setModelName(v);
                   }}
