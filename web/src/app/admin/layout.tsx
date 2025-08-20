@@ -45,6 +45,7 @@ export default async function Layout({
         <Sidebar>
           <SidebarHeader className="h-16 flex-row items-center gap-4 px-4 align-middle">
             <AppLogo />
+            <div className="text-lg font-bold">Admin</div>
           </SidebarHeader>
           <SidebarContent className="gap-0">
             {/* <SidebarGroup>

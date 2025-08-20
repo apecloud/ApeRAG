@@ -12,12 +12,14 @@ import { QuotaInfo } from '@/api';
 import {
   Card,
   CardContent,
+  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
 import { ChartConfig, ChartContainer } from '@/components/ui/chart';
 import { useMemo } from 'react';
+import { Badge } from '@/components/ui/badge';
 
 export const QuotaRadialChart = ({ data }: { data: QuotaInfo }) => {
   const chartData = [{ usage: data.current_usage, fill: `var(--color-quota)` }];
@@ -34,13 +36,29 @@ export const QuotaRadialChart = ({ data }: { data: QuotaInfo }) => {
   const quota = useMemo(() => {
     switch (data.quota_type) {
       case 'max_bot_count':
-        return { title: 'Bot Count' };
+        return {
+          title: 'Bot Count',
+          description:
+            'The upper limit for active bots in a system, preventing resource overuse and ensuring stability.',
+        };
       case 'max_collection_count':
-        return { title: 'Collection Count' };
+        return {
+          title: 'Collection Count',
+          description:
+            'The maximum allowed collections in a database, controlling data structure complexity.',
+        };
       case 'max_document_count':
-        return { title: 'Documents Overall' };
+        return {
+          title: 'Documents Overall',
+          description:
+            'Caps the total documents across all collections, managing overall storage capacity.',
+        };
       case 'max_document_count_per_collection':
-        return { title: 'Documents per Collection' };
+        return {
+          title: 'Documents per Collection',
+          description:
+            'Limits documents per collection, optimizing query performance and data balance.',
+        };
       default:
         return { title: data.quota_type };
     }
@@ -50,7 +68,7 @@ export const QuotaRadialChart = ({ data }: { data: QuotaInfo }) => {
     <Card className="flex flex-col gap-0 border-none">
       <CardHeader>
         <CardTitle>{quota.title}</CardTitle>
-        {/* <CardDescription>{data.quota_type}</CardDescription> */}
+        <CardDescription>{quota.description}</CardDescription>
       </CardHeader>
       <CardContent className="flex-1 pb-0">
         <ChartContainer
@@ -107,8 +125,8 @@ export const QuotaRadialChart = ({ data }: { data: QuotaInfo }) => {
         </ChartContainer>
       </CardContent>
       <CardFooter className="text-muted-foreground flex flex-row items-center justify-center gap-2 text-sm">
-        <div>limit: {data.quota_limit}</div>
-        <div>usage: {data.current_usage}</div>
+        <Badge variant="secondary">limit: {data.quota_limit}</Badge>
+        <Badge variant="secondary">usage: {data.current_usage}</Badge>
       </CardFooter>
     </Card>
   );
