@@ -1,7 +1,7 @@
-"use server";
+'use server';
 
-import { defaultLocale, localeCookieName, LocaleEnum, locales } from "@/config";
-import { cookies } from "next/headers";
+import { defaultLocale, localeCookieName, LocaleEnum, locales } from '@/config';
+import { cookies } from 'next/headers';
 
 /**
  * get locale
