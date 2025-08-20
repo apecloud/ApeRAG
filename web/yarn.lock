@@ -7225,7 +7225,6 @@ react-dom@19.1.0:
   dependencies:
     scheduler "^0.26.0"
 
-<<<<<<< HEAD
 react-file-icon@^1.6.0:
   version "1.6.0"
   resolved "https://registry.npmjs.org/react-file-icon/-/react-file-icon-1.6.0.tgz#88e1df4ef4308b2c935a06528c096f6f54ab80ea"
@@ -7234,8 +7233,6 @@ react-file-icon@^1.6.0:
     colord "^2.9.3"
     prop-types "^15.7.2"
 
-=======
->>>>>>> aebf8b4e (fix: collection page)
 react-hook-form@^7.62.0:
   version "7.62.0"
   resolved "https://registry.npmmirror.com/react-hook-form/-/react-hook-form-7.62.0.tgz#2d81e13c2c6b6d636548e440818341ca753218d0"
