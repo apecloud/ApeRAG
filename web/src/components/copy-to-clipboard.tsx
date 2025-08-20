@@ -15,7 +15,7 @@ export const CopyToClipboard = ({
   const handlerClick = useCallback(() => {
     if (text) {
       copy(text);
-      toast.success('copied');
+      toast.success('Copied');
     }
   }, [text]);
 

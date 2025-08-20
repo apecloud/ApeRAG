@@ -4,6 +4,7 @@ import {
   PageHeader,
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
+import { notFound } from 'next/navigation';
 import { ChatMessages } from './chat-messages';
 
 export default async function Page({
@@ -17,12 +18,18 @@ export default async function Page({
   const { botId, chatId } = await params;
   const serverApi = await getServerApi();
 
-  const res = await serverApi.defaultApi.botsBotIdChatsChatIdGet({
-    botId,
-    chatId,
-  });
+  let chat;
 
-  const chat = res.data;
+  try {
+    const res = await serverApi.defaultApi.botsBotIdChatsChatIdGet({
+      botId,
+      chatId,
+    });
+    chat = res.data;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  } catch (err) {
+    notFound();
+  }
 
   return (
     <PageContainer>

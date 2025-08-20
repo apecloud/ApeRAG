@@ -25,6 +25,7 @@ import { apiClient } from '@/lib/api/client';
 import { useWebSocket } from 'ahooks';
 import { animateScroll as scroll } from 'react-scroll';
 
+import { useWorkspaceContext } from '@/hooks/use-workspace-context';
 import { cn } from '@/lib/utils';
 import { ReadyState } from 'ahooks/lib/useWebSocket';
 import _ from 'lodash';
@@ -32,6 +33,7 @@ import {
   AlertCircleIcon,
   Bot,
   ChevronRight,
+  LoaderCircle,
   Sparkles,
   UserRound,
 } from 'lucide-react';
@@ -120,7 +122,7 @@ const MessageTimestamp = ({ parts }: { parts: ChatMessage[] }) => {
   const format = useFormatter();
   return (
     <div className="text-muted-foreground text-xs">
-      {timestamp && format.dateTime(new Date(timestamp), 'medium')}
+      {timestamp && format.dateTime(new Date(timestamp * 1000), 'medium')}
     </div>
   );
 };
@@ -201,12 +203,10 @@ const AIMessageParts = ({
     <div className="flex w-max max-w-[85%] flex-row gap-4">
       <div>
         <div className="bg-muted text-muted-foreground relative flex size-10 flex-col justify-center rounded-full">
-          <Bot
-            className={cn(
-              'size-5 self-center',
-              loading ? 'animate-caret-blink' : '',
-            )}
-          />
+          {loading && (
+            <LoaderCircle className="absolute -left-1 size-12 animate-spin opacity-20" />
+          )}
+          <Bot className={cn('size-5 self-center')} />
         </div>
       </div>
       <div className="flex flex-col gap-1">
@@ -225,7 +225,7 @@ const AIMessageParts = ({
             )}
           </CardContent>
         </Card>
-        <div className="flex flex-row items-center gap-2">
+        <div className="flex flex-row items-center gap-1">
           <MessageTimestamp parts={parts} />
           <MessageReference parts={parts} />
           <CopyToClipboard
@@ -241,9 +241,11 @@ const AIMessageParts = ({
 
 export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
   const isMobile = useIsMobile();
+  const { chatRename } = useWorkspaceContext();
   const [messages, setMessages] = useState<Array<Array<ChatMessage>>>(
     chat.history || [],
   );
+
   const [loading, setLoading] = useState<boolean>(false);
   const { botId, chatId } = useParams<{ botId: string; chatId: string }>();
   const { protocol, host } = useMemo(() => {
@@ -270,12 +272,18 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
         }
         if (fragment.type === 'stop') {
           setLoading(false);
+          if (chatRename) {
+            chatRename(chat);
+          }
         }
         setMessages((msgs) => {
           const parts = msgs.findLast((parts) => {
             return Boolean(
               parts.find(
-                (part) => part.id === fragment.id && part.role === 'ai',
+                (part) =>
+                  part.id !== 'error' &&
+                  part.id === fragment.id &&
+                  part.role === 'ai',
               ),
             );
           });
@@ -372,18 +380,18 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
   return (
     <>
       <div className="text-md flex flex-col gap-6 pb-80">
-        {messages?.map((parts, index) => {
+        {messages.map((parts, index) => {
           const isAI = parts.some((part) => part.role === 'ai');
+          const isLoading = loading && index + 1 === messages.length;
           const isAIPending =
-            loading &&
-            index + 1 === messages.length &&
-            isAI &&
-            parts.filter((p) => p.type !== 'start').length === 0;
+            isLoading &&
+            parts.filter((p) => p.type !== 'start').length === 0 &&
+            isAI;
 
           return isAI ? (
             <AIMessageParts
               pending={isAIPending}
-              loading={loading}
+              loading={isLoading}
               key={index}
               parts={parts}
             />
@@ -391,18 +399,33 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
             <UserMessageParts key={index} parts={parts} />
           );
         })}
-      </div>
-      <div
-        className={`fixed ${isMobile ? 'left-0' : 'left-[var(--sidebar-width)]'} bg-background right-0 bottom-0 z-10`}
-      >
-        <PageContent className="max-w-5xl pb-12">
-          <ChatInput
-            onSubmit={handleSendMessage}
-            disabled={readyState !== ReadyState.Open}
-            loading={loading}
-            onCancel={handleCancel}
-          />
-        </PageContent>
+
+        <div
+          className={cn(
+            'bg-background fixed right-0 z-10',
+            isMobile ? 'left-0' : 'left-[var(--sidebar-width)]',
+            _.isEmpty(messages) ? 'top-[30%]' : 'bottom-0',
+          )}
+        >
+          {_.isEmpty(messages) && (
+            <div className="mb-6 flex flex-col justify-center text-center">
+              <Bot className={cn('mb-6 size-18 self-center opacity-10')} />
+              <h3 className="mb-2 text-2xl font-medium">
+                Hi, I&apos;m ApeRAG.
+              </h3>
+              <p className="text-muted-foreground">How can I help you today?</p>
+            </div>
+          )}
+
+          <PageContent className="max-w-5xl pb-12">
+            <ChatInput
+              onSubmit={handleSendMessage}
+              disabled={readyState !== ReadyState.Open}
+              loading={loading}
+              onCancel={handleCancel}
+            />
+          </PageContent>
+        </div>
       </div>
     </>
   );

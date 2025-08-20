@@ -24,9 +24,10 @@ request.interceptors.response.use(
     return response;
   },
   function (err: any) {
-    const bizData = err.response?.data;
-    if (bizData?.message) {
-      toast.error(bizData.message);
+    const bizMessage =
+      err.response?.data?.message || err.response?.data?.detail.message;
+    if (bizMessage) {
+      toast.error(bizMessage);
     }
     return Promise.reject(err);
   },
