@@ -21,6 +21,46 @@ import { Skeleton } from './ui/skeleton';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from './ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
+const securityLink = (props: JSX.IntrinsicElements['a']) => {
+  const target = props.href?.match(/^http/) ? '_blank' : '_self';
+  const url = props.href?.replace(/\.md/, '');
+
+  const isNavLink = props.className?.includes('toc-link');
+  return isNavLink ? (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <AnchorLink {...props} href={url || '/'} target={target} />
+      </TooltipTrigger>
+      <TooltipContent side={isNavLink ? 'left' : 'top'}>
+        {props.children}
+      </TooltipContent>
+    </Tooltip>
+  ) : (
+    <Link {...props} href={url || '/'} target={target} className="underline">
+      {props.children}
+    </Link>
+  );
+};
+
+const unSecurityLink = (props: JSX.IntrinsicElements['a']) => {
+  const url = props.href?.replace(/\.md/, '');
+  const isNavLink = props.className?.includes('toc-link');
+  return isNavLink ? (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <AnchorLink {...props} href={url || '/'} target="_blank" />
+      </TooltipTrigger>
+      <TooltipContent side={isNavLink ? 'left' : 'top'}>
+        {props.children}
+      </TooltipContent>
+    </Tooltip>
+  ) : (
+    <Link {...props} href={url || '/'} target="_blank" className="underline">
+      {props.children}
+    </Link>
+  );
+};
+
 export const mdComponents = {
   h1: (props: JSX.IntrinsicElements['h1']) => (
     <h1 className="my-6 text-5xl font-bold">{props.children}</h1>
@@ -43,29 +83,6 @@ export const mdComponents = {
   p: (props: JSX.IntrinsicElements['p']) => (
     <div className="my-1">{props.children}</div>
   ),
-  a: (props: JSX.IntrinsicElements['a']) => {
-    const target = props.href?.match(/^http/) ? '_blank' : '_self';
-    const url = props.href?.replace(/\.md/, '');
-
-    const isNavLink = props.className?.includes('toc-link');
-    return isNavLink ? (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <AnchorLink {...props} href={url || '/'} target={target} />
-        </TooltipTrigger>
-        <TooltipContent side={isNavLink ? 'left' : 'top'}>
-          {props.children}
-        </TooltipContent>
-      </Tooltip>
-    ) : (
-      <Link
-        {...props}
-        href={url || '/'}
-        target={target}
-        className="underline"
-      />
-    );
-  },
   blockquote: ({
     className,
     ...props
@@ -88,7 +105,16 @@ export const mdComponents = {
         </Skeleton>
       );
     } else {
-      return <img {...props} style={{ maxWidth: '100%', height: 'auto' }} />;
+      return (
+        <img
+          src={src}
+          width={props.width}
+          height={props.height}
+          alt={props.alt}
+          title={props.title}
+          style={{ maxWidth: '100%', height: 'auto' }}
+        />
+      );
     }
   },
   pre: ({ className, children }: JSX.IntrinsicElements['pre']) => {
@@ -117,10 +143,12 @@ export const mdComponents = {
     }
   },
   ul: ({ className, ...props }: JSX.IntrinsicElements['ul']) => {
-    return <ul className={cn('my-2 list-disc pl-4', className)} {...props} />;
+    return (
+      <ul className={cn('my-2 list-disc pl-4', className)}>{props.children}</ul>
+    );
   },
   li: ({ className, ...props }: JSX.IntrinsicElements['li']) => {
-    return <li className={cn('list-item', className)} {...props} />;
+    return <li className={cn('list-item', className)}>{props.children}</li>;
   },
   nav: (props: JSX.IntrinsicElements['nav']) => {
     if (props.className === 'toc') {
@@ -183,12 +211,21 @@ export const mdRemarkPlugins: any = [
   ],
 ];
 
-export const Markdown = ({ children }: { children?: string }) => {
+export const Markdown = ({
+  security = true,
+  children,
+}: {
+  security?: boolean;
+  children?: string;
+}) => {
   return (
     <ReactMarkdown
       rehypePlugins={mdRehypePlugins}
       remarkPlugins={mdRemarkPlugins}
-      components={mdComponents}
+      components={{
+        a: security ? securityLink : unSecurityLink,
+        ...mdComponents,
+      }}
     >
       {children}
     </ReactMarkdown>

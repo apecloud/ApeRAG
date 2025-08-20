@@ -28,6 +28,7 @@ import {
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ChatsMenu } from './chats-menu';
+import { WorkspaceProvider } from './workspace-provider';
 
 export default async function Layout({
   children,
@@ -59,7 +60,7 @@ export default async function Layout({
   }
 
   return (
-    <>
+    <WorkspaceProvider bot={toJson(bot)} chats={toJson(chats)}>
       <SidebarProvider>
         <Sidebar>
           <SidebarHeader className="h-16 flex-row items-center gap-4 px-4 align-middle">
@@ -87,7 +88,7 @@ export default async function Layout({
                 </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroup>
-            {bot && <ChatsMenu bot={toJson(bot)} chats={toJson(chats)} />}
+            {bot && <ChatsMenu />}
           </SidebarContent>
 
           <SidebarFooter className="gap-0">
@@ -132,6 +133,6 @@ export default async function Layout({
         </Sidebar>
         <SidebarInset>{children}</SidebarInset>
       </SidebarProvider>
-    </>
+    </WorkspaceProvider>
   );
 }

@@ -24,10 +24,11 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { apiClient } from '@/lib/api/client';
+import { cn } from '@/lib/utils';
 import _ from 'lodash';
-import { Globe } from 'lucide-react';
+import { Globe, LoaderCircle } from 'lucide-react';
 import { useLocale } from 'next-intl';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BiSolidRightArrow } from 'react-icons/bi';
 import { PiStopFill } from 'react-icons/pi';
 
@@ -35,7 +36,7 @@ import { toast } from 'sonner';
 
 export type ChatInputSubmitParams = {
   query: string;
-  collections: string[];
+  collections: Collection[];
   completion: {
     model: string;
     model_service_provider: string;
@@ -117,7 +118,9 @@ export const ChatInput = ({
 
     const data = {
       query: _query,
-      collections: selectedCollections,
+      collections: collections.filter((c) =>
+        selectedCollections.some((id) => c.id === id),
+      ),
       completion: {
         model: modelName,
         model_service_provider: provider?.name || '',
@@ -131,6 +134,7 @@ export const ChatInput = ({
     // setSelectedCollections([]);
     onSubmit(data);
   }, [
+    collections,
     isComposing,
     locale,
     modelName,
@@ -152,6 +156,10 @@ export const ChatInput = ({
       });
     }
   }, [modelName, providerModels]);
+
+  const enabledColelctions = useMemo(() => {
+    return collections.filter((c) => !selectedCollections.includes(c.id || ''));
+  }, [collections, selectedCollections]);
 
   useEffect(() => {
     loadData();
@@ -179,25 +187,34 @@ export const ChatInput = ({
           <MentionInput asChild>
             <Textarea
               className="resize-none rounded-xl pb-15"
-              placeholder="Type @ to mention a collection..."
+              placeholder={
+                disabled
+                  ? 'Network connection in progress, please wait...'
+                  : 'Type @ to mention a collection...'
+              }
               disabled={disabled}
             />
           </MentionInput>
-          <MentionContent>
-            {collections
-              .filter((c) => !selectedCollections.includes(c.id || ''))
-              .map((collection) => (
+          <MentionContent className="w-60">
+            {enabledColelctions.length ? (
+              enabledColelctions.map((collection) => (
                 <MentionItem
                   key={collection.id}
                   value={collection.id || ''}
                   className="flex-col items-start gap-0.5"
+                  disabled={collection.status !== 'ACTIVE'}
                 >
                   <span className="text-sm">{collection.title}</span>
                   <span className="text-muted-foreground text-xs">
-                    {collection.title}
+                    {collection.id}
                   </span>
                 </MentionItem>
-              ))}
+              ))
+            ) : (
+              <div className="text-muted-foreground p-4 text-center text-xs">
+                No collection was found.
+              </div>
+            )}
           </MentionContent>
         </Mention>
 
@@ -210,7 +227,7 @@ export const ChatInput = ({
                   variant={webSearchEnabled ? 'outline' : 'default'}
                   onClick={() => setWebSearchEnabled(!webSearchEnabled)}
                   aria-label="Web search"
-                  className="bg-accent"
+                  className={cn('relative cursor-pointer')}
                   disabled={disabled}
                 >
                   <Globe
@@ -228,7 +245,7 @@ export const ChatInput = ({
                 setModelName(v);
               }}
             >
-              <SelectTrigger className="w-60">
+              <SelectTrigger className="w-60 cursor-pointer">
                 <SelectValue placeholder="Select a model" />
               </SelectTrigger>
               <SelectContent>
@@ -256,6 +273,7 @@ export const ChatInput = ({
             <Button
               size="icon"
               disabled={disabled}
+              className={cn('relative cursor-pointer rounded-full')}
               onClick={() => {
                 if (loading) {
                   onCancel();
@@ -264,11 +282,10 @@ export const ChatInput = ({
                 }
               }}
             >
-              {loading ? (
-                <PiStopFill className="animate-caret-blink" />
-              ) : (
-                <BiSolidRightArrow />
+              {loading && (
+                <LoaderCircle className="absolute size-full animate-spin opacity-30" />
               )}
+              {loading ? <PiStopFill /> : <BiSolidRightArrow />}
             </Button>
           </div>
         </div>

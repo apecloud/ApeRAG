@@ -1,14 +1,6 @@
 'use client';
 
-import { Bot, Chat } from '@/api';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -23,78 +15,25 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { apiClient } from '@/lib/api/client';
-import { EllipsisVertical, Plus, SquarePen, Trash } from 'lucide-react';
+import { useWorkspaceContext } from '@/hooks/use-workspace-context';
+import _ from 'lodash';
+import { Plus, Trash } from 'lucide-react';
 import Link from 'next/link';
-import { useParams, usePathname, useRouter } from 'next/navigation';
-import { useCallback, useState } from 'react';
+import { usePathname } from 'next/navigation';
 
-export const ChatsMenu = ({
-  bot,
-  chats: initChats,
-}: {
-  bot: Bot;
-  chats: Chat[];
-}) => {
-  const [chats, setChats] = useState<Chat[]>(initChats);
+export const ChatsMenu = () => {
+  const { bot, chats, chatCreate, chatDelete } = useWorkspaceContext();
   const pathname = usePathname();
-  const params = useParams();
-  const router = useRouter();
-
-  const loadChats = useCallback(async () => {
-    if (!bot?.id) return;
-    const chatsRes = await apiClient.defaultApi.botsBotIdChatsGet({
-      botId: bot.id,
-    });
-    setChats(chatsRes.data.items || []);
-  }, [bot?.id]);
-
-  const handleDelete = useCallback(
-    async (chat: Chat) => {
-      if (!chat.bot_id || !chat.id) return;
-      await apiClient.defaultApi.botsBotIdChatsChatIdDelete({
-        botId: chat.bot_id,
-        chatId: chat.id,
-      });
-
-      if (params.chatId === chat.id) {
-        const item = chats?.find((c) => c.id !== chat.id);
-        if (item) {
-          router.push(`/workspace/agents/${item.bot_id}/chats/${item.id}`);
-        } else {
-          router.push('/workspace/collections');
-        }
-      }
-      loadChats();
-    },
-    [chats, loadChats, params.chatId, router],
-  );
-
-  const handleCreate = useCallback(async () => {
-    if (!bot?.id) return;
-    const res = await apiClient.defaultApi.botsBotIdChatsPost({
-      botId: bot.id,
-      chatCreate: {
-        title: '',
-      },
-    });
-
-    if (res.data.id) {
-      router.push(`/workspace/agents/${bot.id}/chats/${res.data.id}`);
-      loadChats();
-    }
-  }, [bot?.id, loadChats, router]);
-
   return (
     <SidebarGroup>
       <SidebarGroupLabel className="mb-1 flex flex-row justify-between pr-0">
         <span>Chats</span>
-        {chats.length > 0 && (
+        {_.size(chats) > 0 && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 className="-mr-0.5 size-8 cursor-pointer"
-                onClick={handleCreate}
+                onClick={chatCreate}
               >
                 <Plus />
                 <span className="sr-only">Create chat</span>
@@ -106,42 +45,56 @@ export const ChatsMenu = ({
       </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
-          {chats.length > 0 ? (
-            chats.map((chat) => {
+          {_.size(chats) > 0 ? (
+            chats?.map((chat) => {
               const url = `/workspace/agents/${bot?.id}/chats/${chat.id}`;
               return (
-                <DropdownMenu key={chat.id}>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === url}>
-                      <Link href={url}>{chat.title}</Link>
-                    </SidebarMenuButton>
-                    <DropdownMenuTrigger asChild>
-                      <SidebarMenuAction className="data-[state=open]:bg-accent cursor-pointer">
-                        <EllipsisVertical className="text-muted-foreground" />
-                      </SidebarMenuAction>
-                    </DropdownMenuTrigger>
+                // <DropdownMenu key={chat.id}>
+                //   <SidebarMenuItem className="group/item">
+                //     <SidebarMenuButton asChild isActive={pathname === url}  >
+                //       <Link href={url}>{chat.title}</Link>
+                //     </SidebarMenuButton>
 
-                    <DropdownMenuContent side="right" align="start">
-                      <DropdownMenuItem className="cursor-pointer">
-                        <SquarePen /> Rename
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="cursor-pointer"
-                        variant="destructive"
-                        onClick={() => handleDelete(chat)}
-                      >
-                        <Trash /> Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </SidebarMenuItem>
-                </DropdownMenu>
+                //     <DropdownMenuTrigger asChild>
+                //       <SidebarMenuAction className="data-[state=open]:bg-accent cursor-pointer invisible group-hover/item:visible">
+                //         <EllipsisVertical className="text-muted-foreground" />
+                //       </SidebarMenuAction>
+                //     </DropdownMenuTrigger>
+
+                //     <DropdownMenuContent side="right" align="start">
+                //       <DropdownMenuItem className="cursor-pointer">
+                //         <SquarePen /> Rename
+                //       </DropdownMenuItem>
+                //       <DropdownMenuSeparator />
+                //       <DropdownMenuItem
+                //         className="cursor-pointer"
+                //         variant="destructive"
+                //         onClick={() => handleDelete(chat)}
+                //       >
+                //         <Trash /> Delete
+                //       </DropdownMenuItem>
+                //     </DropdownMenuContent>
+                //   </SidebarMenuItem>
+                // </DropdownMenu>
+                <SidebarMenuItem key={chat.id} className="group/item">
+                  <SidebarMenuButton asChild isActive={pathname === url}>
+                    <Link href={url}>
+                      <span className="block truncate">{chat.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                  <SidebarMenuAction
+                    className="invisible cursor-pointer group-hover/item:visible"
+                    onClick={() => chatDelete && chatDelete(chat)}
+                  >
+                    <Trash className="opacity-40 hover:opacity-100" />
+                  </SidebarMenuAction>
+                </SidebarMenuItem>
               );
             })
           ) : (
             <SidebarMenuItem>
               <SidebarMenuButton
-                onClick={handleCreate}
+                onClick={chatCreate}
                 className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground min-w-8 cursor-pointer duration-200 ease-linear"
               >
                 <Plus />
