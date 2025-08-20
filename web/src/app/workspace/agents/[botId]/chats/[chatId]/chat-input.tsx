@@ -263,7 +263,15 @@ export const ChatInput = ({
                   <TooltipTrigger asChild>
                     <Toggle
                       variant={webSearchEnabled ? 'outline' : 'default'}
-                      onClick={() => setWebSearchEnabled(!webSearchEnabled)}
+                      onClick={() => {
+                        const enabled = !webSearchEnabled;
+                        toast.success(
+                          enabled
+                            ? 'Web search is enabled'
+                            : 'Web search is disabled',
+                        );
+                        setWebSearchEnabled(enabled);
+                      }}
                       aria-label="Web search"
                       className={cn('relative cursor-pointer')}
                       disabled={disabled}
