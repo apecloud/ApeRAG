@@ -78,25 +78,37 @@ const unSecurityLink = (props: JSX.IntrinsicElements['a']) => {
 
 export const mdComponents = {
   h1: (props: JSX.IntrinsicElements['h1']) => (
-    <h1 className="my-6 text-5xl font-bold">{props.children}</h1>
+    <h1 className="my-6 text-5xl font-bold first:mt-0 last:mb-0">
+      {props.children}
+    </h1>
   ),
   h2: (props: JSX.IntrinsicElements['h2']) => (
-    <h2 className="my-5 text-4xl font-bold">{props.children}</h2>
+    <h2 className="my-5 text-4xl font-bold first:mt-0 last:mb-0">
+      {props.children}
+    </h2>
   ),
   h3: (props: JSX.IntrinsicElements['h3']) => (
-    <h3 className="my-4 text-3xl font-bold">{props.children}</h3>
+    <h3 className="my-4 text-3xl font-bold first:mt-0 last:mb-0">
+      {props.children}
+    </h3>
   ),
   h4: (props: JSX.IntrinsicElements['h4']) => (
-    <h4 className="my-3 text-2xl font-bold">{props.children}</h4>
+    <h4 className="my-3 text-2xl font-bold first:mt-0 last:mb-0">
+      {props.children}
+    </h4>
   ),
   h5: (props: JSX.IntrinsicElements['h5']) => (
-    <h5 className="my-2 text-xl font-bold">{props.children}</h5>
+    <h5 className="my-2 text-xl font-bold first:mt-0 last:mb-0">
+      {props.children}
+    </h5>
   ),
   h6: (props: JSX.IntrinsicElements['h6']) => (
-    <h6 className="my-2 text-lg font-bold">{props.children}</h6>
+    <h6 className="my-2 text-lg font-bold first:mt-0 last:mb-0">
+      {props.children}
+    </h6>
   ),
   p: (props: JSX.IntrinsicElements['p']) => (
-    <div className="my-2">{props.children}</div>
+    <div className="my-2 first:mt-0 last:mb-0">{props.children}</div>
   ),
   blockquote: ({
     className,
@@ -105,7 +117,7 @@ export const mdComponents = {
     return (
       <blockquote
         className={cn(
-          'text-muted-foreground my-4 border-l-4 py-1 pl-4',
+          'text-muted-foreground my-4 border-l-4 py-1 pl-4 first:mt-0 last:mb-0',
           className,
         )}
         {...props}
@@ -115,7 +127,7 @@ export const mdComponents = {
   img: ({ src, ...props }: JSX.IntrinsicElements['img']) => {
     if (!src) {
       return (
-        <Skeleton className="h-[125px] w-full rounded-xl pt-8 text-center">
+        <Skeleton className="h-[125px] w-full rounded-xl py-4 pt-8 text-center">
           <ImageIcon className="mx-auto size-12 opacity-20" />
         </Skeleton>
       );
@@ -185,7 +197,7 @@ export const mdComponents = {
     }
   },
   table: (props: JSX.IntrinsicElements['table']) => (
-    <div className="overflow-hidden rounded-lg border">
+    <div className="my-4 overflow-hidden rounded-lg border">
       <Table {...props} />
     </div>
   ),

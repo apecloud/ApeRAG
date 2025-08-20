@@ -139,7 +139,7 @@ const UserMessageParts = ({ parts }: { parts: ChatMessage[] }) => {
     <div className="ml-auto flex w-max max-w-[85%] flex-row gap-4">
       <div className="flex flex-col gap-2">
         <div className="bg-primary text-primary-foreground rounded-lg px-4 py-3 text-sm">
-          {parts?.map((part) => part.data || '').join('')}
+          <Markdown>{parts?.map((part) => part.data || '').join('')}</Markdown>
         </div>
         <MessageTimestamp parts={parts} />
       </div>
@@ -217,7 +217,7 @@ const AIMessageParts = ({
         </div>
       </div>
       <div className="flex flex-col gap-1">
-        <Card className="py-5 dark:border-none">
+        <Card className="py-4 dark:border-none">
           <CardContent className="px-4">
             {pending ? (
               <div className="flex flex-row gap-2">
