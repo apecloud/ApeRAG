@@ -27,7 +27,7 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   experimental: {
     serverActions: {
-      bodySizeLimit: '5mb',
+      bodySizeLimit: "5mb",
     },
   },
 
@@ -46,7 +46,7 @@ const nextConfig: NextConfig = {
 const withNextIntl = createNextIntlPlugin({
   experimental: {
     // Provide the path to the messages that you're using in `AppConfig`
-    createMessagesDeclaration: './src/i18n/en-US.json',
+    createMessagesDeclaration: "./src/i18n/en-US.json",
   },
 });
 
