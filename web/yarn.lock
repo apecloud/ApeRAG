@@ -2278,6 +2278,7 @@
   resolved "https://registry.npmjs.org/@types/react-dom/-/react-dom-19.1.7.tgz#2863f2aa89e023592b981204ef92c5221b286410"
   integrity sha512-i5ZzwYpqjmrKenzkoLM2Ibzt6mAsM7pxB6BCIouEVVmgiqaMj1TjaK7hnA36hbW5aZv20kx7Lw6hWzPWg0Rurw==
 
+<<<<<<< HEAD
 "@types/react-file-icon@^1.0.4":
   version "1.0.4"
   resolved "https://registry.npmjs.org/@types/react-file-icon/-/react-file-icon-1.0.4.tgz#6825b0e6b8ab639f7f25a6cd52499650d3afcd89"
@@ -2292,6 +2293,8 @@
   dependencies:
     "@types/react" "*"
 
+=======
+>>>>>>> 72fe3549 (fix: page container)
 "@types/react@*", "@types/react@^19":
   version "19.1.10"
   resolved "https://registry.npmjs.org/@types/react/-/react-19.1.10.tgz#a05015952ef328e1b85579c839a71304b07d21d9"
