@@ -61,6 +61,7 @@ import {
   EllipsisVertical,
   Plus,
 } from 'lucide-react';
+import { ApiKeyActions } from './api-key-actions';
 
 export const schema = z.object({
   id: z.number(),
@@ -126,7 +127,7 @@ const columns: ColumnDef<ApiKey>[] = [
   {
     id: 'actions',
     enableHiding: false,
-    cell: () => (
+    cell: ({ row }) => (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -139,9 +140,13 @@ const columns: ColumnDef<ApiKey>[] = [
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-32">
-          <DropdownMenuItem>Edit</DropdownMenuItem>
+          <ApiKeyActions action="edit" apiKey={row.original}>
+            <DropdownMenuItem>Edit</DropdownMenuItem>
+          </ApiKeyActions>
           <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive">Delete</DropdownMenuItem>
+          <ApiKeyActions action="delete" apiKey={row.original}>
+            <DropdownMenuItem variant="destructive">Delete</DropdownMenuItem>
+          </ApiKeyActions>
         </DropdownMenuContent>
       </DropdownMenu>
     ),
@@ -226,10 +231,12 @@ export function DataTable({ data }: { data: ApiKey[] }) {
                 })}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button size="sm">
-            <Plus />
-            <span className="hidden lg:inline">Create a API Key</span>
-          </Button>
+          <ApiKeyActions action="add">
+            <Button size="sm">
+              <Plus />
+              <span className="hidden lg:inline">Create API Key</span>
+            </Button>
+          </ApiKeyActions>
         </div>
       </div>
       <div className="overflow-hidden rounded-lg border">
