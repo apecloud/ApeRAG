@@ -66,19 +66,18 @@ export const ChatsMenu = () => {
                     className="data-[active=true]:font-normal"
                   >
                     <Link href={url}>
-                      <span className="block truncate">
-                        <motion.div
-                          initial={{ opacity: 0, x: 80 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{
-                            duration: 0.2,
-                            ease: 'easeIn',
-                            delay: index * 0.1,
-                          }}
-                        >
-                          {chat.title}
-                        </motion.div>
-                      </span>
+                      <motion.div
+                        initial={{ opacity: 0, x: 40 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{
+                          duration: 0.2,
+                          ease: 'easeIn',
+                          delay: index * 0.05,
+                        }}
+                        className="block truncate"
+                      >
+                        {chat.title}
+                      </motion.div>
                     </Link>
                   </SidebarMenuButton>
                   <SidebarMenuAction
