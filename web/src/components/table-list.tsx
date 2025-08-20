@@ -51,7 +51,7 @@ export const TableList = ({
                   <TableHead
                     key={header.id}
                     colSpan={header.colSpan}
-                    className="py-3"
+                    className="py-4"
                   >
                     {header.isPlaceholder
                       ? null
@@ -69,12 +69,12 @@ export const TableList = ({
           {table.getRowModel().rows?.length ? (
             table.getRowModel().rows.map((row) => (
               <TableRow
-                key={row.original.id}
+                key={row.original.id || row.original.name}
                 data-state={row.getIsSelected() && 'selected'}
                 className="relative z-0 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80"
               >
                 {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id} className="py-2">
+                  <TableCell key={cell.id} className="py-4">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>
                 ))}
