@@ -4,11 +4,15 @@ import type { Metadata } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
 import { Geist, Geist_Mono } from 'next/font/google';
 import NextTopLoader from 'nextjs-toploader';
+<<<<<<< HEAD
 
 import { AppProvider } from '@/components/app-provider';
 import { ThemeProvider } from '@/components/theme-provider';
 
 import 'highlight.js/styles/github-dark.css';
+=======
+import { GlobalProvider } from './global-provider';
+>>>>>>> 87ec7d8e (fix: add topbar loader)
 import './globals.css';
 
 const geistSans = Geist({
