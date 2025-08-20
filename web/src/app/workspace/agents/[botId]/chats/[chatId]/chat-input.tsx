@@ -31,6 +31,7 @@ import { useLocale } from 'next-intl';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BiSolidRightArrow } from 'react-icons/bi';
 import { PiStopFill } from 'react-icons/pi';
+import useLocalStorageState from 'use-local-storage-state';
 
 import { toast } from 'sonner';
 
@@ -70,8 +71,15 @@ export const ChatInput = ({
   const [query, setQuery] = useState<string>('');
   const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
 
-  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
-  const [modelName, setModelName] = useState<string>();
+  const [webSearchEnabled, setWebSearchEnabled] = useLocalStorageState<boolean>(
+    'web-search-enabled',
+    {
+      defaultValue: false,
+    },
+  );
+  const [modelName, setModelName] = useLocalStorageState<string | undefined>(
+    'local-agent-completion-model',
+  );
 
   const loadData = useCallback(async () => {
     const [modelRes, collectionsRes] = await Promise.all([
@@ -146,16 +154,25 @@ export const ChatInput = ({
   ]);
 
   useEffect(() => {
-    if (!modelName && providerModels) {
-      providerModels.forEach((provider) => {
-        provider.models?.forEach((m) => {
-          if (m.tags?.some((t) => t === 'default_for_agent_completion')) {
-            setModelName(m.model);
-          }
-        });
-      });
+    if (_.isEmpty(providerModels)) {
+      return;
     }
-  }, [modelName, providerModels]);
+    let defaultModel: string | undefined;
+    let includesCurrentModel = false;
+    providerModels?.forEach((provider) => {
+      provider.models?.forEach((m) => {
+        if (m.tags?.some((t) => t === 'default_for_agent_completion')) {
+          defaultModel = m.model;
+        }
+        if (m.model === modelName) {
+          includesCurrentModel = true;
+        }
+      });
+    });
+    if (!includesCurrentModel) {
+      setModelName(defaultModel);
+    }
+  }, [modelName, providerModels, setModelName]);
 
   const enabledColelctions = useMemo(() => {
     return collections.filter((c) => !selectedCollections.includes(c.id || ''));

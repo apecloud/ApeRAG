@@ -45,37 +45,20 @@ export const ChatsMenu = () => {
       </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
-          {_.size(chats) > 0 ? (
+          {_.isEmpty(chats) ? (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={chatCreate}
+                className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground min-w-8 cursor-pointer duration-200 ease-linear"
+              >
+                <Plus />
+                <span>Create chat</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ) : (
             chats?.map((chat) => {
               const url = `/workspace/agents/${bot?.id}/chats/${chat.id}`;
               return (
-                // <DropdownMenu key={chat.id}>
-                //   <SidebarMenuItem className="group/item">
-                //     <SidebarMenuButton asChild isActive={pathname === url}  >
-                //       <Link href={url}>{chat.title}</Link>
-                //     </SidebarMenuButton>
-
-                //     <DropdownMenuTrigger asChild>
-                //       <SidebarMenuAction className="data-[state=open]:bg-accent cursor-pointer invisible group-hover/item:visible">
-                //         <EllipsisVertical className="text-muted-foreground" />
-                //       </SidebarMenuAction>
-                //     </DropdownMenuTrigger>
-
-                //     <DropdownMenuContent side="right" align="start">
-                //       <DropdownMenuItem className="cursor-pointer">
-                //         <SquarePen /> Rename
-                //       </DropdownMenuItem>
-                //       <DropdownMenuSeparator />
-                //       <DropdownMenuItem
-                //         className="cursor-pointer"
-                //         variant="destructive"
-                //         onClick={() => handleDelete(chat)}
-                //       >
-                //         <Trash /> Delete
-                //       </DropdownMenuItem>
-                //     </DropdownMenuContent>
-                //   </SidebarMenuItem>
-                // </DropdownMenu>
                 <SidebarMenuItem key={chat.id} className="group/item">
                   <SidebarMenuButton asChild isActive={pathname === url}>
                     <Link href={url}>
@@ -91,16 +74,6 @@ export const ChatsMenu = () => {
                 </SidebarMenuItem>
               );
             })
-          ) : (
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                onClick={chatCreate}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground min-w-8 cursor-pointer duration-200 ease-linear"
-              >
-                <Plus />
-                <span>Create chat</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
           )}
         </SidebarMenu>
       </SidebarGroupContent>
