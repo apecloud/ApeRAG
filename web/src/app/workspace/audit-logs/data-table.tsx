@@ -15,8 +15,6 @@ import {
 } from '@tanstack/react-table';
 import * as React from 'react';
 
-import { z } from 'zod';
-
 import { Button } from '@/components/ui/button';
 
 import { Checkbox } from '@/components/ui/checkbox';
@@ -41,17 +39,7 @@ import { DateTimePicker24h } from '@/components/date-time-picker-24h';
 import _ from 'lodash';
 import { ChevronDown, Columns3, Search } from 'lucide-react';
 import { useFormatter } from 'next-intl';
-import { useRouter } from 'next/navigation';
-
-export const schema = z.object({
-  id: z.number(),
-  header: z.string(),
-  type: z.string(),
-  status: z.string(),
-  target: z.string(),
-  limit: z.string(),
-  reviewer: z.string(),
-});
+import { usePathname, useRouter } from 'next/navigation';
 
 export function DataTable({
   data,
@@ -75,6 +63,7 @@ export function DataTable({
     pageSize: 20,
   });
   const router = useRouter();
+  const pathname = usePathname();
 
   const columns: ColumnDef<AuditLog>[] = React.useMemo(() => {
     const cols: ColumnDef<AuditLog>[] = [
@@ -181,8 +170,8 @@ export function DataTable({
     _.forEach(query, (value, key) => {
       sp.set(key, String(value));
     });
-    router.push(`/workspace/audit-logs?${sp.toString()}`);
-  }, [query, router]);
+    router.push(`${pathname}?${sp.toString()}`);
+  }, [pathname, query, router]);
 
   React.useEffect(() => {
     setQuery(initSearchParams);
