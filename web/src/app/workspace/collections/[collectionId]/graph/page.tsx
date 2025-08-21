@@ -5,6 +5,7 @@ import {
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
 import { CollectionHeader } from '../collection-header';
+import { CollectionGraph } from './collection-graph';
 
 export default async function Page({
   params,
@@ -32,7 +33,9 @@ export default async function Page({
         ]}
       />
       <CollectionHeader collection={collection} />
-      <PageContent>Knowledge Graph</PageContent>
+      <PageContent>
+        <CollectionGraph />
+      </PageContent>
     </PageContainer>
   );
 }
