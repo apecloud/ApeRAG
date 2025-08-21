@@ -15,7 +15,6 @@ import {
 import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
 import { Label } from '@/components/ui/label';
 import { apiClient } from '@/lib/api/client';
-import { FileIndexType } from '@/lib/document';
 import { objectKeys } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
@@ -25,6 +24,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { DocumentIndexStatus } from './document-index-status';
+import { FileIndexType } from './tools';
 
 const documentReBuildSchema = z.object({
   index_types: z.array(z.enum(objectKeys(FileIndexType))),

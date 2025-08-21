@@ -42,7 +42,6 @@ import {
   Trash,
 } from 'lucide-react';
 
-
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { DocumentDelete } from './document-delete';
@@ -78,19 +77,21 @@ export function DocumentsTable({
         page: searchParams.get('page'),
         pageSize: searchParams.get('pageSize'),
       }),
-      startDate: searchParams.get('startDate'),
-      endDate: searchParams.get('endDate'),
-      apiName: searchParams.get('apiName'),
+      search: searchParams.get('search'),
     };
   }, [searchParams]);
 
+  React.useEffect(() => {
+    setSearchValue(query.search || '');
+  }, [query]);
+
   const handleSearch = React.useCallback(
-    (params: { page: number; pageSize: number }) => {
+    (params: { page?: number; pageSize?: number; search?: string }) => {
       const urlSearchParams = new URLSearchParams();
       const data = { ...query, ...params };
       objectKeys(data).forEach((key) => {
         const value = data[key];
-        if (value !== null && value !== undefined) {
+        if (value !== null && value !== undefined && value !== '') {
           urlSearchParams.set(key, String(value));
         }
       });
@@ -235,7 +236,6 @@ export function DocumentsTable({
       columnVisibility,
       rowSelection,
       columnFilters,
-      globalFilter: searchValue,
       pagination: {
         pageIndex: query.page - 1,
         pageSize: query.pageSize,
@@ -274,6 +274,13 @@ export function DocumentsTable({
             placeholder="Search"
             value={searchValue}
             onChange={(e) => setSearchValue(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleSearch({
+                  search: e.currentTarget.value,
+                });
+              }
+            }}
           />
         </div>
         <div className="flex items-center gap-2">

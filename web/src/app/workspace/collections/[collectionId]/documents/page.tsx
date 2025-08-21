@@ -13,10 +13,10 @@ export default async function Page({
   searchParams,
 }: Readonly<{
   params: Promise<{ collectionId: string }>;
-  searchParams: Promise<{ page: string; pageSize: string }>;
+  searchParams: Promise<{ page?: string; pageSize?: string, search?: string }>;
 }>) {
   const { collectionId } = await params;
-  const { page, pageSize } = await searchParams;
+  const { page, pageSize, search } = await searchParams;
   const serverApi = await getServerApi();
 
   const [collectionRes, documentsRes] = await Promise.all([
@@ -28,6 +28,7 @@ export default async function Page({
       ...parsePageParams({ page, pageSize }),
       sortBy: 'created',
       sortOrder: 'desc',
+      search,
     }),
   ]);
 

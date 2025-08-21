@@ -71,8 +71,8 @@ export function AuditLogTable({
   }, [searchParams]);
 
   React.useEffect(() => {
-    setApiNameValue(searchParams.get('apiName') || '');
-  }, [searchParams]);
+    setApiNameValue(query.apiName || '');
+  }, [query]);
 
   const handleSearch = React.useCallback(
     (params: AuditApiListAuditLogsRequest) => {
