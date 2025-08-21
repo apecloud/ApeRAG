@@ -35,7 +35,7 @@ export default async function Page({
   const documentPreview = toJson(documentPreviewRes.data);
 
   return (
-    <PageContainer className="flex h-full flex-col">
+    <PageContainer>
       <PageHeader
         breadcrumbs={[
           {
@@ -52,15 +52,13 @@ export default async function Page({
         ]}
       />
       <CollectionHeader collection={collection} />
-      <div className="flex-1">
-        <PageContent className="h-[100%]">
-          <DocumentDetail
-            collection={collection}
-            document={document}
-            documentPreview={documentPreview}
-          />
-        </PageContent>
-      </div>
+      <PageContent className="h-[100%]">
+        <DocumentDetail
+          collection={collection}
+          document={document}
+          documentPreview={documentPreview}
+        />
+      </PageContent>
     </PageContainer>
   );
 }

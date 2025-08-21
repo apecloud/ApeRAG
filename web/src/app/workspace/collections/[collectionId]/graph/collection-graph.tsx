@@ -8,15 +8,6 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 
@@ -221,30 +212,49 @@ export const CollectionGraph = () => {
   return (
     <>
       <div className="mb-4 flex flex-row items-center justify-between gap-4">
-        <Select onValueChange={handleSelectNode} value={activeNode?.id}>
-          <SelectTrigger className="w-[220px]">
-            <SelectValue placeholder="Search" />
-          </SelectTrigger>
-          <SelectContent className="max-h-[350px]">
-            {_.map(allEntities, (nods, cate) => {
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline">
+              <Columns3 />
+              <span className="hidden lg:inline">Node Group</span>
+              <ChevronDown />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56">
+            {_.map(allEntities, (item, key) => {
+              const isActive = activeEntities.includes(key);
               return (
-                <SelectGroup key={cate}>
-                  <SelectLabel>{cate}</SelectLabel>
-                  {nods.map((n) => {
-                    return (
-                      <SelectItem key={n.id} value={n.id}>
-                        {_.truncate(n.id, { length: 30 })}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectGroup>
+                <DropdownMenuCheckboxItem
+                  key={key}
+                  className={cn('capitalize')}
+                  checked={isActive}
+                  onCheckedChange={(value) =>
+                    setActiveEntities((items) => {
+                      if (!value) {
+                        return _.reject(items, (item) => item === key);
+                      } else {
+                        return _.uniq(items.concat(key));
+                      }
+                    })
+                  }
+                >
+                  <div className="flex flex-row items-center gap-1">
+                    <div
+                      className="size-2 rounded-full"
+                      style={{ background: color(key) }}
+                    />
+                    <span>
+                      {key}({item.length})
+                    </span>
+                  </div>
+                </DropdownMenuCheckboxItem>
               );
             })}
-          </SelectContent>
-        </Select>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <div className="flex flex-row items-center gap-2">
-          <div>
+          <div className="text-sm">
             <span className="text-muted-foreground">
               共有{mergeSuggestion?.pending_count || 0}条节点合并建议
             </span>
@@ -256,46 +266,6 @@ export const CollectionGraph = () => {
               查看
             </span>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                <Columns3 />
-                <span className="hidden lg:inline">Node Group</span>
-                <ChevronDown />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              {_.map(allEntities, (item, key) => {
-                const isActive = activeEntities.includes(key);
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={key}
-                    className={cn('capitalize')}
-                    checked={isActive}
-                    onCheckedChange={(value) =>
-                      setActiveEntities((items) => {
-                        if (!value) {
-                          return _.reject(items, (item) => item === key);
-                        } else {
-                          return _.uniq(items.concat(key));
-                        }
-                      })
-                    }
-                  >
-                    <div className="flex flex-row items-center gap-1">
-                      <div
-                        className="size-2 rounded-full"
-                        style={{ background: color(key) }}
-                      />
-                      <span>
-                        {key}({item.length})
-                      </span>
-                    </div>
-                  </DropdownMenuCheckboxItem>
-                );
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
 
           <Button
             size="icon"

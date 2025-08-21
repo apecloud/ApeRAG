@@ -3,7 +3,7 @@ import { Collection, Document, DocumentPreview } from '@/api';
 import { FormatDate } from '@/components/format-date';
 import { Markdown } from '@/components/markdown';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getDocumentStatusColor } from '@/lib/document';
@@ -113,7 +113,11 @@ export const DocumentDetail = ({
         </div>
 
         <TabsContent value="markdown">
-          <Markdown>{documentPreview.markdown_content}</Markdown>
+          <Card>
+            <CardContent>
+              <Markdown>{documentPreview.markdown_content}</Markdown>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {isPdf && (

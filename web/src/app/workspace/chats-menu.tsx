@@ -34,6 +34,7 @@ export const ChatsMenu = () => {
               <Button
                 className="-mr-0.5 size-8 cursor-pointer"
                 onClick={chatCreate}
+                size="icon"
               >
                 <Plus />
                 <span className="sr-only">Create chat</span>
