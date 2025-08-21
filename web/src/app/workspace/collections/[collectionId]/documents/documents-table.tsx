@@ -42,12 +42,13 @@ import {
   Trash,
 } from 'lucide-react';
 
-import { FileIndexType, getDocumentStatusColor } from '@/lib/document';
+
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { DocumentDelete } from './document-delete';
 import { DocumentIndexStatus } from './document-index-status';
 import { DocumentReBuildIndex } from './document-rebuild-index';
+import { FileIndexType, getDocumentStatusColor } from './tools';
 
 export function DocumentsTable({
   collection,
