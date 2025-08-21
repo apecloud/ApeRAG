@@ -128,14 +128,6 @@ export const CollectionGraph = () => {
     highlightLinks.clear();
   }, [highlightLinks, highlightNodes]);
 
-  const handleSelectNode = useCallback(
-    (id: string) => {
-      const n = graphData?.nodes.find((nod) => nod.id === id);
-      setActiveNode(n);
-    },
-    [graphData],
-  );
-
   const handleResizeContainer = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -255,15 +247,12 @@ export const CollectionGraph = () => {
 
         <div className="flex flex-row items-center gap-2">
           <div className="text-sm">
-            <span className="text-muted-foreground">
-              共有{mergeSuggestion?.pending_count || 0}条节点合并建议
-            </span>
-            &nbsp;
             <span
-              className="cursor-pointer underline"
+              className="text-muted-foreground hover:text-primary cursor-pointer"
               onClick={() => setMergeSuggestionOpen(true)}
             >
-              查看
+              There are {mergeSuggestion?.pending_count || 0} node merge
+              suggestions.
             </span>
           </div>
 

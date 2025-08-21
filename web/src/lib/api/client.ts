@@ -24,8 +24,16 @@ request.interceptors.response.use(
     return response;
   },
   function (err: any) {
-    const bizMessage =
-      err.response?.data?.message || err.response?.data?.detail.message;
+    let bizMessage: string | undefined;
+
+    if (typeof err.response?.data?.detail === 'string') {
+      bizMessage = err.response.data.detail;
+    } else if (typeof err.response?.data?.detail.message === 'string') {
+      bizMessage = err.response.data.detail.message;
+    } else {
+      bizMessage = err.response?.data?.message;
+    }
+
     if (bizMessage) {
       toast.error(bizMessage);
     }
