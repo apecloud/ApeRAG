@@ -23,18 +23,25 @@ export default async function Page({
   );
 
   const {
-    limit = 200,
+    pageSize = 20,
     apiName = '',
     startDate = defaultStartDate.toISOString(),
     endDate = defaultEndDate.toISOString(),
   } = await searchParams;
-  const res = await serverApi.auditApi.listAuditLogs({
-    apiName,
-    startDate,
-    endDate,
-    limit,
-  });
-  const data = res.data.items || [];
+
+  let data = [];
+  try {
+    const res = await serverApi.auditApi.listAuditLogs({
+      apiName,
+      startDate,
+      endDate,
+      pageSize,
+    });
+    //@ts-expect-error api define has a bug
+    data = res.data.items || [];
+  } catch (err) {
+    console.log(err);
+  }
 
   return (
     <PageContainer>
@@ -49,7 +56,7 @@ export default async function Page({
         </PageDescription>
         <AuditLogTable
           data={toJson(data)}
-          searchParams={{ limit, apiName, startDate, endDate }}
+          searchParams={{ pageSize, apiName, startDate, endDate }}
         />
       </PageContent>
     </PageContainer>

@@ -1,6 +1,7 @@
 import { ChatMessage } from '@/api';
 import { Markdown } from '@/components/markdown';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import _ from 'lodash';
 import { AlertCircleIcon } from 'lucide-react';
 import { useCallback } from 'react';
 import { MessageCollapseContent } from './message-collapse-content';
