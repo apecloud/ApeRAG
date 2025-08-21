@@ -20,3 +20,31 @@ export const objectKeys = <T extends object>(obj?: T): Array<keyof T> => {
 };
 
 export const colorHash = new ColorHash();
+
+export type PageParams = {
+  page?: number | string | null;
+  pageSize?: number | string | null;
+  pageCount?: number | string | null;
+};
+export const parsePageParams = ({
+  page = 1,
+  pageSize = 20,
+  pageCount = 0,
+}: PageParams) => {
+  const p = isNaN(parseInt(String(page))) ? 1 : parseInt(String(page));
+  const ps = isNaN(parseInt(String(pageSize)))
+    ? 20
+    : parseInt(String(pageSize));
+
+  const pc = isNaN(parseInt(String(pageCount)))
+    ? 0
+    : parseInt(String(pageCount));
+  page = Math.max(1, Math.floor(p)) || 1;
+  pageSize = Math.max(1, Math.min(Math.floor(ps), 50)) || 20;
+
+  return {
+    page,
+    pageSize,
+    pageCount,
+  };
+};

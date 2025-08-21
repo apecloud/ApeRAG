@@ -25,6 +25,7 @@ export const WorkspaceProvider = ({
     const chatsRes = await apiClient.defaultApi.botsBotIdChatsGet({
       botId: bot.id,
     });
+    //@ts-expect-error api define has a bug
     setChats(chatsRes.data.items || []);
   }, [bot?.id]);
 

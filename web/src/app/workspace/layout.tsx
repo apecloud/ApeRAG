@@ -56,6 +56,7 @@ export default async function Layout({
     const chatsRes = await apiServer.defaultApi.botsBotIdChatsGet({
       botId: bot.id,
     });
+    //@ts-expect-error api define has a bug
     chats = chatsRes.data.items || [];
   }
 

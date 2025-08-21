@@ -31,36 +31,63 @@ import { AuditApiListAuditLogsRequest, AuditLog } from '@/api';
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { DateTimePicker24h } from '@/components/date-time-picker-24h';
-import { cn } from '@/lib/utils';
-import _ from 'lodash';
-import { ChevronDown, Columns3, Search } from 'lucide-react';
+import { cn, objectKeys, parsePageParams } from '@/lib/utils';
+import { ChevronDown, Columns3 } from 'lucide-react';
 import { useFormatter } from 'next-intl';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { AuditLogDetail } from './audit-log-detail';
 
 export function AuditLogTable({
   data,
-  searchParams: initSearchParams,
+  pageCount,
 }: {
   data: AuditLog[];
-  searchParams: AuditApiListAuditLogsRequest;
+  pageCount: number;
 }) {
   const [rowSelection, setRowSelection] = React.useState({});
-  const [query, setQuery] =
-    React.useState<AuditApiListAuditLogsRequest>(initSearchParams);
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
   );
+  const [apiNameValue, setApiNameValue] = React.useState<string>('');
+
   const format = useFormatter();
   const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [pagination, setPagination] = React.useState({
-    pageIndex: 0,
-    pageSize: 20,
-  });
+  const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+
+  const query = React.useMemo(() => {
+    return {
+      ...parsePageParams({
+        page: searchParams.get('page'),
+        pageSize: searchParams.get('pageSize'),
+      }),
+      startDate: searchParams.get('startDate'),
+      endDate: searchParams.get('endDate'),
+      apiName: searchParams.get('apiName'),
+    };
+  }, [searchParams]);
+
+  React.useEffect(() => {
+    setApiNameValue(searchParams.get('apiName') || '');
+  }, [searchParams]);
+
+  const handleSearch = React.useCallback(
+    (params: AuditApiListAuditLogsRequest) => {
+      const urlSearchParams = new URLSearchParams();
+      const data = { ...query, ...params };
+      objectKeys(data).forEach((key) => {
+        const value = data[key];
+        if (value !== null && value !== undefined) {
+          urlSearchParams.set(key, String(value));
+        }
+      });
+      router.push(`${pathname}?${urlSearchParams.toString()}`);
+    },
+    [query, router, pathname],
+  );
 
   const columns: ColumnDef<AuditLog>[] = React.useMemo(() => {
     const cols: ColumnDef<AuditLog>[] = [
@@ -95,16 +122,16 @@ export function AuditLogTable({
         header: 'API',
         cell: ({ row }) => {
           return (
-            <div className="flex flex-col gap-1">
+            <>
               <AuditLogDetail auditLog={row.original}>
-                <div className="cursor-pointer underline">
+                <span className="cursor-pointer underline-offset-4">
                   {row.original.api_name}
-                </div>
+                </span>
               </AuditLogDetail>
-              <div className="text-muted-foreground truncate sm:w-sm md:w-md lg:w-lg">
+              <div className="text-muted-foreground truncate pt-0.5 sm:w-sm md:w-md lg:w-lg">
                 {row.original.path}
               </div>
-            </div>
+            </>
           );
         },
       },
@@ -147,12 +174,16 @@ export function AuditLogTable({
   const table = useReactTable({
     data,
     columns,
+    manualPagination: true,
     state: {
       sorting,
       columnVisibility,
       rowSelection,
       columnFilters,
-      pagination,
+      pagination: {
+        pageIndex: query.page - 1,
+        pageSize: query.pageSize,
+      },
     },
     getRowId: (row) => String(row.id),
     enableRowSelection: true,
@@ -160,7 +191,17 @@ export function AuditLogTable({
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
-    onPaginationChange: setPagination,
+    pageCount,
+    onPaginationChange: (fn: any) => {
+      const { pageIndex, pageSize } = fn({
+        pageIndex: query.page - 1,
+        pageSize: query.pageSize,
+      });
+      handleSearch({
+        page: pageIndex + 1,
+        pageSize,
+      });
+    },
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -169,30 +210,20 @@ export function AuditLogTable({
     getFacetedUniqueValues: getFacetedUniqueValues(),
   });
 
-  const handleSearch = React.useCallback(() => {
-    const sp = new URLSearchParams();
-    _.forEach(query, (value, key) => {
-      sp.set(key, String(value));
-    });
-    router.push(`${pathname}?${sp.toString()}`);
-  }, [pathname, query, router]);
-
-  React.useEffect(() => {
-    setQuery(initSearchParams);
-  }, [initSearchParams]);
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div className="flex flex-row items-center gap-2">
           <Input
             placeholder="Search api name"
-            value={query.apiName}
-            onChange={(e) => {
-              setQuery({
-                ...query,
-                apiName: e.currentTarget.value,
-              });
+            value={apiNameValue}
+            onChange={(e) => setApiNameValue(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleSearch({
+                  apiName: e.currentTarget.value,
+                });
+              }
             }}
           />
           <div className="flex flex-row items-center gap-0.5">
@@ -200,8 +231,7 @@ export function AuditLogTable({
               className="w-48"
               date={query.startDate ? new Date(query.startDate) : undefined}
               onChange={(d) => {
-                setQuery({
-                  ...query,
+                handleSearch({
                   startDate: d ? new Date(d).toISOString() : undefined,
                 });
               }}
@@ -211,18 +241,12 @@ export function AuditLogTable({
               className="w-48"
               date={query.endDate ? new Date(query.endDate) : undefined}
               onChange={(d) => {
-                setQuery({
-                  ...query,
+                handleSearch({
                   endDate: d ? new Date(d).toISOString() : undefined,
                 });
               }}
             />
           </div>
-
-          <Button onClick={handleSearch}>
-            <Search />
-            <span className="hidden lg:inline">Search</span>
-          </Button>
         </div>
         <div className="flex items-center gap-2">
           <DropdownMenu>

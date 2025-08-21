@@ -90,40 +90,44 @@ const SuggestionItem = ({
             <Sparkles className="text-muted-foreground size-4" />
             {item.confidence_score}
           </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="cursor-pointer"
-                onClick={() => handleSuggestionAction('accept')}
-              >
-                {loading?.accept ? (
-                  <LoaderCircle className="animate-spin" />
-                ) : (
-                  <Check className="text-green-600" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Accept</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="cursor-pointer"
-                onClick={() => handleSuggestionAction('reject')}
-              >
-                {loading?.reject ? (
-                  <LoaderCircle className="animate-spin" />
-                ) : (
-                  <X className="text-rose-600" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Reject</TooltipContent>
-          </Tooltip>
+          {item.status === 'PENDING' && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="cursor-pointer"
+                  onClick={() => handleSuggestionAction('accept')}
+                >
+                  {loading?.accept ? (
+                    <LoaderCircle className="animate-spin" />
+                  ) : (
+                    <Check className="text-green-600" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Accept</TooltipContent>
+            </Tooltip>
+          )}
+          {item.status === 'PENDING' && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="cursor-pointer"
+                  onClick={() => handleSuggestionAction('reject')}
+                >
+                  {loading?.reject ? (
+                    <LoaderCircle className="animate-spin" />
+                  ) : (
+                    <X className="text-rose-600" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Reject</TooltipContent>
+            </Tooltip>
+          )}
         </div>
       </div>
       <div className="text-muted-foreground text-sm">{item.merge_reason}</div>
@@ -166,7 +170,7 @@ export const CollectionGraphNodeMerge = ({
       onOpenChange={onClose}
       handleOnly={true}
     >
-      <DrawerContent className="flex sm:min-w-lg md:min-w-xl lg:min-w-2xl">
+      <DrawerContent className="flex sm:min-w-sm md:min-w-md lg:min-w-lg">
         <DrawerHeader className="flex flex-row items-center justify-between border-b">
           <DrawerTitle>Merge suggestions</DrawerTitle>
           <Tabs

@@ -31,7 +31,7 @@ import { Collection, Document } from '@/api';
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { FormatDate } from '@/components/format-date';
-import { cn, objectKeys } from '@/lib/utils';
+import { cn, objectKeys, parsePageParams } from '@/lib/utils';
 import _ from 'lodash';
 import {
   ChevronDown,
@@ -44,6 +44,7 @@ import {
 
 import { FileIndexType, getDocumentStatusColor } from '@/lib/document';
 import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { DocumentDelete } from './document-delete';
 import { DocumentIndexStatus } from './document-index-status';
 import { DocumentReBuildIndex } from './document-rebuild-index';
@@ -51,9 +52,11 @@ import { DocumentReBuildIndex } from './document-rebuild-index';
 export function DocumentsTable({
   collection,
   data,
+  pageCount,
 }: {
   collection: Collection;
   data: Document[];
+  pageCount?: number;
 }) {
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
@@ -62,11 +65,38 @@ export function DocumentsTable({
     [],
   );
   const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [pagination, setPagination] = React.useState({
-    pageIndex: 0,
-    pageSize: 20,
-  });
+
   const [searchValue, setSearchValue] = React.useState<string>('');
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const query = React.useMemo(() => {
+    return {
+      ...parsePageParams({
+        page: searchParams.get('page'),
+        pageSize: searchParams.get('pageSize'),
+      }),
+      startDate: searchParams.get('startDate'),
+      endDate: searchParams.get('endDate'),
+      apiName: searchParams.get('apiName'),
+    };
+  }, [searchParams]);
+
+  const handleSearch = React.useCallback(
+    (params: { page: number; pageSize: number }) => {
+      const urlSearchParams = new URLSearchParams();
+      const data = { ...query, ...params };
+      objectKeys(data).forEach((key) => {
+        const value = data[key];
+        if (value !== null && value !== undefined) {
+          urlSearchParams.set(key, String(value));
+        }
+      });
+      router.push(`${pathname}?${urlSearchParams.toString()}`);
+    },
+    [query, router, pathname],
+  );
 
   const columns: ColumnDef<Document>[] = React.useMemo(() => {
     const indexCols: ColumnDef<Document>[] = objectKeys(FileIndexType).map(
@@ -198,13 +228,17 @@ export function DocumentsTable({
   const table = useReactTable({
     data,
     columns,
+    manualPagination: true,
     state: {
       sorting,
       columnVisibility,
       rowSelection,
       columnFilters,
-      pagination,
       globalFilter: searchValue,
+      pagination: {
+        pageIndex: query.page - 1,
+        pageSize: query.pageSize,
+      },
     },
     getRowId: (row) => String(row.id),
     enableRowSelection: true,
@@ -212,7 +246,17 @@ export function DocumentsTable({
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
-    onPaginationChange: setPagination,
+    pageCount,
+    onPaginationChange: (fn: any) => {
+      const { pageIndex, pageSize } = fn({
+        pageIndex: query.page - 1,
+        pageSize: query.pageSize,
+      });
+      handleSearch({
+        page: pageIndex + 1,
+        pageSize,
+      });
+    },
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),

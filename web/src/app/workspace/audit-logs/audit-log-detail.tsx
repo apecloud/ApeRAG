@@ -22,7 +22,7 @@ export const AuditLogDetail = ({
     <>
       <Drawer direction="right" handleOnly={true}>
         <DrawerTrigger asChild>{children}</DrawerTrigger>
-        <DrawerContent className="flex sm:min-w-2xl md:min-w-3xl lg:min-w-4xl">
+        <DrawerContent className="flex sm:min-w-lg md:min-w-xl lg:min-w-2xl">
           <DrawerHeader>
             <DrawerTitle className="font-bold">Audit Log</DrawerTitle>
           </DrawerHeader>

@@ -34,13 +34,17 @@ export const FileIndexType: {
 };
 
 export const getDocumentStatusColor = (status?: DocumentStatusEnum) => {
-  const data = {
-    PENDING: 'text-muted-foreground',
-    RUNNING: 'text-muted-foreground',
-    COMPLETE: 'text-accent-foreground',
-    FAILED: 'text-red-500',
-    DELETING: 'text-muted-foreground line-through',
-    DELETED: 'text-muted-foreground line-through',
+  const data: {
+    [key in DocumentStatusEnum]: string;
+  } = {
+    [DocumentStatusEnum.PENDING]: 'text-muted-foreground',
+    [DocumentStatusEnum.RUNNING]: 'text-muted-foreground',
+    [DocumentStatusEnum.COMPLETE]: 'text-accent-foreground',
+    [DocumentStatusEnum.UPLOADED]: 'text-muted-foreground',
+    [DocumentStatusEnum.FAILED]: 'text-red-500',
+    [DocumentStatusEnum.EXPIRED]: 'text-muted-foreground line-through',
+    [DocumentStatusEnum.DELETED]: 'text-muted-foreground line-through',
+    [DocumentStatusEnum.DELETING]: 'text-muted-foreground line-through',
   };
   return status ? data[status] : 'text-muted-foreground';
 };

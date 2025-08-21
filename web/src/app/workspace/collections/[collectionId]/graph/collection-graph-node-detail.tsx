@@ -25,7 +25,7 @@ export const CollectionGraphNodeDetail = ({
       onOpenChange={onClose}
       handleOnly={true}
     >
-      <DrawerContent className="flex sm:min-w-lg md:min-w-xl lg:min-w-2xl">
+      <DrawerContent className="flex sm:min-w-sm md:min-w-md lg:min-w-lg">
         <DrawerHeader>
           <DrawerTitle>{node?.id}</DrawerTitle>
         </DrawerHeader>

@@ -131,12 +131,18 @@ export function DateTimePicker24h({
             </ScrollArea>
           </div>
         </div>
-        <div className="flex justify-end gap-2 border-t p-2">
-          <Button size="sm" variant="outline" onClick={handleSetNow}>
-            Now
-          </Button>
-          <Button size="sm" onClick={handleClear}>
-            Clear
+        <div className="flex justify-between gap-2 border-t p-2">
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={handleSetNow}>
+              Now
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleClear}>
+              Clear
+            </Button>
+          </div>
+
+          <Button size="sm" onClick={() => setIsOpen(false)}>
+            Close
           </Button>
         </div>
       </PopoverContent>

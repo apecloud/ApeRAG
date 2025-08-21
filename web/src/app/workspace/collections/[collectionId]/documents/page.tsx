@@ -4,16 +4,19 @@ import {
   PageHeader,
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
-import { toJson } from '@/lib/utils';
+import { parsePageParams, toJson } from '@/lib/utils';
 import { CollectionHeader } from '../collection-header';
 import { DocumentsTable } from './documents-table';
 
 export default async function Page({
   params,
+  searchParams,
 }: Readonly<{
   params: Promise<{ collectionId: string }>;
+  searchParams: Promise<{ page: string; pageSize: string }>;
 }>) {
   const { collectionId } = await params;
+  const { page, pageSize } = await searchParams;
   const serverApi = await getServerApi();
 
   const [collectionRes, documentsRes] = await Promise.all([
@@ -22,10 +25,15 @@ export default async function Page({
     }),
     serverApi.defaultApi.collectionsCollectionIdDocumentsGet({
       collectionId,
+      ...parsePageParams({ page, pageSize }),
+      sortBy: 'created',
+      sortOrder: 'desc',
     }),
   ]);
 
   const collection = toJson(collectionRes.data);
+  //@ts-expect-error api define has a bug
+  const documents = toJson(documentsRes.data.items || []);
 
   return (
     <PageContainer>
@@ -41,11 +49,11 @@ export default async function Page({
         ]}
       />
       <CollectionHeader collection={collection} />
-
       <PageContent>
         <DocumentsTable
           collection={collection}
-          data={toJson(documentsRes.data.items || [])}
+          data={documents}
+          pageCount={documentsRes.data.total_pages}
         />
       </PageContent>
     </PageContainer>

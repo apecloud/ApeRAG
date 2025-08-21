@@ -248,7 +248,7 @@ export const CollectionGraph = () => {
         <div className="flex flex-row items-center gap-2">
           <div className="text-sm">
             <span
-              className="text-muted-foreground hover:text-primary cursor-pointer"
+              className="text-muted-foreground hover:text-primary cursor-pointer underline underline-offset-4"
               onClick={() => setMergeSuggestionOpen(true)}
             >
               There are {mergeSuggestion?.pending_count || 0} node merge
@@ -259,6 +259,7 @@ export const CollectionGraph = () => {
           <Button
             size="icon"
             variant="outline"
+            className="cursor-pointer"
             onClick={() => {
               getGraphData();
               getMergeSuggestions();
@@ -271,7 +272,7 @@ export const CollectionGraph = () => {
 
       <Card
         ref={containerRef}
-        className="flex min-h-[calc(100vh-280px)] gap-0 py-0"
+        className="bg-card/0 flex min-h-[calc(100vh-250px)] gap-0 py-0"
       >
         <ForceGraph2D
           graphData={graphData}

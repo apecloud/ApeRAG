@@ -7,7 +7,7 @@ import {
   PageTitle,
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
-import { toJson } from '@/lib/utils';
+import { parsePageParams, toJson } from '@/lib/utils';
 import { AuditLogTable } from './audit-log-table';
 
 export default async function Page({
@@ -17,31 +17,32 @@ export default async function Page({
 }) {
   const serverApi = await getServerApi();
 
-  const defaultEndDate = new Date();
-  const defaultStartDate = new Date(
-    defaultEndDate.getTime() - 1 * 24 * 60 * 60 * 1000,
-  );
-
   const {
-    pageSize = 20,
+    page,
+    pageSize,
+    sortBy = 'created',
+    sortOrder = 'desc',
     apiName = '',
-    startDate = defaultStartDate.toISOString(),
-    endDate = defaultEndDate.toISOString(),
+    startDate,
+    endDate,
   } = await searchParams;
 
-  let data = [];
+  let res;
   try {
-    const res = await serverApi.auditApi.listAuditLogs({
+    res = await serverApi.auditApi.listAuditLogs({
       apiName,
+      sortBy,
+      sortOrder,
       startDate,
       endDate,
-      pageSize,
+      ...parsePageParams({ page, pageSize }),
     });
-    //@ts-expect-error api define has a bug
-    data = res.data.items || [];
   } catch (err) {
     console.log(err);
   }
+
+  //@ts-expect-error api define has a bug
+  const data = res?.data?.items || [];
 
   return (
     <PageContainer>
@@ -56,7 +57,7 @@ export default async function Page({
         </PageDescription>
         <AuditLogTable
           data={toJson(data)}
-          searchParams={{ pageSize, apiName, startDate, endDate }}
+          pageCount={res?.data.total_pages || 1}
         />
       </PageContent>
     </PageContainer>
