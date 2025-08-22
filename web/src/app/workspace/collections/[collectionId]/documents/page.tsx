@@ -45,7 +45,7 @@ export default async function Page({
             href: '/workspace/collections',
           },
           {
-            title: 'File Explorer',
+            title: 'Documents',
           },
         ]}
       />

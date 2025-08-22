@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
 import { Plus } from 'lucide-react';
+import Link from 'next/link';
 import { CollectionList } from './collection-list';
 
 export default async function Page() {
@@ -43,8 +44,10 @@ export default async function Page() {
               </TabsTrigger>
             </TabsList>
             <div className="ml-auto flex items-center gap-2">
-              <Button>
-                <Plus /> Add collection
+              <Button asChild>
+                <Link href="/workspace/collections/new">
+                  <Plus /> Add collection
+                </Link>
               </Button>
             </div>
           </div>

@@ -32,6 +32,7 @@ import {
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useMemo } from 'react';
+import { CollectionDelete } from './collection-delete';
 
 export const CollectionHeader = ({
   collection,
@@ -92,7 +93,7 @@ export const CollectionHeader = ({
             >
               <Link href={urls.documents}>
                 <Files />
-                <span className="hidden lg:inline">Documents Explorer</span>
+                <span className="hidden lg:inline">Documents</span>
               </Link>
             </Button>
 
@@ -120,7 +121,7 @@ export const CollectionHeader = ({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="icon" variant="ghost">
+                <Button size="sm" variant="ghost">
                   <EllipsisVertical />
                 </Button>
               </DropdownMenuTrigger>
@@ -133,9 +134,11 @@ export const CollectionHeader = ({
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive">
-                  <Trash /> Delete Collection
-                </DropdownMenuItem>
+                <CollectionDelete collection={collection}>
+                  <DropdownMenuItem variant="destructive">
+                    <Trash /> Delete Collection
+                  </DropdownMenuItem>
+                </CollectionDelete>
               </DropdownMenuContent>
             </DropdownMenu>
           </CardAction>
