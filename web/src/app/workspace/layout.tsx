@@ -28,7 +28,7 @@ import {
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ChatsMenu } from './chats-menu';
-import { WorkspaceProvider } from './workspace-provider';
+import { ChatsProvider } from './chats-provider';
 
 export default async function Layout({
   children,
@@ -55,13 +55,15 @@ export default async function Layout({
   if (bot?.id) {
     const chatsRes = await apiServer.defaultApi.botsBotIdChatsGet({
       botId: bot.id,
+      page: 1,
+      pageSize: 100,
     });
     //@ts-expect-error api define has a bug
     chats = chatsRes.data.items || [];
   }
 
   return (
-    <WorkspaceProvider bot={toJson(bot)} chats={toJson(chats)}>
+    <ChatsProvider bot={toJson(bot)} chats={toJson(chats)}>
       <SidebarProvider>
         <Sidebar>
           <SidebarHeader className="h-16 flex-row items-center gap-4 px-4 align-middle">
@@ -91,7 +93,6 @@ export default async function Layout({
             </SidebarGroup>
             {bot && <ChatsMenu />}
           </SidebarContent>
-
           <SidebarFooter className="gap-0">
             <SidebarGroup>
               <SidebarGroupLabel>Settings</SidebarGroupLabel>
@@ -134,6 +135,6 @@ export default async function Layout({
         </Sidebar>
         <SidebarInset>{children}</SidebarInset>
       </SidebarProvider>
-    </WorkspaceProvider>
+    </ChatsProvider>
   );
 }

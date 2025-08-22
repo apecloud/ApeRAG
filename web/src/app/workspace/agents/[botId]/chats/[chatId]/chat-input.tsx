@@ -25,7 +25,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import _ from 'lodash';
@@ -37,6 +36,7 @@ import { PiStopFill } from 'react-icons/pi';
 import { toast } from 'sonner';
 import Typewriter from 'typewriter-effect';
 import useLocalStorageState from 'use-local-storage-state';
+import { useAgentsContext } from '../../../use-agents-context';
 
 export type ChatInputSubmitParams = {
   query: string;
@@ -64,19 +64,11 @@ export const ChatInput = ({
   onCancel: () => void;
 }) => {
   const [isComposing, setIsComposing] = useState<boolean>(false);
-  const [collections, setCollections] = useState<Collection[]>([]);
   const isMobile = useIsMobile();
-  const [providerModels, setProviderModels] = useState<
-    {
-      label?: string;
-      name?: string;
-      models?: ModelSpec[];
-    }[]
-  >();
+  const { providerModels, collections } = useAgentsContext();
   const locale = useLocale();
   const [query, setQuery] = useState<string>('');
   const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
-
   const [webSearchEnabled, setWebSearchEnabled] = useLocalStorageState<boolean>(
     'web-search-enabled',
     {
@@ -87,30 +79,9 @@ export const ChatInput = ({
     'local-agent-completion-model',
   );
 
-  const loadData = useCallback(async () => {
-    const [modelRes, collectionsRes] = await Promise.all([
-      apiClient.defaultApi.availableModelsPost({
-        tagFilterRequest: {
-          tag_filters: [{ operation: 'OR', tags: ['enable_for_agent'] }],
-        },
-      }),
-      apiClient.defaultApi.collectionsGet(),
-    ]);
-
-    const items = modelRes.data.items?.map((m) => {
-      return {
-        label: m.label,
-        name: m.name,
-        models: m.completion,
-      };
-    });
-    setCollections(collectionsRes.data.items || []);
-    setProviderModels(items);
-  }, []);
-
   const handleSendMessage = useCallback(() => {
     const _query = _.trim(query);
-    if (_.isEmpty(_query) || isComposing) return;
+    if (_.isEmpty(_query) || isComposing || loading) return;
 
     let model: ModelSpec | undefined;
     const provider = providerModels?.find((p) =>
@@ -132,8 +103,8 @@ export const ChatInput = ({
 
     const data = {
       query: _query,
-      collections: collections.filter((c) =>
-        selectedCollections.some((id) => c.id === id),
+      collections: collections?.filter(
+        (c) => selectedCollections.some((id) => c.id === id) || [],
       ),
       completion: {
         model: modelName,
@@ -144,12 +115,13 @@ export const ChatInput = ({
       language: locale,
     };
 
-    // setQuery('');
-    // setSelectedCollections([]);
+    setQuery('');
+    setSelectedCollections([]);
     onSubmit(data);
   }, [
     collections,
     isComposing,
+    loading,
     locale,
     modelName,
     onSubmit,
@@ -183,10 +155,6 @@ export const ChatInput = ({
   const enabledColelctions = useMemo(() => {
     return collections.filter((c) => !selectedCollections.includes(c.id || ''));
   }, [collections, selectedCollections]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
 
   return (
     <div
@@ -289,6 +257,7 @@ export const ChatInput = ({
                   //     ? 'Network connection in progress, please wait...'
                   //     : 'Type @ to mention a collection...'
                   // }
+                  value={query}
                   placeholder="Type @ to mention a collection..."
                   disabled={disabled}
                 />

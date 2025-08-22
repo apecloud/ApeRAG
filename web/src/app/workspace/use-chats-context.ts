@@ -3,7 +3,7 @@
 import { Bot, Chat, ChatDetails } from '@/api';
 import { createContext, useContext } from 'react';
 
-export type WorkspaceContextProps = {
+export type ChatsContextProps = {
   bot?: Bot;
   chats?: Chat[];
   chatDelete?: (chat: Chat) => void;
@@ -12,6 +12,6 @@ export type WorkspaceContextProps = {
   chatRename?: (chat: Chat | ChatDetails) => void;
 };
 
-export const WorkspaceContext = createContext<WorkspaceContextProps>({});
+export const ChatsContext = createContext<ChatsContextProps>({});
 
-export const useWorkspaceContext = () => useContext(WorkspaceContext);
+export const useChatsContext = () => useContext(ChatsContext);

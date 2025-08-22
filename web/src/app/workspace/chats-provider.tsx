@@ -1,12 +1,12 @@
 'use client';
 import { Bot, Chat, TitleGenerateRequestLanguageEnum } from '@/api';
-import { WorkspaceContext } from '@/hooks/use-workspace-context';
 import { apiClient } from '@/lib/api/client';
 import { useLocale } from 'next-intl';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
+import { ChatsContext } from './use-chats-context';
 
-export const WorkspaceProvider = ({
+export const ChatsProvider = ({
   bot,
   chats: initChats,
   children,
@@ -93,7 +93,7 @@ export const WorkspaceProvider = ({
   }, [bot?.id, chatsReload, router]);
 
   return (
-    <WorkspaceContext.Provider
+    <ChatsContext.Provider
       value={{
         bot,
         chats,
@@ -104,6 +104,6 @@ export const WorkspaceProvider = ({
       }}
     >
       {children}
-    </WorkspaceContext.Provider>
+    </ChatsContext.Provider>
   );
 };

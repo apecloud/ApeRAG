@@ -24,11 +24,6 @@ import {
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { cn, objectKeys } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ThumbsDown, ThumbsUp } from 'lucide-react';
@@ -125,36 +120,22 @@ export const MessageFeedback = ({
                           {objectKeys(FeedbackTagEnum).map((key) => {
                             return (
                               <Label key={key} className="block">
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <FormItem
-                                      key={key}
-                                      className={cn(
-                                        'hover:bg-accent flex items-center gap-3 rounded-md border p-3',
-                                        key === field.value
-                                          ? 'bg-accent/80'
-                                          : '',
-                                      )}
-                                    >
-                                      <FormControl>
-                                        <RadioGroupItem value={key} />
-                                      </FormControl>
-                                      <div
-                                        className={cn(
-                                          'text-muted-foreground',
-                                          key === field.value
-                                            ? 'text-primary'
-                                            : '',
-                                        )}
-                                      >
-                                        {feedbackTagDescription[key]}
-                                      </div>
-                                    </FormItem>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="left">
-                                    {key}
-                                  </TooltipContent>
-                                </Tooltip>
+                                <FormItem
+                                  className={cn(
+                                    'hover:bg-accent flex items-center gap-3 rounded-md border p-3',
+                                    key === field.value ? 'bg-accent/80' : '',
+                                  )}
+                                >
+                                  <FormControl>
+                                    <RadioGroupItem value={key} />
+                                  </FormControl>
+                                  <div>
+                                    <div className="mb-1">{key}</div>
+                                    <div className="text-muted-foreground">
+                                      {feedbackTagDescription[key]}
+                                    </div>
+                                  </div>
+                                </FormItem>
                               </Label>
                             );
                           })}
@@ -174,6 +155,7 @@ export const MessageFeedback = ({
                       <FormControl>
                         <Textarea
                           {...field}
+                          className="min-h-25"
                           placeholder="Please provide your feedback so we can continue to enhance your experience."
                         />
                       </FormControl>

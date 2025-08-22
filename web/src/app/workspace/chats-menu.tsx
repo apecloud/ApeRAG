@@ -15,14 +15,15 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useWorkspaceContext } from '@/hooks/use-workspace-context';
 import { motion } from 'framer-motion';
 import _ from 'lodash';
 import { Plus, Trash } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useChatsContext } from './use-chats-context';
+
 export const ChatsMenu = () => {
-  const { bot, chats, chatCreate, chatDelete } = useWorkspaceContext();
+  const { bot, chats, chatCreate, chatDelete } = useChatsContext();
   const pathname = usePathname();
   return (
     <SidebarGroup>
@@ -35,6 +36,7 @@ export const ChatsMenu = () => {
                 className="-mr-0.5 size-8 cursor-pointer"
                 onClick={chatCreate}
                 size="icon"
+                variant="secondary"
               >
                 <Plus />
                 <span className="sr-only">Create chat</span>

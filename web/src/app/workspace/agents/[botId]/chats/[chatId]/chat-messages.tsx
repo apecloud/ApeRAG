@@ -5,7 +5,7 @@ import { ChatDetails, ChatMessage, Feedback, Reference } from '@/api';
 import { useWebSocket } from 'ahooks';
 import { animateScroll as scroll } from 'react-scroll';
 
-import { useWorkspaceContext } from '@/hooks/use-workspace-context';
+import { useChatsContext } from '@/app/workspace/use-chats-context';
 import { apiClient } from '@/lib/api/client';
 import { ReadyState } from 'ahooks/lib/useWebSocket';
 import { motion } from 'framer-motion';
@@ -17,7 +17,7 @@ import { MessagePartsAi } from './message-parts-ai';
 import { MessagePartsUser } from './message-parts-user';
 
 export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
-  const { chatRename } = useWorkspaceContext();
+  const { chatRename } = useChatsContext();
   const [messages, setMessages] = useState<Array<Array<ChatMessage>>>(
     chat.history || [],
   );
@@ -130,32 +130,31 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
     [sendMessage],
   );
 
-  const hanldeMessageFeedback = async (
-    part: ChatMessage,
-    feedback: Feedback,
-  ) => {
-    if (!botId || !chatId || !part.id) return;
-
-    const res =
-      await apiClient.defaultApi.botsBotIdChatsChatIdMessagesMessageIdPost({
-        botId,
-        chatId,
-        messageId: part.id,
-        feedback,
-      });
-    if (res.status === 200) {
-      setMessages((msgs) => {
-        const parts = msgs.find((items) =>
-          items.find((p) => p.id === part.id && p.type === 'references'),
-        );
-        const feedbackPart = parts?.find((p) => p.type === 'references');
-        if (feedbackPart) {
-          feedbackPart.feedback = feedback;
-        }
-        return [...msgs];
-      });
-    }
-  };
+  const hanldeMessageFeedback = useCallback(
+    async (part: ChatMessage, feedback: Feedback) => {
+      if (!botId || !chatId || !part.id) return;
+      const res =
+        await apiClient.defaultApi.botsBotIdChatsChatIdMessagesMessageIdPost({
+          botId,
+          chatId,
+          messageId: part.id,
+          feedback,
+        });
+      if (res.status === 200) {
+        setMessages((msgs) => {
+          const parts = msgs.find((items) =>
+            items.find((p) => p.id === part.id && p.type === 'references'),
+          );
+          const feedbackPart = parts?.find((p) => p.type === 'references');
+          if (feedbackPart) {
+            feedbackPart.feedback = feedback;
+          }
+          return [...msgs];
+        });
+      }
+    },
+    [botId, chatId],
+  );
 
   const handleCancel = useCallback(() => {
     disconnect();
@@ -163,18 +162,21 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
     setLoading(false);
   }, [connect, disconnect]);
 
-  const loadChatDetail = useCallback(async () => {
-    if (!botId || !chatId) return;
-    const res = await apiClient.defaultApi.botsBotIdChatsChatIdGet({
-      botId,
-      chatId,
-    });
-    setMessages(res.data?.history || []);
-  }, [botId, chatId]);
+  /**
+   * render in server for the first time
+   */
 
-  useEffect(() => {
-    loadChatDetail();
-  }, [loadChatDetail]);
+  // const loadChatDetail = useCallback(async () => {
+  //   if (!botId || !chatId) return;
+  //   const res = await apiClient.defaultApi.botsBotIdChatsChatIdGet({
+  //     botId,
+  //     chatId,
+  //   });
+  //   setMessages(res.data?.history || []);
+  // }, [botId, chatId]);
+  // useEffect(() => {
+  //   loadChatDetail();
+  // }, [loadChatDetail]);
 
   useEffect(() => {
     scroll.scrollToBottom({ duration: 0 });

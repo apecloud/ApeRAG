@@ -45,7 +45,11 @@ export const MessagePartsAi = ({
               </div>
             ) : (
               parts.map((part, index) => (
-                <MessagePartAi key={`${index}-${part.id}`} part={part} />
+                <MessagePartAi
+                  key={`${index}-${part.id}`}
+                  part={part}
+                  loading={loading}
+                />
               ))
             )}
           </CardContent>

@@ -6,7 +6,13 @@ import { AlertCircleIcon } from 'lucide-react';
 import { useCallback } from 'react';
 import { MessageCollapseContent } from './message-collapse-content';
 
-export const MessagePartAi = ({ part }: { part: ChatMessage }) => {
+export const MessagePartAi = ({
+  part,
+  loading,
+}: {
+  part: ChatMessage;
+  loading: boolean;
+}) => {
   const parseToolCall = useCallback(
     (content: string): { title: string; body: string } => {
       const lines = content.split('\n');
@@ -31,14 +37,14 @@ export const MessagePartAi = ({ part }: { part: ChatMessage }) => {
       );
     case 'thinking':
       return (
-        <MessageCollapseContent title="Thinging">
+        <MessageCollapseContent title="Thinging" animate={loading}>
           <Markdown>{part.data}</Markdown>
         </MessageCollapseContent>
       );
     case 'tool_call_result':
       const { title, body } = parseToolCall(part.data || '');
       return (
-        <MessageCollapseContent title={title}>
+        <MessageCollapseContent title={title} animate={loading}>
           <Markdown>{body}</Markdown>
         </MessageCollapseContent>
       );

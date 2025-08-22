@@ -8,10 +8,12 @@ import { motion } from 'framer-motion';
 import { ChevronRight } from 'lucide-react';
 
 export const MessageCollapseContent = ({
+  animate,
   defaultOpen,
   title,
   children,
 }: {
+  animate?: boolean;
   defaultOpen?: boolean;
   title: React.ReactNode;
   children: React.ReactNode;
@@ -22,7 +24,7 @@ export const MessageCollapseContent = ({
         initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{
-          duration: 0.3,
+          duration: animate ? 0.3 : 0,
           ease: 'easeIn',
         }}
       >
