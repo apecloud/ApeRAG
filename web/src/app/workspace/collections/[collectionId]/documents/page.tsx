@@ -13,7 +13,7 @@ export default async function Page({
   searchParams,
 }: Readonly<{
   params: Promise<{ collectionId: string }>;
-  searchParams: Promise<{ page?: string; pageSize?: string, search?: string }>;
+  searchParams: Promise<{ page?: string; pageSize?: string; search?: string }>;
 }>) {
   const { collectionId } = await params;
   const { page, pageSize, search } = await searchParams;

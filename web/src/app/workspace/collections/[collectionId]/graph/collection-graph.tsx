@@ -29,9 +29,6 @@ const ForceGraph2D = dynamic(
   },
 );
 
-// import { MergeSuggestion } from './MergeSuggestion';
-// import { NodeDetail } from './NodeDetail';
-
 export const CollectionGraph = () => {
   const params = useParams();
 
@@ -62,7 +59,7 @@ export const CollectionGraph = () => {
   const [activeNode, setActiveNode] = useState<GraphNode>();
   const color = useMemo(() => d3.scaleOrdinal(d3.schemeCategory10), []);
 
-  const { NODE_MIN, NODE_MAX, LINK_MIN, LINK_MAX } = useMemo(
+  const { NODE_MIN, NODE_MAX } = useMemo(
     () => ({
       NODE_MIN: 6,
       NODE_MAX: 18,
@@ -158,8 +155,9 @@ export const CollectionGraph = () => {
     highlightLinks.clear();
 
     if (activeNode) {
-      const nodeLinks = graphData?.links.filter((link: any) => {
+      const nodeLinks = graphData?.links.filter((link) => {
         return (
+          // @ts-expect-error link.source.id link.target.id
           link.source.id === activeNode.id || link.target.id === activeNode.id
         );
       });
@@ -169,7 +167,7 @@ export const CollectionGraph = () => {
         highlightNodes.add(link.target);
       });
       highlightNodes.add(activeNode);
-      // @ts-expect-error node.x | node.y
+      // @ts-expect-error node.x node.y
       graphRef.current?.centerAt(activeNode.x, activeNode.y, 400);
       graphRef.current?.zoom(3, 600);
     } else {
@@ -183,7 +181,7 @@ export const CollectionGraph = () => {
   useEffect(() => {
     getGraphData();
     getMergeSuggestions();
-
+    // init the graph config
     // graphRef.current
     //   ?.d3Force(
     //     'link',
@@ -300,7 +298,8 @@ export const CollectionGraph = () => {
             highlightNodes.clear();
             highlightLinks.clear();
             if (node) {
-              const nodeLinks = graphData?.links.filter((link: any) => {
+              const nodeLinks = graphData?.links.filter((link) => {
+                //@ts-expect-error link.source.id link.target.id
                 return link.source.id === node.id || link.target.id === node.id;
               });
               nodeLinks?.forEach((link: GraphEdge) => {
@@ -400,8 +399,11 @@ export const CollectionGraph = () => {
             return highlightLinks.has(link) ? 3 : 0;
           }}
           linkDirectionalParticles={2}
-          linkVisibility={(link: any) => {
+          linkVisibility={(link) => {
+            // @ts-expect-error link.source.properties
             const sourceEntityType = link.source?.properties?.entity_type || '';
+
+            // @ts-expect-error link.source.properties
             const tatgetEntityType = link.target?.properties?.entity_type || '';
             return (
               activeEntities.includes(sourceEntityType) &&

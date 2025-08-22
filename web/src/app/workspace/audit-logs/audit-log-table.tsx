@@ -192,7 +192,8 @@ export function AuditLogTable({
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     pageCount,
-    onPaginationChange: (fn: any) => {
+    onPaginationChange: (fn) => {
+      // @ts-expect-error onPaginationChange
       const { pageIndex, pageSize } = fn({
         pageIndex: query.page - 1,
         pageSize: query.pageSize,

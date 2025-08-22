@@ -15,7 +15,7 @@ const eslintConfig = [
     extends: ['next', 'prettier'],
     ignorePatterns: 'src/api/*',
     rules: {
-      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-explicit-any': 'warn',
       '@next/next/no-img-element': 'off',
     },
   }),
