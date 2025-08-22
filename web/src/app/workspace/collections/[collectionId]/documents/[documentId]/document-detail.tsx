@@ -1,5 +1,6 @@
 'use client';
 import { Collection, Document, DocumentPreview } from '@/api';
+import { getDocumentStatusColor } from '@/app/workspace/collections/tools';
 import { FormatDate } from '@/components/format-date';
 import { Markdown } from '@/components/markdown';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { defaultStyles, FileIcon } from 'react-file-icon';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
-import { getDocumentStatusColor } from '../tools';
 
 const PDFDocument = dynamic(() => import('react-pdf').then((r) => r.Document), {
   ssr: false,

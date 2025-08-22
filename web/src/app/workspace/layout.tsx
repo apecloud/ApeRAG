@@ -26,8 +26,9 @@ import {
   Package,
 } from 'lucide-react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
-import { ChatsProvider } from './chats-provider';
+import { notFound, redirect } from 'next/navigation';
+
+import { WorkspaceProvider } from '@/components/providers/workspace-provider';
 import { MenuChats } from './menu-chats';
 
 export default async function Layout({
@@ -52,6 +53,10 @@ export default async function Layout({
   const bot = botsRes.data.items?.find((item) => item.type === 'agent');
   let chats: Chat[] = [];
 
+  if (!bot) {
+    notFound();
+  }
+
   if (bot?.id) {
     const chatsRes = await apiServer.defaultApi.botsBotIdChatsGet({
       botId: bot.id,
@@ -63,7 +68,7 @@ export default async function Layout({
   }
 
   return (
-    <ChatsProvider bot={toJson(bot)} chats={toJson(chats)}>
+    <WorkspaceProvider bot={toJson(bot)} chats={toJson(chats)}>
       <SidebarProvider>
         <Sidebar>
           <SidebarHeader className="h-16 flex-row items-center gap-4 px-4 align-middle">
@@ -135,6 +140,6 @@ export default async function Layout({
         </Sidebar>
         <SidebarInset>{children}</SidebarInset>
       </SidebarProvider>
-    </ChatsProvider>
+    </WorkspaceProvider>
   );
 }

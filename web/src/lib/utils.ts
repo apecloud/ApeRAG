@@ -25,6 +25,7 @@ export type PageParams = {
   page?: number | string | null;
   pageSize?: number | string | null;
 };
+
 export const parsePageParams = ({ page = 1, pageSize = 20 }: PageParams) => {
   const p = isNaN(parseInt(String(page))) ? 1 : parseInt(String(page));
   const ps = isNaN(parseInt(String(pageSize)))

@@ -42,12 +42,15 @@ import {
   Trash,
 } from 'lucide-react';
 
+import {
+  FileIndexTypes,
+  getDocumentStatusColor,
+} from '@/app/workspace/collections/tools';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { DocumentDelete } from './document-delete';
 import { DocumentIndexStatus } from './document-index-status';
 import { DocumentReBuildIndex } from './document-rebuild-index';
-import { FileIndexType, getDocumentStatusColor } from './tools';
 
 export function DocumentsTable({
   collection,
@@ -101,12 +104,12 @@ export function DocumentsTable({
   );
 
   const columns: ColumnDef<Document>[] = React.useMemo(() => {
-    const indexCols: ColumnDef<Document>[] = objectKeys(FileIndexType).map(
+    const indexCols: ColumnDef<Document>[] = objectKeys(FileIndexTypes).map(
       (key) => {
         const accessorKey = key.toLowerCase() + '_index_status';
         return {
           accessorKey,
-          header: FileIndexType[key].title,
+          header: FileIndexTypes[key].title,
           cell: ({ row }) => (
             <DocumentIndexStatus
               document={row.original}

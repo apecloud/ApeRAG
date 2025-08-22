@@ -1,5 +1,6 @@
 import { Collection, ModelSpec } from '@/api';
 import { PageContent } from '@/components/page-container';
+import { useAgentsContext } from '@/components/providers/agents-provider';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -36,7 +37,6 @@ import { PiStopFill } from 'react-icons/pi';
 import { toast } from 'sonner';
 import Typewriter from 'typewriter-effect';
 import useLocalStorageState from 'use-local-storage-state';
-import { useAgentsContext } from '../../../use-agents-context';
 
 export type ChatInputSubmitParams = {
   query: string;

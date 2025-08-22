@@ -1,5 +1,6 @@
 'use client';
 
+import { useAppContext } from '@/components/providers/app-provider';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -8,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { useAppContext } from '@/hooks/use-app-context';
 
 import Link from 'next/link';
 

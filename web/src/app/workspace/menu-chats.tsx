@@ -1,5 +1,6 @@
 'use client';
 
+import { useWorkspaceContext } from '@/components/providers/workspace-provider';
 import { Button } from '@/components/ui/button';
 import {
   SidebarGroup,
@@ -20,10 +21,9 @@ import _ from 'lodash';
 import { Plus, Trash } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useChatsContext } from './use-chats-context';
 
 export const MenuChats = () => {
-  const { bot, chats, chatCreate, chatDelete } = useChatsContext();
+  const { bot, chats, chatCreate, chatDelete } = useWorkspaceContext();
   const pathname = usePathname();
   return (
     <SidebarGroup>

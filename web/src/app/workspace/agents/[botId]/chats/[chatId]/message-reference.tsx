@@ -30,7 +30,7 @@ export const MessageReference = ({
           </Badge>
         </Button>
       </DrawerTrigger>
-      <DrawerContent className="flex sm:min-w-2xl md:min-w-3xl lg:min-w-4xl">
+      <DrawerContent className="flex sm:min-w-sm md:min-w-md lg:min-w-lg">
         <DrawerHeader>
           <DrawerTitle className="font-bold">References</DrawerTitle>
         </DrawerHeader>

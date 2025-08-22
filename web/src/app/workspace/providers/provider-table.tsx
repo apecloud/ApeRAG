@@ -32,9 +32,9 @@ import {
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { FormatDate } from '@/components/format-date';
+import { useAppContext } from '@/components/providers/app-provider';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { useAppContext } from '@/hooks/use-app-context';
 import {
   ChevronDown,
   Columns3,

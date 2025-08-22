@@ -1,16 +1,51 @@
 'use client';
-import {
-  AppContext,
-  signInLocalSchema,
-  SignInOptions,
-  SignUpOptions,
-} from '@/hooks/use-app-context';
+
 import { toast } from 'sonner';
 
 import { User } from '@/api';
 import { apiClient } from '@/lib/api/client';
 import { useRouter } from 'next/navigation';
-import { useCallback, useState } from 'react';
+import { createContext, useCallback, useContext, useState } from 'react';
+
+import * as z from 'zod';
+
+type SignInOptions = {
+  type?: 'local' | 'google' | 'github';
+  data?: z.infer<typeof signInLocalSchema>;
+  redirectTo: string;
+};
+
+type SignUpOptions = {
+  data: z.infer<typeof signUpLocalSchema>;
+  redirectTo: string;
+};
+
+type AppContextProps = {
+  user?: User;
+  signIn: (options?: SignInOptions) => void;
+  signOut: () => void;
+  signUp: (options: SignUpOptions) => void;
+};
+
+const AppContext = createContext<AppContextProps>({
+  user: undefined,
+  signIn: () => {},
+  signOut: () => {},
+  signUp: () => {},
+});
+
+export const signInLocalSchema = z.object({
+  username: z.string().min(1),
+  password: z.string().min(1),
+});
+
+export const signUpLocalSchema = z.object({
+  username: z.string().min(1),
+  email: z.email(),
+  password: z.string().min(1),
+});
+
+export const useAppContext = () => useContext(AppContext);
 
 export const AppProvider = ({
   user,

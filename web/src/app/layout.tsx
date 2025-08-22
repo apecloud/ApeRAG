@@ -5,9 +5,8 @@ import { NextIntlClientProvider } from 'next-intl';
 import { Geist, Geist_Mono } from 'next/font/google';
 import NextTopLoader from 'nextjs-toploader';
 
-import { AppProvider } from '@/components/app-provider';
-import { ThemeProvider } from '@/components/theme-provider';
-
+import { AppProvider } from '@/components/providers/app-provider';
+import { ThemeProvider } from '@/components/providers/theme-provider';
 import 'highlight.js/styles/github-dark.css';
 import './globals.css';
 

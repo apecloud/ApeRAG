@@ -28,7 +28,7 @@ request.interceptors.response.use(
 
     if (typeof err.response?.data?.detail === 'string') {
       bizMessage = err.response.data.detail;
-    } else if (typeof err.response?.data?.detail.message === 'string') {
+    } else if (typeof err.response?.data?.detail?.message === 'string') {
       bizMessage = err.response.data.detail.message;
     } else {
       bizMessage = err.response?.data?.message;

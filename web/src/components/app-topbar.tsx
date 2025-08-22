@@ -24,7 +24,7 @@ import Link from 'next/link';
 
 import { LogOut } from 'lucide-react';
 
-import { useAppContext } from '@/hooks/use-app-context';
+import { useAppContext } from '@/components/providers/app-provider';
 import { cn } from '@/lib/utils';
 
 import { FaGithub } from 'react-icons/fa6';

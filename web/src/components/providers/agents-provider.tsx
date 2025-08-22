@@ -1,9 +1,26 @@
 'use client';
 
-import { Collection } from '@/api';
 import { apiClient } from '@/lib/api/client';
 import { useCallback, useEffect, useState } from 'react';
-import { AgentsContext, ProviderModels } from './use-agents-context';
+
+import { Collection, ModelSpec } from '@/api';
+import { createContext, useContext } from 'react';
+
+export type ProviderModels = {
+  label?: string;
+  name?: string;
+  models?: ModelSpec[];
+}[];
+export type AgentsContextProps = {
+  collections: Collection[];
+  providerModels: ProviderModels;
+};
+
+export const AgentsContext = createContext<AgentsContextProps>({
+  collections: [],
+  providerModels: [],
+});
+export const useAgentsContext = () => useContext(AgentsContext);
 
 export const AgentsProvider = ({
   children,
@@ -17,7 +34,7 @@ export const AgentsProvider = ({
     const [modelRes, collectionsRes] = await Promise.all([
       apiClient.defaultApi.availableModelsPost({
         tagFilterRequest: {
-          tag_filters: [{ operation: 'OR', tags: ['enable_for_agent'] }],
+          tag_filters: [{ operation: 'AND', tags: ['enable_for_agent'] }],
         },
       }),
       apiClient.defaultApi.collectionsGet(),

@@ -1,5 +1,9 @@
 'use client';
 
+import {
+  signInLocalSchema,
+  useAppContext,
+} from '@/components/providers/app-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -10,7 +14,6 @@ import {
   FormLabel,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { signInLocalSchema, useAppContext } from '@/hooks/use-app-context';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';

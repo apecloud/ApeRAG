@@ -1,8 +1,8 @@
 'use client';
 
+import { useAppContext } from '@/components/providers/app-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { useAppContext } from '@/hooks/use-app-context';
 import { LoaderCircle, ShieldAlert, ShieldPlus } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';

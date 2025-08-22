@@ -31,6 +31,7 @@ import {
 import { User } from '@/api';
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
+import { useAppContext } from '@/components/providers/app-provider';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
@@ -38,7 +39,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useAppContext } from '@/hooks/use-app-context';
 import { cn } from '@/lib/utils';
 import {
   BatteryMedium,

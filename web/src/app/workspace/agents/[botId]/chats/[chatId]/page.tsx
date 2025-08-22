@@ -36,7 +36,7 @@ export default async function Page({
       <PageHeader
         breadcrumbs={[{ title: 'Chats' }, { title: chat.title || '' }]}
       />
-      <PageContent className="max-w-5xl">
+      <PageContent className="max-w-6xl">
         <ChatMessages chat={chat} />
       </PageContent>
     </PageContainer>

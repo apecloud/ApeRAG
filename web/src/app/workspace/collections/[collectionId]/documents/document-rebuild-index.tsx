@@ -1,6 +1,7 @@
 'use client';
 
 import { Collection, Document } from '@/api';
+import { FileIndexTypes } from '@/app/workspace/collections/tools';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -24,10 +25,9 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { DocumentIndexStatus } from './document-index-status';
-import { FileIndexType } from './tools';
 
 const documentReBuildSchema = z.object({
-  index_types: z.array(z.enum(objectKeys(FileIndexType))),
+  index_types: z.array(z.enum(objectKeys(FileIndexTypes))),
 });
 
 type DocumentReBuildSchemaType = z.infer<typeof documentReBuildSchema>;
@@ -46,7 +46,7 @@ export const DocumentReBuildIndex = ({
   const form = useForm<DocumentReBuildSchemaType>({
     resolver: zodResolver(documentReBuildSchema),
     defaultValues: {
-      index_types: objectKeys(FileIndexType),
+      index_types: objectKeys(FileIndexTypes),
     },
   });
 
@@ -98,8 +98,8 @@ export const DocumentReBuildIndex = ({
               <DialogDescription>{file.name}</DialogDescription>
             </DialogHeader>
             <div className="my-6 flex flex-col gap-4">
-              {objectKeys(FileIndexType)?.map((key) => {
-                const item = FileIndexType[key];
+              {objectKeys(FileIndexTypes)?.map((key) => {
+                const item = FileIndexTypes[key];
                 return (
                   <FormField
                     key={key}
