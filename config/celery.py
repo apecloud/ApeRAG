@@ -58,11 +58,7 @@ app.conf.beat_schedule = {
     },
     'reconcile-evaluations': {
         'task': 'config.celery_tasks.reconcile_evaluations_task',
-        'schedule': 60.0,  # Run every 1 minute
-    },
-    'schedule-evaluations': {
-        'task': 'config.celery_tasks.schedule_evaluations_task',
-        'schedule': 300.0,
+        'schedule': 300.0,  # Run every 5 minute
     },
 }
 
