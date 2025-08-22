@@ -60,34 +60,34 @@ export const ChatsMenu = () => {
             chats?.map((chat, index) => {
               const url = `/workspace/agents/${bot?.id}/chats/${chat.id}`;
               return (
-                <SidebarMenuItem key={chat.id} className="group/item">
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname === url}
-                    className="data-[active=true]:font-normal"
-                  >
-                    <Link href={url}>
-                      <motion.div
-                        initial={{ opacity: 0, x: 40 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{
-                          duration: 0.2,
-                          ease: 'easeIn',
-                          delay: index * 0.05,
-                        }}
-                        className="block truncate"
-                      >
-                        {chat.title}
-                      </motion.div>
-                    </Link>
-                  </SidebarMenuButton>
-                  <SidebarMenuAction
-                    className="invisible cursor-pointer group-hover/item:visible"
-                    onClick={() => chatDelete && chatDelete(chat)}
-                  >
-                    <Trash className="opacity-60 hover:opacity-100" />
-                  </SidebarMenuAction>
-                </SidebarMenuItem>
+                <motion.div
+                  key={chat.id}
+                  initial={{ opacity: 0, x: 40 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{
+                    duration: 0.2,
+                    ease: 'easeIn',
+                    delay: index * 0.05,
+                  }}
+                >
+                  <SidebarMenuItem className="group/item">
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname === url}
+                      className="data-[active=true]:font-normal"
+                    >
+                      <Link href={url}>
+                        <div className="truncate">{chat.title}</div>
+                      </Link>
+                    </SidebarMenuButton>
+                    <SidebarMenuAction
+                      className="invisible cursor-pointer group-hover/item:visible"
+                      onClick={() => chatDelete && chatDelete(chat)}
+                    >
+                      <Trash className="opacity-60 hover:opacity-100" />
+                    </SidebarMenuAction>
+                  </SidebarMenuItem>
+                </motion.div>
               );
             })
           )}

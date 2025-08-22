@@ -5,3 +5,4 @@ public
 *.mdx
 Illustrations
 package.json
+i18n/en-US.d.json.ts
