@@ -59,11 +59,13 @@ class BaseChatMessageHistory(ABC):
                        f.write("[]")
     """
 
-    async def add_user_message(self, message: str, message_id: str) -> None:
+    async def add_user_message(self, message: str, message_id: str, files: List[Dict[str, Any]] = None) -> None:
         """Convenience method for adding a human message string to the store.
 
         Args:
             message: The string contents of a human message.
+            message_id: Unique message identifier.
+            files: Optional list of file metadata associated with the message.
         """
         raise NotImplementedError()
 
@@ -169,12 +171,13 @@ class RedisChatMessageHistory:
         if self.ttl:
             await self.redis_client.expire(self.key, self.ttl)
 
-    async def add_user_message(self, message: str, message_id: str) -> None:
+    async def add_user_message(self, message: str, message_id: str, files: List[Dict[str, Any]] = None) -> None:
         """Add a user message using new format"""
         stored_message = create_user_message(
             content=message,
             chat_id=self.session_id,
             message_id=message_id,
+            files=files,
         )
         await self.add_stored_message(stored_message)
 

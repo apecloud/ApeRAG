@@ -105,3 +105,5 @@ chat_document:
         description: Unauthorized
       '404':
         description: Document or chat not found
+
+

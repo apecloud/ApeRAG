@@ -130,7 +130,11 @@ class AsyncCollectionRepositoryMixin(AsyncRepositoryProtocol):
         async def _query(session):
             stmt = (
                 select(Collection)
-                .where(Collection.user.in_(users), Collection.status != CollectionStatus.DELETED)
+                .where(
+                    Collection.user.in_(users), 
+                    Collection.status != CollectionStatus.DELETED,
+                    Collection.is_chat_collection != True  # Exclude chat collections from regular list
+                )
                 .order_by(desc(Collection.gmt_created))
             )
             result = await session.execute(stmt)
@@ -165,7 +169,11 @@ class AsyncCollectionRepositoryMixin(AsyncRepositoryProtocol):
                         CollectionMarketplace.gmt_deleted.is_(None),
                     ),
                 )
-                .where(Collection.user == user_id, Collection.status != CollectionStatus.DELETED)
+                .where(
+                    Collection.user == user_id, 
+                    Collection.status != CollectionStatus.DELETED,
+                    Collection.is_chat_collection != True  # Exclude chat collections from regular list
+                )
                 .order_by(desc(Collection.gmt_created))
             )
             result = await session.execute(stmt)
@@ -178,7 +186,11 @@ class AsyncCollectionRepositoryMixin(AsyncRepositoryProtocol):
             stmt = (
                 select(func.count())
                 .select_from(Collection)
-                .where(Collection.user == user, Collection.status != CollectionStatus.DELETED)
+                .where(
+                    Collection.user == user, 
+                    Collection.status != CollectionStatus.DELETED,
+                    Collection.is_chat_collection != True  # Exclude chat collections from regular count
+                )
             )
             return await session.scalar(stmt)
 

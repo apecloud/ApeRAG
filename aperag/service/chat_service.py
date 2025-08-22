@@ -275,10 +275,18 @@ class ChatService:
     ) -> Any:
         """Frontend chat completions with special error handling for UI responses"""
 
-        # Associate documents with message if files are provided
+        # Get document metadata and associate documents with message if files are provided
+        file_metadata = []
         if files:
             try:
                 from aperag.service.chat_document_service import chat_document_service
+                # Get document metadata for storing in the message
+                file_metadata = await chat_document_service.get_documents_metadata(
+                    chat_id=chat_id,
+                    document_ids=files,
+                    user_id=user
+                )
+                # Associate documents with message
                 await chat_document_service.associate_documents_with_message(
                     chat_id=chat_id,
                     message_id=msg_id,
@@ -322,12 +330,24 @@ class ChatService:
             flow = FlowParser.parse(flow_config)
             engine = FlowEngine()
 
+            # Get user's chat collection for search filtering
+            from aperag.service.chat_collection_service import chat_collection_service
+            chat_collection = await chat_collection_service.get_user_chat_collection(user)
+            collection_ids = [chat_collection.id] if chat_collection else []
+
             # Prepare initial data for flow execution
             initial_data = {
                 "query": message,
                 "user": user,
                 "message_id": msg_id or str(uuid.uuid4()),
+                "chat_id": chat_id,
+                "collection_ids": collection_ids,
             }
+
+            # Save user message to history with file metadata
+            from aperag.utils.history import RedisChatMessageHistory, get_async_redis_client
+            history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
+            await history.add_user_message(message, msg_id, files=file_metadata)
 
             # Execute flow
             _, system_outputs = await engine.execute_flow(flow, initial_data)
@@ -451,10 +471,18 @@ class ChatService:
                 # Generate message ID
                 message_id = str(uuid.uuid4())
 
-                # Associate documents with message if files are provided
+                # Get document metadata and associate documents with message if files are provided
+                file_metadata = []
                 if files:
                     try:
                         from aperag.service.chat_document_service import chat_document_service
+                        # Get document metadata for storing in the message
+                        file_metadata = await chat_document_service.get_documents_metadata(
+                            chat_id=chat_id,
+                            document_ids=files,
+                            user_id=user
+                        )
+                        # Associate documents with message
                         await chat_document_service.associate_documents_with_message(
                             chat_id=chat_id,
                             message_id=message_id,
@@ -463,6 +491,9 @@ class ChatService:
                         )
                     except Exception as e:
                         logger.warning(f"Failed to associate documents with message {message_id}: {e}")
+
+                # Add user message to history with file metadata
+                await history.add_user_message(message_content, message_id, files=file_metadata)
 
                 try:
                     # Get or create chat session
@@ -482,12 +513,19 @@ class ChatService:
                     flow = FlowParser.parse(flow_config)
                     engine = FlowEngine()
 
+                    # Get user's chat collection for search filtering
+                    from aperag.service.chat_collection_service import chat_collection_service
+                    chat_collection = await chat_collection_service.get_user_chat_collection(user)
+                    collection_ids = [chat_collection.id] if chat_collection else []
+
                     # Prepare initial data for flow execution
                     initial_data = {
                         "query": message_content,
                         "user": user,
                         "message_id": message_id,
                         "history": history,
+                        "chat_id": chat_id,
+                        "collection_ids": collection_ids,
                     }
 
                     # Send start message

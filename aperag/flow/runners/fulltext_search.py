@@ -35,6 +35,7 @@ class FulltextSearchInput(BaseModel):
     keywords: Optional[List[str]] = Field(
         default_factory=list, description="Custom keywords to use for fulltext search"
     )
+    chat_id: Optional[str] = Field(None, description="Chat ID to filter chat documents")
 
 
 class FulltextSearchOutput(BaseModel):
@@ -58,7 +59,7 @@ class FulltextSearchService:
         self.repository = repository
 
     async def execute_fulltext_search(
-        self, user, query: str, top_k: int, collection_ids: List[str], keywords: List[str]
+        self, user, query: str, top_k: int, collection_ids: List[str], keywords: List[str], chat_id: Optional[str] = None
     ) -> List[DocumentWithScore]:
         """Execute fulltext search with given parameters"""
         collection = None
@@ -87,7 +88,7 @@ class FulltextSearchService:
         keywords = list(set(keywords))
 
         # Find the related documents using keywords
-        docs = await fulltext_indexer.search_document(index, keywords, top_k * 3)
+        docs = await fulltext_indexer.search_document(index, keywords, top_k * 3, chat_id=chat_id)
 
         # Add recall type metadata
         for doc in docs:
@@ -111,12 +112,19 @@ class FulltextSearchNodeRunner(BaseNodeRunner):
         Run fulltext search node. ui: user input; si: system input (SystemInput).
         Returns (output, system_output)
         """
+        # Use collection_ids from user input, fall back to system input
+        collection_ids = ui.collection_ids or getattr(si, 'collection_ids', [])
+        
+        # Use chat_id from user input, fall back to system input
+        chat_id = ui.chat_id or getattr(si, 'chat_id', None)
+        
         docs = await self.service.execute_fulltext_search(
             user=si.user,
             query=si.query,
             top_k=ui.top_k,
-            collection_ids=ui.collection_ids or [],
+            collection_ids=collection_ids,
             keywords=ui.keywords,
+            chat_id=chat_id,
         )
 
         return FulltextSearchOutput(docs=docs), {}

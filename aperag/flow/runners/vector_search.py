@@ -94,6 +94,7 @@ class VectorSearchInput(BaseModel):
     top_k: int = Field(5, description="Number of top results to return")
     similarity_threshold: float = Field(0.2, description="Similarity threshold for vector search")
     collection_ids: Optional[List[str]] = Field(default_factory=list, description="Collection IDs")
+    chat_id: Optional[str] = Field(None, description="Chat ID to filter chat documents")
 
 
 # User output model for vector search node
@@ -118,7 +119,7 @@ class VectorSearchService:
         self.repository = repository
 
     async def execute_vector_search(
-        self, user, query: str, top_k: int, similarity_threshold: float, collection_ids: List[str]
+        self, user, query: str, top_k: int, similarity_threshold: float, collection_ids: List[str], chat_id: Optional[str] = None
     ) -> List[DocumentWithScore]:
         """Execute vector search with given parameters"""
         collection = None
@@ -144,7 +145,7 @@ class VectorSearchService:
 
             # Query vector database for vector and vision indexes only (excluding summary)
             results = context_manager.query(
-                query, score_threshold=similarity_threshold, topk=top_k, vector=vector, index_types=["vector", "vision"]
+                query, score_threshold=similarity_threshold, topk=top_k, vector=vector, index_types=["vector", "vision"], chat_id=chat_id
             )
 
             # Add recall type metadata
@@ -185,12 +186,19 @@ class VectorSearchNodeRunner(BaseNodeRunner):
         Run vector search node. ui: user configurable params; si: system injected params (SystemInput).
         Returns (uo, so)
         """
+        # Use collection_ids from user input, fall back to system input
+        collection_ids = ui.collection_ids or getattr(si, 'collection_ids', [])
+        
+        # Use chat_id from user input, fall back to system input
+        chat_id = ui.chat_id or getattr(si, 'chat_id', None)
+        
         results = await self.service.execute_vector_search(
             user=si.user,
             query=si.query,
             top_k=ui.top_k,
             similarity_threshold=ui.similarity_threshold,
-            collection_ids=ui.collection_ids or [],
+            collection_ids=collection_ids,
+            chat_id=chat_id,
         )
 
         return VectorSearchOutput(docs=results), {}

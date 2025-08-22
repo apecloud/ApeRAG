@@ -26,9 +26,9 @@ class ContextManager(ABC):
         self.vectordb_type = vectordb_type
         self.adaptor = VectorStoreConnectorAdaptor(vectordb_type, vectordb_ctx)
 
-    def query(self, query, score_threshold=0.5, topk=3, vector=None, index_types=None):
+    def query(self, query, score_threshold=0.5, topk=3, vector=None, index_types=None, chat_id=None):
         """
-        Query vectors with optional filtering by index types
+        Query vectors with optional filtering by index types and chat_id
 
         Args:
             query: Query string
@@ -37,6 +37,7 @@ class ContextManager(ABC):
             vector: Pre-computed query vector (optional)
             index_types: List of index types to include (e.g., ["vector", "vision", "summary"])
                         If None, no filtering is applied
+            chat_id: Chat ID to filter chat documents (optional)
 
         Returns:
             List of DocumentWithScore objects
@@ -44,10 +45,8 @@ class ContextManager(ABC):
         if vector is None:
             vector = self.embedding_model.embed_query(query)
 
-        # Create filter based on index_types if provided
-        filter_condition = None
-        if index_types is not None:
-            filter_condition = self._create_index_types_filter(index_types)
+        # Create filter based on index_types and chat_id if provided
+        filter_condition = self._create_combined_filter(index_types, chat_id)
 
         query_embedding = QueryWithEmbedding(query=query, top_k=topk, embedding=vector)
         results = self.adaptor.connector.search(
@@ -95,4 +94,53 @@ class ContextManager(ABC):
         # elif self.vectordb_type == "weaviate":
         #     return {"where": {"operator": "Or", "operands": [...]}}
 
+        return None
+
+    def _create_combined_filter(self, index_types: Optional[List[str]] = None, chat_id: Optional[str] = None) -> Optional[Any]:
+        """
+        Create a combined filter for index types and chat_id
+
+        Args:
+            index_types: List of index types to include (e.g., ["vector", "vision", "summary"])
+            chat_id: Chat ID to filter chat documents
+
+        Returns:
+            Filter object specific to the vector database type, or None if no filters
+        """
+        if not index_types and not chat_id:
+            return None
+
+        if self.vectordb_type == "qdrant":
+            from qdrant_client.models import FieldCondition, Filter, IsEmptyCondition, MatchValue, MatchAny, PayloadField
+
+            conditions = []
+
+            # Add index_types filter
+            if index_types:
+                index_types_condition = [
+                    FieldCondition(key="indexer", match=MatchAny(any=index_types)),
+                    # Compatible with existing vectors that don't have indexer field
+                    IsEmptyCondition(is_empty=PayloadField(key="indexer")),
+                ]
+                conditions.extend(index_types_condition)
+
+            # Add chat_id filter
+            if chat_id:
+                chat_id_condition = FieldCondition(key="chat_id", match=MatchValue(value=chat_id))
+                if conditions:
+                    # If we have index_types conditions, combine them with AND logic
+                    return Filter(
+                        must=[
+                            chat_id_condition,
+                            Filter(should=conditions)
+                        ]
+                    )
+                else:
+                    # Only chat_id filter
+                    return Filter(must=[chat_id_condition])
+
+            # Only index_types filter
+            return Filter(should=conditions)
+
+        # Add support for other vector databases here
         return None

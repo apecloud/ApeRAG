@@ -46,6 +46,8 @@ paths:
   /chats/{chat_id}/documents/{document_id}:
     $ref: './paths/chat_documents.yaml#/chat_document'
 
+
+
   # collections
   /collections:
     $ref: './paths/collections.yaml#/collections'

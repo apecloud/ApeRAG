@@ -151,9 +151,12 @@ class SystemInput:
     message_id: Optional[str] = None
 
     def __init__(
-        self, query: str, user: str, history: Optional[BaseChatMessageHistory] = None, message_id: Optional[str] = None
+        self, query: str, user: str, history: Optional[BaseChatMessageHistory] = None, message_id: Optional[str] = None, **kwargs
     ):
         self.query = query
         self.user = user
         self.history = history
         self.message_id = message_id
+        # Set additional attributes from kwargs
+        for key, value in kwargs.items():
+            setattr(self, key, value)

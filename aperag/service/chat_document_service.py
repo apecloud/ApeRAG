@@ -136,6 +136,47 @@ class ChatDocumentService:
 
         return view_models.ChatDocumentList(items=chat_documents)
 
+
+
+    async def get_documents_metadata(
+        self, chat_id: str, document_ids: List[str], user_id: str
+    ) -> List[Dict[str, Any]]:
+        """Get metadata for documents to be stored in chat message"""
+        if not document_ids:
+            return []
+
+        # Get user's chat collection
+        collection = await chat_collection_service.get_user_chat_collection(user_id)
+        if not collection:
+            return []
+
+        documents_metadata = []
+        for document_id in document_ids:
+            document = await self.db_ops.query_document_by_id(document_id)
+            if not document or document.collection_id != collection.id:
+                continue
+
+            # Verify it's a chat document for this chat
+            if document.doc_metadata:
+                try:
+                    metadata = json.loads(document.doc_metadata)
+                    if (metadata.get("file_type") == "chat_upload" and 
+                        metadata.get("chat_id") == chat_id):
+                        # Build file metadata for message storage
+                        file_info = {
+                            "id": document.id,
+                            "name": document.name,
+                            "size": document.size,
+                            "status": document.status.value,
+                            "created": document.gmt_created.isoformat(),
+                            "updated": document.gmt_updated.isoformat(),
+                        }
+                        documents_metadata.append(file_info)
+                except json.JSONDecodeError:
+                    continue
+
+        return documents_metadata
+
     def _validate_file(self, file: UploadFile):
         """Validate uploaded file against chat document limits"""
         if not file.filename:
