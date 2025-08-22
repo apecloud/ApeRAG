@@ -35,7 +35,7 @@ export const MessagePartsAi = ({
         </div>
       </div>
       <div className="flex flex-col gap-1">
-        <Card className="rounded-lg rounded-bl-none py-4 dark:border-none">
+        <Card className="rounded-lg py-4 dark:border-none">
           <CardContent className="px-4 text-sm">
             {pending ? (
               <div className="flex flex-row gap-2 py-2">

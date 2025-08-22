@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useSidebar } from '@/components/ui/sidebar';
 import { Textarea } from '@/components/ui/textarea';
 import { Toggle } from '@/components/ui/toggle';
 import {
@@ -24,7 +25,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import _ from 'lodash';
@@ -64,7 +64,7 @@ export const ChatInput = ({
   onCancel: () => void;
 }) => {
   const [isComposing, setIsComposing] = useState<boolean>(false);
-  const isMobile = useIsMobile();
+  const { open, isMobile } = useSidebar();
   const { providerModels, collections } = useAgentsContext();
   const locale = useLocale();
   const [query, setQuery] = useState<string>('');
@@ -159,12 +159,12 @@ export const ChatInput = ({
   return (
     <div
       className={cn(
-        'bg-background fixed right-0 z-10',
-        isMobile ? 'left-0' : 'left-[var(--sidebar-width)]',
-        welcome ? 'top-[30%]' : 'bottom-0',
+        'bg-background/80 fixed right-0 z-10 backdrop-blur-lg transition-[width,height,left] ease-linear',
+        !open || isMobile ? 'left-0' : 'left-[var(--sidebar-width)]',
+        welcome ? 'top-[25%]' : 'bottom-0',
       )}
     >
-      <PageContent className="max-w-5xl">
+      <PageContent className="max-w-4xl pb-8">
         {welcome && (
           <div className="mb-6 flex flex-col justify-center text-center">
             <motion.div

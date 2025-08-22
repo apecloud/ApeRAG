@@ -69,7 +69,7 @@ export const ChatsMenu = () => {
                   transition={{
                     duration: 0.2,
                     ease: 'easeIn',
-                    delay: index * 0.05,
+                    delay: index * 0.04,
                   }}
                 >
                   <SidebarMenuItem className="group/item">

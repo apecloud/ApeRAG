@@ -119,8 +119,9 @@ export const mdComponents = {
           'text-muted-foreground my-4 border-l-4 py-1 pl-4 first:mt-0 last:mb-0',
           className,
         )}
-        {...props}
-      />
+      >
+        {props.children}
+      </blockquote>
     );
   },
   img: ({ src, ...props }: JSX.IntrinsicElements['img']) => {
@@ -143,10 +144,10 @@ export const mdComponents = {
       );
     }
   },
-  pre: ({ className, children, ...props }: JSX.IntrinsicElements['pre']) => {
+  pre: ({ className, ...props }: JSX.IntrinsicElements['pre']) => {
     return (
-      <pre className={cn('my-4 overflow-x-auto', className)} {...props}>
-        {children}
+      <pre className={cn('my-4 overflow-x-auto', className)}>
+        {props.children}
       </pre>
     );
   },
@@ -155,7 +156,9 @@ export const mdComponents = {
     const language = match?.[1];
     if (language) {
       return (
-        <code className={cn('rounded-md text-sm', className)} {...props} />
+        <code className={cn('rounded-md text-sm', className)}>
+          {props.children}
+        </code>
       );
     } else {
       return (
@@ -164,7 +167,6 @@ export const mdComponents = {
             'mx-1 inline-block overflow-x-auto rounded-md bg-gray-500/10 px-1.5 py-0.5 align-middle text-sm',
             className,
           )}
-          {...props}
         >
           {props.children}
         </code>
@@ -211,16 +213,7 @@ export const mdComponents = {
   ),
 };
 
-export const mdRehypePlugins: any = [
-  rehypeHighlight,
-  rehypeHighlightLines,
-  // [
-  //   rehypeToc,
-  //   {
-  //     headings: ['h2', 'h3', 'h4', 'h5', 'h6'],
-  //   },
-  // ],
-];
+export const mdRehypePlugins: any = [rehypeHighlight, rehypeHighlightLines];
 export const mdRemarkPlugins: any = [
   remarkGfm,
   remarkFrontmatter,

@@ -7,14 +7,13 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { House } from 'lucide-react';
 import Link from 'next/link';
 import React, { useMemo } from 'react';
 import { AppDocs, AppGithub, AppThemeDropdownMenu } from './app-topbar';
 import { Separator } from './ui/separator';
-import { SidebarTrigger } from './ui/sidebar';
+import { SidebarTrigger, useSidebar } from './ui/sidebar';
 
 export type AppTopbarBreadcrumbItem = {
   title: string;
@@ -28,21 +27,21 @@ export const PageHeader = ({
   fixed?: boolean;
   breadcrumbs?: AppTopbarBreadcrumbItem[];
 }) => {
-  const isMobile = useIsMobile();
+  const { open, isMobile } = useSidebar();
 
   const cls = useMemo(() => {
     const defaultCls = cn(
-      'flex flex-row justify-between h-12 items-center gap-2 border-b transition-[width,height] ease-linear bg-background/50 backdrop-blur-lg',
+      'flex flex-row justify-between h-12 items-center gap-2 border-b transition-[width,height,left] ease-linear bg-background/50 backdrop-blur-lg',
     );
 
     return fixed
       ? cn(
           defaultCls,
           'fixed right-0 top-0 z-10',
-          isMobile ? 'left-0' : 'left-[var(--sidebar-width)]',
+          !open || isMobile ? 'left-0' : 'left-[var(--sidebar-width)]',
         )
       : defaultCls;
-  }, [fixed, isMobile]);
+  }, [fixed, open, isMobile]);
 
   return (
     <>

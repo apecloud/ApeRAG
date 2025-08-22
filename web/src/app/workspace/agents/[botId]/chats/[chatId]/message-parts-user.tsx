@@ -7,7 +7,7 @@ export const MessagePartsUser = ({ parts }: { parts: ChatMessage[] }) => {
   return (
     <div className="ml-auto flex w-max max-w-[85%] flex-row gap-4">
       <div className="flex flex-col gap-2">
-        <div className="bg-primary text-primary-foreground rounded-lg rounded-br-none p-4 text-sm">
+        <div className="bg-primary text-primary-foreground rounded-lg p-4 text-sm">
           <Markdown>{parts?.map((part) => part.data || '').join('')}</Markdown>
         </div>
         <MessageTimestamp parts={parts} />
