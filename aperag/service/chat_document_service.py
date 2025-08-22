@@ -106,35 +106,7 @@ class ChatDocumentService:
 
         return None
 
-    async def list_chat_documents(
-        self, chat_id: str, user_id: str
-    ) -> view_models.ChatDocumentList:
-        """List all documents for a chat session"""
-        # Get user's chat collection
-        collection = await chat_collection_service.get_user_chat_collection(user_id)
-        if not collection:
-            return view_models.ChatDocumentList(items=[])
 
-        # Get all documents in the collection
-        documents = await self.db_ops.query_documents_by_collection_id(
-            collection.id, include_deleted=False
-        )
-
-        # Filter for this chat's documents
-        chat_documents = []
-        for doc in documents:
-            if doc.doc_metadata:
-                try:
-                    metadata = json.loads(doc.doc_metadata)
-                    if (metadata.get("file_type") == "chat_upload" and 
-                        metadata.get("chat_id") == chat_id):
-                        chat_documents.append(
-                            self._build_chat_document_response(doc, chat_id)
-                        )
-                except json.JSONDecodeError:
-                    continue
-
-        return view_models.ChatDocumentList(items=chat_documents)
 
 
 

@@ -45,32 +45,7 @@ chat_documents:
       '404':
         description: Chat not found
 
-  get:
-    summary: List chat documents
-    description: List all documents uploaded to a chat session
-    tags:
-      - chat-documents
-    security:
-      - BearerAuth: []
-      - CookieAuth: []
-    parameters:
-      - name: chat_id
-        in: path
-        required: true
-        schema:
-          type: string
-        description: Chat session ID
-    responses:
-      '200':
-        description: Chat documents retrieved successfully
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas/chat_document.yaml#/ChatDocumentList'
-      '401':
-        description: Unauthorized
-      '404':
-        description: Chat not found
+
 
 chat_document:
   get:

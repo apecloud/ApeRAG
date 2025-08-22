@@ -65,16 +65,6 @@ async def get_chat_document_view(
     return document
 
 
-@router.get("/chats/{chat_id}/documents", tags=["chat-documents"])
-async def list_chat_documents_view(
-    request: Request,
-    chat_id: str,
-    user: User = Depends(current_user),
-) -> view_models.ChatDocumentList:
-    """List documents in a chat session"""
-    return await chat_document_service.list_chat_documents(
-        chat_id=chat_id,
-        user_id=str(user.id)
-    )
+
 
 
