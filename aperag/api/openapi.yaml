@@ -40,6 +40,12 @@ paths:
   /bots/{bot_id}/chats/{chat_id}/messages/{message_id}:
     $ref: './paths/message.yaml#/message'
 
+  # chat documents
+  /chats/{chat_id}/documents:
+    $ref: './paths/chat_documents.yaml#/chat_documents'
+  /chats/{chat_id}/documents/{document_id}:
+    $ref: './paths/chat_documents.yaml#/chat_document'
+
   # collections
   /collections:
     $ref: './paths/collections.yaml#/collections'

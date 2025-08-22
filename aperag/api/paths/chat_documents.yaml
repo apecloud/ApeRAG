@@ -1,0 +1,107 @@
+chat_documents:
+  post:
+    summary: Upload document to chat
+    description: Upload a document file to a chat session for temporary knowledge augmentation
+    tags:
+      - chat-documents
+    security:
+      - BearerAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: chat_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Chat session ID
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              file:
+                type: string
+                format: binary
+                description: Document file to upload
+              message_id:
+                type: string
+                description: Message ID to associate the document with
+            required:
+              - file
+              - message_id
+    responses:
+      '200':
+        description: Document uploaded successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/chat_document.yaml#/ChatDocumentResponse'
+      '400':
+        description: Bad request
+      '401':
+        description: Unauthorized
+      '404':
+        description: Chat not found
+
+  get:
+    summary: List chat documents
+    description: List all documents uploaded to a chat session
+    tags:
+      - chat-documents
+    security:
+      - BearerAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: chat_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Chat session ID
+    responses:
+      '200':
+        description: Chat documents retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/chat_document.yaml#/ChatDocumentList'
+      '401':
+        description: Unauthorized
+      '404':
+        description: Chat not found
+
+chat_document:
+  get:
+    summary: Get chat document details
+    description: Get details of a specific document in a chat session
+    tags:
+      - chat-documents
+    security:
+      - BearerAuth: []
+      - CookieAuth: []
+    parameters:
+      - name: chat_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Chat session ID
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Document ID
+    responses:
+      '200':
+        description: Document details retrieved successfully
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/chat_document.yaml#/ChatDocumentResponse'
+      '401':
+        description: Unauthorized
+      '404':
+        description: Document or chat not found

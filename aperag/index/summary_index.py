@@ -90,18 +90,31 @@ class SummaryIndexer(BaseIndexer):
                     collection=generate_vector_db_collection_name(collection_id=collection.id)
                 )
 
+                # Create summary metadata
+                summary_metadata = {
+                    "document_id": document_id,
+                    "document_name": document.name,
+                    "name": f"{document.name} - Summary",
+                    "indexer": "summary",
+                    "index_method": "summary",
+                    "collection_id": collection.id,
+                    "content_type": "summary",
+                }
+                
+                # Add chat metadata if this is a chat upload
+                if document.doc_metadata:
+                    try:
+                        import json
+                        doc_metadata = json.loads(document.doc_metadata)
+                        if doc_metadata.get("file_type") == "chat_upload":
+                            summary_metadata["chat_id"] = doc_metadata.get("chat_id")
+                    except json.JSONDecodeError:
+                        pass
+
                 # Create a TextPart for the summary
                 summary_part = TextPart(
                     content=summary,
-                    metadata={
-                        "document_id": document_id,
-                        "document_name": document.name,
-                        "name": f"{document.name} - Summary",
-                        "indexer": "summary",
-                        "index_method": "summary",
-                        "collection_id": collection.id,
-                        "content_type": "summary",
-                    },
+                    metadata=summary_metadata,
                 )
 
                 # Store summary vector in vector database

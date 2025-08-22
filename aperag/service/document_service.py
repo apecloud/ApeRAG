@@ -171,6 +171,7 @@ class DocumentService:
         status: db_models.DocumentStatus,
         file_suffix: str,
         file_content: bytes,
+        custom_metadata: dict = None,
     ) -> db_models.Document:
         """
         Create a document record in database and upload file to object store.
@@ -193,9 +194,11 @@ class DocumentService:
         upload_path = f"{document_instance.object_store_base_path()}/original{file_suffix}"
         await async_obj_store.put(upload_path, file_content)
 
-        # Update document with object path
-        metadata = json.dumps({"object_path": upload_path})
-        document_instance.doc_metadata = metadata
+        # Update document with object path and custom metadata
+        metadata = {"object_path": upload_path}
+        if custom_metadata:
+            metadata.update(custom_metadata)
+        document_instance.doc_metadata = json.dumps(metadata)
         session.add(document_instance)
         await session.flush()
         await session.refresh(document_instance)
@@ -322,7 +325,7 @@ class DocumentService:
         )
 
     async def create_documents(
-        self, user: str, collection_id: str, files: List[UploadFile]
+        self, user: str, collection_id: str, files: List[UploadFile], custom_metadata: dict = None
     ) -> view_models.DocumentList:
         if len(files) > 50:
             raise invalid_param("file_count", "documents are too many, add document failed")
@@ -364,6 +367,7 @@ class DocumentService:
                     status=db_models.DocumentStatus.PENDING,
                     file_suffix=file_info["suffix"],
                     file_content=file_info["content"],
+                    custom_metadata=custom_metadata,
                 )
 
                 # Create indexes

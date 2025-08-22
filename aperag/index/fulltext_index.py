@@ -54,7 +54,7 @@ class FulltextIndexer(BaseIndexer):
         """Fulltext indexing is always enabled"""
         return True
 
-    def _extract_chunk_data(self, part) -> Tuple[str, str, Dict[str, Any]]:
+    def _extract_chunk_data(self, part, document_id: str = None) -> Tuple[str, str, Dict[str, Any]]:
         """Extract chunk content, title and metadata from a document part"""
         if not hasattr(part, "content") or not part.content or not part.content.strip():
             return "", "", {}
@@ -63,6 +63,20 @@ class FulltextIndexer(BaseIndexer):
         chunk_metadata = part.metadata.copy() if hasattr(part, "metadata") and part.metadata else {}
         titles = chunk_metadata.get("titles", [])
         title_text = " > ".join(titles) if titles else ""
+
+        # Add chat metadata if this is a chat upload
+        if document_id:
+            from aperag.db.ops import db_ops
+            document = db_ops.query_document_by_id(document_id)
+            if document and document.doc_metadata:
+                try:
+                    import json
+                    doc_metadata = json.loads(document.doc_metadata)
+                    if doc_metadata.get("file_type") == "chat_upload":
+                        chunk_metadata["chat_id"] = doc_metadata.get("chat_id")
+                        chunk_metadata["document_id"] = document_id
+                except json.JSONDecodeError:
+                    pass
 
         return chunk_content, title_text, chunk_metadata
 
@@ -82,7 +96,7 @@ class FulltextIndexer(BaseIndexer):
         chunked_parts = rechunk(doc_parts, chunk_size, chunk_overlap_size, tokenizer)
 
         for chunk_idx, part in enumerate(chunked_parts):
-            chunk_content, title_text, chunk_metadata = self._extract_chunk_data(part)
+            chunk_content, title_text, chunk_metadata = self._extract_chunk_data(part, document_id)
             if not chunk_content:
                 continue
 

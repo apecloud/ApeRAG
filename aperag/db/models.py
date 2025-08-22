@@ -228,6 +228,7 @@ class Collection(Base):
     status = Column(EnumColumn(CollectionStatus), nullable=False, index=True)  # Add index for status queries
     type = Column(EnumColumn(CollectionType), nullable=False)
     config = Column(Text, nullable=False)
+    is_chat_collection = Column(Boolean, nullable=False, default=False, index=True)  # Chat collection marker
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
@@ -684,6 +685,7 @@ class User(Base):
     is_superuser = Column(Boolean, default=False, nullable=False)
     is_verified = Column(Boolean, default=True, nullable=False)  # fastapi-users requires is_verified
     is_staff = Column(Boolean, default=False, nullable=False)
+    chat_collection_id = Column(String(24), nullable=True, index=True)  # Chat collection for user
     date_joined = Column(
         DateTime(timezone=True), default=utc_now, nullable=False
     )  # Unified naming with other time fields

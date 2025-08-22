@@ -42,6 +42,7 @@ from aperag.views.api_key import router as api_key_router
 from aperag.views.audit import router as audit_router
 from aperag.views.auth import router as auth_router
 from aperag.views.chat_completion import router as chat_completion_router
+from aperag.views.chat_documents import router as chat_documents_router
 from aperag.views.collections import router as collections_router
 from aperag.views.config import router as config_router
 from aperag.views.evaluation import router as evaluation_router
@@ -106,6 +107,7 @@ app.include_router(settings_router, prefix="/api/v1")
 app.include_router(web_router, prefix="/api/v1")  # Add web search router
 app.include_router(evaluation_router, prefix="/api/v1")
 app.include_router(chat_completion_router, prefix="/v1")
+app.include_router(chat_documents_router, prefix="/api/v1")  # Add chat documents router
 app.include_router(config_router, prefix="/api/v1/config")
 
 # Only include test router in dev mode

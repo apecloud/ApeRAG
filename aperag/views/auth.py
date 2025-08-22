@@ -68,6 +68,7 @@ class UserManager(BaseUserManager[User, str]):
             from aperag.db.models import BotType
             from aperag.schema.view_models import BotCreate
             from aperag.service.bot_service import bot_service
+            from aperag.service.chat_collection_service import chat_collection_service
             from aperag.service.quota_service import quota_service
 
             # Initialize user quotas first
@@ -86,6 +87,9 @@ class UserManager(BaseUserManager[User, str]):
                 collection_ids=[],
             )
             await bot_service.create_bot(user=str(user.id), bot_in=bot_create, skip_quota_check=True)
+
+            # Create user's chat collection
+            await chat_collection_service.initialize_user_chat_collection(str(user.id))
 
             logger.info(f"Initialized resources for user {user.username or user.email} ({user.id})")
         except Exception as e:
