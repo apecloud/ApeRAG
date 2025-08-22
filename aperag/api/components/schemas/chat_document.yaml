@@ -29,15 +29,6 @@ ChatDocumentResponse:
       format: date-time
       description: Last update timestamp
 
-ChatDocumentList:
-  type: object
-  properties:
-    items:
-      type: array
-      items:
-        $ref: '#/ChatDocumentResponse'
-      description: List of chat documents
-
 ChatDocumentUploadRequest:
   type: object
   properties:
