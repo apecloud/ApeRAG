@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 
 from aperag.db.models import User
 from aperag.schema import view_models
-from aperag.service.chat_document_service import ChatDocumentResponse, ChatDocumentList, chat_document_service
+from aperag.service.chat_document_service import chat_document_service
 from aperag.utils.audit_decorator import audit
 from aperag.views.auth import current_user
 
@@ -35,13 +35,11 @@ async def upload_chat_document_view(
     request: Request,
     chat_id: str,
     file: UploadFile = File(...),
-    message_id: str = Form(...),
     user: User = Depends(current_user),
-) -> ChatDocumentResponse:
+) -> view_models.ChatDocumentResponse:
     """Upload a document to a chat session"""
     return await chat_document_service.upload_chat_document(
         chat_id=chat_id,
-        message_id=message_id,
         user_id=str(user.id),
         file=file
     )
@@ -53,7 +51,7 @@ async def get_chat_document_view(
     chat_id: str,
     document_id: str,
     user: User = Depends(current_user),
-) -> ChatDocumentResponse:
+) -> view_models.ChatDocumentResponse:
     """Get chat document details"""
     document = await chat_document_service.get_chat_document_by_id(
         chat_id=chat_id,
@@ -72,7 +70,7 @@ async def list_chat_documents_view(
     request: Request,
     chat_id: str,
     user: User = Depends(current_user),
-) -> ChatDocumentList:
+) -> view_models.ChatDocumentList:
     """List documents in a chat session"""
     return await chat_document_service.list_chat_documents(
         chat_id=chat_id,

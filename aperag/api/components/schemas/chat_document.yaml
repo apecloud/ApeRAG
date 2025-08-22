@@ -20,19 +20,6 @@ ChatDocumentResponse:
     message_id:
       type: string
       description: Message ID that the document is associated with
-    progress:
-      type: object
-      properties:
-        current_step:
-          type: string
-          description: Current processing step
-        total_steps:
-          type: integer
-          description: Total number of processing steps
-        completed_steps:
-          type: integer
-          description: Number of completed steps
-      description: Processing progress information
     created:
       type: string
       format: date-time
@@ -58,9 +45,5 @@ ChatDocumentUploadRequest:
       type: string
       format: binary
       description: Document file to upload
-    message_id:
-      type: string
-      description: Message ID to associate the document with
   required:
     - file
-    - message_id

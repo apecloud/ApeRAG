@@ -14,32 +14,16 @@
 
 import json
 import logging
-from typing import Dict, List, Optional, TypedDict
+from typing import Dict, List, Optional
 
 from fastapi import HTTPException, UploadFile
 
 from aperag.db.models import Document, DocumentStatus
 from aperag.db.ops import async_db_ops
+from aperag.schema import view_models
 from aperag.service.chat_collection_service import chat_collection_service
 from aperag.service.document_service import document_service
 from aperag.utils.utils import utc_now
-
-
-# Temporary type definitions until OpenAPI models are generated
-class ChatDocumentResponse(TypedDict):
-    id: str
-    name: str
-    size: int
-    status: str
-    chat_id: str
-    message_id: Optional[str]
-    progress: Dict[str, any]
-    created: str
-    updated: str
-
-
-class ChatDocumentList(TypedDict):
-    items: List[ChatDocumentResponse]
 
 logger = logging.getLogger(__name__)
 
@@ -62,8 +46,8 @@ class ChatDocumentService:
         self.db_ops = async_db_ops
 
     async def upload_chat_document(
-        self, chat_id: str, message_id: str, user_id: str, file: UploadFile
-    ) -> ChatDocumentResponse:
+        self, chat_id: str, user_id: str, file: UploadFile
+    ) -> view_models.ChatDocumentResponse:
         """Upload chat document to user's chat collection"""
         # Validate file
         self._validate_file(file)
@@ -74,10 +58,9 @@ class ChatDocumentService:
             # Create if missing (fallback)
             collection = await chat_collection_service.create_user_chat_collection(user_id)
 
-        # Prepare document metadata
+        # Prepare document metadata (without message_id initially)
         doc_metadata = {
             "chat_id": chat_id,
-            "message_id": message_id,
             "file_type": "chat_upload",
             "original_filename": file.filename,
             "upload_timestamp": utc_now().isoformat()
@@ -95,11 +78,11 @@ class ChatDocumentService:
         
         logger.info(f"Chat document {document.id} uploaded for chat {chat_id}")
         
-        return self._build_chat_document_response(document, chat_id, message_id)
+        return self._build_chat_document_response(document, chat_id)
 
     async def get_chat_document_by_id(
         self, chat_id: str, document_id: str, user_id: str
-    ) -> Optional[ChatDocumentResponse]:
+    ) -> Optional[view_models.ChatDocumentResponse]:
         """Get chat document by ID with chat ownership validation"""
         # Get user's chat collection
         collection = await chat_collection_service.get_user_chat_collection(user_id)
@@ -117,9 +100,7 @@ class ChatDocumentService:
                 metadata = json.loads(document.doc_metadata)
                 if (metadata.get("file_type") == "chat_upload" and 
                     metadata.get("chat_id") == chat_id):
-                    return self._build_chat_document_response(
-                        document, chat_id, metadata.get("message_id")
-                    )
+                    return self._build_chat_document_response(document, chat_id)
             except json.JSONDecodeError:
                 pass
 
@@ -127,12 +108,12 @@ class ChatDocumentService:
 
     async def list_chat_documents(
         self, chat_id: str, user_id: str
-    ) -> ChatDocumentList:
+    ) -> view_models.ChatDocumentList:
         """List all documents for a chat session"""
         # Get user's chat collection
         collection = await chat_collection_service.get_user_chat_collection(user_id)
         if not collection:
-            return {"items": []}
+            return view_models.ChatDocumentList(items=[])
 
         # Get all documents in the collection
         documents = await self.db_ops.query_documents_by_collection_id(
@@ -148,14 +129,12 @@ class ChatDocumentService:
                     if (metadata.get("file_type") == "chat_upload" and 
                         metadata.get("chat_id") == chat_id):
                         chat_documents.append(
-                            self._build_chat_document_response(
-                                doc, chat_id, metadata.get("message_id")
-                            )
+                            self._build_chat_document_response(doc, chat_id)
                         )
                 except json.JSONDecodeError:
                     continue
 
-        return {"items": chat_documents}
+        return view_models.ChatDocumentList(items=chat_documents)
 
     def _validate_file(self, file: UploadFile):
         """Validate uploaded file against chat document limits"""
@@ -185,51 +164,62 @@ class ChatDocumentService:
             )
 
     def _build_chat_document_response(
-        self, document: Document, chat_id: str, message_id: str = None
-    ) -> ChatDocumentResponse:
+        self, document: Document, chat_id: str
+    ) -> view_models.ChatDocumentResponse:
         """Build chat document response from Document model"""
-        # Get processing progress
-        progress = self._get_document_progress(document)
+        # Get message_id from document metadata if available
+        message_id = None
+        if document.doc_metadata:
+            try:
+                metadata = json.loads(document.doc_metadata)
+                message_id = metadata.get("message_id")
+            except json.JSONDecodeError:
+                pass
         
-        return {
-            "id": document.id,
-            "name": document.name,
-            "size": document.size,
-            "status": document.status.value,
-            "chat_id": chat_id,
-            "message_id": message_id,
-            "progress": progress,
-            "created": document.gmt_created.isoformat(),
-            "updated": document.gmt_updated.isoformat(),
-        }
+        return view_models.ChatDocumentResponse(
+            id=document.id,
+            name=document.name,
+            size=document.size,
+            status=document.status.value,
+            chat_id=chat_id,
+            message_id=message_id,
+            created=document.gmt_created,
+            updated=document.gmt_updated,
+        )
 
-    def _get_document_progress(self, document: Document) -> dict:
-        """Get document processing progress"""
-        # This is a simplified progress calculation
-        # In a real implementation, you'd get this from DocumentIndex table
-        
-        total_steps = 4  # Parse, Vector, Fulltext, Summary/Graph
-        completed_steps = 0
-        current_step = "Uploading"
+    async def associate_documents_with_message(
+        self, chat_id: str, message_id: str, document_ids: List[str], user_id: str
+    ) -> None:
+        """Associate uploaded documents with a message when user sends the message"""
+        # Get user's chat collection
+        collection = await chat_collection_service.get_user_chat_collection(user_id)
+        if not collection:
+            return
 
-        if document.status == DocumentStatus.PENDING:
-            current_step = "Pending"
-            completed_steps = 1
-        elif document.status == DocumentStatus.RUNNING:
-            current_step = "Processing"
-            completed_steps = 2
-        elif document.status == DocumentStatus.COMPLETE:
-            current_step = "Complete"
-            completed_steps = total_steps
-        elif document.status == DocumentStatus.FAILED:
-            current_step = "Failed"
-            completed_steps = 0
+        # Update each document's metadata to include message_id
+        for document_id in document_ids:
+            document = await self.db_ops.query_document_by_id(document_id)
+            if not document or document.collection_id != collection.id:
+                continue
 
-        return {
-            "current_step": current_step,
-            "total_steps": total_steps,
-            "completed_steps": completed_steps
-        }
+            # Verify it's a chat document for this chat
+            if document.doc_metadata:
+                try:
+                    metadata = json.loads(document.doc_metadata)
+                    if (metadata.get("file_type") == "chat_upload" and 
+                        metadata.get("chat_id") == chat_id):
+                        # Update metadata with message_id
+                        metadata["message_id"] = message_id
+                        document.doc_metadata = json.dumps(metadata)
+                        document.gmt_updated = utc_now()
+                        
+                        # Save the updated document
+                        await self.db_ops.update_document(document)
+                        logger.info(f"Associated document {document_id} with message {message_id}")
+                except json.JSONDecodeError:
+                    continue
+
+
 
 
 # Global service instance

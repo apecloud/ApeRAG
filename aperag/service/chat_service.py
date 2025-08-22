@@ -271,9 +271,22 @@ class ChatService:
         return event_stream()
 
     async def frontend_chat_completions(
-        self, user: str, message: str, stream: bool, bot_id: str, chat_id: str, msg_id: str
+        self, user: str, message: str, stream: bool, bot_id: str, chat_id: str, msg_id: str, files: List[str] = None
     ) -> Any:
         """Frontend chat completions with special error handling for UI responses"""
+
+        # Associate documents with message if files are provided
+        if files:
+            try:
+                from aperag.service.chat_document_service import chat_document_service
+                await chat_document_service.associate_documents_with_message(
+                    chat_id=chat_id,
+                    message_id=msg_id,
+                    document_ids=files,
+                    user_id=user
+                )
+            except Exception as e:
+                logger.warning(f"Failed to associate documents with message {msg_id}: {e}")
 
         # Validate bot_id - return formatted error for frontend
         if not bot_id:
@@ -432,8 +445,24 @@ class ChatService:
                     await websocket.send_text(fail_response("error", "Message content is required"))
                     continue
 
+                # Extract document files if provided
+                files = data.get("files", [])
+
                 # Generate message ID
                 message_id = str(uuid.uuid4())
+
+                # Associate documents with message if files are provided
+                if files:
+                    try:
+                        from aperag.service.chat_document_service import chat_document_service
+                        await chat_document_service.associate_documents_with_message(
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            document_ids=files,
+                            user_id=user
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to associate documents with message {message_id}: {e}")
 
                 try:
                     # Get or create chat session

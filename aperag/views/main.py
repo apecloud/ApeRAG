@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
 from typing import Optional
 
@@ -195,13 +196,26 @@ async def update_default_models_view(
 @router.post("/chat/completions/frontend", tags=["chats"])
 async def frontend_chat_completions_view(request: Request, user: User = Depends(current_user)):
     body = await request.body()
-    message = body.decode("utf-8")
+    
+    # Try to parse JSON first, fallback to text for backward compatibility
+    try:
+        data = json.loads(body.decode("utf-8"))
+        message = data.get("message", "")
+        files = data.get("files", [])
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        # Fallback to text message for backward compatibility
+        message = body.decode("utf-8")
+        files = []
+    
     query_params = dict(request.query_params)
     stream = query_params.get("stream", "false").lower() == "true"
     bot_id = query_params.get("bot_id", "")
     chat_id = query_params.get("chat_id", "")
     msg_id = request.headers.get("msg_id", "")
-    return await chat_service_global.frontend_chat_completions(str(user.id), message, stream, bot_id, chat_id, msg_id)
+    
+    return await chat_service_global.frontend_chat_completions(
+        str(user.id), message, stream, bot_id, chat_id, msg_id, files
+    )
 
 
 @router.post("/bots/{bot_id}/flow/debug", tags=["flows"])
