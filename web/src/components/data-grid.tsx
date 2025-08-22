@@ -24,7 +24,7 @@ import {
   TableRow,
 } from './ui/table';
 
-type DataGridPaginationProps<T = unknown> = {
+type DataGridPaginationProps<T = any> = {
   table: TanstackTable<T>;
 };
 

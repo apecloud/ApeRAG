@@ -1,5 +1,7 @@
 'use client';
 
+import { Collection, SearchResult } from '@/api';
+
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -24,55 +26,45 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-import { User } from '@/api';
-
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
-import { Badge } from '@/components/ui/badge';
+import { FormatDate } from '@/components/format-date';
 import { Input } from '@/components/ui/input';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { useAppContext } from '@/hooks/use-app-context';
-import { cn } from '@/lib/utils';
-import {
-  BatteryMedium,
-  Check,
-  ChevronDown,
-  Columns3,
-  EllipsisVertical,
-  Key,
-  ScrollText,
-  Trash,
-} from 'lucide-react';
-import { useFormatter } from 'next-intl';
-import Link from 'next/link';
-import { FaGithub, FaGoogle } from 'react-icons/fa6';
-import { UserQuotaAction } from './user-quota-action';
+import _ from 'lodash';
+import { ChevronDown, Columns3, EllipsisVertical, Trash } from 'lucide-react';
+import { SearchDelete } from './search-delete';
 
-export function UsersDataTable({ data }: { data: User[] }) {
-  const { user } = useAppContext();
+export const SearchTable = ({
+  data,
+  collection,
+}: {
+  data: SearchResult[];
+  collection: Collection;
+}) => {
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
+    React.useState<VisibilityState>({
+      created: false,
+    });
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
   );
-  const format = useFormatter();
-  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [sorting, setSorting] = React.useState<SortingState>([
+    {
+      id: 'created',
+      desc: true,
+    },
+  ]);
   const [pagination, setPagination] = React.useState({
     pageIndex: 0,
     pageSize: 20,
   });
   const [searchValue, setSearchValue] = React.useState<string>('');
 
-  const columns: ColumnDef<User>[] = React.useMemo(() => {
-    const cols: ColumnDef<User>[] = [
+  const columns: ColumnDef<SearchResult>[] = React.useMemo(() => {
+    const cols: ColumnDef<SearchResult>[] = [
       {
         id: 'select',
         header: ({ table }) => (
@@ -100,86 +92,74 @@ export function UsersDataTable({ data }: { data: User[] }) {
         ),
       },
       {
-        accessorKey: 'username',
-        header: 'User',
+        accessorKey: 'query',
+        header: 'Questions',
         cell: ({ row }) => {
           return (
-            <div className="text-left">
-              <div>
-                {row.original.username}{' '}
-                {user?.id === row.original.id && (
-                  <Badge variant="destructive">Me</Badge>
-                )}
+            <div>
+              <div>{row.original.query}</div>
+              <div className="text-muted-foreground flex flex-row items-center gap-4">
+                {_.size(row.original.items)} results
               </div>
-              <div className="text-muted-foreground">{row.original.email}</div>
             </div>
           );
         },
       },
       {
-        accessorKey: 'id',
-        header: 'ID',
-      },
-      {
-        accessorKey: 'role',
-        header: 'Role',
+        accessorKey: 'vector_search',
+        header: 'Vector',
         cell: ({ row }) => {
           return (
-            <Badge
-              className="w-18"
-              variant={row.original.role === 'admin' ? 'default' : 'secondary'}
-            >
-              {row.original.role}
-            </Badge>
+            <div>
+              <div>topk: {row.original.vector_search?.topk}</div>
+              <div>similarity: {row.original.vector_search?.similarity}</div>
+            </div>
           );
         },
       },
       {
-        accessorKey: 'is_active',
-        header: 'Status',
+        accessorKey: 'fulltext_search',
+        header: 'Fulltext',
         cell: ({ row }) => {
           return (
-            <Check
-              className={cn(
-                'size-4',
-                row.original.is_active ? 'text-green-500' : 'text-red-500',
-              )}
-            />
+            <div>
+              <div>topk: {row.original.fulltext_search?.topk}</div>
+              <div>
+                keywords: {row.original.fulltext_search?.keywords?.join(',')}
+              </div>
+            </div>
           );
         },
       },
       {
-        accessorKey: 'registration_source',
-        header: 'Source',
+        accessorKey: 'graph_search',
+        header: 'Graph',
         cell: ({ row }) => {
-          let icon;
-          switch (row.original.registration_source) {
-            case 'google':
-              icon = <FaGoogle className="size-4" />;
-              break;
-            case 'github':
-              icon = <FaGithub className="size-4" />;
-              break;
-            default:
-              icon = <Key className="size-4" />;
-          }
+          return <div>topk: {row.original.fulltext_search?.topk}</div>;
+        },
+      },
+      {
+        accessorKey: 'summary_search',
+        header: 'Summary',
+        cell: ({ row }) => {
           return (
-            <Tooltip>
-              <TooltipTrigger>{icon}</TooltipTrigger>
-              <TooltipContent>
-                {row.original.registration_source}
-              </TooltipContent>
-            </Tooltip>
+            <div>
+              <div>topk: {row.original.summary_search?.topk || '--'}</div>
+              <div>
+                similarity: {row.original.summary_search?.similarity || '--'}
+              </div>
+            </div>
           );
         },
       },
       {
-        accessorKey: 'date_joined',
+        accessorKey: 'created',
         header: 'Creation time',
-        cell: ({ row }) =>
-          row.original.date_joined
-            ? format.dateTime(new Date(row.original.date_joined), 'medium')
-            : '--',
+        cell: ({ row }) => {
+          return row.original.created ? (
+            <FormatDate datetime={new Date(row.original.created)} />
+          ) : undefined;
+        },
       },
       {
         id: 'actions',
@@ -197,27 +177,18 @@ export function UsersDataTable({ data }: { data: User[] }) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-32">
-              <UserQuotaAction user={row.original}>
-                <DropdownMenuItem>
-                  <BatteryMedium /> Quotas
+              <SearchDelete collection={collection} searchResult={row.original}>
+                <DropdownMenuItem variant="destructive">
+                  <Trash /> Delete
                 </DropdownMenuItem>
-              </UserQuotaAction>
-              <DropdownMenuItem asChild>
-                <Link href={`/admin/audit-logs?userId=${row.original.id}`}>
-                  <ScrollText /> Audit logs
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" disabled>
-                <Trash /> Delete
-              </DropdownMenuItem>
+              </SearchDelete>
             </DropdownMenuContent>
           </DropdownMenu>
         ),
       },
     ];
     return cols;
-  }, [format, user?.id]);
+  }, [collection]);
 
   const table = useReactTable({
     data,
@@ -261,7 +232,6 @@ export function UsersDataTable({ data }: { data: User[] }) {
               <Button variant="outline">
                 <Columns3 />
                 <span className="hidden lg:inline">Columns</span>
-                <span className="lg:hidden">Columns</span>
                 <ChevronDown />
               </Button>
             </DropdownMenuTrigger>
@@ -295,4 +265,4 @@ export function UsersDataTable({ data }: { data: User[] }) {
       <DataGridPagination table={table} />
     </div>
   );
-}
+};

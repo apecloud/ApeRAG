@@ -3,20 +3,14 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarProvider,
 } from '@/components/ui/sidebar';
 import { getServerApi } from '@/lib/api/server';
-import { BatteryMedium, Logs, MonitorCog, Package } from 'lucide-react';
-import Link from 'next/link';
+
 import { notFound, redirect } from 'next/navigation';
+import { AdminSideBarMenu } from './admin-sidebar-menu';
 
 export default async function Layout({
   children,
@@ -40,14 +34,13 @@ export default async function Layout({
   }
 
   return (
-    <>
-      <SidebarProvider>
-        <Sidebar>
-          <SidebarHeader className="h-16 flex-row items-center gap-4 px-4 align-middle">
-            <AppLogo />
-          </SidebarHeader>
-          <SidebarContent className="gap-0">
-            {/* <SidebarGroup>
+    <SidebarProvider>
+      <Sidebar>
+        <SidebarHeader className="h-16 flex-row items-center gap-4 px-4 align-middle">
+          <AppLogo />
+        </SidebarHeader>
+        <SidebarContent className="gap-0">
+          {/* <SidebarGroup>
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
@@ -61,52 +54,14 @@ export default async function Layout({
               </SidebarGroupContent>
             </SidebarGroup> */}
 
-            <SidebarGroup>
-              <SidebarGroupLabel>Administrator</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <Link href="/admin/users">
-                        <Package /> Users
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+          <AdminSideBarMenu />
+        </SidebarContent>
 
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <Link href="/admin/providers">
-                        <BatteryMedium /> Models
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <Link href="/admin/audit-logs">
-                        <Logs /> Audit logs
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <Link href="/admin/configuration">
-                        <MonitorCog /> Configuration
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </SidebarContent>
-
-          <SidebarFooter className="border-t">
-            <AppUserDropdownMenu />
-          </SidebarFooter>
-        </Sidebar>
-        <SidebarInset>{children}</SidebarInset>
-      </SidebarProvider>
-    </>
+        <SidebarFooter className="border-t">
+          <AppUserDropdownMenu />
+        </SidebarFooter>
+      </Sidebar>
+      <SidebarInset>{children}</SidebarInset>
+    </SidebarProvider>
   );
 }

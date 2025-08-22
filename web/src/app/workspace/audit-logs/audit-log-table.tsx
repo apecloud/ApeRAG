@@ -38,9 +38,12 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { AuditLogDetail } from './audit-log-detail';
 
 export function AuditLogTable({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  urlPrefix,
   data,
   pageCount,
 }: {
+  urlPrefix: string;
   data: AuditLog[];
   pageCount: number;
 }) {
@@ -67,6 +70,7 @@ export function AuditLogTable({
       startDate: searchParams.get('startDate'),
       endDate: searchParams.get('endDate'),
       apiName: searchParams.get('apiName'),
+      userId: searchParams.get('userId'),
     };
   }, [searchParams]);
 

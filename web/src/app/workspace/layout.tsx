@@ -27,8 +27,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { ChatsMenu } from './chats-menu';
 import { ChatsProvider } from './chats-provider';
+import { MenuChats } from './menu-chats';
 
 export default async function Layout({
   children,
@@ -91,7 +91,7 @@ export default async function Layout({
                 </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroup>
-            {bot && <ChatsMenu />}
+            {bot && <MenuChats />}
           </SidebarContent>
           <SidebarFooter className="gap-0">
             <SidebarGroup>

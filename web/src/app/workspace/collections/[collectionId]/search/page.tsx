@@ -5,6 +5,7 @@ import {
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
 import { CollectionHeader } from '../collection-header';
+import { SearchTable } from './search-table';
 
 export default async function Page({
   params,
@@ -13,10 +14,17 @@ export default async function Page({
 }>) {
   const { collectionId } = await params;
   const serverApi = await getServerApi();
-  const res = await serverApi.defaultApi.collectionsCollectionIdGet({
-    collectionId,
-  });
-  const collection = res.data;
+
+  const [collectionRes, searchRes] = await Promise.all([
+    serverApi.defaultApi.collectionsCollectionIdGet({
+      collectionId,
+    }),
+    serverApi.defaultApi.collectionsCollectionIdSearchesGet({
+      collectionId,
+    }),
+  ]);
+
+  const collection = collectionRes.data;
 
   return (
     <PageContainer>
@@ -32,7 +40,12 @@ export default async function Page({
         ]}
       />
       <CollectionHeader collection={collection} />
-      <PageContent>Experience Search</PageContent>
+      <PageContent>
+        <SearchTable
+          collection={collection}
+          data={searchRes.data.items || []}
+        />
+      </PageContent>
     </PageContainer>
   );
 }

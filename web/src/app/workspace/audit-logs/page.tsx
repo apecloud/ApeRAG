@@ -58,6 +58,7 @@ export default async function Page({
         <AuditLogTable
           data={toJson(data)}
           pageCount={res?.data.total_pages || 1}
+          urlPrefix="/workspace"
         />
       </PageContent>
     </PageContainer>

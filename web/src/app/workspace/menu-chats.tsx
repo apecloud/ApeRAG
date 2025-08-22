@@ -22,7 +22,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useChatsContext } from './use-chats-context';
 
-export const ChatsMenu = () => {
+export const MenuChats = () => {
   const { bot, chats, chatCreate, chatDelete } = useChatsContext();
   const pathname = usePathname();
   return (
