@@ -38,7 +38,7 @@ import {
   Columns3,
   EllipsisVertical,
   FolderSync,
-  MonitorUp,
+  Plus,
   Trash,
 } from 'lucide-react';
 
@@ -180,7 +180,7 @@ export function DocumentsTable({
           const iconProps = _.get(defaultStyles, extension);
           const icon = (
             <FileIcon
-              color="var(--muted-foreground)"
+              color="var(--primary)"
               extension={extension}
               {...iconProps}
             />
@@ -311,9 +311,19 @@ export function DocumentsTable({
           />
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline">
-            <MonitorUp />
-            <span className="hidden lg:inline">Upload</span>
+          {/* <DocumentUpload>
+            <Button variant="outline" className='cursor-pointer'>
+              <MonitorUp />
+              <span className="hidden lg:inline">Upload Files</span>
+            </Button>
+          </DocumentUpload> */}
+          <Button asChild className="cursor-pointer">
+            <Link
+              href={`/workspace/collections/${collection.id}/documents/upload`}
+            >
+              <Plus />
+              Add Documents
+            </Link>
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
