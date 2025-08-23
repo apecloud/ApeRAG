@@ -104,10 +104,33 @@ export function DocumentsTable({
   );
 
   const columns: ColumnDef<Document>[] = React.useMemo(() => {
-    const indexCols: ColumnDef<Document>[] = objectKeys(FileIndexTypes).map(
-      (key) => {
-        const accessorKey = key.toLowerCase() + '_index_status';
-        return {
+    const indexCols: ColumnDef<Document>[] = [];
+    objectKeys(FileIndexTypes).map((key) => {
+      const accessorKey = key.toLowerCase() + '_index_status';
+
+      const config = collection.config;
+      let enabled: boolean | undefined;
+      switch (key) {
+        case 'FULLTEXT':
+          enabled = config?.enable_fulltext;
+          break;
+        case 'GRAPH':
+          enabled = config?.enable_knowledge_graph;
+          break;
+        case 'SUMMARY':
+          enabled = config?.enable_summary;
+          break;
+        case 'VECTOR':
+          enabled = config?.enable_vector;
+          break;
+        case 'VISION':
+          enabled = config?.enable_vision;
+          break;
+        default:
+          enabled = false;
+      }
+      if (enabled) {
+        indexCols.push({
           accessorKey,
           header: FileIndexTypes[key].title,
           cell: ({ row }) => (
@@ -116,9 +139,9 @@ export function DocumentsTable({
               accessorKey={accessorKey}
             />
           ),
-        };
-      },
-    );
+        });
+      }
+    });
 
     const cols: ColumnDef<Document>[] = [
       {
@@ -213,7 +236,7 @@ export function DocumentsTable({
             <DropdownMenuContent align="end" className="w-42">
               <DocumentReBuildIndex file={row.original}>
                 <DropdownMenuItem>
-                  <FolderSync /> Rebuild File Index
+                  <FolderSync /> File Index Rebuild
                 </DropdownMenuItem>
               </DocumentReBuildIndex>
               <DropdownMenuSeparator />
