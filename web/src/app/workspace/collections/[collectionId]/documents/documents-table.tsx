@@ -27,7 +27,7 @@ import {
 import * as React from 'react';
 import { defaultStyles, FileIcon } from 'react-file-icon';
 
-import { Collection, Document } from '@/api';
+import { Document } from '@/api';
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { FormatDate } from '@/components/format-date';
@@ -46,6 +46,7 @@ import {
   FileIndexTypes,
   getDocumentStatusColor,
 } from '@/app/workspace/collections/tools';
+import { useCollectionContext } from '@/components/providers/collection-provider';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { DocumentDelete } from './document-delete';
@@ -53,14 +54,13 @@ import { DocumentIndexStatus } from './document-index-status';
 import { DocumentReBuildIndex } from './document-rebuild-index';
 
 export function DocumentsTable({
-  collection,
   data,
   pageCount,
 }: {
-  collection: Collection;
   data: Document[];
   pageCount?: number;
 }) {
+  const { collection } = useCollectionContext();
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
@@ -169,7 +169,7 @@ export function DocumentsTable({
                 <Link
                   href={`/workspace/collections/${collection.id}/documents/${row.original.id}`}
                   className={cn(
-                    'max-w-60 truncate underline',
+                    'hover:text-primary max-w-60 truncate',
                     getDocumentStatusColor(row.original.status),
                   )}
                 >
@@ -211,13 +211,13 @@ export function DocumentsTable({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-42">
-              <DocumentReBuildIndex collection={collection} file={row.original}>
+              <DocumentReBuildIndex file={row.original}>
                 <DropdownMenuItem>
                   <FolderSync /> Rebuild File Index
                 </DropdownMenuItem>
               </DocumentReBuildIndex>
               <DropdownMenuSeparator />
-              <DocumentDelete collection={collection} document={row.original}>
+              <DocumentDelete document={row.original}>
                 <DropdownMenuItem variant="destructive">
                   <Trash /> Delete
                 </DropdownMenuItem>
@@ -288,7 +288,7 @@ export function DocumentsTable({
           />
         </div>
         <div className="flex items-center gap-2">
-          <Button>
+          <Button variant="outline">
             <MonitorUp />
             <span className="hidden lg:inline">Upload</span>
           </Button>
@@ -324,6 +324,13 @@ export function DocumentsTable({
                 })}
             </DropdownMenuContent>
           </DropdownMenu>
+          {/* <Button
+            size="icon"
+            variant="outline"
+            className="cursor-pointer"
+          >
+            <LoaderCircle />
+          </Button> */}
         </div>
       </div>
       <DataGrid table={table} />

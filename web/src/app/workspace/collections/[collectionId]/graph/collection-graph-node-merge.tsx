@@ -77,10 +77,10 @@ const SuggestionItem = ({
   );
 
   return (
-    <div className="hover:bg-muted/50 flex flex-col gap-2 border-b px-4 py-2">
+    <div className="bg-card hover:bg-accent/70 flex flex-col gap-2 rounded-lg border px-4 py-2">
       <div className="flex flex-row items-center justify-between">
         <div
-          className="cursor-pointer"
+          className="hover:text-primary cursor-pointer font-bold"
           onClick={() => onSelectNode(item.suggested_target_entity.entity_name)}
         >
           {item.suggested_target_entity.entity_name}
@@ -170,7 +170,7 @@ export const CollectionGraphNodeMerge = ({
       onOpenChange={onClose}
       handleOnly={true}
     >
-      <DrawerContent className="flex sm:min-w-sm md:min-w-md lg:min-w-lg">
+      <DrawerContent className="sm:lg lg:min-w-2lg flex md:min-w-xl">
         <DrawerHeader className="flex flex-row items-center justify-between border-b">
           <DrawerTitle>Merge suggestions</DrawerTitle>
           <Tabs
@@ -192,7 +192,7 @@ export const CollectionGraphNodeMerge = ({
             </TabsList>
           </Tabs>
         </DrawerHeader>
-        <div className="flex-1 overflow-auto select-text">
+        <div className="flex flex-1 flex-col gap-2 overflow-auto p-2 select-text">
           {dataSource.suggestions
             .filter((s) => s.status === activeStatus)
             .map((suggestion) => {

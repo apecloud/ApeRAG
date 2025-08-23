@@ -1,6 +1,6 @@
 'use client';
 
-import { Collection, SearchResult } from '@/api';
+import { SearchResult } from '@/api';
 
 import {
   ColumnDef,
@@ -31,18 +31,14 @@ import {
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { FormatDate } from '@/components/format-date';
+import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Input } from '@/components/ui/input';
 import _ from 'lodash';
 import { ChevronDown, Columns3, EllipsisVertical, Trash } from 'lucide-react';
 import { SearchDelete } from './search-delete';
 
-export const SearchTable = ({
-  data,
-  collection,
-}: {
-  data: SearchResult[];
-  collection: Collection;
-}) => {
+export const SearchTable = ({ data }: { data: SearchResult[] }) => {
+  const { collection } = useCollectionContext();
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({

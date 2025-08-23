@@ -1,6 +1,6 @@
 'use client';
 
-import { Collection } from '@/api';
+import { useCollectionContext } from '@/components/providers/collection-provider';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -18,12 +18,11 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
 export const CollectionDelete = ({
-  collection,
   children,
 }: {
-  collection?: Collection;
   children?: React.ReactNode;
 }) => {
+  const { collection } = useCollectionContext();
   const [deleteVisible, setDeleteVisible] = useState<boolean>(false);
   const router = useRouter();
 

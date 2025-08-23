@@ -3,22 +3,10 @@ import {
   PageContent,
   PageHeader,
 } from '@/components/page-container';
-import { getServerApi } from '@/lib/api/server';
 import { CollectionHeader } from '../collection-header';
 import { CollectionGraph } from './collection-graph';
 
-export default async function Page({
-  params,
-}: Readonly<{
-  params: Promise<{ collectionId: string }>;
-}>) {
-  const { collectionId } = await params;
-  const serverApi = await getServerApi();
-  const res = await serverApi.defaultApi.collectionsCollectionIdGet({
-    collectionId,
-  });
-  const collection = res.data;
-
+export default async function Page() {
   return (
     <PageContainer>
       <PageHeader
@@ -32,7 +20,7 @@ export default async function Page({
           },
         ]}
       />
-      <CollectionHeader collection={collection} />
+      <CollectionHeader />
       <PageContent>
         <CollectionGraph />
       </PageContent>

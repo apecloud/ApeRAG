@@ -11,15 +11,17 @@ export type ProviderModels = {
   name?: string;
   models?: ModelSpec[];
 }[];
-export type AgentsContextProps = {
+
+type AgentsContextProps = {
   collections: Collection[];
   providerModels: ProviderModels;
 };
 
-export const AgentsContext = createContext<AgentsContextProps>({
+const AgentsContext = createContext<AgentsContextProps>({
   collections: [],
   providerModels: [],
 });
+
 export const useAgentsContext = () => useContext(AgentsContext);
 
 export const AgentsProvider = ({

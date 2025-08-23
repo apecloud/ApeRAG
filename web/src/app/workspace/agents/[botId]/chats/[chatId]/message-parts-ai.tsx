@@ -1,6 +1,6 @@
 import { ChatMessage, Feedback } from '@/api';
 import { CopyToClipboard } from '@/components/copy-to-clipboard';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import _ from 'lodash';
@@ -35,24 +35,22 @@ export const MessagePartsAi = ({
         </div>
       </div>
       <div className="flex flex-col gap-1">
-        <Card className="rounded-lg py-4 dark:border-none">
-          <CardContent className="px-4 text-sm">
-            {pending ? (
-              <div className="flex flex-row gap-2 py-2">
-                <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-0"></div>
-                <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-200"></div>
-                <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-400"></div>
-              </div>
-            ) : (
-              parts.map((part, index) => (
-                <MessagePartAi
-                  key={`${index}-${part.id}`}
-                  part={part}
-                  loading={loading}
-                />
-              ))
-            )}
-          </CardContent>
+        <Card className="dark:border-card/0 block gap-0 px-4 py-4 text-sm">
+          {pending ? (
+            <div className="flex flex-row gap-2 py-2">
+              <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-0"></div>
+              <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-200"></div>
+              <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-400"></div>
+            </div>
+          ) : (
+            parts.map((part, index) => (
+              <MessagePartAi
+                key={`${index}-${part.id}`}
+                part={part}
+                loading={loading}
+              />
+            ))
+          )}
         </Card>
         <div className="flex flex-row items-center gap-2">
           <MessageTimestamp parts={parts} className="mr-2" />

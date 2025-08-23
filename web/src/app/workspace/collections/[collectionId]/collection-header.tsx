@@ -1,5 +1,5 @@
 'use client';
-import { Collection, CollectionViewStatusEnum } from '@/api';
+import { CollectionViewStatusEnum } from '@/api';
 import { FormatDate } from '@/components/format-date';
 import { PageContent } from '@/components/page-container';
 import { Button } from '@/components/ui/button';
@@ -14,11 +14,16 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import _ from 'lodash';
 
+import { useCollectionContext } from '@/components/providers/collection-provider';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { apiClient } from '@/lib/api/client';
 import {
   Calendar,
   EllipsisVertical,
@@ -30,14 +35,11 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
+import { toast } from 'sonner';
 import { CollectionDelete } from './collection-delete';
 
-export const CollectionHeader = ({
-  collection,
-}: {
-  collection: Collection;
-}) => {
+export const CollectionHeader = () => {
   const badgeColor: {
     [key in CollectionViewStatusEnum]: string;
   } = {
@@ -45,7 +47,7 @@ export const CollectionHeader = ({
     INACTIVE: 'bg-red-500',
     DELETED: 'bg-gray-500',
   };
-
+  const { collection, share, loadShare } = useCollectionContext();
   const pathname = usePathname();
 
   const urls = useMemo(() => {
@@ -57,10 +59,31 @@ export const CollectionHeader = ({
     };
   }, [collection.id]);
 
+  const shareCollection = useCallback(
+    async (checked: boolean) => {
+      if (!collection?.id) {
+        return;
+      }
+      if (checked) {
+        await apiClient.defaultApi.collectionsCollectionIdSharingPost({
+          collectionId: collection?.id,
+        });
+        toast.success('Collection published successfully');
+      } else {
+        await apiClient.defaultApi.collectionsCollectionIdSharingDelete({
+          collectionId: collection?.id,
+        });
+        toast.success('Collection unpublished successfully');
+      }
+      await loadShare();
+    },
+    [collection?.id, loadShare],
+  );
+
   return (
     <PageContent className="flex flex-col gap-4 pb-0">
-      <Card>
-        <CardHeader>
+      <Card className="gap-0 p-0">
+        <CardHeader className="p-4">
           <CardTitle>{collection.title}</CardTitle>
           <CardDescription className="flex flex-row items-center gap-6">
             <div>
@@ -85,16 +108,42 @@ export const CollectionHeader = ({
               </div>
             </div>
           </CardDescription>
-          <CardAction className="flex flex-row gap-1">
+          <CardAction className="flex flex-row items-center gap-4">
+            <Badge variant="secondary">
+              {share.is_published ? 'Public' : 'Private'}
+            </Badge>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="ghost">
+                <Button size="icon" variant="ghost">
                   <EllipsisVertical />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-46">
-                {/* <DropdownMenuSeparator /> */}
-                <CollectionDelete collection={collection}>
+              <DropdownMenuContent align="end" className="w-60">
+                {share.is_published ? (
+                  <DropdownMenuItem
+                    className="flex-col items-start gap-1"
+                    onClick={() => shareCollection(false)}
+                  >
+                    <div>Unpublish from Marketplace</div>
+                    <div className="text-muted-foreground text-xs">
+                      Remove the collection from the marketplace, making it
+                      private.
+                    </div>
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    className="flex-col items-start gap-1"
+                    onClick={() => shareCollection(true)}
+                  >
+                    <div>Publish to Marketplace</div>
+                    <div className="text-muted-foreground text-xs">
+                      Allow users to discover and subscribe to your collection.
+                    </div>
+                  </DropdownMenuItem>
+                )}
+
+                <DropdownMenuSeparator />
+                <CollectionDelete>
                   <DropdownMenuItem variant="destructive">
                     <Trash /> Delete Collection
                   </DropdownMenuItem>
@@ -103,51 +152,53 @@ export const CollectionHeader = ({
             </DropdownMenu>
           </CardAction>
         </CardHeader>
-      </Card>
+        <Separator />
+        <div className="bg-accent/50 flex flex-row gap-2 rounded-b-xl p-2">
+          <Button
+            asChild
+            size="sm"
+            variant={pathname.match(urls.documents) ? 'default' : 'ghost'}
+          >
+            <Link href={urls.documents}>
+              <Files />
+              <span className="hidden lg:inline">Documents</span>
+            </Link>
+          </Button>
 
-      <Card className="bg-accent/50 flex flex-row gap-2 p-2">
-        <Button
-          asChild
-          size="sm"
-          variant={pathname.match(urls.documents) ? 'default' : 'ghost'}
-        >
-          <Link href={urls.documents}>
-            <Files />
-            <span className="hidden lg:inline">Documents</span>
-          </Link>
-        </Button>
+          {collection.config?.enable_knowledge_graph && (
+            <Button
+              asChild
+              size="sm"
+              variant={pathname.match(urls.graph) ? 'default' : 'ghost'}
+            >
+              <Link href={urls.graph}>
+                <VectorSquare />
+                <span className="hidden lg:inline">Knowledge Graph</span>
+              </Link>
+            </Button>
+          )}
 
-        <Button
-          asChild
-          size="sm"
-          variant={pathname.match(urls.graph) ? 'default' : 'ghost'}
-        >
-          <Link href={urls.graph}>
-            <VectorSquare />
-            <span className="hidden lg:inline">Knowledge Graph</span>
-          </Link>
-        </Button>
+          <Button
+            asChild
+            size="sm"
+            variant={pathname.match(urls.search) ? 'default' : 'ghost'}
+          >
+            <Link href={urls.search}>
+              <FolderSearch />
+              <span className="hidden lg:inline">Search Effect</span>
+            </Link>
+          </Button>
 
-        <Button
-          asChild
-          size="sm"
-          variant={pathname.match(urls.search) ? 'default' : 'ghost'}
-        >
-          <Link href={urls.search}>
-            <FolderSearch />
-            <span className="hidden lg:inline">Experience Search</span>
-          </Link>
-        </Button>
-
-        <Button
-          asChild
-          size="sm"
-          variant={pathname.match(urls.settings) ? 'default' : 'ghost'}
-        >
-          <Link href={urls.settings}>
-            <Settings /> <span className="hidden lg:inline">Settings</span>
-          </Link>
-        </Button>
+          <Button
+            asChild
+            size="sm"
+            variant={pathname.match(urls.settings) ? 'default' : 'ghost'}
+          >
+            <Link href={urls.settings}>
+              <Settings /> <span className="hidden lg:inline">Settings</span>
+            </Link>
+          </Button>
+        </div>
       </Card>
     </PageContent>
   );

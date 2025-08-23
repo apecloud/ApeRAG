@@ -1,7 +1,8 @@
 'use client';
 
-import { Collection, Document } from '@/api';
+import { Document } from '@/api';
 import { FileIndexTypes } from '@/app/workspace/collections/tools';
+import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -33,14 +34,13 @@ const documentReBuildSchema = z.object({
 type DocumentReBuildSchemaType = z.infer<typeof documentReBuildSchema>;
 
 export const DocumentReBuildIndex = ({
-  collection,
   file,
   children,
 }: {
-  collection: Collection;
   file: Document;
   children: React.ReactNode;
 }) => {
+  const { collection } = useCollectionContext();
   const [visible, setVisible] = useState<boolean>(false);
   const router = useRouter();
   const form = useForm<DocumentReBuildSchemaType>({

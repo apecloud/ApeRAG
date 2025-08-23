@@ -16,10 +16,7 @@ export default async function Page({
   const { collectionId, documentId } = await params;
   const serverApi = await getServerApi();
 
-  const [collectionRes, documentRes, documentPreviewRes] = await Promise.all([
-    serverApi.defaultApi.collectionsCollectionIdGet({
-      collectionId,
-    }),
+  const [documentRes, documentPreviewRes] = await Promise.all([
     serverApi.defaultApi.collectionsCollectionIdDocumentsDocumentIdGet({
       collectionId,
       documentId,
@@ -30,7 +27,6 @@ export default async function Page({
     }),
   ]);
 
-  const collection = toJson(collectionRes.data);
   const document = toJson(documentRes.data);
   const documentPreview = toJson(documentPreviewRes.data);
 
@@ -44,20 +40,16 @@ export default async function Page({
           },
           {
             title: 'File Explorer',
-            href: `/workspace/collections/${collection.id}/documents`,
+            href: `/workspace/collections/${collectionId}/documents`,
           },
           {
             title: document.name || '',
           },
         ]}
       />
-      <CollectionHeader collection={collection} />
+      <CollectionHeader />
       <PageContent className="h-[100%]">
-        <DocumentDetail
-          collection={collection}
-          document={document}
-          documentPreview={documentPreview}
-        />
+        <DocumentDetail document={document} documentPreview={documentPreview} />
       </PageContent>
     </PageContainer>
   );

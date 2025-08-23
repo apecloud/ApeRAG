@@ -1,8 +1,9 @@
 'use client';
-import { Collection, Document, DocumentPreview } from '@/api';
+import { Document, DocumentPreview } from '@/api';
 import { getDocumentStatusColor } from '@/app/workspace/collections/tools';
 import { FormatDate } from '@/components/format-date';
 import { Markdown } from '@/components/markdown';
+import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -25,14 +26,14 @@ const PDFPage = dynamic(() => import('react-pdf').then((r) => r.Page), {
 });
 
 export const DocumentDetail = ({
-  collection,
   document,
   documentPreview,
 }: {
   document: Document;
-  collection: Collection;
+
   documentPreview: DocumentPreview;
 }) => {
+  const { collection } = useCollectionContext();
   const [numPages, setNumPages] = useState<number>(0);
 
   const isPdf = useMemo(() => {

@@ -1,6 +1,7 @@
 'use client';
 
-import { Collection, ModelSpec } from '@/api';
+import { ModelSpec } from '@/api';
+import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -125,14 +126,9 @@ export type ProviderModel = {
   models?: ModelSpec[];
 };
 
-export const CollectionForm = ({
-  collection,
-  action,
-}: {
-  collection?: Collection;
-  action: 'add' | 'edit';
-}) => {
+export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
   const router = useRouter();
+  const { collection, loadCollection } = useCollectionContext();
   const [completionModels, setCompletionModels] = useState<ProviderModel[]>();
   const [embeddingModels, setEmbeddingModels] = useState<ProviderModel[]>();
 
@@ -182,7 +178,8 @@ export const CollectionForm = ({
           collectionUpdate: values,
         });
         if (res.data.id) {
-          toast.success('Saved successfully.');
+          toast.success('update successfully.');
+          loadCollection();
         }
       }
       if (action === 'add') {
@@ -190,12 +187,12 @@ export const CollectionForm = ({
           collectionCreate: values,
         });
         if (res.data.id) {
-          toast.success('Saved successfully.');
+          toast.success('create successfully.');
           router.push('/workspace/collections');
         }
       }
     },
-    [action, collection?.id, router],
+    [action, collection.id, loadCollection, router],
   );
 
   /**
@@ -507,7 +504,7 @@ export const CollectionForm = ({
           </Card>
 
           <div className="flex justify-end">
-            <Button size="lg" type="submit" className="px-8">
+            <Button size="lg" type="submit" className="cursor-pointer px-8">
               {action === 'add' ? 'Create Collection' : 'Update Collection'}
             </Button>
           </div>

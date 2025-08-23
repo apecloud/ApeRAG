@@ -1,6 +1,7 @@
 'use client';
 
-import { Collection, SearchResult } from '@/api';
+import { SearchResult } from '@/api';
+import { useCollectionContext } from '@/components/providers/collection-provider';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,14 +20,13 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 
 export const SearchDelete = ({
-  collection,
   searchResult,
   children,
 }: {
-  collection: Collection;
   searchResult: SearchResult;
   children: React.ReactNode;
 }) => {
+  const { collection } = useCollectionContext();
   const [visible, setVisible] = useState<boolean>(false);
   const router = useRouter();
 

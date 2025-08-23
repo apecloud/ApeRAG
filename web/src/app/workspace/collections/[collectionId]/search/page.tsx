@@ -15,16 +15,11 @@ export default async function Page({
   const { collectionId } = await params;
   const serverApi = await getServerApi();
 
-  const [collectionRes, searchRes] = await Promise.all([
-    serverApi.defaultApi.collectionsCollectionIdGet({
-      collectionId,
-    }),
+  const [searchRes] = await Promise.all([
     serverApi.defaultApi.collectionsCollectionIdSearchesGet({
       collectionId,
     }),
   ]);
-
-  const collection = collectionRes.data;
 
   return (
     <PageContainer>
@@ -35,16 +30,13 @@ export default async function Page({
             href: '/workspace/collections',
           },
           {
-            title: 'Experience Search',
+            title: 'Search Effect',
           },
         ]}
       />
-      <CollectionHeader collection={collection} />
+      <CollectionHeader />
       <PageContent>
-        <SearchTable
-          collection={collection}
-          data={searchRes.data.items || []}
-        />
+        <SearchTable data={searchRes.data.items || []} />
       </PageContent>
     </PageContainer>
   );
