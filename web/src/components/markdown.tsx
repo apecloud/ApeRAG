@@ -213,7 +213,10 @@ export const mdComponents = {
   ),
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const mdRehypePlugins: any = [rehypeHighlight, rehypeHighlightLines];
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const mdRemarkPlugins: any = [
   remarkGfm,
   remarkFrontmatter,
@@ -221,6 +224,7 @@ export const mdRemarkPlugins: any = [
   remarkGithubAdmonitionsToDirectives,
   remarkDirective,
   () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (tree: any) => {
       visit(tree, (node) => {
         if (node.type === 'containerDirective') {

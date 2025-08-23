@@ -131,7 +131,7 @@ const SuggestionItem = ({
         </div>
       </div>
       <div className="text-muted-foreground text-sm">{item.merge_reason}</div>
-      <div className="flex gap-1">
+      <div className="flex flex-wrap gap-1">
         {item.entity_ids.map((entity) => (
           <Badge
             key={entity}

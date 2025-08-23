@@ -24,10 +24,12 @@ import {
   TableRow,
 } from './ui/table';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DataGridPaginationProps<T = any> = {
   table: TanstackTable<T>;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DataGridProps<T = any> = {
   table: TanstackTable<T>;
   idKey?: string;

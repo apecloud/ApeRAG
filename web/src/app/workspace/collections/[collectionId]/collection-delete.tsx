@@ -3,7 +3,6 @@
 import { Collection } from '@/api';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -12,6 +11,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api/client';
 import { Slot } from '@radix-ui/react-slot';
 import { useRouter } from 'next/navigation';
@@ -67,9 +67,9 @@ export const CollectionDelete = ({
           <AlertDialogCancel onClick={() => setDeleteVisible(false)}>
             Cancel
           </AlertDialogCancel>
-          <AlertDialogAction onClick={() => handleDelete()}>
+          <Button variant="destructive" onClick={() => handleDelete()}>
             Continue
-          </AlertDialogAction>
+          </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

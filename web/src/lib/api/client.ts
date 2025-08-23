@@ -23,6 +23,7 @@ request.interceptors.response.use(
     // Do something with response data
     return response;
   },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function (err: any) {
     let bizMessage: string | undefined;
 

@@ -4,6 +4,8 @@ import {
   PageHeader,
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
+import { notFound } from 'next/navigation';
+import { CollectionForm } from '../../collection-form';
 import { CollectionHeader } from '../collection-header';
 
 export default async function Page({
@@ -17,6 +19,10 @@ export default async function Page({
     collectionId,
   });
   const collection = res.data;
+
+  if (!collection) {
+    notFound();
+  }
 
   return (
     <PageContainer>
@@ -32,7 +38,9 @@ export default async function Page({
         ]}
       />
       <CollectionHeader collection={collection} />
-      <PageContent>Settings</PageContent>
+      <PageContent>
+        <CollectionForm action="edit" collection={collection} />
+      </PageContent>
     </PageContainer>
   );
 }

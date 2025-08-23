@@ -14,7 +14,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
@@ -54,14 +53,15 @@ export const CollectionHeader = ({
       documents: `/workspace/collections/${collection.id}/documents`,
       search: `/workspace/collections/${collection.id}/search`,
       graph: `/workspace/collections/${collection.id}/graph`,
+      settings: `/workspace/collections/${collection.id}/settings`,
     };
   }, [collection.id]);
 
   return (
-    <PageContent className="pb-0">
-      <Card className="bg-none shadow-none">
+    <PageContent className="flex flex-col gap-4 pb-0">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-2lg">{collection.title}</CardTitle>
+          <CardTitle>{collection.title}</CardTitle>
           <CardDescription className="flex flex-row items-center gap-6">
             <div>
               {collection.created && (
@@ -86,39 +86,6 @@ export const CollectionHeader = ({
             </div>
           </CardDescription>
           <CardAction className="flex flex-row gap-1">
-            <Button
-              asChild
-              size="sm"
-              variant={urls.documents.match(pathname) ? 'secondary' : 'ghost'}
-            >
-              <Link href={urls.documents}>
-                <Files />
-                <span className="hidden lg:inline">Documents</span>
-              </Link>
-            </Button>
-
-            <Button
-              asChild
-              size="sm"
-              variant={urls.graph.match(pathname) ? 'secondary' : 'ghost'}
-            >
-              <Link href={`/workspace/collections/${collection.id}/graph`}>
-                <VectorSquare />
-                <span className="hidden lg:inline">Knowledge Graph</span>
-              </Link>
-            </Button>
-
-            <Button
-              asChild
-              size="sm"
-              variant={urls.search.match(pathname) ? 'secondary' : 'ghost'}
-            >
-              <Link href={`/workspace/collections/${collection.id}/search`}>
-                <FolderSearch />
-                <span className="hidden lg:inline">Experience Search</span>
-              </Link>
-            </Button>
-
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" variant="ghost">
@@ -126,14 +93,7 @@ export const CollectionHeader = ({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-46">
-                <DropdownMenuItem asChild>
-                  <Link
-                    href={`/workspace/collections/${collection.id}/settings`}
-                  >
-                    <Settings /> Settings
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
+                {/* <DropdownMenuSeparator /> */}
                 <CollectionDelete collection={collection}>
                   <DropdownMenuItem variant="destructive">
                     <Trash /> Delete Collection
@@ -143,6 +103,51 @@ export const CollectionHeader = ({
             </DropdownMenu>
           </CardAction>
         </CardHeader>
+      </Card>
+
+      <Card className="bg-accent/50 flex flex-row gap-2 p-2">
+        <Button
+          asChild
+          size="sm"
+          variant={pathname.match(urls.documents) ? 'default' : 'ghost'}
+        >
+          <Link href={urls.documents}>
+            <Files />
+            <span className="hidden lg:inline">Documents</span>
+          </Link>
+        </Button>
+
+        <Button
+          asChild
+          size="sm"
+          variant={pathname.match(urls.graph) ? 'default' : 'ghost'}
+        >
+          <Link href={urls.graph}>
+            <VectorSquare />
+            <span className="hidden lg:inline">Knowledge Graph</span>
+          </Link>
+        </Button>
+
+        <Button
+          asChild
+          size="sm"
+          variant={pathname.match(urls.search) ? 'default' : 'ghost'}
+        >
+          <Link href={urls.search}>
+            <FolderSearch />
+            <span className="hidden lg:inline">Experience Search</span>
+          </Link>
+        </Button>
+
+        <Button
+          asChild
+          size="sm"
+          variant={pathname.match(urls.settings) ? 'default' : 'ghost'}
+        >
+          <Link href={urls.settings}>
+            <Settings /> <span className="hidden lg:inline">Settings</span>
+          </Link>
+        </Button>
       </Card>
     </PageContent>
   );

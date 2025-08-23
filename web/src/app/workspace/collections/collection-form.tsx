@@ -37,7 +37,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import _ from 'lodash';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { toast } from 'sonner';
 import * as z from 'zod';
 import { CollectionConfigIndexTypes } from './tools';
@@ -93,7 +93,9 @@ const collectionSchema = z
     },
   );
 
-const defaultValues: z.infer<typeof collectionSchema> = {
+type FormValueType = z.infer<typeof collectionSchema>;
+
+const defaultValues: FormValueType = {
   title: '',
   description: '',
   type: 'document',
@@ -117,11 +119,11 @@ const defaultValues: z.infer<typeof collectionSchema> = {
   },
 };
 
-export type ProviderModels = {
+export type ProviderModel = {
   label?: string;
   name?: string;
   models?: ModelSpec[];
-}[];
+};
 
 export const CollectionForm = ({
   collection,
@@ -131,16 +133,19 @@ export const CollectionForm = ({
   action: 'add' | 'edit';
 }) => {
   const router = useRouter();
-  const [completionModels, setCompletionModels] = useState<ProviderModels>();
-  const [embeddingModels, setEmbeddingModels] = useState<ProviderModels>();
+  const [completionModels, setCompletionModels] = useState<ProviderModel[]>();
+  const [embeddingModels, setEmbeddingModels] = useState<ProviderModel[]>();
 
-  const form = useForm<z.infer<typeof collectionSchema>>({
+  const form = useForm<FormValueType>({
     resolver: zodResolver(collectionSchema),
-    defaultValues: {
-      ...defaultValues,
-    },
+    defaultValues:
+      action === 'add' ? defaultValues : (collection as FormValueType),
   });
 
+  /**
+   * load models by 'enable_for_collection' in tags
+   * set completion、embedding models used in model select component
+   */
   const loadModels = useCallback(async () => {
     const res = await apiClient.defaultApi.availableModelsPost({
       tagFilterRequest: {
@@ -165,8 +170,11 @@ export const CollectionForm = ({
     setEmbeddingModels(embedding || []);
   }, []);
 
+  /**
+   * handle create or update a collection
+   */
   const handleCreateOrUpdate = useCallback(
-    async (values: z.infer<typeof collectionSchema>) => {
+    async (values: FormValueType) => {
       if (action === 'edit') {
         if (!collection?.id) return;
         const res = await apiClient.defaultApi.collectionsCollectionIdPut({
@@ -190,6 +198,92 @@ export const CollectionForm = ({
     [action, collection?.id, router],
   );
 
+  /**
+   * Watch completionModelName
+   * When the completion model name is changed, synchronize changes to other model parameters.
+   */
+  const completionModelName = useWatch({
+    control: form.control,
+    name: 'config.completion.model',
+  });
+  useEffect(() => {
+    let defaultModel: ModelSpec | undefined;
+    let currentModel: ModelSpec | undefined;
+    let defaultProvider: ProviderModel | undefined;
+    let currentProvider: ProviderModel | undefined;
+    completionModels?.forEach((provider) => {
+      provider.models?.forEach((m) => {
+        if (m.tags?.some((t) => t === 'default_for_collection_completion')) {
+          defaultModel = m;
+          defaultProvider = provider;
+        }
+        if (m.model === completionModelName) {
+          currentModel = m;
+          currentProvider = provider;
+        }
+      });
+    });
+
+    form.setValue(
+      'config.completion.custom_llm_provider',
+      currentModel?.custom_llm_provider ||
+        currentModel?.custom_llm_provider ||
+        '',
+    );
+    form.setValue(
+      'config.completion.model_service_provider',
+      currentProvider?.name || defaultProvider?.name || '',
+    );
+    form.setValue(
+      'config.completion.model',
+      currentModel?.model || defaultModel?.model || '',
+    );
+  }, [completionModelName, completionModels, form]);
+
+  /**
+   * Watch embeddingModelName
+   * When the embedding model name is changed, synchronize changes to other model parameters.
+   */
+  const embeddingModelName = useWatch({
+    control: form.control,
+    name: 'config.embedding.model',
+  });
+  useEffect(() => {
+    let defaultModel: ModelSpec | undefined;
+    let currentModel: ModelSpec | undefined;
+    let defaultProvider: ProviderModel | undefined;
+    let currentProvider: ProviderModel | undefined;
+    embeddingModels?.forEach((provider) => {
+      provider.models?.forEach((m) => {
+        if (m.tags?.some((t) => t === 'default_for_embedding')) {
+          defaultModel = m;
+          defaultProvider = provider;
+        }
+        if (m.model === embeddingModelName) {
+          currentModel = m;
+          currentProvider = provider;
+        }
+      });
+    });
+    form.setValue(
+      'config.embedding.custom_llm_provider',
+      currentModel?.custom_llm_provider ||
+        currentModel?.custom_llm_provider ||
+        '',
+    );
+    form.setValue(
+      'config.embedding.model_service_provider',
+      currentProvider?.name || defaultProvider?.name || '',
+    );
+    form.setValue(
+      'config.embedding.model',
+      currentModel?.model || defaultModel?.model || '',
+    );
+  }, [embeddingModelName, embeddingModels, form]);
+
+  /**
+   * load models
+   */
   useEffect(() => {
     loadModels();
   }, [loadModels]);
@@ -218,6 +312,7 @@ export const CollectionForm = ({
                         className="md:w-6/12"
                         placeholder="Collection display name."
                         {...field}
+                        value={field.value || ''}
                       />
                     </FormControl>
                   </FormItem>
@@ -234,6 +329,7 @@ export const CollectionForm = ({
                         className="h-25"
                         placeholder="Please describe the general meaning of a collection."
                         {...field}
+                        value={field.value || ''}
                       />
                     </FormControl>
                   </FormItem>
@@ -273,13 +369,23 @@ export const CollectionForm = ({
                               {item.title}
                               {item.disabled && <Badge>Required</Badge>}
                             </div>
-                            <p className="text-muted-foreground text-sm">
+                            <p className="text-muted-foreground text-sm font-medium">
                               {item.description}
                             </p>
+                            <div className="text-muted-foreground text-xs">
+                              {item.required_models.length ? (
+                                <Badge variant="secondary">
+                                  Requires {item.required_models.join(',')}{' '}
+                                  model
+                                </Badge>
+                              ) : (
+                                ''
+                              )}
+                            </div>
                           </div>
                           <FormControl className="ml-auto">
                             <Switch
-                              checked={field.value}
+                              checked={Boolean(field.value)}
                               disabled={item.disabled}
                               onCheckedChange={field.onChange}
                             />
@@ -310,7 +416,11 @@ export const CollectionForm = ({
                   <FormItem>
                     <FormLabel>Embedding Model</FormLabel>
                     <FormControl className="ml-auto">
-                      <Select {...field} onValueChange={field.onChange}>
+                      <Select
+                        {...field}
+                        onValueChange={field.onChange}
+                        value={field.value || ''}
+                      >
                         <SelectTrigger className="w-full cursor-pointer md:w-6/12">
                           <SelectValue placeholder="Select a model" />
                         </SelectTrigger>
@@ -354,7 +464,11 @@ export const CollectionForm = ({
                   <FormItem>
                     <FormLabel>Completion Model</FormLabel>
                     <FormControl className="ml-auto">
-                      <Select {...field} onValueChange={field.onChange}>
+                      <Select
+                        {...field}
+                        onValueChange={field.onChange}
+                        value={field.value || ''}
+                      >
                         <SelectTrigger className="w-full cursor-pointer md:w-6/12">
                           <SelectValue placeholder="Select a model" />
                         </SelectTrigger>
@@ -393,8 +507,8 @@ export const CollectionForm = ({
           </Card>
 
           <div className="flex justify-end">
-            <Button type="submit" className="px-12">
-              Save
+            <Button size="lg" type="submit" className="px-8">
+              {action === 'add' ? 'Create Collection' : 'Update Collection'}
             </Button>
           </div>
         </form>

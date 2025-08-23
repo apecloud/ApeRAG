@@ -35,6 +35,7 @@ export const CollectionGraph = () => {
   const { resolvedTheme } = useTheme();
 
   const containerRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const graphRef = useRef<any>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [graphData, setGraphData] = useState<{
@@ -270,7 +271,7 @@ export const CollectionGraph = () => {
 
       <Card
         ref={containerRef}
-        className="bg-card/0 flex min-h-[calc(100vh-250px)] gap-0 py-0"
+        className="bg-card/0 flex min-h-[calc(100vh-310px)] gap-0 py-0"
       >
         <ForceGraph2D
           graphData={graphData}
