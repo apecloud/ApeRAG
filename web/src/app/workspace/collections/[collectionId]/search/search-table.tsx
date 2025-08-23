@@ -173,7 +173,7 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-32">
-              <SearchDelete collection={collection} searchResult={row.original}>
+              <SearchDelete searchResult={row.original}>
                 <DropdownMenuItem variant="destructive">
                   <Trash /> Delete
                 </DropdownMenuItem>
@@ -184,7 +184,7 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
       },
     ];
     return cols;
-  }, [collection]);
+  }, []);
 
   const table = useReactTable({
     data,
