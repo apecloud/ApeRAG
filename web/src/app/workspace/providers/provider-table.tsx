@@ -116,7 +116,7 @@ export const ProviderTable = ({
         cell: ({ row }) => {
           return (
             <Link
-              className="underline"
+              className="hover:text-primary"
               href={`${urlPrefix}/providers/${row.original.name}/models`}
             >
               {row.original.label || row.original.name}

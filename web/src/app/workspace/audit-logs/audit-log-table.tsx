@@ -128,7 +128,7 @@ export function AuditLogTable({
           return (
             <>
               <AuditLogDetail auditLog={row.original}>
-                <span className="cursor-pointer underline-offset-4">
+                <span className="hover:text-primary cursor-pointer">
                   {row.original.api_name}
                 </span>
               </AuditLogDetail>
