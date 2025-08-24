@@ -162,8 +162,8 @@ run-flower:
 	celery -A config.celery flower --conf/flowerconfig.py
 
 run-frontend:
-	cp ./frontend/deploy/env.local.template ./frontend/.env
-	cd ./frontend && yarn dev
+	cp ./web/deploy/env.local.template ./web/.env.local
+	cd ./web && yarn dev
 
 ##################################################
 # Code Quality & Testing
@@ -233,7 +233,7 @@ generate-models: merge-openapi
 	@rm aperag/api/openapi.merged.yaml
 
 generate-frontend-sdk:
-	cd ./frontend && yarn api:build
+	cd ./web && yarn api:build
 
 # LLM configuration generation
 .PHONY: llm_provider
@@ -267,8 +267,7 @@ clean-builder:
 	fi
 
 build-aperag-frontend-assets:
-	cp frontend/deploy/env.local.template frontend/.env
-	cd frontend && yarn install && yarn build
+	cd web && yarn install && yarn build
 
 # Production builds (multi-platform with registry push)
 .PHONY: build build-aperag build-aperag-frontend
