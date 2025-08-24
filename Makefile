@@ -162,7 +162,6 @@ run-flower:
 	celery -A config.celery flower --conf/flowerconfig.py
 
 run-frontend:
-	cp ./web/deploy/env.local.template ./web/.env.local
 	cd ./web && yarn dev
 
 ##################################################
