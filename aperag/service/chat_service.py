@@ -333,7 +333,7 @@ class ChatService:
             # Get user's chat collection for search filtering
             from aperag.service.chat_collection_service import chat_collection_service
             chat_collection = await chat_collection_service.get_user_chat_collection(user)
-            collection_ids = [chat_collection.id] if chat_collection else []
+            chat_collection_id = chat_collection.id if chat_collection else None
 
             # Prepare initial data for flow execution
             initial_data = {
@@ -341,7 +341,7 @@ class ChatService:
                 "user": user,
                 "message_id": msg_id or str(uuid.uuid4()),
                 "chat_id": chat_id,
-                "collection_ids": collection_ids,
+                "chat_collection_id": chat_collection_id,  # Chat collection handled separately
             }
 
             # Save user message to history with file metadata
@@ -516,7 +516,7 @@ class ChatService:
                     # Get user's chat collection for search filtering
                     from aperag.service.chat_collection_service import chat_collection_service
                     chat_collection = await chat_collection_service.get_user_chat_collection(user)
-                    collection_ids = [chat_collection.id] if chat_collection else []
+                    chat_collection_id = chat_collection.id if chat_collection else None
 
                     # Prepare initial data for flow execution
                     initial_data = {
@@ -525,7 +525,7 @@ class ChatService:
                         "message_id": message_id,
                         "history": history,
                         "chat_id": chat_id,
-                        "collection_ids": collection_ids,
+                        "chat_collection_id": chat_collection_id,  # Chat collection handled separately
                     }
 
                     # Send start message

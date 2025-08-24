@@ -14,7 +14,7 @@
 
 import json
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 from fastapi import HTTPException, UploadFile
 
@@ -105,9 +105,6 @@ class ChatDocumentService:
                 pass
 
         return None
-
-
-
 
 
     async def get_documents_metadata(
