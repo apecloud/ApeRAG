@@ -80,7 +80,7 @@ export default async function Layout({
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
-                    <Link href="/workspace/collections">
+                    <Link href="/workspace/market/collections">
                       <LayoutGrid />
                       Marketplace
                     </Link>

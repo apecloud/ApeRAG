@@ -8,7 +8,7 @@ import { createContext, useContext } from 'react';
 
 type CollectionContextProps = {
   collection: Collection;
-  share: SharingStatusResponse;
+  share?: SharingStatusResponse;
   loadShare: () => void;
 
   loadCollection: () => void;
@@ -32,9 +32,11 @@ export const CollectionProvider = ({
 }: {
   children?: React.ReactNode;
   collection: Collection;
-  share: SharingStatusResponse;
+  share?: SharingStatusResponse;
 }) => {
-  const [share, setShare] = useState<SharingStatusResponse>(initShare);
+  const [share, setShare] = useState<SharingStatusResponse | undefined>(
+    initShare,
+  );
   const [collection, setCollection] = useState<Collection>(initCollection);
 
   const loadShare = useCallback(async () => {

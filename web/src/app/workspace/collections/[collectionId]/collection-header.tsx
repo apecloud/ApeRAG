@@ -43,7 +43,7 @@ export const CollectionHeader = () => {
   const badgeColor: {
     [key in CollectionViewStatusEnum]: string;
   } = {
-    ACTIVE: 'bg-green-500',
+    ACTIVE: 'bg-green-700',
     INACTIVE: 'bg-red-500',
     DELETED: 'bg-gray-500',
   };
@@ -109,9 +109,16 @@ export const CollectionHeader = () => {
             </div>
           </CardDescription>
           <CardAction className="flex flex-row items-center gap-4">
-            <Badge variant="secondary">
-              {share.is_published ? 'Public' : 'Private'}
-            </Badge>
+            {share && (
+              <Badge
+                variant="secondary"
+                data-published={share.is_published}
+                className="data-[published=true]:text-primary-foreground data-[published=true]:bg-primary"
+              >
+                {share.is_published ? 'Public' : 'Private'}
+              </Badge>
+            )}
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="icon" variant="ghost">
@@ -119,30 +126,35 @@ export const CollectionHeader = () => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-60">
-                {share.is_published ? (
-                  <DropdownMenuItem
-                    className="flex-col items-start gap-1"
-                    onClick={() => shareCollection(false)}
-                  >
-                    <div>Unpublish from Marketplace</div>
-                    <div className="text-muted-foreground text-xs">
-                      Remove the collection from the marketplace, making it
-                      private.
-                    </div>
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem
-                    className="flex-col items-start gap-1"
-                    onClick={() => shareCollection(true)}
-                  >
-                    <div>Publish to Marketplace</div>
-                    <div className="text-muted-foreground text-xs">
-                      Allow users to discover and subscribe to your collection.
-                    </div>
-                  </DropdownMenuItem>
+                {share && (
+                  <>
+                    {share.is_published ? (
+                      <DropdownMenuItem
+                        className="flex-col items-start gap-1"
+                        onClick={() => shareCollection(false)}
+                      >
+                        <div>Unpublish from Marketplace</div>
+                        <div className="text-muted-foreground text-xs">
+                          Remove the collection from the marketplace, making it
+                          private.
+                        </div>
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem
+                        className="flex-col items-start gap-1"
+                        onClick={() => shareCollection(true)}
+                      >
+                        <div>Publish to Marketplace</div>
+                        <div className="text-muted-foreground text-xs">
+                          Allow users to discover and subscribe to your
+                          collection.
+                        </div>
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                  </>
                 )}
 
-                <DropdownMenuSeparator />
                 <CollectionDelete>
                   <DropdownMenuItem variant="destructive">
                     <Trash /> Delete Collection

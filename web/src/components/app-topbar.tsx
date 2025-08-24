@@ -28,11 +28,7 @@ import { useAppContext } from '@/components/providers/app-provider';
 import { cn } from '@/lib/utils';
 
 import { FaGithub } from 'react-icons/fa6';
-import {
-  NavigationMenu,
-  NavigationMenuItem,
-  NavigationMenuList,
-} from './ui/navigation-menu';
+import { NavigationMenu, NavigationMenuList } from './ui/navigation-menu';
 import { UserAvatar, UserAvatarProfile } from './user-avatar';
 
 export const AppLogo = () => {
@@ -184,11 +180,11 @@ export const AppTopbar = ({ className }: React.ComponentProps<'div'>) => {
           <AppLogo />
           <NavigationMenu>
             <NavigationMenuList>
-              <NavigationMenuItem>
-                {/* <NavigationMenuLink asChild className="hover:bg-accent/40 px-4">
-                  <Link href="/workspace/collections">Workspace</Link>
-                </NavigationMenuLink> */}
-              </NavigationMenuItem>
+              {/* <NavigationMenuItem>
+                <NavigationMenuLink asChild className="hover:bg-accent/30 px-4">
+                  <Link href="/marketplace">Marketplace</Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem> */}
             </NavigationMenuList>
           </NavigationMenu>
         </div>

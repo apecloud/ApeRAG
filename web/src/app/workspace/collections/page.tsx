@@ -7,12 +7,8 @@ import {
   PageTitle,
 } from '@/components/page-container';
 
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
-import { Plus } from 'lucide-react';
-import Link from 'next/link';
 import { CollectionList } from './collection-list';
 
 export default async function Page() {
@@ -20,10 +16,15 @@ export default async function Page() {
 
   let collections: CollectionView[] = [];
   try {
-    const res = await serverApi.defaultApi.collectionsGet();
+    const res = await serverApi.defaultApi.collectionsGet({
+      page: 1,
+      pageSize: 100,
+      includeSubscribed: true,
+    });
     collections = res.data.items || [];
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  } catch (err) {}
+  } catch (err) {
+    console.log(err);
+  }
 
   return (
     <PageContainer>
@@ -35,37 +36,7 @@ export default async function Page() {
           structured dataset, you can significantly improve the contextual
           understanding and response accuracy of large language models (LLMs)
         </PageDescription>
-        <Tabs defaultValue="creation" className="gap-4">
-          <div className="flex flex-row items-center">
-            <TabsList>
-              <TabsTrigger value="creation">My Creations</TabsTrigger>
-              <TabsTrigger value="subscribed">
-                Subscribed Collections
-              </TabsTrigger>
-            </TabsList>
-            <div className="ml-auto flex items-center gap-2">
-              <Button asChild>
-                <Link href="/workspace/collections/new">
-                  <Plus /> Add collection
-                </Link>
-              </Button>
-            </div>
-          </div>
-          <TabsContent value="creation">
-            <CollectionList
-              collections={toJson(
-                collections.filter((c) => !Boolean(c.subscription_id)),
-              )}
-            />
-          </TabsContent>
-          <TabsContent value="subscribed">
-            <CollectionList
-              collections={toJson(
-                collections.filter((c) => Boolean(c.subscription_id)),
-              )}
-            />
-          </TabsContent>
-        </Tabs>
+        <CollectionList collections={toJson(collections)} />
       </PageContent>
     </PageContainer>
   );
