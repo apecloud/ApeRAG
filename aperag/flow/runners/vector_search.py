@@ -186,6 +186,8 @@ class VectorSearchNodeRunner(BaseNodeRunner):
         Run vector search node. ui: user configurable params; si: system injected params (SystemInput).
         Returns (uo, so)
         """
+        chat_id = ui.chat_id or getattr(si, 'chat_id', None)
+
         # Get collection_ids from user input or system input (bot's configured collections)
         regular_collection_ids = ui.collection_ids or getattr(si, 'collection_ids', [])
         
@@ -207,8 +209,7 @@ class VectorSearchNodeRunner(BaseNodeRunner):
             all_results.extend(regular_results)
         
         # Search in chat collection (with chat_id filter)
-        if chat_collection_id:
-            chat_id = ui.chat_id or getattr(si, 'chat_id', None)
+        if chat_id and chat_collection_id:
             chat_results = await self.service.execute_vector_search(
                 user=si.user,
                 query=si.query,
