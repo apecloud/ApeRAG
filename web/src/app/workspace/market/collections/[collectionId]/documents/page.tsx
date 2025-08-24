@@ -4,18 +4,20 @@ import {
   PageHeader,
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
-import { toJson } from '@/lib/utils';
+import { parsePageParams, toJson } from '@/lib/utils';
 import { notFound } from 'next/navigation';
 import { CollectionHeader } from '../collection-header';
 import { DocumentsTable } from './documents-table';
-// import { DocumentsTable } from './documents-table';
 
 export default async function Page({
   params,
+  searchParams,
 }: Readonly<{
   params: Promise<{ collectionId: string }>;
+  searchParams: Promise<{ page?: string; pageSize?: string; search?: string }>;
 }>) {
   const { collectionId } = await params;
+  const { page, pageSize, search } = await searchParams;
   const serverApi = await getServerApi();
   const [collectionRes, documentsRes] = await Promise.all([
     serverApi.defaultApi.marketplaceCollectionsCollectionIdGet({
@@ -23,17 +25,22 @@ export default async function Page({
     }),
     serverApi.defaultApi.marketplaceCollectionsCollectionIdDocumentsGet({
       collectionId,
+      ...parsePageParams({ page, pageSize }),
+      // @ts-expect-error api not support
+      sortBy: 'created',
+      sortOrder: 'desc',
+      search,
     }),
   ]);
 
   //@ts-expect-error api define has a bug
   const documents = toJson(documentsRes.data.items || []);
-  const collection = collectionRes.data;
+  const collection = toJson(collectionRes.data);
 
   if (!collection) {
     notFound();
   }
-
+  console.log(documents);
   return (
     <PageContainer>
       <PageHeader

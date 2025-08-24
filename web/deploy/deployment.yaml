@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aperag-console
+  labels:
+    app: aperag-console
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aperag-console
+  template:
+    metadata:
+      labels:
+        app: aperag-console
+    spec:
+      containers:
+        - name: console
+          image: apecloud-registry.cn-zhangjiakou.cr.aliyuncs.com/apecloud/aperag-frontend:test
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3000
+          resources:
+            # limits:
+            #   cpu: 500m
+            #   memory: 512Mi
+            # requests:
+            #   cpu: 250m
+            #   memory: 256Mi
+          envFrom:
+            - secretRef:
+                name: aperag-console
+            - configMapRef:
+                name: aperag-console
