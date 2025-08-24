@@ -59,18 +59,18 @@ export const MenuChats = () => {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ) : (
-            chats?.map((chat, index) => {
+            chats?.map((chat) => {
               const url = `/workspace/agents/${bot?.id}/chats/${chat.id}`;
               return (
                 <motion.div
                   key={chat.id}
-                  initial={{ opacity: 0, x: 40 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{
-                    duration: 0.2,
-                    ease: 'easeIn',
-                    delay: index * 0.04,
-                  }}
+                  // initial={{ opacity: 0, x: 40 }}
+                  // animate={{ opacity: 1, x: 0 }}
+                  // transition={{
+                  //   duration: 0.2,
+                  //   ease: 'easeIn',
+                  //   delay: index * 0.04,
+                  // }}
                 >
                   <SidebarMenuItem className="group/item">
                     <SidebarMenuButton

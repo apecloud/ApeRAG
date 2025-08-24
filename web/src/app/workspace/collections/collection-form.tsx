@@ -36,6 +36,7 @@ import { apiClient } from '@/lib/api/client';
 import { cn, objectKeys } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import _ from 'lodash';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
@@ -503,8 +504,13 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
             </CardContent>
           </Card>
 
-          <div className="flex justify-end">
-            <Button size="lg" type="submit" className="cursor-pointer px-8">
+          <div className="flex justify-end gap-4">
+            {action === 'add' && (
+              <Button variant="outline" asChild>
+                <Link href="/workspace/collections">Cancel</Link>
+              </Button>
+            )}
+            <Button type="submit" className="cursor-pointer px-6">
               {action === 'add' ? 'Create Collection' : 'Update Collection'}
             </Button>
           </div>

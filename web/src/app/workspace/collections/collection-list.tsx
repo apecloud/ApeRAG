@@ -28,7 +28,7 @@ export const CollectionList = ({
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
       {collections.map((collection) => {
         const badgeColor: {
           [key in CollectionViewStatusEnum]: string;
@@ -46,7 +46,7 @@ export const CollectionList = ({
                 : `/workspace/collections/${collection.id}/documents`
             }
           >
-            <Card className="cursor-pointer rounded-md hover:mask-alpha">
+            <Card className="hover:bg-accent/70 cursor-pointer rounded-md">
               <CardHeader>
                 <CardTitle className="truncate">{collection.title}</CardTitle>
                 <CardDescription className="h-4 truncate">
