@@ -78,28 +78,40 @@ export default async function Layout({
               <SidebarGroupContent>
                 <SidebarMenu>
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
+                    <SidebarMenuButton
+                      asChild
+                      className="data-[active=true]:font-normal"
+                    >
                       <Link href="/workspace/providers">
                         <Package /> Models
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
+                    <SidebarMenuButton
+                      asChild
+                      className="data-[active=true]:font-normal"
+                    >
                       <Link href="/workspace/api-keys">
                         <Key /> API Keys
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
+                    <SidebarMenuButton
+                      asChild
+                      className="data-[active=true]:font-normal"
+                    >
                       <Link href="/workspace/audit-logs">
                         <Logs /> Audit Logs
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
+                    <SidebarMenuButton
+                      asChild
+                      className="data-[active=true]:font-normal"
+                    >
                       <Link href="/workspace/quotas">
                         <BatteryMedium /> Quotas
                       </Link>

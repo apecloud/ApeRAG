@@ -11,7 +11,6 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { defaultStyles, FileIcon } from 'react-file-icon';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
@@ -46,39 +45,20 @@ export const DocumentDetail = ({
     loadPDF();
   }, []);
 
-  const icon = useMemo(() => {
-    const extension =
-      documentPreview.doc_filename?.split('.').pop()?.toLowerCase() ||
-      ('unknow' as keyof typeof defaultStyles);
-    const iconProps = _.get(defaultStyles, extension);
-    return (
-      <FileIcon
-        color="var(--muted-foreground)"
-        extension={extension}
-        {...iconProps}
-      />
-    );
-  }, [documentPreview.doc_filename]);
-
   return (
     <>
       <Tabs defaultValue="markdown" className="gap-4">
         <div className="flex flex-row items-center justify-between gap-2">
           <div className="flex flex-row items-center gap-4">
-            <Button asChild variant="outline" size="icon">
+            <Button asChild variant="ghost" size="icon">
               <Link
                 href={`/workspace/market/collections/${collectionId}/documents`}
               >
                 <ArrowLeft />
               </Link>
             </Button>
-            <div className="flex flex-row items-center gap-2">
-              <div className="h-8 w-6">{icon}</div>
-              <div>
-                <div className={cn('max-w-60 truncate')}>
-                  {documentPreview.doc_filename}
-                </div>
-              </div>
+            <div className={cn('max-w-80 truncate')}>
+              {documentPreview.doc_filename}
             </div>
           </div>
 

@@ -83,10 +83,10 @@ export const MenuChats = () => {
                       </Link>
                     </SidebarMenuButton>
                     <SidebarMenuAction
-                      className="invisible cursor-pointer group-hover/item:visible"
+                      className="invisible cursor-pointer group-hover/item:visible hover:bg-transparent"
                       onClick={() => chatDelete && chatDelete(chat)}
                     >
-                      <Trash className="opacity-60 hover:opacity-100" />
+                      <Trash />
                     </SidebarMenuAction>
                   </SidebarMenuItem>
                 </motion.div>

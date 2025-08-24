@@ -18,6 +18,7 @@ import _ from 'lodash';
 import { Calendar, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
+import { FaStar } from 'react-icons/fa6';
 
 export const CollectionList = ({
   collections,
@@ -80,15 +81,15 @@ export const CollectionList = ({
                 }
                 target={collection.subscription_id ? '_blank' : '_self'}
               >
-                <Card className="hover:bg-accent/70 cursor-pointer rounded-md">
-                  <CardHeader>
+                <Card className="hover:bg-accent/70 h-34 cursor-pointer rounded-md">
+                  <CardHeader className="px-4">
                     <CardTitle className="h-5 truncate">
                       {collection.title}
                     </CardTitle>
                     <CardDescription className="h-5 truncate">
                       {collection.description || 'No description available'}
                     </CardDescription>
-                    <CardAction>
+                    <CardAction className="flex flex-row items-center gap-4">
                       <Badge
                         variant="secondary"
                         data-published={collection.is_published}
@@ -96,9 +97,14 @@ export const CollectionList = ({
                       >
                         {collection.is_published ? 'Public' : 'Private'}
                       </Badge>
+                      {collection.subscription_id && (
+                        <div className="size-4 text-amber-500">
+                          <FaStar />
+                        </div>
+                      )}
                     </CardAction>
                   </CardHeader>
-                  <CardFooter className="justify-between text-xs">
+                  <CardFooter className="justify-between px-4 text-xs">
                     <div className="text-muted-foreground">
                       {collection.created && (
                         <div className="flex items-center gap-2">
@@ -107,7 +113,6 @@ export const CollectionList = ({
                         </div>
                       )}
                     </div>
-
                     <div className="flex items-center gap-1">
                       <div
                         className={cn(

@@ -33,9 +33,13 @@ import { cn, objectKeys, parsePageParams } from '@/lib/utils';
 import _ from 'lodash';
 import { ChevronDown, Columns3 } from 'lucide-react';
 
-import { getDocumentStatusColor } from '@/app/workspace/collections/tools';
+import {
+  FileIndexTypes,
+  getDocumentStatusColor,
+} from '@/app/workspace/collections/tools';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { DocumentIndexStatus } from './document-index-status';
 
 export function DocumentsTable({
   collection,
@@ -90,6 +94,20 @@ export function DocumentsTable({
 
   const columns: ColumnDef<Document>[] = React.useMemo(() => {
     const indexCols: ColumnDef<Document>[] = [];
+    objectKeys(FileIndexTypes).map((key) => {
+      const accessorKey = key.toLowerCase() + '_index_status';
+
+      indexCols.push({
+        accessorKey,
+        header: FileIndexTypes[key].title,
+        cell: ({ row }) => (
+          <DocumentIndexStatus
+            document={row.original}
+            accessorKey={accessorKey}
+          />
+        ),
+      });
+    });
     const cols: ColumnDef<Document>[] = [
       {
         id: 'select',

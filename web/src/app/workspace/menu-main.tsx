@@ -20,6 +20,7 @@ export const MenuMain = () => {
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton
+            className="data-[active=true]:font-normal"
             asChild
             isActive={pathname.match('/workspace/market/collections') !== null}
           >
@@ -31,6 +32,7 @@ export const MenuMain = () => {
         </SidebarMenuItem>
         <SidebarMenuItem>
           <SidebarMenuButton
+            className="data-[active=true]:font-normal"
             asChild
             isActive={pathname.match('/workspace/collections') !== null}
           >

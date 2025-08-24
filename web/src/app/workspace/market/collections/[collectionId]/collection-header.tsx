@@ -13,10 +13,11 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { apiClient } from '@/lib/api/client';
-import { Calendar, Settings, Star, User } from 'lucide-react';
+import { Calendar, Settings, User } from 'lucide-react';
 import { useFormatter } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
+import { FaStar } from 'react-icons/fa6';
 
 export const CollectionHeader = ({
   collection,
@@ -82,13 +83,14 @@ export const CollectionHeader = ({
               </div>
             )}
             <Button
-              variant={isSubscriber ? 'default' : 'secondary'}
+              variant="secondary"
               size="icon"
               hidden={isOwner}
               onClick={handleSubscribe}
-              className="cursor-pointer"
+              data-subscriber={isSubscriber}
+              className="text-muted-foreground cursor-pointer data-[subscriber=true]:text-orange-500"
             >
-              <Star />
+              <FaStar />
             </Button>
             {isOwner && (
               <Button

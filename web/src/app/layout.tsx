@@ -45,14 +45,15 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <NextTopLoader
-          color="color-mix(in oklab, var(--primary) 30%, transparent)"
+          // color="color-mix(in oklab, var(--primary), transparent)"
+          color="var(--primary)"
           showSpinner={false}
           crawl={false}
         />
         <NextIntlClientProvider>
           <ThemeProvider
             attribute="class"
-            defaultTheme="system"
+            defaultTheme={process.env.DEFAULT_THEME || 'system'}
             enableSystem
             disableTransitionOnChange
           >

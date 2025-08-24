@@ -14,10 +14,11 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { apiClient } from '@/lib/api/client';
-import { Settings, Star, User } from 'lucide-react';
+import { Settings, User } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
+import { FaStar } from 'react-icons/fa6';
 
 export const CollectionList = ({
   collections,
@@ -84,8 +85,8 @@ export const CollectionList = ({
                 key={collection.id}
                 href={`/workspace/market/collections/${collection.id}/documents`}
               >
-                <Card className="hover:bg-accent/70 cursor-pointer rounded-md">
-                  <CardHeader>
+                <Card className="hover:bg-accent/70 h-34 cursor-pointer rounded-md">
+                  <CardHeader className="px-4">
                     <CardTitle className="h-5 truncate">
                       {collection.title}
                     </CardTitle>
@@ -94,15 +95,16 @@ export const CollectionList = ({
                     </CardDescription>
                     <CardAction className="flex flex-row gap-2">
                       <Button
-                        variant={isSubscriber ? 'default' : 'secondary'}
+                        variant="secondary"
                         hidden={isOwner}
                         onClick={(e) => {
                           handleSubscribe(collection);
                           e.preventDefault();
                         }}
-                        className="size-8 cursor-pointer"
+                        data-subscriber={isSubscriber}
+                        className="text-muted-foreground size-8 cursor-pointer data-[subscriber=true]:text-orange-500"
                       >
-                        <Star />
+                        <FaStar />
                       </Button>
                       {isOwner && (
                         <Button
@@ -120,14 +122,14 @@ export const CollectionList = ({
                       )}
                     </CardAction>
                   </CardHeader>
-                  <CardFooter className="text-muted-foreground justify-between text-sm">
+                  <CardFooter className="text-muted-foreground justify-between px-4 text-sm">
                     {isOwner ? (
                       <Badge>Mine</Badge>
                     ) : (
                       <div className="flex flex-row items-center gap-1">
                         <User className="size-4" />
                         <div className="max-w-20 truncate">
-                          {collection.owner_username}
+                          {collection.owner_username || '--'}
                         </div>
                       </div>
                     )}
