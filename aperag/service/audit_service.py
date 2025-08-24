@@ -17,7 +17,7 @@ import logging
 import re
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from sqlalchemy import and_, desc, select
 
@@ -178,7 +178,7 @@ class AuditService:
         page: int = 1,
         page_size: int = 20,
         sort_by: str = None,
-        sort_order: str = 'desc',
+        sort_order: str = "desc",
         search: str = None,
         user_id: Optional[str] = None,
         resource_type: Optional[AuditResource] = None,
@@ -189,24 +189,21 @@ class AuditService:
         end_date: Optional[datetime] = None,
     ):
         """List audit logs with pagination, sorting, and filtering"""
-        
+
         # Define sort field mapping
         sort_mapping = {
-            'created': AuditLog.gmt_created,
-            'duration': AuditLog.end_time - AuditLog.start_time,  # Calculated field
-            'status_code': AuditLog.status_code,
-            'api_name': AuditLog.api_name
-        }
-        
-        # Define search fields mapping
-        search_fields = {
-            'api_name': AuditLog.api_name,
-            'path': AuditLog.path
+            "created": AuditLog.gmt_created,
+            "duration": AuditLog.end_time - AuditLog.start_time,  # Calculated field
+            "status_code": AuditLog.status_code,
+            "api_name": AuditLog.api_name,
         }
 
+        # Define search fields mapping
+        search_fields = {"api_name": AuditLog.api_name, "path": AuditLog.path}
+
         async def _list_audit_logs(session):
-            from aperag.utils.pagination import ListParams, PaginationParams, SortParams, SearchParams, PaginationHelper
-            
+            from aperag.utils.pagination import ListParams, PaginationHelper, PaginationParams, SearchParams, SortParams
+
             # Build base query
             stmt = select(AuditLog)
 
@@ -234,9 +231,9 @@ class AuditService:
             params = ListParams(
                 pagination=PaginationParams(page=page, page_size=page_size),
                 sort=SortParams(sort_by=sort_by, sort_order=sort_order) if sort_by else None,
-                search=SearchParams(search=search, search_fields=['api_name', 'path']) if search else None
+                search=SearchParams(search=search, search_fields=["api_name", "path"]) if search else None,
             )
-            
+
             # Use pagination helper
             items, total = await PaginationHelper.paginate_query(
                 query=stmt,
@@ -244,9 +241,9 @@ class AuditService:
                 params=params,
                 sort_mapping=sort_mapping,
                 search_fields=search_fields,
-                default_sort=desc(AuditLog.gmt_created)
+                default_sort=desc(AuditLog.gmt_created),
             )
-            
+
             return items, total
 
         # Execute query with proper session management
@@ -278,17 +275,13 @@ class AuditService:
                 log.duration_ms = log.end_time - log.start_time
             else:
                 log.duration_ms = None
-                
+
             processed_logs.append(log)
 
         # Build paginated response
         from aperag.utils.pagination import PaginationHelper
-        return PaginationHelper.build_response(
-            items=processed_logs,
-            total=total,
-            page=page,
-            page_size=page_size
-        )
+
+        return PaginationHelper.build_response(items=processed_logs, total=total, page=page, page_size=page_size)
 
 
 # Global audit service instance

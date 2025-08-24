@@ -74,11 +74,11 @@ async def create_chat_view(request: Request, bot_id: str, user: User = Depends(c
 
 @router.get("/bots/{bot_id}/chats", tags=["chats"])
 async def list_chats_view(
-    request: Request, 
-    bot_id: str, 
+    request: Request,
+    bot_id: str,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
-    user: User = Depends(current_user)
+    user: User = Depends(current_user),
 ) -> view_models.ChatList:
     return await chat_service_global.list_chats(str(user.id), bot_id, page, page_size)
 
