@@ -17,19 +17,13 @@ import {
 } from '@/components/ui/sidebar';
 import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
-import {
-  BatteryMedium,
-  BookOpen,
-  Key,
-  LayoutGrid,
-  Logs,
-  Package,
-} from 'lucide-react';
+import { BatteryMedium, Key, Logs, Package } from 'lucide-react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { WorkspaceProvider } from '@/components/providers/workspace-provider';
 import { MenuChats } from './menu-chats';
+import { MenuMain } from './menu-main';
 
 export default async function Layout({
   children,
@@ -75,27 +69,7 @@ export default async function Layout({
             <AppLogo />
           </SidebarHeader>
           <SidebarContent className="gap-0">
-            <SidebarGroup className="py-0">
-              <SidebarGroupLabel>Resources</SidebarGroupLabel>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <Link href="/workspace/market/collections">
-                      <LayoutGrid />
-                      Marketplace
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <Link href="/workspace/collections">
-                      <BookOpen />
-                      Collections
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroup>
+            <MenuMain />
             {bot && <MenuChats />}
           </SidebarContent>
           <SidebarFooter className="gap-0">

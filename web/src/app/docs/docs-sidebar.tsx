@@ -70,7 +70,11 @@ export const DocsSideBarItem = ({ child }: { child: DocsSideBar }) => {
         if (parentType === 'folder') {
           content = (
             <SidebarMenuSubItem key={item.name}>
-              <SidebarMenuSubButton asChild isActive={pathname === item.href}>
+              <SidebarMenuSubButton
+                asChild
+                isActive={pathname === item.href}
+                className="data-[active=true]:font-normal"
+              >
                 <Link href={item.href || '#'}>
                   <div className="truncate">{item.title}</div>
                 </Link>
@@ -81,7 +85,11 @@ export const DocsSideBarItem = ({ child }: { child: DocsSideBar }) => {
           content = (
             <SidebarMenu key={item.name}>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === item.href}>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === item.href}
+                  className="data-[active=true]:font-normal"
+                >
                   <Link href={item.href || '#'}>
                     <div className="truncate">{item.title}</div>
                   </Link>
@@ -97,6 +105,7 @@ export const DocsSideBarItem = ({ child }: { child: DocsSideBar }) => {
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       asChild
+                      className="data-[active=true]:font-normal"
                       isActive={pathname === item.href}
                     >
                       <Link href={item.href || '#'}>
