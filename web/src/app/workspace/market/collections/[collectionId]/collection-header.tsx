@@ -62,7 +62,7 @@ export const CollectionHeader = ({
     <PageContent className="flex flex-col gap-4 pb-0">
       <Card className="gap-0 p-0">
         <CardHeader className="p-4">
-          <CardTitle>{collection.title}</CardTitle>
+          <CardTitle className="text-2xl">{collection.title}</CardTitle>
           <CardDescription>
             {collection.description || 'No description available'}
           </CardDescription>

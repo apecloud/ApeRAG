@@ -10,7 +10,6 @@ import {
   DrawerTrigger,
 } from '@/components/ui/drawer';
 import _ from 'lodash';
-import { Sparkles } from 'lucide-react';
 import { MessageCollapseContent } from './message-collapse-content';
 
 export const MessageReference = ({
@@ -43,12 +42,12 @@ export const MessageReference = ({
                 title={
                   <div className="flex flex-row justify-between">
                     <div>
-                      {reference.metadata?.type ||
-                        reference.metadata?.query ||
+                      {index + 1}.{' '}
+                      {reference.metadata?.query ||
                         _.truncate(reference.text, { length: 30 })}
                     </div>
                     <div className="ml-auto flex flex-row items-center gap-2">
-                      <Sparkles className="text-muted-foreground size-4" />
+                      <span>{_.startCase(reference.metadata?.type)}</span>
                       <span>{(reference.score || 0).toFixed(2)}</span>
                     </div>
                   </div>

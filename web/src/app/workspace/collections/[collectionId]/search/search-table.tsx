@@ -1,7 +1,5 @@
 'use client';
 
-import { SearchResult } from '@/api';
-
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -29,12 +27,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+import { SearchResult } from '@/api';
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { FormatDate } from '@/components/format-date';
 import { Input } from '@/components/ui/input';
 import _ from 'lodash';
 import { ChevronDown, Columns3, EllipsisVertical, Trash } from 'lucide-react';
 import { SearchDelete } from './search-delete';
+import { SearchResultDrawer } from './search-result-drawer';
 
 export const SearchTable = ({ data }: { data: SearchResult[] }) => {
   const [rowSelection, setRowSelection] = React.useState({});
@@ -91,7 +91,14 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
         cell: ({ row }) => {
           return (
             <div>
-              <div>{row.original.query}</div>
+              <SearchResultDrawer result={row.original}>
+                <div
+                  data-result={!_.isEmpty(row.original.items)}
+                  className="data-[result=true]:hover:text-primary max-w-md truncate data-[result=true]:cursor-pointer"
+                >
+                  {row.original.query}
+                </div>
+              </SearchResultDrawer>
               <div className="text-muted-foreground flex flex-row items-center gap-4">
                 {_.size(row.original.items)} results
               </div>
