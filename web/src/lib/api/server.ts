@@ -14,7 +14,9 @@ import { cookies } from 'next/headers';
 const configuration = new Configuration();
 
 const request = axios.create({
-  baseURL: `http://localhost:3000/api/v1`,
+  baseURL:
+    process.env.NEXT_PUBLIC_API_SERVER_ENDPOINT ||
+    'http://localhost:8000/api/v1',
   timeout: 1000 * 5,
 });
 

@@ -14,11 +14,17 @@ import rehypeHighlight from 'rehype-highlight';
 
 // import rehypeHighlightLines from 'rehype-highlight-code-lines';
 
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+const apiServerEndpoint =
+  process.env.NEXT_PUBLIC_API_SERVER_ENDPOINT || 'http://localhost:8000/api/v1';
+
 const nextConfig: NextConfig = {
   /* config options here */
 
   // To disable this UI completely, set devIndicators: false in your next.config file.
   // devIndicators: false,
+
+  basePath,
 
   reactStrictMode: false,
 
@@ -33,14 +39,18 @@ const nextConfig: NextConfig = {
     },
   },
 
+  // Will only be available on the server side
+  serverRuntimeConfig: {},
+  // Will be available on both server and client
+  publicRuntimeConfig: {},
+
   modularizeImports: {},
 
   rewrites: async () => {
-    const endpoint = process.env.API_ENDPOINT || 'http://localhost:8000';
     return [
       {
-        source: '/api/v1/:path*',
-        destination: `${endpoint}/api/v1/:path*`,
+        source: `/apiserver/:path*`,
+        destination: `${apiServerEndpoint}/:path*`,
       },
     ];
   },

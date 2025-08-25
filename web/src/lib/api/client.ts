@@ -8,12 +8,13 @@ import {
   QuotasApi,
 } from '@/api';
 import axios from 'axios';
+
 import { toast } from 'sonner';
 
 const configuration = new Configuration();
 
 const request = axios.create({
-  baseURL: `/api/v1`,
+  baseURL: `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/apiserver`,
   timeout: 1000 * 5,
 });
 

@@ -53,7 +53,7 @@ export default async function RootLayout({
         <NextIntlClientProvider>
           <ThemeProvider
             attribute="class"
-            defaultTheme={process.env.DEFAULT_THEME || 'system'}
+            defaultTheme={process.env.NEXT_PUBLIC_DEFAULT_THEME || 'system'}
             enableSystem
             disableTransitionOnChange
           >

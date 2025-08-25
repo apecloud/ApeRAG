@@ -82,7 +82,7 @@ export const DocumentDetail = ({
         {isPdf && (
           <TabsContent value="pdf">
             <PDFDocument
-              file={`/api/v1/collections/${collectionId}/documents/${documentId}/object?path=${documentPreview.converted_pdf_object_path}`}
+              file={`${process.env.NEXT_PUBLIC_BASE_PATH}/apiserver/collections/${collectionId}/documents/${documentId}/object?path=${documentPreview.converted_pdf_object_path}`}
               onLoadSuccess={({ numPages }: { numPages: number }) => {
                 setNumPages(numPages);
               }}
