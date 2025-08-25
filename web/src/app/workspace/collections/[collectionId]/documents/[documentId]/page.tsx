@@ -5,6 +5,7 @@ import {
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
+import _ from 'lodash';
 import { CollectionHeader } from '../../collection-header';
 import { DocumentDetail } from './document-detail';
 
@@ -39,11 +40,11 @@ export default async function Page({
             href: '/workspace/collections',
           },
           {
-            title: 'File Explorer',
+            title: 'Documents',
             href: `/workspace/collections/${collectionId}/documents`,
           },
           {
-            title: document.name || '',
+            title: _.truncate(document.name || '', { length: 30 }),
           },
         ]}
       />

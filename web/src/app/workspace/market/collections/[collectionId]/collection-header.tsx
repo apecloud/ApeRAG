@@ -14,8 +14,7 @@ import {
 } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { apiClient } from '@/lib/api/client';
-import { Calendar, Files, User, VectorSquare } from 'lucide-react';
-import { useFormatter } from 'next-intl';
+import { Files, Star, User, VectorSquare } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
@@ -27,7 +26,6 @@ export const CollectionHeader = ({
   collection: SharedCollection;
 }) => {
   const router = useRouter();
-  const format = useFormatter();
   const pathname = usePathname();
 
   const { user } = useAppContext();
@@ -78,21 +76,16 @@ export const CollectionHeader = ({
               </div>
             )}
 
-            {collection.gmt_subscribed && (
-              <div className="text-muted-foreground flex items-center gap-1 text-xs">
-                <Calendar className="size-3" />
-                {format.dateTime(new Date(collection.gmt_subscribed), 'medium')}
-              </div>
-            )}
             <Button
-              variant="ghost"
-              size="icon"
+              variant="outline"
+              size="sm"
               hidden={isOwner}
               onClick={handleSubscribe}
-              data-subscriber={isSubscriber}
-              className="text-muted-foreground cursor-pointer data-[subscriber=true]:text-orange-500"
+              className="text-muted-foreground cursor-pointer text-xs"
             >
-              <FaStar />
+              {isSubscriber ? <FaStar className="text-orange-500" /> : <Star />}
+
+              {isSubscriber ? 'Unsubscribe' : 'Subscribe'}
             </Button>
             {/* {isOwner && (
               <Button

@@ -18,7 +18,6 @@ import _ from 'lodash';
 import { Calendar, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
-import { FaStar } from 'react-icons/fa6';
 
 export const CollectionList = ({
   collections,
@@ -78,7 +77,7 @@ export const CollectionList = ({
                   }
                   target={collection.subscription_id ? '_blank' : '_self'}
                 >
-                  <Card className="hover:bg-accent/70 h-34 cursor-pointer rounded-md">
+                  <Card className="hover:bg-accent/30 h-34 cursor-pointer rounded-md">
                     <CardHeader className="px-4">
                       <CardTitle className="h-5 truncate">
                         {collection.title}
@@ -87,17 +86,16 @@ export const CollectionList = ({
                         {collection.description || 'No description available'}
                       </CardDescription>
                       <CardAction className="flex flex-row items-center gap-4">
-                        <Badge
-                          variant="secondary"
-                          data-published={collection.is_published}
-                          className="data-[published=true]:bg-primary data-[published=true]:text-primary-foreground"
-                        >
-                          {collection.is_published ? 'Public' : 'Private'}
-                        </Badge>
-                        {collection.subscription_id && (
-                          <div className="size-4 text-amber-500">
-                            <FaStar />
-                          </div>
+                        {collection.subscription_id ? (
+                          <Badge>Subscribed</Badge>
+                        ) : (
+                          <Badge
+                            variant={
+                              collection.is_published ? 'default' : 'secondary'
+                            }
+                          >
+                            {collection.is_published ? 'Public' : 'Private'}
+                          </Badge>
                         )}
                       </CardAction>
                     </CardHeader>

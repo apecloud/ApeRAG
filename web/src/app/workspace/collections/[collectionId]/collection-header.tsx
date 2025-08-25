@@ -110,11 +110,7 @@ export const CollectionHeader = () => {
           </CardDescription>
           <CardAction className="flex flex-row items-center gap-4">
             {share && (
-              <Badge
-                variant="secondary"
-                data-published={share.is_published}
-                className="data-[published=true]:text-primary-foreground data-[published=true]:bg-primary"
-              >
+              <Badge variant={share.is_published ? 'default' : 'secondary'}>
                 {share.is_published ? 'Public' : 'Private'}
               </Badge>
             )}

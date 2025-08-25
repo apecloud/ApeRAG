@@ -3,7 +3,6 @@
 import { SharedCollection } from '@/api';
 import { useAppContext } from '@/components/providers/app-provider';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Card,
   CardAction,
@@ -13,12 +12,9 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { apiClient } from '@/lib/api/client';
 import { User } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useCallback, useState } from 'react';
-import { FaStar } from 'react-icons/fa6';
+import { useState } from 'react';
 
 export const CollectionList = ({
   collections,
@@ -27,28 +23,6 @@ export const CollectionList = ({
 }) => {
   const { user } = useAppContext();
   const [searchValue, setSearchValue] = useState<string>('');
-  const router = useRouter();
-
-  const handleSubscribe = useCallback(
-    async (collection: SharedCollection) => {
-      const isSubscriber = collection.subscription_id !== null;
-      if (isSubscriber) {
-        await apiClient.defaultApi.marketplaceCollectionsCollectionIdSubscribeDelete(
-          {
-            collectionId: collection.id,
-          },
-        );
-      } else {
-        await apiClient.defaultApi.marketplaceCollectionsCollectionIdSubscribePost(
-          {
-            collectionId: collection.id,
-          },
-        );
-      }
-      router.refresh();
-    },
-    [router],
-  );
 
   if (collections.length === 0) {
     return (
@@ -79,13 +53,12 @@ export const CollectionList = ({
           })
           .map((collection) => {
             const isOwner = collection.owner_user_id === user?.id;
-            const isSubscriber = collection.subscription_id !== null;
             return (
               <Link
                 key={collection.id}
                 href={`/workspace/market/collections/${collection.id}/documents`}
               >
-                <Card className="hover:bg-accent/70 h-34 cursor-pointer rounded-md">
+                <Card className="hover:bg-accent/30 h-34 cursor-pointer rounded-md">
                   <CardHeader className="px-4">
                     <CardTitle className="h-5 truncate">
                       {collection.title}
@@ -94,18 +67,6 @@ export const CollectionList = ({
                       {collection.description || 'No description available'}
                     </CardDescription>
                     <CardAction className="flex flex-row gap-2">
-                      <Button
-                        variant="ghost"
-                        hidden={isOwner}
-                        onClick={(e) => {
-                          handleSubscribe(collection);
-                          e.preventDefault();
-                        }}
-                        data-subscriber={isSubscriber}
-                        className="text-muted-foreground size-8 cursor-pointer data-[subscriber=true]:text-orange-500"
-                      >
-                        <FaStar />
-                      </Button>
                       {/* {isOwner && (
                         <Button
                           className="size-8 cursor-pointer"

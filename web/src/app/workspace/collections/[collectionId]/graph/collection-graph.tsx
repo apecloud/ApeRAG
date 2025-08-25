@@ -270,7 +270,7 @@ export const CollectionGraph = ({
         </DropdownMenu>
 
         <div className="flex flex-row items-center gap-2">
-          {!marketplace && (
+          {!marketplace && !_.isEmpty(mergeSuggestion?.suggestions) && (
             <div className="text-sm">
               <span
                 className="text-muted-foreground hover:text-primary cursor-pointer"
