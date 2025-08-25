@@ -40,7 +40,7 @@ export default async function Page({
   if (!collection) {
     notFound();
   }
-  console.log(documents);
+
   return (
     <PageContainer>
       <PageHeader

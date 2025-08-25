@@ -18,12 +18,12 @@ import { MessagePartsUser } from './message-parts-user';
 
 export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
   const { chatRename } = useWorkspaceContext();
+  const { botId, chatId } = useParams<{ botId: string; chatId: string }>();
   const [messages, setMessages] = useState<Array<Array<ChatMessage>>>(
     chat.history || [],
   );
 
   const [loading, setLoading] = useState<boolean>(false);
-  const { botId, chatId } = useParams<{ botId: string; chatId: string }>();
   const { protocol, host } = useMemo(() => {
     if (typeof window !== 'undefined') {
       return {
@@ -164,19 +164,19 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
 
   /**
    * render in server for the first time
+   * should delete for production
    */
-
-  // const loadChatDetail = useCallback(async () => {
-  //   if (!botId || !chatId) return;
-  //   const res = await apiClient.defaultApi.botsBotIdChatsChatIdGet({
-  //     botId,
-  //     chatId,
-  //   });
-  //   setMessages(res.data?.history || []);
-  // }, [botId, chatId]);
-  // useEffect(() => {
-  //   loadChatDetail();
-  // }, [loadChatDetail]);
+  useEffect(() => {
+    if (!botId || !chatId) {
+      return;
+    }
+    apiClient.defaultApi
+      .botsBotIdChatsChatIdGet({
+        botId,
+        chatId,
+      })
+      .then((res) => setMessages(res.data.history || []));
+  }, [botId, chatId]);
 
   useEffect(() => {
     scroll.scrollToBottom({ duration: 0 });

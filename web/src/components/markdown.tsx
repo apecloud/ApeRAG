@@ -127,7 +127,7 @@ export const mdComponents = {
   img: ({ src, ...props }: JSX.IntrinsicElements['img']) => {
     if (!src) {
       return (
-        <Skeleton className="h-[125px] w-full rounded-xl py-4 pt-8 text-center">
+        <Skeleton className="my-4 h-[125px] w-full rounded-xl py-4 pt-8 text-center">
           <ImageIcon className="mx-auto size-12 opacity-20" />
         </Skeleton>
       );
