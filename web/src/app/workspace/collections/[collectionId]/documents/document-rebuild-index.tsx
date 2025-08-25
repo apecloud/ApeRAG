@@ -198,7 +198,7 @@ export const DocumentReBuildIndex = ({
                 >
                   Cancel
                 </Button>
-                <Button type="submit">Save</Button>
+                <Button type="submit">Rebuild</Button>
               </div>
             </DialogFooter>
           </form>

@@ -16,7 +16,8 @@ import rehypeHighlight from 'rehype-highlight';
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 const apiServerEndpoint =
-  process.env.NEXT_PUBLIC_API_SERVER_ENDPOINT || 'http://localhost:8000/api/v1';
+  (process.env.NEXT_PUBLIC_API_SERVER_ENDPOINT || 'http://localhost:8000') +
+  (process.env.NEXT_PUBLIC_API_SERVER_BASE_PATH || '/api/v1');
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -49,7 +50,7 @@ const nextConfig: NextConfig = {
   rewrites: async () => {
     return [
       {
-        source: `/apiserver/:path*`,
+        source: `${process.env.NEXT_PUBLIC_API_SERVER_BASE_PATH}/:path*`,
         destination: `${apiServerEndpoint}/:path*`,
       },
     ];

@@ -46,7 +46,7 @@ export const MessageReference = ({
                       {reference.metadata?.query ||
                         _.truncate(reference.text, { length: 30 })}
                     </div>
-                    <div className="ml-auto flex flex-row items-center gap-2">
+                    <div className="text-muted-foreground ml-auto flex flex-row items-center gap-2 text-xs">
                       <span>{_.startCase(reference.metadata?.type)}</span>
                       <span>{(reference.score || 0).toFixed(2)}</span>
                     </div>
