@@ -509,7 +509,6 @@ class MessageFeedback(Base):
     )
 
     user = Column(String(256), nullable=False, index=True)  # Add index for user queries
-    collection_id = Column(String(24), nullable=True, index=True)  # Add index for collection queries
     chat_id = Column(String(24), primary_key=True)
     message_id = Column(String(256), primary_key=True)
     type = Column(EnumColumn(MessageFeedbackType), nullable=True)
@@ -522,17 +521,6 @@ class MessageFeedback(Base):
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries
-
-    async def get_collection(self, session):
-        """Get the associated collection object"""
-        return await session.get(Collection, self.collection_id)
-
-    async def set_collection(self, collection):
-        """Set the collection_id by Collection object or id"""
-        if hasattr(collection, "id"):
-            self.collection_id = collection.id
-        elif isinstance(collection, str):
-            self.collection_id = collection
 
     async def get_chat(self, session):
         """Get the associated chat object"""

@@ -51,6 +51,11 @@ class StoredChatMessage(BaseModel):
     def timestamp(self) -> Optional[float]:
         """Get timestamp from first part (convenience property)"""
         return self.parts[0].timestamp if self.parts else None
+    
+    @property
+    def role(self) -> Optional[float]:
+        """Get timestamp from first part (convenience property)"""
+        return self.parts[0].role if self.parts else None
 
     def to_frontend_format(self) -> List[ChatMessage]:
         """Convert parts to frontend ChatMessage format"""

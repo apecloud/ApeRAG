@@ -357,18 +357,20 @@ class ChatService:
         """Handle message feedback for chat messages"""
         # Get message from Redis history to validate it exists and get context
         history = RedisChatMessageHistory(chat_id, redis_client=get_async_redis_client())
-        msg = None
+        ai_msg = None
+        human_msg = None
         for message in await history.messages:
-            item = json.loads(message.content)
-            if item["id"] != message_id:
+            if message.message_id != message_id:
                 continue
-            if message.additional_kwargs.get("role", "") != "ai":
-                continue
-            msg = item
-            break
+            if message.role == "ai":
+                ai_msg = message
+            if message.role == "human":
+                human_msg = message
 
-        if msg is None:
-            raise ResourceNotFoundException("Message", message_id)
+        if not ai_msg:
+            raise ResourceNotFoundException("AI Message", message_id)
+        if not human_msg:
+            raise ResourceNotFoundException("Human Message", message_id)
 
         # Handle feedback state change based on UX design principles
         if feedback_type is None:
@@ -384,9 +386,8 @@ class ChatService:
                 feedback_type=feedback_type,
                 feedback_tag=feedback_tag,
                 feedback_message=feedback_message,
-                question=msg.get("query"),
-                original_answer=msg.get("response", ""),
-                collection_id=msg.get("collection_id"),
+                question=human_msg.get_main_content(),
+                original_answer=ai_msg.get_main_content(),
             )
             result = {"action": "upserted", "feedback": feedback}
         return result
