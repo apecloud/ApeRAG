@@ -50,7 +50,7 @@ export const MessageFeedback = ({
     resolver: zodResolver(feedbackSchema),
   });
 
-  const part = parts.find((p) => p.type === 'references');
+  const part = useMemo(() => parts.findLast((p) => p.references), [parts]);
 
   const feedbackTagDescription: {
     [key in FeedbackTagEnum]: string;

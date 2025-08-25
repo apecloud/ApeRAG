@@ -53,7 +53,7 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
           }
         }
         setMessages((msgs) => {
-          const parts = msgs.findLast((parts) => {
+          const partsIndex = msgs.findLastIndex((parts) => {
             return Boolean(
               parts.find(
                 (part) =>
@@ -63,9 +63,12 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
               ),
             );
           });
+          const parts = partsIndex > -1 ? msgs[partsIndex] : undefined;
+
           if (parts) {
             if (fragment.type === 'stop') {
               parts.push({
+                id: fragment.id,
                 type: 'references',
                 references: Array.isArray(fragment.data)
                   ? (fragment.data as Reference[])
@@ -97,6 +100,7 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
                 parts.push(fragment);
               }
             }
+            msgs[partsIndex] = [...parts];
           } else {
             msgs.push([
               {

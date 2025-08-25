@@ -5,6 +5,7 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import _ from 'lodash';
 import { Bot, LoaderCircle } from 'lucide-react';
+import { useMemo } from 'react';
 import { MessageFeedback } from './message-feedback';
 import { MessagePartAi } from './message-part-ai';
 import { MessageReference } from './message-reference';
@@ -21,8 +22,10 @@ export const MessagePartsAi = ({
   parts: ChatMessage[];
   hanldeMessageFeedback: (part: ChatMessage, feedback: Feedback) => void;
 }) => {
-  const references =
-    parts.findLast((part) => part.references)?.references || [];
+  const references = useMemo(
+    () => parts.findLast((part) => part.references)?.references || [],
+    [parts],
+  );
 
   return (
     <div className="flex w-max max-w-[85%] flex-row gap-4">
