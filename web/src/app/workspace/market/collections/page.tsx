@@ -9,6 +9,8 @@ import {
 import { getServerApi } from '@/lib/api/server';
 import { CollectionList } from './collection-list';
 
+export const dynamic = 'force-dynamic';
+
 export default async function Page() {
   const serverApi = await getServerApi();
 
