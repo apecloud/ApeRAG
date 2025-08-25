@@ -81,7 +81,9 @@ export const ProviderToggle = ({ provider }: { provider: LlmProvider }) => {
               value={apiKey}
               onChange={(e) => setApiKey(e.currentTarget.value)}
               placeholder="Please enter the api key for the model provider."
+              className="w-115 resize-none"
             />
+
             <div className="text-muted-foreground mt-2 text-sm">
               To access the AI model&apos;s capabilities, you need to provide a
               valid API Key from your chosen model provider. This key serves as
