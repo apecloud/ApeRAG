@@ -128,7 +128,7 @@ export const CollectionList = ({
                     ) : (
                       <div className="flex flex-row items-center gap-1">
                         <User className="size-4" />
-                        <div className="max-w-20 truncate">
+                        <div>
                           {collection.owner_username || '--'}
                         </div>
                       </div>
