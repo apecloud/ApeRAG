@@ -26,6 +26,11 @@ export const SearchResultDrawer = ({
   result: SearchResult;
 }) => {
   const [visible, setVisible] = useState<boolean>(false);
+
+  if (_.isEmpty(result.items)) {
+    return children;
+  }
+
   return (
     <Drawer
       direction="right"

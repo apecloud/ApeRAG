@@ -161,16 +161,16 @@ export const CollectionHeader = () => {
           </CardAction>
         </CardHeader>
         <Separator />
-        <div className="bg-accent/50 flex flex-row gap-2 rounded-b-xl px-4">
+        <div className="bg-accent/50 flex flex-row gap-4 rounded-b-xl px-4">
           <Button
             asChild
             data-active={Boolean(pathname.match(urls.documents))}
-            className="data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
+            className="hover:border-b-primary data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
             variant="ghost"
           >
             <Link href={urls.documents}>
               <Files />
-              <span className="hidden lg:inline">Documents</span>
+              <span className="hidden sm:inline">Documents</span>
             </Link>
           </Button>
 
@@ -178,12 +178,12 @@ export const CollectionHeader = () => {
             <Button
               asChild
               data-active={Boolean(pathname.match(urls.graph))}
-              className="data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
+              className="hover:border-b-primary data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
               variant="ghost"
             >
               <Link href={urls.graph}>
                 <VectorSquare />
-                <span className="hidden lg:inline">Knowledge Graph</span>
+                <span className="hidden sm:inline">Knowledge Graph</span>
               </Link>
             </Button>
           )}
@@ -191,23 +191,23 @@ export const CollectionHeader = () => {
           <Button
             asChild
             data-active={Boolean(pathname.match(urls.search))}
-            className="data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
+            className="hover:border-b-primary data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
             variant="ghost"
           >
             <Link href={urls.search}>
               <FolderSearch />
-              <span className="hidden lg:inline">Search Effect</span>
+              <span className="hidden sm:inline">Search Effect</span>
             </Link>
           </Button>
 
           <Button
             asChild
             data-active={Boolean(pathname.match(urls.settings))}
-            className="data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
+            className="hover:border-b-primary data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
             variant="ghost"
           >
             <Link href={urls.settings}>
-              <Settings /> <span className="hidden lg:inline">Settings</span>
+              <Settings /> <span className="hidden sm:inline">Settings</span>
             </Link>
           </Button>
         </div>

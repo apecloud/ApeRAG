@@ -87,25 +87,10 @@ export const CollectionHeader = ({
 
               {isSubscriber ? 'Unsubscribe' : 'Subscribe'}
             </Button>
-            {/* {isOwner && (
-              <Button
-                className="cursor-pointer"
-                variant="secondary"
-                size="icon"
-                onClick={(e) => {
-                  e.preventDefault();
-                  router.push(
-                    `/workspace/collections/${collection.id}/documents`,
-                  );
-                }}
-              >
-                <Settings />
-              </Button>
-            )} */}
           </CardAction>
         </CardHeader>
         <Separator />
-        <div className="bg-accent/50 flex flex-row gap-2 rounded-b-xl px-4">
+        <div className="bg-accent/50 flex flex-row gap-4 rounded-b-xl px-4">
           <Button
             asChild
             data-active={Boolean(
@@ -113,14 +98,14 @@ export const CollectionHeader = ({
                 `/workspace/market/collections/${collection.id}/documents`,
               ),
             )}
-            className="data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
+            className="hover:border-b-primary data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
             variant="ghost"
           >
             <Link
               href={`/workspace/market/collections/${collection.id}/documents`}
             >
               <Files />
-              <span className="hidden lg:inline">Documents</span>
+              <span className="hidden sm:inline">Documents</span>
             </Link>
           </Button>
 
@@ -132,12 +117,12 @@ export const CollectionHeader = ({
                 `/workspace/market/collections/${collection.id}/graph`,
               ),
             )}
-            className="data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
+            className="hover:border-b-primary data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
             variant="ghost"
           >
             <Link href={`/workspace/market/collections/${collection.id}/graph`}>
               <VectorSquare />
-              <span className="hidden lg:inline">Knowledge Graph</span>
+              <span className="hidden sm:inline">Knowledge Graph</span>
             </Link>
           </Button>
           {/* )} */}

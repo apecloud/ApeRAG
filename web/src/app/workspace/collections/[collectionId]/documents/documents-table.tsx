@@ -318,18 +318,12 @@ export function DocumentsTable({
           />
         </div>
         <div className="flex items-center gap-2">
-          {/* <DocumentUpload>
-            <Button variant="outline" className='cursor-pointer'>
-              <MonitorUp />
-              <span className="hidden lg:inline">Upload Files</span>
-            </Button>
-          </DocumentUpload> */}
           <Button asChild className="cursor-pointer">
             <Link
               href={`/workspace/collections/${collection.id}/documents/upload`}
             >
               <Plus />
-              Add Documents
+              <span className="hidden sm:inline">Add Documents</span>
             </Link>
           </Button>
           <DropdownMenu>

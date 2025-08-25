@@ -30,13 +30,22 @@ import {
 import { SearchResult } from '@/api';
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { FormatDate } from '@/components/format-date';
+import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Input } from '@/components/ui/input';
 import _ from 'lodash';
-import { ChevronDown, Columns3, EllipsisVertical, Trash } from 'lucide-react';
+import {
+  ChevronDown,
+  Columns3,
+  EllipsisVertical,
+  FlaskConical,
+  Trash,
+} from 'lucide-react';
 import { SearchDelete } from './search-delete';
 import { SearchResultDrawer } from './search-result-drawer';
+import { SearchTest } from './search-test';
 
 export const SearchTable = ({ data }: { data: SearchResult[] }) => {
+  const { collection } = useCollectionContext();
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({
@@ -58,6 +67,67 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
   const [searchValue, setSearchValue] = React.useState<string>('');
 
   const columns: ColumnDef<SearchResult>[] = React.useMemo(() => {
+    const indexCols: ColumnDef<SearchResult>[] = [];
+
+    if (collection.config?.enable_vector) {
+      indexCols.push({
+        accessorKey: 'vector_search',
+        header: 'Vector',
+        cell: ({ row }) => {
+          return (
+            <div>
+              <div>topk: {row.original.vector_search?.topk}</div>
+              <div>similarity: {row.original.vector_search?.similarity}</div>
+            </div>
+          );
+        },
+      });
+    }
+
+    if (collection.config?.enable_fulltext) {
+      indexCols.push({
+        accessorKey: 'fulltext_search',
+        header: 'Fulltext',
+        cell: ({ row }) => {
+          return (
+            <div>
+              <div>topk: {row.original.fulltext_search?.topk}</div>
+              <div>
+                keywords: {row.original.fulltext_search?.keywords?.join(',')}
+              </div>
+            </div>
+          );
+        },
+      });
+    }
+
+    if (collection.config?.enable_knowledge_graph) {
+      indexCols.push({
+        accessorKey: 'graph_search',
+        header: 'Graph',
+        cell: ({ row }) => {
+          return <div>topk: {row.original.fulltext_search?.topk}</div>;
+        },
+      });
+    }
+
+    if (collection.config?.enable_summary) {
+      indexCols.push({
+        accessorKey: 'summary_search',
+        header: 'Summary',
+        cell: ({ row }) => {
+          return (
+            <div>
+              <div>topk: {row.original.summary_search?.topk || '--'}</div>
+              <div>
+                similarity: {row.original.summary_search?.similarity || '--'}
+              </div>
+            </div>
+          );
+        },
+      });
+    }
+
     const cols: ColumnDef<SearchResult>[] = [
       {
         id: 'select',
@@ -106,53 +176,7 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
           );
         },
       },
-      {
-        accessorKey: 'vector_search',
-        header: 'Vector',
-        cell: ({ row }) => {
-          return (
-            <div>
-              <div>topk: {row.original.vector_search?.topk}</div>
-              <div>similarity: {row.original.vector_search?.similarity}</div>
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: 'fulltext_search',
-        header: 'Fulltext',
-        cell: ({ row }) => {
-          return (
-            <div>
-              <div>topk: {row.original.fulltext_search?.topk}</div>
-              <div>
-                keywords: {row.original.fulltext_search?.keywords?.join(',')}
-              </div>
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: 'graph_search',
-        header: 'Graph',
-        cell: ({ row }) => {
-          return <div>topk: {row.original.fulltext_search?.topk}</div>;
-        },
-      },
-      {
-        accessorKey: 'summary_search',
-        header: 'Summary',
-        cell: ({ row }) => {
-          return (
-            <div>
-              <div>topk: {row.original.summary_search?.topk || '--'}</div>
-              <div>
-                similarity: {row.original.summary_search?.similarity || '--'}
-              </div>
-            </div>
-          );
-        },
-      },
+      ...indexCols,
       {
         accessorKey: 'created',
         header: 'Creation time',
@@ -189,7 +213,12 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
       },
     ];
     return cols;
-  }, []);
+  }, [
+    collection.config?.enable_fulltext,
+    collection.config?.enable_knowledge_graph,
+    collection.config?.enable_summary,
+    collection.config?.enable_vector,
+  ]);
 
   const table = useReactTable({
     data,
@@ -228,6 +257,11 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
           />
         </div>
         <div className="flex items-center gap-2">
+          <SearchTest>
+            <Button>
+              <FlaskConical /> <span className="hidden sm:inline">Test</span>
+            </Button>
+          </SearchTest>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
