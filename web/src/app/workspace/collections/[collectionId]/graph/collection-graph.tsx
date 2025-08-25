@@ -1,5 +1,10 @@
 'use client';
-import { GraphEdge, GraphNode, MergeSuggestionsResponse } from '@/api';
+import {
+  GraphEdge,
+  GraphNode,
+  KnowledgeGraph,
+  MergeSuggestionsResponse,
+} from '@/api';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -29,7 +34,11 @@ const ForceGraph2D = dynamic(
   },
 );
 
-export const CollectionGraph = () => {
+export const CollectionGraph = ({
+  marketplace = false,
+}: {
+  marketplace: boolean;
+}) => {
   const params = useParams();
 
   const { resolvedTheme } = useTheme();
@@ -73,22 +82,38 @@ export const CollectionGraph = () => {
   const getGraphData = useCallback(async () => {
     if (typeof params.collectionId !== 'string') return;
     setLoading(true);
-    const [graphRes] = await Promise.all([
-      apiClient.graphApi.collectionsCollectionIdGraphsGet(
+
+    let data: KnowledgeGraph;
+
+    if (!marketplace) {
+      const res = await apiClient.graphApi.collectionsCollectionIdGraphsGet(
         {
           collectionId: params.collectionId,
         },
         {
           timeout: 1000 * 20,
         },
-      ),
-    ]);
+      );
+      data = res.data;
+    } else {
+      const res =
+        await apiClient.defaultApi.marketplaceCollectionsCollectionIdGraphGet(
+          {
+            collectionId: params.collectionId,
+          },
+          {
+            timeout: 1000 * 20,
+          },
+        );
+      data = res.data as KnowledgeGraph;
+    }
+
     const nodes =
-      graphRes.data.nodes?.map((n) => {
-        const targetCount = graphRes.data.edges.filter(
+      data.nodes?.map((n) => {
+        const targetCount = data.edges.filter(
           (edg) => edg.target === n.id,
         ).length;
-        const sourceCount = graphRes.data.edges.filter(
+        const sourceCount = data.edges.filter(
           (edg) => edg.source === n.id,
         ).length;
         return {
@@ -96,17 +121,17 @@ export const CollectionGraph = () => {
           value: Math.max(targetCount, sourceCount, NODE_MIN),
         };
       }) || [];
-    const links = graphRes.data.edges || [];
+    const links = data.edges || [];
 
     setGraphData({ nodes, links });
 
     setAllEntities(_.groupBy(nodes, (n) => n.properties.entity_type));
 
     setLoading(false);
-  }, [NODE_MIN, params.collectionId]);
+  }, [NODE_MIN, marketplace, params.collectionId]);
 
   const getMergeSuggestions = useCallback(async () => {
-    if (typeof params.collectionId !== 'string') return;
+    if (typeof params.collectionId !== 'string' || marketplace) return;
     const suggestionRes =
       await apiClient.graphApi.collectionsCollectionIdGraphsMergeSuggestionsPost(
         {
@@ -117,7 +142,7 @@ export const CollectionGraph = () => {
         },
       );
     setMergeSuggestion(suggestionRes.data);
-  }, [params.collectionId]);
+  }, [marketplace, params.collectionId]);
 
   const handleCloseDetail = useCallback(() => {
     setActiveNode(undefined);
@@ -245,16 +270,17 @@ export const CollectionGraph = () => {
         </DropdownMenu>
 
         <div className="flex flex-row items-center gap-2">
-          <div className="text-sm">
-            <span
-              className="text-muted-foreground hover:text-primary cursor-pointer"
-              onClick={() => setMergeSuggestionOpen(true)}
-            >
-              There are {mergeSuggestion?.pending_count || 0} node merge
-              suggestions.
-            </span>
-          </div>
-
+          {!marketplace && (
+            <div className="text-sm">
+              <span
+                className="text-muted-foreground hover:text-primary cursor-pointer"
+                onClick={() => setMergeSuggestionOpen(true)}
+              >
+                There are {mergeSuggestion?.pending_count || 0} node merge
+                suggestions.
+              </span>
+            </div>
+          )}
           <Button
             size="icon"
             variant="outline"
@@ -271,14 +297,22 @@ export const CollectionGraph = () => {
 
       <Card
         ref={containerRef}
-        className="bg-card/0 flex min-h-[calc(100vh-290px)] gap-0 py-0"
+        className="bg-card/0 relative flex min-h-[calc(100vh-290px)] gap-0 py-0"
       >
         {graphData === undefined && (
-          <div className="absolute top-6/12 left-6/12">
+          <div className="absolute top-4/12 left-6/12">
             <div className="flex flex-row gap-2 py-2">
               <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-0"></div>
               <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-200"></div>
               <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-400"></div>
+            </div>
+          </div>
+        )}
+
+        {graphData !== undefined && _.isEmpty(graphData?.nodes) && (
+          <div className="absolute top-4/12 w-full">
+            <div className="text-muted-foreground text-center">
+              No node information found
             </div>
           </div>
         )}

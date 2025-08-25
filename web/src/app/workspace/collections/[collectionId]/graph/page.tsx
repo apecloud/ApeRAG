@@ -22,7 +22,7 @@ export default async function Page() {
       />
       <CollectionHeader />
       <PageContent>
-        <CollectionGraph />
+        <CollectionGraph marketplace={false} />
       </PageContent>
     </PageContainer>
   );

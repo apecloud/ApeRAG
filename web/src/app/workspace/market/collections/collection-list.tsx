@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { apiClient } from '@/lib/api/client';
-import { Settings, User } from 'lucide-react';
+import { User } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
@@ -95,7 +95,7 @@ export const CollectionList = ({
                     </CardDescription>
                     <CardAction className="flex flex-row gap-2">
                       <Button
-                        variant="secondary"
+                        variant="ghost"
                         hidden={isOwner}
                         onClick={(e) => {
                           handleSubscribe(collection);
@@ -106,7 +106,7 @@ export const CollectionList = ({
                       >
                         <FaStar />
                       </Button>
-                      {isOwner && (
+                      {/* {isOwner && (
                         <Button
                           className="size-8 cursor-pointer"
                           variant="secondary"
@@ -119,7 +119,7 @@ export const CollectionList = ({
                         >
                           <Settings />
                         </Button>
-                      )}
+                      )} */}
                     </CardAction>
                   </CardHeader>
                   <CardFooter className="text-muted-foreground justify-between px-4 text-sm">

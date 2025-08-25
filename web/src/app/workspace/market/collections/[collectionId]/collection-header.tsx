@@ -12,10 +12,12 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 import { apiClient } from '@/lib/api/client';
-import { Calendar, Settings, User } from 'lucide-react';
+import { Calendar, Files, User, VectorSquare } from 'lucide-react';
 import { useFormatter } from 'next-intl';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
 import { FaStar } from 'react-icons/fa6';
 
@@ -26,6 +28,7 @@ export const CollectionHeader = ({
 }) => {
   const router = useRouter();
   const format = useFormatter();
+  const pathname = usePathname();
 
   const { user } = useAppContext();
 
@@ -60,7 +63,10 @@ export const CollectionHeader = ({
       <Card className="gap-0 p-0">
         <CardHeader className="p-4">
           <CardTitle>{collection.title}</CardTitle>
-          <CardDescription className="mb-2 flex flex-row items-center gap-6">
+          <CardDescription>
+            {collection.description || 'No description available'}
+          </CardDescription>
+          <CardAction className="text-muted-foreground flex flex-row items-center gap-4 text-xs">
             {isOwner ? (
               <Badge>Mine</Badge>
             ) : (
@@ -71,11 +77,7 @@ export const CollectionHeader = ({
                 </div>
               </div>
             )}
-          </CardDescription>
-          <CardDescription>
-            {collection.description || 'No description available'}
-          </CardDescription>
-          <CardAction className="flex flex-row items-center gap-2">
+
             {collection.gmt_subscribed && (
               <div className="text-muted-foreground flex items-center gap-1 text-xs">
                 <Calendar className="size-3" />
@@ -83,7 +85,7 @@ export const CollectionHeader = ({
               </div>
             )}
             <Button
-              variant="secondary"
+              variant="ghost"
               size="icon"
               hidden={isOwner}
               onClick={handleSubscribe}
@@ -92,7 +94,7 @@ export const CollectionHeader = ({
             >
               <FaStar />
             </Button>
-            {isOwner && (
+            {/* {isOwner && (
               <Button
                 className="cursor-pointer"
                 variant="secondary"
@@ -106,9 +108,47 @@ export const CollectionHeader = ({
               >
                 <Settings />
               </Button>
-            )}
+            )} */}
           </CardAction>
         </CardHeader>
+        <Separator />
+        <div className="bg-accent/50 flex flex-row gap-2 rounded-b-xl px-4">
+          <Button
+            asChild
+            data-active={Boolean(
+              pathname.match(
+                `/workspace/market/collections/${collection.id}/documents`,
+              ),
+            )}
+            className="data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
+            variant="ghost"
+          >
+            <Link
+              href={`/workspace/market/collections/${collection.id}/documents`}
+            >
+              <Files />
+              <span className="hidden lg:inline">Documents</span>
+            </Link>
+          </Button>
+
+          {/* {collection.config?.enable_knowledge_graph && ( */}
+          <Button
+            asChild
+            data-active={Boolean(
+              pathname.match(
+                `/workspace/market/collections/${collection.id}/graph`,
+              ),
+            )}
+            className="data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
+            variant="ghost"
+          >
+            <Link href={`/workspace/market/collections/${collection.id}/graph`}>
+              <VectorSquare />
+              <span className="hidden lg:inline">Knowledge Graph</span>
+            </Link>
+          </Button>
+          {/* )} */}
+        </div>
       </Card>
     </PageContent>
   );
