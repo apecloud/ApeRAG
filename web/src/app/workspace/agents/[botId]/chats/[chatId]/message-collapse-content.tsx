@@ -21,7 +21,7 @@ export const MessageCollapseContent = ({
   return (
     <Collapsible className="group/collapsible my-2" defaultOpen={defaultOpen}>
       <motion.div
-        initial={{ opacity: 0, x: 20 }}
+        initial={{ opacity: 0, x: 10 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{
           duration: animate ? 0.3 : 0,

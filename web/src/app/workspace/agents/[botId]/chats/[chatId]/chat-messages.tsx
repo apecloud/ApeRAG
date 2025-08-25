@@ -16,12 +16,13 @@ import { ChatInput, ChatInputSubmitParams } from './chat-input';
 import { MessagePartsAi } from './message-parts-ai';
 import { MessagePartsUser } from './message-parts-user';
 
-export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
+export const ChatMessages = ({ chat }: { chat?: ChatDetails }) => {
   const { chatRename } = useWorkspaceContext();
   const { botId, chatId } = useParams<{ botId: string; chatId: string }>();
   const [messages, setMessages] = useState<Array<Array<ChatMessage>>>(
-    chat.history || [],
+    chat?.history || [],
   );
+  // const [messagesLoading, setMessagesLoading] = useState<boolean>(false);
 
   const [loading, setLoading] = useState<boolean>(false);
   const { protocol, host } = useMemo(() => {
@@ -48,7 +49,7 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
         }
         if (fragment.type === 'stop') {
           setLoading(false);
-          if (chatRename) {
+          if (chatRename && chat) {
             chatRename(chat);
           }
         }
@@ -166,25 +167,26 @@ export const ChatMessages = ({ chat }: { chat: ChatDetails }) => {
     setLoading(false);
   }, [connect, disconnect]);
 
+  useEffect(() => {
+    scroll.scrollToBottom({ duration: 0 });
+  }, [messages, chat]);
+
   /**
    * render in server for the first time
    * should delete for production
    */
-  useEffect(() => {
-    if (!botId || !chatId) {
-      return;
-    }
-    apiClient.defaultApi
-      .botsBotIdChatsChatIdGet({
-        botId,
-        chatId,
-      })
-      .then((res) => setMessages(res.data.history || []));
-  }, [botId, chatId]);
+  // const loadMessages = useCallback(async () => {
+  //   const res = await apiClient.defaultApi.botsBotIdChatsChatIdGet({
+  //     botId,
+  //     chatId,
+  //   });
+  //   setMessages(res.data.history || []);
+  //   setMessagesLoading(true);
+  // }, [botId, chatId]);
 
-  useEffect(() => {
-    scroll.scrollToBottom({ duration: 0 });
-  }, [messages, chat]);
+  // useEffect(() => {
+  //   loadMessages();
+  // }, [loadMessages]);
 
   return (
     <div className="text-md flex flex-col gap-6 pb-80">

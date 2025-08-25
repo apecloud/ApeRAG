@@ -273,6 +273,16 @@ export const CollectionGraph = () => {
         ref={containerRef}
         className="bg-card/0 flex min-h-[calc(100vh-290px)] gap-0 py-0"
       >
+        {graphData === undefined && (
+          <div className="absolute top-6/12 left-6/12">
+            <div className="flex flex-row gap-2 py-2">
+              <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-0"></div>
+              <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-200"></div>
+              <div className="bg-muted-foreground animate-caret-blink size-2 rounded-full delay-400"></div>
+            </div>
+          </div>
+        )}
+
         <ForceGraph2D
           graphData={graphData}
           width={dimensions.width}

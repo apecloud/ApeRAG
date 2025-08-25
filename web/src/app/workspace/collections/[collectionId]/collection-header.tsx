@@ -165,11 +165,12 @@ export const CollectionHeader = () => {
           </CardAction>
         </CardHeader>
         <Separator />
-        <div className="bg-accent/50 flex flex-row gap-2 rounded-b-xl p-2">
+        <div className="bg-accent/50 flex flex-row gap-2 rounded-b-xl px-4">
           <Button
             asChild
-            size="sm"
-            variant={pathname.match(urls.documents) ? 'default' : 'ghost'}
+            data-active={Boolean(pathname.match(urls.documents))}
+            className="data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
+            variant="ghost"
           >
             <Link href={urls.documents}>
               <Files />
@@ -180,8 +181,9 @@ export const CollectionHeader = () => {
           {collection.config?.enable_knowledge_graph && (
             <Button
               asChild
-              size="sm"
-              variant={pathname.match(urls.graph) ? 'default' : 'ghost'}
+              data-active={Boolean(pathname.match(urls.graph))}
+              className="data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
+              variant="ghost"
             >
               <Link href={urls.graph}>
                 <VectorSquare />
@@ -192,8 +194,9 @@ export const CollectionHeader = () => {
 
           <Button
             asChild
-            size="sm"
-            variant={pathname.match(urls.search) ? 'default' : 'ghost'}
+            data-active={Boolean(pathname.match(urls.search))}
+            className="data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
+            variant="ghost"
           >
             <Link href={urls.search}>
               <FolderSearch />
@@ -203,8 +206,9 @@ export const CollectionHeader = () => {
 
           <Button
             asChild
-            size="sm"
-            variant={pathname.match(urls.settings) ? 'default' : 'ghost'}
+            data-active={Boolean(pathname.match(urls.settings))}
+            className="data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
+            variant="ghost"
           >
             <Link href={urls.settings}>
               <Settings /> <span className="hidden lg:inline">Settings</span>

@@ -7,23 +7,27 @@ import {
   GraphApi,
   QuotasApi,
 } from '@/api';
-import { getCookie, getLocale } from '@/services/cookies';
+import { getLocale } from '@/services/cookies';
 import axios from 'axios';
+import { cookies } from 'next/headers';
 
 const configuration = new Configuration();
 
 const request = axios.create({
-  baseURL: `${process.env.API_ENDPOINT || 'http://localhost:8000'}/api/v1`,
+  baseURL: `http://localhost:3000/api/v1`,
   timeout: 1000 * 5,
 });
 
 request.interceptors.request.use(
   async (config) => {
     const lang = await getLocale();
-    const session = await getCookie('session');
+    const allCookies = (await cookies())
+      .getAll()
+      .map((item) => `${item.name}=${item.value}`)
+      .join('; ');
     Object.assign(config.headers, {
       Lang: lang,
-      Cookie: `session=${session}`,
+      Cookie: allCookies,
     });
     return config;
   },
