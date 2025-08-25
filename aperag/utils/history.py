@@ -243,8 +243,8 @@ async def query_chat_messages(user: str, chat_id: str):
             for chat_msg in chat_message_list:
                 msg_id = chat_msg.id
                 feedback = feedback_map.get(msg_id)
-                if feedback and chat_msg.get("role") == "ai":
-                    chat_msg["feedback"] = view_models.Feedback(
+                if feedback and chat_msg.role == "ai":
+                    chat_msg.feedback = view_models.Feedback(
                         type=feedback.type, tag=feedback.tag, message=feedback.message
                     )
 
