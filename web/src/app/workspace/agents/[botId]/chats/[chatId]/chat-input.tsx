@@ -103,8 +103,8 @@ export const ChatInput = ({
 
     const data = {
       query: _query,
-      collections: collections?.filter(
-        (c) => selectedCollections.some((id) => c.id === id) || [],
+      collections: collections.filter((c) =>
+        selectedCollections.some((id) => c.id === id),
       ),
       completion: {
         model: modelName,
