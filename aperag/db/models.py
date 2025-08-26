@@ -349,6 +349,9 @@ class Document(Base):
     collection_id = Column(String(24), nullable=True, index=True)  # Add index for collection queries
     status = Column(EnumColumn(DocumentStatus), nullable=False, index=True)  # Add index for status queries
     size = Column(BigInteger, nullable=False)  # Support larger files (up to 9 exabytes)
+    content_hash = Column(
+        String(64), nullable=True, index=True
+    )  # SHA-256 hash of original file content for duplicate detection
     object_path = Column(Text, nullable=True)
     doc_metadata = Column(Text, nullable=True)  # Store document metadata as JSON string
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)

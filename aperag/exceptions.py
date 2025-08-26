@@ -52,6 +52,7 @@ class ErrorCode(Enum):
     FILE_SIZE_TOO_LARGE = ("FILE_SIZE_TOO_LARGE", 1304, HTTPStatus.BAD_REQUEST)
     TOO_MANY_DOCUMENTS = ("TOO_MANY_DOCUMENTS", 1305, HTTPStatus.BAD_REQUEST)
     INVALID_DOCUMENT_CONFIG = ("INVALID_DOCUMENT_CONFIG", 1306, HTTPStatus.BAD_REQUEST)
+    DOCUMENT_NAME_CONFLICT = ("DOCUMENT_NAME_CONFLICT", 1307, HTTPStatus.CONFLICT)
 
     # Chat errors (1400-1499)
     CHAT_NOT_FOUND = ("CHAT_NOT_FOUND", 1401, HTTPStatus.NOT_FOUND)
@@ -192,6 +193,17 @@ class DocumentNotFoundException(BusinessException):
 
     def __init__(self, document_id: str):
         super().__init__(ErrorCode.DOCUMENT_NOT_FOUND, f"Document not found: {document_id}")
+
+
+class DocumentNameConflictException(BusinessException):
+    """Document name conflict exception - same name but different content"""
+
+    def __init__(self, filename: str, collection_id: str):
+        super().__init__(
+            ErrorCode.DOCUMENT_NAME_CONFLICT,
+            f"Document with name '{filename}' already exists in collection {collection_id} with different content. "
+            f"Please rename the file or remove the existing document first.",
+        )
 
 
 class ChatNotFoundException(BusinessException):

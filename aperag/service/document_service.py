@@ -30,6 +30,7 @@ from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.docparser.doc_parser import DocParser
 from aperag.exceptions import (
     CollectionInactiveException,
+    DocumentNameConflictException,
     DocumentNotFoundException,
     QuotaExceededException,
     ResourceNotFoundException,
@@ -48,7 +49,7 @@ from aperag.utils.pagination import (
     SortParams,
 )
 from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
-from aperag.utils.utils import generate_vector_db_collection_name, utc_now
+from aperag.utils.utils import calculate_file_hash, generate_vector_db_collection_name, utc_now
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
 
 logger = logging.getLogger(__name__)
@@ -114,6 +115,34 @@ class DocumentService:
 
         return file_suffix
 
+    async def _check_duplicate_document(
+        self, user: str, collection_id: str, filename: str, file_hash: str
+    ) -> db_models.Document | None:
+        """
+        Check if a document with the same name exists in the collection.
+        Returns the existing document if found, None otherwise.
+
+        Raises DocumentNameConflictException if same name but different file hash.
+        """
+        # Use repository to query for existing document
+        existing_doc = await self.db_ops.query_document_by_name_and_collection(user, collection_id, filename)
+
+        if existing_doc:
+            # If existing document has no hash (legacy document), skip hash check
+            if existing_doc.content_hash is None:
+                # Could calculate hash for legacy document here if needed
+                logger.warning(f"Existing document {existing_doc.id} has no file hash, skipping hash comparison")
+                return existing_doc
+
+            # If file hashes match, it's a true duplicate (same file)
+            if existing_doc.content_hash == file_hash:
+                return existing_doc
+            else:
+                # Same name but different file content - conflict
+                raise DocumentNameConflictException(filename, collection_id)
+
+        return None
+
     async def _check_document_quotas(self, session: AsyncSession, user: str, collection_id: str, count: int):
         """
         Check and consume document quotas.
@@ -178,11 +207,16 @@ class DocumentService:
         status: db_models.DocumentStatus,
         file_suffix: str,
         file_content: bytes,
+        content_hash: str = None,
     ) -> db_models.Document:
         """
         Create a document record in database and upload file to object store.
         Returns the created document instance.
         """
+        # Calculate file hash if not provided
+        if content_hash is None:
+            content_hash = calculate_file_hash(file_content)
+
         # Create document in database
         document_instance = db_models.Document(
             user=user,
@@ -190,6 +224,7 @@ class DocumentService:
             status=status,
             size=size,
             collection_id=collection_id,
+            content_hash=content_hash,
         )
         session.add(document_instance)
         await session.flush()
@@ -347,8 +382,17 @@ class DocumentService:
             # Reset file pointer for potential future use
             await item.seek(0)
 
+            # Calculate original file hash for duplicate detection
+            file_hash = calculate_file_hash(file_content)
+
             file_data.append(
-                {"filename": item.filename, "size": item.size, "suffix": file_suffix, "content": file_content}
+                {
+                    "filename": item.filename,
+                    "size": item.size,
+                    "suffix": file_suffix,
+                    "content": file_content,
+                    "file_hash": file_hash,
+                }
             )
 
         # Process all files in a single transaction for atomicity
@@ -361,7 +405,21 @@ class DocumentService:
             index_types = self._get_index_types_for_collection(collection_config)
 
             for file_info in file_data:
-                # Create document and upload file
+                # Check for duplicate document (same name and hash)
+                existing_doc = await self._check_duplicate_document(
+                    user, collection.id, file_info["filename"], file_info["file_hash"]
+                )
+
+                if existing_doc:
+                    # Return existing document info (idempotent behavior)
+                    logger.info(
+                        f"Document '{file_info['filename']}' already exists with same content, returning existing document {existing_doc.id}"
+                    )
+                    doc_response = await self._build_document_response(existing_doc)
+                    documents_created.append(doc_response)
+                    continue
+
+                # Create new document and upload file
                 document_instance = await self._create_document_record(
                     session=session,
                     user=user,
@@ -371,6 +429,7 @@ class DocumentService:
                     status=db_models.DocumentStatus.PENDING,
                     file_suffix=file_info["suffix"],
                     file_content=file_info["content"],
+                    content_hash=file_info["file_hash"],
                 )
 
                 # Create indexes
@@ -941,7 +1000,7 @@ class DocumentService:
     async def upload_document(
         self, user_id: str, collection_id: str, file: UploadFile
     ) -> view_models.UploadDocumentResponse:
-        """Upload a single document file to temporary storage"""
+        """Upload a single document file to temporary storage with duplicate detection"""
         # Validate collection
         collection = await self._validate_collection(user_id, collection_id)
 
@@ -952,8 +1011,26 @@ class DocumentService:
         file_content = await file.read()
         await file.seek(0)
 
+        # Calculate original file hash for duplicate detection
+        file_hash = calculate_file_hash(file_content)
+
         async def _upload_document_atomically(session):
-            # Create document with UPLOADED status (temporary)
+            # Check for duplicate document (same name and hash)
+            existing_doc = await self._check_duplicate_document(user_id, collection.id, file.filename, file_hash)
+
+            if existing_doc:
+                # Return existing document info (idempotent behavior)
+                logger.info(
+                    f"Document '{file.filename}' already exists with same content, returning existing document {existing_doc.id}"
+                )
+                return view_models.UploadDocumentResponse(
+                    document_id=existing_doc.id,
+                    filename=existing_doc.name,
+                    size=existing_doc.size,
+                    status=existing_doc.status,
+                )
+
+            # Create new document with UPLOADED status (temporary)
             document_instance = await self._create_document_record(
                 session=session,
                 user=user_id,
@@ -963,6 +1040,7 @@ class DocumentService:
                 status=db_models.DocumentStatus.UPLOADED,  # Temporary status
                 file_suffix=file_suffix,
                 file_content=file_content,
+                content_hash=file_hash,
             )
 
             return view_models.UploadDocumentResponse(
