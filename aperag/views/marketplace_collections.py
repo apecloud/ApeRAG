@@ -48,20 +48,43 @@ async def get_marketplace_collection(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/marketplace/collections/{collection_id}/documents", response_model=view_models.DocumentList)
+@router.get("/marketplace/collections/{collection_id}/documents")
 async def list_marketplace_collection_documents(
     request: Request,
     collection_id: str,
+    page: int = Query(1, ge=1, description="Page number (1-based)"),
+    page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
+    sort_by: str = Query("created", description="Field to sort by"),
+    sort_order: str = Query("desc", regex="^(asc|desc)$", description="Sort order"),
+    search: str = Query(None, description="Search documents by name"),
     user: User = Depends(current_user),
-) -> view_models.DocumentList:
-    """List documents in MarketplaceCollection (read-only)"""
+):
+    """List documents in MarketplaceCollection (read-only) with pagination, sorting and search capabilities"""
     try:
         # Check marketplace access first (all logged-in users can view published collections)
         marketplace_info = await marketplace_collection_service._check_marketplace_access(user.id, collection_id)
 
         # Use the collection owner's user_id to query documents, not the current user's id
         owner_user_id = marketplace_info["owner_user_id"]
-        return await document_service.list_documents(str(owner_user_id), collection_id)
+        result = await document_service.list_documents(
+            user=str(owner_user_id),
+            collection_id=collection_id,
+            page=page,
+            page_size=page_size,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            search=search,
+        )
+
+        return {
+            "items": result.items,
+            "total": result.total,
+            "page": result.page,
+            "page_size": result.page_size,
+            "total_pages": result.total_pages,
+            "has_next": result.has_next,
+            "has_prev": result.has_prev,
+        }
     except CollectionNotPublishedError:
         raise HTTPException(status_code=404, detail="Collection not found or not published")
     except CollectionMarketplaceAccessDeniedError as e:
