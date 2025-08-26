@@ -1,5 +1,4 @@
 import { cn } from '@/lib/utils';
-import { h } from 'hastscript';
 import { ImageIcon } from 'lucide-react';
 import Link from 'next/link';
 import { JSX, MouseEventHandler, useMemo } from 'react';
@@ -13,8 +12,8 @@ import remarkGfm from 'remark-gfm';
 import remarkGithubAdmonitionsToDirectives from 'remark-github-admonitions-to-directives';
 import remarkHeaderId from 'remark-heading-id';
 import remarkMdxFrontmatter from 'remark-mdx-frontmatter';
-import { visit } from 'unist-util-visit';
 import { AnchorLink } from './anchor-link';
+import { ChartMermaid } from './chart-mermaid';
 import { Skeleton } from './ui/skeleton';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from './ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
@@ -156,11 +155,15 @@ export const mdComponents = {
     const match = /language-(\w+)/.exec(className || '');
     const language = match?.[1];
     if (language) {
-      return (
-        <code className={cn('rounded-md text-sm', className)}>
-          {props.children}
-        </code>
-      );
+      if (language === 'mermaid') {
+        return <ChartMermaid>{String(props.children)}</ChartMermaid>;
+      } else {
+        return (
+          <code className={cn('rounded-md text-sm', className)}>
+            {props.children}
+          </code>
+        );
+      }
     } else {
       return (
         <code
@@ -228,22 +231,6 @@ export const mdRemarkPlugins: any = [
   remarkMdxFrontmatter,
   remarkGithubAdmonitionsToDirectives,
   remarkDirective,
-  () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (tree: any) => {
-      visit(tree, (node) => {
-        if (node.type === 'containerDirective') {
-          const data = node.data || (node.data = {});
-          const tagName = 'div';
-          data.hName = tagName;
-          data.hProperties = h(tagName, {
-            ...node.attributes,
-            class: node.name,
-          }).properties;
-        }
-      });
-    };
-  },
   [
     remarkHeaderId,
     {
