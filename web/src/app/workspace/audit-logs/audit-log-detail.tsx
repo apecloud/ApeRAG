@@ -9,6 +9,7 @@ import {
   DrawerTrigger,
 } from '@/components/ui/drawer';
 import { useFormatter } from 'next-intl';
+import { useMemo } from 'react';
 
 export const AuditLogDetail = ({
   auditLog,
@@ -18,6 +19,22 @@ export const AuditLogDetail = ({
   children: React.ReactNode;
 }) => {
   const format = useFormatter();
+
+  const responseData = useMemo(() => {
+    const res = auditLog.response_data || '{}';
+    let result = res;
+    try {
+      result = '``` json\n' +
+      JSON.stringify(JSON.parse(res), undefined, 2) +
+      '\n```'
+    } catch (err) {
+      console.log(err)
+    }
+    return result;
+  }, [auditLog.response_data]);
+
+  console.log(auditLog.response_data || 'asdasdasd');
+
   return (
     <>
       <Drawer direction="right" handleOnly={true}>
@@ -96,15 +113,7 @@ export const AuditLogDetail = ({
                     : ''}
                 </div>
               </div>
-              <Markdown>
-                {'``` json\n' +
-                  JSON.stringify(
-                    JSON.parse(auditLog.response_data || ''),
-                    undefined,
-                    2,
-                  ) +
-                  '\n```'}
-              </Markdown>
+              <Markdown>{responseData}</Markdown>
             </div>
 
             <div>

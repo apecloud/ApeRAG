@@ -4,6 +4,7 @@ import {
   AuditApi,
   Configuration,
   DefaultApi,
+  EvaluationApi,
   GraphApi,
   QuotasApi,
 } from '@/api';
@@ -48,4 +49,5 @@ export const apiClient = {
   graphApi: new GraphApi(configuration, undefined, request),
   quotasApi: new QuotasApi(configuration, undefined, request),
   auditApi: new AuditApi(configuration, undefined, request),
+  evaluationApi: new EvaluationApi(configuration, undefined, request),
 };

@@ -45,7 +45,20 @@ const nextConfig: NextConfig = {
   // Will be available on both server and client
   publicRuntimeConfig: {},
 
-  modularizeImports: {},
+  // modularizeImports: {
+  //   'react-icons/fa6': {
+  //     transform: 'react-icons/fa6/{{member}}',
+  //   },
+  //   'react-icons/bi': {
+  //     transform: 'react-icons/bi/{{member}}',
+  //   },
+  //   'react-icons/pi': {
+  //     transform: 'react-icons/pi/{{member}}',
+  //   },
+  //   'react-icons/bs': {
+  //     transform: 'react-icons/bs/{{member}}',
+  //   },
+  // },
 
   rewrites: async () => {
     return [
