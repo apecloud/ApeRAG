@@ -153,3 +153,16 @@ class Stacks:
         :return: the content of title
         """
         return self.stacks[level][0]
+
+
+def calculate_file_hash(file_content: bytes) -> str:
+    """
+    Calculate SHA-256 hash of original file content for duplicate detection.
+
+    Args:
+        file_content: Original file content as bytes (raw file data)
+
+    Returns:
+        Hexadecimal string of SHA-256 hash
+    """
+    return hashlib.sha256(file_content).hexdigest()

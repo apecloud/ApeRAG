@@ -1936,7 +1936,7 @@ paths:
   /marketplace/collections/{collection_id}/documents:
     get:
       summary: List documents in MarketplaceCollection (read-only)
-      description: Get document list for a subscribed Collection (read-only mode)
+      description: Get document list for a subscribed Collection (read-only mode) with pagination, sorting and search capabilities
       parameters:
         - name: collection_id
           in: path
@@ -1944,6 +1944,46 @@ paths:
           description: Collection ID
           schema:
             type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number (1-based)
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: Number of items per page
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum:
+              - name
+              - created
+              - updated
+              - size
+              - status
+          description: Field to sort by
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: desc
+          description: Sort order
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search documents by name
       responses:
         '200':
           description: Document list (read-only)
@@ -5351,7 +5391,13 @@ components:
           type: string
           enum:
             - UPLOADED
-          description: Status of the uploaded document
+            - PENDING
+            - RUNNING
+            - COMPLETE
+            - FAILED
+            - DELETED
+            - EXPIRED
+          description: Status of the document (UPLOADED for new uploads, or existing status for duplicate files)
       required:
         - document_id
         - filename
@@ -6032,6 +6078,36 @@ components:
           description: Publication time, null when not published
       required:
         - is_published
+    SharedCollectionConfig:
+      type: object
+      description: Configuration settings for shared collection features
+      properties:
+        enable_vector:
+          type: boolean
+          description: Whether vector search is enabled
+          default: true
+        enable_fulltext:
+          type: boolean
+          description: Whether fulltext search is enabled
+          default: true
+        enable_knowledge_graph:
+          type: boolean
+          description: Whether knowledge graph is enabled
+          default: true
+        enable_summary:
+          type: boolean
+          description: Whether summary generation is enabled
+          default: false
+        enable_vision:
+          type: boolean
+          description: Whether vision processing is enabled
+          default: false
+      required:
+        - enable_vector
+        - enable_fulltext
+        - enable_knowledge_graph
+        - enable_summary
+        - enable_vision
     SharedCollection:
       type: object
       description: Shared Collection information for marketplace users
@@ -6062,10 +6138,14 @@ components:
           format: date-time
           nullable: true
           description: Subscription time (only has value when subscribed)
+        config:
+          $ref: '#/components/schemas/SharedCollectionConfig'
+          description: Collection configuration settings
       required:
         - id
         - title
         - owner_user_id
+        - config
     SharedCollectionList:
       type: object
       description: Shared Collection list response

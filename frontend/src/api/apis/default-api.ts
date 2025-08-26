@@ -2663,13 +2663,18 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
-         * Get document list for a subscribed Collection (read-only mode)
+         * Get document list for a subscribed Collection (read-only mode) with pagination, sorting and search capabilities
          * @summary List documents in MarketplaceCollection (read-only)
          * @param {string} collectionId Collection ID
+         * @param {number} [page] Page number (1-based)
+         * @param {number} [pageSize] Number of items per page
+         * @param {MarketplaceCollectionsCollectionIdDocumentsGetSortByEnum} [sortBy] Field to sort by
+         * @param {MarketplaceCollectionsCollectionIdDocumentsGetSortOrderEnum} [sortOrder] Sort order
+         * @param {string} [search] Search documents by name
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        marketplaceCollectionsCollectionIdDocumentsGet: async (collectionId: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        marketplaceCollectionsCollectionIdDocumentsGet: async (collectionId: string, page?: number, pageSize?: number, sortBy?: MarketplaceCollectionsCollectionIdDocumentsGetSortByEnum, sortOrder?: MarketplaceCollectionsCollectionIdDocumentsGetSortOrderEnum, search?: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'collectionId' is not null or undefined
             assertParamExists('marketplaceCollectionsCollectionIdDocumentsGet', 'collectionId', collectionId)
             const localVarPath = `/marketplace/collections/{collection_id}/documents`
@@ -2684,6 +2689,26 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
+
+            if (page !== undefined) {
+                localVarQueryParameter['page'] = page;
+            }
+
+            if (pageSize !== undefined) {
+                localVarQueryParameter['page_size'] = pageSize;
+            }
+
+            if (sortBy !== undefined) {
+                localVarQueryParameter['sort_by'] = sortBy;
+            }
+
+            if (sortOrder !== undefined) {
+                localVarQueryParameter['sort_order'] = sortOrder;
+            }
+
+            if (search !== undefined) {
+                localVarQueryParameter['search'] = search;
+            }
 
 
     
@@ -4057,14 +4082,19 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * Get document list for a subscribed Collection (read-only mode)
+         * Get document list for a subscribed Collection (read-only mode) with pagination, sorting and search capabilities
          * @summary List documents in MarketplaceCollection (read-only)
          * @param {string} collectionId Collection ID
+         * @param {number} [page] Page number (1-based)
+         * @param {number} [pageSize] Number of items per page
+         * @param {MarketplaceCollectionsCollectionIdDocumentsGetSortByEnum} [sortBy] Field to sort by
+         * @param {MarketplaceCollectionsCollectionIdDocumentsGetSortOrderEnum} [sortOrder] Sort order
+         * @param {string} [search] Search documents by name
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async marketplaceCollectionsCollectionIdDocumentsGet(collectionId: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<DocumentList>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.marketplaceCollectionsCollectionIdDocumentsGet(collectionId, options);
+        async marketplaceCollectionsCollectionIdDocumentsGet(collectionId: string, page?: number, pageSize?: number, sortBy?: MarketplaceCollectionsCollectionIdDocumentsGetSortByEnum, sortOrder?: MarketplaceCollectionsCollectionIdDocumentsGetSortOrderEnum, search?: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<DocumentList>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.marketplaceCollectionsCollectionIdDocumentsGet(collectionId, page, pageSize, sortBy, sortOrder, search, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['DefaultApi.marketplaceCollectionsCollectionIdDocumentsGet']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -4877,14 +4907,14 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.marketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGet(requestParameters.collectionId, requestParameters.documentId, options).then((request) => request(axios, basePath));
         },
         /**
-         * Get document list for a subscribed Collection (read-only mode)
+         * Get document list for a subscribed Collection (read-only mode) with pagination, sorting and search capabilities
          * @summary List documents in MarketplaceCollection (read-only)
          * @param {DefaultApiMarketplaceCollectionsCollectionIdDocumentsGetRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
         marketplaceCollectionsCollectionIdDocumentsGet(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdDocumentsGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<DocumentList> {
-            return localVarFp.marketplaceCollectionsCollectionIdDocumentsGet(requestParameters.collectionId, options).then((request) => request(axios, basePath));
+            return localVarFp.marketplaceCollectionsCollectionIdDocumentsGet(requestParameters.collectionId, requestParameters.page, requestParameters.pageSize, requestParameters.sortBy, requestParameters.sortOrder, requestParameters.search, options).then((request) => request(axios, basePath));
         },
         /**
          * Get details of a subscribed Collection (read-only access)
@@ -5646,7 +5676,7 @@ export interface DefaultApiInterface {
     marketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGet(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdDocumentsDocumentIdPreviewGetRequest, options?: RawAxiosRequestConfig): AxiosPromise<DocumentPreview>;
 
     /**
-     * Get document list for a subscribed Collection (read-only mode)
+     * Get document list for a subscribed Collection (read-only mode) with pagination, sorting and search capabilities
      * @summary List documents in MarketplaceCollection (read-only)
      * @param {DefaultApiMarketplaceCollectionsCollectionIdDocumentsGetRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -6918,6 +6948,41 @@ export interface DefaultApiMarketplaceCollectionsCollectionIdDocumentsGetRequest
      * @memberof DefaultApiMarketplaceCollectionsCollectionIdDocumentsGet
      */
     readonly collectionId: string
+
+    /**
+     * Page number (1-based)
+     * @type {number}
+     * @memberof DefaultApiMarketplaceCollectionsCollectionIdDocumentsGet
+     */
+    readonly page?: number
+
+    /**
+     * Number of items per page
+     * @type {number}
+     * @memberof DefaultApiMarketplaceCollectionsCollectionIdDocumentsGet
+     */
+    readonly pageSize?: number
+
+    /**
+     * Field to sort by
+     * @type {'name' | 'created' | 'updated' | 'size' | 'status'}
+     * @memberof DefaultApiMarketplaceCollectionsCollectionIdDocumentsGet
+     */
+    readonly sortBy?: MarketplaceCollectionsCollectionIdDocumentsGetSortByEnum
+
+    /**
+     * Sort order
+     * @type {'asc' | 'desc'}
+     * @memberof DefaultApiMarketplaceCollectionsCollectionIdDocumentsGet
+     */
+    readonly sortOrder?: MarketplaceCollectionsCollectionIdDocumentsGetSortOrderEnum
+
+    /**
+     * Search documents by name
+     * @type {string}
+     * @memberof DefaultApiMarketplaceCollectionsCollectionIdDocumentsGet
+     */
+    readonly search?: string
 }
 
 /**
@@ -7841,7 +7906,7 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
     }
 
     /**
-     * Get document list for a subscribed Collection (read-only mode)
+     * Get document list for a subscribed Collection (read-only mode) with pagination, sorting and search capabilities
      * @summary List documents in MarketplaceCollection (read-only)
      * @param {DefaultApiMarketplaceCollectionsCollectionIdDocumentsGetRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -7849,7 +7914,7 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      * @memberof DefaultApi
      */
     public marketplaceCollectionsCollectionIdDocumentsGet(requestParameters: DefaultApiMarketplaceCollectionsCollectionIdDocumentsGetRequest, options?: RawAxiosRequestConfig) {
-        return DefaultApiFp(this.configuration).marketplaceCollectionsCollectionIdDocumentsGet(requestParameters.collectionId, options).then((request) => request(this.axios, this.basePath));
+        return DefaultApiFp(this.configuration).marketplaceCollectionsCollectionIdDocumentsGet(requestParameters.collectionId, requestParameters.page, requestParameters.pageSize, requestParameters.sortBy, requestParameters.sortOrder, requestParameters.search, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -8054,3 +8119,22 @@ export const LlmProvidersProviderNameModelsApiModelPutApiEnum = {
     rerank: 'rerank'
 } as const;
 export type LlmProvidersProviderNameModelsApiModelPutApiEnum = typeof LlmProvidersProviderNameModelsApiModelPutApiEnum[keyof typeof LlmProvidersProviderNameModelsApiModelPutApiEnum];
+/**
+ * @export
+ */
+export const MarketplaceCollectionsCollectionIdDocumentsGetSortByEnum = {
+    name: 'name',
+    created: 'created',
+    updated: 'updated',
+    size: 'size',
+    status: 'status'
+} as const;
+export type MarketplaceCollectionsCollectionIdDocumentsGetSortByEnum = typeof MarketplaceCollectionsCollectionIdDocumentsGetSortByEnum[keyof typeof MarketplaceCollectionsCollectionIdDocumentsGetSortByEnum];
+/**
+ * @export
+ */
+export const MarketplaceCollectionsCollectionIdDocumentsGetSortOrderEnum = {
+    asc: 'asc',
+    desc: 'desc'
+} as const;
+export type MarketplaceCollectionsCollectionIdDocumentsGetSortOrderEnum = typeof MarketplaceCollectionsCollectionIdDocumentsGetSortOrderEnum[keyof typeof MarketplaceCollectionsCollectionIdDocumentsGetSortOrderEnum];

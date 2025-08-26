@@ -39,7 +39,7 @@ export interface UploadDocumentResponse {
      */
     'size': number;
     /**
-     * Status of the uploaded document
+     * Status of the document (UPLOADED for new uploads, or existing status for duplicate files)
      * @type {string}
      * @memberof UploadDocumentResponse
      */
@@ -47,7 +47,13 @@ export interface UploadDocumentResponse {
 }
 
 export const UploadDocumentResponseStatusEnum = {
-    UPLOADED: 'UPLOADED'
+    UPLOADED: 'UPLOADED',
+    PENDING: 'PENDING',
+    RUNNING: 'RUNNING',
+    COMPLETE: 'COMPLETE',
+    FAILED: 'FAILED',
+    DELETED: 'DELETED',
+    EXPIRED: 'EXPIRED'
 } as const;
 
 export type UploadDocumentResponseStatusEnum = typeof UploadDocumentResponseStatusEnum[keyof typeof UploadDocumentResponseStatusEnum];

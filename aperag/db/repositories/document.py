@@ -211,3 +211,23 @@ class AsyncDocumentRepositoryMixin(AsyncRepositoryProtocol):
             return await session.scalar(stmt)
 
         return await self._execute_query(_query)
+
+    async def query_document_by_name_and_collection(self, user: str, collection_id: str, filename: str):
+        """Query document by name and collection for duplicate checking"""
+
+        async def _query(session):
+            from sqlalchemy import and_
+
+            stmt = select(Document).where(
+                and_(
+                    Document.user == user,
+                    Document.collection_id == collection_id,
+                    Document.name == filename,
+                    Document.status != DocumentStatus.DELETED,
+                    Document.gmt_deleted.is_(None),  # Not soft deleted
+                )
+            )
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+        return await self._execute_query(_query)
