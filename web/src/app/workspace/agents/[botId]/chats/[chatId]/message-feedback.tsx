@@ -186,7 +186,7 @@ export const MessageFeedback = ({
         className={cn(
           'cursor-pointer',
           part?.feedback?.type === FeedbackTypeEnum.good
-            ? 'text-green-700 hover:text-green-500'
+            ? 'text-green-500 hover:text-green-600'
             : 'text-muted-foreground',
         )}
         onClick={() => handleVote(FeedbackTypeEnum.good)}
@@ -200,7 +200,7 @@ export const MessageFeedback = ({
         className={cn(
           'cursor-pointer',
           part?.feedback?.type === FeedbackTypeEnum.bad
-            ? 'text-rose-700 hover:text-rose-500'
+            ? 'text-rose-500 hover:text-rose-600'
             : 'text-muted-foreground',
         )}
         onClick={() => handleVote(FeedbackTypeEnum.bad)}

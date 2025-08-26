@@ -78,6 +78,7 @@
     "recharts": "2.15.4",
     "rehype-highlight": "^7.0.2",
     "rehype-highlight-code-lines": "^1.1.5",
+    "rehype-raw": "^7.0.0",
     "remark-directive": "^4.0.0",
     "remark-frontmatter": "^5.0.0",
     "remark-gfm": "^4.0.1",

@@ -6,6 +6,7 @@ import { JSX, MouseEventHandler, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeHighlightLines from 'rehype-highlight-code-lines';
+import rehypeRaw from 'rehype-raw';
 import remarkDirective from 'remark-directive';
 import remarkFrontmatter from 'remark-frontmatter';
 import remarkGfm from 'remark-gfm';
@@ -214,7 +215,11 @@ export const mdComponents = {
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const mdRehypePlugins: any = [rehypeHighlight, rehypeHighlightLines];
+export const mdRehypePlugins: any = [
+  rehypeRaw,
+  rehypeHighlight,
+  rehypeHighlightLines,
+];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const mdRemarkPlugins: any = [
