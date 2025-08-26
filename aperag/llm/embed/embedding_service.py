@@ -15,15 +15,11 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Sequence, Tuple
-from urllib.parse import urlparse
 
 import litellm
-import requests
-from litellm.utils import is_base64_encoded
 
 from aperag.llm.llm_error_types import (
     BatchProcessingError,
@@ -155,14 +151,6 @@ class EmbeddingService:
     def is_multimodal(self) -> bool:
         return self.multimodal
 
-    def _is_valid_url(self, url: str) -> bool:
-        """Check if a string is a valid URL."""
-        try:
-            result = urlparse(url)
-            return all([result.scheme, result.netloc])
-        except ValueError:
-            return False
-
     def _embed_batch_with_indices(self, batch: Sequence[str], start_idx: int) -> List[Tuple[int, List[float]]]:
         """Process a batch of texts and return embeddings with their original indices."""
         try:
@@ -187,12 +175,6 @@ class EmbeddingService:
         Raises:
             EmbeddingError: If embedding fails
         """
-
-        # HACK: litellm currently doesn't support jina's multimodal embedding API,
-        #       it doesn't send the image content in the required format. Working around it for now.
-        if self.multimodal and self.embedding_provider == "jina_ai":
-            if any([is_base64_encoded(item) for item in batch]):
-                return self._jina_ai_multimodal_embedding(batch)
 
         try:
             response = litellm.embedding(
@@ -222,49 +204,3 @@ class EmbeddingService:
             logger.error(f"Batch embedding API call failed: {str(e)}")
             # Convert litellm errors to our custom types
             raise wrap_litellm_error(e, "embedding", self.embedding_provider, self.model) from e
-
-    def _jina_ai_multimodal_embedding(self, batch: Sequence[str]) -> List[List[float]]:
-        """
-        Embed a batch of images using Jina AI multimodal embedding API.
-        """
-        api_url = "https://api.jina.ai/v1/embeddings"
-        if self.api_base:
-            api_url = self.api_base + "/embeddings"
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}",
-        }
-        input_list = []
-        for item in batch:
-            is_url = self._is_valid_url(item)
-            base64_encoded = is_base64_encoded(item)
-            if is_url or base64_encoded:
-                if base64_encoded:
-                    item = item.split(",")[1]
-                input_list.append({"image": item})
-            else:
-                input_list.append({"text": item})
-        payload = {
-            "model": self.model,
-            "input": input_list,
-        }
-
-        try:
-            response = requests.post(api_url, headers=headers, data=json.dumps(payload), timeout=180)
-            response.raise_for_status()
-            response_json = response.json()
-
-            if not response_json or "data" not in response_json:
-                raise EmbeddingError(
-                    "Invalid response format from Jina AI embedding API",
-                    {"provider": self.embedding_provider, "model": self.model, "batch_size": len(batch)},
-                )
-
-            embeddings = [item["embedding"] for item in response_json["data"]]
-            return embeddings
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Jina AI API request failed: {e}")
-            raise EmbeddingError(
-                f"Jina AI API request failed: {e}",
-                {"provider": self.embedding_provider, "model": self.model},
-            ) from e

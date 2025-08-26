@@ -297,7 +297,6 @@ class AsyncChatRepositoryMixin(AsyncRepositoryProtocol):
                 "message": feedback_message,
                 "question": question,
                 "original_answer": original_answer,
-                "collection_id": collection_id,
                 "status": MessageFeedbackStatus.PENDING,
                 "gmt_created": current_time,
                 "gmt_updated": current_time,
@@ -317,7 +316,6 @@ class AsyncChatRepositoryMixin(AsyncRepositoryProtocol):
                     "message": stmt.excluded.message,
                     "question": stmt.excluded.question,
                     "original_answer": stmt.excluded.original_answer,
-                    "collection_id": stmt.excluded.collection_id,
                     "status": stmt.excluded.status,
                     "gmt_updated": stmt.excluded.gmt_updated,
                     "gmt_deleted": None,  # Reset to active state

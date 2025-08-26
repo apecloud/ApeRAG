@@ -42,7 +42,7 @@ dependencies = [
     "numpy>=2.1.3",
     "pipmaster<1.0.0,>=0.5.4",
     "pytablewriter<2.0.0,>=1.2.1",
-    "litellm>=1.74.3",
+    "litellm>=1.76.0",
     "requests",
     "asyncpg>=0.30.0",
     "markitdown[all]>=0.1.1",
