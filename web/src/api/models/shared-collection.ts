@@ -13,6 +13,9 @@
  */
 
 
+// May contain unused imports in some cases
+// @ts-ignore
+import type { SharedCollectionConfig } from './shared-collection-config';
 
 /**
  * Shared Collection information for marketplace users
@@ -62,5 +65,11 @@ export interface SharedCollection {
      * @memberof SharedCollection
      */
     'gmt_subscribed'?: string;
+    /**
+     * Collection configuration settings
+     * @type {SharedCollectionConfig}
+     * @memberof SharedCollection
+     */
+    'config': SharedCollectionConfig;
 }
 

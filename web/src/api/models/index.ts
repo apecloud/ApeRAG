@@ -152,6 +152,7 @@ export * from './settings';
 export * from './settings-test-mineru-token-post200-response';
 export * from './settings-test-mineru-token-post-request';
 export * from './shared-collection';
+export * from './shared-collection-config';
 export * from './shared-collection-list';
 export * from './sharing-status-response';
 export * from './suggestion-action-request';

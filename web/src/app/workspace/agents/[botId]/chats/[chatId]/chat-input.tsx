@@ -159,7 +159,7 @@ export const ChatInput = ({
   return (
     <div
       className={cn(
-        'bg-background/80 fixed right-0 z-10 backdrop-blur-lg transition-[width,height,left] ease-linear',
+        'bg-background/95 fixed right-0 z-10 backdrop-blur-lg transition-[width,height,left] ease-linear',
         !open || isMobile ? 'left-0' : 'left-[var(--sidebar-width)]',
         welcome ? 'top-[25%]' : 'bottom-0',
       )}

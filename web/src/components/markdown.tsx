@@ -156,7 +156,16 @@ export const mdComponents = {
     const language = match?.[1];
     if (language) {
       if (language === 'mermaid') {
-        return <ChartMermaid>{String(props.children)}</ChartMermaid>;
+        return (
+          <>
+            <code className={cn('mb-4 rounded-md text-sm', className)}>
+              {props.children}
+            </code>
+            <ChartMermaid>
+              {typeof props.children === 'string' ? props.children : ''}
+            </ChartMermaid>
+          </>
+        );
       } else {
         return (
           <code className={cn('rounded-md text-sm', className)}>

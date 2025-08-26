@@ -26,7 +26,6 @@ export default async function Page({
     serverApi.defaultApi.marketplaceCollectionsCollectionIdDocumentsGet({
       collectionId,
       ...parsePageParams({ page, pageSize }),
-      // @ts-expect-error api not support
       sortBy: 'created',
       sortOrder: 'desc',
       search,

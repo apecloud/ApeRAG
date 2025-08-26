@@ -109,23 +109,25 @@ export const CollectionHeader = ({
             </Link>
           </Button>
 
-          {/* {collection.config?.enable_knowledge_graph && ( */}
-          <Button
-            asChild
-            data-active={Boolean(
-              pathname.match(
-                `/workspace/market/collections/${collection.id}/graph`,
-              ),
-            )}
-            className="hover:border-b-primary data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
-            variant="ghost"
-          >
-            <Link href={`/workspace/market/collections/${collection.id}/graph`}>
-              <VectorSquare />
-              <span className="hidden sm:inline">Knowledge Graph</span>
-            </Link>
-          </Button>
-          {/* )} */}
+          {collection.config?.enable_knowledge_graph && (
+            <Button
+              asChild
+              data-active={Boolean(
+                pathname.match(
+                  `/workspace/market/collections/${collection.id}/graph`,
+                ),
+              )}
+              className="hover:border-b-primary data-[active=true]:border-b-primary h-10 rounded-none border-y-2 border-y-transparent px-1 has-[>svg]:px-2"
+              variant="ghost"
+            >
+              <Link
+                href={`/workspace/market/collections/${collection.id}/graph`}
+              >
+                <VectorSquare />
+                <span className="hidden sm:inline">Knowledge Graph</span>
+              </Link>
+            </Button>
+          )}
         </div>
       </Card>
     </PageContent>
