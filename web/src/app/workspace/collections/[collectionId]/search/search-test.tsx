@@ -110,7 +110,6 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
 
   const handleSubmit = useCallback(
     async (values: z.infer<typeof searchParams>) => {
-      console.log(values);
       if (!collection.id) {
         return;
       }
