@@ -28,6 +28,7 @@ from aperag.exceptions import (
     SelfSubscriptionError,
 )
 from aperag.schema import view_models
+from aperag.schema.utils import convertToSharedCollectionConfig, parseCollectionConfig
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,10 @@ class MarketplaceService:
         # Convert to SharedCollection objects
         collections = []
         for data in collections_data:
+            # Parse collection config and convert to SharedCollectionConfig
+            collection_config = parseCollectionConfig(data["config"])
+            shared_config = convertToSharedCollectionConfig(collection_config)
+
             shared_collection = view_models.SharedCollection(
                 id=data["id"],
                 title=data["title"],
@@ -103,6 +108,7 @@ class MarketplaceService:
                 owner_username=data["owner_username"],
                 subscription_id=data["subscription_id"],
                 gmt_subscribed=data["gmt_subscribed"],
+                config=shared_config,
             )
             collections.append(shared_collection)
 
@@ -137,6 +143,10 @@ class MarketplaceService:
         owner = await self.db_ops.query_user_by_username(collection.user)
         owner_username = owner.username if owner else collection.user
 
+        # Parse collection config and convert to SharedCollectionConfig
+        collection_config = parseCollectionConfig(collection.config)
+        shared_config = convertToSharedCollectionConfig(collection_config)
+
         return view_models.SharedCollection(
             id=collection.id,
             title=collection.title,
@@ -145,6 +155,7 @@ class MarketplaceService:
             owner_username=owner_username,
             subscription_id=subscription.id,
             gmt_subscribed=subscription.gmt_subscribed,
+            config=shared_config,
         )
 
     async def unsubscribe_collection(self, user_id: str, collection_id: str) -> None:
@@ -186,6 +197,10 @@ class MarketplaceService:
         # Convert to SharedCollection objects
         collections = []
         for data in collections_data:
+            # Parse collection config and convert to SharedCollectionConfig
+            collection_config = parseCollectionConfig(data["config"])
+            shared_config = convertToSharedCollectionConfig(collection_config)
+
             shared_collection = view_models.SharedCollection(
                 id=data["id"],
                 title=data["title"],
@@ -194,6 +209,7 @@ class MarketplaceService:
                 owner_username=data["owner_username"],
                 subscription_id=data["subscription_id"],
                 gmt_subscribed=data["gmt_subscribed"],
+                config=shared_config,
             )
             collections.append(shared_collection)
 
