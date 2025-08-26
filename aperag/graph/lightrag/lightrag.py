@@ -471,6 +471,16 @@ class LightRAG:
         """
         components = self._find_connected_components(chunk_results)
 
+        # Handle case where no entities were extracted
+        if not components:
+            self.lightrag_logger.info("No entities or relationships extracted - returning success with zero counts")
+            return {
+                "groups_processed": 0,
+                "total_entities": 0,
+                "total_relations": 0,
+                "collection_id": collection_id,
+            }
+
         # Prepare component data for parallel processing
         component_tasks = []
 
@@ -551,6 +561,16 @@ class LightRAG:
         for task_data in component_tasks:
             task = asyncio.create_task(_process_component_with_semaphore(task_data))
             tasks.append(task)
+
+        # Handle case where no valid component tasks were created
+        if not tasks:
+            self.lightrag_logger.info("No valid component tasks created - returning success with zero counts")
+            return {
+                "groups_processed": 0,
+                "total_entities": 0,
+                "total_relations": 0,
+                "collection_id": collection_id,
+            }
 
         # Wait for all tasks to complete or for the first exception
         done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
