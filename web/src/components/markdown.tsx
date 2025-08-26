@@ -18,6 +18,8 @@ import { Skeleton } from './ui/skeleton';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from './ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
+import './markdown.css';
+
 const securityLink = (props: JSX.IntrinsicElements['a']) => {
   const target = props.href?.match(/^http/) ? '_blank' : '_self';
   const url = props.href?.replace(/\.md/, '');

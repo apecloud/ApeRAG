@@ -11,11 +11,30 @@ export const ChartMermaid = ({ children }: { children: string }) => {
   const id = useMemo(() => (Math.random() * 100000).toFixed(0), []);
 
   const renderMermaid = useCallback(async () => {
+    const isDark = resolvedTheme === 'dark';
+
     try {
       mermaid.initialize({
         startOnLoad: true,
-        theme: resolvedTheme === 'dark' ? 'dark' : 'neutral',
+        theme: isDark ? 'dark' : 'neutral',
         securityLevel: 'loose',
+        themeVariables: {
+          // primaryColor: '#0165ca',
+          // primaryTextColor: '#fff',
+          labelBkg: 'transparent',
+          lineColor: 'var(--input)',
+
+          // Flowchart Variables
+          nodeBorder: 'var(--border)',
+          clusterBkg: 'var(--card)',
+          clusterBorder: 'var(--input)',
+          defaultLinkColor: 'var(--input)',
+          edgeLabelBackground: 'transparent',
+          titleColor: 'var(--muted-foreground)',
+          nodeTextColor: 'var(--card-foreground)',
+        },
+        themeCSS: '.labelBkg { background: none; }',
+        flowchart: {},
       });
       const { svg } = await mermaid.render(`mermaid-container-${id}`, children);
       setSvg(svg);
@@ -33,7 +52,7 @@ export const ChartMermaid = ({ children }: { children: string }) => {
   return (
     <div
       data-error={error}
-      className={`mermaid-container-${id}`}
+      className={`mermaid-container-${id} my-4`}
       dangerouslySetInnerHTML={{
         __html: svg,
       }}

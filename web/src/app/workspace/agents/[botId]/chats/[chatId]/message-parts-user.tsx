@@ -14,7 +14,7 @@ export const MessagePartsUser = ({ parts }: { parts: ChatMessage[] }) => {
       </div>
       <div>
         <div className="bg-muted text-muted-foreground flex size-12 flex-col justify-center rounded-full">
-          <UserRound className="size-6 self-center" />
+          <UserRound className="size-5 self-center" />
         </div>
       </div>
     </div>
