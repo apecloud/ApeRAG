@@ -1,3 +1,4 @@
+import { Markdown } from '@/components/markdown';
 import { DOCS_DIR } from '@/lib/docs';
 import fs from 'fs';
 
@@ -15,8 +16,8 @@ export default async function Page({
   const mdxPath = path.join(DOCS_DIR, `${relativePath}.mdx`);
 
   if (fs.existsSync(mdxPath)) {
-    const { default: MDXContent } = await import(`@docs/${relativePath}.mdx`);
-    return <MDXContent />;
+    const mdxContent = fs.readFileSync(mdxPath, 'utf8');
+    return <Markdown>{mdxContent}</Markdown>;
   } else {
     notFound();
   }

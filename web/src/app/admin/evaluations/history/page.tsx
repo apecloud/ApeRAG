@@ -13,9 +13,11 @@ export default async function Page() {
   const [resEvaluations] = await Promise.all([
     serverApi.evaluationApi.listEvaluationsApiV1EvaluationsGet({
       page: 1,
-      pageSize: 20
+      pageSize: 20,
     }),
   ]);
+
+  console.log(resEvaluations);
 
   return (
     <PageContainer>

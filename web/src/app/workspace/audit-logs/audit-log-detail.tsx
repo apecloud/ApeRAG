@@ -24,11 +24,10 @@ export const AuditLogDetail = ({
     const res = auditLog.response_data || '{}';
     let result = res;
     try {
-      result = '``` json\n' +
-      JSON.stringify(JSON.parse(res), undefined, 2) +
-      '\n```'
+      result =
+        '``` json\n' + JSON.stringify(JSON.parse(res), undefined, 2) + '\n```';
     } catch (err) {
-      console.log(err)
+      console.log(err);
     }
     return result;
   }, [auditLog.response_data]);

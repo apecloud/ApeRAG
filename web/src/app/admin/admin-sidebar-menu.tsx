@@ -74,7 +74,9 @@ export const AdminSideBarMenu = () => {
                         pathname.match('/admin/evaluations/history') !== null
                       }
                     >
-                      <Link href="/admin/evaluations/history">Evaluation History</Link>
+                      <Link href="/admin/evaluations/history">
+                        Evaluation History
+                      </Link>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
                   <SidebarMenuSubItem>
