@@ -83,14 +83,14 @@ export const EvaluationList = ({
                             evaluation.total_questions &&
                               evaluation.total_questions > 100
                               ? 'text-lg'
-                              : 'text-2xl',
+                              : 'text-xl',
                           )}
                         >
                           <span
                             className={
                               evaluation.completed_questions !==
                               evaluation.total_questions
-                                ? 'text-amber-500'
+                                ? 'text-muted-foreground'
                                 : undefined
                             }
                           >
@@ -104,7 +104,7 @@ export const EvaluationList = ({
                         <div className="text-muted-foreground text-sm">
                           Avg. Score
                         </div>
-                        <div className="text-2xl font-bold">
+                        <div className="text-xl font-bold">
                           {evaluation.average_score?.toFixed(2) ?? '-'}
                         </div>
                       </div>

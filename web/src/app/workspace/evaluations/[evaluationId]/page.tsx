@@ -210,7 +210,7 @@ export default async function Page({
                   </Button>
                 </CollapsibleTrigger>
 
-                <CollapsibleContent className="flex flex-col gap-6 rounded-lg border p-6">
+                <CollapsibleContent className="flex flex-col gap-6 rounded-lg border p-6 text-sm">
                   <div>
                     <div className="text-muted-foreground mb-4">
                       Ground Truth

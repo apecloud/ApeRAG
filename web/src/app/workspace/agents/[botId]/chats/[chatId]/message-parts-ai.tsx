@@ -37,7 +37,7 @@ export const MessagePartsAi = ({
           <Bot className={cn('size-6 self-center')} />
         </div>
       </div>
-      <div className="flex max-w-4xl flex-col gap-1">
+      <div className="flex max-w-sm flex-col gap-1 sm:max-w-lg md:max-w-2xl lg:max-w-3xl xl:max-w-4xl">
         <Card className="dark:border-card/0 block gap-0 px-4 py-4 text-sm">
           {pending ? (
             <div className="flex flex-row gap-2 py-2">

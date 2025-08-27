@@ -174,8 +174,9 @@ export const EvaluationCreate = ({
   useEffect(() => {
     if (visible) {
       loadData();
+      form.reset();
     }
-  }, [loadData, visible]);
+  }, [form, loadData, visible]);
 
   return (
     <Dialog open={visible} onOpenChange={() => setVisible(false)}>

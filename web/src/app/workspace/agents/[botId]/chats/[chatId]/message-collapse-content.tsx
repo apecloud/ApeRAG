@@ -31,7 +31,7 @@ export const MessageCollapseContent = ({
         <CollapsibleTrigger asChild>
           <Button variant="secondary" className="w-full cursor-pointer">
             <ChevronRight className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-            <div className="block flex-1 text-left">{title}</div>
+            <div className="block flex-1 truncate text-left">{title}</div>
           </Button>
         </CollapsibleTrigger>
       </motion.div>

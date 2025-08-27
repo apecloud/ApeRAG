@@ -66,6 +66,7 @@ export const ChatInput = ({
   const [isComposing, setIsComposing] = useState<boolean>(false);
   const { open, isMobile } = useSidebar();
   const { providerModels, collections } = useAgentsContext();
+  const [mentionOpen, setMentionOpen] = useState<boolean>(false);
   const locale = useLocale();
   const [query, setQuery] = useState<string>('');
   const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
@@ -81,7 +82,7 @@ export const ChatInput = ({
 
   const handleSendMessage = useCallback(() => {
     const _query = _.trim(query);
-    if (_.isEmpty(_query) || isComposing || loading) return;
+    if (_.isEmpty(_query) || isComposing || loading || mentionOpen) return;
 
     let model: ModelSpec | undefined;
     const provider = providerModels?.find((p) =>
@@ -123,6 +124,7 @@ export const ChatInput = ({
     isComposing,
     loading,
     locale,
+    mentionOpen,
     modelName,
     onSubmit,
     providerModels,
@@ -236,6 +238,8 @@ export const ChatInput = ({
             <Mention
               trigger="@"
               className="w-full"
+              open={mentionOpen}
+              onOpenChange={setMentionOpen}
               value={selectedCollections}
               inputValue={query}
               onInputValueChange={setQuery}
@@ -243,7 +247,7 @@ export const ChatInput = ({
               onCompositionStart={() => setIsComposing(true)}
               onCompositionEnd={() => setIsComposing(false)}
               onKeyDown={(e) => {
-                if (e.key == 'Enter' && e.shiftKey) {
+                if (e.key === 'Enter' && !e.shiftKey) {
                   handleSendMessage();
                   e.preventDefault();
                 }
@@ -252,11 +256,6 @@ export const ChatInput = ({
               <MentionInput asChild>
                 <Textarea
                   className="resize-none rounded-xl pb-20"
-                  // placeholder={
-                  //   disabled
-                  //     ? 'Network connection in progress, please wait...'
-                  //     : 'Type @ to mention a collection...'
-                  // }
                   value={query}
                   placeholder="Type @ to mention a collection..."
                   disabled={disabled}
