@@ -1,14 +1,15 @@
 'use client';
 import mermaid from 'mermaid';
 import { useTheme } from 'next-themes';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import './chart-mermaid.css';
 
 export const ChartMermaid = ({ children }: { children: string }) => {
   const [svg, setSvg] = useState('');
   const { resolvedTheme } = useTheme();
   const [error, setError] = useState<boolean>(false);
-  const id = useMemo(() => (Math.random() * 100000).toFixed(0), []);
+
+  const [id, setId] = useState<string>();
 
   const renderMermaid = useCallback(async () => {
     const isDark = resolvedTheme === 'dark';
@@ -48,6 +49,10 @@ export const ChartMermaid = ({ children }: { children: string }) => {
   useEffect(() => {
     renderMermaid();
   }, [renderMermaid]);
+
+  useEffect(() => {
+    setId(String((Math.random() * 100000).toFixed(0)));
+  }, []);
 
   return (
     <div
