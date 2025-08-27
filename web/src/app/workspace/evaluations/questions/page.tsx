@@ -5,12 +5,18 @@ import {
   PageHeader,
   PageTitle,
 } from '@/components/page-container';
+import { getServerApi } from '@/lib/api/server';
+import { QuestionSetList } from './question-set-list';
 
 export default async function Page() {
-  // const [resSettings, resSystemDefaultQuotas] = await Promise.all([
-  //   serverApi.defaultApi.settingsGet(),
-  //   serverApi.quotasApi.systemDefaultQuotasGet(),
-  // ]);
+  const serverApi = await getServerApi();
+
+  const [questionSetsRes] = await Promise.all([
+    serverApi.evaluationApi.listQuestionSetsApiV1QuestionSetsGet({
+      page: 1,
+      pageSize: 100,
+    }),
+  ]);
 
   return (
     <PageContainer>
@@ -22,7 +28,7 @@ export default async function Page() {
           designed to systematically assess the effectiveness, impact.
         </PageDescription>
 
-        <div className="flex flex-col gap-6"></div>
+        <QuestionSetList questionSets={questionSetsRes.data.items || []} />
       </PageContent>
     </PageContainer>
   );

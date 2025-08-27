@@ -99,7 +99,10 @@ export const EvaluationList = ({
                           /<span>{evaluation.total_questions ?? '-'}</span>
                         </div>
                       </div>
-                      <Separator orientation="vertical" />
+                      <Separator
+                        orientation="vertical"
+                        className="data-[orientation=vertical]:h-10"
+                      />
                       <div className="w-6/12 text-center">
                         <div className="text-muted-foreground text-sm">
                           Avg. Score
