@@ -12,7 +12,12 @@ export const FormatDate = ({ datetime }: FormatDateProps): React.ReactNode => {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span>{format.relativeTime(datetime, now)}</span>
+        <span>
+          {format.relativeTime(
+            datetime,
+            typeof window === undefined ? undefined : now,
+          )}
+        </span>
       </TooltipTrigger>
       {/* <TooltipContent>{format.dateTime(datetime, 'medium')}</TooltipContent> */}
     </Tooltip>

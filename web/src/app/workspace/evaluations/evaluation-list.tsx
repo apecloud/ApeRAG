@@ -18,6 +18,7 @@ import { Plus } from 'lucide-react';
 import Link from 'next/link';
 
 import { useState } from 'react';
+import { EvaluationCreate } from './evaluation-create';
 
 export const EvaluationList = ({
   evaluations,
@@ -37,10 +38,12 @@ export const EvaluationList = ({
           />
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <Button>
-            <Plus />
-            <span className="hidden md:inline">Add evaluation</span>
-          </Button>
+          <EvaluationCreate>
+            <Button>
+              <Plus />
+              <span className="hidden md:inline">Add evaluation</span>
+            </Button>
+          </EvaluationCreate>
         </div>
       </div>
 
@@ -64,7 +67,7 @@ export const EvaluationList = ({
                   <Card className="hover:bg-accent/30 cursor-pointer gap-4 rounded-md py-4">
                     <CardHeader className="px-4">
                       <CardTitle className="h-5 truncate">
-                        {evaluation.name}
+                        {evaluation.name || '--'}
                       </CardTitle>
                     </CardHeader>
 

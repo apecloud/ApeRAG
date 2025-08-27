@@ -71,13 +71,15 @@ export default async function Page({
       <PageHeader
         breadcrumbs={[
           { title: 'Evaluation', href: '/workspace/evaluations' },
-          { title: evaluation.name ?? '' },
+          { title: evaluation.name || '--' },
         ]}
       />
       <PageContent>
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="text-2xl">{evaluation.name}</CardTitle>
+            <CardTitle className="text-2xl">
+              {evaluation.name || '--'}
+            </CardTitle>
             <CardDescription className="flex flex-row items-center gap-6 text-sm">
               {evaluation.gmt_created && (
                 <FormatDate datetime={new Date(evaluation.gmt_created)} />
