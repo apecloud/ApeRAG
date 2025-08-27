@@ -56,7 +56,7 @@ class CollectionService:
         return Collection(
             id=instance.id,
             title=instance.title,
-            description=await self.get_effective_description(instance),
+            description=instance.description,
             type=instance.type,
             status=getattr(instance, "status", None),
             config=parseCollectionConfig(instance.config),
@@ -205,19 +205,6 @@ class CollectionService:
         if collection is None:
             raise CollectionNotFoundException(collection_id)
         return await self.build_collection_response(collection)
-
-    async def get_effective_description(self, collection: db_models.Collection) -> str:
-        """
-        Get the effective description for a collection.
-        Returns the summary if enabled and complete, otherwise returns the original description.
-        """
-        config = parseCollectionConfig(collection.config)
-        if config.enable_summary:
-            async for session in get_async_session():
-                record = await collection_summary_service._get_summary_by_collection_id(session, collection.id)
-                if record and record.summary:
-                    return record.summary
-        return collection.description
 
     async def update_collection(
         self, user: str, collection_id: str, collection: view_models.CollectionUpdate

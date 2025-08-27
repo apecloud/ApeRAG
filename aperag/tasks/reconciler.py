@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
 from typing import List, Optional
 
@@ -30,6 +31,7 @@ from aperag.db.models import (
     DocumentIndexType,
     DocumentStatus,
 )
+from aperag.schema.utils import parseCollectionConfig
 from aperag.tasks.scheduler import TaskScheduler, create_task_scheduler
 from aperag.utils.constant import IndexAction
 from aperag.utils.utils import utc_now
@@ -486,7 +488,52 @@ class CollectionSummaryCallbacks:
         """Called when summary generation succeeds"""
         try:
             for session in get_sync_session():
-                update_stmt = (
+                # First, get the collection summary record to get collection_id
+                summary_query = select(CollectionSummary).where(
+                    and_(
+                        CollectionSummary.id == summary_id,
+                        CollectionSummary.status == CollectionSummaryStatus.GENERATING,
+                        CollectionSummary.version == target_version,
+                    )
+                )
+                summary_result = session.execute(summary_query)
+                summary_record = summary_result.scalar_one_or_none()
+                
+                if not summary_record:
+                    logger.warning(
+                        f"Summary completion callback ignored for {summary_id} (v{target_version}) - not in expected state"
+                    )
+                    return
+
+                collection_id = summary_record.collection_id
+                
+                # Get collection info to check if summary is enabled and get current gmt_updated
+                collection_query = select(Collection).where(
+                    and_(
+                        Collection.id == collection_id,
+                        Collection.gmt_deleted.is_(None)
+                    )
+                )
+                collection_result = session.execute(collection_query)
+                collection_record = collection_result.scalar_one_or_none()
+                
+                if not collection_record:
+                    logger.error(f"Collection {collection_id} not found during summary completion")
+                    return
+                
+                # Check if summary is enabled in collection config
+                try:
+                    config = parseCollectionConfig(collection_record.config)
+                    is_summary_enabled = config.enable_summary
+                except Exception as e:
+                    logger.error(f"Failed to parse collection config for {collection_id}: {e}")
+                    is_summary_enabled = False
+                
+                current_time = utc_now()
+                collection_updated_time = collection_record.gmt_updated
+                
+                # Update collection_summary table
+                summary_update_stmt = (
                     update(CollectionSummary)
                     .where(
                         and_(
@@ -500,21 +547,52 @@ class CollectionSummaryCallbacks:
                         summary=summary_content,
                         error_message=None,
                         observed_version=target_version,
-                        gmt_updated=utc_now(),
+                        gmt_updated=current_time,
                     )
                 )
-                result = session.execute(update_stmt)
-                if result.rowcount > 0:
-                    session.commit()
-                    logger.info(f"Collection summary generation completed for {summary_id} (v{target_version})")
-                else:
+                summary_update_result = session.execute(summary_update_stmt)
+                
+                if summary_update_result.rowcount == 0:
                     session.rollback()
                     logger.warning(
-                        f"Summary completion callback ignored for {summary_id} (v{target_version}) - not in expected state"
+                        f"Summary completion callback ignored for {summary_id} (v{target_version}) - summary not in expected state"
                     )
+                    return
+                
+                # Update collection table if summary is enabled and collection hasn't been updated since we read it
+                if is_summary_enabled and summary_content:
+                    collection_update_stmt = (
+                        update(Collection)
+                        .where(
+                            and_(
+                                Collection.id == collection_id,
+                                Collection.gmt_updated == collection_updated_time,  # Race condition prevention
+                                Collection.gmt_deleted.is_(None)
+                            )
+                        )
+                        .values(
+                            description=summary_content,
+                            gmt_updated=current_time,
+                        )
+                    )
+                    collection_update_result = session.execute(collection_update_stmt)
+                    
+                    if collection_update_result.rowcount > 0:
+                        logger.info(f"Updated collection {collection_id} description with generated summary")
+                    else:
+                        logger.warning(
+                            f"Failed to update collection {collection_id} description - collection may have been modified concurrently"
+                        )
+                
+                session.commit()
+                logger.info(f"Collection summary generation completed for {summary_id} (v{target_version})")
 
         except Exception as e:
             logger.error(f"Failed to update collection summary completion for {summary_id}: {e}")
+            try:
+                session.rollback()
+            except:
+                pass
 
     @staticmethod
     def on_summary_failed(summary_id: str, error_message: str, target_version: int):
