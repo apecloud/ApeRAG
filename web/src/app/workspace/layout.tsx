@@ -1,28 +1,19 @@
 import { Chat } from '@/api';
-import { AppLogo, AppUserDropdownMenu } from '@/components/app-topbar';
+import { AppLogo } from '@/components/app-topbar';
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarProvider,
-  SidebarSeparator,
 } from '@/components/ui/sidebar';
 import { getServerApi } from '@/lib/api/server';
 import { toJson } from '@/lib/utils';
-import { BatteryMedium, Key, Logs, Package } from 'lucide-react';
-import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { WorkspaceProvider } from '@/components/providers/workspace-provider';
 import { MenuChats } from './menu-chats';
+import { MenuFooter } from './menu-footer';
 import { MenuMain } from './menu-main';
 
 export default async function Layout({
@@ -72,57 +63,8 @@ export default async function Layout({
             <MenuMain />
             {bot && <MenuChats />}
           </SidebarContent>
-          <SidebarFooter className="gap-0">
-            <SidebarGroup>
-              <SidebarGroupLabel>Settings</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      asChild
-                      className="data-[active=true]:font-normal"
-                    >
-                      <Link href="/workspace/providers">
-                        <Package /> Models
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      asChild
-                      className="data-[active=true]:font-normal"
-                    >
-                      <Link href="/workspace/api-keys">
-                        <Key /> API Keys
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      asChild
-                      className="data-[active=true]:font-normal"
-                    >
-                      <Link href="/workspace/audit-logs">
-                        <Logs /> Audit Logs
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      asChild
-                      className="data-[active=true]:font-normal"
-                    >
-                      <Link href="/workspace/quotas">
-                        <BatteryMedium /> Quotas
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-            <SidebarSeparator className="mx-0 mb-2" />
-            <AppUserDropdownMenu />
-          </SidebarFooter>
+
+          <MenuFooter />
         </Sidebar>
         <SidebarInset>{children}</SidebarInset>
       </SidebarProvider>

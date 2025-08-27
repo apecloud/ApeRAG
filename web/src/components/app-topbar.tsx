@@ -27,6 +27,7 @@ import { LogOut } from 'lucide-react';
 import { useAppContext } from '@/components/providers/app-provider';
 import { cn } from '@/lib/utils';
 
+import { useIsMobile } from '@/hooks/use-mobile';
 import { FaGithub } from 'react-icons/fa6';
 import { NavigationMenu, NavigationMenuList } from './ui/navigation-menu';
 import { UserAvatar, UserAvatarProfile } from './user-avatar';
@@ -58,7 +59,7 @@ export const AppShortLogo = () => {
 export const AppUserDropdownMenu = () => {
   const { user, signIn, signOut } = useAppContext();
   const username = user?.username || user?.email?.split('@')[0];
-
+  const isMobile = useIsMobile();
   if (!user) {
     return (
       <Button
@@ -78,7 +79,10 @@ export const AppUserDropdownMenu = () => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="data-[state=open]:bg-accent h-auto">
+        <Button
+          variant="ghost"
+          className="data-[state=open]:bg-accent h-auto has-[>svg]:px-2"
+        >
           <UserAvatar user={user} />
           <div className="grid flex-1 text-left text-sm leading-tight">
             <span className="max-w-30 truncate font-medium">{username}</span>
@@ -89,6 +93,8 @@ export const AppUserDropdownMenu = () => {
       <DropdownMenuContent
         className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
         align="end"
+        side={isMobile ? 'bottom' : 'right'}
+        sideOffset={isMobile ? 4 : 12}
       >
         <DropdownMenuLabel className="font-normal">
           <UserAvatarProfile user={user} />

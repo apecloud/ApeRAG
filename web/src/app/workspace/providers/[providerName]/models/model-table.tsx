@@ -147,19 +147,19 @@ export function ModelTable({
             <div className="flex items-center gap-6">
               <div className="text-center">
                 <div className="text-muted-foreground text-sm">Context</div>
-                <div className="w-25 truncate text-lg">
+                <div className="w-25 truncate">
                   {row.original.context_window || '-'}
                 </div>
               </div>
               <div className="text-center">
                 <div className="text-muted-foreground text-sm">Max Input</div>
-                <div className="w-25 truncate text-lg">
+                <div className="w-25 truncate">
                   {row.original.max_input_tokens || '-'}
                 </div>
               </div>
               <div className="text-center">
                 <div className="text-muted-foreground text-sm">Max Output</div>
-                <div className="w-25 truncate text-lg">
+                <div className="w-25 truncate">
                   {row.original.max_output_tokens || '-'}
                 </div>
               </div>

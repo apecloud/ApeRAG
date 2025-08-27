@@ -16,7 +16,7 @@ export const MenuMain = () => {
 
   return (
     <SidebarGroup className="py-0">
-      <SidebarGroupLabel>Knowledge Repository</SidebarGroupLabel>
+      <SidebarGroupLabel>Repositories</SidebarGroupLabel>
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton

@@ -189,7 +189,7 @@ export const ChatMessages = ({ chat }: { chat?: ChatDetails }) => {
   // }, [loadMessages]);
 
   return (
-    <div className="pb-70 flex flex-col gap-6">
+    <div className="flex flex-col gap-6 pb-70">
       {messages.map((parts, index) => {
         const isAI = parts.some((part) => part.role === 'ai');
         const isLoading = loading && index + 1 === messages.length;
