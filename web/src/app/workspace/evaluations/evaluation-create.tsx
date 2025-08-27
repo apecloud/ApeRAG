@@ -31,6 +31,7 @@ import {
 import { apiClient } from '@/lib/api/client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
@@ -205,12 +206,9 @@ export const EvaluationCreate = ({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>Evaluation Name</FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="Auto-generated if left blank"
-                      {...field}
-                    />
+                    <Input placeholder="Enter the evaluation name" {...field} />
                   </FormControl>
                 </FormItem>
               )}
@@ -221,7 +219,16 @@ export const EvaluationCreate = ({
               name="collection_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Collection</FormLabel>
+                  <FormLabel>
+                    <span>Collection</span>
+
+                    <Link
+                      className="text-muted-foreground hover:text-primary ml-auto underline"
+                      href="/workspace/collections/new"
+                    >
+                      Create Collection
+                    </Link>
+                  </FormLabel>
                   <FormControl>
                     <Select {...field} onValueChange={field.onChange}>
                       <SelectTrigger className="w-full">
@@ -247,7 +254,15 @@ export const EvaluationCreate = ({
               name="question_set_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Question Set</FormLabel>
+                  <FormLabel>
+                    <span>Question Set</span>
+                    <Link
+                      className="text-muted-foreground hover:text-primary ml-auto underline"
+                      href="/workspace/evaluations/questions"
+                    >
+                      Create question set
+                    </Link>
+                  </FormLabel>
                   <FormControl>
                     <Select {...field} onValueChange={field.onChange}>
                       <SelectTrigger className="w-full">

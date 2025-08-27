@@ -104,7 +104,7 @@ export default async function Page({
                 <span className="text-muted-foreground">Collection: </span>
                 <Link
                   href={`/workspace/collections/${evaluation.config?.collection_id}/documents`}
-                  className="text-primary underline"
+                  className="hover:text-primary underline"
                 >
                   {_.truncate(evaluation.collection_name, { length: 20 })}
                 </Link>
@@ -114,8 +114,8 @@ export default async function Page({
                 <span className="text-muted-foreground">Question Set: </span>
                 <span>
                   <Link
-                    href={`/workspace/collections/${evaluation.config?.question_set_id}/documents`}
-                    className="text-primary underline"
+                    href={`/workspace/evaluations/questions/${evaluation.config?.question_set_id}`}
+                    className="hover:text-primary underline"
                   >
                     {_.truncate(evaluation.question_set_name, { length: 20 })}
                   </Link>
