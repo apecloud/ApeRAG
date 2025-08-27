@@ -5,8 +5,8 @@ import { MessageTimestamp } from './message-timestamp';
 
 export const MessagePartsUser = ({ parts }: { parts: ChatMessage[] }) => {
   return (
-    <div className="ml-auto flex w-max max-w-[85%] flex-row gap-4">
-      <div className="flex flex-col gap-2">
+    <div className="ml-auto flex w-max flex-row gap-4">
+      <div className="flex max-w-4xl flex-col gap-2">
         <div className="bg-primary text-primary-foreground rounded-lg p-4 text-sm">
           <Markdown>{parts?.map((part) => part.data || '').join('')}</Markdown>
         </div>

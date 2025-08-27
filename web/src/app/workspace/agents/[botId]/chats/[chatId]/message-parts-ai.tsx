@@ -28,7 +28,7 @@ export const MessagePartsAi = ({
   );
 
   return (
-    <div className="flex w-max max-w-[85%] flex-row gap-4">
+    <div className="flex w-max flex-row gap-4">
       <div>
         <div className="bg-muted text-muted-foreground relative flex size-12 flex-col justify-center rounded-full">
           {loading && (
@@ -37,7 +37,7 @@ export const MessagePartsAi = ({
           <Bot className={cn('size-6 self-center')} />
         </div>
       </div>
-      <div className="flex flex-col gap-1">
+      <div className="flex max-w-4xl flex-col gap-1">
         <Card className="dark:border-card/0 block gap-0 px-4 py-4 text-sm">
           {pending ? (
             <div className="flex flex-row gap-2 py-2">
