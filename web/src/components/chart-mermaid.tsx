@@ -52,7 +52,7 @@ export const ChartMermaid = ({ children }: { children: string }) => {
   return (
     <div
       data-error={error}
-      className={`mermaid-container-${id} my-4`}
+      className={`mermaid-container-${id} my-4 flex justify-center`}
       dangerouslySetInnerHTML={{
         __html: svg,
       }}

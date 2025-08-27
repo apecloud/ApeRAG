@@ -22,6 +22,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
 import './markdown.css';
 
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+
 const securityLink = (props: JSX.IntrinsicElements['a']) => {
   const target = props.href?.match(/^http/) ? '_blank' : '_self';
   const url = props.href?.replace(/\.md/, '');
@@ -162,12 +164,22 @@ export const mdComponents = {
       if (language === 'mermaid') {
         return (
           <>
-            <code className={cn('mb-4 rounded-md text-sm', className)}>
-              {props.children}
-            </code>
-            <ChartMermaid>
-              {typeof props.children === 'string' ? props.children : ''}
-            </ChartMermaid>
+            <Tabs defaultValue="graph" className="font-sans">
+              <TabsList className="w-full">
+                <TabsTrigger value="graph">Graph</TabsTrigger>
+                <TabsTrigger value="data">Data</TabsTrigger>
+              </TabsList>
+              <TabsContent value="graph">
+                <ChartMermaid>
+                  {typeof props.children === 'string' ? props.children : ''}
+                </ChartMermaid>
+              </TabsContent>
+              <TabsContent value="data">
+                <code className={cn('my-4 rounded-md text-sm', className)}>
+                  {props.children}
+                </code>
+              </TabsContent>
+            </Tabs>
           </>
         );
       } else {

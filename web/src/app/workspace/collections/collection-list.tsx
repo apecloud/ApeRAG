@@ -1,6 +1,6 @@
 'use client';
 
-import { CollectionView, CollectionViewStatusEnum } from '@/api';
+import { CollectionView } from '@/api';
 import { FormatDate } from '@/components/format-date';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -60,13 +60,6 @@ export const CollectionList = ({
               );
             })
             .map((collection) => {
-              const badgeColor: {
-                [key in CollectionViewStatusEnum]: string;
-              } = {
-                ACTIVE: 'bg-green-700',
-                INACTIVE: 'bg-red-500',
-                DELETED: 'bg-gray-500',
-              };
               return (
                 <Link
                   key={collection.id}
@@ -112,11 +105,12 @@ export const CollectionList = ({
                       </div>
                       <div className="flex items-center gap-1">
                         <div
+                          data-status={collection.status}
                           className={cn(
-                            'size-2 rounded-2xl',
-                            collection.status
-                              ? badgeColor[collection.status]
-                              : 'bg-gray-500',
+                            'size-2 rounded-lg',
+                            'data-[status=ACTIVE]:bg-green-700',
+                            'data-[status=INACTIVE]:bg-red-500',
+                            'data-[status=DELETED]:bg-gray-500',
                           )}
                         />
                         <div className="text-muted-foreground">

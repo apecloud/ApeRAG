@@ -22,17 +22,16 @@ import {
   BatteryMedium,
   ChevronRight,
   FlaskConical,
+  History,
   Key,
   Logs,
+  MailQuestionMark,
   Package,
   Settings,
 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 
 export const MenuFooter = () => {
-  const pathname = usePathname();
-
   const { isMobile } = useSidebar();
 
   return (
@@ -46,12 +45,7 @@ export const MenuFooter = () => {
                 asChild
                 className="data-[state=open]:bg-accent h-auto"
               >
-                <SidebarMenuButton
-                  className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                  isActive={
-                    pathname.match('/workspace/evaluations/questions') !== null
-                  }
-                >
+                <SidebarMenuButton className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
                   <FlaskConical />
                   Evaluation
                   <ChevronRight className="ml-auto" />
@@ -65,13 +59,13 @@ export const MenuFooter = () => {
               >
                 <DropdownMenuGroup>
                   <DropdownMenuItem asChild>
-                    <Link href="/workspace/evaluations/history">
-                      <Package /> Evaluation History
+                    <Link href="/workspace/evaluations">
+                      <History /> Evaluation
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/workspace/evaluations/questions">
-                      <Package /> Question Sets
+                      <MailQuestionMark /> Question Sets
                     </Link>
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
@@ -83,12 +77,7 @@ export const MenuFooter = () => {
                 asChild
                 className="data-[state=open]:bg-accent h-auto"
               >
-                <SidebarMenuButton
-                  className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                  isActive={
-                    pathname.match('/workspace/evaluations/questions') !== null
-                  }
-                >
+                <SidebarMenuButton className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
                   <Settings />
                   Settings
                   <ChevronRight className="ml-auto" />
