@@ -117,7 +117,7 @@ export const QuestionActions = ({
           >
             <DialogHeader>
               <DialogTitle>
-                {action === 'add' ? 'Add Question Set' : 'Update Question Set'}
+                {action === 'add' ? 'Add Question' : 'Update Question'}
               </DialogTitle>
               <DialogDescription></DialogDescription>
             </DialogHeader>
@@ -127,9 +127,9 @@ export const QuestionActions = ({
               name="question_text"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>Question</FormLabel>
                   <FormControl>
-                    <Textarea {...field} placeholder="Enter your question." />
+                    <Textarea {...field} placeholder="Enter your question..." />
                   </FormControl>
                 </FormItem>
               )}

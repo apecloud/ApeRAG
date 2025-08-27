@@ -31,6 +31,7 @@ import { QuestionSetActions } from '../question-set-actions';
 import { QuestionSetDelete } from '../question-set-delete';
 import { QuestionActions } from './question-actions';
 import { QuestionDelete } from './question-delete';
+import { QuestionGenerate } from './question-generate';
 
 export const QuestionsList = ({
   questionSet,
@@ -57,12 +58,15 @@ export const QuestionsList = ({
                     Manual
                   </DropdownMenuItem>
                 </QuestionActions>
-                <DropdownMenuItem>
-                  <BookOpen />
-                  Generate from Collection
-                </DropdownMenuItem>
 
-                <DropdownMenuItem>
+                <QuestionGenerate questionSet={questionSet}>
+                  <DropdownMenuItem>
+                    <BookOpen />
+                    Generate from Collection
+                  </DropdownMenuItem>
+                </QuestionGenerate>
+
+                <DropdownMenuItem disabled>
                   <FileUp /> Import from File
                 </DropdownMenuItem>
               </DropdownMenuGroup>

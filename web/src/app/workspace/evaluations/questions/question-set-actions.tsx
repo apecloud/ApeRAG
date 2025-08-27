@@ -113,7 +113,7 @@ export const QuestionSetActions = ({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>Question set name</FormLabel>
                   <FormControl>
                     <Input
                       {...field}
