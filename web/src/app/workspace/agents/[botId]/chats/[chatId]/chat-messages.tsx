@@ -168,8 +168,14 @@ export const ChatMessages = ({ chat }: { chat?: ChatDetails }) => {
   }, [connect, disconnect]);
 
   useEffect(() => {
+    if (loading) {
+      scroll.scrollToBottom({ duration: 0 });
+    }
+  }, [messages, chat, loading]);
+
+  useEffect(() => {
     scroll.scrollToBottom({ duration: 0 });
-  }, [messages, chat]);
+  }, []);
 
   /**
    * render in server for the first time
