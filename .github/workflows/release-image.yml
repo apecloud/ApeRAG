@@ -154,8 +154,8 @@ jobs:
     with:
       IMG: "apecloud/aperag-frontend"
       VERSION: "${{ needs.image-tag.outputs.tag-name }}"
-      DOCKERFILE_PATH: "./frontend/Dockerfile"
-      CONTEXT: "./frontend"
+      DOCKERFILE_PATH: "./web/Dockerfile"
+      CONTEXT: "./web"
       REMOVE_PREFIX: false
       APECD_REF: "v0.1.93"
       ENABLE_SUBMODULE: true

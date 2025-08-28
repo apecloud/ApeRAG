@@ -1,5 +1,36 @@
 # Marketplace related schemas for Collection sharing and subscription
 
+SharedCollectionConfig:
+  type: object
+  description: Configuration settings for shared collection features
+  properties:
+    enable_vector:
+      type: boolean
+      description: Whether vector search is enabled
+      default: true
+    enable_fulltext:
+      type: boolean
+      description: Whether fulltext search is enabled
+      default: true
+    enable_knowledge_graph:
+      type: boolean
+      description: Whether knowledge graph is enabled
+      default: true
+    enable_summary:
+      type: boolean
+      description: Whether summary generation is enabled
+      default: false
+    enable_vision:
+      type: boolean
+      description: Whether vision processing is enabled
+      default: false
+  required:
+    - enable_vector
+    - enable_fulltext
+    - enable_knowledge_graph
+    - enable_summary
+    - enable_vision
+
 CollectionMarketplaceStatusEnum:
   type: string
   enum:
@@ -37,10 +68,14 @@ SharedCollection:
       format: date-time
       nullable: true
       description: Subscription time (only has value when subscribed)
+    config:
+      $ref: '#/SharedCollectionConfig'
+      description: Collection configuration settings
   required:
     - id
     - title
     - owner_user_id
+    - config
 
 SharedCollectionList:
   type: object

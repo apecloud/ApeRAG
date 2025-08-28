@@ -1,0 +1,5 @@
+[id^='dmermaid-container-'] {
+  position: absolute;
+  left: -100000px;
+  top: -100000px;
+}

@@ -175,7 +175,7 @@ marketplaceCollection:
 marketplaceCollectionDocuments:
   get:
     summary: List documents in MarketplaceCollection (read-only)
-    description: Get document list for a subscribed Collection (read-only mode)
+    description: Get document list for a subscribed Collection (read-only mode) with pagination, sorting and search capabilities
     parameters:
       - name: collection_id
         in: path
@@ -183,6 +183,39 @@ marketplaceCollectionDocuments:
         description: Collection ID
         schema:
           type: string
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        description: Page number (1-based)
+      - name: page_size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+        description: Number of items per page
+      - name: sort_by
+        in: query
+        schema:
+          type: string
+          enum: ["name", "created", "updated", "size", "status"]
+        description: Field to sort by
+      - name: sort_order
+        in: query
+        schema:
+          type: string
+          enum: ["asc", "desc"]
+          default: "desc"
+        description: Sort order
+      - name: search
+        in: query
+        schema:
+          type: string
+        description: Search documents by name
     responses:
       '200':
         description: Document list (read-only)
@@ -241,6 +274,62 @@ marketplaceCollectionDocumentPreview:
               $ref: '../components/schemas/common.yaml#/failResponse'
       '404':
         description: Document not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+
+marketplaceCollectionDocumentObject:
+  get:
+    summary: Get document object from MarketplaceCollection (read-only)
+    description: Get an object from a specific document in a subscribed Collection (read-only mode)
+    operationId: get_marketplace_document_object
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        description: Collection ID
+        schema:
+          type: string
+      - name: document_id
+        in: path
+        required: true
+        description: Document ID
+        schema:
+          type: string
+      - name: path
+        in: query
+        required: true
+        description: Object path within the document
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Document object (read-only)
+        content:
+          application/octet-stream: {}
+      '206':
+        description: Partial content (for range requests)
+        content:
+          application/octet-stream: {}
+      '401':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+      '403':
+        description: Access denied (need subscription)
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Document not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '416':
+        description: Range not satisfiable
         content:
           application/json:
             schema:

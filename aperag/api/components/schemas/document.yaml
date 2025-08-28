@@ -203,7 +203,13 @@ uploadDocumentResponse:
       type: string
       enum:
         - UPLOADED
-      description: Status of the uploaded document
+        - PENDING
+        - RUNNING  
+        - COMPLETE
+        - FAILED
+        - DELETED
+        - EXPIRED
+      description: Status of the document (UPLOADED for new uploads, or existing status for duplicate files)
   required:
     - document_id
     - filename

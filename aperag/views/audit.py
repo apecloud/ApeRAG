@@ -60,7 +60,7 @@ async def list_audit_logs(
     filter_user_id = user_id
     if user.role != Role.ADMIN:
         filter_user_id = user.id
-    
+
     result = await audit_service.list_audit_logs(
         user_id=filter_user_id,
         resource_type=audit_resource,

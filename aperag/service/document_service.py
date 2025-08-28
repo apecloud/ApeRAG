@@ -30,6 +30,7 @@ from aperag.db.ops import AsyncDatabaseOps, async_db_ops
 from aperag.docparser.doc_parser import DocParser
 from aperag.exceptions import (
     CollectionInactiveException,
+    DocumentNameConflictException,
     DocumentNotFoundException,
     QuotaExceededException,
     ResourceNotFoundException,
@@ -39,9 +40,16 @@ from aperag.index.manager import document_index_manager
 from aperag.objectstore.base import get_async_object_store
 from aperag.schema import view_models
 from aperag.schema.view_models import Chunk, DocumentList, DocumentPreview, VisionChunk
-from aperag.utils.pagination import ListParams, PaginationParams, SortParams, SearchParams, PaginationHelper, PaginatedResponse
+from aperag.utils.pagination import (
+    ListParams,
+    PaginatedResponse,
+    PaginationHelper,
+    PaginationParams,
+    SearchParams,
+    SortParams,
+)
 from aperag.utils.uncompress import SUPPORTED_COMPRESSED_EXTENSIONS
-from aperag.utils.utils import generate_vector_db_collection_name, utc_now
+from aperag.utils.utils import calculate_file_hash, generate_vector_db_collection_name, utc_now
 from aperag.vectorstore.connector import VectorStoreConnectorAdaptor
 
 logger = logging.getLogger(__name__)
@@ -106,6 +114,34 @@ class DocumentService:
             raise invalid_param("file_size", "file size is too large")
 
         return file_suffix
+
+    async def _check_duplicate_document(
+        self, user: str, collection_id: str, filename: str, file_hash: str
+    ) -> db_models.Document | None:
+        """
+        Check if a document with the same name exists in the collection.
+        Returns the existing document if found, None otherwise.
+
+        Raises DocumentNameConflictException if same name but different file hash.
+        """
+        # Use repository to query for existing document
+        existing_doc = await self.db_ops.query_document_by_name_and_collection(user, collection_id, filename)
+
+        if existing_doc:
+            # If existing document has no hash (legacy document), skip hash check
+            if existing_doc.content_hash is None:
+                # Could calculate hash for legacy document here if needed
+                logger.warning(f"Existing document {existing_doc.id} has no file hash, skipping hash comparison")
+                return existing_doc
+
+            # If file hashes match, it's a true duplicate (same file)
+            if existing_doc.content_hash == file_hash:
+                return existing_doc
+            else:
+                # Same name but different file content - conflict
+                raise DocumentNameConflictException(filename, collection_id)
+
+        return None
 
     async def _check_document_quotas(self, session: AsyncSession, user: str, collection_id: str, count: int):
         """
@@ -172,11 +208,16 @@ class DocumentService:
         file_suffix: str,
         file_content: bytes,
         custom_metadata: dict = None,
+        content_hash: str = None,
     ) -> db_models.Document:
         """
         Create a document record in database and upload file to object store.
         Returns the created document instance.
         """
+        # Calculate file hash if not provided
+        if content_hash is None:
+            content_hash = calculate_file_hash(file_content)
+
         # Create document in database
         document_instance = db_models.Document(
             user=user,
@@ -184,6 +225,7 @@ class DocumentService:
             status=status,
             size=size,
             collection_id=collection_id,
+            content_hash=content_hash,
         )
         session.add(document_instance)
         await session.flush()
@@ -343,8 +385,17 @@ class DocumentService:
             # Reset file pointer for potential future use
             await item.seek(0)
 
+            # Calculate original file hash for duplicate detection
+            file_hash = calculate_file_hash(file_content)
+
             file_data.append(
-                {"filename": item.filename, "size": item.size, "suffix": file_suffix, "content": file_content}
+                {
+                    "filename": item.filename,
+                    "size": item.size,
+                    "suffix": file_suffix,
+                    "content": file_content,
+                    "file_hash": file_hash,
+                }
             )
 
         # Process all files in a single transaction for atomicity
@@ -357,7 +408,21 @@ class DocumentService:
             index_types = self._get_index_types_for_collection(collection_config)
 
             for file_info in file_data:
-                # Create document and upload file
+                # Check for duplicate document (same name and hash)
+                existing_doc = await self._check_duplicate_document(
+                    user, collection.id, file_info["filename"], file_info["file_hash"]
+                )
+
+                if existing_doc:
+                    # Return existing document info (idempotent behavior)
+                    logger.info(
+                        f"Document '{file_info['filename']}' already exists with same content, returning existing document {existing_doc.id}"
+                    )
+                    doc_response = await self._build_document_response(existing_doc)
+                    documents_created.append(doc_response)
+                    continue
+
+                # Create new document and upload file
                 document_instance = await self._create_document_record(
                     session=session,
                     user=user,
@@ -368,6 +433,7 @@ class DocumentService:
                     file_suffix=file_info["suffix"],
                     file_content=file_info["content"],
                     custom_metadata=custom_metadata,
+                    content_hash=file_info["file_hash"],
                 )
 
                 # Create indexes
@@ -389,34 +455,32 @@ class DocumentService:
         return DocumentList(items=response)
 
     async def list_documents(
-        self, 
-        user: str, 
+        self,
+        user: str,
         collection_id: str,
         page: int = 1,
         page_size: int = 10,
         sort_by: str = None,
-        sort_order: str = 'desc',
+        sort_order: str = "desc",
         search: str = None,
     ) -> PaginatedResponse[view_models.Document]:
         """List documents with pagination, sorting and search capabilities."""
-        
+
         # Define sort field mapping
         sort_mapping = {
-            'name': db_models.Document.name,
-            'created': db_models.Document.gmt_created,
-            'updated': db_models.Document.gmt_updated,
-            'size': db_models.Document.size,
-            'status': db_models.Document.status
+            "name": db_models.Document.name,
+            "created": db_models.Document.gmt_created,
+            "updated": db_models.Document.gmt_updated,
+            "size": db_models.Document.size,
+            "status": db_models.Document.status,
         }
-        
+
         # Define search fields mapping
-        search_fields = {
-            'name': db_models.Document.name
-        }
-        
+        search_fields = {"name": db_models.Document.name}
+
         async def _execute_paginated_query(session):
-            from sqlalchemy import and_, desc, select, func
-            
+            from sqlalchemy import and_, desc, select
+
             # Step 1: Build base document query for pagination (without indexes)
             base_query = select(db_models.Document).where(
                 and_(
@@ -427,19 +491,19 @@ class DocumentService:
                     db_models.Document.status != db_models.DocumentStatus.EXPIRED,
                 )
             )
-            
+
             # Apply search filter
             if search:
                 search_term = f"%{search}%"
                 base_query = base_query.where(db_models.Document.name.ilike(search_term))
-            
+
             # Build query parameters for documents
             params = ListParams(
                 pagination=PaginationParams(page=page, page_size=page_size),
                 sort=SortParams(sort_by=sort_by, sort_order=sort_order) if sort_by else None,
-                search=SearchParams(search=search, search_fields=['name']) if search else None,
+                search=SearchParams(search=search, search_fields=["name"]) if search else None,
             )
-            
+
             # Use pagination helper for documents
             documents, total = await PaginationHelper.paginate_query(
                 query=base_query,
@@ -447,20 +511,20 @@ class DocumentService:
                 params=params,
                 sort_mapping=sort_mapping,
                 search_fields=search_fields,
-                default_sort=desc(db_models.Document.gmt_created)
+                default_sort=desc(db_models.Document.gmt_created),
             )
-            
+
             # Step 2: Batch load index information for the paginated documents
             if documents:
                 document_ids = [doc.id for doc in documents]
-                
+
                 # Query all indexes for the paginated documents in one go
                 index_query = select(db_models.DocumentIndex).where(
                     db_models.DocumentIndex.document_id.in_(document_ids)
                 )
                 index_result = await session.execute(index_query)
                 indexes_data = index_result.scalars().all()
-                
+
                 # Group indexes by document_id
                 indexes_by_doc = {}
                 for index in indexes_data:
@@ -474,32 +538,27 @@ class DocumentService:
                         "error_message": index.error_message,
                         "index_data": index.index_data,
                     }
-                
+
                 # Attach index information to documents
                 for doc in documents:
                     # Initialize index information for all types
                     doc.indexes = {"VECTOR": None, "FULLTEXT": None, "GRAPH": None, "SUMMARY": None, "VISION": None}
-                    
+
                     # Add actual index data if exists
                     if doc.id in indexes_by_doc:
                         doc.indexes.update(indexes_by_doc[doc.id])
-            
+
             # Step 3: Build document responses
             document_responses = []
             for doc in documents:
                 doc_response = await self._build_document_response(doc)
                 document_responses.append(doc_response)
-            
+
             return PaginationHelper.build_response(
-                items=document_responses,
-                total=total,
-                page=page,
-                page_size=page_size
+                items=document_responses, total=total, page=page, page_size=page_size
             )
-        
+
         return await self.db_ops._execute_query(_execute_paginated_query)
-
-
 
     async def get_document(self, user: str, collection_id: str, document_id: str) -> view_models.Document:
         """Get a specific document by ID."""
@@ -945,7 +1004,7 @@ class DocumentService:
     async def upload_document(
         self, user_id: str, collection_id: str, file: UploadFile
     ) -> view_models.UploadDocumentResponse:
-        """Upload a single document file to temporary storage"""
+        """Upload a single document file to temporary storage with duplicate detection"""
         # Validate collection
         collection = await self._validate_collection(user_id, collection_id)
 
@@ -956,8 +1015,26 @@ class DocumentService:
         file_content = await file.read()
         await file.seek(0)
 
+        # Calculate original file hash for duplicate detection
+        file_hash = calculate_file_hash(file_content)
+
         async def _upload_document_atomically(session):
-            # Create document with UPLOADED status (temporary)
+            # Check for duplicate document (same name and hash)
+            existing_doc = await self._check_duplicate_document(user_id, collection.id, file.filename, file_hash)
+
+            if existing_doc:
+                # Return existing document info (idempotent behavior)
+                logger.info(
+                    f"Document '{file.filename}' already exists with same content, returning existing document {existing_doc.id}"
+                )
+                return view_models.UploadDocumentResponse(
+                    document_id=existing_doc.id,
+                    filename=existing_doc.name,
+                    size=existing_doc.size,
+                    status=existing_doc.status,
+                )
+
+            # Create new document with UPLOADED status (temporary)
             document_instance = await self._create_document_record(
                 session=session,
                 user=user_id,
@@ -967,6 +1044,7 @@ class DocumentService:
                 status=db_models.DocumentStatus.UPLOADED,  # Temporary status
                 file_suffix=file_suffix,
                 file_content=file_content,
+                content_hash=file_hash,
             )
 
             return view_models.UploadDocumentResponse(

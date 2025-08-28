@@ -1,0 +1,125 @@
+'use client';
+
+import {
+  signUpLocalSchema,
+  useAppContext,
+} from '@/components/providers/app-provider';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+
+import { zodResolver } from '@hookform/resolvers/zod';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { useCallback } from 'react';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
+
+export function SignUpForm() {
+  const searchParams = useSearchParams();
+  const { signUp } = useAppContext();
+  const callbackUrl = searchParams.get('callbackUrl') || '/';
+  const form = useForm<z.infer<typeof signUpLocalSchema>>({
+    resolver: zodResolver(signUpLocalSchema),
+    defaultValues: {
+      username: '',
+      password: '',
+      email: '',
+    },
+  });
+
+  const handleSignUpLocal = useCallback(
+    async (payload: z.infer<typeof signUpLocalSchema>) => {
+      await signUp({
+        data: payload,
+        redirectTo: callbackUrl,
+      });
+    },
+    [callbackUrl, signUp],
+  );
+
+  return (
+    <div className="flex flex-col gap-6">
+      <Card className="bg-card/50">
+        <CardContent>
+          <div className="mb-8 text-center text-xl font-bold">
+            Register an account
+          </div>
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(handleSignUpLocal)}
+              className="grid gap-6"
+            >
+              <FormField
+                control={form.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Username</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Username" />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Email" />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        {...field}
+                        placeholder="Password"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <Button type="submit" className="w-full">
+                Sign Up
+              </Button>
+
+              <div className="text-center text-sm">
+                Already have an account? &nbsp;
+                <Link
+                  href={`/auth/signin?callbackUrl=${encodeURIComponent(callbackUrl)}`}
+                  className="underline underline-offset-4"
+                >
+                  Sign In
+                </Link>
+              </div>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+      <div className="text-muted-foreground *:[a]:hover:text-primary text-center text-xs text-balance *:[a]:underline *:[a]:underline-offset-4">
+        By clicking continue, you agree to our{' '}
+        <Link href="#">Terms of Service</Link> and{' '}
+        <Link href="#">Privacy Policy</Link>.
+      </div>
+    </div>
+  );
+}
