@@ -15,6 +15,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { apiClient } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import _ from 'lodash';
 import { Files, Star, User, VectorSquare } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -89,7 +90,9 @@ export const CollectionHeader = ({
           </CardAction>
         </CardHeader>
         <CardDescription className="mb-4 px-4">
-          {collection.description || 'No description available'}
+          {_.truncate(collection.description || 'No description available', {
+            length: 300,
+          })}
         </CardDescription>
         <Separator />
         <div className="bg-accent/50 flex flex-row gap-2 rounded-b-xl px-4">
