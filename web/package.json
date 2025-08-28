@@ -63,6 +63,7 @@
     "next-intl": "^4.3.4",
     "next-themes": "^0.4.6",
     "nextjs-toploader": "^3.8.16",
+    "panzoom": "^9.4.3",
     "react": "19.1.0",
     "react-copy-to-clipboard": "^5.1.0",
     "react-day-picker": "^9.8.1",

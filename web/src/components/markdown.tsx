@@ -175,7 +175,7 @@ export const mdComponents = {
                 </ChartMermaid>
               </TabsContent>
               <TabsContent value="data">
-                <code className={cn('my-4 rounded-md text-sm', className)}>
+                <code className={cn('my-2 rounded-md text-sm', className)}>
                   {props.children}
                 </code>
               </TabsContent>

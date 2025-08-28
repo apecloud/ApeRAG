@@ -1,14 +1,16 @@
 'use client';
 import mermaid from 'mermaid';
 import { useTheme } from 'next-themes';
-import { useCallback, useEffect, useState } from 'react';
+import panzoom from 'panzoom';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import './chart-mermaid.css';
+import { Card } from './ui/card';
 
 export const ChartMermaid = ({ children }: { children: string }) => {
   const [svg, setSvg] = useState('');
   const { resolvedTheme } = useTheme();
   const [error, setError] = useState<boolean>(false);
-
+  const containerRef = useRef<HTMLDivElement>(null);
   const [id, setId] = useState<string>();
 
   const renderMermaid = useCallback(async () => {
@@ -22,6 +24,7 @@ export const ChartMermaid = ({ children }: { children: string }) => {
         themeVariables: {
           // primaryColor: '#0165ca',
           // primaryTextColor: '#fff',
+          fontSize: 'inherit',
           labelBkg: 'transparent',
           lineColor: 'var(--input)',
 
@@ -54,13 +57,25 @@ export const ChartMermaid = ({ children }: { children: string }) => {
     setId(String((Math.random() * 100000).toFixed(0)));
   }, []);
 
+  useEffect(() => {
+    if (containerRef.current) {
+      panzoom(containerRef.current, {
+        minZoom: 0.5,
+        maxZoom: 5,
+      });
+    }
+  }, []);
+
   return (
-    <div
-      data-error={error}
-      className={`mermaid-container-${id} my-4 flex justify-center`}
-      dangerouslySetInnerHTML={{
-        __html: svg,
-      }}
-    />
+    <Card className="my-2 min-h-80 cursor-move overflow-hidden rounded-md p-4">
+      <div
+        ref={containerRef}
+        data-error={error}
+        className={`mermaid-container-${id} flex justify-center`}
+        dangerouslySetInnerHTML={{
+          __html: svg,
+        }}
+      />
+    </Card>
   );
 };
