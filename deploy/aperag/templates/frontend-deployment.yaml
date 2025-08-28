@@ -45,27 +45,18 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          volumeMounts:
-            - name: settings
-              mountPath: /html/web/settings.js
-              subPath: settings.js
-              readOnly: true
           livenessProbe:
             httpGet:
-              path: /web/
+              path: /
               port: 3000
             initialDelaySeconds: 10
             periodSeconds: 30
           readinessProbe:
             httpGet:
-              path: /web/
+              path: /
               port: 3000
             initialDelaySeconds: 5
             periodSeconds: 10
-      volumes:
-        - name: settings
-          configMap:
-            name: aperag-frontend-config
       restartPolicy: Always
       {{- with .Values.frontend.affinity }}
       affinity:
