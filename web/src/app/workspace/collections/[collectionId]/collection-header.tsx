@@ -160,8 +160,11 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
             </DropdownMenu>
           </CardAction>
         </CardHeader>
+        <CardDescription className="mb-4 px-4">
+          {collection.description || 'No description available'}
+        </CardDescription>
         <Separator />
-        <div className="bg-accent/50 flex flex-row gap-4 rounded-b-xl px-4">
+        <div className="bg-accent/50 flex flex-row gap-2 rounded-b-xl px-4">
           <Button
             asChild
             data-active={Boolean(pathname.match(urls.documents))}

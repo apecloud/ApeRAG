@@ -62,11 +62,8 @@ export const CollectionHeader = ({
   return (
     <PageContent className={cn('flex flex-col gap-4 pb-0', className)}>
       <Card className="gap-0 p-0">
-        <CardHeader className="p-4">
-          <CardTitle className="text-2xl">{collection.title}</CardTitle>
-          <CardDescription>
-            {collection.description || 'No description available'}
-          </CardDescription>
+        <CardHeader className="p-4 pb-0">
+          <CardTitle className="mb-0 text-2xl">{collection.title}</CardTitle>
           <CardAction className="text-muted-foreground flex flex-row items-center gap-4 text-xs">
             {isOwner ? (
               <Badge>Mine</Badge>
@@ -78,7 +75,6 @@ export const CollectionHeader = ({
                 </div>
               </div>
             )}
-
             <Button
               variant="outline"
               size="sm"
@@ -92,8 +88,11 @@ export const CollectionHeader = ({
             </Button>
           </CardAction>
         </CardHeader>
+        <CardDescription className="mb-4 px-4">
+          {collection.description || 'No description available'}
+        </CardDescription>
         <Separator />
-        <div className="bg-accent/50 flex flex-row gap-4 rounded-b-xl px-4">
+        <div className="bg-accent/50 flex flex-row gap-2 rounded-b-xl px-4">
           <Button
             asChild
             data-active={Boolean(

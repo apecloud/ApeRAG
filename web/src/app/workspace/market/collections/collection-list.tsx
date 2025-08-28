@@ -58,14 +58,12 @@ export const CollectionList = ({
                 key={collection.id}
                 href={`/workspace/market/collections/${collection.id}/documents`}
               >
-                <Card className="hover:bg-accent/30 h-34 cursor-pointer rounded-md">
+                <Card className="hover:bg-accent/30 cursor-pointer gap-2 rounded-md">
                   <CardHeader className="px-4">
                     <CardTitle className="h-5 truncate">
                       {collection.title}
                     </CardTitle>
-                    <CardDescription className="h-5 truncate">
-                      {collection.description || 'No description available'}
-                    </CardDescription>
+
                     <CardAction className="flex flex-row gap-2">
                       {/* {isOwner && (
                         <Button
@@ -83,6 +81,9 @@ export const CollectionList = ({
                       )} */}
                     </CardAction>
                   </CardHeader>
+                  <CardDescription className="mb-4 truncate px-4">
+                    {collection.description || 'No description available'}
+                  </CardDescription>
                   <CardFooter className="text-muted-foreground justify-between px-4 text-sm">
                     {isOwner ? (
                       <Badge>Mine</Badge>

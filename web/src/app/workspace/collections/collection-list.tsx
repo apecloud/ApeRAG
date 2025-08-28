@@ -70,14 +70,11 @@ export const CollectionList = ({
                   }
                   target={collection.subscription_id ? '_blank' : '_self'}
                 >
-                  <Card className="hover:bg-accent/30 h-34 cursor-pointer rounded-md">
+                  <Card className="hover:bg-accent/30 cursor-pointer gap-2 rounded-md">
                     <CardHeader className="px-4">
                       <CardTitle className="h-5 truncate">
                         {collection.title}
                       </CardTitle>
-                      <CardDescription className="h-5 truncate">
-                        {collection.description || 'No description available'}
-                      </CardDescription>
                       <CardAction className="flex flex-row items-center gap-4">
                         {collection.subscription_id ? (
                           <Badge>Subscribed</Badge>
@@ -92,6 +89,9 @@ export const CollectionList = ({
                         )}
                       </CardAction>
                     </CardHeader>
+                    <CardDescription className="mb-4 truncate px-4">
+                      {collection.description || 'No description available'}
+                    </CardDescription>
                     <CardFooter className="justify-between px-4 text-xs">
                       <div className="text-muted-foreground">
                         {collection.created && (
