@@ -1,6 +1,7 @@
 'use client';
 import { Collection, ModelSpec, QuestionSet } from '@/api';
 import { ProviderModel } from '@/app/workspace/collections/collection-form';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -32,7 +33,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { apiClient } from '@/lib/api/client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
-import { Bot, LoaderCircle } from 'lucide-react';
+import { Bot, CircleQuestionMark, LoaderCircle } from 'lucide-react';
 
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -120,6 +121,9 @@ export const QuestionGenerate = ({
           await apiClient.evaluationApi.generateQuestionSetApiV1QuestionSetsGeneratePost(
             {
               questionSetGenerate: values,
+            },
+            {
+              timeout: 1000 * 60,
             },
           );
         const questions = generateRes.data.questions || [];
@@ -253,7 +257,7 @@ export const QuestionGenerate = ({
               name="llm_config.model_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Agent LLM</FormLabel>
+                  <FormLabel>LLM</FormLabel>
                   <FormControl>
                     <Select {...field} onValueChange={field.onChange}>
                       <SelectTrigger className="w-full">
@@ -310,13 +314,19 @@ export const QuestionGenerate = ({
                       placeholder="Enter your prompt..."
                     />
                   </FormControl>
-                  <div className="text-muted-foreground text-sm">
-                    The following variables will be replaced by the system:
-                    <ul>
-                      <li className="ml-4 list-disc">{`{DOCUMENT_CONTENT}: The content of the document from the collection.`}</li>
-                      <li className="ml-4 list-disc">{`{NUMBER_OF_QUESTIONS}: The number of questions to be generated.`}</li>
-                    </ul>
-                  </div>
+
+                  <Alert>
+                    <CircleQuestionMark />
+                    <AlertTitle>
+                      The following variables will be replaced by the system:
+                    </AlertTitle>
+                    <AlertDescription className="text-xs">
+                      {`{DOCUMENT_CONTENT}: The content of the document from the collection.`}
+                    </AlertDescription>
+                    <AlertDescription className="text-xs">
+                      {`{NUMBER_OF_QUESTIONS}: The number of questions to be generated.`}
+                    </AlertDescription>
+                  </Alert>
                 </FormItem>
               )}
             />
