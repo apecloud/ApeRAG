@@ -166,7 +166,7 @@ export const ChatInput = ({
         welcome ? 'top-[25%]' : 'bottom-0',
       )}
     >
-      <PageContent className="max-w-4xl pb-8">
+      <PageContent className="xs:px-4 pb-8 sm:px-8 md:px-12 lg:px-20">
         {welcome && (
           <div className="mb-6 flex flex-col justify-center text-center">
             <motion.div
