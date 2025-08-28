@@ -205,17 +205,19 @@ class CollectionSummaryService:
             [f"Document {i + 1}: {doc['summary']}" for i, doc in enumerate(document_summaries)]
         )
 
-        prompt = f"""You are tasked with creating a comprehensive summary of a document collection titled "{collection_title}".
+        prompt = f"""You are tasked with creating a concise summary of a document collection titled "{collection_title}".
 
 Below are summaries of individual documents in this collection:
 
 {summaries_text}
 
-Please create a concise but comprehensive summary of the entire collection that:
+Please create a brief and focused summary of the entire collection that:
 1. Captures the main themes and topics covered across all documents
-2. Highlights key insights and important information
+2. Highlights the most important insights and key information
 3. Maintains logical flow and coherence
-4. Is suitable for helping users understand what this collection contains
+4. Is suitable for helping users quickly understand what this collection contains
+
+IMPORTANT: Your summary must be no more than 10 sentences. Focus on the most essential information and avoid redundancy.
 
 Collection Summary:"""
 
@@ -226,7 +228,7 @@ Collection Summary:"""
             logger.error(f"Error generating collection summary: {e}")
             raise
 
-    async def _hierarchical_reduce(
+    def _hierarchical_reduce(
         self, completion_service, document_summaries: List[Dict[str, Any]], collection_title: str
     ) -> str:
         """Hierarchical reduction for large number of documents"""
@@ -236,13 +238,13 @@ Collection Summary:"""
 
         for i in range(0, len(document_summaries), chunk_size):
             chunk = document_summaries[i : i + chunk_size]
-            chunk_summary = await self._simple_reduce(
+            chunk_summary = self._reduce_document_summaries(
                 completion_service, chunk, f"{collection_title} (Part {i // chunk_size + 1})"
             )
             intermediate_summaries.append({"summary": chunk_summary})
 
         # Reduce intermediate summaries
-        return await self._simple_reduce(completion_service, intermediate_summaries, collection_title)
+        return self._reduce_document_summaries(completion_service, intermediate_summaries, collection_title)
 
 
 # Global service instances
