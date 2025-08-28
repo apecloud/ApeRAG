@@ -281,6 +281,62 @@ marketplaceCollectionDocumentPreview:
       '500':
         $ref: '../components/schemas/common.yaml#/failResponse'
 
+marketplaceCollectionDocumentObject:
+  get:
+    summary: Get document object from MarketplaceCollection (read-only)
+    description: Get an object from a specific document in a subscribed Collection (read-only mode)
+    operationId: get_marketplace_document_object
+    parameters:
+      - name: collection_id
+        in: path
+        required: true
+        description: Collection ID
+        schema:
+          type: string
+      - name: document_id
+        in: path
+        required: true
+        description: Document ID
+        schema:
+          type: string
+      - name: path
+        in: query
+        required: true
+        description: Object path within the document
+        schema:
+          type: string
+    responses:
+      '200':
+        description: Document object (read-only)
+        content:
+          application/octet-stream: {}
+      '206':
+        description: Partial content (for range requests)
+        content:
+          application/octet-stream: {}
+      '401':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+      '403':
+        description: Access denied (need subscription)
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '404':
+        description: Document not found
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '416':
+        description: Range not satisfiable
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas/common.yaml#/failResponse'
+      '500':
+        $ref: '../components/schemas/common.yaml#/failResponse'
+
 marketplaceCollectionGraph:
   get:
     summary: Get knowledge graph for MarketplaceCollection (read-only)

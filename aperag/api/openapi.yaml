@@ -101,6 +101,8 @@ paths:
     $ref: './paths/marketplace.yaml#/marketplaceCollectionDocuments'
   /marketplace/collections/{collection_id}/documents/{document_id}/preview:
     $ref: './paths/marketplace.yaml#/marketplaceCollectionDocumentPreview'
+  /marketplace/collections/{collection_id}/documents/{document_id}/object:
+    $ref: './paths/marketplace.yaml#/marketplaceCollectionDocumentObject'
   /marketplace/collections/{collection_id}/graph:
     $ref: './paths/marketplace.yaml#/marketplaceCollectionGraph'
 

@@ -121,6 +121,36 @@ async def get_marketplace_collection_document_preview(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@router.get(
+    "/marketplace/collections/{collection_id}/documents/{document_id}/object",
+    tags=["documents"],
+    operation_id="get_marketplace_document_object",
+)
+async def get_marketplace_collection_document_object(
+    request: Request,
+    collection_id: str,
+    document_id: str,
+    path: str = Query(..., description="Object path within the document"),
+    user: User = Depends(current_user),
+):
+    """Get document object from MarketplaceCollection (read-only)"""
+    try:
+        # Check marketplace access first (all logged-in users can view published collections)
+        marketplace_info = await marketplace_collection_service._check_marketplace_access(user.id, collection_id)
+
+        # Use the collection owner's user_id to get document object, not the current user's id
+        owner_user_id = marketplace_info["owner_user_id"]
+        range_header = request.headers.get("range")
+        return await document_service.get_document_object(owner_user_id, collection_id, document_id, path, range_header)
+    except CollectionNotPublishedError:
+        raise HTTPException(status_code=404, detail="Collection not found or not published")
+    except CollectionMarketplaceAccessDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error getting marketplace collection document object {collection_id}/{document_id}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
 @router.get("/marketplace/collections/{collection_id}/graph", tags=["graph"])
 async def get_marketplace_collection_graph(
     request: Request,

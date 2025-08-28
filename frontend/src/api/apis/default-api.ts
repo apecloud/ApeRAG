@@ -2120,6 +2120,51 @@ export const DefaultApiAxiosParamCreator = function (configuration?: Configurati
             };
         },
         /**
+         * Get an object from a specific document in a subscribed Collection (read-only mode)
+         * @summary Get document object from MarketplaceCollection (read-only)
+         * @param {string} collectionId Collection ID
+         * @param {string} documentId Document ID
+         * @param {string} path Object path within the document
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getMarketplaceDocumentObject: async (collectionId: string, documentId: string, path: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'collectionId' is not null or undefined
+            assertParamExists('getMarketplaceDocumentObject', 'collectionId', collectionId)
+            // verify required parameter 'documentId' is not null or undefined
+            assertParamExists('getMarketplaceDocumentObject', 'documentId', documentId)
+            // verify required parameter 'path' is not null or undefined
+            assertParamExists('getMarketplaceDocumentObject', 'path', path)
+            const localVarPath = `/marketplace/collections/{collection_id}/documents/{document_id}/object`
+                .replace(`{${"collection_id"}}`, encodeURIComponent(String(collectionId)))
+                .replace(`{${"document_id"}}`, encodeURIComponent(String(documentId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            if (path !== undefined) {
+                localVarQueryParameter['path'] = path;
+            }
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
          * Get all invitations
          * @summary Get all invitations
          * @param {*} [options] Override http request option.
@@ -3882,6 +3927,21 @@ export const DefaultApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
+         * Get an object from a specific document in a subscribed Collection (read-only mode)
+         * @summary Get document object from MarketplaceCollection (read-only)
+         * @param {string} collectionId Collection ID
+         * @param {string} documentId Document ID
+         * @param {string} path Object path within the document
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async getMarketplaceDocumentObject(collectionId: string, documentId: string, path: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<void>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getMarketplaceDocumentObject(collectionId, documentId, path, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['DefaultApi.getMarketplaceDocumentObject']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
          * Get all invitations
          * @summary Get all invitations
          * @param {*} [options] Override http request option.
@@ -4760,6 +4820,16 @@ export const DefaultApiFactory = function (configuration?: Configuration, basePa
             return localVarFp.getDocumentPreview(requestParameters.collectionId, requestParameters.documentId, options).then((request) => request(axios, basePath));
         },
         /**
+         * Get an object from a specific document in a subscribed Collection (read-only mode)
+         * @summary Get document object from MarketplaceCollection (read-only)
+         * @param {DefaultApiGetMarketplaceDocumentObjectRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getMarketplaceDocumentObject(requestParameters: DefaultApiGetMarketplaceDocumentObjectRequest, options?: RawAxiosRequestConfig): AxiosPromise<void> {
+            return localVarFp.getMarketplaceDocumentObject(requestParameters.collectionId, requestParameters.documentId, requestParameters.path, options).then((request) => request(axios, basePath));
+        },
+        /**
          * Get all invitations
          * @summary Get all invitations
          * @param {*} [options] Override http request option.
@@ -5527,6 +5597,16 @@ export interface DefaultApiInterface {
      * @memberof DefaultApiInterface
      */
     getDocumentPreview(requestParameters: DefaultApiGetDocumentPreviewRequest, options?: RawAxiosRequestConfig): AxiosPromise<DocumentPreview>;
+
+    /**
+     * Get an object from a specific document in a subscribed Collection (read-only mode)
+     * @summary Get document object from MarketplaceCollection (read-only)
+     * @param {DefaultApiGetMarketplaceDocumentObjectRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApiInterface
+     */
+    getMarketplaceDocumentObject(requestParameters: DefaultApiGetMarketplaceDocumentObjectRequest, options?: RawAxiosRequestConfig): AxiosPromise<void>;
 
     /**
      * Get all invitations
@@ -6713,6 +6793,34 @@ export interface DefaultApiGetDocumentPreviewRequest {
 }
 
 /**
+ * Request parameters for getMarketplaceDocumentObject operation in DefaultApi.
+ * @export
+ * @interface DefaultApiGetMarketplaceDocumentObjectRequest
+ */
+export interface DefaultApiGetMarketplaceDocumentObjectRequest {
+    /**
+     * Collection ID
+     * @type {string}
+     * @memberof DefaultApiGetMarketplaceDocumentObject
+     */
+    readonly collectionId: string
+
+    /**
+     * Document ID
+     * @type {string}
+     * @memberof DefaultApiGetMarketplaceDocumentObject
+     */
+    readonly documentId: string
+
+    /**
+     * Object path within the document
+     * @type {string}
+     * @memberof DefaultApiGetMarketplaceDocumentObject
+     */
+    readonly path: string
+}
+
+/**
  * Request parameters for invitePost operation in DefaultApi.
  * @export
  * @interface DefaultApiInvitePostRequest
@@ -7726,6 +7834,18 @@ export class DefaultApi extends BaseAPI implements DefaultApiInterface {
      */
     public getDocumentPreview(requestParameters: DefaultApiGetDocumentPreviewRequest, options?: RawAxiosRequestConfig) {
         return DefaultApiFp(this.configuration).getDocumentPreview(requestParameters.collectionId, requestParameters.documentId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * Get an object from a specific document in a subscribed Collection (read-only mode)
+     * @summary Get document object from MarketplaceCollection (read-only)
+     * @param {DefaultApiGetMarketplaceDocumentObjectRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof DefaultApi
+     */
+    public getMarketplaceDocumentObject(requestParameters: DefaultApiGetMarketplaceDocumentObjectRequest, options?: RawAxiosRequestConfig) {
+        return DefaultApiFp(this.configuration).getMarketplaceDocumentObject(requestParameters.collectionId, requestParameters.documentId, requestParameters.path, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

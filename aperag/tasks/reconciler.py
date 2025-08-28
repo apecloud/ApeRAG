@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
 from typing import List, Optional
 
@@ -498,7 +497,7 @@ class CollectionSummaryCallbacks:
                 )
                 summary_result = session.execute(summary_query)
                 summary_record = summary_result.scalar_one_or_none()
-                
+
                 if not summary_record:
                     logger.warning(
                         f"Summary completion callback ignored for {summary_id} (v{target_version}) - not in expected state"
@@ -506,21 +505,18 @@ class CollectionSummaryCallbacks:
                     return
 
                 collection_id = summary_record.collection_id
-                
+
                 # Get collection info to check if summary is enabled and get current gmt_updated
                 collection_query = select(Collection).where(
-                    and_(
-                        Collection.id == collection_id,
-                        Collection.gmt_deleted.is_(None)
-                    )
+                    and_(Collection.id == collection_id, Collection.gmt_deleted.is_(None))
                 )
                 collection_result = session.execute(collection_query)
                 collection_record = collection_result.scalar_one_or_none()
-                
+
                 if not collection_record:
                     logger.error(f"Collection {collection_id} not found during summary completion")
                     return
-                
+
                 # Check if summary is enabled in collection config
                 try:
                     config = parseCollectionConfig(collection_record.config)
@@ -528,10 +524,10 @@ class CollectionSummaryCallbacks:
                 except Exception as e:
                     logger.error(f"Failed to parse collection config for {collection_id}: {e}")
                     is_summary_enabled = False
-                
+
                 current_time = utc_now()
                 collection_updated_time = collection_record.gmt_updated
-                
+
                 # Update collection_summary table
                 summary_update_stmt = (
                     update(CollectionSummary)
@@ -551,14 +547,14 @@ class CollectionSummaryCallbacks:
                     )
                 )
                 summary_update_result = session.execute(summary_update_stmt)
-                
+
                 if summary_update_result.rowcount == 0:
                     session.rollback()
                     logger.warning(
                         f"Summary completion callback ignored for {summary_id} (v{target_version}) - summary not in expected state"
                     )
                     return
-                
+
                 # Update collection table if summary is enabled and collection hasn't been updated since we read it
                 if is_summary_enabled and summary_content:
                     collection_update_stmt = (
@@ -567,7 +563,7 @@ class CollectionSummaryCallbacks:
                             and_(
                                 Collection.id == collection_id,
                                 Collection.gmt_updated == collection_updated_time,  # Race condition prevention
-                                Collection.gmt_deleted.is_(None)
+                                Collection.gmt_deleted.is_(None),
                             )
                         )
                         .values(
@@ -576,14 +572,14 @@ class CollectionSummaryCallbacks:
                         )
                     )
                     collection_update_result = session.execute(collection_update_stmt)
-                    
+
                     if collection_update_result.rowcount > 0:
                         logger.info(f"Updated collection {collection_id} description with generated summary")
                     else:
                         logger.warning(
                             f"Failed to update collection {collection_id} description - collection may have been modified concurrently"
                         )
-                
+
                 session.commit()
                 logger.info(f"Collection summary generation completed for {summary_id} (v{target_version})")
 
@@ -591,7 +587,7 @@ class CollectionSummaryCallbacks:
             logger.error(f"Failed to update collection summary completion for {summary_id}: {e}")
             try:
                 session.rollback()
-            except:
+            except Exception:
                 pass
 
     @staticmethod
