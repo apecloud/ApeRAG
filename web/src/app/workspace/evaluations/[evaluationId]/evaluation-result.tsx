@@ -2,6 +2,7 @@
 
 import { EvaluationDetail, EvaluationItem } from '@/api';
 import { FormatDate } from '@/components/format-date';
+import { Markdown } from '@/components/markdown';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -36,7 +37,6 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import Markdown from 'react-markdown';
 import { EvaluationDeleteItem } from './evaluation-delete';
 import { EvaluationRetryItem } from './evaluation-retry-item';
 
