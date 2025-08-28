@@ -297,7 +297,7 @@ export const CollectionGraph = ({
 
       <Card
         ref={containerRef}
-        className="bg-card/0 relative flex min-h-[calc(100vh-290px)] gap-0 py-0"
+        className="bg-card/0 relative flex flex-1 gap-0 py-0"
       >
         {graphData === undefined && (
           <div className="absolute top-4/12 left-6/12">

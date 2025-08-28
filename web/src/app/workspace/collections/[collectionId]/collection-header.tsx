@@ -39,7 +39,7 @@ import { useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import { CollectionDelete } from './collection-delete';
 
-export const CollectionHeader = () => {
+export const CollectionHeader = ({ className }: { className?: string }) => {
   const badgeColor: {
     [key in CollectionViewStatusEnum]: string;
   } = {
@@ -81,7 +81,7 @@ export const CollectionHeader = () => {
   );
 
   return (
-    <PageContent className="flex flex-col gap-4 pb-0">
+    <PageContent className={cn('flex flex-col gap-4 pb-0', className)}>
       <Card className="gap-0 p-0">
         <CardHeader className="p-4">
           <CardTitle className="text-2xl">{collection.title}</CardTitle>

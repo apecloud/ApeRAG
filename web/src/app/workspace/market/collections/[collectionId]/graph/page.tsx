@@ -33,10 +33,12 @@ export default async function Page({
           },
         ]}
       />
-      <CollectionHeader collection={collectionRes.data} />
-      <PageContent>
-        <CollectionGraph marketplace={true} />
-      </PageContent>
+      <div className="flex h-[calc(100vh-48px)] flex-col px-0">
+        <CollectionHeader collection={collectionRes.data} className="w-full" />
+        <PageContent className="flex w-full flex-1 flex-col">
+          <CollectionGraph marketplace={true} />
+        </PageContent>
+      </div>
     </PageContainer>
   );
 }

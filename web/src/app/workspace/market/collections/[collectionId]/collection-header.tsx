@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { apiClient } from '@/lib/api/client';
+import { cn } from '@/lib/utils';
 import { Files, Star, User, VectorSquare } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -21,8 +22,10 @@ import { useCallback, useMemo } from 'react';
 import { FaStar } from 'react-icons/fa6';
 
 export const CollectionHeader = ({
+  className,
   collection,
 }: {
+  className?: string;
   collection: SharedCollection;
 }) => {
   const router = useRouter();
@@ -57,7 +60,7 @@ export const CollectionHeader = ({
   }, [collection.id, isSubscriber, router]);
 
   return (
-    <PageContent className="flex flex-col gap-4 pb-0">
+    <PageContent className={cn('flex flex-col gap-4 pb-0', className)}>
       <Card className="gap-0 p-0">
         <CardHeader className="p-4">
           <CardTitle className="text-2xl">{collection.title}</CardTitle>

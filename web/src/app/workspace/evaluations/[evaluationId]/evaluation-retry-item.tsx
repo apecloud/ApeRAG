@@ -17,20 +17,20 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { apiClient } from '@/lib/api/client';
 
-import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
 export const EvaluationRetryItem = ({
   scope,
   evaluation,
   children,
+  onRetry,
 }: {
   scope: RetryEvaluationApiV1EvaluationsEvalIdRetryPostScopeEnum;
   evaluation: Evaluation;
   children: React.ReactNode;
+  onRetry: () => void;
 }) => {
   const [visible, setVisible] = useState<boolean>(false);
-  const router = useRouter();
 
   const handleRetry = useCallback(async () => {
     if (!evaluation.id) return;
@@ -41,10 +41,10 @@ export const EvaluationRetryItem = ({
         scope,
       },
     );
-
-    router.refresh();
     setVisible(false);
-  }, [evaluation.id, router, scope]);
+
+    onRetry();
+  }, [evaluation.id, onRetry, scope]);
 
   return (
     <AlertDialog open={visible} onOpenChange={() => setVisible(false)}>

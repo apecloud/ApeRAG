@@ -20,10 +20,12 @@ export default async function Page() {
           },
         ]}
       />
-      <CollectionHeader />
-      <PageContent>
-        <CollectionGraph marketplace={false} />
-      </PageContent>
+      <div className="flex h-[calc(100vh-48px)] flex-col px-0">
+        <CollectionHeader className="w-full" />
+        <PageContent className="flex w-full flex-1 flex-col">
+          <CollectionGraph marketplace={false} />
+        </PageContent>
+      </div>
     </PageContainer>
   );
 }
