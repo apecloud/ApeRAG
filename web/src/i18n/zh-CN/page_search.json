@@ -1,0 +1,20 @@
+{
+  "metadata": {
+    "title": "检索测试"
+  },
+  "search": "搜索",
+  "test": "测试",
+  "questions": "问题",
+  "questions_placeholder": "描述您的问题...",
+  "creation_time": "创建时间",
+
+  "search_result": "检索结果",
+
+  "delete": "删除",
+  "delete_confirm": "此操作不可撤销。搜索结果将被永久删除。",
+
+  "vector_search": "向量检索",
+  "fulltext_search": "全文检索",
+  "graph_search": "图检索",
+  "summary_search": "摘要检索"
+}

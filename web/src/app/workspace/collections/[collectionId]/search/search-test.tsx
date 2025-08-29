@@ -24,6 +24,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { apiClient } from '@/lib/api/client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { ReactNode, useCallback, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -62,6 +63,8 @@ type IndexType = 'vector' | 'fulltext' | 'graph' | 'summary';
 export const SearchTest = ({ children }: { children: ReactNode }) => {
   const [visible, setVisible] = useState<boolean>(false);
   const { collection } = useCollectionContext();
+  const page_search = useTranslations('page_search');
+  const common_action = useTranslations('common.action');
   const router = useRouter();
   const [indexTypes, setIndexTypes] = useState<{
     [key in IndexType]: {
@@ -171,7 +174,7 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
             className="space-y-6"
           >
             <DialogHeader>
-              <DialogTitle>Search test</DialogTitle>
+              <DialogTitle>{page_search('metadata.title')}</DialogTitle>
               <DialogDescription></DialogDescription>
             </DialogHeader>
 
@@ -181,9 +184,12 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
                 name="query"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Query</FormLabel>
+                    <FormLabel>{page_search('questions')}</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Enter your question." {...field} />
+                      <Textarea
+                        placeholder={page_search('questions_placeholder')}
+                        {...field}
+                      />
                     </FormControl>
                   </FormItem>
                 )}
@@ -201,7 +207,7 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
                         });
                       }}
                     />
-                    Vector
+                    {page_search('vector_search')}
                   </Label>
 
                   <div className="flex w-[65%] flex-col gap-2">
@@ -265,7 +271,7 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
                         });
                       }}
                     />
-                    Fulltext
+                    {page_search('fulltext_search')}
                   </Label>
 
                   <div className="flex w-[65%] flex-col gap-2">
@@ -307,7 +313,7 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
                         });
                       }}
                     />
-                    Graph
+                    {page_search('graph_search')}
                   </Label>
                   <div className="flex w-[65%] flex-col gap-2">
                     <FormField
@@ -348,7 +354,7 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
                         });
                       }}
                     />
-                    Summary
+                    {page_search('summary_search')}
                   </Label>
                   <div className="flex w-[65%] flex-col gap-2">
                     <FormField
@@ -405,9 +411,9 @@ export const SearchTest = ({ children }: { children: ReactNode }) => {
                 variant="outline"
                 onClick={() => setVisible(false)}
               >
-                Cancel
+                {common_action('cancel')}
               </Button>
-              <Button type="submit">Test</Button>
+              <Button type="submit">{common_action('continue')}</Button>
             </DialogFooter>
           </form>
         </Form>

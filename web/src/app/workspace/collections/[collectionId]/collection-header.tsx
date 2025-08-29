@@ -52,6 +52,8 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
   const pathname = usePathname();
   const page_collections = useTranslations('page_collections');
   const page_documents = useTranslations('page_documents');
+  const page_graph = useTranslations('page_graph');
+  const page_search = useTranslations('page_search');
   const urls = useMemo(() => {
     return {
       documents: `/workspace/collections/${collection.id}/documents`,
@@ -196,7 +198,9 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
             >
               <Link href={urls.graph}>
                 <VectorSquare />
-                <span className="hidden sm:inline">Knowledge Graph</span>
+                <span className="hidden sm:inline">
+                  {page_graph('metadata.title')}
+                </span>
               </Link>
             </Button>
           )}
@@ -209,7 +213,9 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
           >
             <Link href={urls.search}>
               <FolderSearch />
-              <span className="hidden sm:inline">Search Effect</span>
+              <span className="hidden sm:inline">
+                {page_search('metadata.title')}
+              </span>
             </Link>
           </Button>
 
@@ -220,7 +226,10 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
             variant="ghost"
           >
             <Link href={urls.settings}>
-              <Settings /> <span className="hidden sm:inline">Settings</span>
+              <Settings />{' '}
+              <span className="hidden sm:inline">
+                {page_collections('settings')}
+              </span>
             </Link>
           </Button>
         </div>

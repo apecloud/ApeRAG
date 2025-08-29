@@ -1,0 +1,16 @@
+{
+  "metadata": {
+    "title": "Knowledge Graph"
+  },
+  "node_group": "Node Group",
+  "no_nodes_found": "No node information found",
+  "merge_infomation": "There are {count} node merge suggestions.",
+  "merge_suggestions": "Merge suggestions",
+
+  "merge_accept": "Accept",
+  "merge_reject": "Reject",
+
+  "merge_accepted": "Accepted",
+  "merge_rejected": "Rejected",
+  "merge_pending": "Pending"
+}

@@ -9,7 +9,7 @@ import { CollectionGraph } from './collection-graph';
 
 export default async function Page() {
   const page_collections = await getTranslations('page_collections');
-
+  const page_graph = await getTranslations('page_graph');
   return (
     <PageContainer>
       <PageHeader
@@ -19,7 +19,7 @@ export default async function Page() {
             href: '/workspace/collections',
           },
           {
-            title: 'Knowledge Graph',
+            title: page_graph('metadata.title'),
           },
         ]}
       />

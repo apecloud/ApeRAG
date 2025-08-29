@@ -20,6 +20,7 @@ import Color from 'color';
 import * as d3 from 'd3';
 import _ from 'lodash';
 import { ChevronDown, Columns3, LoaderCircle } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useTheme } from 'next-themes';
 import dynamic from 'next/dynamic';
 import { useParams } from 'next/navigation';
@@ -42,6 +43,7 @@ export const CollectionGraph = ({
   const params = useParams();
 
   const { resolvedTheme } = useTheme();
+  const page_graph = useTranslations('page_graph');
 
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -232,7 +234,9 @@ export const CollectionGraph = ({
           <DropdownMenuTrigger asChild>
             <Button variant="outline">
               <Columns3 />
-              <span className="hidden lg:inline">Node Group</span>
+              <span className="hidden lg:inline">
+                {page_graph('node_group')}
+              </span>
               <ChevronDown />
             </Button>
           </DropdownMenuTrigger>
@@ -276,8 +280,9 @@ export const CollectionGraph = ({
                 className="text-muted-foreground hover:text-primary cursor-pointer"
                 onClick={() => setMergeSuggestionOpen(true)}
               >
-                There are {mergeSuggestion?.pending_count || 0} node merge
-                suggestions.
+                {page_graph('merge_infomation', {
+                  count: String(mergeSuggestion?.pending_count || 0),
+                })}
               </span>
             </div>
           )}
@@ -312,7 +317,7 @@ export const CollectionGraph = ({
         {graphData !== undefined && _.isEmpty(graphData?.nodes) && (
           <div className="absolute top-4/12 w-full">
             <div className="text-muted-foreground text-center">
-              No node information found
+              {page_graph('no_nodes_found')}
             </div>
           </div>
         )}

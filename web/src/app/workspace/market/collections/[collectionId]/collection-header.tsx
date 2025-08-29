@@ -36,6 +36,7 @@ export const CollectionHeader = ({
   const { user } = useAppContext();
   const page_collections = useTranslations('page_collections');
   const page_documents = useTranslations('page_documents');
+  const page_graph = useTranslations('page_graph');
   const isOwner = useMemo(
     () => collection.owner_user_id === user?.id,
     [collection.owner_user_id, user?.id],
@@ -135,7 +136,9 @@ export const CollectionHeader = ({
                 href={`/workspace/market/collections/${collection.id}/graph`}
               >
                 <VectorSquare />
-                <span className="hidden sm:inline">Knowledge Graph</span>
+                <span className="hidden sm:inline">
+                  {page_graph('metadata.title')}
+                </span>
               </Link>
             </Button>
           )}

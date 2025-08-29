@@ -1,0 +1,20 @@
+{
+  "metadata": {
+    "title": "Search Test"
+  },
+  "search": "Search",
+  "test": "Test",
+  "questions": "Questions",
+  "questions_placeholder": "Enter your question.",
+  "creation_time": "Creation time",
+
+  "search_result": "Search Result",
+
+  "delete": "Delete",
+  "delete_confirm": "This action cannot be undone. This will permanently delete search result.",
+
+  "vector_search": "Vector",
+  "fulltext_search": "Fulltext",
+  "graph_search": "Graph",
+  "summary_search": "Summary"
+}

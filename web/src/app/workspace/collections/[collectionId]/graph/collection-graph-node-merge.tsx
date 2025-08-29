@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/tooltip';
 import { apiClient } from '@/lib/api/client';
 import { Check, LoaderCircle, Sparkles, X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useCallback, useState } from 'react';
 
 const SuggestionItem = ({
@@ -38,7 +39,7 @@ const SuggestionItem = ({
 }) => {
   const [loading, setLoading] =
     useState<{ [key in SuggestionActionRequestActionEnum]: boolean }>();
-
+  const page_graph = useTranslations('page_graph');
   const handleSuggestionAction = useCallback(
     async (action: SuggestionActionRequestActionEnum) => {
       setLoading({
@@ -106,7 +107,7 @@ const SuggestionItem = ({
                   )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Accept</TooltipContent>
+              <TooltipContent>{page_graph('merge_accept')}</TooltipContent>
             </Tooltip>
           )}
           {item.status === 'PENDING' && (
@@ -125,7 +126,7 @@ const SuggestionItem = ({
                   )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Reject</TooltipContent>
+              <TooltipContent>{page_graph('merge_reject')}</TooltipContent>
             </Tooltip>
           )}
         </div>
@@ -162,7 +163,7 @@ export const CollectionGraphNodeMerge = ({
 }) => {
   const [activeStatus, setActiveStatus] =
     useState<MergeSuggestionItemStatusEnum>('PENDING');
-
+  const page_graph = useTranslations('page_graph');
   return (
     <Drawer
       direction="right"
@@ -172,7 +173,7 @@ export const CollectionGraphNodeMerge = ({
     >
       <DrawerContent className="sm:lg lg:min-w-2lg flex md:min-w-xl">
         <DrawerHeader className="flex flex-row items-center justify-between border-b">
-          <DrawerTitle>Merge suggestions</DrawerTitle>
+          <DrawerTitle>{page_graph('merge_suggestions')}</DrawerTitle>
           <Tabs
             defaultValue={activeStatus}
             onValueChange={(v: string) =>
@@ -181,13 +182,13 @@ export const CollectionGraphNodeMerge = ({
           >
             <TabsList>
               <TabsTrigger value={MergeSuggestionItemStatusEnum.PENDING}>
-                Pending
+                {page_graph('merge_pending')}
               </TabsTrigger>
               <TabsTrigger value={MergeSuggestionItemStatusEnum.ACCEPTED}>
-                Accepted
+                {page_graph('merge_accepted')}
               </TabsTrigger>
               <TabsTrigger value={MergeSuggestionItemStatusEnum.REJECTED}>
-                Rejected
+                {page_graph('merge_rejected')}
               </TabsTrigger>
             </TabsList>
           </Tabs>

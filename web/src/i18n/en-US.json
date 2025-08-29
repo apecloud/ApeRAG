@@ -115,6 +115,7 @@
     },
     "search": "Search",
     "no_collections_found": "No collections found",
+    "settings": "Settings",
     "general": "General",
     "private": "Private",
     "public": "Public",
@@ -216,5 +217,36 @@
     "upload_progress": "Progress",
     "remove_file": "Remove",
     "clear_files": "Clear"
+  },
+  "page_graph": {
+    "metadata": {
+      "title": "Knowledge Graph"
+    },
+    "node_group": "Node Group",
+    "no_nodes_found": "No node information found",
+    "merge_infomation": "There are {count} node merge suggestions.",
+    "merge_suggestions": "Merge suggestions",
+    "merge_accept": "Accept",
+    "merge_reject": "Reject",
+    "merge_accepted": "Accepted",
+    "merge_rejected": "Rejected",
+    "merge_pending": "Pending"
+  },
+  "page_search": {
+    "metadata": {
+      "title": "Search Test"
+    },
+    "search": "Search",
+    "test": "Test",
+    "questions": "Questions",
+    "questions_placeholder": "Enter your question.",
+    "creation_time": "Creation time",
+    "search_result": "Search Result",
+    "delete": "Delete",
+    "delete_confirm": "This action cannot be undone. This will permanently delete search result.",
+    "vector_search": "Vector",
+    "fulltext_search": "Fulltext",
+    "graph_search": "Graph",
+    "summary_search": "Summary"
   }
 }

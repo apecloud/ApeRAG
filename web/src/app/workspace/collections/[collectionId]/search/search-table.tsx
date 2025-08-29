@@ -40,12 +40,16 @@ import {
   FlaskConical,
   Trash,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { SearchDelete } from './search-delete';
 import { SearchResultDrawer } from './search-result-drawer';
 import { SearchTest } from './search-test';
 
 export const SearchTable = ({ data }: { data: SearchResult[] }) => {
   const { collection } = useCollectionContext();
+
+  const page_collections = useTranslations('page_collections');
+  const page_search = useTranslations('page_search');
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({
@@ -72,7 +76,7 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
     if (collection.config?.enable_vector) {
       indexCols.push({
         accessorKey: 'vector_search',
-        header: 'Vector',
+        header: page_search('vector_search'),
         cell: ({ row }) => {
           return (
             <div>
@@ -87,7 +91,7 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
     if (collection.config?.enable_fulltext) {
       indexCols.push({
         accessorKey: 'fulltext_search',
-        header: 'Fulltext',
+        header: page_search('fulltext_search'),
         cell: ({ row }) => {
           return (
             <div>
@@ -104,7 +108,7 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
     if (collection.config?.enable_knowledge_graph) {
       indexCols.push({
         accessorKey: 'graph_search',
-        header: 'Graph',
+        header: page_search('graph_search'),
         cell: ({ row }) => {
           return <div>topk: {row.original.fulltext_search?.topk}</div>;
         },
@@ -114,7 +118,7 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
     if (collection.config?.enable_summary) {
       indexCols.push({
         accessorKey: 'summary_search',
-        header: 'Summary',
+        header: page_search('summary_search'),
         cell: ({ row }) => {
           return (
             <div>
@@ -157,7 +161,7 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
       },
       {
         accessorKey: 'query',
-        header: 'Questions',
+        header: page_search('questions'),
         cell: ({ row }) => {
           return (
             <div>
@@ -179,7 +183,7 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
       ...indexCols,
       {
         accessorKey: 'created',
-        header: 'Creation time',
+        header: page_search('creation_time'),
         cell: ({ row }) => {
           return row.original.created ? (
             <FormatDate datetime={new Date(row.original.created)} />
@@ -204,7 +208,7 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
             <DropdownMenuContent align="end" className="w-32">
               <SearchDelete searchResult={row.original}>
                 <DropdownMenuItem variant="destructive">
-                  <Trash /> Delete
+                  <Trash /> {page_search('delete')}
                 </DropdownMenuItem>
               </SearchDelete>
             </DropdownMenuContent>
@@ -218,6 +222,7 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
     collection.config?.enable_knowledge_graph,
     collection.config?.enable_summary,
     collection.config?.enable_vector,
+    page_search,
   ]);
 
   const table = useReactTable({
@@ -251,7 +256,7 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
       <div className="flex items-center justify-between">
         <div className="flex flex-row items-center gap-2">
           <Input
-            placeholder="Search"
+            placeholder={page_search('search')}
             value={searchValue}
             onChange={(e) => setSearchValue(e.currentTarget.value)}
           />
@@ -259,14 +264,14 @@ export const SearchTable = ({ data }: { data: SearchResult[] }) => {
         <div className="flex items-center gap-2">
           <SearchTest>
             <Button>
-              <FlaskConical /> <span className="hidden sm:inline">Test</span>
+              <FlaskConical />{' '}
+              <span className="hidden sm:inline">{page_search('test')}</span>
             </Button>
           </SearchTest>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
                 <Columns3 />
-                <span className="hidden lg:inline">Columns</span>
                 <ChevronDown />
               </Button>
             </DropdownMenuTrigger>

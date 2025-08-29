@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { apiClient } from '@/lib/api/client';
 import { Slot } from '@radix-ui/react-slot';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -29,6 +30,9 @@ export const SearchDelete = ({
   const { collection } = useCollectionContext();
   const [visible, setVisible] = useState<boolean>(false);
   const router = useRouter();
+  const common_action = useTranslations('common.action');
+  const common_tips = useTranslations('common.tips');
+  const page_search = useTranslations('page_search');
 
   const handleDelete = async () => {
     if (!searchResult.id || !collection.id) return;
@@ -59,18 +63,17 @@ export const SearchDelete = ({
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogTitle>{common_tips('confirm')}</AlertDialogTitle>
           <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete search
-            result.
+            {page_search('delete_confirm')}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => setVisible(false)}>
-            Cancel
+            {common_action('cancel')}
           </AlertDialogCancel>
           <AlertDialogAction onClick={() => handleDelete()}>
-            Continue
+            {common_action('continue')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

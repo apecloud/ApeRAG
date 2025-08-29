@@ -14,6 +14,7 @@ export default async function Page({
   params: Promise<{ collectionId: string }>;
 }>) {
   const page_collections = await getTranslations('page_collections');
+  const page_search = await getTranslations('page_search');
   const { collectionId } = await params;
   const serverApi = await getServerApi();
 
@@ -32,7 +33,7 @@ export default async function Page({
             href: '/workspace/collections',
           },
           {
-            title: 'Search Effect',
+            title: page_search('metadata.title'),
           },
         ]}
       />

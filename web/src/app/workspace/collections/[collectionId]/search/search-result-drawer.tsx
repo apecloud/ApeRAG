@@ -16,6 +16,7 @@ import {
 import { Slot } from '@radix-ui/react-slot';
 import _ from 'lodash';
 import { ChevronRight } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { ReactNode, useState } from 'react';
 
 export const SearchResultDrawer = ({
@@ -26,6 +27,7 @@ export const SearchResultDrawer = ({
   result: SearchResult;
 }) => {
   const [visible, setVisible] = useState<boolean>(false);
+  const page_search = useTranslations('page_search');
 
   if (_.isEmpty(result.items)) {
     return children;
@@ -50,7 +52,9 @@ export const SearchResultDrawer = ({
       </DrawerTrigger>
       <DrawerContent className="flex sm:min-w-xl md:min-w-2xl">
         <DrawerHeader>
-          <DrawerTitle className="font-bold">Search Result</DrawerTitle>
+          <DrawerTitle className="font-bold">
+            {page_search('search_result')}
+          </DrawerTitle>
         </DrawerHeader>
         <div className="overflow-auto px-4 pb-4 select-text">
           {result.items?.map((item, index) => {
