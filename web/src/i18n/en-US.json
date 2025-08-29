@@ -10,9 +10,15 @@
         "title": "ApeCloud",
         "description": "Production-Ready RAG Platform with Graph, Vector & Full-Text Search."
       }
+    },
+    "action": {
+      "save": "Save",
+      "cancel": "Cancel"
     }
   },
   "page_auth": {
+    "account": "Account",
+    "administrator": "Administrator",
     "username": "Username",
     "username_placeholder": "Username",
     "password": "Password",
@@ -46,8 +52,10 @@
     "collections": "Collections",
     "chats": "Chats",
     "chats_new": "Create chat",
+    "display_empty_title": "New chat",
     "more": "More",
-    "evaluation": "Evaluation",
+    "question_evaluation": "Question Evaluation",
+    "evaluations": "Evaluations",
     "question_sets": "Question Sets",
     "settings": "Settings",
     "models": "Models",
@@ -77,5 +85,54 @@
     "subscribed": "Subscribed",
     "no_collections_found": "No collections found",
     "no_description_available": "No description available"
+  },
+  "page_chat": {
+    "metadata": {
+      "title": "Chats"
+    },
+    "hello_world": "Hi, I'm ApeRAG.",
+    "rag_description": "ApeRAG is a production-ready RAG platform that combines graph, vector, and full-text search for hybrid retrieval, knowledge management, and enterprise AI applications.",
+    "mention_a_collection": "Type @ to mention a collection...",
+    "display_empty_title": "New chat",
+    "no_collection_was_found": "No collection was found",
+    "web_search": "Web search",
+    "web_search_is_enabled": "Web search is enabled",
+    "web_search_is_disabled": "Web search is disabled",
+    "references": "References",
+    "feedback": {
+      "title": "Tell Us What You Think",
+      "choose_a_category": "Please choose a category for your feedback below.",
+      "Harmful": {
+        "title": "Harmful",
+        "description": "Promotes dangerous, violent, or discriminatory acts."
+      },
+      "Unsafe": {
+        "title": "Unsafe",
+        "description": "Contains risky or physically dangerous information."
+      },
+      "Fake": {
+        "title": "Fake",
+        "description": "Intentionally false, deceptive, or misleading."
+      },
+      "Unhelpful": {
+        "title": "Unhelpful",
+        "description": "Irrelevant, poorly explained, or fails to address the query."
+      },
+      "Other": {
+        "title": "Other",
+        "description": "Any issue not covered by the categories above."
+      },
+      "share_your_feedback": "Share your feedback",
+      "share_your_feedback_placeholder": "Please provide your feedback so we can continue to enhance your experience."
+    }
+  },
+  "components": {
+    "dmermaid": {
+      "graph": "Graph",
+      "data": "Data"
+    },
+    "copy_to_clipboard": {
+      "copied": "Copied"
+    }
   }
 }

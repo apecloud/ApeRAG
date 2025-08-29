@@ -85,7 +85,11 @@ export const MenuChats = () => {
                       className="data-[active=true]:font-normal"
                     >
                       <Link href={url}>
-                        <div className="truncate">{chat.title}</div>
+                        <div className="truncate">
+                          {_.isEmpty(chat.title) || chat.title === 'New Chat'
+                            ? sidebar_workspace('display_empty_title')
+                            : chat.title}
+                        </div>
                       </Link>
                     </SidebarMenuButton>
                     <SidebarMenuAction

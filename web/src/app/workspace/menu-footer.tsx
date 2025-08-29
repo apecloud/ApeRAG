@@ -39,7 +39,7 @@ export const MenuFooter = () => {
   return (
     <SidebarFooter>
       <SidebarGroup className="p-0">
-        <SidebarGroupLabel>More</SidebarGroupLabel>
+        <SidebarGroupLabel>{sidebar_workspace('more')}</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
             <DropdownMenu>
@@ -49,7 +49,7 @@ export const MenuFooter = () => {
               >
                 <SidebarMenuButton className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
                   <FlaskConical />
-                  {sidebar_workspace('evaluation')}
+                  {sidebar_workspace('question_evaluation')}
                   <ChevronRight className="ml-auto" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
@@ -62,7 +62,7 @@ export const MenuFooter = () => {
                 <DropdownMenuGroup>
                   <DropdownMenuItem asChild>
                     <Link href="/workspace/evaluations">
-                      <History /> {sidebar_workspace('evaluation')}
+                      <History /> {sidebar_workspace('evaluations')}
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>

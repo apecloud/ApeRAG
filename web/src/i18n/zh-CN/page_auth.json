@@ -1,4 +1,7 @@
 {
+  "account": "我的账号",
+  "administrator": "系统设置",
+
   "username": "用户名",
   "username_placeholder": "用户名",
   "password": "密码",

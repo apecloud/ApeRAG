@@ -30,12 +30,11 @@ import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import _ from 'lodash';
 import { Bot, Globe } from 'lucide-react';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BiSolidRightArrow } from 'react-icons/bi';
 import { PiStopFill } from 'react-icons/pi';
 import { toast } from 'sonner';
-import Typewriter from 'typewriter-effect';
 import useLocalStorageState from 'use-local-storage-state';
 
 export type ChatInputSubmitParams = {
@@ -70,6 +69,7 @@ export const ChatInput = ({
   const locale = useLocale();
   const [query, setQuery] = useState<string>('');
   const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
+  const page_chat = useTranslations('page_chat');
   const [webSearchEnabled, setWebSearchEnabled] = useLocalStorageState<boolean>(
     'web-search-enabled',
     {
@@ -195,18 +195,7 @@ export const ChatInput = ({
               }}
               className="mb-2 text-xl font-medium"
             >
-              <Typewriter
-                options={{
-                  strings: [
-                    "Hi, I'm ApeRAG.",
-                    'How can I help you?',
-                    'Production-Ready RAG Platform',
-                    'Graph, Vector & Full-Text Search',
-                  ],
-                  autoStart: true,
-                  loop: true,
-                }}
-              />
+              {page_chat('hello_world')}
             </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -218,9 +207,7 @@ export const ChatInput = ({
               }}
               className="text-muted-foreground text-sm"
             >
-              ApeRAG is a production-ready RAG platform that combines graph,
-              vector, and full-text search for hybrid retrieval, knowledge
-              management, and enterprise AI applications.
+              {page_chat('rag_description')}
             </motion.div>
           </div>
         )}
@@ -257,7 +244,7 @@ export const ChatInput = ({
                 <Textarea
                   className="resize-none rounded-xl pb-20"
                   value={query}
-                  placeholder="Type @ to mention a collection..."
+                  placeholder={page_chat('mention_a_collection')}
                   disabled={disabled}
                 />
               </MentionInput>
@@ -278,7 +265,7 @@ export const ChatInput = ({
                   ))
                 ) : (
                   <div className="text-muted-foreground p-4 text-center text-xs">
-                    No collection was found.
+                    {page_chat('no_collection_was_found')}
                   </div>
                 )}
               </MentionContent>
@@ -295,12 +282,12 @@ export const ChatInput = ({
                         const enabled = !webSearchEnabled;
                         toast.success(
                           enabled
-                            ? 'Web search is enabled'
-                            : 'Web search is disabled',
+                            ? page_chat('web_search_is_enabled')
+                            : page_chat('web_search_is_disabled'),
                         );
                         setWebSearchEnabled(enabled);
                       }}
-                      aria-label="Web search"
+                      aria-label={page_chat('web_search')}
                       className={cn('relative cursor-pointer')}
                       disabled={disabled}
                     >
@@ -309,7 +296,7 @@ export const ChatInput = ({
                       />
                     </Toggle>
                   </TooltipTrigger>
-                  <TooltipContent>Web search</TooltipContent>
+                  <TooltipContent>{page_chat('web_search')}</TooltipContent>
                 </Tooltip>
 
                 <Select

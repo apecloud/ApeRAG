@@ -4,6 +4,8 @@ import {
   PageHeader,
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
+import _ from 'lodash';
+import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { ChatMessages } from './chat-messages';
 
@@ -17,6 +19,7 @@ export default async function Page({
 }) {
   const { botId, chatId } = await params;
   const serverApi = await getServerApi();
+  const page_chat = await getTranslations('page_chat');
 
   let chat;
 
@@ -34,7 +37,14 @@ export default async function Page({
   return (
     <PageContainer>
       <PageHeader
-        breadcrumbs={[{ title: 'Chats' }, { title: chat.title || '' }]}
+        breadcrumbs={[
+          { title: page_chat('metadata.title') },
+          {
+            title: _.isEmpty(chat.history)
+              ? page_chat('display_empty_title')
+              : chat.title || '',
+          },
+        ]}
       />
       <PageContent>
         <ChatMessages chat={chat} />

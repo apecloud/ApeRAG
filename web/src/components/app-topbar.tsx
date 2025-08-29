@@ -137,13 +137,13 @@ export const AppUserDropdownMenu = () => {
                 <DropdownMenuItem asChild>
                   <Link href="/admin">
                     <ShieldUser />
-                    Administrator
+                    {page_auth('administrator')}
                   </Link>
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem>
+              <DropdownMenuItem disabled>
                 <User />
-                Account
+                {page_auth('account')}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

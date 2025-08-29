@@ -9,5 +9,9 @@
       "title": "云猿生数据",
       "description": ""
     }
+  },
+  "action": {
+    "save": "保存",
+    "cancel": "取消"
   }
 }

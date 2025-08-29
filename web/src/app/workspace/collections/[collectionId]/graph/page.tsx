@@ -3,16 +3,19 @@ import {
   PageContent,
   PageHeader,
 } from '@/components/page-container';
+import { getTranslations } from 'next-intl/server';
 import { CollectionHeader } from '../collection-header';
 import { CollectionGraph } from './collection-graph';
 
 export default async function Page() {
+  const page_collections = await getTranslations('page_collections');
+
   return (
     <PageContainer>
       <PageHeader
         breadcrumbs={[
           {
-            title: 'Collections',
+            title: page_collections('metadata.title'),
             href: '/workspace/collections',
           },
           {

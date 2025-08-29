@@ -9,5 +9,9 @@
       "title": "ApeCloud",
       "description": "Production-Ready RAG Platform with Graph, Vector & Full-Text Search."
     }
+  },
+  "action": {
+    "save": "Save",
+    "cancel": "Cancel"
   }
 }

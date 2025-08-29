@@ -41,7 +41,9 @@ export default async function Page() {
 
   return (
     <PageContainer>
-      <PageHeader breadcrumbs={[{ title: 'Collections' }]} />
+      <PageHeader
+        breadcrumbs={[{ title: page_collections('metadata.title') }]}
+      />
       <PageContent>
         <PageTitle>{page_collections('metadata.title')}</PageTitle>
         <PageDescription>

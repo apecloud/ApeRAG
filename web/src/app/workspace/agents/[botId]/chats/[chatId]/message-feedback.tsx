@@ -27,6 +27,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn, objectKeys } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ThumbsDown, ThumbsUp } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useCallback, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -49,21 +50,10 @@ export const MessageFeedback = ({
   const form = useForm<z.infer<typeof feedbackSchema>>({
     resolver: zodResolver(feedbackSchema),
   });
+  const page_chat = useTranslations('page_chat');
+  const common_action = useTranslations('common.action');
 
   const part = useMemo(() => parts.findLast((p) => p.references), [parts]);
-
-  const feedbackTagDescription: {
-    [key in FeedbackTagEnum]: string;
-  } = useMemo(
-    () => ({
-      Harmful: 'Promotes dangerous, violent, or discriminatory acts.',
-      Unsafe: 'Contains risky or physically dangerous information.',
-      Fake: 'Intentionally false, deceptive, or misleading.',
-      Unhelpful: 'Irrelevant, poorly explained, or fails to address the query.',
-      Other: 'Any issue not covered by the categories above.',
-    }),
-    [],
-  );
 
   const handleVote = useCallback(
     (type: FeedbackTypeEnum) => {
@@ -99,7 +89,7 @@ export const MessageFeedback = ({
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleBadVote)}>
               <DialogHeader>
-                <DialogTitle>Tell Us What You Think</DialogTitle>
+                <DialogTitle>{page_chat('feedback.title')}</DialogTitle>
                 <DialogDescription></DialogDescription>
               </DialogHeader>
               <div className="space-y-8 py-8">
@@ -109,7 +99,7 @@ export const MessageFeedback = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-                        Please choose a category for your feedback below.
+                        {page_chat('feedback.choose_a_category')}
                       </FormLabel>
                       <FormControl>
                         <RadioGroup
@@ -130,9 +120,11 @@ export const MessageFeedback = ({
                                     <RadioGroupItem value={key} />
                                   </FormControl>
                                   <div>
-                                    <div className="mb-1">{key}</div>
+                                    <div className="mb-1">
+                                      {page_chat(`feedback.${key}.title`)}
+                                    </div>
                                     <div className="text-muted-foreground">
-                                      {feedbackTagDescription[key]}
+                                      {page_chat(`feedback.${key}.description`)}
                                     </div>
                                   </div>
                                 </FormItem>
@@ -151,12 +143,16 @@ export const MessageFeedback = ({
                   name="message"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Share your feedback</FormLabel>
+                      <FormLabel>
+                        {page_chat('feedback.share_your_feedback')}
+                      </FormLabel>
                       <FormControl>
                         <Textarea
                           {...field}
                           className="min-h-25"
-                          placeholder="Please provide your feedback so we can continue to enhance your experience."
+                          placeholder={page_chat(
+                            'feedback.share_your_feedback_placeholder',
+                          )}
                         />
                       </FormControl>
                       <FormMessage />
@@ -171,9 +167,9 @@ export const MessageFeedback = ({
                   variant="outline"
                   onClick={() => setVisible(false)}
                 >
-                  Cancel
+                  {common_action('cancel')}
                 </Button>
-                <Button type="submit">Save</Button>
+                <Button type="submit">{common_action('save')}</Button>
               </DialogFooter>
             </form>
           </Form>

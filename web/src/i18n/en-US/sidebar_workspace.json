@@ -4,9 +4,11 @@
   "collections": "Collections",
   "chats": "Chats",
   "chats_new": "Create chat",
+  "display_empty_title": "New chat",
 
   "more": "More",
-  "evaluation": "Evaluation",
+  "question_evaluation": "Question Evaluation",
+  "evaluations": "Evaluations",
   "question_sets": "Question Sets",
 
   "settings": "Settings",

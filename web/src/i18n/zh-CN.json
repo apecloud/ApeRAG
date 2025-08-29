@@ -10,9 +10,15 @@
         "title": "云猿生数据",
         "description": ""
       }
+    },
+    "action": {
+      "save": "保存",
+      "cancel": "取消"
     }
   },
   "page_auth": {
+    "account": "我的账号",
+    "administrator": "系统设置",
     "username": "用户名",
     "username_placeholder": "用户名",
     "password": "密码",
@@ -46,8 +52,10 @@
     "collections": "我的知识库",
     "chats": "会话",
     "chats_new": "新建会话",
+    "display_empty_title": "新会话",
     "more": "更多",
-    "evaluation": "评估",
+    "question_evaluation": "问题评估",
+    "evaluations": "评估历史",
     "question_sets": "问题集",
     "settings": "设置",
     "models": "模型",
@@ -77,5 +85,54 @@
     "subscribed": "已订阅",
     "no_collections_found": "未找到知识库",
     "no_description_available": "没有可用的描述"
+  },
+  "page_chat": {
+    "metadata": {
+      "title": "Chats"
+    },
+    "hello_world": "Hi, I'm ApeRAG.",
+    "rag_description": "ApeRAG is a production-ready RAG platform that combines graph, vector, and full-text search for hybrid retrieval, knowledge management, and enterprise AI applications.",
+    "mention_a_collection": "Type @ to mention a collection...",
+    "display_empty_title": "New chat",
+    "no_collection_was_found": "No collection was found",
+    "web_search": "Web search",
+    "web_search_is_enabled": "Web search is enabled",
+    "web_search_is_disabled": "Web search is disabled",
+    "references": "References",
+    "feedback": {
+      "title": "Tell Us What You Think",
+      "choose_a_category": "Please choose a category for your feedback below.",
+      "Harmful": {
+        "title": "Harmful",
+        "description": "Promotes dangerous, violent, or discriminatory acts."
+      },
+      "Unsafe": {
+        "title": "Unsafe",
+        "description": "Contains risky or physically dangerous information."
+      },
+      "Fake": {
+        "title": "Fake",
+        "description": "Intentionally false, deceptive, or misleading."
+      },
+      "Unhelpful": {
+        "title": "Unhelpful",
+        "description": "Irrelevant, poorly explained, or fails to address the query."
+      },
+      "Other": {
+        "title": "Other",
+        "description": "Any issue not covered by the categories above."
+      },
+      "share_your_feedback": "Share your feedback",
+      "share_your_feedback_placeholder": "Please provide your feedback so we can continue to enhance your experience."
+    }
+  },
+  "components": {
+    "dmermaid": {
+      "graph": "拓扑结构",
+      "data": "数据"
+    },
+    "copy_to_clipboard": {
+      "copied": "复制成功"
+    }
   }
 }

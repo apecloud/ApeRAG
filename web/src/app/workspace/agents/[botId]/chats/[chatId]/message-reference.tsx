@@ -10,6 +10,7 @@ import {
   DrawerTrigger,
 } from '@/components/ui/drawer';
 import _ from 'lodash';
+import { useTranslations } from 'next-intl';
 import { MessageCollapseContent } from './message-collapse-content';
 
 export const MessageReference = ({
@@ -17,6 +18,7 @@ export const MessageReference = ({
 }: {
   references: Reference[];
 }) => {
+  const page_chat = useTranslations('page_chat');
   return (
     <Drawer direction="right" handleOnly={true}>
       <DrawerTrigger asChild>
@@ -31,7 +33,9 @@ export const MessageReference = ({
       </DrawerTrigger>
       <DrawerContent className="flex sm:min-w-xl md:min-w-2xl">
         <DrawerHeader>
-          <DrawerTitle className="font-bold">References</DrawerTitle>
+          <DrawerTitle className="font-bold">
+            {page_chat('references')}
+          </DrawerTitle>
         </DrawerHeader>
         <div className="overflow-auto px-4 pb-4 select-text">
           {references?.map((reference: Reference, index) => {
