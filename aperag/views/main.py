@@ -282,8 +282,11 @@ async def search_chat_files_view(
         if not chat_collection_id:
             raise HTTPException(status_code=404, detail="Chat collection not found")
         
+        if not chat_id:
+            raise HTTPException(status_code=400, detail="Chat ID is required")
+
         # Execute search flow using the helper method from collection_service
-        items, _ = await collection_service._execute_search_flow(
+        items, _ = await collection_service.execute_search_flow(
             data=data,
             collection_id=chat_collection_id,
             search_user_id=str(user.id),

@@ -282,7 +282,7 @@ class CollectionService:
 
         return None
 
-    async def _execute_search_flow(
+    async def execute_search_flow(
         self,
         data: view_models.SearchRequest,
         collection_id: str,
@@ -483,7 +483,7 @@ class CollectionService:
                 raise CollectionNotFoundException(collection_id)
 
         # Execute search flow using helper method
-        items, _ = await self._execute_search_flow(
+        items, _ = await self.execute_search_flow(
             data=data,
             collection_id=collection_id,
             search_user_id=search_user_id,
