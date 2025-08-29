@@ -4,6 +4,11 @@
   "private": "Private",
   "public": "Public",
 
+  "mine": "Mine",
+  "subscribed": "Subscribed",
+  "subscribe": "Subscribe",
+  "unsubscribe": "Unsubscribe",
+
   "no_description_available": "No description available",
 
   "create_collection": "Create Collection",

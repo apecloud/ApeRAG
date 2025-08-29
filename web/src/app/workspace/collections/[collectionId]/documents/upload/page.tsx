@@ -4,6 +4,7 @@ import {
   PageHeader,
 } from '@/components/page-container';
 
+import { getTranslations } from 'next-intl/server';
 import { CollectionHeader } from '../../collection-header';
 import { DocumentUpload } from './document-upload';
 
@@ -13,13 +14,14 @@ export default async function Page({
   params: Promise<{ collectionId: string }>;
 }>) {
   const { collectionId } = await params;
+  const page_collections = await getTranslations('page_collections');
 
   return (
     <PageContainer>
       <PageHeader
         breadcrumbs={[
           {
-            title: 'Collections',
+            title: page_collections('metadata.title'),
             href: '/workspace/collections',
           },
           {

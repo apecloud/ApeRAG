@@ -35,6 +35,10 @@
     "general": "常规设置",
     "private": "私有",
     "public": "公开",
+    "mine": "我的",
+    "subscribed": "已订阅",
+    "subscribe": "订阅",
+    "unsubscribe": "取消订阅",
     "no_description_available": "没有可用的描述",
     "create_collection": "创建知识库",
     "update_collection": "更新知识库",
@@ -162,7 +166,6 @@
       "description": "通过导入并系统化整理数据源至结构化知识库中，可显著提升大语言模型（LLMs）的上下文理解能力和响应准确性"
     },
     "search": "搜索我的知识库",
-    "subscribed": "已订阅",
     "no_collections_found": "未找到知识库"
   },
   "page_marketplace": {
@@ -172,8 +175,7 @@
     },
     "no_collections_found": "未找到相关知识库",
     "no_description_available": "没有可用的描述",
-    "search": "搜索社区知识库",
-    "mine": "我的"
+    "search": "搜索社区知识库"
   },
   "sidebar_workspace": {
     "repositories": "知识库",

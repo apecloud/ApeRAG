@@ -80,7 +80,7 @@ export const CollectionList = ({
                       </CardTitle>
                       <CardAction className="flex flex-row items-center gap-4">
                         {collection.subscription_id ? (
-                          <Badge>{page_collections('subscribed')}</Badge>
+                          <Badge>{module_collection('subscribed')}</Badge>
                         ) : (
                           <Badge
                             variant={
