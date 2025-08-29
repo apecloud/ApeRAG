@@ -1,1 +1,15 @@
-{}
+{
+  "common": {
+    "site": {
+      "metadata": {
+        "applicationName": "ApeRAG",
+        "authors": {
+          "url": "https://github.com/apecloud/ApeRAG",
+          "name": "ApeCloud"
+        },
+        "title": "云猿生数据",
+        "description": ""
+      }
+    }
+  }
+}

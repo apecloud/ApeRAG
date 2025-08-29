@@ -10,6 +10,8 @@ import { ThemeProvider } from '@/components/providers/theme-provider';
 import 'highlight.js/styles/github-dark.css';
 import './globals.css';
 
+import { getTranslations } from 'next-intl/server';
+
 const geistSans = Geist({
   variable: '--font-geist-sans',
   subsets: ['latin'],
@@ -20,11 +22,22 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
-export const metadata: Metadata = {
-  title: 'ApeRAG',
-  description:
-    'Production-Ready RAG Platform with Graph, Vector & Full-Text Search',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const common_site = await getTranslations('common.site');
+  return {
+    applicationName: common_site('metadata.applicationName'),
+    authors: {
+      name: common_site('metadata.authors.name'),
+      url: common_site('metadata.authors.url'),
+    },
+    title: {
+      default: common_site('metadata.title'),
+      template: `%s | ${common_site('metadata.title')}`,
+    },
+    description: common_site('metadata.description'),
+    keywords: ['RAG', 'Graph Search', 'Vector Search', 'Full-Text Search'],
+  };
+}
 
 export default async function RootLayout({
   children,

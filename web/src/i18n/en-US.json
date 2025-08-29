@@ -1,3 +1,15 @@
 {
-  "home": "Homepage"
+  "common": {
+    "site": {
+      "metadata": {
+        "applicationName": "ApeRAG",
+        "authors": {
+          "url": "https://github.com/apecloud/ApeRAG",
+          "name": "ApeCloud"
+        },
+        "title": "ApeCloud",
+        "description": "Production-Ready RAG Platform with Graph, Vector & Full-Text Search."
+      }
+    }
+  }
 }
