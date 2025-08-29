@@ -16,6 +16,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
@@ -33,6 +34,7 @@ export function SignInForm({
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('callbackUrl') || '/';
   const { signIn } = useAppContext();
+  const page_auth = useTranslations('page_auth');
   const form = useForm<z.infer<typeof signInLocalSchema>>({
     resolver: zodResolver(signInLocalSchema),
     defaultValues: {
@@ -68,11 +70,13 @@ export function SignInForm({
     <div className={cn('flex flex-col gap-6', className)} {...props}>
       <Card className="bg-card/50">
         <CardContent>
-          <div className="mb-8 text-center text-xl font-bold">Welcome back</div>
+          <div className="mb-8 text-center text-xl font-bold">
+            {page_auth('welcome_back')}
+          </div>
           {hasSocialLogin && (
             <div className="mb-4 grid gap-4">
               <div className="text-muted-foreground text-center text-sm">
-                Login with a third-party account
+                {page_auth('login_in_with_a_third_party_account')}
               </div>
               {hasSocialGithubLogin && (
                 <Button
@@ -81,7 +85,7 @@ export function SignInForm({
                   onClick={() => signIn({ type: 'github', redirectTo })}
                 >
                   <FaGithub />
-                  Login with Github
+                  {page_auth('login_with_github')}
                 </Button>
               )}
               {hasSocialGoogleLogin && (
@@ -91,13 +95,13 @@ export function SignInForm({
                   onClick={() => signIn({ type: 'google', redirectTo })}
                 >
                   <FaGoogle />
-                  Login with Google
+                  {page_auth('login_with_google')}
                 </Button>
               )}
 
               <div className="after:border-border relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t">
                 <span className="bg-card text-muted-foreground relative z-10 px-2">
-                  Or continue with
+                  {page_auth('or_continue_with')}
                 </span>
               </div>
             </div>
@@ -112,9 +116,12 @@ export function SignInForm({
                 name="username"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Username</FormLabel>
+                    <FormLabel>{page_auth('username')}</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Username" />
+                      <Input
+                        {...field}
+                        placeholder={page_auth('username_placeholder')}
+                      />
                     </FormControl>
                   </FormItem>
                 )}
@@ -125,19 +132,19 @@ export function SignInForm({
                 render={({ field }) => (
                   <FormItem>
                     <div className="flex justify-between">
-                      <FormLabel>Password</FormLabel>
+                      <FormLabel>{page_auth('password')}</FormLabel>
                       <Link
                         href="#"
                         className="text-muted-foreground hover:text-primary text-xs underline-offset-4 hover:underline"
                       >
-                        Forgot your password?
+                        {page_auth('forgot_your_password')}
                       </Link>
                     </div>
                     <FormControl>
                       <Input
                         type="password"
                         {...field}
-                        placeholder="Password"
+                        placeholder={page_auth('password_placeholder')}
                       />
                     </FormControl>
                   </FormItem>
@@ -145,27 +152,27 @@ export function SignInForm({
               />
 
               <Button type="submit" className="w-full">
-                Sign In
+                {page_auth('signin')}
               </Button>
 
               <div className="text-center text-sm">
-                Don&apos;t have an account? &nbsp;
+                {page_auth('do_not_have_an_account')}
                 <Link
                   href={`/auth/signup?callbaclUrl=${encodeURIComponent(redirectTo)}`}
                   className="underline underline-offset-4"
                 >
-                  Sign up
+                  {page_auth('signup')}
                 </Link>
               </div>
             </form>
           </Form>
         </CardContent>
       </Card>
-      <div className="text-muted-foreground *:[a]:hover:text-primary text-center text-xs text-balance *:[a]:underline *:[a]:underline-offset-4">
+      {/* <div className="text-muted-foreground *:[a]:hover:text-primary text-center text-xs text-balance *:[a]:underline *:[a]:underline-offset-4">
         By clicking continue, you agree to our{' '}
         <Link href="#">Terms of Service</Link> and{' '}
         <Link href="#">Privacy Policy</Link>.
-      </div>
+      </div> */}
     </div>
   );
 }

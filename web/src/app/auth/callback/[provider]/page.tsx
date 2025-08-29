@@ -4,6 +4,7 @@ import { useAppContext } from '@/components/providers/app-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { LoaderCircle, ShieldAlert, ShieldPlus } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
@@ -18,14 +19,14 @@ export default function Page() {
   const error = searchParams.get('error');
   const code = searchParams.get('code') || '';
   const state = searchParams.get('state') || '';
-
+  const page_auth = useTranslations('page_auth');
   const content = useMemo(() => {
     if (loading) {
       return (
         <>
           <LoaderCircle className="size-12 animate-spin opacity-50" />
           <div className="text-muted-foreground text-sm">
-            Processing OAuth login...
+            {page_auth('processing_oauth_login')}
           </div>
         </>
       );
@@ -41,13 +42,15 @@ export default function Page() {
     return (
       <>
         <ShieldPlus className="size-12" />
-        <div className="text-muted-foreground text-sm">OAuth successful!</div>
         <div className="text-muted-foreground text-sm">
-          the system will automatically redirect.
+          {page_auth('oauth_successful')}
+        </div>
+        <div className="text-muted-foreground text-sm">
+          {page_auth('the_system_will_automatically_redirect')}
         </div>
       </>
     );
-  }, [loading, tips]);
+  }, [loading, page_auth, tips]);
 
   useEffect(() => {
     if (!code || !state) return;
@@ -64,16 +67,16 @@ export default function Page() {
           }, 300);
           return;
         }
-        setTips('OAuth verification failed.');
+        setTips(page_auth('oauth_verification_failed'));
       })
       .catch((err) => {
         console.log(err);
-        setTips('An unexpected error occurred');
+        setTips(page_auth('an_unexpected_error_occurred'));
       })
       .finally(() => {
         setLoading(false);
       });
-  }, [code, provider, state]);
+  }, [code, page_auth, provider, state]);
 
   useEffect(() => {
     if (error) {
@@ -89,7 +92,9 @@ export default function Page() {
   return (
     <Card className="bg-card/50">
       <CardContent className="flex flex-col gap-12">
-        <div className="text-center text-xl font-bold">Authentication</div>
+        <div className="text-center text-xl font-bold">
+          {page_auth('authentication')}
+        </div>
 
         <div className="flex flex-col items-center justify-center gap-2 text-center">
           {content}
@@ -97,11 +102,11 @@ export default function Page() {
 
         <div className="flex items-center justify-center gap-x-6">
           <Link href="/">
-            <Button>Go back home</Button>
+            <Button>{page_auth('go_back_home')}</Button>
           </Link>
           <Button variant="outline" onClick={() => signIn({ redirectTo: '/' })}>
             <div className="grid flex-1 text-left text-sm leading-tight">
-              Retry
+              {page_auth('retry')}
             </div>
           </Button>
         </div>
