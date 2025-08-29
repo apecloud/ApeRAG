@@ -45,6 +45,7 @@ import {
   Trash,
   Upload,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { defaultStyles, FileIcon } from 'react-file-icon';
@@ -67,6 +68,7 @@ let uploadController: AbortController | undefined;
 
 export const DocumentUpload = () => {
   const { collection } = useCollectionContext();
+  const page_documents = useTranslations('page_documents');
   const router = useRouter();
   const [documents, setDocuments] = useState<DocumentsWithFile[]>([]);
   const [step, setStep] = useState<number>(1);
@@ -230,7 +232,7 @@ export const DocumentUpload = () => {
       },
       {
         accessorKey: 'filename',
-        header: 'Filename',
+        header: page_documents('filename'),
         cell: ({ row }) => {
           const file = row.original.file;
           const extension = _.last(file.type.split('/')) || '';
@@ -254,13 +256,13 @@ export const DocumentUpload = () => {
         },
       },
       {
-        header: 'Type',
+        header: page_documents('file_type'),
         cell: ({ row }) => {
           return row.original.file.type;
         },
       },
       {
-        header: 'Progress',
+        header: page_documents('upload_progress'),
         cell: ({ row }) => {
           return (
             <div className="flex w-50 flex-col">
@@ -297,14 +299,14 @@ export const DocumentUpload = () => {
                 variant="destructive"
                 onClick={() => handleRemoveFile(row.original)}
               >
-                <Trash /> Remove
+                <Trash /> {page_documents('remove_file')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         ),
       },
     ],
-    [handleRemoveFile],
+    [handleRemoveFile, page_documents],
   );
 
   const table = useReactTable({
@@ -366,7 +368,7 @@ export const DocumentUpload = () => {
     <>
       <FileUpload
         maxFiles={1000}
-        maxSize={5 * 1024 * 1024}
+        maxSize={10 * 1024 * 1024}
         className="w-full gap-4"
         accept=".pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx"
         value={documents.map((f) => f.file)}
@@ -399,7 +401,7 @@ export const DocumentUpload = () => {
               )}
             >
               <Bs1CircleFill className="size-5" />
-              <div>Browse Files</div>
+              <div>{page_documents('browse_files')}</div>
             </div>
             <ChevronRight className="size-4" />
             <div
@@ -409,7 +411,7 @@ export const DocumentUpload = () => {
               )}
             >
               <Bs2CircleFill className="size-5" />
-              <div>Upload</div>
+              <div>{page_documents('upload')}</div>
             </div>
             <ChevronRight className="size-4" />
             <div
@@ -419,14 +421,16 @@ export const DocumentUpload = () => {
               )}
             >
               <Bs3CircleFill className="size-5" />
-              <div>Save to colelction</div>
+              <div>{page_documents('save_to_collection')}</div>
             </div>
           </div>
           <div className="flex flex-row gap-2">
             <FileUploadClear asChild disabled={isUploading}>
               <Button variant="outline" className="cursor-pointer">
                 <BrushCleaning />
-                <span className="hidden lg:inline">Clear</span>
+                <span className="hidden lg:inline">
+                  {page_documents('clear_files')}
+                </span>
               </Button>
             </FileUploadClear>
 
@@ -434,7 +438,9 @@ export const DocumentUpload = () => {
               <FileUploadTrigger asChild disabled={isUploading}>
                 <Button variant="outline" className="cursor-pointer">
                   <FolderSearch />
-                  <span className="hidden lg:inline">Browse files</span>
+                  <span className="hidden lg:inline">
+                    {page_documents('browse_files')}
+                  </span>
                 </Button>
               </FileUploadTrigger>
             )}
@@ -454,7 +460,9 @@ export const DocumentUpload = () => {
                   onClick={() => startUpload()}
                 >
                   <CloudUpload />
-                  <span className="hidden lg:inline">Upload</span>
+                  <span className="hidden lg:inline">
+                    {page_documents('upload')}
+                  </span>
                 </Button>
               ))}
             {step === 3 && (
@@ -463,7 +471,9 @@ export const DocumentUpload = () => {
                 onClick={handleSaveToCollection}
               >
                 <Save />
-                <span className="hidden lg:inline">Save to Collection</span>
+                <span className="hidden lg:inline">
+                  {page_documents('save_to_collection')}
+                </span>
               </Button>
             )}
           </div>
@@ -475,9 +485,11 @@ export const DocumentUpload = () => {
               <div className="flex items-center justify-center rounded-full border p-2.5">
                 <Upload className="text-muted-foreground size-6" />
               </div>
-              <p className="text-sm font-medium">Drag & drop files here</p>
+              <p className="text-sm font-medium">
+                {page_documents('drag_drop_files_here')}
+              </p>
               <p className="text-muted-foreground text-xs">
-                Or click to browse (max 5MB for each file)
+                {page_documents('or_click_to_browse_files')}
               </p>
             </div>
           </FileUploadDropzone>

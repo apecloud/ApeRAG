@@ -18,6 +18,7 @@
   "tips": {
     "confirm": "Are you absolutely sure?",
     "update_success": "update successfully.",
-    "create_success": "create successfully."
+    "create_success": "create successfully.",
+    "delete_success": "Delete successfully!"
   }
 }

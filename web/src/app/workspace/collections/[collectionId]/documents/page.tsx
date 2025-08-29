@@ -21,6 +21,7 @@ export default async function Page({
   const serverApi = await getServerApi();
 
   const page_collections = await getTranslations('page_collections');
+  const page_documents = await getTranslations('page_documents');
 
   const [documentsRes] = await Promise.all([
     serverApi.defaultApi.collectionsCollectionIdDocumentsGet({
@@ -44,7 +45,7 @@ export default async function Page({
             href: '/workspace/collections',
           },
           {
-            title: 'Documents',
+            title: page_documents('metadata.title'),
           },
         ]}
       />

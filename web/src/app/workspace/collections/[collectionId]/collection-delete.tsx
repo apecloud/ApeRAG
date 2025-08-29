@@ -28,7 +28,7 @@ export const CollectionDelete = ({
   const router = useRouter();
   const common_action = useTranslations('common.action');
   const common_tips = useTranslations('common.tips');
-  const module_collection = useTranslations('module_collection');
+  const page_collections = useTranslations('page_collections');
 
   const handleDelete = useCallback(async () => {
     if (collection?.id) {
@@ -61,7 +61,7 @@ export const CollectionDelete = ({
         <AlertDialogHeader>
           <AlertDialogTitle>{common_tips('confirm')}</AlertDialogTitle>
           <AlertDialogDescription>
-            {module_collection('delete_collection_confirm')}
+            {page_collections('delete_collection_confirm')}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogDescription></AlertDialogDescription>

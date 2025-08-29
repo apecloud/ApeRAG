@@ -1,0 +1,24 @@
+{
+  "metadata": {
+    "title": "Documents"
+  },
+  "add_documents": "Add Documents",
+  "index_rebuild": "Index Rebuild",
+  "index_rebuild_tips": "You can configure the index types in Settings.",
+  "index_rebuild_with": "Index rebuild initiated for types: {types}",
+  "delete_document": "Delete document",
+  "delete_document_confirm": "This action cannot be undone. This will permanently delete file and remove your data from our servers.",
+  "search_document": "Search documents",
+  "upload": "Upload",
+  "browse_files": "Browse Files",
+  "save_to_collection": "Save to colelction",
+  "drag_drop_files_here": "Drag & drop files here",
+  "or_click_to_browse_files": "Or click to browse (max 10MB for each file)",
+  "last_updated": "Last Updated",
+  "file": "File",
+  "filename": "Filename",
+  "file_type": "Type",
+  "upload_progress": "Progress",
+  "remove_file": "Remove",
+  "clear_files": "Clear"
+}

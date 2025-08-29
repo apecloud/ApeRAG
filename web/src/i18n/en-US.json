@@ -19,7 +19,8 @@
     "tips": {
       "confirm": "Are you absolutely sure?",
       "update_success": "update successfully.",
-      "create_success": "create successfully."
+      "create_success": "create successfully.",
+      "delete_success": "Delete successfully!"
     }
   },
   "components": {
@@ -30,59 +31,6 @@
     "copy_to_clipboard": {
       "copied": "Copied"
     }
-  },
-  "module_collection": {
-    "general": "General",
-    "private": "Private",
-    "public": "Public",
-    "mine": "Mine",
-    "subscribed": "Subscribed",
-    "subscribe": "Subscribe",
-    "unsubscribe": "Unsubscribe",
-    "no_description_available": "No description available",
-    "create_collection": "Create Collection",
-    "update_collection": "Update Collection",
-    "delete_collection": "Delete Collection",
-    "delete_collection_confirm": "This action cannot be undone. This will permanently delete collection and remove your documents from our servers.",
-    "publish_collection": "Publish to Marketplace",
-    "publish_collection_description": "Allow users to discover and subscribe to your collection.",
-    "published_success": "Collection published successfully",
-    "unpublished_success": "Collection unpublished successfully",
-    "unpublish_collection": "Unpublish from Marketplace",
-    "unpublish_collection_description": "Remove the collection from the marketplace, making it private.",
-    "name": "Name",
-    "name_placeholder": "Collection display name.",
-    "description": "Description",
-    "description_placeholder": "Please describe the general meaning of a collection.",
-    "index_types": "Index Types",
-    "index_types_description": "Select the AI capabilities you need, we will build corresponding indexes for your documents",
-    "index_type_VECTOR": {
-      "title": "Vector",
-      "description": "Represents data (text, images, etc.) as high-dimensional vectors to enable similarity-based retrieval."
-    },
-    "index_type_FULLTEXT": {
-      "title": "Fulltext",
-      "description": "Indexes keywords within text using techniques like inverted indexing for exact or fuzzy"
-    },
-    "index_type_GRAPH": {
-      "title": "Graph",
-      "description": "Stores data as nodes (entities) and edges (relationships), enabling complex relational"
-    },
-    "index_type_SUMMARY": {
-      "title": "Summary",
-      "description": "Indexes summaries or metadata of long documents instead of raw content for faster"
-    },
-    "index_type_VISION": {
-      "title": "Vision",
-      "description": "Encodes visual content (images/videos) into feature vectors for content-based retrieval."
-    },
-    "required": "Required",
-    "model_settings": "Model Settings",
-    "model_settings_description": "Select AI models for document processing. Different index types require different model support",
-    "embedding_model": "Embedding Model",
-    "embedding_model_description": "An embedding model translates data into numerical vectors that capture their semantic meaning and relationships.",
-    "completion_model": "Completion Model",
-    "completion_model_description": "A completion model is an AI that generates new content by predicting the most likely subsequent text based on a given input."
   },
   "page_auth": {
     "account": "Account",
@@ -166,7 +114,58 @@
       "description": "By importing and systematically organizing your data sources into a structured dataset, you can significantly improve the contextual understanding and response accuracy of large language models (LLMs)"
     },
     "search": "Search",
-    "no_collections_found": "No collections found"
+    "no_collections_found": "No collections found",
+    "general": "General",
+    "private": "Private",
+    "public": "Public",
+    "mine": "Mine",
+    "subscribed": "Subscribed",
+    "subscribe": "Subscribe",
+    "unsubscribe": "Unsubscribe",
+    "no_description_available": "No description available",
+    "create_collection": "Create Collection",
+    "update_collection": "Update Collection",
+    "delete_collection": "Delete Collection",
+    "delete_collection_confirm": "This action cannot be undone. This will permanently delete collection and remove your documents from our servers.",
+    "publish_collection": "Publish to Marketplace",
+    "publish_collection_description": "Allow users to discover and subscribe to your collection.",
+    "published_success": "Collection published successfully",
+    "unpublished_success": "Collection unpublished successfully",
+    "unpublish_collection": "Unpublish from Marketplace",
+    "unpublish_collection_description": "Remove the collection from the marketplace, making it private.",
+    "name": "Name",
+    "name_placeholder": "Collection display name.",
+    "description": "Description",
+    "description_placeholder": "Please describe the general meaning of a collection.",
+    "index_types": "Index Types",
+    "index_types_description": "Select the AI capabilities you need, we will build corresponding indexes for your documents",
+    "index_type_VECTOR": {
+      "title": "Vector",
+      "description": "Represents data (text, images, etc.) as high-dimensional vectors to enable similarity-based retrieval."
+    },
+    "index_type_FULLTEXT": {
+      "title": "Fulltext",
+      "description": "Indexes keywords within text using techniques like inverted indexing for exact or fuzzy"
+    },
+    "index_type_GRAPH": {
+      "title": "Graph",
+      "description": "Stores data as nodes (entities) and edges (relationships), enabling complex relational"
+    },
+    "index_type_SUMMARY": {
+      "title": "Summary",
+      "description": "Indexes summaries or metadata of long documents instead of raw content for faster"
+    },
+    "index_type_VISION": {
+      "title": "Vision",
+      "description": "Encodes visual content (images/videos) into feature vectors for content-based retrieval."
+    },
+    "required": "Required",
+    "model_settings": "Model Settings",
+    "model_settings_description": "Select AI models for document processing. Different index types require different model support",
+    "embedding_model": "Embedding Model",
+    "embedding_model_description": "An embedding model translates data into numerical vectors that capture their semantic meaning and relationships.",
+    "completion_model": "Completion Model",
+    "completion_model_description": "A completion model is an AI that generates new content by predicting the most likely subsequent text based on a given input."
   },
   "page_marketplace": {
     "metadata": {
@@ -193,5 +192,29 @@
     "api_keys": "API Keys",
     "audit_logs": "Audit Logs",
     "quotas": "Quotas"
+  },
+  "page_documents": {
+    "metadata": {
+      "title": "Documents"
+    },
+    "add_documents": "Add Documents",
+    "index_rebuild": "Index Rebuild",
+    "index_rebuild_tips": "You can configure the index types in Settings.",
+    "index_rebuild_with": "Index rebuild initiated for types: {types}",
+    "delete_document": "Delete document",
+    "delete_document_confirm": "This action cannot be undone. This will permanently delete file and remove your data from our servers.",
+    "search_document": "Search documents",
+    "upload": "Upload",
+    "browse_files": "Browse Files",
+    "save_to_collection": "Save to colelction",
+    "drag_drop_files_here": "Drag & drop files here",
+    "or_click_to_browse_files": "Or click to browse (max 10MB for each file)",
+    "last_updated": "Last Updated",
+    "file": "File",
+    "filename": "Filename",
+    "file_type": "Type",
+    "upload_progress": "Progress",
+    "remove_file": "Remove",
+    "clear_files": "Clear"
   }
 }

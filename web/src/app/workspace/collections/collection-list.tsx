@@ -28,7 +28,6 @@ export const CollectionList = ({
   const [searchValue, setSearchValue] = useState<string>('');
   const page_collections = useTranslations('page_collections');
   const page_collection_new = useTranslations('page_collection_new');
-  const module_collection = useTranslations('module_collection');
   return (
     <>
       <div className="mb-4 flex flex-row items-center">
@@ -80,7 +79,7 @@ export const CollectionList = ({
                       </CardTitle>
                       <CardAction className="flex flex-row items-center gap-4">
                         {collection.subscription_id ? (
-                          <Badge>{module_collection('subscribed')}</Badge>
+                          <Badge>{page_collections('subscribed')}</Badge>
                         ) : (
                           <Badge
                             variant={
@@ -88,15 +87,15 @@ export const CollectionList = ({
                             }
                           >
                             {collection.is_published
-                              ? module_collection('public')
-                              : module_collection('private')}
+                              ? page_collections('public')
+                              : page_collections('private')}
                           </Badge>
                         )}
                       </CardAction>
                     </CardHeader>
                     <CardDescription className="mb-4 truncate px-4">
                       {collection.description ||
-                        module_collection('no_description_available')}
+                        page_collections('no_description_available')}
                     </CardDescription>
                     <CardFooter className="justify-between px-4 text-xs">
                       <div className="text-muted-foreground">

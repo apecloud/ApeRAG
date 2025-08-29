@@ -27,7 +27,7 @@ import {
 import * as React from 'react';
 import { defaultStyles, FileIcon } from 'react-file-icon';
 
-import { Document } from '@/api';
+import { Document, RebuildIndexesRequestIndexTypesEnum } from '@/api';
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { FormatDate } from '@/components/format-date';
@@ -42,11 +42,9 @@ import {
   Trash,
 } from 'lucide-react';
 
-import {
-  FileIndexTypes,
-  getDocumentStatusColor,
-} from '@/app/workspace/collections/tools';
+import { getDocumentStatusColor } from '@/app/workspace/collections/tools';
 import { useCollectionContext } from '@/components/providers/collection-provider';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { DocumentDelete } from './document-delete';
@@ -68,7 +66,8 @@ export function DocumentsTable({
     [],
   );
   const [sorting, setSorting] = React.useState<SortingState>([]);
-
+  const page_documents = useTranslations('page_documents');
+  const page_collections = useTranslations('page_collections');
   const [searchValue, setSearchValue] = React.useState<string>('');
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -105,7 +104,7 @@ export function DocumentsTable({
 
   const columns: ColumnDef<Document>[] = React.useMemo(() => {
     const indexCols: ColumnDef<Document>[] = [];
-    objectKeys(FileIndexTypes).map((key) => {
+    objectKeys(RebuildIndexesRequestIndexTypesEnum).map((key) => {
       const accessorKey = key.toLowerCase() + '_index_status';
 
       const config = collection.config;
@@ -132,7 +131,7 @@ export function DocumentsTable({
       if (enabled) {
         indexCols.push({
           accessorKey,
-          header: FileIndexTypes[key].title,
+          header: page_collections(`index_type_${key}.title`),
           cell: ({ row }) => (
             <DocumentIndexStatus
               document={row.original}
@@ -172,7 +171,7 @@ export function DocumentsTable({
       },
       {
         accessorKey: 'name',
-        header: 'Name',
+        header: page_documents('file'),
         cell: ({ row }) => {
           const extension =
             row.original.name?.split('.').pop()?.toLowerCase() ||
@@ -216,7 +215,7 @@ export function DocumentsTable({
       ...indexCols,
       {
         accessorKey: 'updated',
-        header: 'Last Updated',
+        header: page_documents('last_updated'),
         cell: ({ row }) => {
           return row.original.updated ? (
             <FormatDate datetime={new Date(row.original.updated)} />
@@ -243,13 +242,13 @@ export function DocumentsTable({
             <DropdownMenuContent align="end" className="w-42">
               <DocumentReBuildIndex file={row.original}>
                 <DropdownMenuItem>
-                  <FolderSync /> File Index Rebuild
+                  <FolderSync /> {page_documents('index_rebuild')}
                 </DropdownMenuItem>
               </DocumentReBuildIndex>
               <DropdownMenuSeparator />
               <DocumentDelete document={row.original}>
                 <DropdownMenuItem variant="destructive">
-                  <Trash /> Delete
+                  <Trash /> {page_documents('delete_document')}
                 </DropdownMenuItem>
               </DocumentDelete>
             </DropdownMenuContent>
@@ -258,7 +257,7 @@ export function DocumentsTable({
       },
     ];
     return cols;
-  }, [collection]);
+  }, [collection.config, collection.id, page_collections, page_documents]);
 
   const table = useReactTable({
     data,
@@ -305,7 +304,7 @@ export function DocumentsTable({
       <div className="flex items-center justify-between">
         <div className="flex flex-row items-center gap-2">
           <Input
-            placeholder="Search"
+            placeholder={page_documents('search_document')}
             value={searchValue}
             onChange={(e) => setSearchValue(e.currentTarget.value)}
             onKeyDown={(e) => {
@@ -323,14 +322,15 @@ export function DocumentsTable({
               href={`/workspace/collections/${collection.id}/documents/upload`}
             >
               <Plus />
-              <span className="hidden sm:inline">Add Documents</span>
+              <span className="hidden sm:inline">
+                {page_documents('add_documents')}
+              </span>
             </Link>
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
                 <Columns3 />
-                <span className="hidden lg:inline">Columns</span>
                 <ChevronDown />
               </Button>
             </DropdownMenuTrigger>
@@ -358,13 +358,6 @@ export function DocumentsTable({
                 })}
             </DropdownMenuContent>
           </DropdownMenu>
-          {/* <Button
-            size="icon"
-            variant="outline"
-            className="cursor-pointer"
-          >
-            <LoaderCircle />
-          </Button> */}
         </div>
       </div>
       <DataGrid table={table} />

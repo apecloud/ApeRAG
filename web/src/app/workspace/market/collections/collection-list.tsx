@@ -25,7 +25,7 @@ export const CollectionList = ({
   const { user } = useAppContext();
   const [searchValue, setSearchValue] = useState<string>('');
   const page_marketplace = useTranslations('page_marketplace');
-  const module_collection = useTranslations('module_collection');
+  const page_collections = useTranslations('page_collections');
   if (collections.length === 0) {
     return (
       <div className="text-muted-foreground my-40 text-center">
@@ -89,7 +89,7 @@ export const CollectionList = ({
                   </CardDescription>
                   <CardFooter className="text-muted-foreground justify-between px-4 text-sm">
                     {isOwner ? (
-                      <Badge>{module_collection('mine')}</Badge>
+                      <Badge>{page_collections('mine')}</Badge>
                     ) : (
                       <div className="flex flex-row items-center gap-1">
                         <User className="size-4" />

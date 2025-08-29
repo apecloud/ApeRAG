@@ -18,6 +18,7 @@
   "tips": {
     "confirm": "请确认操作",
     "update_success": "更新成功.",
-    "create_success": "创建成功."
+    "create_success": "创建成功.",
+    "delete_success": "删除成功."
   }
 }

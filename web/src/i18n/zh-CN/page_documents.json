@@ -1,0 +1,24 @@
+{
+  "metadata": {
+    "title": "文档"
+  },
+  "add_documents": "添加文档",
+  "index_rebuild": "重建索引",
+  "index_rebuild_tips": "您可以在“设置”中配置索引类型。",
+  "index_rebuild_with": "已启动以下索引类型的重建：{types}",
+  "delete_document": "删除文档",
+  "delete_document_confirm": "此操作不可撤销。文件将被永久删除，相关数据将从我们的服务器中彻底移除。",
+  "search_document": "搜索文档",
+  "upload": "上传",
+  "browse_files": "选择文件",
+  "save_to_collection": "添加到知识库",
+  "drag_drop_files_here": "拖拽文件至此处",
+  "or_click_to_browse_files": "或点击浏览（单个文件最大10MB）",
+  "last_updated": "最近更新",
+  "file": "文件",
+  "filename": "文件名",
+  "file_type": "文件类型",
+  "upload_progress": "进度",
+  "remove_file": "移除",
+  "clear_files": "清空"
+}

@@ -135,33 +135,33 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
 
   const common_tips = useTranslations('common.tips');
   const common_action = useTranslations('common.action');
-  const module_collection = useTranslations('module_collection');
+  const page_collections = useTranslations('page_collections');
 
   const CollectionConfigIndexTypes = {
     'config.enable_vector': {
       disabled: true,
-      title: module_collection('index_type_VECTOR.title'),
-      description: module_collection('index_type_VECTOR.description'),
+      title: page_collections('index_type_VECTOR.title'),
+      description: page_collections('index_type_VECTOR.description'),
     },
     'config.enable_fulltext': {
       disabled: true,
-      title: module_collection('index_type_FULLTEXT.title'),
-      description: module_collection('index_type_FULLTEXT.description'),
+      title: page_collections('index_type_FULLTEXT.title'),
+      description: page_collections('index_type_FULLTEXT.description'),
     },
     'config.enable_knowledge_graph': {
       disabled: false,
-      title: module_collection('index_type_GRAPH.title'),
-      description: module_collection('index_type_GRAPH.description'),
+      title: page_collections('index_type_GRAPH.title'),
+      description: page_collections('index_type_GRAPH.description'),
     },
     'config.enable_summary': {
       disabled: false,
-      title: module_collection('index_type_SUMMARY.title'),
-      description: module_collection('index_type_SUMMARY.description'),
+      title: page_collections('index_type_SUMMARY.title'),
+      description: page_collections('index_type_SUMMARY.description'),
     },
     'config.enable_vision': {
       disabled: false,
-      title: module_collection('index_type_VISION.title'),
-      description: module_collection('index_type_VISION.description'),
+      title: page_collections('index_type_VISION.title'),
+      description: page_collections('index_type_VISION.description'),
     },
   };
 
@@ -327,7 +327,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
         >
           <Card>
             <CardHeader>
-              <CardTitle>{module_collection('general')}</CardTitle>
+              <CardTitle>{page_collections('general')}</CardTitle>
               <CardDescription></CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-6">
@@ -336,11 +336,11 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                 name="title"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{module_collection('name')}</FormLabel>
+                    <FormLabel>{page_collections('name')}</FormLabel>
                     <FormControl>
                       <Input
                         className="md:w-6/12"
-                        placeholder={module_collection('name_placeholder')}
+                        placeholder={page_collections('name_placeholder')}
                         {...field}
                         value={field.value || ''}
                       />
@@ -353,11 +353,11 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                 name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{module_collection('description')}</FormLabel>
+                    <FormLabel>{page_collections('description')}</FormLabel>
                     <FormControl>
                       <Textarea
                         className="h-25"
-                        placeholder={module_collection(
+                        placeholder={page_collections(
                           'description_placeholder',
                         )}
                         {...field}
@@ -372,9 +372,9 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
 
           <Card>
             <CardHeader>
-              <CardTitle>{module_collection('index_types')}</CardTitle>
+              <CardTitle>{page_collections('index_types')}</CardTitle>
               <CardDescription>
-                {module_collection('index_types_description')}
+                {page_collections('index_types_description')}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
@@ -399,7 +399,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                             <div className="flex items-center gap-2 leading-none font-medium">
                               {item.title}
                               {item.disabled && (
-                                <Badge>{module_collection('required')}</Badge>
+                                <Badge>{page_collections('required')}</Badge>
                               )}
                             </div>
                             <p className="text-muted-foreground text-sm font-medium">
@@ -424,9 +424,9 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
 
           <Card>
             <CardHeader>
-              <CardTitle>{module_collection('model_settings')}</CardTitle>
+              <CardTitle>{page_collections('model_settings')}</CardTitle>
               <CardDescription>
-                {module_collection('model_settings_description')}
+                {page_collections('model_settings_description')}
               </CardDescription>
             </CardHeader>
 
@@ -436,9 +436,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                 name="config.embedding.model"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>
-                      {module_collection('embedding_model')}
-                    </FormLabel>
+                    <FormLabel>{page_collections('embedding_model')}</FormLabel>
                     <FormControl className="ml-auto">
                       <Select
                         {...field}
@@ -472,7 +470,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                       </Select>
                     </FormControl>
                     <FormDescription>
-                      {module_collection('embedding_model_description')}
+                      {page_collections('embedding_model_description')}
                     </FormDescription>
                   </FormItem>
                 )}
@@ -486,7 +484,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      {module_collection('completion_model')}
+                      {page_collections('completion_model')}
                     </FormLabel>
                     <FormControl className="ml-auto">
                       <Select
@@ -521,7 +519,7 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
                       </Select>
                     </FormControl>
                     <FormDescription>
-                      {module_collection('completion_model_description')}
+                      {page_collections('completion_model_description')}
                     </FormDescription>
                   </FormItem>
                 )}
@@ -539,8 +537,8 @@ export const CollectionForm = ({ action }: { action: 'add' | 'edit' }) => {
             )}
             <Button type="submit" className="cursor-pointer px-6">
               {action === 'add'
-                ? module_collection('create_collection')
-                : module_collection('update_collection')}
+                ? page_collections('create_collection')
+                : page_collections('update_collection')}
             </Button>
           </div>
         </form>

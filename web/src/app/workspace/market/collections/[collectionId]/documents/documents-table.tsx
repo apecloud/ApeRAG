@@ -25,7 +25,11 @@ import {
 import * as React from 'react';
 import { defaultStyles, FileIcon } from 'react-file-icon';
 
-import { Document, SharedCollection } from '@/api';
+import {
+  Document,
+  RebuildIndexesRequestIndexTypesEnum,
+  SharedCollection,
+} from '@/api';
 
 import { DataGrid, DataGridPagination } from '@/components/data-grid';
 import { FormatDate } from '@/components/format-date';
@@ -33,10 +37,8 @@ import { cn, objectKeys, parsePageParams } from '@/lib/utils';
 import _ from 'lodash';
 import { ChevronDown, Columns3 } from 'lucide-react';
 
-import {
-  FileIndexTypes,
-  getDocumentStatusColor,
-} from '@/app/workspace/collections/tools';
+import { getDocumentStatusColor } from '@/app/workspace/collections/tools';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { DocumentIndexStatus } from './document-index-status';
@@ -56,6 +58,8 @@ export function DocumentsTable({
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
   );
+  const page_documents = useTranslations('page_documents');
+  const page_collections = useTranslations('page_collections');
   const [sorting, setSorting] = React.useState<SortingState>([]);
 
   const [searchValue, setSearchValue] = React.useState<string>('');
@@ -94,12 +98,12 @@ export function DocumentsTable({
 
   const columns: ColumnDef<Document>[] = React.useMemo(() => {
     const indexCols: ColumnDef<Document>[] = [];
-    objectKeys(FileIndexTypes).map((key) => {
+    objectKeys(RebuildIndexesRequestIndexTypesEnum).map((key) => {
       const accessorKey = key.toLowerCase() + '_index_status';
 
       indexCols.push({
         accessorKey,
-        header: FileIndexTypes[key].title,
+        header: page_collections(`index_type_${key}.title`),
         cell: ({ row }) => (
           <DocumentIndexStatus
             document={row.original}
@@ -137,7 +141,7 @@ export function DocumentsTable({
       },
       {
         accessorKey: 'name',
-        header: 'Name',
+        header: page_documents('file'),
         cell: ({ row }) => {
           const extension =
             row.original.name?.split('.').pop()?.toLowerCase() ||
@@ -181,7 +185,7 @@ export function DocumentsTable({
       ...indexCols,
       {
         accessorKey: 'updated',
-        header: 'Last Updated',
+        header: page_documents('last_updated'),
         cell: ({ row }) => {
           return row.original.updated ? (
             <FormatDate datetime={new Date(row.original.updated)} />
@@ -192,7 +196,7 @@ export function DocumentsTable({
       },
     ];
     return cols;
-  }, [collection]);
+  }, [collection.id, page_collections, page_documents]);
 
   const table = useReactTable({
     data,
@@ -239,7 +243,7 @@ export function DocumentsTable({
       <div className="flex items-center justify-between">
         <div className="flex flex-row items-center gap-2">
           <Input
-            placeholder="Search"
+            placeholder={page_documents('search_document')}
             value={searchValue}
             onChange={(e) => setSearchValue(e.currentTarget.value)}
             onKeyDown={(e) => {
@@ -256,7 +260,6 @@ export function DocumentsTable({
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
                 <Columns3 />
-                <span className="hidden lg:inline">Columns</span>
                 <ChevronDown />
               </Button>
             </DropdownMenuTrigger>

@@ -5,6 +5,7 @@ import {
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
 import { parsePageParams, toJson } from '@/lib/utils';
+import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { CollectionHeader } from '../collection-header';
 import { DocumentsTable } from './documents-table';
@@ -19,6 +20,7 @@ export default async function Page({
   const { collectionId } = await params;
   const { page, pageSize, search } = await searchParams;
   const serverApi = await getServerApi();
+  const page_marketplace = await getTranslations('page_marketplace');
   const [collectionRes, documentsRes] = await Promise.all([
     serverApi.defaultApi.marketplaceCollectionsCollectionIdGet({
       collectionId,
@@ -45,7 +47,7 @@ export default async function Page({
       <PageHeader
         breadcrumbs={[
           {
-            title: 'Marketplace',
+            title: page_marketplace('metadata.title'),
             href: '/workspace/market/collections',
           },
           {

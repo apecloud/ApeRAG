@@ -34,8 +34,8 @@ export const CollectionHeader = ({
   const pathname = usePathname();
 
   const { user } = useAppContext();
-  const module_collection = useTranslations('module_collection');
-
+  const page_collections = useTranslations('page_collections');
+  const page_documents = useTranslations('page_documents');
   const isOwner = useMemo(
     () => collection.owner_user_id === user?.id,
     [collection.owner_user_id, user?.id],
@@ -69,7 +69,7 @@ export const CollectionHeader = ({
           <CardTitle className="mb-0 text-2xl">{collection.title}</CardTitle>
           <CardAction className="text-muted-foreground flex flex-row items-center gap-4 text-xs">
             {isOwner ? (
-              <Badge>{module_collection('mine')}</Badge>
+              <Badge>{page_collections('mine')}</Badge>
             ) : (
               <div className="flex flex-row items-center gap-1">
                 <User className="size-4" />
@@ -88,8 +88,8 @@ export const CollectionHeader = ({
               {isSubscriber ? <FaStar className="text-orange-500" /> : <Star />}
 
               {isSubscriber
-                ? module_collection('unsubscribe')
-                : module_collection('subscribe')}
+                ? page_collections('unsubscribe')
+                : page_collections('subscribe')}
             </Button>
           </CardAction>
         </CardHeader>
@@ -114,7 +114,9 @@ export const CollectionHeader = ({
               href={`/workspace/market/collections/${collection.id}/documents`}
             >
               <Files />
-              <span className="hidden sm:inline">Documents</span>
+              <span className="hidden sm:inline">
+                {page_documents('metadata.title')}
+              </span>
             </Link>
           </Button>
 

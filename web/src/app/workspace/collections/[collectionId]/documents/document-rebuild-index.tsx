@@ -1,7 +1,6 @@
 'use client';
 
-import { Document } from '@/api';
-import { FileIndexTypes } from '@/app/workspace/collections/tools';
+import { Document, RebuildIndexesRequestIndexTypesEnum } from '@/api';
 import { useCollectionContext } from '@/components/providers/collection-provider';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -20,6 +19,7 @@ import { apiClient } from '@/lib/api/client';
 import { cn, objectKeys } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -28,7 +28,7 @@ import { z } from 'zod';
 import { DocumentIndexStatus } from './document-index-status';
 
 const documentReBuildSchema = z.object({
-  index_types: z.array(z.enum(objectKeys(FileIndexTypes))),
+  index_types: z.array(z.enum(objectKeys(RebuildIndexesRequestIndexTypesEnum))),
 });
 
 type DocumentReBuildSchemaType = z.infer<typeof documentReBuildSchema>;
@@ -41,26 +41,31 @@ export const DocumentReBuildIndex = ({
   children: React.ReactNode;
 }) => {
   const { collection } = useCollectionContext();
+  const page_documents = useTranslations('page_documents');
+  const page_collections = useTranslations('page_collections');
+  const common_action = useTranslations('common.action');
   const [visible, setVisible] = useState<boolean>(false);
   const router = useRouter();
   const form = useForm<DocumentReBuildSchemaType>({
     resolver: zodResolver(documentReBuildSchema),
     defaultValues: {
-      index_types: objectKeys(FileIndexTypes).filter((key) => {
-        const config = collection.config;
-        switch (key) {
-          case 'FULLTEXT':
-            return config?.enable_fulltext;
-          case 'GRAPH':
-            return config?.enable_knowledge_graph;
-          case 'SUMMARY':
-            return config?.enable_summary;
-          case 'VECTOR':
-            return config?.enable_vector;
-          case 'VISION':
-            return config?.enable_vision;
-        }
-      }),
+      index_types: objectKeys(RebuildIndexesRequestIndexTypesEnum).filter(
+        (key) => {
+          const config = collection.config;
+          switch (key) {
+            case 'FULLTEXT':
+              return config?.enable_fulltext;
+            case 'GRAPH':
+              return config?.enable_knowledge_graph;
+            case 'SUMMARY':
+              return config?.enable_summary;
+            case 'VECTOR':
+              return config?.enable_vector;
+            case 'VISION':
+              return config?.enable_vision;
+          }
+        },
+      ),
     },
   });
 
@@ -85,8 +90,13 @@ export const DocumentReBuildIndex = ({
 
     if (res.status === 200) {
       toast.success(
-        `Index rebuild initiated for types: ${values.index_types.join(', ')}`,
+        page_documents('index_rebuild_with', {
+          types: values.index_types
+            .map((type) => page_collections(`index_type_${type}.title`))
+            .join(', '),
+        }),
       );
+
       setVisible(false);
       setTimeout(router.refresh, 300);
     }
@@ -108,12 +118,11 @@ export const DocumentReBuildIndex = ({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleRebuild)}>
             <DialogHeader>
-              <DialogTitle>File Index Rebuild</DialogTitle>
+              <DialogTitle>{page_documents('index_rebuild')}</DialogTitle>
               <DialogDescription>{file.name}</DialogDescription>
             </DialogHeader>
             <div className="my-6 flex flex-col gap-2">
-              {objectKeys(FileIndexTypes)?.map((key) => {
-                const item = FileIndexTypes[key];
+              {objectKeys(RebuildIndexesRequestIndexTypesEnum)?.map((key) => {
                 const config = collection.config;
                 let enabled: boolean | undefined;
                 switch (key) {
@@ -167,7 +176,7 @@ export const DocumentReBuildIndex = ({
                           </FormControl>
                           <div className="grid gap-1.5 font-normal">
                             <div className="item-center flex flex-row justify-between text-sm leading-none font-medium">
-                              {item.title}
+                              {page_collections(`index_type_${key}.title`)}
                               <DocumentIndexStatus
                                 document={file}
                                 accessorKey={
@@ -176,7 +185,9 @@ export const DocumentReBuildIndex = ({
                               />
                             </div>
                             <p className="text-muted-foreground text-sm">
-                              {item.description}
+                              {page_collections(
+                                `index_type_${key}.description`,
+                              )}
                             </p>
                           </div>
                         </Label>
@@ -188,7 +199,7 @@ export const DocumentReBuildIndex = ({
             </div>
             <DialogFooter className="items-center">
               <div className="text-muted-foreground text-xs">
-                You can configure the index types in Settings.
+                {page_documents('index_rebuild_tips')}
               </div>
               <div className="ml-auto flex gap-2">
                 <Button
@@ -196,9 +207,9 @@ export const DocumentReBuildIndex = ({
                   variant="outline"
                   onClick={() => setVisible(false)}
                 >
-                  Cancel
+                  {common_action('cancel')}
                 </Button>
-                <Button type="submit">Rebuild</Button>
+                <Button type="submit">{common_action('continue')}</Button>
               </div>
             </DialogFooter>
           </form>

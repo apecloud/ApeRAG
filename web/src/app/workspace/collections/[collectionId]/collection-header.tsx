@@ -50,8 +50,8 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
   };
   const { collection, share, loadShare } = useCollectionContext();
   const pathname = usePathname();
-  const module_collection = useTranslations('module_collection');
-
+  const page_collections = useTranslations('page_collections');
+  const page_documents = useTranslations('page_documents');
   const urls = useMemo(() => {
     return {
       documents: `/workspace/collections/${collection.id}/documents`,
@@ -70,16 +70,16 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
         await apiClient.defaultApi.collectionsCollectionIdSharingPost({
           collectionId: collection?.id,
         });
-        toast.success(module_collection('published_success'));
+        toast.success(page_collections('published_success'));
       } else {
         await apiClient.defaultApi.collectionsCollectionIdSharingDelete({
           collectionId: collection?.id,
         });
-        toast.success(module_collection('unpublished_success'));
+        toast.success(page_collections('unpublished_success'));
       }
       await loadShare();
     },
-    [collection?.id, loadShare, module_collection],
+    [collection?.id, loadShare, page_collections],
   );
 
   return (
@@ -114,8 +114,8 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
             {share && (
               <Badge variant={share.is_published ? 'default' : 'secondary'}>
                 {share.is_published
-                  ? module_collection('public')
-                  : module_collection('private')}
+                  ? page_collections('public')
+                  : page_collections('private')}
               </Badge>
             )}
 
@@ -133,11 +133,9 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
                         className="flex-col items-start gap-1"
                         onClick={() => shareCollection(false)}
                       >
-                        <div>{module_collection('unpublish_collection')}</div>
+                        <div>{page_collections('unpublish_collection')}</div>
                         <div className="text-muted-foreground text-xs">
-                          {module_collection(
-                            'unpublish_collection_description',
-                          )}
+                          {page_collections('unpublish_collection_description')}
                         </div>
                       </DropdownMenuItem>
                     ) : (
@@ -145,9 +143,9 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
                         className="flex-col items-start gap-1"
                         onClick={() => shareCollection(true)}
                       >
-                        <div>{module_collection('publish_collection')}</div>
+                        <div>{page_collections('publish_collection')}</div>
                         <div className="text-muted-foreground text-xs">
-                          {module_collection('publish_collection_description')}
+                          {page_collections('publish_collection_description')}
                         </div>
                       </DropdownMenuItem>
                     )}
@@ -157,7 +155,7 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
 
                 <CollectionDelete>
                   <DropdownMenuItem variant="destructive">
-                    <Trash /> {module_collection('delete_collection')}
+                    <Trash /> {page_collections('delete_collection')}
                   </DropdownMenuItem>
                 </CollectionDelete>
               </DropdownMenuContent>
@@ -167,7 +165,7 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
         <CardDescription className="mb-4 px-4">
           {_.truncate(
             collection.description ||
-              module_collection('no_description_available'),
+              page_collections('no_description_available'),
             {
               length: 300,
             },
@@ -183,7 +181,9 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
           >
             <Link href={urls.documents}>
               <Files />
-              <span className="hidden sm:inline">Documents</span>
+              <span className="hidden sm:inline">
+                {page_documents('metadata.title')}
+              </span>
             </Link>
           </Button>
 

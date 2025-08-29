@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { apiClient } from '@/lib/api/client';
 import { Slot } from '@radix-ui/react-slot';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -27,6 +28,9 @@ export const DocumentDelete = ({
   children: React.ReactNode;
 }) => {
   const { collection } = useCollectionContext();
+  const common_tips = useTranslations('common.tips');
+  const common_action = useTranslations('common.action');
+  const page_documents = useTranslations('page_documents');
   const [visible, setVisible] = useState<boolean>(false);
   const router = useRouter();
 
@@ -41,7 +45,7 @@ export const DocumentDelete = ({
       );
 
     if (res.status === 200) {
-      toast.success('Deleted successfully!');
+      toast.success(common_tips('delete_success'));
       setVisible(false);
       setTimeout(router.refresh, 300);
     }
@@ -61,18 +65,17 @@ export const DocumentDelete = ({
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogTitle>{common_tips('confirm')}</AlertDialogTitle>
           <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete file and
-            remove your data from our servers.
+            {page_documents('delete_document_confirm')}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => setVisible(false)}>
-            Cancel
+            {common_action('cancel')}
           </AlertDialogCancel>
           <AlertDialogAction onClick={() => handleDelete()}>
-            Continue
+            {common_action('continue')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

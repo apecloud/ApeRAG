@@ -15,6 +15,7 @@ export default async function Page({
 }>) {
   const { collectionId } = await params;
   const page_collections = await getTranslations('page_collections');
+  const page_documents = await getTranslations('page_documents');
 
   return (
     <PageContainer>
@@ -25,11 +26,11 @@ export default async function Page({
             href: '/workspace/collections',
           },
           {
-            title: 'Documents',
+            title: page_documents('metadata.title'),
             href: `/workspace/collections/${collectionId}/documents`,
           },
           {
-            title: 'Upload',
+            title: page_documents('upload'),
           },
         ]}
       />
