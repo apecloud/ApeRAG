@@ -48,31 +48,3 @@ export const getDocumentStatusColor = (status?: DocumentStatusEnum) => {
   };
   return status ? data[status] : 'text-muted-foreground';
 };
-
-export const CollectionConfigIndexTypes = {
-  'config.enable_vector': {
-    disabled: true,
-    required_models: ['embedding'],
-    ...FileIndexTypes.VECTOR,
-  },
-  'config.enable_fulltext': {
-    disabled: true,
-    required_models: [],
-    ...FileIndexTypes.FULLTEXT,
-  },
-  'config.enable_knowledge_graph': {
-    disabled: false,
-    required_models: ['completion'],
-    ...FileIndexTypes.GRAPH,
-  },
-  'config.enable_summary': {
-    disabled: false,
-    required_models: ['completion'],
-    ...FileIndexTypes.SUMMARY,
-  },
-  'config.enable_vision': {
-    disabled: false,
-    required_models: ['completion'],
-    ...FileIndexTypes.VISION,
-  },
-};

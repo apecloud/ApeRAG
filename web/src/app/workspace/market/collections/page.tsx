@@ -28,7 +28,9 @@ export default async function Page() {
 
   return (
     <PageContainer>
-      <PageHeader breadcrumbs={[{ title: 'Marketplace' }]} />
+      <PageHeader
+        breadcrumbs={[{ title: page_marketplace('metadata.title') }]}
+      />
       <PageContent>
         <PageTitle>{page_marketplace('metadata.title')}</PageTitle>
         <PageDescription>

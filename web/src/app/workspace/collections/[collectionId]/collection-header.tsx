@@ -33,6 +33,7 @@ import {
   Trash,
   VectorSquare,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
@@ -49,6 +50,7 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
   };
   const { collection, share, loadShare } = useCollectionContext();
   const pathname = usePathname();
+  const module_collection = useTranslations('module_collection');
 
   const urls = useMemo(() => {
     return {
@@ -68,16 +70,16 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
         await apiClient.defaultApi.collectionsCollectionIdSharingPost({
           collectionId: collection?.id,
         });
-        toast.success('Collection published successfully');
+        toast.success(module_collection('published_success'));
       } else {
         await apiClient.defaultApi.collectionsCollectionIdSharingDelete({
           collectionId: collection?.id,
         });
-        toast.success('Collection unpublished successfully');
+        toast.success(module_collection('unpublished_success'));
       }
       await loadShare();
     },
-    [collection?.id, loadShare],
+    [collection?.id, loadShare, module_collection],
   );
 
   return (
@@ -111,7 +113,9 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
           <CardAction className="flex flex-row items-center gap-4">
             {share && (
               <Badge variant={share.is_published ? 'default' : 'secondary'}>
-                {share.is_published ? 'Public' : 'Private'}
+                {share.is_published
+                  ? module_collection('public')
+                  : module_collection('private')}
               </Badge>
             )}
 
@@ -129,10 +133,11 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
                         className="flex-col items-start gap-1"
                         onClick={() => shareCollection(false)}
                       >
-                        <div>Unpublish from Marketplace</div>
+                        <div>{module_collection('unpublish_collection')}</div>
                         <div className="text-muted-foreground text-xs">
-                          Remove the collection from the marketplace, making it
-                          private.
+                          {module_collection(
+                            'unpublish_collection_description',
+                          )}
                         </div>
                       </DropdownMenuItem>
                     ) : (
@@ -140,10 +145,9 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
                         className="flex-col items-start gap-1"
                         onClick={() => shareCollection(true)}
                       >
-                        <div>Publish to Marketplace</div>
+                        <div>{module_collection('publish_collection')}</div>
                         <div className="text-muted-foreground text-xs">
-                          Allow users to discover and subscribe to your
-                          collection.
+                          {module_collection('publish_collection_description')}
                         </div>
                       </DropdownMenuItem>
                     )}
@@ -153,7 +157,7 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
 
                 <CollectionDelete>
                   <DropdownMenuItem variant="destructive">
-                    <Trash /> Delete Collection
+                    <Trash /> {module_collection('delete_collection')}
                   </DropdownMenuItem>
                 </CollectionDelete>
               </DropdownMenuContent>
@@ -161,9 +165,13 @@ export const CollectionHeader = ({ className }: { className?: string }) => {
           </CardAction>
         </CardHeader>
         <CardDescription className="mb-4 px-4">
-          {_.truncate(collection.description || 'No description available', {
-            length: 300,
-          })}
+          {_.truncate(
+            collection.description ||
+              module_collection('no_description_available'),
+            {
+              length: 300,
+            },
+          )}
         </CardDescription>
         <Separator />
         <div className="bg-accent/50 flex flex-row gap-2 rounded-b-xl px-4">

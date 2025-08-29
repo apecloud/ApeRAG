@@ -27,7 +27,8 @@ export const CollectionList = ({
 }) => {
   const [searchValue, setSearchValue] = useState<string>('');
   const page_collections = useTranslations('page_collections');
-
+  const page_collection_new = useTranslations('page_collection_new');
+  const module_collection = useTranslations('module_collection');
   return (
     <>
       <div className="mb-4 flex flex-row items-center">
@@ -41,7 +42,7 @@ export const CollectionList = ({
         <div className="ml-auto flex items-center gap-2">
           <Button asChild>
             <Link href="/workspace/collections/new">
-              <Plus /> {page_collections('add_collection')}
+              <Plus /> {page_collection_new('metadata.title')}
             </Link>
           </Button>
         </div>
@@ -87,15 +88,15 @@ export const CollectionList = ({
                             }
                           >
                             {collection.is_published
-                              ? page_collections('public')
-                              : page_collections('private')}
+                              ? module_collection('public')
+                              : module_collection('private')}
                           </Badge>
                         )}
                       </CardAction>
                     </CardHeader>
                     <CardDescription className="mb-4 truncate px-4">
                       {collection.description ||
-                        page_collections('no_description_available')}
+                        module_collection('no_description_available')}
                     </CardDescription>
                     <CardFooter className="justify-between px-4 text-xs">
                       <div className="text-muted-foreground">

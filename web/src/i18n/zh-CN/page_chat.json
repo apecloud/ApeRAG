@@ -1,50 +1,50 @@
 {
   "metadata": {
-    "title": "Chats"
+    "title": "会话"
   },
 
   "hello_world": "Hi, I'm ApeRAG.",
-  "rag_description": "ApeRAG is a production-ready RAG platform that combines graph, vector, and full-text search for hybrid retrieval, knowledge management, and enterprise AI applications.",
+  "rag_description": "ApeRAG是一个结合图检索、向量搜索和全文搜索技术，提供混合检索、知识管理和企业AI应用解决方案。",
 
-  "mention_a_collection": "Type @ to mention a collection...",
+  "mention_a_collection": "输入@关联相关知识库...",
 
-  "display_empty_title": "New chat",
+  "display_empty_title": "新会话",
 
-  "no_collection_was_found": "No collection was found",
+  "no_collection_was_found": "未找到相关知识库",
 
-  "web_search": "Web search",
-  "web_search_is_enabled": "Web search is enabled",
-  "web_search_is_disabled": "Web search is disabled",
+  "web_search": "网络检索",
+  "web_search_is_enabled": "网络检索已启用",
+  "web_search_is_disabled": "网络检索已禁用",
 
-  "references": "References",
+  "references": "参考文献",
 
   "feedback": {
-    "title": "Tell Us What You Think",
+    "title": "反馈意见",
 
-    "choose_a_category": "Please choose a category for your feedback below.",
+    "choose_a_category": "请选择反馈类别",
 
     "Harmful": {
-      "title": "Harmful",
-      "description": "Promotes dangerous, violent, or discriminatory acts."
+      "title": "有害内容",
+      "description": "宣扬危险、暴力或歧视性行为"
     },
     "Unsafe": {
-      "title": "Unsafe",
-      "description": "Contains risky or physically dangerous information."
+      "title": "安全隐患",
+      "description": "包含风险或人身危险信息"
     },
     "Fake": {
-      "title": "Fake",
-      "description": "Intentionally false, deceptive, or misleading."
+      "title": "虚假信息",
+      "description": "故意虚假、欺骗性或误导性内容"
     },
     "Unhelpful": {
-      "title": "Unhelpful",
-      "description": "Irrelevant, poorly explained, or fails to address the query."
+      "title": "内容不佳",
+      "description": "无关、解释不清或未能解答问题"
     },
     "Other": {
-      "title": "Other",
-      "description": "Any issue not covered by the categories above."
+      "title": "其他问题",
+      "description": "上述类别未涵盖的其他问题"
     },
 
-    "share_your_feedback": "Share your feedback",
-    "share_your_feedback_placeholder": "Please provide your feedback so we can continue to enhance your experience."
+    "share_your_feedback": "分享您的反馈",
+    "share_your_feedback_placeholder": "请提供反馈意见，帮助我们持续改进体验"
   }
 }

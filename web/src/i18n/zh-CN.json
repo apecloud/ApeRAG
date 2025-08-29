@@ -13,8 +13,72 @@
     },
     "action": {
       "save": "保存",
-      "cancel": "取消"
+      "cancel": "取消",
+      "continue": "继续"
+    },
+    "tips": {
+      "confirm": "请确认操作",
+      "update_success": "更新成功.",
+      "create_success": "创建成功."
     }
+  },
+  "components": {
+    "dmermaid": {
+      "graph": "拓扑结构",
+      "data": "数据"
+    },
+    "copy_to_clipboard": {
+      "copied": "复制成功"
+    }
+  },
+  "module_collection": {
+    "general": "常规设置",
+    "private": "私有",
+    "public": "公开",
+    "no_description_available": "没有可用的描述",
+    "create_collection": "创建知识库",
+    "update_collection": "更新知识库",
+    "delete_collection": "删除知识库",
+    "delete_collection_confirm": "此操作不可撤销。系统将永久删除该知识库，并从我们的服务器中移除所有相关文档。",
+    "publish_collection": "发布至市场",
+    "publish_collection_description": "允许用户发现并订阅您的知识库",
+    "unpublish_collection": "从市场下架",
+    "unpublish_collection_description": "将此知识库从市场中移除，转为私有状态",
+    "published_success": "已发布到市场",
+    "unpublished_success": "已从市场下架",
+    "name": "名称",
+    "name_placeholder": "知识库显示名称",
+    "description": "描述",
+    "description_placeholder": "请简要描述该知识库的整体内容",
+    "index_types": "索引类型",
+    "index_types_description": "选择所需的AI索引能力，我们将为您的文档构建相应索引",
+    "index_type_VECTOR": {
+      "title": "向量索引",
+      "description": "将数据（文本、图像等）表示为高维向量，支持基于相似度的检索"
+    },
+    "index_type_FULLTEXT": {
+      "title": "全文索引",
+      "description": "使用倒排索引等技术对文本中的关键词建立索引，支持精确或模糊匹配"
+    },
+    "index_type_GRAPH": {
+      "title": "图索引",
+      "description": "以节点（实体）和边（关系）的形式存储数据，支持复杂关系查询"
+    },
+    "index_type_SUMMARY": {
+      "title": "摘要索引",
+      "description": "为长文档建立摘要或元数据索引而非原始内容，实现更快速的检索"
+    },
+    "index_type_VISION": {
+      "title": "视觉索引",
+      "description": "将视觉内容（图像/视频）编码为特征向量，支持基于内容的检索"
+    },
+    "required": "必选",
+    "model_settings": "模型设置",
+    "model_settings_description": "选择用于文档处理的AI模型。不同索引类型需要不同的模型支持",
+    "embedding_model": "嵌入模型（Embedding Model）",
+    "embedding_model_description": "嵌入模型能够将数据转换为数值向量，这些向量能够捕捉数据的语义信息及其相互关系。",
+    "completion_model": "补全模型（Completion Model）",
+    "completion_model_description": "补全模型能根据给定输入预测最可能的下文内容，从而生成新的文本。"
   },
   "page_auth": {
     "account": "我的账号",
@@ -46,6 +110,71 @@
     "oauth_verification_failed": "OAuth验证失败",
     "an_unexpected_error_occurred": "发生未预期的错误"
   },
+  "page_chat": {
+    "metadata": {
+      "title": "会话"
+    },
+    "hello_world": "Hi, I'm ApeRAG.",
+    "rag_description": "ApeRAG是一个结合图检索、向量搜索和全文搜索技术，提供混合检索、知识管理和企业AI应用解决方案。",
+    "mention_a_collection": "输入@关联相关知识库...",
+    "display_empty_title": "新会话",
+    "no_collection_was_found": "未找到相关知识库",
+    "web_search": "网络检索",
+    "web_search_is_enabled": "网络检索已启用",
+    "web_search_is_disabled": "网络检索已禁用",
+    "references": "参考文献",
+    "feedback": {
+      "title": "反馈意见",
+      "choose_a_category": "请选择反馈类别",
+      "Harmful": {
+        "title": "有害内容",
+        "description": "宣扬危险、暴力或歧视性行为"
+      },
+      "Unsafe": {
+        "title": "安全隐患",
+        "description": "包含风险或人身危险信息"
+      },
+      "Fake": {
+        "title": "虚假信息",
+        "description": "故意虚假、欺骗性或误导性内容"
+      },
+      "Unhelpful": {
+        "title": "内容不佳",
+        "description": "无关、解释不清或未能解答问题"
+      },
+      "Other": {
+        "title": "其他问题",
+        "description": "上述类别未涵盖的其他问题"
+      },
+      "share_your_feedback": "分享您的反馈",
+      "share_your_feedback_placeholder": "请提供反馈意见，帮助我们持续改进体验"
+    }
+  },
+  "page_collection_new": {
+    "metadata": {
+      "title": "添加知识库",
+      "description": "通过导入并系统化整理数据源至结构化数据集中，可显著提升大语言模型（LLMs）的上下文理解能力和响应准确性。"
+    }
+  },
+  "page_collections": {
+    "metadata": {
+      "title": "我的知识库",
+      "description": "通过导入并系统化整理数据源至结构化知识库中，可显著提升大语言模型（LLMs）的上下文理解能力和响应准确性"
+    },
+    "search": "搜索我的知识库",
+    "subscribed": "已订阅",
+    "no_collections_found": "未找到知识库"
+  },
+  "page_marketplace": {
+    "metadata": {
+      "title": "市场",
+      "description": "探索并订阅社区分享的优质知识合集，拓展你的知识边界。"
+    },
+    "no_collections_found": "未找到相关知识库",
+    "no_description_available": "没有可用的描述",
+    "search": "搜索社区知识库",
+    "mine": "我的"
+  },
   "sidebar_workspace": {
     "repositories": "知识库",
     "marketplace": "市场",
@@ -62,77 +191,5 @@
     "api_keys": "API密钥",
     "audit_logs": "审计日志",
     "quotas": "配额"
-  },
-  "page_marketplace": {
-    "metadata": {
-      "title": "市场",
-      "description": "探索并订阅社区分享的优质知识合集，拓展你的知识边界。"
-    },
-    "no_collections_found": "未找到相关知识库",
-    "no_description_available": "没有可用的描述",
-    "search": "搜索知识库",
-    "mine": "我的"
-  },
-  "page_collections": {
-    "metadata": {
-      "title": "我的知识库",
-      "description": "通过导入并系统化整理数据源至结构化知识库中，可显著提升大语言模型（LLMs）的上下文理解能力和响应准确性"
-    },
-    "add_collection": "添加知识库",
-    "search": "搜索我的知识库",
-    "private": "私有",
-    "public": "公开",
-    "subscribed": "已订阅",
-    "no_collections_found": "未找到知识库",
-    "no_description_available": "没有可用的描述"
-  },
-  "page_chat": {
-    "metadata": {
-      "title": "Chats"
-    },
-    "hello_world": "Hi, I'm ApeRAG.",
-    "rag_description": "ApeRAG is a production-ready RAG platform that combines graph, vector, and full-text search for hybrid retrieval, knowledge management, and enterprise AI applications.",
-    "mention_a_collection": "Type @ to mention a collection...",
-    "display_empty_title": "New chat",
-    "no_collection_was_found": "No collection was found",
-    "web_search": "Web search",
-    "web_search_is_enabled": "Web search is enabled",
-    "web_search_is_disabled": "Web search is disabled",
-    "references": "References",
-    "feedback": {
-      "title": "Tell Us What You Think",
-      "choose_a_category": "Please choose a category for your feedback below.",
-      "Harmful": {
-        "title": "Harmful",
-        "description": "Promotes dangerous, violent, or discriminatory acts."
-      },
-      "Unsafe": {
-        "title": "Unsafe",
-        "description": "Contains risky or physically dangerous information."
-      },
-      "Fake": {
-        "title": "Fake",
-        "description": "Intentionally false, deceptive, or misleading."
-      },
-      "Unhelpful": {
-        "title": "Unhelpful",
-        "description": "Irrelevant, poorly explained, or fails to address the query."
-      },
-      "Other": {
-        "title": "Other",
-        "description": "Any issue not covered by the categories above."
-      },
-      "share_your_feedback": "Share your feedback",
-      "share_your_feedback_placeholder": "Please provide your feedback so we can continue to enhance your experience."
-    }
-  },
-  "components": {
-    "dmermaid": {
-      "graph": "拓扑结构",
-      "data": "数据"
-    },
-    "copy_to_clipboard": {
-      "copied": "复制成功"
-    }
   }
 }

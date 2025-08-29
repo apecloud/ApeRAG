@@ -3,11 +3,7 @@
     "title": "我的知识库",
     "description": "通过导入并系统化整理数据源至结构化知识库中，可显著提升大语言模型（LLMs）的上下文理解能力和响应准确性"
   },
-  "add_collection": "添加知识库",
   "search": "搜索我的知识库",
-  "private": "私有",
-  "public": "公开",
   "subscribed": "已订阅",
-  "no_collections_found": "未找到知识库",
-  "no_description_available": "没有可用的描述"
+  "no_collections_found": "未找到知识库"
 }

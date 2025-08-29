@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api/client';
 import { Slot } from '@radix-ui/react-slot';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
@@ -25,6 +26,9 @@ export const CollectionDelete = ({
   const { collection } = useCollectionContext();
   const [deleteVisible, setDeleteVisible] = useState<boolean>(false);
   const router = useRouter();
+  const common_action = useTranslations('common.action');
+  const common_tips = useTranslations('common.tips');
+  const module_collection = useTranslations('module_collection');
 
   const handleDelete = useCallback(async () => {
     if (collection?.id) {
@@ -55,19 +59,18 @@ export const CollectionDelete = ({
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogTitle>{common_tips('confirm')}</AlertDialogTitle>
           <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete
-            collection and remove your documents from our servers.
+            {module_collection('delete_collection_confirm')}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogDescription></AlertDialogDescription>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => setDeleteVisible(false)}>
-            Cancel
+            {common_action('cancel')}
           </AlertDialogCancel>
           <Button variant="destructive" onClick={() => handleDelete()}>
-            Continue
+            {common_action('continue')}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>

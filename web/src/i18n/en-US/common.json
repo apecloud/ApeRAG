@@ -12,6 +12,12 @@
   },
   "action": {
     "save": "Save",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "continue": "Contunue"
+  },
+  "tips": {
+    "confirm": "Are you absolutely sure?",
+    "update_success": "update successfully.",
+    "create_success": "create successfully."
   }
 }
