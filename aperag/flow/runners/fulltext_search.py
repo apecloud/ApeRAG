@@ -114,36 +114,14 @@ class FulltextSearchNodeRunner(BaseNodeRunner):
         """
         chat_id = ui.chat_id or getattr(si, 'chat_id', None)
 
-        # Get collection_ids from user input or system input (bot's configured collections)
-        regular_collection_ids = ui.collection_ids or getattr(si, 'collection_ids', [])
+        collection_ids = ui.collection_ids or getattr(si, 'collection_ids', [])
         
-        # Get chat collection from system input if available
-        chat_collection_id = getattr(si, 'chat_collection_id', None)
-        
-        all_docs = []
-        
-        # Search in regular collections (without chat_id filter)
-        if regular_collection_ids:
-            regular_docs = await self.service.execute_fulltext_search(
-                user=si.user,
-                query=si.query,
-                top_k=ui.top_k,
-                collection_ids=regular_collection_ids,
-                keywords=ui.keywords,
-                chat_id=None,  # No chat_id filter for regular collections
-            )
-            all_docs.extend(regular_docs)
-        
-        # Search in chat collection (with chat_id filter)
-        if chat_id and chat_collection_id:
-            chat_docs = await self.service.execute_fulltext_search(
-                user=si.user,
-                query=si.query,
-                top_k=ui.top_k,
-                collection_ids=[chat_collection_id],
-                keywords=ui.keywords,
-                chat_id=chat_id,  # Apply chat_id filter only for chat collection
-            )
-            all_docs.extend(chat_docs)
-
-        return FulltextSearchOutput(docs=all_docs), {}
+        docs = await self.service.execute_fulltext_search(
+            user=si.user,
+            query=si.query,
+            top_k=ui.top_k,
+            collection_ids=collection_ids,
+            keywords=ui.keywords,
+            chat_id=chat_id
+        )
+        return FulltextSearchOutput(docs=docs), {}

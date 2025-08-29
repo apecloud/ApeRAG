@@ -316,7 +316,6 @@ class CollectionService:
             "deduplicate": True,
         }
         query = data.query
-
         # Configure search nodes based on request
         if data.vector_search:
             node_id = "vector_search"

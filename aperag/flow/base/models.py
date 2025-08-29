@@ -149,7 +149,6 @@ class SystemInput:
     chat_id: Optional[str] = None
     history: Optional[BaseChatMessageHistory] = None
     message_id: Optional[str] = None
-    chat_collection_id: Optional[str] = None  # Chat collection ID for temporary documents
 
     def __init__(
         self, query: str, user: str, history: Optional[BaseChatMessageHistory] = None, message_id: Optional[str] = None, **kwargs
