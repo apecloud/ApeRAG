@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import _ from 'lodash';
 import { Calendar, Plus } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -25,13 +26,14 @@ export const CollectionList = ({
   collections: CollectionView[];
 }) => {
   const [searchValue, setSearchValue] = useState<string>('');
+  const page_collections = useTranslations('page_collections');
 
   return (
     <>
       <div className="mb-4 flex flex-row items-center">
         <div>
           <Input
-            placeholder="Search"
+            placeholder={page_collections('search')}
             value={searchValue}
             onChange={(e) => setSearchValue(e.currentTarget.value)}
           />
@@ -39,7 +41,7 @@ export const CollectionList = ({
         <div className="ml-auto flex items-center gap-2">
           <Button asChild>
             <Link href="/workspace/collections/new">
-              <Plus /> Add collection
+              <Plus /> {page_collections('add_collection')}
             </Link>
           </Button>
         </div>
@@ -47,7 +49,7 @@ export const CollectionList = ({
 
       {collections.length === 0 ? (
         <div className="bg-accent/50 text-muted-foreground rounded-lg py-40 text-center">
-          No collections found
+          {page_collections('no_collections_found')}
         </div>
       ) : (
         <div className="sm:grid-col-1 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -77,20 +79,23 @@ export const CollectionList = ({
                       </CardTitle>
                       <CardAction className="flex flex-row items-center gap-4">
                         {collection.subscription_id ? (
-                          <Badge>Subscribed</Badge>
+                          <Badge>{page_collections('subscribed')}</Badge>
                         ) : (
                           <Badge
                             variant={
                               collection.is_published ? 'default' : 'secondary'
                             }
                           >
-                            {collection.is_published ? 'Public' : 'Private'}
+                            {collection.is_published
+                              ? page_collections('public')
+                              : page_collections('private')}
                           </Badge>
                         )}
                       </CardAction>
                     </CardHeader>
                     <CardDescription className="mb-4 truncate px-4">
-                      {collection.description || 'No description available'}
+                      {collection.description ||
+                        page_collections('no_description_available')}
                     </CardDescription>
                     <CardFooter className="justify-between px-4 text-xs">
                       <div className="text-muted-foreground">

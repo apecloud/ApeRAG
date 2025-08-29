@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { User } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -23,11 +24,11 @@ export const CollectionList = ({
 }) => {
   const { user } = useAppContext();
   const [searchValue, setSearchValue] = useState<string>('');
-
+  const page_marketplace = useTranslations('page_marketplace');
   if (collections.length === 0) {
     return (
       <div className="text-muted-foreground my-40 text-center">
-        No collections found
+        {page_marketplace('no_collections_found')}
       </div>
     );
   }
@@ -36,7 +37,7 @@ export const CollectionList = ({
     <>
       <div className="mb-4">
         <Input
-          placeholder="Search"
+          placeholder={page_marketplace('search')}
           value={searchValue}
           onChange={(e) => setSearchValue(e.currentTarget.value)}
           className="max-w-md"
@@ -82,11 +83,12 @@ export const CollectionList = ({
                     </CardAction>
                   </CardHeader>
                   <CardDescription className="mb-4 truncate px-4">
-                    {collection.description || 'No description available'}
+                    {collection.description ||
+                      page_marketplace('no_description_available')}
                   </CardDescription>
                   <CardFooter className="text-muted-foreground justify-between px-4 text-sm">
                     {isOwner ? (
-                      <Badge>Mine</Badge>
+                      <Badge>{page_marketplace('mine')}</Badge>
                     ) : (
                       <div className="flex flex-row items-center gap-1">
                         <User className="size-4" />

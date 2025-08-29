@@ -19,16 +19,18 @@ import {
 import { motion } from 'framer-motion';
 import _ from 'lodash';
 import { Plus, Trash } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 export const MenuChats = () => {
   const { bot, chats, chatCreate, chatDelete } = useWorkspaceContext();
   const pathname = usePathname();
+  const sidebar_workspace = useTranslations('sidebar_workspace');
   return (
     <SidebarGroup>
       <SidebarGroupLabel className="mb-1 flex flex-row justify-between pr-0">
-        <span>Chats</span>
+        <span>{sidebar_workspace('chats')}</span>
         {_.size(chats) > 0 && (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -39,10 +41,14 @@ export const MenuChats = () => {
                 variant="secondary"
               >
                 <Plus />
-                <span className="sr-only">Create chat</span>
+                <span className="sr-only">
+                  {sidebar_workspace('chats_new')}
+                </span>
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="right">Create chat</TooltipContent>
+            <TooltipContent side="right">
+              {sidebar_workspace('chats_new')}
+            </TooltipContent>
           </Tooltip>
         )}
       </SidebarGroupLabel>
@@ -55,7 +61,7 @@ export const MenuChats = () => {
                 className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground min-w-8 cursor-pointer duration-200 ease-linear"
               >
                 <Plus />
-                <span>Create chat</span>
+                <span>{sidebar_workspace('chats_new')}</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           ) : (

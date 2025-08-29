@@ -8,15 +8,16 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { BookOpen, LayoutGrid } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 export const MenuMain = () => {
   const pathname = usePathname();
-
+  const sidebar_workspace = useTranslations('sidebar_workspace');
   return (
     <SidebarGroup className="py-0">
-      <SidebarGroupLabel>Repositories</SidebarGroupLabel>
+      <SidebarGroupLabel>{sidebar_workspace('repositories')}</SidebarGroupLabel>
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton
@@ -26,7 +27,7 @@ export const MenuMain = () => {
           >
             <Link href="/workspace/market/collections">
               <LayoutGrid />
-              Marketplace
+              {sidebar_workspace('marketplace')}
             </Link>
           </SidebarMenuButton>
         </SidebarMenuItem>
@@ -38,7 +39,7 @@ export const MenuMain = () => {
           >
             <Link href="/workspace/collections">
               <BookOpen />
-              Collections
+              {sidebar_workspace('collections')}
             </Link>
           </SidebarMenuButton>
         </SidebarMenuItem>

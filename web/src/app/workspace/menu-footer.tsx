@@ -29,10 +29,12 @@ import {
   Package,
   Settings,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 
 export const MenuFooter = () => {
   const { isMobile } = useSidebar();
+  const sidebar_workspace = useTranslations('sidebar_workspace');
 
   return (
     <SidebarFooter>
@@ -47,7 +49,7 @@ export const MenuFooter = () => {
               >
                 <SidebarMenuButton className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
                   <FlaskConical />
-                  Evaluation
+                  {sidebar_workspace('evaluation')}
                   <ChevronRight className="ml-auto" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
@@ -60,12 +62,12 @@ export const MenuFooter = () => {
                 <DropdownMenuGroup>
                   <DropdownMenuItem asChild>
                     <Link href="/workspace/evaluations">
-                      <History /> Evaluation
+                      <History /> {sidebar_workspace('evaluation')}
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href="/workspace/evaluations/questions">
-                      <MailQuestionMark /> Question Sets
+                      <MailQuestionMark /> {sidebar_workspace('question_sets')}
                     </Link>
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
@@ -79,7 +81,7 @@ export const MenuFooter = () => {
               >
                 <SidebarMenuButton className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
                   <Settings />
-                  Settings
+                  {sidebar_workspace('settings')}
                   <ChevronRight className="ml-auto" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
@@ -92,25 +94,25 @@ export const MenuFooter = () => {
                 <DropdownMenuGroup>
                   <DropdownMenuItem asChild>
                     <Link href="/workspace/providers">
-                      <Package /> Models
+                      <Package /> {sidebar_workspace('models')}
                     </Link>
                   </DropdownMenuItem>
 
                   <DropdownMenuItem asChild>
                     <Link href="/workspace/api-keys">
-                      <Key /> API Keys
+                      <Key /> {sidebar_workspace('api_keys')}
                     </Link>
                   </DropdownMenuItem>
 
                   <DropdownMenuItem asChild>
                     <Link href="/workspace/audit-logs">
-                      <Logs /> Audit Logs
+                      <Logs /> {sidebar_workspace('audit_logs')}
                     </Link>
                   </DropdownMenuItem>
 
                   <DropdownMenuItem asChild>
                     <Link href="/workspace/quotas">
-                      <BatteryMedium /> Quotas
+                      <BatteryMedium /> {sidebar_workspace('quotas')}
                     </Link>
                   </DropdownMenuItem>
                 </DropdownMenuGroup>

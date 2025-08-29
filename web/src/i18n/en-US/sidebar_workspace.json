@@ -1,0 +1,17 @@
+{
+  "repositories": "Repositories",
+  "marketplace": "Marketplace",
+  "collections": "Collections",
+  "chats": "Chats",
+  "chats_new": "Create chat",
+
+  "more": "More",
+  "evaluation": "Evaluation",
+  "question_sets": "Question Sets",
+
+  "settings": "Settings",
+  "models": "Models",
+  "api_keys": "API Keys",
+  "audit_logs": "Audit Logs",
+  "quotas": "Quotas"
+}

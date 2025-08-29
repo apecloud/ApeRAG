@@ -7,13 +7,14 @@ import {
   PageTitle,
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
+import { getTranslations } from 'next-intl/server';
 import { CollectionList } from './collection-list';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Page() {
   const serverApi = await getServerApi();
-
+  const page_marketplace = await getTranslations('page_marketplace');
   let collections: SharedCollection[] = [];
   try {
     const res = await serverApi.defaultApi.marketplaceCollectionsGet({
@@ -29,10 +30,9 @@ export default async function Page() {
     <PageContainer>
       <PageHeader breadcrumbs={[{ title: 'Marketplace' }]} />
       <PageContent>
-        <PageTitle>Marketplace</PageTitle>
+        <PageTitle>{page_marketplace('metadata.title')}</PageTitle>
         <PageDescription>
-          Discover and subscribe to quality knowledge collections shared by
-          community, expand your knowledge boundaries
+          {page_marketplace('metadata.description')}
         </PageDescription>
 
         <CollectionList collections={collections} />

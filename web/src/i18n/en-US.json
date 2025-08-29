@@ -39,5 +39,43 @@
     "retry": "Retry",
     "oauth_verification_failed": "oauth_verification_failed",
     "an_unexpected_error_occurred": "An unexpected error occurred"
+  },
+  "sidebar_workspace": {
+    "repositories": "Repositories",
+    "marketplace": "Marketplace",
+    "collections": "Collections",
+    "chats": "Chats",
+    "chats_new": "Create chat",
+    "more": "More",
+    "evaluation": "Evaluation",
+    "question_sets": "Question Sets",
+    "settings": "Settings",
+    "models": "Models",
+    "api_keys": "API Keys",
+    "audit_logs": "Audit Logs",
+    "quotas": "Quotas"
+  },
+  "page_marketplace": {
+    "metadata": {
+      "title": "Marketplace",
+      "description": "Discover and subscribe to quality knowledge collections shared by community, expand your knowledge boundaries"
+    },
+    "no_collections_found": "No collections found",
+    "no_description_available": "No description available",
+    "search": "Search",
+    "mine": "Mine"
+  },
+  "page_collections": {
+    "metadata": {
+      "title": "Collections",
+      "description": "By importing and systematically organizing your data sources into a structured dataset, you can significantly improve the contextual understanding and response accuracy of large language models (LLMs)"
+    },
+    "add_collection": "Add collection",
+    "search": "Search",
+    "private": "Private",
+    "public": "Public",
+    "subscribed": "Subscribed",
+    "no_collections_found": "No collections found",
+    "no_description_available": "No description available"
   }
 }
