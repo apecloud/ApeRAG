@@ -49,8 +49,6 @@ class ChatDocumentService:
         doc_metadata = {
             "chat_id": chat_id,
             "file_type": "chat_upload",
-            "original_filename": file.filename,
-            "upload_timestamp": utc_now().isoformat()
         }
 
         # Use document service to create document
