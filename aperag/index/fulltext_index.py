@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import logging
 import os
 from pathlib import Path
@@ -63,20 +64,6 @@ class FulltextIndexer(BaseIndexer):
         chunk_metadata = part.metadata.copy() if hasattr(part, "metadata") and part.metadata else {}
         titles = chunk_metadata.get("titles", [])
         title_text = " > ".join(titles) if titles else ""
-
-        # Add chat metadata if this is a chat upload
-        if document_id:
-            from aperag.db.ops import db_ops
-            document = db_ops.query_document_by_id(document_id)
-            if document and document.doc_metadata:
-                try:
-                    import json
-                    doc_metadata = json.loads(document.doc_metadata)
-                    if doc_metadata.get("file_type") == "chat_upload":
-                        chunk_metadata["chat_id"] = doc_metadata.get("chat_id")
-                        chunk_metadata["document_id"] = document_id
-                except json.JSONDecodeError:
-                    pass
 
         return chunk_content, title_text, chunk_metadata
 

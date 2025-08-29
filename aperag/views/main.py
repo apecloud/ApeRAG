@@ -39,6 +39,8 @@ from aperag.service.llm_provider_service import (
     update_llm_provider_model,
 )
 from aperag.service.prompt_template_service import list_prompt_templates
+from aperag.service.chat_collection_service import chat_collection_service
+from aperag.service.collection_service import collection_service
 from aperag.utils.audit_decorator import audit
 
 # Import authentication dependencies
@@ -263,6 +265,180 @@ async def generate_chat_title_view(
         return {"title": title}
     except BusinessException as be:
         raise HTTPException(status_code=400, detail={"error_code": be.error_code.name, "message": str(be)})
+
+
+@router.post("/chat/{chat_id}/search", tags=["chats"])
+@audit(resource_type="search", api_name="SearchChatFiles")
+async def search_chat_files_view(
+    request: Request,
+    chat_id: str,
+    data: view_models.SearchRequest,
+    user: User = Depends(current_user),
+) -> view_models.SearchResult:
+    """Search files within a specific chat using hybrid search capabilities"""
+    try:
+        # Get user's chat collection
+        chat_collection_id = await chat_collection_service.get_user_chat_collection_id(str(user.id))
+        if not chat_collection_id:
+            raise HTTPException(status_code=404, detail="Chat collection not found")
+        
+        # Create a modified search request that includes chat_id in the flow execution
+        # We need to use the collection_service.create_search but pass the chat_id
+        # for filtering by chat context in the search flow
+        from aperag.flow.engine import FlowEngine, FlowInstance, NodeInstance, Edge
+        from aperag.schema.view_models import SearchResult, SearchResultItem
+        from aperag.service.default_model_service import default_model_service
+        
+        # Build flow for search execution with chat_id filtering
+        nodes = {}
+        edges = []
+        merge_node_id = "merge"
+        merge_node_values = {
+            "merge_strategy": "union",
+            "deduplicate": True,
+        }
+        query = data.query
+
+        # Configure search nodes based on request, adding chat_id for filtering
+        if data.vector_search:
+            node_id = "vector_search"
+            nodes[node_id] = NodeInstance(
+                id=node_id,
+                type="vector_search",
+                input_values={
+                    "query": query,
+                    "top_k": data.vector_search.topk if data.vector_search else 5,
+                    "similarity_threshold": data.vector_search.similarity if data.vector_search else 0.2,
+                    "collection_ids": [chat_collection_id],
+                    "chat_id": chat_id,  # Add chat_id for filtering
+                },
+            )
+            merge_node_values["vector_search_docs"] = "{{ nodes.vector_search.output.docs }}"
+            edges.append(Edge(source=node_id, target=merge_node_id))
+
+        if data.fulltext_search:
+            node_id = "fulltext_search"
+            nodes[node_id] = NodeInstance(
+                id=node_id,
+                type="fulltext_search",
+                input_values={
+                    "query": query,
+                    "top_k": data.fulltext_search.topk if data.fulltext_search else 5,
+                    "collection_ids": [chat_collection_id],
+                    "keywords": data.fulltext_search.keywords,
+                    "chat_id": chat_id,  # Add chat_id for filtering
+                },
+            )
+            merge_node_values["fulltext_search_docs"] = "{{ nodes.fulltext_search.output.docs }}"
+            edges.append(Edge(source=node_id, target=merge_node_id))
+
+        if data.graph_search:
+            nodes["graph_search"] = NodeInstance(
+                id="graph_search",
+                type="graph_search",
+                input_values={
+                    "query": query,
+                    "top_k": data.graph_search.topk if data.graph_search else 5,
+                    "collection_ids": [chat_collection_id],
+                    "chat_id": chat_id,  # Add chat_id for filtering
+                },
+            )
+            merge_node_values["graph_search_docs"] = "{{ nodes.graph_search.output.docs }}"
+            edges.append(Edge(source="graph_search", target=merge_node_id))
+
+        if data.summary_search:
+            node_id = "summary_search"
+            nodes[node_id] = NodeInstance(
+                id=node_id,
+                type="summary_search",
+                input_values={
+                    "query": query,
+                    "top_k": data.summary_search.topk if data.summary_search else 5,
+                    "similarity_threshold": data.summary_search.similarity if data.summary_search else 0.2,
+                    "collection_ids": [chat_collection_id],
+                    "chat_id": chat_id,  # Add chat_id for filtering
+                },
+            )
+            merge_node_values["summary_search_docs"] = "{{ nodes.summary_search.output.docs }}"
+            edges.append(Edge(source=node_id, target=merge_node_id))
+
+        nodes[merge_node_id] = NodeInstance(
+            id=merge_node_id,
+            type="merge",
+            input_values=merge_node_values,
+        )
+
+        # Add rerank node to flow
+        if data.rerank:
+            model, model_service_provider, custom_llm_provider = await default_model_service.get_default_rerank_config(
+                str(user.id)
+            )
+            use_rerank_service = model is not None
+        else:
+            model, model_service_provider, custom_llm_provider = None, None, None
+            use_rerank_service = False
+
+        rerank_node_id = "rerank"
+        nodes[rerank_node_id] = NodeInstance(
+            id=rerank_node_id,
+            type="rerank",
+            input_values={
+                "use_rerank_service": use_rerank_service,
+                "model": model,
+                "model_service_provider": model_service_provider,
+                "custom_llm_provider": custom_llm_provider,
+                "docs": "{{ nodes.merge.output.docs }}",
+            },
+        )
+        # Add edge from merge to rerank
+        edges.append(Edge(source=merge_node_id, target=rerank_node_id))
+
+        # Execute search flow
+        flow = FlowInstance(
+            name="chat_search",
+            title="Chat Search",
+            nodes=nodes,
+            edges=edges,
+        )
+        engine = FlowEngine()
+        initial_data = {"query": query, "user": str(user.id), "chat_id": chat_id}
+        result, _ = await engine.execute_flow(flow, initial_data)
+
+        if not result:
+            raise HTTPException(status_code=500, detail="Failed to execute search flow")
+
+        # Process search results from rerank node
+        docs = result.get(rerank_node_id, {}).docs
+        items = []
+        for idx, doc in enumerate(docs):
+            items.append(
+                SearchResultItem(
+                    rank=idx + 1,
+                    score=doc.score,
+                    content=doc.text,
+                    source=doc.metadata.get("source", ""),
+                    recall_type=doc.metadata.get("recall_type", ""),
+                    metadata=doc.metadata,
+                )
+            )
+
+        # Return search result without saving to database for chat searches
+        return SearchResult(
+            id=None,  # No ID since not saved
+            query=data.query,
+            vector_search=data.vector_search,
+            fulltext_search=data.fulltext_search,
+            graph_search=data.graph_search,
+            summary_search=data.summary_search,
+            items=items,
+            created=None,  # No creation time since not saved
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to search chat files: {e}")
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 
 # LLM Configuration API endpoints

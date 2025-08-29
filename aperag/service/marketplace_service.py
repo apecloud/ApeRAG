@@ -122,7 +122,7 @@ class MarketplaceService:
             raise CollectionNotPublishedError(collection_id)
 
         # 2. Verify user is not the Collection owner (user_id != collection.user)
-        collection = await self.db_ops.query_collection_without_user(collection_id)
+        collection = await self.db_ops.query_collection_by_id(collection_id)
         if collection is None:
             raise CollectionNotFoundException(collection_id)
 
@@ -225,7 +225,7 @@ class MarketplaceService:
 
     async def _verify_collection_ownership(self, user_id: str, collection_id: str) -> db_models.Collection:
         """Verify user owns the collection"""
-        collection = await self.db_ops.query_collection_without_user(collection_id)
+        collection = await self.db_ops.query_collection_by_id(collection_id)
         if collection is None:
             raise CollectionNotFoundException(collection_id)
 

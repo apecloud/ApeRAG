@@ -18,22 +18,12 @@ from typing import Optional
 
 from aperag.db.models import Collection, CollectionStatus, CollectionType, User
 from aperag.db.ops import async_db_ops
-from aperag.schema.view_models import CollectionConfig
-from aperag.service.collection_service import dumpCollectionConfig
+from aperag.schema.view_models import CollectionConfig, CollectionCreate, ModelSpec, TagFilterRequest, TagFilterCondition
+from aperag.service.collection_service import collection_service
+from aperag.service.llm_available_model_service import llm_available_model_service
 from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
-
-# Chat collection default configuration
-CHAT_COLLECTION_DEFAULT_CONFIG = {
-    "vector_index": True,
-    "fulltext_index": True,
-    "graph_index": True,
-    "summary_index": True,
-    "enable_summary": False,
-    "enable_ai_summary": False,
-    "sources": [],
-}
 
 
 class ChatCollectionService:
@@ -57,40 +47,98 @@ class ChatCollectionService:
 
         return None
 
+    async def _get_default_embedding_model(self, user_id: str) -> Optional[ModelSpec]:
+        """Get default embedding model for chat collection"""
+        try:
+            # First, try to get models with default_for_embedding tag
+            tag_filter_request = TagFilterRequest(
+                tag_filters=[TagFilterCondition(operation="AND", tags=["default_for_embedding"])]
+            )
+            models = await llm_available_model_service.get_available_models(user_id, tag_filter_request)
+            
+            # Find first embedding model with default_for_embedding tag
+            for provider in models.items or []:
+                for embedding_model in provider.embedding or []:
+                    return ModelSpec(
+                        model=embedding_model.model,
+                        model_service_provider=provider.name,
+                        custom_llm_provider=embedding_model.custom_llm_provider,
+                    )
+            
+            # If no default_for_embedding models found, try enable_for_collection tag
+            tag_filter_request = TagFilterRequest(
+                tag_filters=[TagFilterCondition(operation="AND", tags=["enable_for_collection"])]
+            )
+            models = await llm_available_model_service.get_available_models(user_id, tag_filter_request)
+            
+            # Find first embedding model with enable_for_collection tag
+            for provider in models.items or []:
+                for embedding_model in provider.embedding or []:
+                    return ModelSpec(
+                        model=embedding_model.model,
+                        model_service_provider=provider.name,
+                        custom_llm_provider=embedding_model.custom_llm_provider,
+                    )
+            
+            logger.warning(f"No suitable embedding model found for user {user_id}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to get default embedding model for user {user_id}: {e}")
+            return None
+
     async def create_user_chat_collection(self, user_id: str) -> Collection:
         """Create chat collection for user"""
+        # Get default embedding model
+        embedding_model = await self._get_default_embedding_model(user_id)
         
-        async def _create_chat_collection(session):
-            # Create chat collection config
-            config = CollectionConfig(**CHAT_COLLECTION_DEFAULT_CONFIG)
-            config_str = dumpCollectionConfig(config)
-
-            # Create collection
-            collection = Collection(
-                user=user_id,
-                title="Chat Documents",
-                description="Documents uploaded in chat sessions",
-                type=CollectionType.DOCUMENT,
-                status=CollectionStatus.ACTIVE,
-                config=config_str,
-                is_chat_collection=True,
-                gmt_created=utc_now(),
-                gmt_updated=utc_now(),
-            )
-            session.add(collection)
-            await session.flush()
-            await session.refresh(collection)
-
+        if not embedding_model:
+            raise ValueError("No suitable embedding model found for chat collection")
+        
+        # Create collection config
+        config = CollectionConfig(
+            source="system",
+            enable_vector=True,
+            enable_fulltext=True,
+            enable_knowledge_graph=False,
+            enable_summary=False,
+            enable_vision=False,
+            embedding=embedding_model,
+        )
+        
+        # Create collection using collection_service
+        collection_create = CollectionCreate(
+            title="Chat Documents",
+            description="Documents uploaded in chat sessions",
+            type="document",
+            config=config,
+        )
+        
+        collection_response = await collection_service.create_collection(user_id, collection_create)
+        
+        # Get the actual Collection model instance
+        collection = await self.db_ops.query_collection_by_id(collection_response.id)
+        
+        # Mark as chat collection and update User table
+        async def _mark_as_chat_collection(session):
+            # Update collection to mark as chat collection
+            collection_obj = await session.get(Collection, collection_response.id)
+            if collection_obj:
+                collection_obj.is_chat_collection = True
+                session.add(collection_obj)
+                await session.flush()
+            
             # Update User table to link chat collection
             user = await session.get(User, user_id)
             if user:
-                user.chat_collection_id = collection.id
+                user.chat_collection_id = collection_response.id
                 session.add(user)
                 await session.flush()
-
-            return collection
-
-        collection = await self.db_ops.execute_with_transaction(_create_chat_collection)
+        
+        await self.db_ops.execute_with_transaction(_mark_as_chat_collection)
+        
+        # Refresh collection to get updated data
+        collection = await self.db_ops.query_collection_by_id(collection_response.id)
         
         logger.info(f"Created chat collection {collection.id} for user {user_id}")
         return collection

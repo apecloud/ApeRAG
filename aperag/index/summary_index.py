@@ -101,15 +101,9 @@ class SummaryIndexer(BaseIndexer):
                     "content_type": "summary",
                 }
                 
-                # Add chat metadata if this is a chat upload
-                if document.doc_metadata:
-                    try:
-                        import json
-                        doc_metadata = json.loads(document.doc_metadata)
-                        if doc_metadata.get("file_type") == "chat_upload":
-                            summary_metadata["chat_id"] = doc_metadata.get("chat_id")
-                    except json.JSONDecodeError:
-                        pass
+                # Check if doc_parts already have chat metadata from parse_document_content
+                if doc_parts and hasattr(doc_parts[0], 'metadata') and doc_parts[0].metadata and doc_parts[0].metadata.get("chat_id"):
+                    summary_metadata["chat_id"] = doc_parts[0].metadata["chat_id"]
 
                 # Create a TextPart for the summary
                 summary_part = TextPart(

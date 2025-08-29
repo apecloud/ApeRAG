@@ -27,16 +27,6 @@ from aperag.utils.utils import utc_now
 
 logger = logging.getLogger(__name__)
 
-# File upload limits for chat documents
-CHAT_DOCUMENT_LIMITS = {
-    "max_file_size": 50 * 1024 * 1024,  # 50MB
-    "max_files_per_message": 5,
-    "max_files_per_chat": 100,
-    "allowed_extensions": {'.pdf', '.doc', '.docx', '.txt', '.md'},
-    "max_filename_length": 255
-}
-
-
 class ChatDocumentService:
     """
     Chat document service for handling document uploads in chat sessions
@@ -47,11 +37,8 @@ class ChatDocumentService:
 
     async def upload_chat_document(
         self, chat_id: str, user_id: str, file: UploadFile
-    ) -> view_models.ChatDocumentResponse:
+    ) -> view_models.Document:
         """Upload chat document to user's chat collection"""
-        # Validate file
-        self._validate_file(file)
-
         # Get user's chat collection (should exist from registration)
         collection = await chat_collection_service.get_user_chat_collection(user_id)
         if not collection:
@@ -74,15 +61,11 @@ class ChatDocumentService:
         if not documents.items:
             raise HTTPException(status_code=500, detail="Failed to upload document")
 
-        document = documents.items[0]
-        
-        logger.info(f"Chat document {document.id} uploaded for chat {chat_id}")
-        
-        return self._build_chat_document_response(document, chat_id)
+        return documents.items[0]
 
     async def get_chat_document_by_id(
         self, chat_id: str, document_id: str, user_id: str
-    ) -> Optional[view_models.ChatDocumentResponse]:
+    ) -> Optional[view_models.Document]:
         """Get chat document by ID with chat ownership validation"""
         # Get user's chat collection
         collection = await chat_collection_service.get_user_chat_collection(user_id)
@@ -94,17 +77,7 @@ class ChatDocumentService:
         if not document or document.collection_id != collection.id:
             return None
 
-        # Validate it's a chat document for the specified chat
-        if document.doc_metadata:
-            try:
-                metadata = json.loads(document.doc_metadata)
-                if (metadata.get("file_type") == "chat_upload" and 
-                    metadata.get("chat_id") == chat_id):
-                    return self._build_chat_document_response(document, chat_id)
-            except json.JSONDecodeError:
-                pass
-
-        return None
+        return document
 
 
     async def get_documents_metadata(
@@ -146,57 +119,6 @@ class ChatDocumentService:
 
         return documents_metadata
 
-    def _validate_file(self, file: UploadFile):
-        """Validate uploaded file against chat document limits"""
-        if not file.filename:
-            raise HTTPException(status_code=400, detail="Filename is required")
-
-        # Check filename length
-        if len(file.filename) > CHAT_DOCUMENT_LIMITS["max_filename_length"]:
-            raise HTTPException(status_code=400, detail="Filename too long")
-
-        # Check file extension
-        import os
-        _, ext = os.path.splitext(file.filename.lower())
-        if ext not in CHAT_DOCUMENT_LIMITS["allowed_extensions"]:
-            allowed = ", ".join(CHAT_DOCUMENT_LIMITS["allowed_extensions"])
-            raise HTTPException(
-                status_code=400, 
-                detail=f"File type not supported. Allowed types: {allowed}"
-            )
-
-        # Check file size
-        if file.size and file.size > CHAT_DOCUMENT_LIMITS["max_file_size"]:
-            max_size_mb = CHAT_DOCUMENT_LIMITS["max_file_size"] // (1024 * 1024)
-            raise HTTPException(
-                status_code=400, 
-                detail=f"File too large. Maximum size: {max_size_mb}MB"
-            )
-
-    def _build_chat_document_response(
-        self, document: Document, chat_id: str
-    ) -> view_models.ChatDocumentResponse:
-        """Build chat document response from Document model"""
-        # Get message_id from document metadata if available
-        message_id = None
-        if document.doc_metadata:
-            try:
-                metadata = json.loads(document.doc_metadata)
-                message_id = metadata.get("message_id")
-            except json.JSONDecodeError:
-                pass
-        
-        return view_models.ChatDocumentResponse(
-            id=document.id,
-            name=document.name,
-            size=document.size,
-            status=document.status.value,
-            chat_id=chat_id,
-            message_id=message_id,
-            created=document.gmt_created,
-            updated=document.gmt_updated,
-        )
-
     async def associate_documents_with_message(
         self, chat_id: str, message_id: str, document_ids: List[str], user_id: str
     ) -> None:
@@ -228,8 +150,6 @@ class ChatDocumentService:
                         logger.info(f"Associated document {document_id} with message {message_id}")
                 except json.JSONDecodeError:
                     continue
-
-
 
 
 # Global service instance

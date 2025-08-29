@@ -228,7 +228,7 @@ class Collection(Base):
     status = Column(EnumColumn(CollectionStatus), nullable=False, index=True)  # Add index for status queries
     type = Column(EnumColumn(CollectionType), nullable=False)
     config = Column(Text, nullable=False)
-    is_chat_collection = Column(Boolean, nullable=False, default=False, index=True)  # Chat collection marker
+    is_chat_collection = Column(Boolean, nullable=True, default=False, index=True)  # Chat collection marker
     gmt_created = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_updated = Column(DateTime(timezone=True), default=utc_now, nullable=False)
     gmt_deleted = Column(DateTime(timezone=True), nullable=True, index=True)  # Add index for soft delete queries

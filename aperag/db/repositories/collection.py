@@ -196,7 +196,7 @@ class AsyncCollectionRepositoryMixin(AsyncRepositoryProtocol):
 
         return await self._execute_query(_query)
 
-    async def query_collection_without_user(self, collection_id: str):
+    async def query_collection_by_id(self, collection_id: str):
         async def _query(session):
             stmt = select(Collection).where(
                 Collection.id == collection_id, Collection.status != CollectionStatus.DELETED

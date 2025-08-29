@@ -115,17 +115,9 @@ class VisionIndexer(BaseIndexer):
                 metadata["indexer"] = "vision"
                 metadata["index_method"] = "multimodal_embedding"
                 
-                # Add chat metadata if this is a chat upload
-                try:
-                    from aperag.db.ops import db_ops
-                    document_obj = db_ops.query_document_by_id(document_id)
-                    if document_obj and document_obj.doc_metadata:
-                        import json
-                        doc_metadata = json.loads(document_obj.doc_metadata)
-                        if doc_metadata.get("file_type") == "chat_upload":
-                            metadata["chat_id"] = doc_metadata.get("chat_id")
-                except Exception:
-                    pass
+                # Check if part already has chat metadata from parse_document_content
+                if hasattr(part, 'metadata') and part.metadata and part.metadata.get("chat_id"):
+                    metadata["chat_id"] = part.metadata["chat_id"]
                 asset_url = f"asset://{part.asset_id}"
                 if part.mime_type:
                     asset_url += f"?mime_type={quote_plus(part.mime_type)}"
@@ -231,17 +223,9 @@ class VisionIndexer(BaseIndexer):
                         metadata["indexer"] = "vision"
                         metadata["index_method"] = "vision_to_text"
                         
-                        # Add chat metadata if this is a chat upload
-                        try:
-                            from aperag.db.ops import db_ops
-                            document_obj = db_ops.query_document_by_id(document_id)
-                            if document_obj and document_obj.doc_metadata:
-                                import json
-                                doc_metadata = json.loads(document_obj.doc_metadata)
-                                if doc_metadata.get("file_type") == "chat_upload":
-                                    metadata["chat_id"] = doc_metadata.get("chat_id")
-                        except Exception:
-                            pass
+                        # Check if part already has chat metadata from parse_document_content
+                        if hasattr(part, 'metadata') and part.metadata and part.metadata.get("chat_id"):
+                            metadata["chat_id"] = part.metadata["chat_id"]
                             
                         text_nodes.append(TextNode(text=description, metadata=metadata))
 

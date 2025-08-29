@@ -89,8 +89,6 @@ document:
     summary:
       type: string
       description: Summary of the document
-    config:
-      type: string
     size:
       type: number
     created:

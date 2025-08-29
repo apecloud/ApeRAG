@@ -36,7 +36,7 @@ async def upload_chat_document_view(
     chat_id: str,
     file: UploadFile = File(...),
     user: User = Depends(current_user),
-) -> view_models.ChatDocumentResponse:
+) -> view_models.Document:
     """Upload a document to a chat session"""
     return await chat_document_service.upload_chat_document(
         chat_id=chat_id,
@@ -51,7 +51,7 @@ async def get_chat_document_view(
     chat_id: str,
     document_id: str,
     user: User = Depends(current_user),
-) -> view_models.ChatDocumentResponse:
+) -> view_models.Document:
     """Get chat document details"""
     document = await chat_document_service.get_chat_document_by_id(
         chat_id=chat_id,

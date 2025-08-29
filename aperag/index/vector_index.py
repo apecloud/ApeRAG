@@ -62,26 +62,12 @@ class VectorIndexer(BaseIndexer):
             # Filter out non-text parts
             doc_parts = [part for part in doc_parts if hasattr(part, "content") and part.content]
 
-            # Get document for chat metadata check
-            from aperag.db.ops import db_ops
-            document = db_ops.query_document_by_id(document_id)
-
             # Add indexer metadata to parts for proper identification
             for part in doc_parts:
                 if not hasattr(part, "metadata"):
                     part.metadata = {}
                 part.metadata["indexer"] = "vector"
                 part.metadata["document_id"] = document_id
-                
-                # Add chat metadata if this is a chat upload
-                if document and document.doc_metadata:
-                    try:
-                        import json
-                        doc_metadata = json.loads(document.doc_metadata)
-                        if doc_metadata.get("file_type") == "chat_upload":
-                            part.metadata["chat_id"] = doc_metadata.get("chat_id")
-                    except json.JSONDecodeError:
-                        pass
 
             # Generate embeddings and store in vector database
             ctx_ids = create_embeddings_and_store(
@@ -158,26 +144,12 @@ class VectorIndexer(BaseIndexer):
             # Filter out non-text parts
             doc_parts = [part for part in doc_parts if hasattr(part, "content") and part.content]
 
-            # Get document for chat metadata check
-            from aperag.db.ops import db_ops
-            document = db_ops.query_document_by_id(document_id)
-
             # Add indexer metadata to parts for proper identification
             for part in doc_parts:
                 if not hasattr(part, "metadata"):
                     part.metadata = {}
                 part.metadata["indexer"] = "vector"
                 part.metadata["document_id"] = document_id
-                
-                # Add chat metadata if this is a chat upload
-                if document and document.doc_metadata:
-                    try:
-                        import json
-                        doc_metadata = json.loads(document.doc_metadata)
-                        if doc_metadata.get("file_type") == "chat_upload":
-                            part.metadata["chat_id"] = doc_metadata.get("chat_id")
-                    except json.JSONDecodeError:
-                        pass
 
             # Create new vectors
             embedding_model, vector_size = get_collection_embedding_service_sync(collection)

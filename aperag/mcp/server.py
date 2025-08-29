@@ -201,6 +201,95 @@ async def search_collection(
 
 
 @mcp_server.tool
+async def search_chat_files(
+    chat_id: str,
+    query: str,
+    use_vector_index: bool = True,
+    use_fulltext_index: bool = True,
+    rerank: bool = True,
+    topk: int = 5,
+) -> Dict[str, Any]:
+    """Search for knowledge in chat files using vector, full-text, graph, and/or summary search.
+
+    Args:
+        chat_id: The ID of the chat to search files in
+        query: The search query
+        use_vector_index: Whether to use vector/semantic search (default: True)
+        use_fulltext_index: Whether to use full-text keyword search (default: True)
+        rerank: Whether to enable reranking of search results for better relevance (default: True)
+        topk: Maximum number of results to return per search type (default: 5)
+
+    Returns:
+        Search results with relevant documents and metadata (SearchResult format)
+
+    Note:
+        Uses SearchResult view model for type-safe response parsing and validation.
+        This tool searches within files uploaded to the specified chat.
+        
+        The search behavior is similar to search_collection, but limited to documents 
+        uploaded in the specified chat context.
+        
+        Return format follows the same structure as search_collection:
+        - rank: Result rank
+        - score: Result score  
+        - content: Result content
+        - source: Source document or metadata
+        - recall_type: Type of search that found this result
+        - metadata: Additional metadata including page_idx, asset_id, etc.
+        
+        Images are handled the same way as in collection search:
+        - metadata["indexer"] == "vision" indicates an image
+        - Use asset:// URLs for displaying images in markdown
+    """
+    try:
+        api_key = get_api_key()
+
+        # Build search request based on enabled search types
+        search_data = {"query": query, "rerank": rerank}
+
+        # Add search configurations for enabled types
+        if use_vector_index:
+            search_data["vector_search"] = {"topk": topk, "similarity": 0.2}
+
+        if use_fulltext_index:
+            search_data["fulltext_search"] = {"topk": topk}
+
+        # Ensure at least one search type is enabled
+        if not any([use_vector_index, use_fulltext_index]):
+            return {"error": "At least one search type must be enabled"}
+
+        # Use longer timeout for search operations
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                f"{API_BASE_URL}/api/v1/chat/{chat_id}/search",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json=search_data,
+            )
+            if response.status_code == 200 or response.status_code == 201:
+                try:
+                    # Parse response using view model for type safety
+                    search_result = SearchResult.model_validate(response.json())
+
+                    # Ensure returned results don't exceed topk limit
+                    # This provides additional protection in case HTTP API doesn't apply global limit
+                    if search_result.items and len(search_result.items) > topk:
+                        search_result.items = search_result.items[:topk]
+                        # Update ranks if they exist
+                        for i, item in enumerate(search_result.items):
+                            if item.rank is not None:
+                                item.rank = i + 1
+
+                    return search_result.model_dump()
+                except Exception as e:
+                    logger.error(f"Failed to parse chat search response: {e}")
+                    return {"error": "Failed to parse chat search response", "details": str(e)}
+            else:
+                return {"error": f"Chat search failed: {response.status_code}", "details": response.text}
+    except ValueError as e:
+        return {"error": str(e)}
+
+
+@mcp_server.tool
 async def web_search(
     query: str = "",
     max_results: int = 5,

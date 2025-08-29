@@ -64,7 +64,7 @@ class MarketplaceCollectionService:
             raise CollectionNotPublishedError(collection_id)
 
         # Get collection info
-        collection = await self.db_ops.query_collection_without_user(collection_id)
+        collection = await self.db_ops.query_collection_by_id(collection_id)
         if collection is None:
             raise CollectionNotFoundException(collection_id)
 
@@ -124,7 +124,7 @@ class MarketplaceCollectionService:
         await self._check_marketplace_access(user_id, collection_id)
 
         # Get the actual collection object for document queries
-        collection = await self.db_ops.query_collection_without_user(collection_id)
+        collection = await self.db_ops.query_collection_by_id(collection_id)
         if collection is None:
             raise CollectionNotFoundException(collection_id)
 
@@ -185,7 +185,7 @@ class MarketplaceCollectionService:
         await self._check_marketplace_access(user_id, collection_id)
 
         # Get collection object for graph queries
-        collection = await self.db_ops.query_collection_without_user(collection_id)
+        collection = await self.db_ops.query_collection_by_id(collection_id)
         if collection is None:
             raise CollectionNotFoundException(collection_id)
 

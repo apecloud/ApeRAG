@@ -37,7 +37,7 @@ chat_documents:
         content:
           application/json:
             schema:
-              $ref: '../components/schemas/chat_document.yaml#/ChatDocumentResponse'
+              $ref: '../components/schemas/document.yaml#/document'
       '400':
         description: Bad request
       '401':
@@ -75,7 +75,7 @@ chat_document:
         content:
           application/json:
             schema:
-              $ref: '../components/schemas/chat_document.yaml#/ChatDocumentResponse'
+              $ref: '../components/schemas/document.yaml#/document'
       '401':
         description: Unauthorized
       '404':

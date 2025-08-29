@@ -48,7 +48,30 @@ def parse_document_content(document, collection) -> Tuple[str, List[Any], Any]:
             global_settings,
         )
 
-        return parsing_result.content, parsing_result.doc_parts, local_doc
+        # Add chat metadata to all document parts if this is a chat upload
+        doc_parts = parsing_result.doc_parts
+        if document.doc_metadata:
+            try:
+                doc_metadata = json.loads(document.doc_metadata)
+                if doc_metadata.get("file_type") == "chat_upload":
+                    chat_id = doc_metadata.get("chat_id")
+                    if chat_id:
+                        for part in doc_parts:
+                            if hasattr(part, 'metadata'):
+                                if part.metadata is None:
+                                    part.metadata = {}
+                                part.metadata["chat_id"] = chat_id
+                                part.metadata["document_id"] = document.id
+                            else:
+                                # Create metadata if it doesn't exist
+                                part.metadata = {
+                                    "chat_id": chat_id,
+                                    "document_id": document.id
+                                }
+            except json.JSONDecodeError:
+                pass
+
+        return parsing_result.content, doc_parts, local_doc
     except Exception as e:
         # Cleanup on error
         source.cleanup_document(local_doc.path)

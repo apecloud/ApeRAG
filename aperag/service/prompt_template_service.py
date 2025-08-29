@@ -50,6 +50,7 @@ You are an advanced AI research assistant powered by ApeRAG's hybrid search capa
 ### Knowledge Management
 - `list_collections()`: Discover available knowledge sources
 - `search_collection(collection_id, query, ...)`: Hybrid search within collections
+- `search_chat_files(chat_id, query, ...)`: Search files uploaded in specific chat sessions
 - `create_diagram(content)`: Create Mermaid diagrams for knowledge graph visualization
 
 ### Web Intelligence
@@ -151,6 +152,7 @@ APERAG_AGENT_INSTRUCTION_ZH = """
 ### 知识管理
 - `list_collections()`：发现可用知识源
 - `search_collection(collection_id, query, ...)`：知识库内混合搜索
+- `search_chat_files(chat_id, query, ...)`：搜索特定聊天会话中上传的文件
 - `create_diagram(content)`：创建Mermaid图表进行知识图谱可视化
 
 ### 网络智能
@@ -312,6 +314,22 @@ def build_agent_query_prompt(agent_message: view_models.AgentMessage, user: str,
         else:
             web_instruction = "Rely entirely on knowledge collections; inform user if web search would be helpful"
 
+    # Determine chat context
+    if agent_message.chat_id:
+        if language == "zh-CN":
+            chat_context = f"聊天ID: {agent_message.chat_id}"
+            chat_instruction = "可使用 search_chat_files 工具搜索此聊天中上传的文件"
+        else:
+            chat_context = f"Chat ID: {agent_message.chat_id}"
+            chat_instruction = "Use search_chat_files tool to search files uploaded in this chat"
+    else:
+        if language == "zh-CN":
+            chat_context = "聊天文件为空"
+            chat_instruction = ""
+        else:
+            chat_context = "No files in chat"
+            chat_instruction = ""
+
     # Use language-specific template
     if language == "zh-CN":
         prompt_template = """**用户查询**: {query}
@@ -319,16 +337,18 @@ def build_agent_query_prompt(agent_message: view_models.AgentMessage, user: str,
 **会话上下文**:
 - **用户指定的知识库**: {collection_context} ({collection_instruction})
 - **网络搜索**: {web_status} ({web_instruction})
+- **聊天文件**: {chat_context} ({chat_instruction})
 
 **研究指导**:
 1. 语言优先级: 使用用户提问的语言回应，而不是内容的语言
 2. 如果用户指定了知识库（@提及），首先搜索这些（必需）
-3. 在有益时使用多种语言的适当搜索关键词
-4. 评估结果质量并决定是否需要额外的知识库
-5. 如果启用且相关，战略性地使用网络搜索
-6. 提供全面、结构良好的回应，并清楚标注来源
-7. 在回应中区分用户指定和额外的来源
-8. **重要**：引用知识库时，使用知识库名称而非ID
+3. 如果有聊天文件，可以搜索聊天中上传的文件
+4. 在有益时使用多种语言的适当搜索关键词
+5. 评估结果质量并决定是否需要额外的知识库
+6. 如果启用且相关，战略性地使用网络搜索
+7. 提供全面、结构良好的回应，并清楚标注来源
+8. 在回应中区分用户指定和额外的来源
+9. **重要**：引用知识库时，使用知识库名称而非ID
 
 请提供一个彻底、经过充分研究的答案，基于以上上下文充分利用所有适当的搜索工具。"""
     else:
@@ -337,16 +357,18 @@ def build_agent_query_prompt(agent_message: view_models.AgentMessage, user: str,
 **Session Context**:
 - **User-Specified Collections**: {collection_context} ({collection_instruction})
 - **Web Search**: {web_status} ({web_instruction})
+- **Chat Files**: {chat_context} ({chat_instruction})
 
 **Research Instructions**:
 1. LANGUAGE PRIORITY: Respond in the language the user is asking in, not the language of the content
 2. If user specified collections (@mentions), search those first (REQUIRED)
-3. Use appropriate search keywords in multiple languages when beneficial
-4. Assess result quality and decide if additional collections are needed
-5. Use web search strategically if enabled and relevant
-6. Provide comprehensive, well-structured response with clear source attribution
-7. Distinguish between user-specified and additional sources in your response
-8. **IMPORTANT**: When citing collections, use collection names not IDs
+3. If chat files are available, search files uploaded in this chat when relevant
+4. Use appropriate search keywords in multiple languages when beneficial
+5. Assess result quality and decide if additional collections are needed
+6. Use web search strategically if enabled and relevant
+7. Provide comprehensive, well-structured response with clear source attribution
+8. Distinguish between user-specified and additional sources in your response
+9. **IMPORTANT**: When citing collections, use collection names not IDs
 
 Please provide a thorough, well-researched answer that leverages all appropriate search tools based on the context above."""
 
@@ -356,4 +378,6 @@ Please provide a thorough, well-researched answer that leverages all appropriate
         collection_instruction=collection_instruction,
         web_status=web_status,
         web_instruction=web_instruction,
+        chat_context=chat_context,
+        chat_instruction=chat_instruction,
     )
