@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import logging
-from typing import Optional
+from typing import Dict, List, Optional, Tuple
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -282,27 +282,30 @@ class CollectionService:
 
         return None
 
-    async def create_search(
-        self, user: str, collection_id: str, data: view_models.SearchRequest
-    ) -> view_models.SearchResult:
-        from aperag.exceptions import CollectionNotFoundException
-
-        # Try to find collection as owner first
-        collection = await self.db_ops.query_collection(user, collection_id)
-        search_user_id = user  # Default to current user for search operations
-
-        if not collection:
-            # If not found as owner, check if it's a marketplace collection
-            try:
-                marketplace_info = await marketplace_collection_service._check_marketplace_access(user, collection_id)
-                # Use owner's user_id for search operations in marketplace collections
-                search_user_id = marketplace_info["owner_user_id"]
-                collection = await self.db_ops.query_collection(search_user_id, collection_id)
-                if not collection:
-                    raise CollectionNotFoundException(collection_id)
-            except Exception:
-                # If marketplace access also fails, raise original not found error
-                raise CollectionNotFoundException(collection_id)
+    async def _execute_search_flow(
+        self,
+        data: view_models.SearchRequest,
+        collection_id: str,
+        search_user_id: str,
+        chat_id: Optional[str] = None,
+        flow_name: str = "search",
+        flow_title: str = "Search",
+    ) -> Tuple[List[SearchResultItem], str]:
+        """
+        Execute search flow and return search result items and rerank node ID.
+        
+        Args:
+            data: Search request data
+            collection_id: Target collection ID for search
+            search_user_id: User ID to use for search operations (may differ from requester for marketplace collections)
+            chat_id: Optional chat ID for filtering in chat searches
+            flow_name: Name of the flow instance
+            flow_title: Title of the flow instance
+            
+        Returns:
+            Tuple of (search result items, rerank node id)
+        """
+        from aperag.service.default_model_service import default_model_service
 
         # Build flow for search execution
         nodes = {}
@@ -317,58 +320,78 @@ class CollectionService:
         # Configure search nodes based on request
         if data.vector_search:
             node_id = "vector_search"
+            input_values = {
+                "query": query,
+                "top_k": data.vector_search.topk if data.vector_search else 5,
+                "similarity_threshold": data.vector_search.similarity if data.vector_search else 0.2,
+                "collection_ids": [collection_id],
+            }
+            # Add chat_id for filtering if provided
+            if chat_id:
+                input_values["chat_id"] = chat_id
+                
             nodes[node_id] = NodeInstance(
                 id=node_id,
                 type="vector_search",
-                input_values={
-                    "query": query,
-                    "top_k": data.vector_search.topk if data.vector_search else 5,
-                    "similarity_threshold": data.vector_search.similarity if data.vector_search else 0.2,
-                    "collection_ids": [collection_id],
-                },
+                input_values=input_values,
             )
             merge_node_values["vector_search_docs"] = "{{ nodes.vector_search.output.docs }}"
             edges.append(Edge(source=node_id, target=merge_node_id))
 
         if data.fulltext_search:
             node_id = "fulltext_search"
+            input_values = {
+                "query": query,
+                "top_k": data.fulltext_search.topk if data.fulltext_search else 5,
+                "collection_ids": [collection_id],
+                "keywords": data.fulltext_search.keywords,
+            }
+            # Add chat_id for filtering if provided
+            if chat_id:
+                input_values["chat_id"] = chat_id
+                
             nodes[node_id] = NodeInstance(
                 id=node_id,
                 type="fulltext_search",
-                input_values={
-                    "query": query,
-                    "top_k": data.fulltext_search.topk if data.fulltext_search else 5,
-                    "collection_ids": [collection_id],
-                    "keywords": data.fulltext_search.keywords,
-                },
+                input_values=input_values,
             )
             merge_node_values["fulltext_search_docs"] = "{{ nodes.fulltext_search.output.docs }}"
             edges.append(Edge(source=node_id, target=merge_node_id))
 
         if data.graph_search:
+            input_values = {
+                "query": query,
+                "top_k": data.graph_search.topk if data.graph_search else 5,
+                "collection_ids": [collection_id],
+            }
+            # Add chat_id for filtering if provided
+            if chat_id:
+                input_values["chat_id"] = chat_id
+                
             nodes["graph_search"] = NodeInstance(
                 id="graph_search",
                 type="graph_search",
-                input_values={
-                    "query": query,
-                    "top_k": data.graph_search.topk if data.graph_search else 5,
-                    "collection_ids": [collection_id],
-                },
+                input_values=input_values,
             )
             merge_node_values["graph_search_docs"] = "{{ nodes.graph_search.output.docs }}"
             edges.append(Edge(source="graph_search", target=merge_node_id))
 
         if data.summary_search:
             node_id = "summary_search"
+            input_values = {
+                "query": query,
+                "top_k": data.summary_search.topk if data.summary_search else 5,
+                "similarity_threshold": data.summary_search.similarity if data.summary_search else 0.2,
+                "collection_ids": [collection_id],
+            }
+            # Add chat_id for filtering if provided
+            if chat_id:
+                input_values["chat_id"] = chat_id
+                
             nodes[node_id] = NodeInstance(
                 id=node_id,
                 type="summary_search",
-                input_values={
-                    "query": query,
-                    "top_k": data.summary_search.topk if data.summary_search else 5,
-                    "similarity_threshold": data.summary_search.similarity if data.summary_search else 0.2,
-                    "collection_ids": [collection_id],
-                },
+                input_values=input_values,
             )
             merge_node_values["summary_search_docs"] = "{{ nodes.summary_search.output.docs }}"
             edges.append(Edge(source=node_id, target=merge_node_id))
@@ -380,8 +403,6 @@ class CollectionService:
         )
 
         # Add rerank node to flow
-        from aperag.service.default_model_service import default_model_service
-
         if data.rerank:
             model, model_service_provider, custom_llm_provider = await default_model_service.get_default_rerank_config(
                 search_user_id
@@ -408,14 +429,16 @@ class CollectionService:
 
         # Execute search flow
         flow = FlowInstance(
-            name="search",
-            title="Search",
+            name=flow_name,
+            title=flow_title,
             nodes=nodes,
             edges=edges,
         )
         engine = FlowEngine()
-        # Use search_user_id for flow execution (owner's ID for marketplace collections)
+        # Build initial data with chat_id if provided
         initial_data = {"query": query, "user": search_user_id}
+        if chat_id:
+            initial_data["chat_id"] = chat_id
         result, _ = await engine.execute_flow(flow, initial_data)
 
         if not result:
@@ -435,6 +458,40 @@ class CollectionService:
                     metadata=doc.metadata,
                 )
             )
+
+        return items, rerank_node_id
+
+    async def create_search(
+        self, user: str, collection_id: str, data: view_models.SearchRequest
+    ) -> view_models.SearchResult:
+        from aperag.exceptions import CollectionNotFoundException
+
+        # Try to find collection as owner first
+        collection = await self.db_ops.query_collection(user, collection_id)
+        search_user_id = user  # Default to current user for search operations
+
+        if not collection:
+            # If not found as owner, check if it's a marketplace collection
+            try:
+                marketplace_info = await marketplace_collection_service._check_marketplace_access(user, collection_id)
+                # Use owner's user_id for search operations in marketplace collections
+                search_user_id = marketplace_info["owner_user_id"]
+                collection = await self.db_ops.query_collection(search_user_id, collection_id)
+                if not collection:
+                    raise CollectionNotFoundException(collection_id)
+            except Exception:
+                # If marketplace access also fails, raise original not found error
+                raise CollectionNotFoundException(collection_id)
+
+        # Execute search flow using helper method
+        items, _ = await self._execute_search_flow(
+            data=data,
+            collection_id=collection_id,
+            search_user_id=search_user_id,
+            chat_id=None,  # No chat filtering for regular collection searches
+            flow_name="search",
+            flow_title="Search",
+        )
 
         # Save to database only if save_to_history is True
         if data.save_to_history:

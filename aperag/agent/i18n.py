@@ -21,6 +21,7 @@ TOOL_USE_EVENT_MESSAGES = {
         "tool_names": {
             "list_collections": "List Collections",
             "search_collection": "Search Collection",
+            "search_chat_files": "Search Chat Files",
             "web_search": "Web Search",
             "web_read": "Read Web Pages",
             "unknown": "Tool Call",
@@ -29,6 +30,7 @@ TOOL_USE_EVENT_MESSAGES = {
         "requests": {
             "list_collections": "Getting all available collections",
             "search_collection": 'Searching for "{query}" using {search_types}, returning top {topk} results',
+            "search_chat_files": 'Searching chat files for "{query}" using {search_types}, returning top {topk} results',
             "web_search": 'Searching the web for "{query}", returning {max_results} results',
             "web_read": "Reading content from {count} web pages",
         },
@@ -39,6 +41,11 @@ TOOL_USE_EVENT_MESSAGES = {
                 "success": 'Found {count} results for "{query}"',
                 "searching": 'Searched for "{query}"',  # Used when 0 results but valid query
                 "error": "Search failed",
+            },
+            "search_chat_files": {
+                "success": 'Found {count} results for "{query}" in chat files',
+                "searching": 'Searched chat files for "{query}"',  # Used when 0 results but valid query
+                "error": "Chat files search failed",
             },
             "web_search": {"success": "Found {count} web results", "error": "Web search failed"},
             "web_read": {"success": "Successfully read {count} pages", "error": "Failed to read web pages"},
@@ -63,6 +70,7 @@ TOOL_USE_EVENT_MESSAGES = {
         "tool_names": {
             "list_collections": "获取集合列表",
             "search_collection": "搜索集合",
+            "search_chat_files": "搜索聊天文件",
             "web_search": "网页搜索",
             "web_read": "读取网页",
             "unknown": "工具调用",
@@ -71,6 +79,7 @@ TOOL_USE_EVENT_MESSAGES = {
         "requests": {
             "list_collections": "获取所有可用集合",
             "search_collection": "使用{search_types}搜索「{query}」，返回前 {topk} 条结果",
+            "search_chat_files": "使用{search_types}搜索聊天文件中的「{query}」，返回前 {topk} 条结果",
             "web_search": "在网上搜索「{query}」，返回 {max_results} 条结果",
             "web_read": "读取 {count} 个网页的内容",
         },
@@ -81,6 +90,11 @@ TOOL_USE_EVENT_MESSAGES = {
                 "success": "搜索「{query}」找到 {count} 条结果",
                 "searching": "已搜索「{query}」",  # Used when 0 results but valid query
                 "error": "搜索失败",
+            },
+            "search_chat_files": {
+                "success": "在聊天文件中搜索「{query}」找到 {count} 条结果",
+                "searching": "已在聊天文件中搜索「{query}」",  # Used when 0 results but valid query
+                "error": "聊天文件搜索失败",
             },
             "web_search": {"success": "网页搜索找到 {count} 条结果", "error": "网页搜索失败"},
             "web_read": {"success": "成功读取 {count} 个网页", "error": "读取网页失败"},

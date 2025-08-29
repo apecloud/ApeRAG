@@ -53,7 +53,12 @@ class ToolResultFormatter:
                     return "web_search", WebSearchResponse.model_validate(content)
                 else:
                     # SearchResult: has 'query' but not 'results' (has 'items')
-                    return "search_collection", SearchResult.model_validate(content)
+                    # Check if this is a chat search result by looking at context
+                    parsed_result = SearchResult.model_validate(content)
+                    if "current_search_type" in self.context and self.context["current_search_type"] == "chat_files":
+                        return "search_chat_files", parsed_result
+                    else:
+                        return "search_collection", parsed_result
 
             # CollectionList: has 'items' but no 'query'
             elif "items" in content:
@@ -70,7 +75,7 @@ class ToolResultFormatter:
 
     def should_display_result(self, interface_type: str, typed_result: Any, content: Any) -> bool:
         """Determine if result should be displayed"""
-        if interface_type == "search_collection":
+        if interface_type == "search_collection" or interface_type == "search_chat_files":
             result: SearchResult = typed_result
             return bool(result.query and result.query.strip())
 
@@ -85,6 +90,8 @@ class ToolResultFormatter:
         # Route to type-specific formatters
         if interface_type == "search_collection":
             return self._format_search_collection(typed_result)
+        elif interface_type == "search_chat_files":
+            return self._format_search_chat_files(typed_result)
         elif interface_type == "list_collections":
             return self._format_list_collections(typed_result)
         elif interface_type == "web_search":
@@ -150,6 +157,68 @@ class ToolResultFormatter:
                 breakdown_parts.append(f"图谱搜索：{graph_count} 条")
             else:
                 breakdown_parts.append(f"Graph: {graph_count}")
+        if vector_count > 0:
+            if self.language == "zh-CN":
+                breakdown_parts.append(f"向量搜索：{vector_count} 条")
+            else:
+                breakdown_parts.append(f"Vector: {vector_count}")
+        if fulltext_count > 0:
+            if self.language == "zh-CN":
+                breakdown_parts.append(f"全文搜索：{fulltext_count} 条")
+            else:
+                breakdown_parts.append(f"Full-text: {fulltext_count}")
+
+        if breakdown_parts:
+            results += "\n\n • " + "\n\n • ".join(breakdown_parts)
+
+        return f"{execution}\n\n{results}"
+
+    def _format_search_chat_files(self, result: SearchResult) -> str:
+        """Format search chat files result"""
+        query = result.query or ""
+
+        # Count results by type
+        vector_count = sum(1 for item in (result.items or []) if item.recall_type == "vector_search")
+        fulltext_count = sum(1 for item in (result.items or []) if item.recall_type == "fulltext_search")
+        total_count = len(result.items or [])
+
+        # Determine search types used (infer from results)
+        search_types = []
+        if vector_count > 0:
+            search_types.append(self.messages["search_types"]["vector_search"])
+        if fulltext_count > 0:
+            search_types.append(self.messages["search_types"]["fulltext_search"])
+
+        # Default if no results
+        if not search_types:
+            if self.language == "zh-CN":
+                search_types = ["向量搜索"]
+            else:
+                search_types = ["vector search"]
+
+        search_methods = ", ".join(search_types)
+
+        # Part 1: Search execution
+        if self.language == "zh-CN":
+            execution = f"**使用{search_methods}在聊天文件中查找「{query}」**"
+        else:
+            execution = f'**Using {search_methods} to search chat files for "{query}"**'
+
+        # Part 2: Results (only if has results)
+        if total_count == 0:
+            if self.language == "zh-CN":
+                results = "没有找到任何相关结果"
+            else:
+                results = "No relevant results found"
+            return f"{execution}\n\n{results}"
+        else:
+            if self.language == "zh-CN":
+                results = f"找到 {total_count} 条相关结果"
+            else:
+                results = f"Found {total_count} relevant results"
+
+        # Add breakdown of result types (only non-zero)
+        breakdown_parts = []
         if vector_count > 0:
             if self.language == "zh-CN":
                 breakdown_parts.append(f"向量搜索：{vector_count} 条")
@@ -380,6 +449,21 @@ def format_tool_request_display(tool_name: str, arguments: dict, language: str =
             search_types.append(messages["search_types"]["fulltext_search"])
 
         details = messages["requests"]["search_collection"].format(
+            query=query, search_types="/".join(search_types), topk=topk
+        )
+    elif tool_name == "search_chat_files":
+        query = arguments.get("query", "")
+        use_vector = arguments.get("use_vector_index", True)
+        use_fulltext = arguments.get("use_fulltext_index", True)
+        topk = arguments.get("topk", 5)
+
+        search_types = []
+        if use_vector:
+            search_types.append(messages["search_types"]["vector_search"])
+        if use_fulltext:
+            search_types.append(messages["search_types"]["fulltext_search"])
+
+        details = messages["requests"]["search_chat_files"].format(
             query=query, search_types="/".join(search_types), topk=topk
         )
     elif tool_name == "web_search":
