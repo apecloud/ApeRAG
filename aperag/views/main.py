@@ -285,7 +285,8 @@ async def search_chat_files_view(
         # Create a modified search request that includes chat_id in the flow execution
         # We need to use the collection_service.create_search but pass the chat_id
         # for filtering by chat context in the search flow
-        from aperag.flow.engine import FlowEngine, FlowInstance, NodeInstance, Edge
+        from aperag.flow.base.models import FlowInstance, NodeInstance, Edge
+        from aperag.flow.engine import FlowEngine
         from aperag.schema.view_models import SearchResult, SearchResultItem
         from aperag.service.default_model_service import default_model_service
         

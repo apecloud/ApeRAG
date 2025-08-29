@@ -391,7 +391,7 @@ class AgentChatService:
             llm = await session.get_llm(agent_message.completion.model)
             llm.history = memory
 
-            comprehensive_prompt = build_agent_query_prompt(agent_message=agent_message, user=user)
+            comprehensive_prompt = build_agent_query_prompt(chat_id, agent_message=agent_message, user=user)
             request_params = RequestParams(
                 maxTokens=8192,
                 model=agent_message.completion.model,

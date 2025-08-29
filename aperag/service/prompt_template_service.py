@@ -263,7 +263,7 @@ def list_prompt_templates(language: str) -> view_models.PromptTemplateList:
     return view_models.PromptTemplateList(items=response)
 
 
-def build_agent_query_prompt(agent_message: view_models.AgentMessage, user: str, language: str = "en-US") -> str:
+def build_agent_query_prompt(chat_id: str, agent_message: view_models.AgentMessage, user: str, language: str = "en-US") -> str:
     """
     Build a comprehensive prompt for LLM that includes context about user preferences,
     available collections, and web search status.
@@ -315,19 +315,19 @@ def build_agent_query_prompt(agent_message: view_models.AgentMessage, user: str,
             web_instruction = "Rely entirely on knowledge collections; inform user if web search would be helpful"
 
     # Determine chat context
-    if agent_message.chat_id:
+    if chat_id:
         if language == "zh-CN":
-            chat_context = f"聊天ID: {agent_message.chat_id}"
+            chat_context = f"聊天ID: {chat_id}"
             chat_instruction = "可使用 search_chat_files 工具搜索此聊天中上传的文件"
         else:
-            chat_context = f"Chat ID: {agent_message.chat_id}"
+            chat_context = f"Chat ID: {chat_id}"
             chat_instruction = "Use search_chat_files tool to search files uploaded in this chat"
     else:
         if language == "zh-CN":
-            chat_context = "聊天文件为空"
+            chat_context = "无"
             chat_instruction = ""
         else:
-            chat_context = "No files in chat"
+            chat_context = "No chat files"
             chat_instruction = ""
 
     # Use language-specific template
