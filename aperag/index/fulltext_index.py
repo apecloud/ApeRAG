@@ -55,7 +55,7 @@ class FulltextIndexer(BaseIndexer):
         """Fulltext indexing is always enabled"""
         return True
 
-    def _extract_chunk_data(self, part, document_id: str = None) -> Tuple[str, str, Dict[str, Any]]:
+    def _extract_chunk_data(self, part) -> Tuple[str, str, Dict[str, Any]]:
         """Extract chunk content, title and metadata from a document part"""
         if not hasattr(part, "content") or not part.content or not part.content.strip():
             return "", "", {}
@@ -83,7 +83,7 @@ class FulltextIndexer(BaseIndexer):
         chunked_parts = rechunk(doc_parts, chunk_size, chunk_overlap_size, tokenizer)
 
         for chunk_idx, part in enumerate(chunked_parts):
-            chunk_content, title_text, chunk_metadata = self._extract_chunk_data(part, document_id)
+            chunk_content, title_text, chunk_metadata = self._extract_chunk_data(part)
             if not chunk_content:
                 continue
 

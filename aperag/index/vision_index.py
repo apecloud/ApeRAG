@@ -114,10 +114,6 @@ class VisionIndexer(BaseIndexer):
                 metadata["mimetype"] = mime_type
                 metadata["indexer"] = "vision"
                 metadata["index_method"] = "multimodal_embedding"
-                
-                # Check if part already has chat metadata from parse_document_content
-                if hasattr(part, 'metadata') and part.metadata and part.metadata.get("chat_id"):
-                    metadata["chat_id"] = part.metadata["chat_id"]
                 asset_url = f"asset://{part.asset_id}"
                 if part.mime_type:
                     asset_url += f"?mime_type={quote_plus(part.mime_type)}"
@@ -222,11 +218,6 @@ class VisionIndexer(BaseIndexer):
                         metadata["mimetype"] = mime_type
                         metadata["indexer"] = "vision"
                         metadata["index_method"] = "vision_to_text"
-                        
-                        # Check if part already has chat metadata from parse_document_content
-                        if hasattr(part, 'metadata') and part.metadata and part.metadata.get("chat_id"):
-                            metadata["chat_id"] = part.metadata["chat_id"]
-                            
                         text_nodes.append(TextNode(text=description, metadata=metadata))
 
                 vectors = embedding_svc.embed_documents([node.get_content() for node in text_nodes])
