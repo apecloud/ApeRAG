@@ -16,7 +16,7 @@ from typing import List, Optional
 
 from sqlalchemy import and_, desc, func, select
 
-from aperag.db.models import Collection, CollectionMarketplace, CollectionStatus, User
+from aperag.db.models import Collection, CollectionMarketplace, CollectionStatus, CollectionType, User
 from aperag.db.repositories.base import (
     AsyncRepositoryProtocol,
     SyncRepositoryProtocol,
@@ -133,7 +133,7 @@ class AsyncCollectionRepositoryMixin(AsyncRepositoryProtocol):
                 .where(
                     Collection.user.in_(users), 
                     Collection.status != CollectionStatus.DELETED,
-                    Collection.is_chat_collection != True  # Exclude chat collections from regular list
+                    Collection.type != CollectionType.CHAT # Exclude chat collections from regular list
                 )
                 .order_by(desc(Collection.gmt_created))
             )
@@ -172,7 +172,7 @@ class AsyncCollectionRepositoryMixin(AsyncRepositoryProtocol):
                 .where(
                     Collection.user == user_id, 
                     Collection.status != CollectionStatus.DELETED,
-                    Collection.is_chat_collection != True  # Exclude chat collections from regular list
+                    Collection.type != CollectionType.CHAT  # Exclude chat collections from regular list
                 )
                 .order_by(desc(Collection.gmt_created))
             )
@@ -189,7 +189,7 @@ class AsyncCollectionRepositoryMixin(AsyncRepositoryProtocol):
                 .where(
                     Collection.user == user, 
                     Collection.status != CollectionStatus.DELETED,
-                    Collection.is_chat_collection != True  # Exclude chat collections from regular count
+                    Collection.type != CollectionType.CHAT  # Exclude chat collections from regular count
                 )
             )
             return await session.scalar(stmt)

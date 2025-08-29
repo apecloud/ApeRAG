@@ -90,25 +90,18 @@ class SummaryIndexer(BaseIndexer):
                     collection=generate_vector_db_collection_name(collection_id=collection.id)
                 )
 
-                # Create summary metadata
-                summary_metadata = {
-                    "document_id": document_id,
-                    "document_name": document.name,
-                    "name": f"{document.name} - Summary",
-                    "indexer": "summary",
-                    "index_method": "summary",
-                    "collection_id": collection.id,
-                    "content_type": "summary",
-                }
-                
-                # Check if doc_parts already have chat metadata from parse_document_content
-                if doc_parts and hasattr(doc_parts[0], 'metadata') and doc_parts[0].metadata and doc_parts[0].metadata.get("chat_id"):
-                    summary_metadata["chat_id"] = doc_parts[0].metadata["chat_id"]
-
                 # Create a TextPart for the summary
                 summary_part = TextPart(
                     content=summary,
-                    metadata=summary_metadata,
+                    metadata={
+                        "document_id": document_id,
+                        "document_name": document.name,
+                        "name": f"{document.name} - Summary",
+                        "indexer": "summary",
+                        "index_method": "summary",
+                        "collection_id": collection.id,
+                        "content_type": "summary",
+                    },
                 )
 
                 # Store summary vector in vector database

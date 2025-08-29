@@ -124,7 +124,7 @@ class ChatCollectionService:
             # Update collection to mark as chat collection
             collection_obj = await session.get(Collection, collection_response.id)
             if collection_obj:
-                collection_obj.is_chat_collection = True
+                collection_obj.type = CollectionType.CHAT
                 session.add(collection_obj)
                 await session.flush()
             
