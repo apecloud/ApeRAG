@@ -19,7 +19,7 @@ export default async function Page() {
             href: '/workspace/collections',
           },
           {
-            title: 'Settings',
+            title: page_collections('settings'),
           },
         ]}
       />

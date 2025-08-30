@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api/client';
 import { Slot } from '@radix-ui/react-slot';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
@@ -26,7 +27,9 @@ export const EvaluationDeleteItem = ({
 }) => {
   const [visible, setVisible] = useState<boolean>(false);
   const router = useRouter();
-
+  const page_evaluation = useTranslations('page-evaluation');
+  const common_action = useTranslations('common.action');
+  const common_tips = useTranslations('common.tips');
   const handleDelete = useCallback(async () => {
     if (evaluation?.id) {
       await apiClient.evaluationApi.deleteEvaluationApiV1EvaluationsEvalIdDelete(
@@ -53,19 +56,18 @@ export const EvaluationDeleteItem = ({
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogTitle>{common_tips('confirm')}</AlertDialogTitle>
           <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete
-            collection and remove your evaluation from our servers.
+            {page_evaluation('delete_evaluation_confirm')}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogDescription></AlertDialogDescription>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => setVisible(false)}>
-            Cancel
+            {common_action('cancel')}
           </AlertDialogCancel>
           <Button variant="destructive" onClick={() => handleDelete()}>
-            Continue
+            {common_action('continue')}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -1,7 +1,14 @@
 'use server';
 
-import { defaultLocale, localeCookieName, LocaleEnum, locales } from '@/config';
 import { cookies } from 'next/headers';
+
+const localeCookieName = 'locale';
+const locales = ['en-US', 'zh-CN'] as const;
+
+type LocaleEnum = (typeof locales)[number];
+
+const defaultLocale: LocaleEnum = (process.env.NEXT_PUBLIC_DEFAULT_LOCALE ||
+  'en-US') as LocaleEnum;
 
 /**
  * get locale

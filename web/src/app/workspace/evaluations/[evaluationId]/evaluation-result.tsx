@@ -35,6 +35,7 @@ import {
   RotateCcw,
   Trash,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { EvaluationDeleteItem } from './evaluation-delete';
@@ -88,7 +89,7 @@ export const EvaluationResult = ({
   evaluation: EvaluationDetail;
 }) => {
   const [evaluation, setEvaluation] = useState<EvaluationDetail>(initData);
-
+  const page_evaluation = useTranslations('page-evaluation');
   const loadData = useCallback(async () => {
     if (!evaluation.id) return;
     const res =
@@ -136,7 +137,9 @@ export const EvaluationResult = ({
             </div>
 
             <div className="flex flex-row gap-1">
-              <span className="text-muted-foreground">Collection: </span>
+              <span className="text-muted-foreground">
+                {page_evaluation('collection')}:{' '}
+              </span>
               <Link
                 href={`/workspace/collections/${evaluation.config?.collection_id}/documents`}
                 className="hover:text-primary underline"
@@ -146,7 +149,9 @@ export const EvaluationResult = ({
             </div>
 
             <div className="flex flex-row gap-1">
-              <span className="text-muted-foreground">Question Set: </span>
+              <span className="text-muted-foreground">
+                {page_evaluation('question_set')}:{' '}
+              </span>
               <span>
                 <Link
                   href={`/workspace/evaluations/questions/${evaluation.config?.question_set_id}`}
@@ -160,7 +165,7 @@ export const EvaluationResult = ({
           <CardAction className="flex flex-row gap-4">
             <div className="flex flex-row items-center">
               <span className="text-muted-foreground text-sm">
-                Avg. Score: &nbsp;
+                {page_evaluation('avg_score')}: &nbsp;
               </span>
               <span className="text-2xl font-bold">
                 {evaluation.average_score}
@@ -180,7 +185,8 @@ export const EvaluationResult = ({
                   evaluation={evaluation}
                 >
                   <ListRestart />
-                  Retry Failed
+
+                  {page_evaluation('retry_failed_evaluation')}
                 </EvaluationRetryItem>
                 <EvaluationRetryItem
                   onRetry={loadData}
@@ -188,13 +194,13 @@ export const EvaluationResult = ({
                   evaluation={evaluation}
                 >
                   <RotateCcw />
-                  Retry All
+                  {page_evaluation('retry_all_evaluation')}
                 </EvaluationRetryItem>
 
                 <DropdownMenuSeparator />
                 <EvaluationDeleteItem evaluation={evaluation}>
                   <DropdownMenuItem variant="destructive">
-                    <Trash /> Delete
+                    <Trash /> {page_evaluation('delete_evaluation')}
                   </DropdownMenuItem>
                 </EvaluationDeleteItem>
               </DropdownMenuContent>

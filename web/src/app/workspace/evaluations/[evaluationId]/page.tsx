@@ -6,6 +6,7 @@ import {
 
 import { getServerApi } from '@/lib/api/server';
 
+import { getTranslations } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { EvaluationResult } from './evaluation-result';
 
@@ -16,7 +17,7 @@ export default async function Page({
 }) {
   const { evaluationId } = await params;
   const serverApi = await getServerApi();
-
+  const page_evaluation = await getTranslations('page-evaluation');
   let evaluation;
 
   try {
@@ -38,7 +39,10 @@ export default async function Page({
     <PageContainer>
       <PageHeader
         breadcrumbs={[
-          { title: 'Evaluation', href: '/workspace/evaluations' },
+          {
+            title: page_evaluation('metadata.title'),
+            href: '/workspace/evaluations',
+          },
           { title: evaluation.name || '--' },
         ]}
       />

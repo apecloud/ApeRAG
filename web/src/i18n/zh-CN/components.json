@@ -1,9 +1,16 @@
 {
   "dmermaid": {
-    "graph": "拓扑结构",
+    "graph": "流程拓扑",
     "data": "数据"
   },
   "copy_to_clipboard": {
     "copied": "复制成功"
+  },
+  "datagrid": {
+    "empty": "没有数据"
+  },
+  "pagination": {
+    "per_page": "每页条数",
+    "page_info": "第{page}页，共{total}页"
   }
 }

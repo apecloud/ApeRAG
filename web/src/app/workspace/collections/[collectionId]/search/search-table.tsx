@@ -47,8 +47,6 @@ import { SearchTest } from './search-test';
 
 export const SearchTable = ({ data }: { data: SearchResult[] }) => {
   const { collection } = useCollectionContext();
-
-  const page_collections = useTranslations('page_collections');
   const page_search = useTranslations('page_search');
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =

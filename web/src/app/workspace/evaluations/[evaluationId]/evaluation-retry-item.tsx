@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { apiClient } from '@/lib/api/client';
+import { useTranslations } from 'next-intl';
 
 import { useCallback, useState } from 'react';
 
@@ -31,7 +32,9 @@ export const EvaluationRetryItem = ({
   onRetry: () => void;
 }) => {
   const [visible, setVisible] = useState<boolean>(false);
-
+  const page_evaluation = useTranslations('page-evaluation');
+  const common_action = useTranslations('common.action');
+  const common_tips = useTranslations('common.tips');
   const handleRetry = useCallback(async () => {
     if (!evaluation.id) return;
 
@@ -60,18 +63,21 @@ export const EvaluationRetryItem = ({
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+          <AlertDialogTitle>{common_tips('confirm')}</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to re-evaluate these{' '}
-            {scope === 'all' ? 'all' : 'failed'} questions?
+            {scope === 'all'
+              ? page_evaluation('retry_all_evaluation_confirm')
+              : page_evaluation('retry_failed_evaluation_confirm')}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogDescription></AlertDialogDescription>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => setVisible(false)}>
-            Cancel
+            {common_action('cancel')}
           </AlertDialogCancel>
-          <Button onClick={() => handleRetry()}>Continue</Button>
+          <Button onClick={() => handleRetry()}>
+            {common_action('continue')}
+          </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

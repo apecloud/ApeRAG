@@ -6,11 +6,12 @@ import {
   PageTitle,
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
+import { getTranslations } from 'next-intl/server';
 import { EvaluationList } from './evaluation-list';
 
 export default async function Page() {
   const serverApi = await getServerApi();
-
+  const page_evaluation = await getTranslations('page-evaluation');
   const [resEvaluations] = await Promise.all([
     serverApi.evaluationApi.listEvaluationsApiV1EvaluationsGet({
       page: 1,
@@ -20,13 +21,13 @@ export default async function Page() {
 
   return (
     <PageContainer>
-      <PageHeader breadcrumbs={[{ title: 'Evaluation' }]} />
+      <PageHeader
+        breadcrumbs={[{ title: page_evaluation('metadata.title') }]}
+      />
       <PageContent>
-        <PageTitle>Evaluation</PageTitle>
+        <PageTitle>{page_evaluation('metadata.title')}</PageTitle>
         <PageDescription className="mb-8">
-          Efficiently track, manage, and review the historical performance of
-          your Retrieval-Augmented Generation (RAG) evaluations all in one
-          place.
+          {page_evaluation('metadata.description')}
         </PageDescription>
 
         <EvaluationList evaluations={resEvaluations.data.items || []} />

@@ -6,6 +6,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Button } from './ui/button';
 import { Label } from './ui/label';
 import {
@@ -41,6 +42,7 @@ export const DataGrid = ({
   idKey = 'id',
   ...props
 }: DataGridProps & React.ComponentProps<'div'>) => {
+  const components_datagrid = useTranslations('components.datagrid');
   return (
     <div
       className={cn('overflow-hidden rounded-lg border', className)}
@@ -87,7 +89,7 @@ export const DataGrid = ({
           ) : (
             <TableRow>
               <TableCell colSpan={1000} className="h-24 text-center">
-                No results.
+                {components_datagrid('empty')}
               </TableCell>
             </TableRow>
           )}
@@ -102,6 +104,7 @@ export const DataGridPagination = ({
   className,
   ...props
 }: DataGridPaginationProps & React.ComponentProps<'div'>) => {
+  const components_pagination = useTranslations('components.pagination');
   return (
     <div
       className={cn('flex items-center justify-between', className)}
@@ -114,7 +117,7 @@ export const DataGridPagination = ({
       <div className="flex w-full items-center gap-8 lg:w-fit">
         <div className="hidden items-center gap-2 lg:flex">
           <Label htmlFor="rows-per-page" className="text-sm font-medium">
-            Rows per page
+            {components_pagination('per_page')}
           </Label>
           <Select
             value={`${table.getState().pagination.pageSize}`}
@@ -139,8 +142,10 @@ export const DataGridPagination = ({
           </Select>
         </div>
         <div className="flex w-fit items-center justify-center text-sm font-medium">
-          Page {table.getState().pagination.pageIndex + 1} of{' '}
-          {table.getPageCount()}
+          {components_pagination('page_info', {
+            page: String(table.getState().pagination.pageIndex + 1),
+            total: String(table.getPageCount()),
+          })}
         </div>
         <div className="ml-auto flex items-center gap-2 lg:ml-0">
           <Button

@@ -17,6 +17,7 @@ import _ from 'lodash';
 import { Plus } from 'lucide-react';
 import Link from 'next/link';
 
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { EvaluationCreate } from './evaluation-create';
 
@@ -26,13 +27,13 @@ export const EvaluationList = ({
   evaluations: Evaluation[];
 }) => {
   const [searchValue, setSearchValue] = useState<string>('');
-
+  const page_evaluation = useTranslations('page-evaluation');
   return (
     <>
       <div className="mb-4 flex flex-row items-center">
         <div>
           <Input
-            placeholder="Search"
+            placeholder={page_evaluation('search')}
             value={searchValue}
             onChange={(e) => setSearchValue(e.currentTarget.value)}
           />
@@ -41,7 +42,9 @@ export const EvaluationList = ({
           <EvaluationCreate>
             <Button>
               <Plus />
-              <span className="hidden md:inline">Add evaluation</span>
+              <span className="hidden md:inline">
+                {page_evaluation('add_evaluation')}
+              </span>
             </Button>
           </EvaluationCreate>
         </div>
@@ -74,7 +77,7 @@ export const EvaluationList = ({
                     <CardContent className="flex flex-row justify-between">
                       <div className="w-6/12 text-center">
                         <div className="text-muted-foreground text-sm">
-                          Questions
+                          {page_evaluation('questions')}
                         </div>
                         <div
                           className={cn(
@@ -105,7 +108,7 @@ export const EvaluationList = ({
                       />
                       <div className="w-6/12 text-center">
                         <div className="text-muted-foreground text-sm">
-                          Avg. Score
+                          {page_evaluation('avg_score')}
                         </div>
                         <div className="text-xl font-bold">
                           {evaluation.average_score?.toFixed(2) ?? '-'}

@@ -5,6 +5,7 @@ import {
   PageHeader,
 } from '@/components/page-container';
 import { getServerApi } from '@/lib/api/server';
+import { getTranslations } from 'next-intl/server';
 import { CollectionHeader } from '../collection-header';
 
 export default async function Page({
@@ -14,6 +15,8 @@ export default async function Page({
 }>) {
   const { collectionId } = await params;
   const serverApi = await getServerApi();
+  const page_marketplace = await getTranslations('page_marketplace');
+  const page_graph = await getTranslations('page_graph');
   const [collectionRes] = await Promise.all([
     serverApi.defaultApi.marketplaceCollectionsCollectionIdGet({
       collectionId,
@@ -25,11 +28,14 @@ export default async function Page({
       <PageHeader
         breadcrumbs={[
           {
-            title: 'Collections',
+            title: page_marketplace('metadata.title'),
             href: '/workspace/market/collections',
           },
           {
-            title: 'Knowledge Graph',
+            title: collectionRes?.data.title,
+          },
+          {
+            title: page_graph('metadata.title'),
           },
         ]}
       />

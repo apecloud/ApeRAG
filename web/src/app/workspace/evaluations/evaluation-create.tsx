@@ -31,6 +31,7 @@ import {
 import { apiClient } from '@/lib/api/client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Slot } from '@radix-ui/react-slot';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -69,7 +70,8 @@ export const EvaluationCreate = ({
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
   const [agentModels, setAgentModels] = useState<ProviderModel[]>([]);
   const router = useRouter();
-
+  const common_action = useTranslations('common.action');
+  const page_evaluation = useTranslations('page-evaluation');
   const form = useForm<z.infer<typeof evaluationSchema>>({
     resolver: zodResolver(evaluationSchema),
     defaultValues: {
@@ -198,7 +200,7 @@ export const EvaluationCreate = ({
             className="space-y-8"
           >
             <DialogHeader>
-              <DialogTitle>Create Evaluation</DialogTitle>
+              <DialogTitle>{page_evaluation('add_evaluation')}</DialogTitle>
               <DialogDescription></DialogDescription>
             </DialogHeader>
             <FormField
@@ -206,9 +208,14 @@ export const EvaluationCreate = ({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Evaluation Name</FormLabel>
+                  <FormLabel>{page_evaluation('evaluation_name')}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter the evaluation name" {...field} />
+                    <Input
+                      placeholder={page_evaluation(
+                        'evaluation_name_placeholder',
+                      )}
+                      {...field}
+                    />
                   </FormControl>
                 </FormItem>
               )}
@@ -220,19 +227,23 @@ export const EvaluationCreate = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    <span>Collection</span>
+                    <span>{page_evaluation('collection')}</span>
 
                     <Link
                       className="text-muted-foreground hover:text-primary ml-auto underline"
                       href="/workspace/collections/new"
                     >
-                      Create Collection
+                      {page_evaluation('add_collection')}
                     </Link>
                   </FormLabel>
                   <FormControl>
                     <Select {...field} onValueChange={field.onChange}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a model" />
+                        <SelectValue
+                          placeholder={page_evaluation(
+                            'collection_placeholder',
+                          )}
+                        />
                       </SelectTrigger>
                       <SelectContent>
                         {collections.map((item) => {
@@ -255,18 +266,22 @@ export const EvaluationCreate = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    <span>Question Set</span>
+                    <span>{page_evaluation('question_set')}</span>
                     <Link
                       className="text-muted-foreground hover:text-primary ml-auto underline"
                       href="/workspace/evaluations/questions"
                     >
-                      Create question set
+                      {page_evaluation('add_question_set')}
                     </Link>
                   </FormLabel>
                   <FormControl>
                     <Select {...field} onValueChange={field.onChange}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a model" />
+                        <SelectValue
+                          placeholder={page_evaluation(
+                            'question_set_placeholder',
+                          )}
+                        />
                       </SelectTrigger>
                       <SelectContent>
                         {questionSets.map((item) => {
@@ -288,11 +303,13 @@ export const EvaluationCreate = ({
               name="agent_llm_config.model_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Agent LLM</FormLabel>
+                  <FormLabel>{page_evaluation('agent_llm')}</FormLabel>
                   <FormControl>
                     <Select {...field} onValueChange={field.onChange}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a model" />
+                        <SelectValue
+                          placeholder={page_evaluation('agent_llm_placeholder')}
+                        />
                       </SelectTrigger>
                       <SelectContent>
                         {agentModels.map((item) => {
@@ -324,11 +341,13 @@ export const EvaluationCreate = ({
               name="judge_llm_config.model_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Judge LLM</FormLabel>
+                  <FormLabel>{page_evaluation('judge_llm')}</FormLabel>
                   <FormControl>
                     <Select {...field} onValueChange={field.onChange}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a model" />
+                        <SelectValue
+                          placeholder={page_evaluation('judge_llm_placeholder')}
+                        />
                       </SelectTrigger>
                       <SelectContent>
                         {agentModels.map((item) => {
@@ -361,9 +380,9 @@ export const EvaluationCreate = ({
                 variant="outline"
                 onClick={() => setVisible(false)}
               >
-                Cancel
+                {common_action('cancel')}
               </Button>
-              <Button type="submit">Save</Button>
+              <Button type="submit">{common_action('save')}</Button>
             </DialogFooter>
           </form>
         </Form>

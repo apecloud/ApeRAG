@@ -5,5 +5,12 @@
   },
   "copy_to_clipboard": {
     "copied": "Copied"
+  },
+  "datagrid": {
+    "empty": "No results."
+  },
+  "pagination": {
+    "per_page": "Rows per page",
+    "page_info": "Page {page} of {total}"
   }
 }
